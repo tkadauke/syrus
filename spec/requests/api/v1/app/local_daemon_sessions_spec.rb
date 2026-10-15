@@ -65,6 +65,17 @@ RSpec.describe "App API local daemon sessions", type: :request do
       expect(parse_body.dig("daemon_session", "auth_token")).to be_present
     end
 
+    it "forbids a chat member from creating the owner's daemon session" do
+      owner = Factories.user
+      chat = ChatSession.create!(user: owner, mode: "local", conversation_kind: "group")
+      chat.chat_participants.create!(user: user, role: "member")
+      sign_in_as(user)
+
+      expect { post daemon_session_path(chat) }.not_to change(LocalDaemonSession, :count)
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
+
     it "returns the reconnect command without marking a disconnected daemon connected" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, mode: "local", local_daemon_state: "disconnected")
@@ -82,6 +93,29 @@ RSpec.describe "App API local daemon sessions", type: :request do
       expect(parse_body.dig("daemon_session", "connected")).to be(false)
       expect(session.reload).to be_disconnected
       expect(chat.reload.local_daemon_state).to eq("disconnected")
+    end
+  end
+
+  describe "DELETE /api/v1/app/chats/:chat_id/local_daemon_session" do
+    it "lets the chat owner destroy the daemon session" do
+      chat = ChatSession.create!(user: user, mode: "local")
+      LocalDaemonSession.create!(chat_session: chat, user: user)
+      sign_in_as(user)
+
+      expect { delete daemon_session_path(chat) }.to change(LocalDaemonSession, :count).by(-1)
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "forbids a chat member from destroying the owner's daemon session" do
+      owner = Factories.user
+      chat = ChatSession.create!(user: owner, mode: "local", conversation_kind: "group")
+      chat.chat_participants.create!(user: user, role: "member")
+      session = LocalDaemonSession.create!(chat_session: chat, user: owner)
+      sign_in_as(user)
+
+      expect { delete daemon_session_path(chat) }.not_to change(LocalDaemonSession, :count)
+      expect(response).to have_http_status(:forbidden)
+      expect(session.reload).to be_persisted
     end
   end
 end

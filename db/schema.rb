@@ -1859,6 +1859,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.datetime "last_heartbeat_at"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "connection_id"
     t.index ["auth_token"], name: "index_local_daemon_sessions_on_auth_token", unique: true
     t.index ["chat_session_id"], name: "index_local_daemon_sessions_on_chat_session_id"
     t.index ["user_id"], name: "index_local_daemon_sessions_on_user_id"

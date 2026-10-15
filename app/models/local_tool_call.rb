@@ -18,7 +18,13 @@ class LocalToolCall < ApplicationRecord
   scope :terminal, -> { where(state: %w[completed failed]) }
 
   def dispatch!
-    update!(state: "dispatched", dispatched_at: Time.current)
+    claimed = self.class.where(id: id, state: "pending").update_all(
+      state: "dispatched",
+      dispatched_at: Time.current,
+      updated_at: Time.current
+    ) == 1
+    reload if claimed
+    claimed
   end
 
   def complete!(result:)
