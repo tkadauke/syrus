@@ -359,8 +359,24 @@ RSpec.describe MuseInvocation do
         transcript_policy: :exec_jsonl
       ).run
 
-      expect(captured.first.fetch(:activity_probe).call).to eq(File.mtime(session_log))
+      probe = captured.first.fetch(:activity_probe)
+      expect(Dir).to receive(:glob).once.and_call_original
+      expect(probe.call).to eq(File.mtime(session_log))
+      expect(probe.call).to eq(File.mtime(session_log))
     end
+  end
+
+  it "does not build a session-log glob from an unsafe session id" do
+    invocation = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      muse_home: "/tmp/muse-home",
+      transcript_policy: :exec_jsonl
+    )
+
+    expect(Dir).not_to receive(:glob)
+    expect(invocation.send(:muse_session_activity_probe, "*")).to be_nil
   end
 
   it "uses muse export redacted transcripts by default" do

@@ -928,6 +928,38 @@ RSpec.describe ProcessRunner, :ci_only do
     toucher&.join
   end
 
+  it "silently times out when the configured activity probe does not change" do
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { Time.at(1) }
+    ).run
+
+    expect(result).to be_silent_timed_out
+    expect(result).not_to be_timed_out
+  end
+
+  it "silently times out when the configured activity probe fails" do
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { raise Errno::ENOENT }
+    ).run
+
+    expect(result).to be_silent_timed_out
+    expect(result).not_to be_timed_out
+  end
+
   it "detects a parent that exits while a child holds the stdout pipe open" do
     # Reproduces today's edge case: the agent process exits but a
     # child it spawned inherits the stdout fd and keeps the pipe
