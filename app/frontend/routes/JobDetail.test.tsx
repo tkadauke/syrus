@@ -2683,6 +2683,37 @@ describe("JobDetailView", () => {
     })
   })
 
+  it.each([
+    ["retry_succeeded", "Resolved after successful retry"],
+    ["skipped", "Acknowledged and skipped"]
+  ])("renders a %s post-implementation review as resolved without actions", (resolution, label) => {
+    renderJobDetail(jobPayload({
+      workflows: [workflow({ id: 8, steps: [step({
+        id: 13,
+        kind: "post_implementation_review",
+        display_name: "Post-implementation review",
+        warnings: [{
+          id: 5,
+          kind: "post_implementation_review_failed",
+          severity: "medium",
+          title: "Post-implementation review did not produce notes",
+          evidence: { resolution, resolved_at: "2026-10-15T12:00:00Z" },
+          suggested_prompt: null,
+          state: "dismissed",
+          created_job_id: null,
+          created_at: null
+        }]
+      })] })],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Post-implementation review/ }))
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry review" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Acknowledge and skip" })).not.toBeInTheDocument()
+  })
+
   it("renders agent summary as markdown in the Summary tab", () => {
     renderJobDetail(
       jobPayload({
