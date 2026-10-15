@@ -90,7 +90,7 @@ module Steps
     end
 
     def rev_parse(ref)
-      GitRunner.new.run("rev-parse", ref, chdir: workspace.path.to_s).strip
+      GitRunner.new.run("rev-parse", "--verify", "refs/heads/#{ref}", chdir: workspace.path.to_s).strip
     rescue GitRunner::GitError => e
       raise StepFailed, "stack_agent_rebase: expected local branch #{ref.inspect} after agent run: #{e.message}"
     end
