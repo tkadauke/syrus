@@ -413,7 +413,10 @@ syrus checkout --no-hooks EPIC-<number>
 
 The CLI does not run hooks for external-PR Jobs or plain branch-name
 checkouts. Those branches may be controlled by outside contributors, so their
-working-tree `.syrus.yml` is not treated as trusted local automation.
+working-tree `.syrus.yml` is not treated as trusted local automation. A
+completed Epic checkout also skips hooks when any child Job is an external PR,
+including when the checked-out branch is a merge train or a trusted descendant
+of that PR.
 
 When a post-checkout hook fails, the CLI prints the failed command and
 exit code, then exits non-zero. The checkout itself is not rolled back:

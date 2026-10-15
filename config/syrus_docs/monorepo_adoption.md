@@ -297,8 +297,9 @@ root `.syrus.yml`:
   and Epic checkouts; nested hooks run only for affected projects, with an
   all-project fallback when the CLI cannot compute the diff. Hooks are skipped
   for external-PR Jobs and plain branch names because those branches may be
-  controlled by outside contributors. Keep local-machine setup here, not agent
-  sandbox setup.
+  controlled by outside contributors. Completed Epic checkouts also skip hooks
+  when any child Job is an external PR, including merge trains and linear
+  stacks. Keep local-machine setup here, not agent sandbox setup.
 - **Visual review and previews**: put each product's `preview:` and
   `visual_review:` next to the project that owns it. Operators and visual
   review agents should choose among affected preview-capable projects rather
