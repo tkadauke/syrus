@@ -429,9 +429,11 @@ RSpec.describe RepositoryContent do
       expect(described_class.match?("*", "app/a.rb")).to be(false)
       expect(described_class.match?("**/*.rb", "a.rb")).to be(true)
       expect(described_class.match?("**/*.rb", "app/models/a.rb")).to be(true)
+      expect(described_class.match?("src/**/*.ts", "src/a.ts")).to be(true)
       expect(described_class.match?("app/**", "app/models/a.rb")).to be(true)
       expect(described_class.match?("**", "app/models/a.rb")).to be(true)
       expect(described_class.match?("*.{yml,yaml}", "config.yaml")).to be(true)
+      expect(described_class.match?("{a,b}/*.rb", "a/model.rb")).to be(true)
       expect(described_class.match?([ "*.md", "*.rb" ], "a.rb")).to be(true)
     end
   end

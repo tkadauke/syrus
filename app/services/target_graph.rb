@@ -207,7 +207,7 @@ class TargetGraph
   end
 
   def scope_matches?(patterns, changed_files)
-    changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
+    changed_files.any? { |file| RepositoryContent::Glob.match?(patterns, file) }
   end
 
   def project_contains_changed_file?(project, changed_files)
