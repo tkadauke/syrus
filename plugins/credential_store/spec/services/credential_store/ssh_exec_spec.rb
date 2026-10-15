@@ -132,6 +132,9 @@ RSpec.describe CredentialStore::SshExec do
       result: "denied",
       denial_reason: "credential revoked"
     )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include(
+      "command_sha256" => Digest::SHA256.hexdigest("uptime"), "command" => "uptime"
+    )
   end
 
   it "denies host constraint mismatches before invoking the runner" do
@@ -145,6 +148,9 @@ RSpec.describe CredentialStore::SshExec do
     expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
       result: "denied",
       denial_reason: "host not allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include(
+      "command_sha256" => Digest::SHA256.hexdigest("uptime"), "command" => "uptime"
     )
   end
 
