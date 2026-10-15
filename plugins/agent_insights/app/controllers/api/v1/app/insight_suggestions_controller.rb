@@ -70,6 +70,7 @@ module Api
         def update
           suggestion = find_suggestion
           return unless suggestion
+          return unless authorize_repository_write!(suggestion.repository)
 
           case params[:action_type]
           when "accept"
@@ -418,7 +419,8 @@ module Api
             id: repository.id,
             slug: repository.slug,
             repository_path: repository_path(repository),
-            insights_path: "/repositories/#{repository.id}/plugin/insights"
+            insights_path: "/repositories/#{repository.id}/plugin/insights",
+            can_write: RepositoryPolicy.new(Current.user, repository).write?
           }
         end
 

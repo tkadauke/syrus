@@ -97,6 +97,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 
       expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("repository", "can_write")).to be false
     end
 
     it "returns 404 for a user who is neither the owner nor a member" do
@@ -542,9 +543,9 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.reload.dismissed?).to be true
     end
 
-    it "allows a repository collaborator to dismiss a suggestion" do
-      collaborator = Factories.user(email_address: "insight-dismiss@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "read")
+    it "allows a write-tier repository collaborator to dismiss a suggestion" do
+      collaborator = Factories.user(email_address: "insight-dismiss-writer@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
       suggestion = create_suggestion
       sign_in_as(collaborator)
 
@@ -553,6 +554,20 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(suggestion.reload).to be_dismissed
+    end
+
+    it "rejects a read-only repository collaborator" do
+      collaborator = Factories.user(email_address: "insight-dismiss-reader@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      suggestion = create_suggestion
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "dismiss" }, as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(suggestion.reload).to be_pending
     end
 
     it "returns 422 when the suggestion is already accepted" do
@@ -600,9 +615,9 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.reload.accepted?).to be true
     end
 
-    it "allows a repository collaborator to accept a suggestion" do
+    it "allows a write-tier repository collaborator to accept a suggestion" do
       collaborator = Factories.user(email_address: "insight-accept@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "read")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
       suggestion = create_suggestion
       sign_in_as(collaborator)
 
@@ -782,9 +797,9 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.accepted_at).to be_present
     end
 
-    it "allows a repository collaborator to save the suggested memory" do
+    it "allows a write-tier repository collaborator to save the suggested memory" do
       collaborator = Factories.user(email_address: "insight-memory@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "read")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
       suggestion = create_suggestion(memory_suggestion: "Keep shared context current")
       sign_in_as(collaborator)
 
@@ -840,11 +855,11 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.reload.dismissed_at).to be_nil
     end
 
-    it "allows a team collaborator to restore a dismissed suggestion" do
+    it "allows a write-tier team collaborator to restore a dismissed suggestion" do
       collaborator = Factories.user(email_address: "insight-team@example.com")
       team = Team.create!(name: "Insight collaborators")
       team.team_memberships.create!(user: collaborator, role: "member")
-      team.team_repositories.create!(repository: repository, role: "read")
+      team.team_repositories.create!(repository: repository, role: "write")
       suggestion = create_suggestion
       suggestion.dismiss!
       sign_in_as(collaborator)
