@@ -262,9 +262,14 @@
   stage a published ref you don't control — a successful pull would clobber
   what you meant to test. install.sh classifies pull failures: exit 30
   network/other, 31 access denied, 32 tag not found.
-- **AASM events on Run** — call `start!`, `succeed!`, `fail!`, `cancel!`,
-  always followed by `save!` (callbacks set timestamps but don't persist).
-  See `Run` model.
+- **AASM events on Run, Step, and Workflow** — lifecycle callbacks set
+  timestamps after AASM persists the transition. Ordinarily call `start!`,
+  `succeed!`, `fail!`, or `cancel!`, then `save!` to persist those callback
+  changes. Inside an outer transaction, do not follow a bang event with a
+  redundant save: Rails commit callbacks would see only that last save and
+  miss the state transition. Set the timestamp before the bang event instead,
+  so the transition persists both changes and remains visible to
+  `after_update_commit` guards.
 - **A failed Workflow must leave a failed Job.** `Job#mark_failed` only
   transitions `from: :running`, so a Workflow whose first Run fails *before the
   Workflow starts* (`started_at` nil, Job never left `:queued`) hit
