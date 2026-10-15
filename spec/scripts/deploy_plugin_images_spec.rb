@@ -19,7 +19,13 @@ RSpec.describe "bin/deploy plugin service images" do
     expect(status).to be_success
     expect(out).to include("plugins/git_mirror/container ghcr.io/tkadauke/syrus-plugin-git-mirror")
     expect(out).to include("plugins/plugin_runtime/container ghcr.io/tkadauke/syrus-plugin-runtime")
-    %w[bin/deploy bin/publish-plugin-images .github/workflows/release.yml].each do |path|
+    image_publishers = %w[
+      bin/deploy
+      bin/publish-plugin-images
+      .github/workflows/release.yml
+      .github/workflows/promote-release-images.yml
+    ]
+    image_publishers.each do |path|
       expect(File.read(File.join(root, path))).to include("syrus_plugin_images"), "#{path} should use the shared helper"
     end
   end
