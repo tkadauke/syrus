@@ -109,6 +109,20 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/coverage_hit_map", type:
 
     expect(response).to have_http_status(:ok)
   end
+
+  it "does not let a global-admin run token read a workflow outside its invocation scope" do
+    admin = Factories.user(admin: true)
+    repo = Factories.repository(user: admin)
+    current_job = Factories.job_with_run(repository: repo, issue_number: 100, run_attrs: { state: "running" })
+    other_workflow = Factories.job(user: admin, repository: repo, issue_number: 101).workflows.first
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+    allow_any_instance_of(Api::V1::App::WorkflowsController).to receive(:disallowed_invocation_param?).and_return(false)
+
+    get "/api/v1/app/workflows/#{other_workflow.id}/coverage_hit_map",
+        headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:not_found)
+  end
 end
 
 RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: :request do
