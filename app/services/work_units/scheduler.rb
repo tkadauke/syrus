@@ -23,7 +23,7 @@ module WorkUnits
         return result
       end
 
-      work_unit.unblock! if work_unit.blocked? && managed_blocked_reason?(work_unit.blocked_reason)
+      work_unit.resume_for_workflow! if work_unit.blocked? && managed_blocked_reason?(work_unit.blocked_reason)
       GateResult.pass
     end
 
