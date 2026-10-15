@@ -15,9 +15,9 @@ type WorkerRow = { key: string; hostname: string; pid: string | null; queues: st
 type ProcessRow = { key: string; kind: string | null; hostname: string; pid: string | null; lastHeartbeatAt: string | null; stale: boolean; status: string | null; capabilities: unknown; macosDrain: MacosDrain | null }
 
 type QueueDetailCard =
-  | { tab: "active"; jobs: JobRow[] }
+  | { tab: "active"; jobs: JobRow[]; total: number | null }
   | { tab: "pending"; jobs: JobRow[]; total: number | null }
-  | { tab: "failed"; failures: FailureRow[]; since: string | null }
+  | { tab: "failed"; failures: FailureRow[]; since: string | null; total: number | null }
   | { tab: "recurring"; tasks: TaskRow[] }
   | { tab: "workers"; workers: WorkerRow[]; processes: ProcessRow[] }
 
@@ -130,13 +130,13 @@ function parseQueueDetail(context: ToolCardContext): QueueDetailCard | null {
   switch (tab) {
     case "active":
       if (!Array.isArray(parsed.jobs)) return null
-      return { tab: "active", jobs: parsed.jobs.flatMap((job, index) => { const row = parseJobRow(job, index); return row ? [row] : [] }) }
+      return { tab: "active", jobs: parsed.jobs.flatMap((job, index) => { const row = parseJobRow(job, index); return row ? [row] : [] }), total: numberValue(parsed.total) }
     case "pending":
       if (!Array.isArray(parsed.jobs)) return null
       return { tab: "pending", jobs: parsed.jobs.flatMap((job, index) => { const row = parseJobRow(job, index); return row ? [row] : [] }), total: numberValue(parsed.total) }
     case "failed":
       if (!Array.isArray(parsed.failures)) return null
-      return { tab: "failed", failures: parsed.failures.flatMap((failure, index) => { const row = parseFailureRow(failure, index); return row ? [row] : [] }), since: displayValue(parsed.since) }
+      return { tab: "failed", failures: parsed.failures.flatMap((failure, index) => { const row = parseFailureRow(failure, index); return row ? [row] : [] }), since: displayValue(parsed.since), total: numberValue(parsed.total) }
     case "recurring":
       if (!Array.isArray(parsed.tasks)) return null
       return { tab: "recurring", tasks: parsed.tasks.flatMap((task, index) => { const row = parseTaskRow(task, index); return row ? [row] : [] }) }
@@ -157,14 +157,18 @@ function collapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   switch (card.tab) {
-    case "active":
-      return `${card.jobs.length} active job${card.jobs.length === 1 ? "" : "s"}`
+    case "active": {
+      const count = card.total ?? card.jobs.length
+      return `${count} active job${count === 1 ? "" : "s"}`
+    }
     case "pending": {
       const count = card.total ?? card.jobs.length
       return `${count} pending job${count === 1 ? "" : "s"}`
     }
-    case "failed":
-      return `${card.failures.length} failure${card.failures.length === 1 ? "" : "s"}`
+    case "failed": {
+      const count = card.total ?? card.failures.length
+      return `${count} failure${count === 1 ? "" : "s"}`
+    }
     case "recurring":
       return `${card.tasks.length} recurring task${card.tasks.length === 1 ? "" : "s"}`
     case "workers":
@@ -183,23 +187,31 @@ function MacosDrainCell({ drain }: { drain: MacosDrain | null }) {
   return <span>{state}{suffix ? ` · ${suffix}` : ""}</span>
 }
 
-function JobsTable({ jobs }: { jobs: JobRow[] }) {
+function TruncationNotice({ shown, total }: { shown: number; total: number | null }) {
+  if (total == null || total <= shown) return null
+  return <div className="text-2xs text-gray-500 dark:text-gray-400">Showing {shown} of {total}</div>
+}
+
+function JobsTable({ jobs, total = null }: { jobs: JobRow[]; total?: number | null }) {
   if (jobs.length === 0) return <EmptyState>No jobs found.</EmptyState>
   return (
-    <Table>
-      <THead columns={["Id", "Class", "Queue", "Created", "Claimed"]} />
-      <TBody>
-        {jobs.map((job) => (
-          <tr key={job.key}>
-            <Td mono>{job.id}</Td>
-            <Td maxWidth title={job.className ?? undefined}>{job.className || "—"}</Td>
-            <Td>{job.queueName || "—"}</Td>
-            <Td mono>{job.createdAt || "—"}</Td>
-            <Td mono>{job.claimedAt || "—"}</Td>
-          </tr>
-        ))}
-      </TBody>
-    </Table>
+    <>
+      <TruncationNotice shown={jobs.length} total={total} />
+      <Table>
+        <THead columns={["Id", "Class", "Queue", "Created", "Claimed"]} />
+        <TBody>
+          {jobs.map((job) => (
+            <tr key={job.key}>
+              <Td mono>{job.id}</Td>
+              <Td maxWidth title={job.className ?? undefined}>{job.className || "—"}</Td>
+              <Td>{job.queueName || "—"}</Td>
+              <Td mono>{job.createdAt || "—"}</Td>
+              <Td mono>{job.claimedAt || "—"}</Td>
+            </tr>
+          ))}
+        </TBody>
+      </Table>
+    </>
   )
 }
 
@@ -207,13 +219,13 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseQueueDetail(context)
   if (!card) return null
 
-  if (card.tab === "active") return <CardShell><JobsTable jobs={card.jobs} /></CardShell>
+  if (card.tab === "active") return <CardShell><JobsTable jobs={card.jobs} total={card.total} /></CardShell>
 
   if (card.tab === "pending") {
     return (
       <CardShell>
         {card.total != null ? <Row label="Total pending" value={String(card.total)} /> : null}
-        <JobsTable jobs={card.jobs} />
+        <JobsTable jobs={card.jobs} total={card.total} />
       </CardShell>
     )
   }
@@ -222,6 +234,7 @@ function renderExpanded(context: ToolCardContext) {
     return (
       <CardShell>
         {card.since ? <Row label="Since" value={card.since} /> : null}
+        <TruncationNotice shown={card.failures.length} total={card.total} />
         {card.failures.length === 0 ? (
           <EmptyState>No failures found.</EmptyState>
         ) : (

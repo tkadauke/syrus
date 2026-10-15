@@ -27,6 +27,14 @@ describe("admin_queue_detail tool card", () => {
     expect(screen.getByText("runs")).toBeInTheDocument()
   })
 
+  it("uses the total and identifies truncated active results", () => {
+    const parsedResult = { tab: "active", total: 740, jobs: [{ id: 1, class_name: "RunJob" }] }
+    expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("740 active jobs")
+
+    render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("Showing 1 of 740")).toBeInTheDocument()
+  })
+
   it("renders the failed tab with since and an empty state when there are no failures", () => {
     const parsedResult = { tab: "failed", since: "2026-09-06T00:00:00Z", failures: [] }
     expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("0 failures")
@@ -46,6 +54,18 @@ describe("admin_queue_detail tool card", () => {
     render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("RuntimeError")).toBeInTheDocument()
     expect(screen.getByText("boom")).toBeInTheDocument()
+  })
+
+  it("uses the total and identifies truncated failed results", () => {
+    const parsedResult = {
+      tab: "failed",
+      total: 740,
+      failures: [{ id: 9, class_name: "RunJob", exception_class: "RuntimeError", message: "boom" }]
+    }
+    expect(adminQueueDetailToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("740 failures")
+
+    render(<>{adminQueueDetailToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("Showing 1 of 740")).toBeInTheDocument()
   })
 
   it("renders the recurring tab", () => {
