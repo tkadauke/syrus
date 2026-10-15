@@ -3337,13 +3337,14 @@ Bundled plugins:
   (`Api::V1::App::CredentialsController#connect_onboarding_provider`), which
   resolves the one `PluginRecord` whose manifest declares `provides
   agent_provider:` for that provider key (`App::OnboardingAgentProviderPlugin`)
-  and flips it to `enabled: true` — never an admin-supplied or client-supplied
-  plugin name outside that mapping. The endpoint 403s once the current user
-  has finished first-run setup (`User#first_epic_landed?`, the same signal
-  `AppApi::SetupStatus` uses), so it can't be used as a general-purpose plugin
-  toggle outside onboarding; Settings' credential cards never call it, and an
-  operator who wants to enable a provider after onboarding still uses Admin ->
-  Plugins.
+  and enables it through the same dependency-cascade and beta-mode checks as
+  Admin -> Plugins — never an admin-supplied or client-supplied plugin name
+  outside that mapping. The endpoint requires an admin whose first-run setup
+  is still in progress; it 403s for non-admins and after that admin's first
+  Epic has landed (`User#first_epic_landed?`, the same signal
+  `AppApi::SetupStatus` uses). Settings' credential cards never call it, and
+  an operator who wants to enable a provider after onboarding still uses Admin
+  -> Plugins.
 - `github_source` — required GitHub issue/PR polling source and source-control
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
