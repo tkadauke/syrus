@@ -83,6 +83,16 @@ RSpec.describe "App API insight schedule configs", type: :request do
       expect(body["max_jobs_since_last_run"]).to eq(8)
     end
 
+    it "allows a repository collaborator to view the config" do
+      collaborator = Factories.user(email_address: "schedule-reader@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_schedule_config"
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "returns 404 for a repository not belonging to the user" do
       other_repo = Factories.repository(user: Factories.user)
 
@@ -128,6 +138,22 @@ RSpec.describe "App API insight schedule configs", type: :request do
       expect(config.enabled).to be true
       expect(config.min_jobs_since_last_run).to eq(2)
       expect(config.max_jobs_since_last_run).to eq(6)
+    end
+
+    it "allows a repository collaborator to update the config" do
+      collaborator = Factories.user(email_address: "schedule-collaborator@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/repositories/#{repository.id}/insight_schedule_config",
+            params: { enabled: true, min_jobs_since_last_run: 3, max_jobs_since_last_run: 7 }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(AgentInsights::ScheduleConfig.for_repository(repository)).to have_attributes(
+        enabled: true,
+        min_jobs_since_last_run: 3,
+        max_jobs_since_last_run: 7
+      )
     end
 
     it "returns 422 when min >= max" do

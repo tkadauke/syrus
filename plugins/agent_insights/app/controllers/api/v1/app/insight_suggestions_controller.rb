@@ -86,7 +86,7 @@ module Api
         end
 
         def discuss
-          suggestion = find_suggestion_for_discussion
+          suggestion = find_suggestion
           return unless suggestion
 
           chat_session = nil
@@ -205,14 +205,7 @@ module Api
         end
 
         def find_suggestion
-          suggestion = if Current.user.admin?
-            AgentInsights::Suggestion.find_by(id: params[:id])
-          else
-            AgentInsights::Suggestion
-              .joins(:repository)
-              .where(repositories: { id: Current.user.repositories.select(:id) })
-              .find_by(id: params[:id])
-          end
+          suggestion = accessible_suggestions.find_by(id: params[:id])
 
           unless suggestion
             render_error("not_found", "Insight suggestion not found.", status: :not_found)
@@ -221,25 +214,16 @@ module Api
           suggestion
         end
 
-        def find_suggestion_for_discussion
-          suggestion = AgentInsights::Suggestion
-            .joins(:repository)
-            .where(repositories: { id: Current.user.repositories.select(:id) })
-            .find_by(id: params[:id])
+        def accessible_suggestions
+          return AgentInsights::Suggestion.all if Current.user.admin?
 
-          unless suggestion
-            render_error("not_found", "Insight suggestion not found.", status: :not_found)
-            return nil
-          end
-          suggestion
+          AgentInsights::Suggestion
+            .joins(:repository)
+            .where(repositories: { id: Repository.accessible_to(Current.user).select(:id) })
         end
 
         def preview_suggestion
-          AgentInsights::Suggestion
-            .includes(:repository, :created_job)
-            .joins(:repository)
-            .where(repositories: { id: Repository.accessible_to(Current.user).select(:id) })
-            .find_by(id: params[:id])
+          accessible_suggestions.includes(:repository, :created_job).find_by(id: params[:id])
         end
 
         def handle_accept(suggestion)
@@ -288,10 +272,6 @@ module Api
           end
 
           repository = suggestion.repository
-          unless Current.user.repositories.exists?(id: repository.id)
-            render_error("forbidden", "Repository not accessible.", status: :forbidden)
-            return
-          end
 
           memory = nil
           ApplicationRecord.transaction do
