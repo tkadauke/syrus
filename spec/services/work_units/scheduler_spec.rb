@@ -28,6 +28,28 @@ RSpec.describe WorkUnits::Scheduler do
     expect(unit.reload).to have_attributes(state: "queued", blocked_reason: nil)
   end
 
+  it "restores a running landing unit and its surrendered repository lock" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+    workflow.update!(state: "running", started_at: 2.minutes.ago)
+    workflow.work_unit.mark_running!
+    landing_lock = workflow.work_unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:repository:%")
+    workflow.work_unit.block!(reason: "no_capable_worker")
+    expect(landing_lock.reload).not_to be_active
+
+    gate = Class.new do
+      def self.call(_unit) = WorkUnits::GateResult.pass
+    end
+    gate.const_set(:REASON, "no_capable_worker")
+    result = described_class.evaluate!(workflow.work_unit, gates: [ gate ])
+
+    expect(result).to be_pass
+    expect(workflow.work_unit.reload).to be_running
+    expect(workflow.work_unit.work_unit_locks.active.where("lock_key LIKE ?", "landing:repository:%")).to exist
+  end
+
   it "does not unblock a unit blocked by a reason outside the evaluated gates" do
     unit.block!(reason: "dependency_failed", details: { "dependency_id" => 123 })
 

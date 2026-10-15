@@ -34,6 +34,7 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     first_run = first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex")
     first_step.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
     first_run.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
     next_step = workflow.steps.order(:position).detect { |step| step.id != first_step.id }
     workflow.work_unit.block!(reason: "provider_availability", details: { "provider" => "codex" })
 
@@ -45,7 +46,7 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
 
     expect(result).to be_started
     expect(result.run.step).to eq(next_step)
-    expect(workflow.work_unit.reload).to be_queued
+    expect(workflow.work_unit.reload).to be_running
   end
 
   it "reactivates a terminal WorkUnit when its Workflow is still running" do
