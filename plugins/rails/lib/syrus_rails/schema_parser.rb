@@ -1,3 +1,5 @@
+require "active_support/inflector"
+
 module SyrusRails
   # Line-by-line parser for Rails db/schema.rb files.
   # Handles create_table blocks with column/index declarations,
@@ -31,7 +33,7 @@ module SyrusRails
           current_table = m[1]
           @tables[current_table] ||= { name: current_table, columns: [], indexes: [], foreign_keys: [] }
 
-        elsif line =~ /\bend\b/ && current_table && !line.match?(/\bdo\b/)
+        elsif line.match?(/\Aend\z/) && current_table
           current_table = nil
 
         elsif current_table
@@ -102,7 +104,7 @@ module SyrusRails
       col_m  = rest.match(/column:\s*["':]*(\w+)/)
       pk_m   = rest.match(/primary_key:\s*["':]*(\w+)/)
 
-      from_column = col_m ? col_m[1] : "#{to_table.sub(/s$/, "")}_id"
+      from_column = col_m ? col_m[1] : "#{to_table.singularize}_id"
       to_column   = pk_m  ? pk_m[1]  : "id"
 
       @pending_fkeys << { from_table: from_table, to_table: to_table, from_column: from_column, to_column: to_column }
