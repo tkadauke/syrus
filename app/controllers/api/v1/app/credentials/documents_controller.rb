@@ -51,11 +51,10 @@ module Api
           document = Current.user.documents.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Document file not found" unless document.file.attached?
 
-          send_data(
+          send_secure_file(
             document.file.download,
             filename: document.filename || "document",
-            type: document.content_type || "application/octet-stream",
-            disposition: "inline"
+            type: document.content_type || "application/octet-stream"
           )
         end
 

@@ -106,6 +106,9 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
     expect(response).to have_http_status(:ok)
     expect(response.body).to eq(png_bytes)
     expect(response.headers["Content-Type"]).to eq("image/png")
+    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
   end
 
   it "returns 404 when no visual artifact is attached for the type" do
