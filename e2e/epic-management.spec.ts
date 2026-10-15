@@ -46,25 +46,47 @@ test("enforces the linear-chain dependency policy when chaining child Jobs (no f
   const jobBTitle = `${epicTitle} - job B`
   const jobCTitle = `${epicTitle} - job C`
   const jobAId = await addChildJob(page, epicId, jobATitle, "Upstream job.")
-  const jobBId = await addChildJob(page, epicId, jobBTitle, "Depends on job A.")
-  const jobCId = await addChildJob(page, epicId, jobCTitle, "Attempts to also depend on job A.")
+  const jobBId = await addChildJob(page, epicId, jobBTitle, "Chains onto job A.")
+  const jobCId = await addChildJob(page, epicId, jobCTitle, "Chains onto job B.")
 
-  // B -> A is a valid, single-link chain.
-  await addDependency(page, jobBId, jobATitle)
-  await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
+  // Adding a Job to a non-empty Epic chains it onto that Epic's current tail,
+  // so these three arrive as A -> B -> C with no manual wiring. The form has
+  // no dependency control to do it with, and the single-chain rule leaves no
+  // other legal position -- see config/syrus_docs/epic_dependency_policy.md.
+  await page.goto(`/jobs/${jobBId}`)
+  await expect(dependencyOn(page, jobAId)).toHaveCount(1)
+  await page.goto(`/jobs/${jobCId}`)
+  await expect(dependencyOn(page, jobBId)).toHaveCount(1)
 
-  // C -> A would fork the chain: A would have two downstream Jobs (fan-out).
+  // C -> A would fan in on C, which already depends on B, and fan out on A.
   await addDependency(page, jobCId, jobATitle)
-  await expect(page.getByText(/must form a single chain/)).toBeVisible()
-  await expect(page.getByText("No dependencies.")).toBeVisible()
+  await expect(chainViolation(page)).toBeVisible()
+  // The rejected edge leaves C's existing one alone.
+  await expect(dependencyOn(page, jobBId)).toHaveCount(1)
+  await expect(dependencyOn(page, jobAId)).toHaveCount(0)
 
   // B -> C would merge two upstream Jobs into B, which already depends on A
-  // (fan-in).
+  // (fan-in), and close a cycle besides.
   await addDependency(page, jobBId, jobCTitle)
-  await expect(page.getByText(/must form a single chain/)).toBeVisible()
-  await expect(page.getByRole("button", { name: `Copy JOB-${jobAId} to clipboard` }).first()).toBeVisible()
-  await expect(page.getByRole("button", { name: `Copy JOB-${jobCId} to clipboard` })).toHaveCount(0)
+  await expect(chainViolation(page)).toBeVisible()
+  await expect(dependencyOn(page, jobAId)).toHaveCount(1)
+  await expect(dependencyOn(page, jobCId)).toHaveCount(0)
 })
+
+// The rejection is reported both in an alert and inline beside the dependency
+// list, so match the alert rather than the bare text -- two hits is a
+// strict-mode violation, not an absent message.
+function chainViolation(page: Page) {
+  return page.getByRole("alert").getByText(/must form a single chain/)
+}
+
+// Scoped to the "Dependencies" card, which lists what this Job waits on. The
+// separate "N other Job(s) depends on this one" card lists the downstream
+// side, and an unscoped page-wide locator conflates the two: a Job chained
+// after this one appears there legitimately.
+function dependencyOn(page: Page, jobId: number) {
+  return page.getByTestId("job-dependencies").getByRole("button", { name: `Copy JOB-${jobId} to clipboard` })
+}
 
 test("edits an Epic's metadata", async ({ page }) => {
   await signInAsDemo(page)

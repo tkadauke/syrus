@@ -2409,7 +2409,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
 
   return (
     <div className="space-y-4">
-      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-testid="job-dependencies">
         <SectionHeading>{t("section_dependencies")}</SectionHeading>
         {payload.dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
@@ -2574,7 +2574,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
         )}
       </div>
       {payload.dependents.length > 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-testid="job-dependents">
           <SectionHeading>{t("dependents_title", { count: payload.dependents.length })}</SectionHeading>
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
