@@ -5,16 +5,14 @@ class TargetHealthCiCheckRecorder
   def self.record!(...) = new.record!(...)
 
   def record!(job:, head_sha:, detail:, checked_at: Time.current, graph: nil, workspace_path: nil)
-    checks = completed_checks(detail)
+    checks = completed_checks(detail) + pending_checks(detail)
     return [] if checks.empty? || head_sha.blank?
 
     with_graph(job: job, head_sha: head_sha, graph: graph, workspace_path: workspace_path) do |resolved_graph, resolved_workspace_path|
       index = TargetIndex.new(resolved_graph)
-      pending_targets = pending_checks(detail).filter_map { |check| index.target_for(check) }.to_set
 
       checks.group_by { |check| index.target_for(check) }.filter_map do |target, target_checks|
         next unless target
-        next if pending_targets.include?(target)
 
         record_checks!(
           job: job,
@@ -127,6 +125,7 @@ class TargetHealthCiCheckRecorder
       "check_url" => check["html_url"] || check["url"],
       "check_app_slug" => check["app_slug"],
       "check_names" => checks.map { |entry| entry["name"] },
+      "check_statuses" => checks.to_h { |entry| [ entry["name"], entry["status"] ] },
       "check_conclusions" => checks.to_h { |entry| [ entry["name"], entry["conclusion"] ] },
       "target_kind" => target.kind,
       "fingerprint_metadata" => fingerprints.metadata
