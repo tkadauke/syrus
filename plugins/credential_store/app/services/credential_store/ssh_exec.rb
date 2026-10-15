@@ -261,19 +261,26 @@ module CredentialStore
     end
 
     class RiskyCommandClassifier
-      RISKY_COMMANDS = %w[dd shutdown reboot nft].freeze
       COMMAND_SEPARATORS = %w[; & |].freeze
       ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
-      SHELL_EVALUATION_PATTERN = /(?:\$\(|`|\A\()/.freeze
+      UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\\r\n]/.freeze
+      READ_ONLY_COMMANDS = %w[
+        arch basename cat cut df dirname du file free grep head id jq ls
+        lsb_release nproc pgrep ps pwd readlink realpath rg stat tail test true
+        uname uptime wc which who whoami
+      ].freeze
+      COMMAND_WRAPPERS = %w[command].freeze
 
       class << self
         def risky?(command)
-          tokens = Shellwords.split(command.to_s.gsub(/([;&|])/, ' \1 '))
+          source = command.to_s
+          return true if source.match?(UNSAFE_SHELL_SYNTAX_PATTERN)
+
+          tokens = Shellwords.split(source.gsub(/([;&|])/, ' \1 '))
           return true if tokens.empty?
-          return true if tokens.any? { |token| shell_evaluation_token?(token) }
           return true if tokens.any? { |token| nested_command_fragment?(token) }
 
-          command_segments(tokens).any? { |segment| risky_segment?(segment) }
+          command_segments(tokens).any? { |segment| !read_only_segment?(segment) }
         rescue ArgumentError
           true
         end
@@ -290,43 +297,24 @@ module CredentialStore
           end.reject(&:empty?)
         end
 
-        def risky_segment?(segment)
-          segment.each_with_index.any? do |word, index|
-            next false if word.match?(ASSIGNMENT_PATTERN) || flag?(word)
+        def read_only_segment?(segment)
+          return false if segment.any? { |word| word.match?(ASSIGNMENT_PATTERN) }
 
-            risky_invocation?(command_name(word), segment[(index + 1)..])
-          end
-        end
+          words = segment
+          words = unwrap_command_wrapper(words)
+          executable = command_name(words.first)
 
-        def shell_evaluation_token?(token)
-          token.match?(SHELL_EVALUATION_PATTERN)
+          executable.present? && READ_ONLY_COMMANDS.include?(executable)
         end
 
         def nested_command_fragment?(token)
           token.match?(/\s/) && risky?(token)
         end
 
-        def risky_invocation?(executable, arguments)
-          return false unless executable
-          return true if risky_command_name?(executable)
+        def unwrap_command_wrapper(words)
+          return words unless COMMAND_WRAPPERS.include?(command_name(words.first))
 
-          flags = Array(arguments).select { |word| flag?(word) }
-          case executable
-          when "rm"
-            rm_force?(flags) && rm_recursive?(flags)
-          when "chmod", "chown"
-            recursive?(flags)
-          else
-            false
-          end
-        end
-
-        def risky_command_name?(executable)
-          RISKY_COMMANDS.include?(executable) ||
-            executable == "mkfs" ||
-            executable.start_with?("mkfs.") ||
-            executable == "iptables" ||
-            executable.start_with?("iptables-")
+          words.drop(1).drop_while { |word| flag?(word) }
         end
 
         def command_name(word)
@@ -335,26 +323,6 @@ module CredentialStore
 
         def flag?(word)
           word.to_s.start_with?("-") && word != "-"
-        end
-
-        def rm_force?(flags)
-          flags.any? { |flag| long_flag?(flag, "force") || short_flag?(flag, "f") }
-        end
-
-        def rm_recursive?(flags)
-          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "r") || short_flag?(flag, "R") }
-        end
-
-        def recursive?(flags)
-          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "R") }
-        end
-
-        def long_flag?(flag, name)
-          flag == "--#{name}" || flag.start_with?("--#{name}=")
-        end
-
-        def short_flag?(flag, letter)
-          flag.start_with?("-") && !flag.start_with?("--") && flag.delete_prefix("-").include?(letter)
         end
       end
     end
