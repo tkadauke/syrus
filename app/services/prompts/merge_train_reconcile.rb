@@ -3,6 +3,8 @@ module Prompts
   # The integration branch has already been built; this pass reviews the
   # combined tree before normal prepare/grader/coverage/landing gates run.
   class MergeTrainReconcile
+    include GithubContentTrust
+
     def initialize(epic:, jobs:, repo_slug:, integration_branch:, base_branch:)
       @epic = epic
       @jobs = jobs
@@ -13,6 +15,7 @@ module Prompts
 
     def to_s
       [
+        github_content_trust_boundary,
         context_section,
         members_section,
         directives_section,
@@ -39,14 +42,14 @@ module Prompts
     end
 
     def owner_context
-      return "Epic: #{@epic.slug}: #{@epic.title}" if @epic
+      return "Epic: #{@epic.slug}: #{sanitize_github_content(@epic.title)}" if @epic
 
       noun = @jobs.size == 1 ? "member PR" : "member PRs"
       "Job bundle: #{@jobs.size} #{noun}"
     end
 
     def owner_description
-      return @epic.description.to_s.strip.presence || "(no Epic description)" if @epic
+      return sanitize_github_content(@epic.description).presence || "(no Epic description)" if @epic
 
       "This bundle groups same-repository, same-priority approved Jobs that are being landed together."
     end
@@ -54,7 +57,7 @@ module Prompts
     def members_section
       lines = @jobs.map do |job|
         pr_ref = job.pr_number ? "PR ##{job.pr_number}" : "no PR"
-        "- #{job.slug}: #{job.title} (#{pr_ref}, branch `#{job.branch_name}`)"
+        "- #{job.slug}: #{sanitize_github_content(job.title)} (#{pr_ref}, branch `#{sanitize_github_content(job.branch_name)}`)"
       end
 
       <<~SECTION.strip

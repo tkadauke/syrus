@@ -17,6 +17,13 @@ module Prompts
       HIERARCHY
     end
 
+    # Metadata rendered inline must not be able to escape the prompt's visual
+    # structure. The hierarchy above remains the actual trust boundary; this
+    # only keeps hostile labels and refs from masquerading as instructions.
+    def sanitize_github_content(value)
+      value.to_s.gsub(/[`\u0000-\u001f\u007f]/, " ").squish
+    end
+
     def trust_label_for(value)
       TRUST_LABELS.fetch(value.to_s, "Unverified GitHub user")
     end
