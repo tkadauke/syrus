@@ -282,8 +282,33 @@ function renderNewForm(path = "/app-shell/repositories/1/scheduled_tasks/new", r
   )
 }
 
+function renderEditForm() {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(taskDetail()))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/scheduled_tasks/7/edit"]}>
+        <Routes>
+          <Route element={<ScheduledTaskFormRoute mode="edit" />} path="/app-shell/scheduled_tasks/:id/edit" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+  return client
+}
+
 describe("ScheduledTaskFormRoute cadence preview", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("preserves an edited draft when background data refreshes", async () => {
+    const client = renderEditForm()
+    const name = await screen.findByLabelText("Name")
+
+    fireEvent.change(name, { target: { value: "My unsaved schedule" } })
+    act(() => client.setQueryData(["scheduled_tasks", "7"], taskDetail()))
+
+    expect(name).toHaveValue("My unsaved schedule")
+  })
 
   it("keeps the repository-scoped form inside the standard mobile page gutter", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(newFormPayload()))
