@@ -539,8 +539,9 @@ class LandingQueueProcessor
       # queue snapshot was taken (e.g. an urgent Job going active in between,
       # or an Epic sibling's state/PR checks changing) — it must see fresh
       # data, not whatever entries() cached earlier on this same instance.
-      # Drop the memoized per-repository/per-Epic caches before re-validating.
+      # Drop the memoized urgent-job, prerequisite-closure, and Epic caches before re-validating.
       @active_urgent_jobs_by_repository_id&.delete(job.repository_id)
+      @transitive_landing_queue_prerequisite_ids_by_job_ids&.clear
       @epic_work_jobs_by_epic_id&.delete(job.epic_id) if job.epic_id
       raise ActiveRecord::Rollback unless blockage_for(job, consume_override: true)[:blocked_reason].blank?
 
