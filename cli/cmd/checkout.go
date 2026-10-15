@@ -17,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/gitremote"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -429,7 +430,7 @@ func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, b
 	}
 	remoteURL = strings.TrimSpace(remoteURL)
 	if !remoteMatchesSlug(remoteURL, repoSlug) {
-		return fmt.Errorf("Current git remote origin (%s) does not match job repository %s.", remoteURL, repoSlug)
+		return fmt.Errorf("Current git remote origin (%s) does not match job repository %s.", gitremote.Redact(remoteURL), repoSlug)
 	}
 
 	remoteRef := "refs/remotes/origin/" + branchName
@@ -872,11 +873,12 @@ func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 	command.Dir = dir
 	output, err := command.CombinedOutput()
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		redactedOutput := gitremote.Redact(string(output))
+		message := strings.TrimSpace(redactedOutput)
 		if message != "" {
-			return string(output), fmt.Errorf("%w: %s", err, message)
+			return redactedOutput, fmt.Errorf("%w: %s", err, message)
 		}
-		return string(output), err
+		return redactedOutput, err
 	}
 	return string(output), nil
 }
@@ -920,23 +922,5 @@ func remoteMatchesSlug(remoteURL string, repoSlug string) bool {
 }
 
 func normalizeGitRemote(remoteURL string) string {
-	value := strings.TrimSpace(remoteURL)
-	value = strings.TrimSuffix(value, ".git")
-
-	for _, prefix := range []string{
-		"https://github.com/",
-		"http://github.com/",
-		"ssh://git@github.com/",
-		"git://github.com/",
-	} {
-		if strings.HasPrefix(value, prefix) {
-			return strings.TrimPrefix(value, prefix)
-		}
-	}
-
-	if strings.HasPrefix(value, "git@github.com:") {
-		return strings.TrimPrefix(value, "git@github.com:")
-	}
-
-	return value
+	return gitremote.GitHubSlug(remoteURL)
 }

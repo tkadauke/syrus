@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
+	"github.com/tkadauke/syrus/cli/pkg/gitremote"
 )
 
 const (
@@ -168,7 +169,7 @@ func getLocalRepoSlug(ctx context.Context, repoRoot string) (string, error) {
 	}
 	slug := normalizeGitRemote(strings.TrimSpace(string(out)))
 	if slug == "" {
-		return "", fmt.Errorf("could not derive repository slug from remote URL %q", strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("could not derive repository slug from remote URL %q", gitremote.Redact(strings.TrimSpace(string(out))))
 	}
 	return slug, nil
 }
