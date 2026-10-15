@@ -18,6 +18,7 @@ import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
+import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
@@ -619,7 +620,7 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
   const bookmark = useMutation({
     mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(null)
       setLabel("")
       onOpenChange(false)

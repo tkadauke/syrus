@@ -91,7 +91,7 @@ export function ChatWorkspacePanel({
   const closePreviewPanel = useMutation({
     mutationFn: (path: string) => closeChatPreviewPanel(path),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
     }
   })
 
@@ -379,7 +379,7 @@ function PreviewShareControl({
       if (onVisibilityUpdated) {
         onVisibilityUpdated(updated)
       } else {
-        queryClient.setQueryData(queryKey, updated)
+        mergeChatPayloadUpdate(queryClient, queryKey, updated as ChatPayload)
       }
     }
   })

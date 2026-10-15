@@ -9,14 +9,17 @@ import {
   type ChatSidebarSettings,
   type ChatsIndexPayload
 } from "../api/chats"
+import { mergeMessageTail } from "../routes/chat/messageStreamItems"
 
 export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: QueryKey, update: ChatPayloadUpdate) {
   let merged: ChatPayload | undefined
 
   queryClient.setQueryData<ChatPayload>(queryKey, (current) => {
     if (isFullChatPayload(update)) {
-      merged = update
-      return update
+      merged = current
+        ? { ...update, messages: mergeMessageTail(current.messages, update.messages) }
+        : update
+      return merged
     }
 
     if (!current) {

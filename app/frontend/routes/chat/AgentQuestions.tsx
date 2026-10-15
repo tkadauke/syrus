@@ -8,6 +8,7 @@ import { Stepper } from "../../components/Stepper"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { Markdown } from "../../lib/Markdown"
+import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, primaryButton, secondaryButton } from "./utils"
 
@@ -40,7 +41,7 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
   const submit = useMutation({
     mutationFn: (answers: ChatAgentQuestionAnswer[]) => answerAgentQuestion(appendSearch(question.app_answer_path, search), answers),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(updated.message || null)
     }
   })

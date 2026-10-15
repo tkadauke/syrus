@@ -20,6 +20,42 @@ describe("mergeChatPayloadUpdate", () => {
     expect(merged.messages).toEqual([expect.objectContaining({ id: 101, role: "user" })])
     expect(queryClient.getQueryData<ChatPayload>(queryKey)).toEqual(merged)
   })
+
+  it("does not leave a middle-history gap when a mutation returns only the latest page", () => {
+    const queryClient = new QueryClient()
+    const queryKey = ["chat", "8", ""] as const
+    const cached = chatPayload()
+    cached.messages = Array.from({ length: 70 }, (_, index) => ({
+      type: "message" as const,
+      id: index + 71,
+      role: "assistant" as const,
+      text: `Message ${index + 71}`,
+      bookmarkable: true
+    }))
+    queryClient.setQueryData<ChatPayload>(queryKey, cached)
+
+    const latestPage = {
+      ...cached,
+      messages: cached.messages.slice(-30)
+    }
+    const merged = mergeChatPayloadUpdate(queryClient, queryKey, latestPage)
+    const olderMessageIds = Array.from({ length: 70 }, (_, index) => index + 1)
+
+    expect([...olderMessageIds, ...merged.messages.map((message) => message.id)]).toEqual(
+      Array.from({ length: 140 }, (_, index) => index + 1)
+    )
+  })
+
+  it("allows an empty full payload to clear the cached transcript", () => {
+    const queryClient = new QueryClient()
+    const queryKey = ["chat", "8", ""] as const
+    const cached = chatPayload()
+    queryClient.setQueryData<ChatPayload>(queryKey, cached)
+
+    const merged = mergeChatPayloadUpdate(queryClient, queryKey, { ...cached, messages: [] })
+
+    expect(merged.messages).toEqual([])
+  })
 })
 
 describe("updateRecentChatCache", () => {
