@@ -1,10 +1,12 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::SetNodeCordonTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   let(:cluster) { Factories.kubernetes_cluster(agentic_access_enabled: true, allow_writes: true) }
 
   def call(cluster_id:, name: "node-1", cordoned: true)
-    described_class.call(server_context: {}, cluster_id: cluster_id, name: name, cordoned: cordoned)
+    described_class.call(server_context: { chat_session: chat_session }, cluster_id: cluster_id, name: name, cordoned: cordoned)
   end
 
   it "cordons the node" do

@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::ListClustersTool do
+  let(:chat_session) { ChatSession.create!(user: Factories.user(admin: true)) }
+
   it "returns only safe cluster metadata, including agentic and write flags" do
     enabled = Factories.kubernetes_cluster(
       label: "Production",
@@ -17,7 +19,7 @@ RSpec.describe K8sCluster::ListClustersTool do
       allow_writes: true
     )
 
-    response = described_class.call(server_context: {})
+    response = described_class.call(server_context: { chat_session: chat_session })
 
     expect(response.error?).to be(false)
     payload = JSON.parse(response.content.first[:text])
@@ -29,14 +31,6 @@ RSpec.describe K8sCluster::ListClustersTool do
         "allow_writes" => false,
         "created_at" => enabled.created_at.iso8601,
         "updated_at" => enabled.updated_at.iso8601
-      },
-      {
-        "id" => disabled.id,
-        "label" => "Staging",
-        "agentic_access_enabled" => false,
-        "allow_writes" => true,
-        "created_at" => disabled.created_at.iso8601,
-        "updated_at" => disabled.updated_at.iso8601
       }
     )
 
