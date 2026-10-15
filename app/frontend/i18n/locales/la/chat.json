@@ -552,5 +552,7 @@
   "card_preview_generating_title": "Titulus generatur…",
   "card_preview_see_more": "Vide amplius",
   "card_preview_pending_one": "{{count}} pendens",
-  "card_preview_pending_other": "{{count}} pendentia"
+  "card_preview_pending_other": "{{count}} pendentia",
+  "tool_card_diff_page_only_stats": "Numeri mutationum ad hanc paginam tantum pertinent.",
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines"
 }

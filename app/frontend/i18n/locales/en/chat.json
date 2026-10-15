@@ -552,5 +552,7 @@
   "card_preview_generating_title": "Generating title…",
   "card_preview_see_more": "See more",
   "card_preview_pending_one": "{{count}} pending",
-  "card_preview_pending_other": "{{count}} pending"
+  "card_preview_pending_other": "{{count}} pending",
+  "tool_card_diff_page_only_stats": "Change counts are for this page only.",
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: diff page {{page}} out of range"
 }

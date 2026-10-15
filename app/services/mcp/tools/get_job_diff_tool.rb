@@ -47,7 +47,8 @@ module Mcp::Tools
         total_bytes = diff.bytesize
         total_pages = total_pages(total_bytes, per_bytes)
         offset = (page - 1) * per_bytes
-        chunk = offset >= total_bytes ? "" : Mcp::Tools.safe_byteslice(diff, offset, per_bytes)
+        page_out_of_range = offset >= total_bytes
+        chunk = page_out_of_range ? "" : Mcp::Tools.safe_byteslice(diff, offset, per_bytes)
         has_next_page = page < total_pages
 
         Mcp::Tools.success(
@@ -59,7 +60,9 @@ module Mcp::Tools
           total_bytes: total_bytes,
           total_pages: total_pages,
           has_next_page: has_next_page,
-          next_page: (page + 1 if has_next_page)
+          next_page: (page + 1 if has_next_page),
+          page_out_of_range: page_out_of_range,
+          message: ("Page #{page} is out of range for this #{total_pages}-page diff." if page_out_of_range)
         )
       end
 

@@ -98,6 +98,18 @@ describe("parseUnifiedDiff", () => {
     expect(warnSpy.mock.calls[0][0]).toContain("unexpected line inside diff")
   })
 
+  it("classifies change lines before the first hunk header in a paginated chunk", () => {
+    const lines = parseUnifiedDiff([
+      "partial line from a byte boundary",
+      " unchanged",
+      "-removed",
+      "+added"
+    ].join("\n"))
+
+    expect(lines.map((line) => line.kind)).toEqual(["meta", "context", "delete", "add"])
+    expect(lines.at(-1)).toMatchObject({ marker: "+", code: "added", oldLine: null, newLine: null })
+  })
+
   it("treats --- and +++ prefixes as changed content while hunk lines remain", () => {
     const patch = [
       "diff --git a/f.yml b/f.yml",
