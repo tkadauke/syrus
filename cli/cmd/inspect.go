@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	openURL = openBrowser
+	openURL            = openBrowser
+	jobLogPollInterval = 2 * time.Second
 )
 
 func NewJobCommand() *cobra.Command {
@@ -158,14 +159,19 @@ func newJobLogCommand() *cobra.Command {
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(transcript)
 			}
+			var runID int64
 			seen := 0
 			for {
 				transcript, err := client.GetJobTranscript(cmd.Context(), args[0])
 				if err != nil {
 					return err
 				}
+				if transcript.RunID != runID || len(transcript.Lines) < seen {
+					runID = transcript.RunID
+					seen = 0
+				}
 				if transcript.Complete {
-					return page(cmd, strings.Join(transcript.Lines, "\n"))
+					return page(cmd, strings.Join(transcript.Lines[seen:], "\n"))
 				}
 				for _, line := range transcript.Lines[seen:] {
 					fmt.Fprintln(cmd.OutOrStdout(), line)
@@ -177,7 +183,7 @@ func newJobLogCommand() *cobra.Command {
 				select {
 				case <-cmd.Context().Done():
 					return nil
-				case <-time.After(2 * time.Second):
+				case <-time.After(jobLogPollInterval):
 				}
 			}
 		},

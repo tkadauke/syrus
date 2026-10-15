@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 )
@@ -432,6 +433,46 @@ func TestJobLogPrintsJSON(t *testing.T) {
 	}
 	if decoded.JobID != 42 || decoded.Complete || len(decoded.Lines) != 1 {
 		t.Fatalf("decoded = %+v", decoded)
+	}
+}
+
+func TestJobLogFollowsAcrossRunsWithoutRepeatingLines(t *testing.T) {
+	originalInterval := jobLogPollInterval
+	jobLogPollInterval = time.Millisecond
+	t.Cleanup(func() { jobLogPollInterval = originalInterval })
+	t.Setenv("PAGER", "")
+
+	responses := []string{
+		`{"job_id":42,"run_id":7,"state":"running","complete":false,"lines":["first","second","third"]}`,
+		`{"job_id":42,"run_id":8,"state":"running","complete":false,"lines":["new run"]}`,
+		`{"job_id":42,"run_id":8,"state":"succeeded","complete":false,"lines":["new run","finished step"]}`,
+		`{"job_id":42,"run_id":9,"state":"succeeded","complete":true,"lines":["final step"]}`,
+	}
+	request := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/api/v1/app/jobs/42/transcript" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if request >= len(responses) {
+			t.Fatal("received more transcript requests than expected")
+		}
+		_, _ = w.Write([]byte(responses[request]))
+		request++
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+
+	output := &bytes.Buffer{}
+	command := NewJobCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"log", "42"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if got, want := output.String(), "first\nsecond\nthird\nnew run\nfinished step\nfinal step\n"; got != want {
+		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
 
