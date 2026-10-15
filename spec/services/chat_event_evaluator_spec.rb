@@ -41,6 +41,26 @@ RSpec.describe ChatEventEvaluator do
     expect(calls.first.fetch(:transcript_jsonl)).to include("first request", "first answer", "latest request")
   end
 
+  it "excludes deleted messages from the cloned evaluator transcript" do
+    message("user", "active request")
+    message("assistant", "deleted secret", deleted_at: Time.current)
+    message("assistant", "active answer")
+
+    calls = []
+    runner = lambda do |**kwargs|
+      calls << kwargs
+      Result.new(final_text: JSON.generate(decision: "no_op", reason: "covered", urgency: 0, confidence: 0.9))
+    end
+
+    result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
+    transcript = calls.first.fetch(:transcript_jsonl)
+
+    expect(result.dig("context_clone", "source_message_count")).to eq(2)
+    expect(result.dig("context_clone", "cloned_message_count")).to eq(2)
+    expect(transcript).to include("active request", "active answer")
+    expect(transcript).not_to include("deleted secret")
+  end
+
   it "falls back to the latest capped message window and trims oversized content" do
     stub_const("#{described_class}::MAX_MESSAGES", 3)
     stub_const("#{described_class}::MAX_TRANSCRIPT_BYTES", 500)
