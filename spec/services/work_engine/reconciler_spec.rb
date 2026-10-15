@@ -2067,6 +2067,32 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(retry_workflow.state).to be_in(%w[queued running])
   end
 
+  it "retries a queued Job whose latest workflow was cancelled at start by a cleared Epic-wide workflow conflict" do
+    epic = Factories.epic(user: job.user, repository: job.repository)
+    epic.update!(state: "in_progress")
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 205, agent_provider: "claude")
+    child.update!(epic: epic)
+    cancelled = child.latest_workflow
+
+    cancelled.update!(artifacts: { "start_cancelled_reason" => EpicWorkflowLock::BLOCK_REASON })
+    cancelled.update_columns(state: "cancelled", finished_at: 20.minutes.ago)
+    cancelled.steps.update_all(state: "cancelled", finished_at: 20.minutes.ago)
+    cancelled.runs.update_all(state: "cancelled", finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+
+    expect {
+      result = reconcile_and_execute(job_id: child.id)
+
+      expect(kind(result, :queued_job_after_epic_workflow_conflict)).to have_attributes(
+        recommended_repair_action: "retry_job_after_epic_workflow_conflict",
+        safe_to_auto_repair: true
+      )
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry WF-\d+ for #{child.slug}/))
+    }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    expect(child.reload.latest_workflow.artifact("retry_reason")).to eq("epic_workflow_conflict_recovered")
+  end
+
   it "does not retry a queued Job after an Epic-wide conflict while active WorkUnit ownership exists" do
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 205, agent_provider: "claude")
     cancelled = child.latest_workflow
