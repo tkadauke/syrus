@@ -423,6 +423,27 @@ RSpec.describe StepDispatcher, :ci_only do
       }.not_to change { s1.runs.count }
     end
 
+    it "locks the workflow before the step when creating a Run" do
+      lock_order = []
+      allow(workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :workflow
+          block.call
+        end
+      end
+      allow(s1).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :step
+          block.call
+        end
+      end
+
+      described_class.create_run_and_enqueue(s1, workflow)
+
+      expect(lock_order).to eq(%i[workflow step])
+      expect(s1.runs.count).to eq(1)
+    end
+
     it "holds ordinary Epic child workflows while an Epic-wide workflow is active" do
       epic = Factories.epic(user: job.user, repository: job.repository)
       keeper_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 101)
@@ -2649,6 +2670,28 @@ RSpec.describe StepDispatcher, :ci_only do
       expect {
         described_class.fail_from(push.reload)
       }.not_to change { try_workflow.steps.count }
+    end
+
+    it "locks the workflow before mutating steps in a Try failure transaction" do
+      try_workflow = workflow_with_try_push_branch
+      push = try_workflow.steps.find_by!(kind: "push")
+      push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+      lock_order = []
+      allow(try_workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :workflow
+          block.call
+        end
+      end
+      allow(push).to receive(:update!).and_wrap_original do |original, *args|
+        lock_order << :step
+        original.call(*args)
+      end
+
+      described_class.fail_from(push)
+
+      expect(lock_order.first(2)).to eq(%i[workflow step])
+      expect(try_workflow.steps.find_by!(kind: "push_agent_rebase").runs).to exist
     end
 
     it "applies placement metadata to dynamically inserted Try failure branches when distributed workflows are enabled" do

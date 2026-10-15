@@ -527,49 +527,51 @@ class StepDispatcher
   # explicitly. trigger_kind is denormalized from Workflow until
   # commit 9's cleanup migration drops Run.trigger_kind entirely.
   def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil, check_phase_admission: true)
-    step.with_lock do
-      workflow.reload
-      step.reload
+    workflow.with_lock do
+      step.with_lock do
+        workflow.reload
+        step.reload
 
-      return nil if step.terminal?
-      return nil if step.runs.active.exists?
+        return nil if step.terminal?
+        return nil if step.runs.active.exists?
 
-      if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
-        return nil
+        if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
+          return nil
+        end
+        clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
+
+        if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
+          return nil
+        end
+
+        refresh_default_workflow_agent_provider!(workflow)
+        run_provider_candidate = run_provider_candidate_for(step, workflow)
+
+        if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
+          return nil
+        end
+        workflow.reload
+        run_provider_candidate = run_provider_candidate_for(step, workflow)
+
+        if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
+          return nil
+        end
+
+        if check_phase_admission && phase_admission_deferred?(step, workflow)
+          return nil
+        end
+
+        step.runs.create!(
+          job: workflow.job,
+          trigger_kind: workflow.trigger_kind,
+          agent_provider: run_provider_candidate.provider,
+          model: run_provider_candidate.model,
+          effort_level: run_provider_candidate.effort_level,
+          iteration: step.iteration,
+          parent_session_id: parent_session_id,
+          prompt: prompt
+        )
       end
-      clear_start_blocked!(workflow, LANDING_PAUSE_BLOCK_REASON)
-
-      if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
-        return nil
-      end
-
-      refresh_default_workflow_agent_provider!(workflow)
-      run_provider_candidate = run_provider_candidate_for(step, workflow)
-
-      if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
-        return nil
-      end
-      workflow.reload
-      run_provider_candidate = run_provider_candidate_for(step, workflow)
-
-      if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
-        return nil
-      end
-
-      if check_phase_admission && phase_admission_deferred?(step, workflow)
-        return nil
-      end
-
-      step.runs.create!(
-        job: workflow.job,
-        trigger_kind: workflow.trigger_kind,
-        agent_provider: run_provider_candidate.provider,
-        model: run_provider_candidate.model,
-        effort_level: run_provider_candidate.effort_level,
-        iteration: step.iteration,
-        parent_session_id: parent_session_id,
-        prompt: prompt
-      )
     end
   end
 
@@ -1079,32 +1081,34 @@ class StepDispatcher
     continuation = nil
     skipped = []
 
-    Step.transaction do
-      cursor = step.next_step
-      while cursor &&
-          cursor.loop_id == step.loop_id &&
-          cursor.iteration == step.iteration &&
-          check_kinds.include?(cursor.kind)
-        if cursor.may_skip?
-          cursor.skip_with_reason!(reason)
-          skipped << cursor
+    @workflow.with_lock do
+      Step.transaction do
+        cursor = step.next_step
+        while cursor &&
+            cursor.loop_id == step.loop_id &&
+            cursor.iteration == step.iteration &&
+            check_kinds.include?(cursor.kind)
+          if cursor.may_skip?
+            cursor.skip_with_reason!(reason)
+            skipped << cursor
+          end
+          cursor = cursor.next_step
         end
-        cursor = cursor.next_step
-      end
-      continuation = cursor
+        continuation = cursor
 
-      @workflow.set_artifact!(
-        artifact_key,
-        @workflow.artifact(artifact_key).to_h.merge(
-          "skipped_check_step_ids" => skipped.map(&:id),
-          "continued_at" => Time.current.iso8601
+        @workflow.set_artifact!(
+          artifact_key,
+          @workflow.artifact(artifact_key).to_h.merge(
+            "skipped_check_step_ids" => skipped.map(&:id),
+            "continued_at" => Time.current.iso8601
+          )
         )
-      )
 
-      if continuation&.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
-        self.class.create_run_and_enqueue(continuation, @workflow)
-      elsif continuation.nil?
-        finish_workflow!
+        if continuation&.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
+          self.class.create_run_and_enqueue(continuation, @workflow)
+        elsif continuation.nil?
+          finish_workflow!
+        end
       end
     end
 
@@ -1234,11 +1238,13 @@ class StepDispatcher
     continuation = implement_step ? implement_step.next_step : fallback_continuation
     return unless continuation
 
-    Step.transaction do
-      implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
+    @workflow.with_lock do
+      Step.transaction do
+        implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
 
-      if continuation.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
-        self.class.create_run_and_enqueue(continuation, @workflow)
+        if continuation.queued? && continuation.runs.none? && !paused_before_next_step?(continuation)
+          self.class.create_run_and_enqueue(continuation, @workflow)
+        end
       end
     end
   end
@@ -1469,22 +1475,24 @@ class StepDispatcher
     continuation = @from_step.next_step
     insertion_position = @from_step.position + 1
 
-    Step.transaction do
-      step_count = branch_nodes.sum { |node| materialized_step_kinds_for(node).size }
-      shift_steps_after_branch!(from_position: insertion_position, by: step_count)
-      new_steps = materialize_branch_steps!(branch_nodes, insertion_position)
+    @workflow.with_lock do
+      Step.transaction do
+        step_count = branch_nodes.sum { |node| materialized_step_kinds_for(node).size }
+        shift_steps_after_branch!(from_position: insertion_position, by: step_count)
+        new_steps = materialize_branch_steps!(branch_nodes, insertion_position)
 
-      ([ @from_step ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
-      new_steps.last.update!(next_step_id: continuation&.id)
+        ([ @from_step ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+        new_steps.last.update!(next_step_id: continuation&.id)
 
-      @from_step.update!(
-        details: @from_step.details.to_h.merge(
-          "try_branch_expanded" => true,
-          "try_branch_failure_code" => failure_code
+        @from_step.update!(
+          details: @from_step.details.to_h.merge(
+            "try_branch_expanded" => true,
+            "try_branch_failure_code" => failure_code
+          )
         )
-      )
-      wire_inserted_step_dependencies!(previous: @from_step, new_steps: new_steps, continuation: continuation)
-      self.class.create_run_and_enqueue(new_steps.first, @workflow) unless paused_before_next_step?(new_steps.first)
+        wire_inserted_step_dependencies!(previous: @from_step, new_steps: new_steps, continuation: continuation)
+        self.class.create_run_and_enqueue(new_steps.first, @workflow) unless paused_before_next_step?(new_steps.first)
+      end
     end
   end
 
@@ -1566,30 +1574,32 @@ class StepDispatcher
       loop_steps = Array(loop_node["check"]).map(&:to_s)
       record_transient_grader_repair_skip!(current_grade)
     end
-    Step.transaction do
-      loop_step_count = loop_steps.size
-      @workflow.steps.where("position >= ?", insertion_position).update_all(
-        [ "position = position + ?", loop_step_count ]
-      )
-
-      previous = current_grade
-      new_steps = loop_steps.map.with_index do |kind, index|
-        Step.create!(
-          workflow: @workflow,
-          kind: kind,
-          position: insertion_position + index,
-          iteration: next_iteration,
-          loop_id: current_grade.loop_id,
-          placement_policy: placement_policy_for(kind)
+    @workflow.with_lock do
+      Step.transaction do
+        loop_step_count = loop_steps.size
+        @workflow.steps.where("position >= ?", insertion_position).update_all(
+          [ "position = position + ?", loop_step_count ]
         )
-      end
 
-      ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
-      new_steps.last.update!(next_step_id: continuation&.id)
-      wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+        previous = current_grade
+        new_steps = loop_steps.map.with_index do |kind, index|
+          Step.create!(
+            workflow: @workflow,
+            kind: kind,
+            position: insertion_position + index,
+            iteration: next_iteration,
+            loop_id: current_grade.loop_id,
+            placement_policy: placement_policy_for(kind)
+          )
+        end
 
-      unless paused_before_next_step?(new_steps.first)
-        self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
+        ([ previous ] + new_steps).each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+        new_steps.last.update!(next_step_id: continuation&.id)
+        wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+
+        unless paused_before_next_step?(new_steps.first)
+          self.class.create_run_and_enqueue(new_steps.first, @workflow, parent_session_id: prior_iteration_session_id)
+        end
       end
     end
   end
