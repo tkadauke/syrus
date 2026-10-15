@@ -25,6 +25,14 @@ class LandingBundleAssembler::Scopes::Epic
     unapproved = @open_children.reject(&:approved?)
     return "child Jobs not yet approved: #{label(unapproved)}" if unapproved.any?
 
+    manually_paused = @open_children.select(&:manual_paused?)
+    return "child Jobs manually paused: #{label(manually_paused)}" if manually_paused.any?
+
+    requested_changes = @open_children.select do |job|
+      job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
+    end
+    return "child Jobs with requested changes: #{label(requested_changes)}" if requested_changes.any?
+
     nil
   end
 
