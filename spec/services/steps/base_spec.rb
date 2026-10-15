@@ -394,6 +394,75 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
     end
 
+    it "satisfies enforced required MCP tools from a completed persisted sidecar receipt when transcript parsing misses the call" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "codex-thread-1"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run,
+          provider: "codex",
+          session_id: "codex-thread-1",
+          transcript_jsonl: { type: "unrecognized_rollout_event", message: "submit_review_notes" }.to_json + "\n"
+        )
+        McpToolUsageRecorder.record_dispatch(
+          surface: "workflow",
+          tool_name: "submit_review_notes",
+          tool_input: { notes: [] },
+          sidecar_mode: "persistent",
+          run: run,
+          provider: "codex"
+        ) { { ok: true } }
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+
+      expect {
+        handler.send(
+          :run_agent,
+          prompt: "review",
+          required_mcp_tools: %w[submit_review_notes],
+          enforce_required_mcp_tools: true
+        )
+      }.not_to raise_error
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/status=ok.*called=submit_review_notes.*evidence=submit_review_notes:persisted_usage\(persistent\).*mcp_tool_called=false/))
+    end
+
+    it "does not satisfy required MCP tools with receipts for another Run or another tool" do
+      other_job = Factories.job
+      other_workflow = Workflow.create!(job: other_job, trigger_kind: "initial")
+      other_step = Step.create!(workflow: other_workflow, kind: "implement", position: 0)
+      other_run = Run.create!(job: other_job, step: other_step, trigger_kind: "initial")
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", tool_input: {}
+      )
+      McpToolUsageRecorder.record_workflow_tool_result(
+        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", content: { ok: true }
+      )
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", tool_input: {}
+      )
+      McpToolUsageRecorder.record_workflow_tool_result(
+        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", content: { ok: true }
+      )
+
+      expect(handler.send(:log_mcp_required_tool_health, %w[submit_review_notes])).to eq(%w[submit_review_notes])
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/status=missing.*missing=submit_review_notes.*evidence=.*mcp_tool_called=false/))
+    end
+
     it "declares unavailable provider resume as a retryable problem" do
       result = AgentInvocation::Result.new(
         turns: 0,
