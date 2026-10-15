@@ -2750,6 +2750,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.bigint "upstream_repository_id"
     t.integer "user_id"
     t.datetime "last_full_poll_at"
+    t.string "vcs", default: "git", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -2758,6 +2759,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
+    t.index ["vcs", "archived_at", "id"], name: "idx_repositories_vcs_active_scan"
   end
 
   create_table "repository_final_approvers", force: :cascade do |t|
