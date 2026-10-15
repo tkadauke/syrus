@@ -198,6 +198,10 @@ Without `SCCACHE_BASEDIRS`, coverage builds are conservative: they can still hit
 within the same workflow workspace, but they will not reuse `.gcno` files across
 different workflow paths.
 
+Repository members can inspect the repository-wide build-cache safety setting;
+changing it requires repository admin access. This keeps the high-impact opt-in
+visible to collaborators without allowing read or write members to alter it.
+
 The safe pattern, validated on the `tkadauke/raytracer` CMake/GCC coverage
 build, is to remap the repository checkout before opting into
 `SCCACHE_BASEDIRS`:
