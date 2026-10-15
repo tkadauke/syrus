@@ -2615,15 +2615,17 @@ module WorkEngine
     def classify_stalled_classifier_pending_jobs
       stalled = jobs.select do |job|
         next false unless job.state == "triaging"
-        next false unless job.created_at.present? && job.created_at < now - CLASSIFIER_PENDING_STUCK_AFTER
+        last_classification_activity_at = job.classification_attempts.maximum(:started_at) || job.updated_at || job.created_at
+        next false unless last_classification_activity_at.present?
+        next false unless last_classification_activity_at < now - CLASSIFIER_PENDING_STUCK_AFTER
 
         # `classifier_uncertain` belongs here too. It used to be terminal by
         # omission -- nothing re-ran the classifier, nothing reaped it, nothing
         # surfaced it -- so a single transient provider error stranded the Job
         # for good. The attempt cap keeps both uncertainty retries and repeated
         # pending re-enqueues from becoming a loop: after the retry budget is
-        # spent, a triaged Job is a person's problem, and the triage decision
-        # opened alongside it is where that happens.
+        # spent by real classifier runs, a triaged Job is a person's problem,
+        # and the triage decision opened alongside it is where that happens.
         if job.triaging_reason.to_s == "classifier_pending"
           job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
         else
