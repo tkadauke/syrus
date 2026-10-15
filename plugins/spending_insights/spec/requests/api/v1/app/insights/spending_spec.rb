@@ -5,8 +5,44 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     JSON.parse(response.body)
   end
 
-  def set_run_cost(run, cost, created_at:)
-    run.update_columns(cost_usd: cost, created_at: created_at, updated_at: created_at)
+  def set_run_cost(run, cost, created_at:, finished_at: created_at)
+    run.update_columns(cost_usd: cost, created_at: created_at, finished_at: finished_at, updated_at: finished_at)
+  end
+
+  it "attributes run and chat spend to completion time and excludes unfinished runs" do
+    travel_to Time.zone.parse("2026-06-02 12:00:00") do
+      user = Factories.user(email_address: "mine@example.com", chat_provider: "codex")
+      repository = Factories.repository(user: user)
+      completed = Factories.job(user: user, repository: repository, issue_number: 301)
+      unfinished = Factories.job(user: user, repository: repository, issue_number: 302)
+      set_run_cost(
+        initial_run(completed),
+        1.25,
+        created_at: Time.zone.parse("2026-05-31 23:55:00"),
+        finished_at: Time.zone.parse("2026-06-01 00:05:00")
+      )
+      initial_run(unfinished).update_columns(
+        cost_usd: 9.99,
+        created_at: Time.zone.parse("2026-06-01 12:00:00"),
+        finished_at: nil
+      )
+      chat = ChatSession.create!(user: user, repository: repository, created_at: 2.months.ago)
+      result = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success",
+        final_text: "Done", session_id: "codex-session", cost_usd: 0.5
+      )
+      chat.record_turn_usage!(result, at: Time.zone.parse("2026-06-01 08:00:00"))
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-01" }
+
+      body = parse_body
+      expect(body.dig("totals", "lifetime_usd")).to eq(1.75)
+      expect(body.dig("totals", "workflow_lifetime_usd")).to eq(1.25)
+      expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.5)
+      expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(completed).id))
+      expect(body.fetch("trend").last).to eq("date" => "2026-06-01", "total_usd" => 1.75)
+    end
   end
 
   def initial_run(job)
@@ -41,12 +77,19 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
       set_run_cost(initial_run(admin_job), 1.25, created_at: Time.zone.parse("2026-06-03 12:00:00"))
       set_run_cost(initial_run(other_job), 2.50, created_at: Time.zone.parse("2026-06-04 12:00:00"))
-      ChatSession.create!(
+      chat = ChatSession.create!(
         user: admin,
         cumulative_cost_usd: 0.75,
         daily_cost_usd: 9.99,
         daily_cost_date: Date.new(2026, 6, 4),
         created_at: Time.zone.parse("2026-06-04 12:00:00")
+      )
+      ChatSpendEntry.create!(
+        chat_session: chat,
+        user: admin,
+        incurred_at: Time.zone.parse("2026-06-04 12:00:00"),
+        cost_usd: 0.75,
+        agent_provider: chat.effective_chat_provider
       )
 
       sign_in_as(admin)
@@ -86,7 +129,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       )
       expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
         { "date" => "2026-06-03", "total_usd" => 1.25 },
-        { "date" => "2026-06-04", "total_usd" => 2.5 }
+        { "date" => "2026-06-04", "total_usd" => 3.25 }
       )
     end
   end

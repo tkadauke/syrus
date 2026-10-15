@@ -3,18 +3,18 @@ module Filters
     module SpendingReport
       class CreatedAt < DateColumn
         filter_name "created_at"
-        label "Datetime"
-        column :created_at
+        label "Completion date"
+        column :finished_at
         operators :before, :after, :between, :within_last, :more_than_ago
         date_precision :date
 
         def apply
           case op
-          when :before then scope.where(created_at: ..end_of_day(value))
-          when :after then scope.where(created_at: start_of_day(value)..)
+          when :before then scope.where(finished_at: ..end_of_day(value))
+          when :after then scope.where(finished_at: start_of_day(value)..)
           when :between
             range = Array(value)
-            scope.where(created_at: start_of_day(range.first)..end_of_day(range.last))
+            scope.where(finished_at: start_of_day(range.first)..end_of_day(range.last))
           else
             super
           end

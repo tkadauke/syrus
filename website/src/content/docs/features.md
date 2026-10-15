@@ -1591,6 +1591,11 @@ required central host for a repository.
 The spending dashboard at `/insights/spending` rolls up `runs.cost_usd`
 into operator-facing cost views. Syrus records provider-reported cost when
 available; runs whose providers omit dollar costs keep `cost_usd` unset. The
+cost is assigned to the Run's completion date; unfinished Runs are omitted even
+if they already carry a partial cost. Charged chat turns are recorded separately
+when they complete, so new spend in an older chat remains visible in the correct
+reporting window. Chat cost recorded before this ledger existed is not assigned
+to a guessed historical date. The
 dashboard shows week, month, lifetime, average Job, and average merged-PR
 totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
 chart, and the most expensive individual Runs. When spending exists across

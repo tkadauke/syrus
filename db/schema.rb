@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_212030) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_201012) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -784,6 +784,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_212030) do
     t.index ["local_tool_call_id"], name: "index_chat_shell_commands_on_local_tool_call_id"
     t.index ["spawned_process_id"], name: "index_chat_shell_commands_on_spawned_process_id"
     t.index ["user_id"], name: "index_chat_shell_commands_on_user_id"
+  end
+
+  create_table "chat_spend_entries", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "user_id", null: false
+    t.datetime "incurred_at", null: false
+    t.decimal "cost_usd", precision: 12, scale: 6, null: false
+    t.string "agent_provider", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_provider", "incurred_at"], name: "idx_chat_spend_entries_provider_window"
+    t.index ["chat_session_id"], name: "index_chat_spend_entries_on_chat_session_id"
+    t.index ["user_id", "incurred_at", "cost_usd"], name: "idx_chat_spend_entries_user_window"
+    t.index ["user_id"], name: "index_chat_spend_entries_on_user_id"
   end
 
   create_table "chat_turn_auto_retry_attempts", force: :cascade do |t|
