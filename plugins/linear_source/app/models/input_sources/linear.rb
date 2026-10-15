@@ -19,14 +19,14 @@ module InputSources
 
         if issues.nil?
           Rails.logger.warn("[InputSources::Linear] #{repository.slug} rate limited; skipping poll")
-          repository.mark_poll_success!
+          repository.mark_poll_success!(clear_issue_errors: false)
           return
         end
 
-        issues.each { |issue| ingest(issue) }
+        issues.each { |issue| ingest_with_quarantine(issue) }
         InputSources::PendingWorkWakeup.call(repository)
 
-        repository.mark_poll_success!
+        repository.mark_poll_success!(clear_issue_errors: false)
       rescue => e
         repository.mark_poll_failure!(e.message)
         raise
@@ -74,6 +74,25 @@ module InputSources
     end
 
     private
+
+    def ingest_with_quarantine(issue)
+      ingest(issue)
+      repository.clear_poll_issue_error!(issue_number: issue_identifier(issue))
+    rescue => e
+      repository.record_poll_issue_error!(
+        issue_number: issue_identifier(issue),
+        issue_title: issue["title"],
+        error: e
+      )
+      Rails.logger.error(
+        "[InputSources::Linear] #{repository.slug} #{issue_identifier(issue)} " \
+        "quarantined after ingestion failure: #{e.class}: #{e.message}"
+      )
+    end
+
+    def issue_identifier(issue)
+      issue["identifier"].presence || issue["id"]
+    end
 
     def ingest(issue)
       decision = LinearIngestPolicy.evaluate(issue)
