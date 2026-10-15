@@ -341,6 +341,41 @@ describe("RecentChatsSidebar settings", () => {
     })
   })
 
+  it("preserves saved chat type grouping and filters while available chat types load", async () => {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({
+      status: "active",
+      group_by: "chat_type",
+      chat_types: ["agent"],
+      sort_by: "last_activity",
+      show_empty_groups: true,
+      per_group: 10
+    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_chat_types: ["agent", "group"] })))
+
+    renderSidebar([], { availableChatTypes: ["agent", "group"] })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_by=chat_type"), expect.anything())
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("chat_types=agent"), expect.anything())
+    })
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(SIDEBAR_SETTINGS_KEY) || "{}")).toMatchObject({
+        group_by: "chat_type",
+        chat_types: ["agent"]
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
+    const menu = await screen.findByTestId("recent-chats-settings-menu")
+    const chatTypeMenuItem = within(menu).getAllByRole("button").find((button) => button.textContent?.startsWith("Chat type"))
+    expect(chatTypeMenuItem).toBeTruthy()
+    fireEvent.click(chatTypeMenuItem as HTMLElement)
+
+    expect(screen.getByRole("checkbox", { name: "Agent chats" })).toHaveAttribute("aria-checked", "true")
+    expect(screen.getByRole("checkbox", { name: "Group chats" })).toHaveAttribute("aria-checked", "false")
+  })
+
   it("offers agent grouping only when multiple chat agents are configured", async () => {
     const availableAgents = [
       { value: "claude", label: "Claude" },
@@ -368,14 +403,16 @@ describe("RecentChatsSidebar settings", () => {
       per_group: 10
     }))
     const availableAgents = [{ value: "claude", label: "Claude" }]
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_agents: availableAgents })))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_agents: availableAgents })))
 
     renderSidebar([], { availableAgents })
     fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
 
-    expect(screen.getByRole("button", { name: /Group by/ })).toHaveTextContent("Repository")
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.every(([input]) => !String(input).includes("group_by=agent"))).toBe(true)
+      expect(screen.getByRole("button", { name: /Group by/ })).toHaveTextContent("Repository")
+      expect(JSON.parse(window.localStorage.getItem(SIDEBAR_SETTINGS_KEY) || "{}")).toMatchObject({
+        group_by: "repository"
+      })
     })
   })
 
@@ -388,14 +425,17 @@ describe("RecentChatsSidebar settings", () => {
       show_empty_groups: true,
       per_group: 10
     }))
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_chat_types: ["agent"] })))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_chat_types: ["agent"] })))
 
     renderSidebar([], { availableChatTypes: ["agent"] })
     fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
 
-    expect(screen.getByRole("button", { name: /Group by/ })).toHaveTextContent("Repository")
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.every(([input]) => !String(input).includes("group_by=chat_type"))).toBe(true)
+      expect(screen.getByRole("button", { name: /Group by/ })).toHaveTextContent("Repository")
+      expect(JSON.parse(window.localStorage.getItem(SIDEBAR_SETTINGS_KEY) || "{}")).toMatchObject({
+        group_by: "repository",
+        chat_types: []
+      })
     })
   })
 

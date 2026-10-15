@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { TFunction } from "i18next"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
@@ -23,6 +23,7 @@ import {
   type DiffReviewVersion
 } from "../../api/jobs"
 import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
+import { parseUnifiedDiff, splitLines } from "../../components/diff/diffRendering"
 import { Pill, surfaceClasses } from "../../components/ui"
 import { collapsedLabel, duplicateRunIds, metadataSummary } from "./DiffReviewVersionSelector"
 import { ReviewAnnotationActionButton, ReviewAnnotationCard } from "../../pluginReviewAnnotations"
@@ -122,21 +123,27 @@ export function useDiffReviewFeedback({
   const handledComments = selectedVersionComments.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
   const workflowActive = submittedComments.some((comment) => comment.workflow && !terminalWorkflowStates.has(comment.workflow.state))
 
-  const createComment = useMutation({
+  const createLineComment = useMutation({
     mutationFn: (input: DiffReviewCommentInput) => createDiffReviewComment(jobId, input),
     onSuccess: () => {
-      setSelection(null)
-      setBody("")
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
   })
-  const updateComment = useMutation({
+  const createReviewComment = useMutation({
+    mutationFn: (input: DiffReviewCommentInput) => createDiffReviewComment(jobId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const updateReviewComment = useMutation({
     mutationFn: ({ id, input }: { id: number; input: Partial<DiffReviewCommentInput> }) => updateDiffReviewComment(jobId, id, input),
     onSuccess: () => {
-      setEditing(null)
-      setBody("")
-      setEditingThreadId(null)
-      setEditingThreadBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const updateThreadComment = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<DiffReviewCommentInput> }) => updateDiffReviewComment(jobId, id, input),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
   })
@@ -181,6 +188,14 @@ export function useDiffReviewFeedback({
     }
   })
 
+  useEffect(() => {
+    setSelection(null)
+    setEditing(null)
+    setBody("")
+    setEditingThreadId(null)
+    setEditingThreadBody("")
+  }, [diffReviewVersionId])
+
   function startComment(nextSelection: DiffLineSelection) {
     if (!enabled) return
     setSelection(nextSelection)
@@ -192,21 +207,27 @@ export function useDiffReviewFeedback({
     const trimmed = body.trim()
     if (!trimmed) return
     if (editing) {
-      updateComment.mutate({ id: editing.id, input: { body: trimmed, diff_review_version_id: editing.diff_review_version_id } })
+      updateReviewComment.mutate(
+        { id: editing.id, input: { body: trimmed, diff_review_version_id: editing.diff_review_version_id } },
+        { onSuccess: () => cancelComposer() }
+      )
       return
     }
     if (!selection) return
-    createComment.mutate(commentInputForSelection({
-      baseRef,
-      body: trimmed,
-      buildContext,
-      diffReviewVersionId,
-      headRef,
-      runId,
-      selection,
-      surface,
-      workflowId
-    }))
+    createLineComment.mutate(
+      commentInputForSelection({
+        baseRef,
+        body: trimmed,
+        buildContext,
+        diffReviewVersionId,
+        headRef,
+        runId,
+        selection,
+        surface,
+        workflowId
+      }),
+      { onSuccess: () => cancelComposer() }
+    )
   }
 
   function editComment(comment: DiffReviewComment) {
@@ -232,7 +253,7 @@ export function useDiffReviewFeedback({
   function commentOnReview() {
     const trimmed = reviewCommentBody.trim()
     if (!trimmed) return
-    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
+    createReviewComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
       onSuccess: () => setReviewCommentBody("")
     })
   }
@@ -243,7 +264,7 @@ export function useDiffReviewFeedback({
       submitComments.mutate(actionableComments.map((comment) => comment.id))
       return
     }
-    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
+    createReviewComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
       onSuccess: (payload) => {
         setReviewCommentBody("")
         const newCommentId = payload.comments[0]?.id
@@ -261,7 +282,10 @@ export function useDiffReviewFeedback({
   function saveEditThread() {
     const trimmed = editingThreadBody.trim()
     if (!trimmed || editingThreadId == null) return
-    updateComment.mutate({ id: editingThreadId, input: { body: trimmed, diff_review_version_id: diffReviewVersionId } })
+    updateThreadComment.mutate(
+      { id: editingThreadId, input: { body: trimmed, diff_review_version_id: diffReviewVersionId } },
+      { onSuccess: () => cancelEditThread() }
+    )
   }
 
   function cancelEditThread() {
@@ -303,8 +327,8 @@ export function useDiffReviewFeedback({
         body={body}
         comments={commentList}
         currentVersionId={diffReviewVersionId ?? null}
-        createError={createComment.error}
-        createPending={createComment.isPending}
+        createError={createReviewComment.error}
+        createPending={createReviewComment.isPending}
         deleteError={deleteComment.error}
         deletePending={deleteComment.isPending}
         editing={editing}
@@ -348,8 +372,8 @@ export function useDiffReviewFeedback({
         submitError={submitError}
         submitPending={submitComments.isPending}
         supportsGlobalComments={supportsGlobalComments}
-        updateError={updateComment.error}
-        updatePending={updateComment.isPending}
+        updateError={updateReviewComment.error}
+        updatePending={updateReviewComment.isPending}
         versions={versions}
         workflowActive={workflowActive}
       />
@@ -361,8 +385,8 @@ export function useDiffReviewFeedback({
     commentCounts: counts,
     commentsQuery: comments,
     composingBody: body,
-    composingError: createComment.error,
-    composingPending: createComment.isPending,
+    composingError: createLineComment.error,
+    composingPending: createLineComment.isPending,
     composingSelection: selection,
     diffThreads,
     discussComposingError: discussComment.error,
@@ -792,11 +816,17 @@ function discussionMessageForSelection({ body, headRef, selection }: { body: str
   ].join("\n")
 }
 
-function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
+export function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
   if (!patch) return null
-  const rows = patch.split("\n")
-  const marker = line.newLine != null ? `+${line.code}` : line.oldLine != null ? `-${line.code}` : ` ${line.code}`
-  const index = rows.findIndex((row) => row === marker)
+  const rows = splitLines(patch)
+  const parsedLines = parseUnifiedDiff(patch)
+  const index = parsedLines.findIndex((parsedLine) => (
+    parsedLine.kind === line.kind &&
+    parsedLine.code === line.code &&
+    (line.oldLine == null || parsedLine.oldLine === line.oldLine) &&
+    (line.newLine == null || parsedLine.newLine === line.newLine) &&
+    (line.oldLine != null || line.newLine != null)
+  ))
   if (index === -1) return rows.find((row) => row.startsWith("@@ ")) || null
   return rows.slice(Math.max(0, index - 4), Math.min(rows.length, index + 5)).join("\n")
 }

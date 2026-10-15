@@ -74,5 +74,91 @@ RSpec.describe JobStackResolver, :ci_only do
         "latest_deployment_stage" => include(name: "staging", label: "On Staging")
       )
     end
+
+    it "reuses a previously prepared fan-in base when dependency heads have not changed" do
+      epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+      job.update!(epic: epic)
+      dep_a = approved_dependency(epic, 1574, "syrus/issue-1574", "a" * 40)
+      dep_b = approved_dependency(epic, 1575, "syrus/issue-1575", "b" * 40)
+      [ dep_a, dep_b ].each { |dependency| Factories.legacy_job_dependency(job: job, depends_on_job: dependency) }
+      dependencies = [
+        { "job_id" => dep_a.id, "branch_name" => dep_a.branch_name, "head_sha" => dep_a.head_sha },
+        { "job_id" => dep_b.id, "branch_name" => dep_b.branch_name, "head_sha" => dep_b.head_sha }
+      ]
+      build = JobStackPreparedBaseBuilder::Result.new(
+        true,
+        "prepared",
+        "syrus/prepared-base-#{job.id}-#{workflow.id}",
+        "d" * 40,
+        dependencies,
+        "prepared fan-in execution base"
+      )
+      builder = instance_double(JobStackPreparedBaseBuilder)
+
+      expect(builder).to receive(:call).once.with(contain_exactly(dep_a, dep_b)).and_return(build)
+
+      first = described_class.new(job, workflow: workflow, prepared_base_builder: builder).resolve!
+      workflow.update!(artifacts: workflow.artifacts.to_h.merge(first.artifacts))
+      second = described_class.new(job.reload, workflow: workflow.reload, prepared_base_builder: builder).resolve!
+
+      expect(first).to be_ready
+      expect(second).to be_ready
+      expect(second.artifacts).to eq(first.artifacts)
+    end
+
+    it "rebuilds a prepared fan-in base when a dependency head has changed" do
+      epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+      job.update!(epic: epic)
+      dep_a = approved_dependency(epic, 1574, "syrus/issue-1574", "a" * 40)
+      dep_b = approved_dependency(epic, 1575, "syrus/issue-1575", "b" * 40)
+      [ dep_a, dep_b ].each { |dependency| Factories.legacy_job_dependency(job: job, depends_on_job: dependency) }
+      workflow.update!(
+        artifacts: {
+          "prepared_stack_base" => {
+            "succeeded" => true,
+            "reason" => "prepared",
+            "branch_name" => "syrus/prepared-base-#{job.id}-#{workflow.id}",
+            "head_sha" => "d" * 40,
+            "dependencies" => [
+              { "job_id" => dep_a.id, "branch_name" => dep_a.branch_name, "head_sha" => "0" * 40 },
+              { "job_id" => dep_b.id, "branch_name" => dep_b.branch_name, "head_sha" => dep_b.head_sha }
+            ]
+          }
+        }
+      )
+      build = JobStackPreparedBaseBuilder::Result.new(
+        true,
+        "prepared",
+        "syrus/prepared-base-#{job.id}-#{workflow.id}",
+        "e" * 40,
+        [
+          { "job_id" => dep_a.id, "branch_name" => dep_a.branch_name, "head_sha" => dep_a.head_sha },
+          { "job_id" => dep_b.id, "branch_name" => dep_b.branch_name, "head_sha" => dep_b.head_sha }
+        ],
+        "prepared fan-in execution base"
+      )
+      builder = instance_double(JobStackPreparedBaseBuilder)
+
+      expect(builder).to receive(:call).once.with(contain_exactly(dep_a, dep_b)).and_return(build)
+
+      result = described_class.new(job, workflow: workflow, prepared_base_builder: builder).resolve!
+
+      expect(result).to be_ready
+      expect(result.artifacts.fetch("prepared_stack_base")).to include("head_sha" => "e" * 40)
+    end
+  end
+
+  def approved_dependency(epic, issue_number, branch_name, head_sha)
+    dependency = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      epic: epic,
+      state: "approved",
+      issue_number: issue_number,
+      branch_name: branch_name,
+      pr_number: issue_number
+    )
+    dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: head_sha)
+    dependency
   end
 end

@@ -444,6 +444,40 @@ describe("App", () => {
     )
   })
 
+  it("does not load signed-in plugin sidebar routes on the public landing page", async () => {
+    const script = appendBootstrapScript(publicBootstrapPayload({ first_signup: false, signups_open: false }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/app/sidebar_pages") {
+        return new Response(JSON.stringify({ error: { code: "unauthorized", message: "Sign in required." } }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" }
+        })
+      }
+
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/?token=invite-123"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+      expect(screen.getAllByRole("link", { name: "Create account from invitation" })[0]).toHaveAttribute("href", "/users/new?token=invite-123")
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        "/api/v1/app/sidebar_pages",
+        expect.objectContaining({ credentials: "same-origin" })
+      )
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
   it("renders invitation-only landing CTA for locked instances", async () => {
     vi.spyOn(window, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(publicBootstrapPayload({ first_signup: false, signups_open: false })), {
@@ -2831,6 +2865,7 @@ describe("App", () => {
   })
 
   it("renders the spending insights route from the app API", async () => {
+    const script = appendBootstrapScript()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/sidebar_pages") {
         return Promise.resolve(new Response(JSON.stringify(sidebarPluginPagesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -2943,6 +2978,7 @@ describe("App", () => {
     expect(screen.getByRole("img", { name: "Daily spend" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Datetime between 2026-06-01 - 2026-06-05/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+    script.remove()
   })
 
   it("persists the selected dashboard view when the view toggle is clicked", async () => {
@@ -15627,7 +15663,7 @@ function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: R
   }
 }
 
-function appendBootstrapScript(payload = bootstrapPayload()) {
+function appendBootstrapScript(payload: unknown = bootstrapPayload()) {
   const script = document.createElement("script")
   script.id = "syrus-bootstrap-data"
   script.type = "application/json"

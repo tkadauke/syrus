@@ -24,6 +24,8 @@ RSpec.describe JobImageAttachmentIngestor do
     expect(attachment.content_type).to eq("image/png")
     expect(attachment.file).to be_attached
     expect(attachment.file.download).to eq(png_body)
+    expect(WebMock).to have_requested(:get, "https://uploads.example.com/mockup.png").
+      with(headers: { "Accept-Encoding" => "identity" })
   end
 
   it "deduplicates by source URL per Job" do
@@ -69,6 +71,75 @@ RSpec.describe JobImageAttachmentIngestor do
     expect(result.attached).to eq(0)
     expect(result.skipped).to eq(2)
     expect(job.job_attachments).to be_empty
+  end
+
+  it "stops reading a streamed response once it exceeds the byte cap" do
+    stub_const("#{described_class}::MAX_BYTES", 12)
+    yielded_chunks = []
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response["Content-Type"] = "image/png"
+    response.define_singleton_method(:read_body) do |&block|
+      [ "a" * 8, "b" * 8, "c" * 8 ].each do |chunk|
+        yielded_chunks << chunk
+        block.call(chunk)
+      end
+    end
+    fake_http = instance_double(Net::HTTP)
+    allow(fake_http).to receive(:request) do |request, &block|
+      expect(request["Accept-Encoding"]).to eq("identity")
+      block.call(response)
+      response
+    end
+    allow(Net::HTTP).to receive(:start).and_yield(fake_http)
+
+    result = described_class.ingest_markdown_images(
+      job: job,
+      markdown: "![stream](https://uploads.example.com/stream.png)"
+    )
+
+    expect(result.attached).to eq(0)
+    expect(result.skipped).to eq(1)
+    expect(job.job_attachments).to be_empty
+    expect(yielded_chunks).to eq([ "a" * 8, "b" * 8 ])
+  end
+
+  it "stops a slow drip after the overall download deadline" do
+    ingestor = described_class.new(job)
+    allow(ingestor).to receive(:monotonic_now).and_return(100, 121)
+    stub_request(:get, "https://uploads.example.com/slow.png").to_return(
+      status: 200,
+      headers: { "Content-Type" => "image/png" },
+      body: png_body
+    )
+
+    result = ingestor.ingest_markdown_images("![slow](https://uploads.example.com/slow.png)")
+
+    expect(result.attached).to eq(0)
+    expect(result.skipped).to eq(1)
+    expect(job.job_attachments).to be_empty
+  end
+
+  it "caps image URLs considered from a single comment" do
+    stub_const("#{described_class}::MAX_URLS_PER_COMMENT", 2)
+    stub_request(:get, %r{\Ahttps://uploads\.example\.com/mockup-\d+\.png\z}).to_return(
+      status: 200,
+      headers: { "Content-Type" => "image/png" },
+      body: png_body
+    )
+
+    result = described_class.ingest_markdown_images(
+      job: job,
+      markdown: [
+        "![one](https://uploads.example.com/mockup-1.png)",
+        "![two](https://uploads.example.com/mockup-2.png)",
+        "![three](https://uploads.example.com/mockup-3.png)"
+      ].join("\n")
+    )
+
+    expect(result.attached).to eq(2)
+    expect(result.skipped).to eq(0)
+    expect(job.job_attachments.count).to eq(2)
+    expect(WebMock).not_to have_requested(:get, "https://uploads.example.com/mockup-3.png")
   end
 
   it "does not run an unbounded regex over huge single-line comment markdown" do

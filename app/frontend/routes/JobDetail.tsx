@@ -172,11 +172,13 @@ export function JobDetailRoute() {
 
   function selectTab(tab: JobTab) {
     const search = new URLSearchParams(location.search)
-    if (tab === "summary") search.delete("tab")
+    if (tab === "summary" || tab === "source") search.delete("tab")
     else search.set("tab", tab)
     if (tab !== "workflows") search.delete("workflows_page")
+    const basePathname = location.pathname.replace(/\/source\/?$/, "")
+    const pathname = tab === "source" ? `${basePathname}/source` : basePathname
     const next = search.toString()
-    navigate(`${location.pathname}${next ? `?${next}` : ""}`)
+    navigate(`${pathname}${next ? `?${next}` : ""}`)
   }
 
   return (
@@ -187,6 +189,7 @@ export function JobDetailRoute() {
         <JobDetailView
           activeTab={activeTab}
           initialDiff={initialDiff}
+          key={payload.job.id}
           onSelectTab={selectTab}
           payload={payload}
           prefix={prefix}
@@ -461,7 +464,7 @@ export function JobDetailView({
           <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} />
         )
       ) : null}
-      {activeTab === "review" && !payload.job.investigation ? <ReviewWorkspace payload={payload} /> : null}
+      {activeTab === "review" && !payload.job.investigation ? <ReviewWorkspace key={payload.job.id} payload={payload} /> : null}
       {activeTab === "workflows" ? (
         <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} />
       ) : null}
@@ -475,6 +478,7 @@ export function JobDetailView({
         <SourceTab
           canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)}
           initialDiff={initialDiff}
+          key={payload.job.id}
           jobId={String(payload.job.id)}
           coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null}
         />

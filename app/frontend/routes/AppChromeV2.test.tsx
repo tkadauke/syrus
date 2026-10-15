@@ -294,6 +294,56 @@ describe("AppChromeV2", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
   })
 
+  it("refreshes bootstrap after a system alert action so resolved alerts disappear on non-dashboard pages", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/credentials/recheck_provider_availability") {
+        return Promise.resolve(jsonResponse({}))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse(bootstrapPayload({ system_alerts: [] })))
+      }
+      if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path} ${init?.method ?? "GET"}`))
+    })
+
+    renderAppChrome(<div>Settings</div>, {
+      initialEntries: ["/settings/agent"],
+      bootstrap: bootstrapPayload({
+        system_alerts: [{
+          id: "provider_auth:claude:1",
+          dismissal_key: "provider_auth:claude:1:2026-09-10T00:00:00Z",
+          severity: "alarm",
+          title: "Claude sign-in expired.",
+          message: "Claude authentication failed for this account.",
+          action_steps: ["Reconnect Claude here or open agent settings."],
+          cta: null,
+          actions: [
+            { text: "Recheck Claude", method: "post", path: "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" } }
+          ]
+        }]
+      })
+    })
+
+    expect(screen.getByText("Claude sign-in expired.")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Recheck Claude" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/recheck_provider_availability", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ provider: "claude" })
+      }))
+    })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
+    })
+    await waitFor(() => {
+      expect(screen.queryByText("Claude sign-in expired.")).not.toBeInTheDocument()
+    })
+  })
+
   it("opens a provider-scoped reauthorization modal from an auth system alert", async () => {
     vi.spyOn(window, "open").mockReturnValue({} as Window)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -1712,6 +1762,9 @@ describe("AppChromeV2 primary nav reordering", () => {
         body: JSON.stringify({ order: ["repositories", "dashboard"] })
       }))
     })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
+    })
   })
 
   it("keeps the live reorder intact when an unrelated query update re-renders the sidebar mid-drag", async () => {
@@ -1800,6 +1853,35 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.drop(dashboardRow)
 
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.anything())
+  })
+
+  it("resets the visible order when a drag ends without dropping on a nav item", () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bootstrap") return Promise.resolve(jsonResponse(bootstrapPayload()))
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/repositories"],
+      bootstrap: bootstrapPayload({ team_user_count: 2 })
+    })
+
+    const primaryNav = screen.getByRole("navigation", { name: "Primary" })
+    const labels = () => within(primaryNav).getAllByRole("link").map((link) => link.textContent)
+    expect(labels()).toEqual(["Dashboard", "Repositories"])
+
+    const repositoriesRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
+    const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
+    const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
+
+    fireEvent.dragStart(repositoriesRow, { dataTransfer })
+    fireEvent.dragOver(dashboardRow, { dataTransfer })
+    expect(labels()).toEqual(["Repositories", "Dashboard"])
+
+    fireEvent.dragEnd(repositoriesRow)
+
+    expect(labels()).toEqual(["Dashboard", "Repositories"])
   })
 })
 

@@ -225,7 +225,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const { t } = useTranslation(["nav", "chat"])
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
-  const shouldLoadChromeBootstrap = initialBootstrap == null && !isAuthPath(normalizedPath)
+  const shouldLoadChromeBootstrap = !isAuthPath(normalizedPath)
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,
@@ -306,7 +306,18 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   )
   const reorderSidebarNav = useMutation({
     mutationFn: updateSidebarNavOrder,
-    onSuccess: () => {
+    onSuccess: (payload) => {
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => {
+        if (!current?.current_user) return current
+
+        return {
+          ...current,
+          current_user: {
+            ...current.current_user,
+            sidebar_nav_order: payload.sidebar_nav_order
+          }
+        }
+      })
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     }
   })
@@ -1322,13 +1333,18 @@ function SidebarContent({
     event.preventDefault()
     const reordered = orderedNavItemsRef.current
     const changed = reordered.some((item, index) => reorderableNavItems[index]?.id !== item.id)
-    endNavItemDrag()
+    endNavItemDrag({ resetOrder: false })
     if (changed) onReorderNavItems(reordered.map((item) => item.id))
   }
 
-  function endNavItemDrag() {
+  function endNavItemDrag({ resetOrder = true }: { resetOrder?: boolean } = {}) {
+    const wasDragging = navDragIndexRef.current != null
     navDragIndexRef.current = null
     setDraggingNavItemId(null)
+    if (!wasDragging || !resetOrder) return
+
+    orderedNavItemsRef.current = reorderableNavItems
+    setOrderedNavItems(reorderableNavItems)
   }
 
   return (
@@ -1397,7 +1413,7 @@ function SidebarContent({
                 <div
                   className={collapsed ? "" : `group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
                   draggable={!collapsed}
-                  onDragEnd={collapsed ? undefined : endNavItemDrag}
+                  onDragEnd={collapsed ? undefined : () => endNavItemDrag()}
                   onDragOver={collapsed ? undefined : (event) => dragOverNavItem(index, event)}
                   onDragStart={collapsed ? undefined : (event) => startNavItemDrag(index, event)}
                   onDrop={collapsed ? undefined : dropNavItem}
