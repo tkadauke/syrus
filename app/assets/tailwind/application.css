@@ -10,6 +10,15 @@
    the cascade regardless of import position. */
 @import "./generated/themes.generated.css";
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
+#syrus-spa-root {
+  overscroll-behavior-y: contain;
+}
+
 /*
  * Semantic color design tokens
  * ============================================================
