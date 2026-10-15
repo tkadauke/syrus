@@ -78,6 +78,16 @@ RSpec.describe LocalDaemonSession, type: :model do
         }
       ))
     end
+
+    it "records the current channel connection" do
+      session = daemon_session(disconnected_at: 1.hour.ago)
+
+      session.mark_connected!(repo: "owner/repo", branch: "main", connection_id: "new-connection")
+
+      expect(session.reload.connection_id).to eq("new-connection")
+      expect(session.current_connection?("new-connection")).to be(true)
+      expect(session.current_connection?("old-connection")).to be(false)
+    end
   end
 
   describe "#mark_disconnected!" do
@@ -111,6 +121,19 @@ RSpec.describe LocalDaemonSession, type: :model do
     it "is idempotent when already disconnected" do
       session = daemon_session(disconnected_at: 5.minutes.ago)
       expect { session.mark_disconnected! }.not_to change { session.reload.disconnected_at }
+    end
+
+    it "does not disconnect a newer channel connection" do
+      session = daemon_session
+      session.mark_connected!(repo: "owner/repo", branch: "main", connection_id: "new-connection")
+      pending_call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat, tool_use_id: "p", tool_name: "run_command", state: "pending")
+
+      expect(session.mark_disconnected!(connection_id: "old-connection")).to be(false)
+
+      expect(session.reload).to be_connected
+      expect(session.connection_id).to eq("new-connection")
+      expect(pending_call.reload.state).to eq("pending")
+      expect(chat.reload.daemon_connected).to be(true)
     end
 
     it "fails pending and dispatched tool calls so a waiting `!` command doesn't hang for the full backstop" do
