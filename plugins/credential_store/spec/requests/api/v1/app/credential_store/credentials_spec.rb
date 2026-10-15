@@ -514,6 +514,47 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     )
   end
 
+  it "attributes completion to the leased credential after name-based rotation" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    leased = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ]
+    )
+    leased.update!(revoked_at: Time.current)
+    replacement = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    post "/api/v1/app/credential_store/exec/audit",
+      params: {
+        credential_exec_audit: {
+          credential: leased.id,
+          lease_id: "lease-before-rotation",
+          tool_name: "credential.exec",
+          exit_status: 0,
+          duration_ms: 1234,
+          mode: "env-var"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:no_content)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: leased,
+      action: "use",
+      result: "allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.where(credential: replacement)).to be_empty
+  end
+
   it "issues SSH agent material only through runtime CLI authentication without writing payload into lease metadata" do
     job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
     run = job.runs.first
