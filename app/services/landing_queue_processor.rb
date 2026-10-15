@@ -753,29 +753,38 @@ class LandingQueueProcessor
       return { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
     end
     return blocked({ key: "manual_pause" }) if job.manual_paused?
-    return override_or_block(job, { key: "landing_paused" }, consume: consume_override) if job.user.landing_paused? || job.owner_user&.landing_paused?
+    override_applied = false
+    result = catch(:landing_blocked) do
+      check_blocker = lambda do |reason, waiting_for = nil, waiting_for_jobs: []|
+        blockage = override_or_block(job, reason, waiting_for, waiting_for_jobs: waiting_for_jobs)
+        throw(:landing_blocked, blockage) if blockage
+
+        override_applied = true
+      end
+
+    check_blocker.call({ key: "landing_paused" }) if job.user.landing_paused? || job.owner_user&.landing_paused?
     if job.repository.main_branch_health_enabled? &&
        job.repository.strict_breakage_policy? &&
        job.repository.main_branch_repair_blocks_work? &&
        job.repository.landing_paused? &&
        job.repository.main_health_broken? &&
        !MainHealthChangedService.fix_main_job?(job)
-      return override_or_block(job, { key: "landing_paused_main_broken" }, consume: consume_override)
+      check_blocker.call({ key: "landing_paused_main_broken" })
     end
-    return override_or_block(job, { key: "repository_archived" }, consume: consume_override) if job.repository.archived?
+    check_blocker.call({ key: "repository_archived" }) if job.repository.archived?
     if job.priority != "urgent" && unrelated_urgent_job_active_for_repository?(job)
-      return override_or_block(job, { key: "urgent_job_active" }, consume: consume_override)
+      check_blocker.call({ key: "urgent_job_active" })
     end
-    return override_or_block(job, { key: "waiting_epic_release" }, consume: consume_override) if job.blocked_by_epic_before_execution?
+    check_blocker.call({ key: "waiting_epic_release" }) if job.blocked_by_epic_before_execution?
     # With merge-trains on, Epic children never land via the per-Job
     # path — they land atomically as part of their Epic's train. Keep
     # them in :approved with a clear reason; MergeTrainDispatcher picks
     # the Epic up once every child is approved.
-    return override_or_block(job, { key: "waiting_epic_merge_train" }, consume: consume_override) if merge_train_for_epic_child?(job)
+    check_blocker.call({ key: "waiting_epic_merge_train" }) if merge_train_for_epic_child?(job)
     # Same idea, epicless: once a same-tier bundle is forming, keep the
     # Job in :approved with a clear reason instead of letting it try to
     # land solo — JobBundleDispatcher picks the group up atomically.
-    return override_or_block(job, { key: "waiting_epicless_bundle" }, consume: consume_override) if bundle_eligible_epicless_job?(job)
+    check_blocker.call({ key: "waiting_epicless_bundle" }) if bundle_eligible_epicless_job?(job)
     if (retry_after = landing_start_blocker_retry_after(job))
       return blocked({ key: "landing_start_blocked_retrying", params: { retry_at: retry_after.iso8601 } })
     end
@@ -784,22 +793,22 @@ class LandingQueueProcessor
     # surfacing the real misconfiguration. Keep the Job in :approved
     # with a clear blocked_reason; once the repo flips
     # auto_merge_enabled=true the queue picks it up immediately.
-    return override_or_block(job, { key: "auto_merge_not_enabled" }, consume: consume_override) unless job.auto_merge_enabled?
-    return override_or_block(job, { key: "review_requested_changes" }, consume: consume_override) if job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
+    check_blocker.call({ key: "auto_merge_not_enabled" }) unless job.auto_merge_enabled?
+    check_blocker.call({ key: "review_requested_changes" }) if job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
     return blocked({ key: "missing_pull_request" }) if job.pr_number.blank? && job.external_pr_number.blank?
     if job.epic
       unapproved_siblings = unapproved_epic_siblings(job)
-      return override_or_block(job, { key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings, consume: consume_override) if unapproved_siblings.any?
+      check_blocker.call({ key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings) if unapproved_siblings.any?
     end
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
     # One pluck covers both checks instead of two separate EXISTS round trips per Job.
     active_trigger_kinds = active_trigger_kinds_for(job)
     if active_trigger_kinds.include?("ci_failure")
-      return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: job.slug } }, consume: consume_override)
+      check_blocker.call({ key: "ci_failure_in_progress", params: { slug: job.slug } })
     end
-    return override_or_block(job, { key: "queued_in_bundle" }, consume: consume_override) if active_unit_kinds_for(job).include?("job_bundle")
-    return override_or_block(job, { key: "active_workflow" }, consume: consume_override) if active_trigger_kinds.any?
+    check_blocker.call({ key: "queued_in_bundle" }) if active_unit_kinds_for(job).include?("job_bundle")
+    check_blocker.call({ key: "active_workflow" }) if active_trigger_kinds.any?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
     if no_effective_ci_repair?(job) && job.pr_checks_state.in?(%w[failing pending])
@@ -818,13 +827,11 @@ class LandingQueueProcessor
       if attribution.inherited?
         if inherited_pr_check_evidence_stale?(job, attribution)
           trigger_pr_check_consistency_refresh(job, attribution)
-          return override_or_block(
-            job,
+          check_blocker.call(
             {
               key: "pr_checks_failing_base_stale",
               params: { slug: job.slug, checks: attribution.failing_names.join(", "), base_sha: attribution.base_sha }
-            },
-            consume: consume_override
+            }
           )
         end
 
@@ -836,22 +843,16 @@ class LandingQueueProcessor
         # cap, epic siblings, parent, dependencies) rather than declaring the Job
         # landable, which returning an empty blockage here would wrongly do.
         unless job.repository.land_on_inherited_check_failure?
-          return override_or_block(
-            job,
-            { key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } },
-            consume: consume_override
-          )
+          check_blocker.call({ key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } })
         end
       else
         if attribution.unknown? && attribution.failing_names.any?
           trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
-          return override_or_block(
-            job,
+          check_blocker.call(
             {
               key: "pr_checks_failing_base_unknown",
               params: { slug: job.slug, checks: attribution.failing_names.join(", "), reason: attribution.reason }
-            },
-            consume: consume_override
+            }
           )
         end
 
@@ -860,12 +861,12 @@ class LandingQueueProcessor
     when "pending"
       return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })
     end
-    return override_or_block(job, MERGEABILITY_WAIT_REASON, consume: consume_override) if waiting_for_github_mergeability?(job)
-    return override_or_block(job, { key: "waiting_github_mergeability_noop" }, consume: consume_override) if RebaseLoopGuard.waiting_after_noop?(job)
-    return override_or_block(job, { key: "rebase_cap_reached" }, consume: consume_override) if RebaseAttemptGuard.blocking_landing?(job)
+    check_blocker.call(MERGEABILITY_WAIT_REASON) if waiting_for_github_mergeability?(job)
+    check_blocker.call({ key: "waiting_github_mergeability_noop" }) if RebaseLoopGuard.waiting_after_noop?(job)
+    check_blocker.call({ key: "rebase_cap_reached" }) if RebaseAttemptGuard.blocking_landing?(job)
     if job.epic
       if (blocker = ci_failure_workflow_epic_sibling(job))
-        return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker], consume: consume_override)
+        check_blocker.call({ key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker])
       end
       if (check_issue = pr_checks_unclean_epic_sibling(job))
         check_key = no_effective_ci_repair?(check_issue[:sibling]) ? "ci_repair_no_effective_change" :
@@ -876,30 +877,35 @@ class LandingQueueProcessor
 
     parent = job.parent_job
     if parent && !merged?(parent)
-      return override_or_block(job, { key: "waiting_to_merge", params: { slug: parent.slug } }, parent, consume: consume_override)
+      check_blocker.call({ key: "waiting_to_merge", params: { slug: parent.slug } }, parent)
     end
 
     dependency = job.dependencies_overridden_at.present? ? nil : unmerged_dependency(job)
     if dependency
       if dependency.depends_on_epic_id.present?
-        return override_or_block(job, { key: "waiting_epic_to_complete", params: { number: dependency.depends_on_epic.number } }, dependency.depends_on_epic, consume: consume_override)
+        check_blocker.call({ key: "waiting_epic_to_complete", params: { number: dependency.depends_on_epic.number } }, dependency.depends_on_epic)
+      else
+        waiting = dependency.pending? ? dependency.unresolved_slug : dependency.depends_on_job
+        check_blocker.call(dependency_wait_reason(dependency, waiting), waiting)
       end
-
-      waiting = dependency.pending? ? dependency.unresolved_slug : dependency.depends_on_job
-      return override_or_block(job, dependency_wait_reason(dependency, waiting), waiting, consume: consume_override)
     end
 
     { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
+    end
+
+    consume_landing_blocker_override(job) if override_applied && consume_override && result[:blocked_reason].blank?
+    result
   end
 
-  def override_or_block(job, reason, waiting_for = nil, waiting_for_jobs: [], consume: false)
+  def override_or_block(job, reason, waiting_for = nil, waiting_for_jobs: [])
     return blocked(reason, waiting_for, waiting_for_jobs: waiting_for_jobs) unless landing_blocker_override_matches?(job, reason)
 
-    if consume
-      job.update_columns(landing_blocker_override_used_at: Time.current, updated_at: Time.current)
-      audit(job, "landing_queue: one-shot override consumed for blocker #{reason[:key]}; reason=#{job.landing_blocker_override_reason}")
-    end
-    { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }
+    nil
+  end
+
+  def consume_landing_blocker_override(job)
+    job.update_columns(landing_blocker_override_used_at: Time.current, updated_at: Time.current)
+    audit(job, "landing_queue: one-shot override consumed for blocker #{job.landing_blocker_override_key}; reason=#{job.landing_blocker_override_reason}")
   end
 
   def landing_blocker_override_matches?(job, reason)
