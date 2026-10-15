@@ -1261,7 +1261,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
-  process-local material, redaction, cleanup, and access audit events.
+  process-local material, redaction, cleanup, and access audit events. SSH
+  execution runs only read-only diagnostic commands by default; other commands
+  and unsafe shell syntax require explicit workflow authorization that chat
+  callers cannot grant themselves.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing
