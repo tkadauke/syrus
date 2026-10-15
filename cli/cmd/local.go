@@ -29,12 +29,13 @@ const (
 )
 
 // Overridable for tests.
-var localDialer = func(ctx context.Context, rawURL string) (*websocket.Conn, error) {
+var localDialer = func(ctx context.Context, rawURL, apiToken string) (*websocket.Conn, error) {
 	d := websocket.DefaultDialer
 	headers := http.Header{}
 	if origin := localCableOrigin(rawURL); origin != "" {
 		headers.Set("Origin", origin)
 	}
+	headers.Set("Authorization", "Bearer "+apiToken)
 	conn, response, err := d.DialContext(ctx, rawURL, headers)
 	if err != nil {
 		return nil, localHandshakeError(err, response)
@@ -142,7 +143,7 @@ func runLocalDaemon(cmd *cobra.Command, dirFlag string, chatSessionID int64, tun
 		return fmt.Errorf("could not determine current branch: %w", err)
 	}
 
-	wsURL, err := buildLocalCableURL(creds.URL, creds.Token)
+	wsURL, err := buildLocalCableURL(creds.URL)
 	if err != nil {
 		return err
 	}
@@ -150,7 +151,7 @@ func runLocalDaemon(cmd *cobra.Command, dirFlag string, chatSessionID int64, tun
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	return runLocalWithReconnect(ctx, cmd.OutOrStdout(), wsURL, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
+	return runLocalWithReconnect(ctx, cmd.OutOrStdout(), wsURL, creds.Token, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
 }
 
 func findLocalGitRoot(ctx context.Context, startDir string) (string, error) {
@@ -185,7 +186,7 @@ func getLocalBranch(ctx context.Context, repoRoot string) (string, error) {
 	return branch, nil
 }
 
-func buildLocalCableURL(baseURL, token string) (string, error) {
+func buildLocalCableURL(baseURL string) (string, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return "", err
@@ -199,16 +200,15 @@ func buildLocalCableURL(baseURL, token string) (string, error) {
 		return "", fmt.Errorf("unsupported URL scheme %q", parsed.Scheme)
 	}
 	parsed.Path = "/cable"
-	q := parsed.Query()
-	q.Set("api_token", token)
-	parsed.RawQuery = q.Encode()
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
 	return parsed.String(), nil
 }
 
-func runLocalWithReconnect(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
+func runLocalWithReconnect(ctx context.Context, out io.Writer, wsURL, apiToken, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
 	backoff := localInitialBackoff
 	for {
-		err := localConnectAndServe(ctx, out, wsURL, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
+		err := localConnectAndServe(ctx, out, wsURL, apiToken, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
 
 		select {
 		case <-ctx.Done():
@@ -265,8 +265,8 @@ type localCancelToolCallMsg struct {
 	ToolUseID string `json:"tool_use_id"`
 }
 
-func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
-	conn, err := localDialer(ctx, wsURL)
+func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, apiToken, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
+	conn, err := localDialer(ctx, wsURL, apiToken)
 	if err != nil {
 		return fmt.Errorf("connection failed: %w", err)
 	}

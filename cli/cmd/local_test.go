@@ -55,15 +55,15 @@ func wsURL(t *testing.T, srv *httptest.Server) string {
 // ---------------------------------------------------------------------------
 
 func TestBuildLocalCableURLConvertsHTTPtoWS(t *testing.T) {
-	got, err := buildLocalCableURL("http://syrus.example.com", "tok-abc")
+	got, err := buildLocalCableURL("http://syrus.example.com?api_token=tok-abc")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !strings.HasPrefix(got, "ws://") {
 		t.Fatalf("expected ws:// scheme, got %q", got)
 	}
-	if !strings.Contains(got, "api_token=tok-abc") {
-		t.Fatalf("expected api_token in URL, got %q", got)
+	if strings.Contains(got, "tok-abc") || strings.Contains(got, "api_token") {
+		t.Fatalf("expected API token to be absent from URL, got %q", got)
 	}
 	if !strings.Contains(got, "/cable") {
 		t.Fatalf("expected /cable path, got %q", got)
@@ -71,7 +71,7 @@ func TestBuildLocalCableURLConvertsHTTPtoWS(t *testing.T) {
 }
 
 func TestBuildLocalCableURLConvertsHTTPStoWSS(t *testing.T) {
-	got, err := buildLocalCableURL("https://syrus.example.com", "tok-abc")
+	got, err := buildLocalCableURL("https://syrus.example.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestBuildLocalCableURLConvertsHTTPStoWSS(t *testing.T) {
 }
 
 func TestBuildLocalCableURLRejectsUnknownScheme(t *testing.T) {
-	_, err := buildLocalCableURL("ftp://syrus.example.com", "tok")
+	_, err := buildLocalCableURL("ftp://syrus.example.com")
 	if err == nil {
 		t.Fatal("expected error for unsupported scheme")
 	}
@@ -120,6 +120,28 @@ func TestLocalCableOriginKeepsNonDefaultPort(t *testing.T) {
 
 	if origin != "http://localhost:3000" {
 		t.Fatalf("expected local http origin with port, got %q", origin)
+	}
+}
+
+func TestLocalDialerSendsAPITokenInAuthorizationHeader(t *testing.T) {
+	var authorization string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err == nil {
+			conn.Close()
+		}
+	}))
+	defer srv.Close()
+
+	conn, err := localDialer(context.Background(), wsURL(t, srv), "syrus_account_token")
+	if err != nil {
+		t.Fatalf("unexpected dial error: %v", err)
+	}
+	conn.Close()
+
+	if authorization != "Bearer syrus_account_token" {
+		t.Fatalf("expected bearer authorization header, got %q", authorization)
 	}
 }
 
@@ -490,7 +512,7 @@ func TestLocalConnectAndServeSendsChatSessionAndTokenInSubscribeIdentifier(t *te
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if gotIdentifier["chat_session_id"] != float64(42) {
 		t.Fatalf("chat_session_id = %v", gotIdentifier["chat_session_id"])
@@ -523,7 +545,7 @@ func TestLocalConnectAndServeHandlesConnected(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if !strings.Contains(out.String(), "chat session #42") {
 		t.Fatalf("output = %q", out.String())
@@ -550,7 +572,7 @@ func TestLocalConnectAndServeSendsConnectWithRepoAndBranch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "feat-branch", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "feat-branch", 42, "tok-abc") //nolint:errcheck
 
 	if gotConnect["type"] != "connect" {
 		t.Fatalf("type = %v", gotConnect["type"])
@@ -589,7 +611,7 @@ func TestLocalConnectAndServeRespondsToPing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if gotPong["type"] != "pong" {
 		t.Fatalf("expected a pong reply, got %v", gotPong)
@@ -612,7 +634,7 @@ func TestLocalConnectAndServeReturnsErrorOnDisconnectedFrame(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc")
 	if err == nil {
 		t.Fatal("expected error on disconnected frame")
 	}
@@ -666,7 +688,7 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), "api-token", root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	// Give the goroutine a moment to deliver.
 	time.Sleep(100 * time.Millisecond)
@@ -733,7 +755,7 @@ func TestLocalConnectAndServePrintsRunCommandActivity(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), "api-token", root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if toolResultReceived == nil {
 		t.Fatal("did not receive tool result")
@@ -780,7 +802,7 @@ func TestLocalConnectAndServePrintsFailureActivity(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), "api-token", root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	gotOutput := out.String()
 	if !strings.Contains(gotOutput, "⎿ ✗ exit 3 stderr: nope") {
@@ -844,7 +866,7 @@ func TestLocalConnectAndServeCancelsInFlightRunCommand(t *testing.T) {
 	defer cancel()
 
 	startedAt := time.Now()
-	localConnectAndServe(ctx, &out, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), "api-token", root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 	elapsed := time.Since(startedAt)
 
 	<-start
@@ -883,7 +905,7 @@ func TestLocalConnectAndServeReturnsErrorOnRejectSubscription(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc")
 	if err == nil {
 		t.Fatal("expected error on subscription rejection")
 	}
@@ -905,7 +927,7 @@ func TestLocalConnectAndServeReturnsErrorOnConnectionLevelDisconnect(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc")
 	if err == nil {
 		t.Fatal("expected error on connection-level disconnect")
 	}
@@ -925,7 +947,7 @@ func TestRunLocalWithReconnectPrintsUnderlyingErrorBeforeReconnecting(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	runLocalWithReconnect(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	runLocalWithReconnect(ctx, &out, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if !strings.Contains(out.String(), "pairing rejected") {
 		t.Fatalf("expected the underlying error to be printed, got %q", out.String())

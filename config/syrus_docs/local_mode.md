@@ -28,7 +28,9 @@ tunnel can be authorized. The flow is:
    reactivates) a `LocalDaemonSession` and returns its `chat_session_id` and
    `auth_token`. The banner renders these interpolated into a copyable
    command: `syrus local --chat <chat_session_id> --token <auth_token>`.
-2. **The operator runs the command** in their local repository checkout.
+2. **The operator runs the command** in their local repository checkout. The
+   CLI authenticates the WebSocket handshake with `Authorization: Bearer
+   <api_token>`; the account token is never placed in the request URL.
 3. **The CLI subscribes to `LocalTunnelChannel`** over Action Cable, sending
    `chat_session_id` and `tunnel_token` (the pairing session's `auth_token`)
    in the subscribe identifier. `LocalTunnelChannel#subscribed` looks up a
