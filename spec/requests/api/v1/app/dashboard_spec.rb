@@ -2643,6 +2643,24 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(ready.reload).to be_in_progress
     end
 
+    it "does not let a global-admin run token start an Epic outside its invocation repository", :skip_sign_in do
+      admin = Factories.user(admin: true)
+      scoped_repo = Factories.repository(user: admin, owner: "admin", name: "scoped")
+      current_job = Factories.job_with_run(repository: scoped_repo, issue_number: 100, run_attrs: { state: "running" })
+      other_repo = Factories.repository(user: Factories.user, owner: "other", name: "private")
+      other_epic = Factories.epic(repository: other_repo, state: "ready", title: "Outside scope")
+      token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+      allow_any_instance_of(AppApi::InternalCliInvocation).to receive(:allowed?).and_return(true)
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ other_epic.id ], bulk_action: "start" },
+           headers: { "Authorization" => "Bearer #{token}" },
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(other_epic.reload).to be_ready
+    end
+
     it "rejects product-owner bulk starts" do
       user.update!(role: "product_owner")
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")

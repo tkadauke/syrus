@@ -188,7 +188,8 @@ module Api
         end
 
         def accessible_epics
-          Current.user.admin? ? Epic.all : policy_scope(Epic)
+          scope = Current.user.admin? ? Epic.all : policy_scope(Epic)
+          restrict_invocation_relation(scope)
         end
 
         def bulk_retry_jobs(jobs, agent_provider: nil)
