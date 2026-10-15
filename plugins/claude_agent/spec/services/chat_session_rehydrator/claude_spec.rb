@@ -54,6 +54,16 @@ RSpec.describe ChatSessionRehydrator::Claude do
     expect(prompts.first.data[:text]).to eq("Hello there.")
   end
 
+  it "does not rehydrate deleted messages" do
+    create_message!(role: "user", content: { "text" => "keep me" })
+    session.messages.create!(role: "user", content: { "text" => "deleted secret" }, deleted_at: Time.current)
+
+    jsonl = described_class.new(session).call
+
+    expect(jsonl).to include("keep me")
+    expect(jsonl).not_to include("deleted secret")
+  end
+
   # ---------------------------------------------------------------------------
   # Unit: assistant message (text only, no tools)
   # ---------------------------------------------------------------------------

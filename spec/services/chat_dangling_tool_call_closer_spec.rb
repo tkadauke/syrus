@@ -60,6 +60,30 @@ RSpec.describe ChatDanglingToolCallCloser do
     }.to change { chat.messages.where(role: "tool_result").count }.by(1)
   end
 
+  it "ignores deleted messages when locating and closing the latest turn" do
+    user = Factories.user
+    chat = ChatSession.create!(user: user)
+    chat.messages.create!(role: "user", content: { "text" => "Active turn" })
+    active_tool = chat.messages.create!(
+      role: "tool_use",
+      tool_name: "active_tool",
+      tool_use_id: "active_tool",
+      content: { "type" => "tool_use", "id" => "active_tool", "name" => "active_tool", "input" => {} }
+    )
+    chat.messages.create!(role: "user", content: { "text" => "Deleted turn" }, deleted_at: Time.current)
+    chat.messages.create!(
+      role: "tool_use",
+      tool_name: "deleted_tool",
+      tool_use_id: "deleted_tool",
+      content: { "type" => "tool_use", "id" => "deleted_tool", "name" => "deleted_tool", "input" => {} },
+      deleted_at: Time.current
+    )
+
+    expect(described_class.close!(chat_session: chat)).to eq(1)
+    expect(chat.messages.active.find_by(role: "tool_result", tool_use_id: active_tool.tool_use_id)).to be_present
+    expect(chat.messages.active.find_by(role: "tool_result", tool_use_id: "deleted_tool")).to be_nil
+  end
+
   # The transcript renderer used to decide whether a cleanup row was benign by
   # matching its sentence, so a reworded constant would have flooded chat with
   # failed-looking tool cards while every test still passed. These assert the
