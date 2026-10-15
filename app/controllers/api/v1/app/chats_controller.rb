@@ -514,6 +514,7 @@ module Api
           chat_session = find_chat_session
           ApplicationRecord.transaction do
             chat_session.messages.active.update_all(deleted_at: Time.current, deleted_by_user_id: Current.user.id)
+            chat_session.context_checkpoints.delete_all
             chat_session.chat_queued_messages.destroy_all
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end

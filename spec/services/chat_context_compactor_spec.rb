@@ -144,6 +144,31 @@ RSpec.describe ChatContextCompactor do
       expect(session.context_checkpoints.latest_first.first.source_message_count).to eq(90)
     end
 
+    it "invalidates and rebuilds a checkpoint when a compacted message is deleted" do
+      enable_compaction!
+      session = chat
+      add_messages(session, 20)
+      deleted = session.messages.create!(
+        role: "user",
+        content: { "text" => "deleted secret from compacted history" }
+      )
+      add_messages(session, 109)
+      described_class.maybe_compact!(session)
+
+      expect(session.context_checkpoints.latest_first.first.summary).to include("deleted secret from compacted history")
+
+      deleted.soft_delete_by!(user)
+
+      expect(session.context_checkpoints.reload).to be_empty
+      expect(described_class.context_messages_for(session).map(&:id)).not_to include(deleted.id)
+
+      described_class.maybe_compact!(session)
+
+      replay = described_class.context_messages_for(session)
+      expect(session.context_checkpoints.latest_first.first.summary).not_to include("deleted secret from compacted history")
+      expect(replay.to_json).not_to include("deleted secret from compacted history")
+    end
+
     it "compacts only messages after the previous checkpoint" do
       enable_compaction!
       session = chat
