@@ -1,5 +1,6 @@
 require "shellwords"
 require "tempfile"
+require "digest"
 
 module CredentialStore
   class SshExec
@@ -40,15 +41,13 @@ module CredentialStore
       @host = host.to_s.strip
       @user = user.to_s.strip
       @command = command.to_s
-      @port = normalized_port(port)
+      @port_input = port
       @allow_unconstrained_host = allow_unconstrained_host == true
       @allow_risky_command = allow_risky_command == true
-      @connect_timeout = normalized_timeout(connect_timeout)
+      @connect_timeout_input = connect_timeout
     end
 
     def call
-      validate_inputs!
-
       CredentialStore::Broker.with_credential_env(
         context: context,
         credential: credential,
@@ -57,7 +56,8 @@ module CredentialStore
         purpose: "ssh exec #{user}@#{host}",
         tool_name: TOOL_NAME,
         target: target,
-        credential_validator: method(:credential_denial_reason)
+        credential_validator: method(:validate_credential_attempt!),
+        attempt_metadata: command_metadata
       ) do |credential_env, metadata|
         credential_metadata = metadata.fetch(:safe_metadata, {})
         key_material = SshKeyMaterial.from_payload(credential_env.fetch("SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD"))
@@ -84,12 +84,19 @@ module CredentialStore
     attr_reader :context, :credential, :host, :user, :command, :port, :allow_unconstrained_host, :allow_risky_command, :connect_timeout
 
     def validate_inputs!
+      @port = normalized_port(@port_input)
+      @connect_timeout = normalized_timeout(@connect_timeout_input)
       raise InvalidTarget, "host is required" if host.blank?
       raise InvalidTarget, "user is required" if user.blank?
       raise InvalidTarget, "command is required" if command.blank?
       raise OperatorConfirmationRequired, "chat SSH calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
       raise OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
       raise RiskyCommand, "command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
+    end
+
+    def validate_credential_attempt!(credential)
+      validate_inputs!
+      credential_denial_reason(credential)
     end
 
     def credential_denial_reason(credential)
@@ -108,15 +115,44 @@ module CredentialStore
     end
 
     def run_ssh(key_path:, known_hosts_path:, askpass_env:, metadata:, credential_metadata:, extra_secrets:)
-      result = self.class.runner.call(
-        env: ssh_env.merge(askpass_env),
-        argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
-      )
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = begin
+        self.class.runner.call(
+          env: ssh_env.merge(askpass_env),
+          argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
+        )
+      rescue StandardError => e
+        record_completion!(metadata, nil, started_at, error: e)
+        raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
+      end
 
+      record_completion!(metadata, result.status.to_i, started_at)
       payload = payload_for(result, metadata: metadata, credential_metadata: credential_metadata, known_hosts_enforced: known_hosts_path.present?)
       CredentialStore::Broker.redact(payload, extra_secrets: extra_secrets)
-    rescue StandardError => e
-      raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
+    end
+
+    def record_completion!(lease_metadata, exit_status, started_at, error: nil)
+      credential_record = Credential.find(lease_metadata.fetch(:credential_id))
+      lease_id = lease_metadata.fetch(:lease_id)
+      lease_event = credential_record.access_events.find_by(action: "lease", result: "allowed", lease_id: lease_id)
+      raise ActiveRecord::RecordNotFound, "lease event not found" unless lease_event
+      CredentialAccessEvent.record!(
+        credential: credential_record, lease_event: lease_event,
+        user: context.user, repository: context.repository, job: context.job,
+        workflow: context.workflow, run: context.run, chat_session: context.chat_session,
+        surface: context.run? ? "workflow" : context.surface.to_s,
+        tool_name: TOOL_NAME, action: "use", purpose: "ssh exec #{user}@#{host}",
+        result: error || exit_status != 0 ? "failed" : "allowed",
+        metadata: Redaction.scrub_object(command_metadata, credentials: [ credential_record ]).merge(
+          lease_id: lease_id, exit_status: exit_status,
+          duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
+          error_class: error&.class&.name
+        ).compact
+      )
+    end
+
+    def command_metadata
+      { command_sha256: Digest::SHA256.hexdigest(command), command: command.truncate(500) }
     end
 
     def ssh_env

@@ -3,6 +3,8 @@ module Api
     module App
       module CredentialStore
         class LeasesController < BaseController
+          class InvalidAudit < StandardError; end
+
           before_action :require_credential_store_enabled
 
           def create
@@ -96,52 +98,28 @@ module Api
             context = require_runtime_context!
             return unless context
 
-            credential = visible_credential!(exec_audit_attrs.fetch(:credential))
-            ::CredentialStore::CredentialAccessEvent.record!(
-              credential: credential,
-              user: context.user,
-              repository: context.repository,
-              job: context.job,
-              workflow: context.workflow,
-              run: context.run,
-              chat_session: context.chat_session,
-              surface: context.run? ? "workflow" : context.surface.to_s,
-              tool_name: exec_audit_attrs[:tool_name].presence || "credential.exec",
-              action: "use",
-              purpose: exec_audit_attrs[:purpose].presence || "credential exec command",
-              result: exec_audit_attrs[:exit_status].to_i.zero? ? "allowed" : "failed",
-              metadata: exec_audit_metadata
-            )
+            record_completion_audit!(exec_audit_attrs, context: context, expected_tool: "credential.exec",
+              default_purpose: "credential exec command", metadata: exec_audit_metadata)
 
             head :no_content
           rescue ActiveRecord::RecordNotFound => e
             render_error("not_found", e.message, status: :not_found)
+          rescue InvalidAudit, ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def ssh_agent_audit
             context = require_runtime_context!
             return unless context
 
-            credential = visible_credential!(ssh_agent_audit_attrs.fetch(:credential))
-            ::CredentialStore::CredentialAccessEvent.record!(
-              credential: credential,
-              user: context.user,
-              repository: context.repository,
-              job: context.job,
-              workflow: context.workflow,
-              run: context.run,
-              chat_session: context.chat_session,
-              surface: context.run? ? "workflow" : context.surface.to_s,
-              tool_name: ssh_agent_audit_attrs[:tool_name].presence || "credential.ssh-agent",
-              action: "use",
-              purpose: ssh_agent_audit_attrs[:purpose].presence || "ssh-agent command",
-              result: ssh_agent_audit_attrs[:exit_status].to_i.zero? ? "allowed" : "failed",
-              metadata: ssh_agent_audit_metadata
-            )
+            record_completion_audit!(ssh_agent_audit_attrs, context: context, expected_tool: "credential.ssh-agent",
+              default_purpose: "ssh-agent command", metadata: ssh_agent_audit_metadata)
 
             head :no_content
           rescue ActiveRecord::RecordNotFound => e
             render_error("not_found", e.message, status: :not_found)
+          rescue InvalidAudit, ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           private
@@ -233,7 +211,6 @@ module Api
           def exec_audit_metadata
             {
               lease_id: exec_audit_attrs[:lease_id].presence,
-              exit_status: exec_audit_attrs[:exit_status].to_i,
               duration_ms: exec_audit_attrs[:duration_ms].to_i,
               mode: exec_audit_attrs[:mode].presence
             }.compact
@@ -253,7 +230,6 @@ module Api
           def ssh_agent_audit_metadata
             {
               lease_id: ssh_agent_audit_attrs[:lease_id].presence,
-              exit_status: ssh_agent_audit_attrs[:exit_status].to_i,
               duration_ms: ssh_agent_audit_attrs[:duration_ms].to_i
             }.compact
           end
@@ -262,6 +238,47 @@ module Api
             relation = ::CredentialStore::Credential.all
             relation = ref.to_s.match?(/\A\d+\z/) ? relation.where(id: ref) : relation.where(name: ref.to_s)
             relation.detect { |credential| credential.scope_policy.usable_by?(credential, current_invocation_context) } || raise(ActiveRecord::RecordNotFound, "credential not found")
+          end
+
+          def record_completion_audit!(attrs, context:, expected_tool:, default_purpose:, metadata:)
+            lease_id = attrs[:lease_id].to_s
+            raise InvalidAudit, "lease_id is required" if lease_id.blank?
+            raise InvalidAudit, "tool_name does not match the lease tool" if attrs[:tool_name].present? && attrs[:tool_name] != expected_tool
+
+            exit_status = Integer(attrs[:exit_status], exception: false)
+            raise InvalidAudit, "exit_status must be an integer" if exit_status.nil?
+
+            credential = visible_credential!(attrs.fetch(:credential))
+            lease_event = credential.access_events.find_by(
+              action: "lease", result: "allowed", tool_name: expected_tool, lease_id: lease_id
+            )
+            raise InvalidAudit, "lease was not issued for this credential and tool" unless lease_event
+            raise InvalidAudit, "lease does not belong to this runtime context" unless audit_context_matches?(lease_event, context)
+            raise InvalidAudit, "lease has expired" if Time.current >= Time.iso8601(lease_event.metadata.fetch("expires_at"))
+
+            ::CredentialStore::CredentialAccessEvent.transaction do
+              lease_event.lock!
+              raise InvalidAudit, "lease completion was already recorded" if lease_event.completion_event
+
+              ::CredentialStore::CredentialAccessEvent.record!(
+                credential: credential, lease_event: lease_event,
+                user: context.user, repository: context.repository, job: context.job,
+                workflow: context.workflow, run: context.run, chat_session: context.chat_session,
+                surface: context.run? ? "workflow" : context.surface.to_s,
+                tool_name: expected_tool, action: "use",
+                purpose: attrs[:purpose].presence || default_purpose,
+                result: exit_status.zero? ? "allowed" : "failed",
+                metadata: metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status)
+              )
+            end
+          rescue KeyError, ArgumentError
+            raise InvalidAudit, "lease metadata is invalid"
+          end
+
+          def audit_context_matches?(event, context)
+            event.user_id == context.user&.id && event.repository_id == context.repository&.id &&
+              event.job_id == context.job&.id && event.workflow_id == context.workflow&.id &&
+              event.run_id == context.run&.id && event.chat_session_id == context.chat_session&.id
           end
         end
       end

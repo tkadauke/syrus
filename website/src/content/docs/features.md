@@ -1262,6 +1262,10 @@ Each user owns their own profile, credentials, defaults, and preferences:
   handles, never payload material. The broker enforces scope, surface, tool,
   type, target constraints, expiry, and revocation; wrappers use temporary
   process-local material, redaction, cleanup, and access audit events.
+  The audit trail includes denied SSH attempts, bounded command evidence and
+  completion status, credential create/update policy changes, and explicit
+  un-revocation during rotation. Runtime wrapper completion events must claim
+  an unexpired lease for the same credential, tool, and runtime context once.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing

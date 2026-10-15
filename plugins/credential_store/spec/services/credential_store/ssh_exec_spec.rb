@@ -81,8 +81,11 @@ RSpec.describe CredentialStore::SshExec do
       repository: repository,
       run: run,
       tool_name: "credential_store_ssh_exec",
-      action: "lease",
+      action: "use",
       result: "allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include(
+      "command_sha256" => Digest::SHA256.hexdigest("uptime"), "command" => "uptime", "exit_status" => 0
     )
   end
 
@@ -127,6 +130,9 @@ RSpec.describe CredentialStore::SshExec do
       result: "denied",
       denial_reason: "credential revoked"
     )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include(
+      "command_sha256" => Digest::SHA256.hexdigest("uptime"), "command" => "uptime"
+    )
   end
 
   it "denies host constraint mismatches before invoking the runner" do
@@ -141,6 +147,23 @@ RSpec.describe CredentialStore::SshExec do
       result: "denied",
       denial_reason: "host not allowed"
     )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("command" => "uptime")
+  end
+
+  it "audits invalid ports before invoking the runner" do
+    credential = create_credential
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(
+        context: context, credential: credential.id, host: "app.example.com",
+        user: "deploy", command: "uptime", port: "invalid"
+      )
+    }.to raise_error(CredentialStore::SshExec::InvalidTarget, /port must be between/)
+
+    expect(runner).not_to have_received(:call)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(result: "denied")
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("command" => "uptime")
   end
 
   it "rejects safe metadata host mismatches before invoking the runner" do
@@ -159,6 +182,7 @@ RSpec.describe CredentialStore::SshExec do
       result: "denied",
       denial_reason: "credential host metadata does not match target"
     )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("command" => "uptime")
   end
 
   it "refuses unconstrained credentials unless explicitly allowed" do
