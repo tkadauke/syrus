@@ -95,6 +95,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const [historyMode, setHistoryMode] = useState<ComposerHistoryMode | null>(null)
   const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
   const submittedDraftRef = useRef<ComposerDraftSnapshot | null>(null)
+  const submittedGoalDraftRef = useRef<ComposerDraftSnapshot | null>(null)
   const currentDraftRef = useRef<ComposerDraftSnapshot>({ composerText: text, attachments })
   currentDraftRef.current = { composerText: text, attachments }
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
@@ -224,7 +225,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   useEffect(() => {
     if (historyMode) return
 
-    const draftText = text.length > 0 ? text : submittedDraftRef.current?.composerText || ""
+    const submittedDraft = submittedDraftRef.current || submittedGoalDraftRef.current
+    const draftText = text.length > 0 ? text : submittedDraft?.composerText || ""
     if (draftText.length > 0) {
       storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, draftText)
       return
@@ -256,7 +258,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
   useEffect(() => {
-    const draftAttachments = attachments.length > 0 ? attachments : submittedDraftRef.current?.attachments || []
+    const submittedDraft = submittedDraftRef.current || submittedGoalDraftRef.current
+    const draftAttachments = attachments.length > 0 ? attachments : submittedDraft?.attachments || []
     setDraftAttachments(chatId, draftAttachments)
   }, [chatId, attachments])
 
@@ -277,6 +280,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }, [payload.messages, shellCommand])
 
   function clearComposerDraft({ preserveStoredDraft = false } = {}) {
+    currentDraftRef.current = { composerText: "", attachments: [] }
     setText("")
     setAttachments([])
     setAttachmentError(null)
@@ -295,6 +299,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   function restoreComposerDraft(draft: ComposerDraftSnapshot) {
+    currentDraftRef.current = draft
     setText(draft.composerText)
     setAttachments(draft.attachments)
     setAttachmentError(null)
@@ -312,6 +317,22 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       // Local storage can be unavailable in hardened browser modes.
     }
     setDraftAttachments(chatId, [])
+  }
+
+  function draftHasContent(draft: ComposerDraftSnapshot) {
+    return draft.composerText.length > 0 || draft.attachments.length > 0
+  }
+
+  function finishSubmittedDraft(draft: ComposerDraftSnapshot, succeeded: boolean) {
+    const currentDraft = currentDraftRef.current
+    if (draftHasContent(currentDraft)) {
+      persistComposerDraft(currentDraft)
+    } else if (succeeded) {
+      discardStoredComposerDraft()
+    } else {
+      persistComposerDraft(draft)
+      restoreComposerDraft(draft)
+    }
   }
 
   function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
@@ -339,7 +360,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments, draft.chatProvider),
     onSuccess: (updated, draft) => {
       submittedDraftRef.current = null
-      discardStoredComposerDraft()
+      finishSubmittedDraft(draft, true)
       rememberSubmittedPrompt(draft.messageText)
       onMessageSent?.({ hadImageAttachments: draft.attachments.some((attachment) => attachment.mimeType.startsWith("image/")) })
       queryClient.setQueryData(queryKey, updated)
@@ -348,11 +369,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       onNotice(null)
     },
     onError: (error, draft) => {
-      const currentDraft = currentDraftRef.current
-      const draftToKeep = currentDraft.composerText.length > 0 || currentDraft.attachments.length > 0 ? currentDraft : draft
       submittedDraftRef.current = null
-      persistComposerDraft(draftToKeep)
-      if (draftToKeep === draft) restoreComposerDraft(draft)
+      finishSubmittedDraft(draft, false)
       onNotice(errorMessage(error, "Message could not be sent."))
     }
   })
@@ -480,11 +498,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
         void queryClient.invalidateQueries({ queryKey: ["jobs", result.jobId] })
       }
-      clearComposerDraft()
+      const submittedDraft = submittedGoalDraftRef.current
+      submittedGoalDraftRef.current = null
+      if (action.kind === "goal" && submittedDraft) finishSubmittedDraft(submittedDraft, true)
+      else clearComposerDraft()
       setPendingConfirmation(null)
       onNotice(result.notice)
     },
-    onError: (error) => {
+    onError: (error, action) => {
+      const submittedDraft = submittedGoalDraftRef.current
+      submittedGoalDraftRef.current = null
+      if (action.kind === "goal" && submittedDraft) finishSubmittedDraft(submittedDraft, false)
       onNotice(errorMessage(error, "Command failed."))
     }
   })
@@ -902,10 +926,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       }
 
       const draft = composerDraftSnapshot()
-      clearComposerDraft()
-      systemCommandAction.mutate(parsed, {
-        onError: () => restoreComposerDraft(draft)
-      })
+      submittedGoalDraftRef.current = draft
+      persistComposerDraft(draft)
+      clearComposerDraft({ preserveStoredDraft: true })
+      systemCommandAction.mutate(parsed)
       return
     }
 
@@ -1419,6 +1443,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
   function updateText(nextText: string) {
     if (historyMode && nextText !== text) setHistoryMode(null)
+    currentDraftRef.current = { ...currentDraftRef.current, composerText: nextText }
     setText(nextText)
     if (pendingConfirmation && nextText.trim() !== pendingConfirmation.text) {
       setPendingConfirmation(null)
@@ -1963,7 +1988,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                 ? "border-red-300 bg-red-50 text-red-700 focus:border-red-400 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
                 : "border-gray-200 bg-white focus:border-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             }`}
-            disabled={send.isPending || systemAction.isPending || runShellCommand.isPending}
+            disabled={systemAction.isPending || runShellCommand.isPending}
             onChange={(event) => {
               updateText(event.target.value)
               if (clearConfirmationOpen) setClearConfirmationOpen(false)
