@@ -109,6 +109,29 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
       expect { handler.call rescue nil }.not_to raise_error
     end
 
+    [
+      [ "UTF-8 text", "test café passed\n" ],
+      [ "BOM-prefixed output", "\uFEFFtest output\n" ]
+    ].each do |description, content|
+      it "offers #{description} to plugin parsers when the output is not XML" do
+        parsed = stub_parsed_run
+        plugin = parser_provider
+        output_path = @ws_path.join("output/results.txt")
+        FileUtils.mkdir_p(output_path.dirname)
+        output_path.binwrite(content.encode(Encoding::UTF_8))
+
+        expect(plugin).to receive(:can_parse?).with(hash_including(output_path: output_path)).and_return(true)
+        expect(plugin).to receive(:call).with(hash_including(output_path: output_path)).and_return(parsed)
+        register_parser("text-parser", plugin)
+
+        step = make_step(junit_output: "output/results.txt")
+        handler, run = handler_for(step)
+
+        expect { handler.call }.to change(TestInsights::TestRun, :count).by(1)
+        expect(TestInsights::TestRun.find_by!(run: run, grader_name: "go-tests").total_count).to eq(3)
+      end
+    end
+
     it "parses JUnit-looking XML with JunitXmlParser before asking plugin text parsers" do
       plugin = parser_provider
       output_path = @ws_path.join("output/rspec-junit.xml")
@@ -260,6 +283,15 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
 
       expect { handler.call }.to change(TestInsights::TestRun, :count).by(1)
       expect(TestInsights::TestRun.find_by!(run: run, grader_name: "go-tests").total_count).to eq(2)
+    end
+  end
+
+  describe "JUnit XML detection" do
+    it "treats an unexpected read failure as non-XML" do
+      path = instance_double(Pathname)
+      allow(path).to receive(:binread).with(2048).and_raise(IOError, "read failed")
+
+      expect(TestInsights::Subscribers.junit_xml?(path, "txt")).to be(false)
     end
   end
 end
