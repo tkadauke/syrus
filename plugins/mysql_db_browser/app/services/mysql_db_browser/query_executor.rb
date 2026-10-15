@@ -128,9 +128,10 @@ module MysqlDbBrowser
       sql_without_comments(statement).match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
     end
 
-    # MySQL treats block comments and its two line-comment forms as token
-    # whitespace. Normalize them before applying security classifications,
-    # while preserving comment-like text inside quoted values/identifiers.
+    # MySQL treats ordinary comments as token whitespace, but executes the
+    # body of version comments (`/*! ... */`). Normalize both forms before
+    # applying security classifications, while masking quoted values and
+    # identifiers so keyword-shaped literal content cannot affect the result.
     def sql_without_comments(statement)
       normalized = +""
       i = 0
@@ -140,8 +141,14 @@ module MysqlDbBrowser
 
         if [ "'", "\"", "`" ].include?(char)
           closing_index = skip_quoted(statement, i, char)
-          normalized << statement[i..closing_index]
+          normalized << " "
           i = closing_index + 1
+        elsif statement[i, 3] == "/*!"
+          closing_index = statement.index("*/", i + 3)
+          body_end = closing_index || statement.length
+          body = statement[(i + 3)...body_end].to_s.sub(/\A\d{5,6}\s*/, "")
+          normalized << " " << sql_without_comments(body) << " "
+          i = closing_index ? closing_index + 2 : statement.length
         elsif statement[i, 2] == "/*"
           closing_index = statement.index("*/", i + 2)
           normalized << " "
