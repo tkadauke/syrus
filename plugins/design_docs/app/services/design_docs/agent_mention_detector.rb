@@ -50,7 +50,9 @@ module DesignDocs
       minimum_length = fence ? fence.length : marker.length
       marker_count = line.scan(/#{Regexp.escape(character)}{#{minimum_length},}/).length
 
-      marker_count.odd? ? (fence || marker) : nil
+      return fence unless marker_count.odd?
+
+      fence ? nil : marker
     end
   end
 end
