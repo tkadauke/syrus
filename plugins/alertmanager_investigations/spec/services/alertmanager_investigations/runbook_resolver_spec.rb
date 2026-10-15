@@ -4,6 +4,15 @@ RSpec.describe AlertmanagerInvestigations::RunbookResolver do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "infra", default_branch: "main") }
 
+  it "finds the registered repository from a runbook URL without reading its content" do
+    repository
+    expect(RepositoryContent).not_to receive(:for)
+
+    result = described_class.repository_for("https://github.com/acme/infra/blob/main/runbooks/disk.md")
+
+    expect(result).to eq(repository)
+  end
+
   it "resolves a GitHub blob runbook when the ref contains slashes" do
     stub_repository_content(repository, ref: "release/2026-10", files: {
       "runbooks/disk.md" => "release runbook"

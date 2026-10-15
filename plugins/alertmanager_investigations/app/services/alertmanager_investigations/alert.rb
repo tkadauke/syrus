@@ -33,7 +33,11 @@ module AlertmanagerInvestigations
     end
 
     def canonical_host
-      value = host.to_s.downcase
+      self.class.canonicalize_host(host)
+    end
+
+    def self.canonicalize_host(host)
+      value = host.to_s.strip.downcase
       bracketed = value.match(/\A\[(.+)\](?::\d+)?\z/)
       return bracketed[1] if bracketed
       return value unless value.count(":") == 1

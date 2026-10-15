@@ -4,6 +4,11 @@ module AlertmanagerInvestigations
 
     def self.call(...) = new(...).call
 
+    def self.repository_for(url)
+      location = RunbookLocation.candidates(url).first
+      Repository.active.find_by(owner: location&.owner, name: location&.name) if location
+    end
+
     def initialize(url)
       @url = url.to_s
     end
