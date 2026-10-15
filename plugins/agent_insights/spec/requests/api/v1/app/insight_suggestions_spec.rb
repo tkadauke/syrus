@@ -467,6 +467,22 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(insight.fetch("created_job")).to include("slug" => created_job.slug, "title" => "Fix cache")
     end
 
+    it "allows a repository collaborator to preview an insight" do
+      collaborator = Factories.user(email_address: "insight-preview@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      suggestion = create_suggestion(title: "Shared cache misses")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/insight_suggestions/#{suggestion.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("insight")).to include(
+        "id" => suggestion.id,
+        "accessible" => true,
+        "title" => "Shared cache misses"
+      )
+    end
+
     it "returns neutral inaccessible slug and preview payloads for hidden repository insights" do
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user)
