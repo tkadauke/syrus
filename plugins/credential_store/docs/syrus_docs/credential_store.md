@@ -95,7 +95,10 @@ Target constraints are deliberately small and broker-owned. Supported keys are
 `allowed_kube_clusters`, and `allowed_kube_namespaces`. Dependent tools pass a
 target hash such as `host`, `url`, `kube_context`, `kube_cluster`, and
 `kube_namespace`; the broker records allowed/denied audit rows without storing
-payload material.
+payload material. Omitting a constraint leaves that dimension unrestricted;
+configuring it with an empty or blank-only array denies every target. URL
+prefixes match only HTTP(S) URLs with the same scheme, host, and effective port,
+and paths must match at a slash boundary.
 
 Broker return values and broker-wrapped exceptions are scrubbed with
 `CredentialStore::Redaction`, which removes the known credential payload and
