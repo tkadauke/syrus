@@ -62,6 +62,25 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
+  it "preserves workspace metadata recorded during setup" do
+    setup_metadata = {
+      "prepare_cache" => { "status" => "hit" },
+      "target_fingerprints" => { "command_fingerprint" => "checkout-fingerprint" },
+      "projected_target_fingerprint" => "checkout-fingerprint",
+      "immutable_source_checkout" => { "worker_storage_key" => "worker-a" }
+    }
+    workspace = instance_double(WorkflowWorkspace, path: @ws_path)
+    allow(workspace).to receive(:setup) do
+      step.update!(details: step.details.to_h.merge(setup_metadata))
+    end
+    allow(handler).to receive(:workspace).and_return(workspace)
+
+    handler.call
+
+    expect(step.reload.details).to include(setup_metadata)
+    expect(step.details).to include("exit_code" => 0, "output" => include("durable output"))
+  end
+
   it "does not rerun or adjudicate a successful grader command" do
     expect(ProcessRunner).to receive(:new).once.and_call_original
     expect(BaseRevisionRetry).not_to receive(:call)

@@ -153,7 +153,7 @@ module Steps
       # augmentation so fallback readers see the same actionable tail as
       # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
-      step.update!(details: definition.merge(
+      step.update!(details: step.reload.details.to_h.merge(
         "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
