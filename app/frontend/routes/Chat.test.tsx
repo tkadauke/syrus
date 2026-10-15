@@ -1461,6 +1461,22 @@ describe("chat composer dictation", () => {
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
   })
 
+  it("keeps browser speech recognition active after backend batch transcription fails", async () => {
+    installMediaRecorderMock()
+    const recognition = installSpeechRecognitionMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true, browser: true }), { batchError: true })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+
+    await waitFor(() => expect(recognition.lastInstance?.start).toHaveBeenCalled())
+    expect(recognition.lastInstance?.stop).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Stop dictation" })).toBeInTheDocument()
+  })
+
   it("falls back to browser speech recognition when backend modes are absent", async () => {
     const recognition = installSpeechRecognitionMock()
     mockDictationFetch(chatPayloadWithDictation({ browser: true }))
@@ -6599,8 +6615,8 @@ function mockChatRouteFetch(payload = chatPayload()) {
   })
 }
 
-function mockDictationFetch(payload = chatPayload(), options: { batchText?: string } = {}) {
-  vi.stubGlobal("XMLHttpRequest", fakeDictationXMLHttpRequestClass(options.batchText || "backend batch transcript"))
+function mockDictationFetch(payload = chatPayload(), options: { batchText?: string; batchError?: boolean } = {}) {
+  vi.stubGlobal("XMLHttpRequest", fakeDictationXMLHttpRequestClass(options.batchText || "backend batch transcript", options.batchError))
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const path = String(input)
     if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -6649,7 +6665,7 @@ class FakeDictationXMLHttpRequest {
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
 
-  constructor(private readonly transcriptText: string) {}
+  constructor(private readonly transcriptText: string, private readonly batchError = false) {}
 
   open(method: string, url: string) {
     this.method = method
@@ -6661,14 +6677,16 @@ class FakeDictationXMLHttpRequest {
   }
 
   send(_body: XMLHttpRequestBodyInit | null) {
-    this.status = 200
-    this.response = {
-      transcript: {
-        text: this.transcriptText,
-        source: "backend_batch",
-        confidence: null
-      }
-    }
+    this.status = this.batchError ? 502 : 200
+    this.response = this.batchError
+      ? { error: { code: "speech_to_text_transcription_failed", message: "model unavailable" } }
+      : {
+          transcript: {
+            text: this.transcriptText,
+            source: "backend_batch",
+            confidence: null
+          }
+        }
     window.setTimeout(() => this.onload?.(), 0)
   }
 
@@ -6677,10 +6695,10 @@ class FakeDictationXMLHttpRequest {
   }
 }
 
-function fakeDictationXMLHttpRequestClass(transcriptText: string) {
+function fakeDictationXMLHttpRequestClass(transcriptText: string, batchError = false) {
   return class extends FakeDictationXMLHttpRequest {
     constructor() {
-      super(transcriptText)
+      super(transcriptText, batchError)
     }
   }
 }
