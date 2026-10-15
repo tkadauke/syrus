@@ -25,6 +25,14 @@ RSpec.describe FtsQueryParser do
     expect(parse("foo bar baz")).to eq("foo bar baz")
   end
 
+  it "quotes uppercase FTS5 operator words so they are searched literally" do
+    expect(parse("AND OR NOT NEAR")).to eq('"AND" "OR" "NOT" "NEAR"')
+  end
+
+  it "does not treat lowercase operator-looking words as FTS5 operators" do
+    expect(parse("and or not near")).to eq("and or not near")
+  end
+
   it "preserves an already-quoted phrase" do
     expect(parse('"foo bar"')).to eq('"foo bar"')
   end

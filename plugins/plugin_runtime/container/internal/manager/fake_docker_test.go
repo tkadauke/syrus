@@ -25,6 +25,9 @@ type fakeDocker struct {
 	pullGate chan error
 	pulls    int
 	created  []docker.CreateContainerRequest
+
+	inspectNotFound       map[string]bool
+	beforeCreateContainer func(name string, req docker.CreateContainerRequest)
 }
 
 type fakeContainer struct {
@@ -98,7 +101,7 @@ func (f *fakeDocker) InspectContainer(_ context.Context, id string) (docker.Cont
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c := f.containers[id]
-	if c == nil {
+	if c == nil || f.inspectNotFound[id] {
 		return docker.ContainerInspect{}, &docker.APIError{Status: 404, Message: "no such container"}
 	}
 	var out docker.ContainerInspect
@@ -115,6 +118,10 @@ func (f *fakeDocker) InspectContainer(_ context.Context, id string) (docker.Cont
 }
 
 func (f *fakeDocker) CreateContainer(_ context.Context, name string, req docker.CreateContainerRequest) (string, error) {
+	if f.beforeCreateContainer != nil {
+		f.beforeCreateContainer(name, req)
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, c := range f.containers {
@@ -193,13 +200,20 @@ func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {
 func (f *fakeDocker) CreateVolume(_ context.Context, name string, labels map[string]string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if _, ok := f.volumes[name]; !ok {
-		copied := map[string]string{}
-		for k, v := range labels {
-			copied[k] = v
+	existing := f.volumes[name]
+	if existing != nil {
+		for key, want := range labels {
+			if got, ok := existing[key]; !ok || got != want {
+				return fmt.Errorf("volume %s label %s=%q, want %q", name, key, got, want)
+			}
 		}
-		f.volumes[name] = copied
+		return nil
 	}
+	copied := map[string]string{}
+	for k, v := range labels {
+		copied[k] = v
+	}
+	f.volumes[name] = copied
 	return nil
 }
 

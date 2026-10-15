@@ -403,17 +403,17 @@ module SyrusDev
     def grouped_sql_fingerprints(events)
       rows = []
       events.each do |event|
-        if event_type(event) == PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
-          rows << {
-            "fingerprint" => event["fingerprint"],
-            "sample_sql" => event["sql"],
-            "name" => event["name"],
-            "count" => 1,
-            "total_duration_ms" => event["duration_ms"].to_f,
-            "max_duration_ms" => event["duration_ms"].to_f
-          }
-        end
-        Array(event["top_sql_fingerprints"]).each { |entry| rows << entry }
+        next unless event_type(event) == PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
+
+        duration = event["duration_ms"].to_f
+        rows << {
+          "fingerprint" => event["fingerprint"],
+          "sample_sql" => event["sql"],
+          "name" => event["name"],
+          "count" => 1,
+          "total_duration_ms" => duration,
+          "max_duration_ms" => duration
+        }
       end
 
       grouped = rows.group_by { |row| row["fingerprint"] }

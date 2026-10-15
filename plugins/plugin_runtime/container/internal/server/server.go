@@ -64,10 +64,8 @@ func New(m Manager, token string, info Info) http.Handler {
 	mux.Handle("DELETE /v1/services/{name}", auth(token, http.HandlerFunc(s.remove)))
 	// The privileged lane: a small, separately named verb that can only ever
 	// configure one of a compiled table of first-party services (see
-	// internal/privileged). Every other operation above and below acts on
-	// whatever container the label lookup finds, privileged or not, and needs
-	// no privileged counterpart because none of them accepts a payload that
-	// shapes a container.
+	// internal/privileged). Generic ensure/remove refuse names in that table,
+	// so the generic lane cannot create, replace, or delete those containers.
 	mux.Handle("PUT /v1/privileged/{name}", auth(token, http.HandlerFunc(s.ensurePrivileged)))
 	// Operator actions from Syrus's admin page.
 	mux.Handle("POST /v1/services/{name}/stop", auth(token, s.action(s.manager.Stop)))
@@ -246,6 +244,10 @@ func (h *handlers) fail(w http.ResponseWriter, err error) {
 		return
 	}
 	if errors.Is(err, manager.ErrVolumeInUse) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	if errors.Is(err, manager.ErrOwnershipConflict) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

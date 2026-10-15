@@ -68,13 +68,13 @@ RSpec.describe "App API unified search", type: :request do
       "created_at" => stronger_job.created_at.iso8601
     )
     expect(by_type_and_id.fetch([ "job", stronger_job.id ]).fetch("snippet")).to include("<mark>deploy</mark>")
-    expect(by_type_and_id.fetch([ "job", weaker_job.id ])).to include("rank" => 1.0)
+    expect(by_type_and_id.fetch([ "job", stronger_job.id ]).fetch("rank"))
+      .to be < by_type_and_id.fetch([ "job", weaker_job.id ]).fetch("rank")
     expect(by_type_and_id.fetch([ "epic", epic.id ])).to include(
       "type" => "epic",
       "id" => epic.id,
       "slug" => epic.slug,
       "title" => "Launch epic",
-      "rank" => 0.0,
       "path" => epic_path(epic),
       "state" => "in_progress",
       "repository_slug" => "acme/widgets"
@@ -83,11 +83,11 @@ RSpec.describe "App API unified search", type: :request do
       "type" => "chat",
       "id" => chat_message.id,
       "title" => "Launch chat",
-      "rank" => 0.0,
       "path" => chat_path(chat_session, message_id: chat_message.id),
       "state" => nil,
       "repository_slug" => "acme/widgets"
     )
+    expect(results.map { |row| row.fetch("rank") }).to all(be_between(0.0, 1.0).inclusive)
   end
 
   it "limits searches to requested types" do
@@ -114,6 +114,37 @@ RSpec.describe "App API unified search", type: :request do
     expect(response).to have_http_status(:ok)
     expect(results).to include(include("type" => "job", "id" => job.id))
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
+  end
+
+  it "searches bare uppercase FTS5 operator words as text instead of returning a server error" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy NOT rollback")
+    GlobalSearch::JobIndex.upsert(job)
+
+    get "/api/v1/app/search", params: { query: "deploy NOT", types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
+  end
+
+  it "returns 422 when an FTS source still raises a syntax error" do
+    provider = Class.new do
+      def self.search_type = "widget"
+      def self.filter_subject = :job
+      def self.row_id_key = :widget_id
+      def self.search_rows(query:, user:, limit:)
+        raise ActiveRecord::StatementInvalid, "SQLite3::SQLException: fts5: syntax error"
+      end
+      def self.result_json(row:, user:) = { id: row.fetch(:widget_id) }
+    end
+    Syrus::PluginRegistry.register(name: "syntax_error_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "widget" ] }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.fetch("error")).to include(
+      "code" => "invalid_search_query",
+      "message" => "Search query could not be parsed."
+    )
   end
 
   it "falls back to legacy plain-text q when query is absent" do
@@ -146,6 +177,26 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "ranks an exact JOB slug match ahead of indexed text that mentions the slug" do
+    target = Factories.job_record(user: user, repository: repository, issue_number: 5, issue_title: "Exact slug target")
+    mention = Factories.job_record(user: user, repository: repository, issue_title: "Mention-heavy competing job")
+    target.update!(issue_body: "This target mentions #{target.slug} once.")
+    mention.update!(issue_body: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::JobIndex.upsert(target)
+    GlobalSearch::JobIndex.upsert(mention)
+
+    get "/api/v1/app/search", params: { query: target.slug, types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to start_with(target.id, mention.id)
+    expect(results.first).to include(
+      "type" => "job",
+      "id" => target.id,
+      "slug" => target.slug,
+      "snippet" => "<mark>#{target.slug}</mark>"
+    )
+  end
+
   it "returns an existing epic when searching by EPIC slug" do
     epic = Factories.epic(user: user, repository: repository, title: "Unindexed epic target")
 
@@ -162,6 +213,26 @@ RSpec.describe "App API unified search", type: :request do
         "path" => epic_path(epic),
         "repository_slug" => "acme/widgets"
       )
+    )
+  end
+
+  it "ranks an exact EPIC slug match ahead of indexed text that mentions the slug" do
+    target = Factories.epic(user: user, repository: repository, title: "Exact epic target")
+    mention = Factories.epic(user: user, repository: repository, title: "Mention-heavy competing epic")
+    target.update!(description: "This target mentions #{target.slug} once.")
+    mention.update!(description: ([ target.slug ] * 20).join(" "))
+    GlobalSearch::EpicIndex.upsert(target)
+    GlobalSearch::EpicIndex.upsert(mention)
+
+    get "/api/v1/app/search", params: { query: target.slug, types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to start_with(target.id, mention.id)
+    expect(results.first).to include(
+      "type" => "epic",
+      "id" => target.id,
+      "slug" => target.slug,
+      "snippet" => "<mark>#{target.slug}</mark>"
     )
   end
 
@@ -190,6 +261,65 @@ RSpec.describe "App API unified search", type: :request do
     expect(launch_result.fetch("grouped_matches").length).to eq(3)
     expect(launch_result.fetch("grouped_matches").map { |match| match.fetch("id") }).to match_array(grouped_messages.map(&:id).first(3))
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
+  end
+
+  it "excludes soft-deleted chat messages from chat results" do
+    chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
+    kept_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy kept" })
+    deleted_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy cleared" })
+    [ kept_message, deleted_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    deleted_message.soft_delete_by!(user)
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "chat",
+        "id" => kept_message.id,
+        "path" => chat_path(chat_session, message_id: kept_message.id),
+        "total_match_count" => 1
+      )
+    )
+    expect(results.to_s).not_to include("cleared")
+  end
+
+  it "excludes messages from soft-deleted chat sessions while cleanup is pending" do
+    kept_chat = ChatSession.create!(user: user, repository: repository, title: "Kept chat")
+    deleted_chat = ChatSession.create!(user: user, repository: repository, title: "Deleted chat")
+    kept_message = ChatMessage.create!(chat_session: kept_chat, role: "user", content: { "text" => "deploy kept" })
+    orphaned_message = ChatMessage.create!(chat_session: deleted_chat, role: "user", content: { "text" => "deploy orphaned" })
+    [ kept_message, orphaned_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    deleted_chat.soft_delete_by!(user)
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "chat",
+        "id" => kept_message.id,
+        "title" => "Kept chat"
+      )
+    )
+    expect(ChatMessage.active.exists?(orphaned_message.id)).to be(true)
+    expect(results.to_s).not_to include("orphaned")
+  end
+
+  it "excludes hidden chats from chat results" do
+    visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible chat")
+    hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden chat", hidden_at: Time.current)
+    visible_message = ChatMessage.create!(chat_session: visible_chat, role: "user", content: { "text" => "deploy visible" })
+    hidden_message = ChatMessage.create!(chat_session: hidden_chat, role: "user", content: { "text" => "deploy hidden" })
+    [ visible_message, hidden_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include("type" => "chat", "id" => visible_message.id, "title" => "Visible chat")
+    )
+    expect(results.to_s).not_to include("hidden")
   end
 
   it "does not leak indexed records that no longer belong to the current user" do

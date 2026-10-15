@@ -1,6 +1,8 @@
 module FtsQueryParser
   extend ActiveSupport::Concern
 
+  FTS5_RESERVED_WORDS = %w[AND OR NOT NEAR].freeze
+
   class_methods do
     private
 
@@ -37,10 +39,13 @@ module FtsQueryParser
     # `(`, `)`, `*`, and `-` (exclusion) outside of a quoted phrase. Real log
     # messages are full of tokens like "SolidCable::TrimJob", "job_id=42", or
     # "/api/v1/app/...", which raised SQLite3::SQLException on a raw MATCH.
-    # Quoting anything but plain alphanumeric/underscore words sidesteps the
-    # query-syntax parser entirely and searches the token as a literal phrase.
+    # Uppercase AND/OR/NOT/NEAR are also FTS5 operators, so quote them when the
+    # user types them as search text.
+    # Quoting anything but plain alphanumeric/underscore non-reserved words
+    # sidesteps the query-syntax parser entirely and searches the token as a
+    # literal phrase.
     def bareword_fts_token?(token)
-      token.match?(/\A[[:alnum:]_]+\z/)
+      token.match?(/\A[[:alnum:]_]+\z/) && !FTS5_RESERVED_WORDS.include?(token)
     end
 
     def quote_fts_phrase(value)

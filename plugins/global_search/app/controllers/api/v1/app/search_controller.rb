@@ -32,9 +32,12 @@ module Api
           end
 
           limit = search_limit
-          rows = selected_types.flat_map { |type| normalized_rows(type, query, limit) }
+          rows = selected_types.flat_map { |type| typed_rows(type, query, limit) }
           rows = grouped_chat_rows(rows)
-          rows.sort_by! { |row| [ row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ] }
+          rows = normalized_rows(rows)
+          rows.sort_by! do |row|
+            [ row.fetch(:priority), row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ]
+          end
           @search_result_rows = rows
 
           render json: {
@@ -45,6 +48,10 @@ module Api
               filter_schema: filter_schema(selected_types)
             }
           }
+        rescue ActiveRecord::StatementInvalid => e
+          raise unless fts_syntax_error?(e)
+
+          render_error("invalid_search_query", "Search query could not be parsed.", status: :unprocessable_content)
         end
 
         private
@@ -117,16 +124,40 @@ module Api
           params.fetch(:limit, DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
         end
 
-        def normalized_rows(type, query, limit)
+        def fts_syntax_error?(error)
+          error.message.match?(/fts5: syntax error|malformed MATCH expression/i)
+        end
+
+        def typed_rows(type, query, limit)
           rows = search_rows(type, query, limit)
           return [] if rows.empty?
 
-          min_rank, max_rank = rows.map { |row| row.fetch(:rank).to_f }.minmax
-          denominator = max_rank - min_rank
-
           rows.each_with_index.map do |row, index|
-            normalized_rank = denominator.zero? ? 0.0 : (row.fetch(:rank).to_f - min_rank) / denominator
-            row.merge(type: type, type_order: types.index(type), rank: normalized_rank, ordinal: index)
+            row.merge(
+              type: type,
+              type_order: types.index(type),
+              priority: row.fetch(:priority, 0),
+              ordinal: index
+            )
+          end
+        end
+
+        def normalized_rows(rows)
+          ranked_rows = rows.reject { |row| row.fetch(:priority).negative? }
+          return rows.map { |row| row.merge(rank: 0.0) } if ranked_rows.empty?
+
+          min_rank, max_rank = ranked_rows.map { |row| row.fetch(:rank).to_f }.minmax
+          denominator = max_rank.to_f - min_rank.to_f
+
+          rows.map do |row|
+            normalized_rank =
+              if row.fetch(:priority).negative? || denominator.zero?
+                0.0
+              else
+                (row.fetch(:rank).to_f - min_rank.to_f) / denominator
+              end
+
+            row.merge(rank: normalized_rank)
           end
         end
 
@@ -154,11 +185,31 @@ module Api
         end
 
         def chat_search_rows(query, limit)
+          rows = reject_unsearchable_chat_rows(
+            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+          )
+
           apply_filter_to_rows(
             "chat",
-            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            rows,
             :chat_message_id
           )
+        end
+
+        def reject_unsearchable_chat_rows(rows)
+          return rows if rows.empty?
+
+          ids = rows.filter_map { |row| row[:chat_message_id]&.to_i }
+          active_ids = searchable_chat_messages.where(id: ids).distinct.ids.to_set
+          rows.select { |row| active_ids.include?(row[:chat_message_id].to_i) }
+        end
+
+        def searchable_chat_messages
+          ChatMessage
+            .active
+            .joins(chat_session: :chat_participants)
+            .merge(ChatSession.active.visible)
+            .where(chat_participants: { user_id: Current.user.id })
         end
 
         def apply_filter_to_rows(type, rows, id_key)
@@ -222,11 +273,13 @@ module Api
         def merge_slug_rows(search_rows, slug_rows)
           return search_rows if slug_rows.empty?
 
-          existing_ids = search_rows.each_with_object([]) do |row, ids|
-            ids << slug_row_id(row)
+          slug_rows_by_id = slug_rows.index_by { |row| slug_row_id(row) }
+          upgraded_search_rows = search_rows.map do |row|
+            slug_row = slug_rows_by_id.delete(slug_row_id(row))
+            slug_row ? row.merge(slug_row) : row
           end
 
-          slug_rows.reject { |row| existing_ids.include?(slug_row_id(row)) } + search_rows
+          slug_rows_by_id.values + upgraded_search_rows
         end
 
         def slug_row_id(row)
@@ -244,7 +297,8 @@ module Api
             .map do |job|
             {
               job_id: job.id,
-              rank: -1.0,
+              priority: -1,
+              rank: 0.0,
               snippet: "<mark>#{ERB::Util.html_escape(job.slug)}</mark>"
             }
           end
@@ -257,7 +311,8 @@ module Api
           Current.user.epics.where(number: epic_numbers).map do |epic|
             {
               epic_id: epic.id,
-              rank: -1.0,
+              priority: -1,
+              rank: 0.0,
               snippet: "<mark>#{ERB::Util.html_escape(epic.slug)}</mark>"
             }
           end
@@ -348,10 +403,10 @@ module Api
         end
 
         def chat_messages_by_id
-          @chat_messages_by_id ||= ChatMessage
-            .joins(chat_session: :chat_participants)
-            .where(chat_participants: { user_id: Current.user.id }, id: result_ids(:chat_message_id))
+          @chat_messages_by_id ||= searchable_chat_messages
+            .where(id: result_ids(:chat_message_id))
             .includes(chat_session: :attached_repositories)
+            .distinct
             .index_by(&:id)
         end
 
@@ -446,7 +501,12 @@ module Api
           def filtered_scope(ids:, tree:, user:)
             ::Filters::Compiler.call(
               ::Filters::Ast.parse(tree),
-              scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: user.id }, id: ids),
+              scope: ChatMessage
+                .active
+                .joins(chat_session: :chat_participants)
+                .merge(ChatSession.active.visible)
+                .where(chat_participants: { user_id: user.id }, id: ids)
+                .distinct,
               user: user,
               subject: :chat_message
             )

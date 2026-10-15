@@ -276,11 +276,32 @@ module Ruby
     end
 
     def focused_command
+      fallback_command = rspec_command(
+        mode: "focused",
+        junit_output: junit_output(focused_name),
+        json_output: json_output(focused_name),
+        coverage: false,
+        args: [ *tag_args_for("focused"), *rspec_paths ],
+        skip_setup: true
+      )
+      focused_rspec_command = rspec_command(
+        mode: "focused",
+        junit_output: junit_output(focused_name),
+        json_output: json_output(focused_name),
+        coverage: false,
+        args: [ *tag_args_for("focused"), "$(cat .syrus/rspec-focused-files)" ],
+        shell_expand_args: true,
+        skip_setup: true
+      )
       <<~BASH
         #{setup_prefix} &&
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
-        if [ ! -s .syrus/rspec-focused-files ]; then echo "No focused RSpec files matched changed Ruby files"; exit 0; fi &&
-        #{rspec_command(mode: "focused", junit_output: junit_output(focused_name), json_output: json_output(focused_name), coverage: false, args: [ *tag_args_for("focused"), "$(cat .syrus/rspec-focused-files)" ], shell_expand_args: true, skip_setup: true)}
+        if [ ! -s .syrus/rspec-focused-files ]; then
+          echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
+          #{fallback_command}
+        else
+          #{focused_rspec_command}
+        fi
       BASH
     end
 
@@ -705,8 +726,39 @@ module Ruby
 
     def focused_selector_ruby
       <<~'RUBY'.sub("__SYRUS_SCOPE__", focused_scope.inspect).sub("__SYRUS_PROJECT_PATH__", project_path.to_s.inspect)
-        base = %w[origin/main origin/master main master].find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }
-        exit 0 unless base
+        current_branch = `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+        origin_head = `git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null`.strip
+        explicit_base_refs = [
+          ENV["SYRUS_RSPEC_BASE_REF"],
+          ENV["SYRUS_BASE_REF"],
+          ENV["SYRUS_DEFAULT_BRANCH"],
+          ENV["GITHUB_BASE_REF"]
+        ].compact.flat_map do |ref|
+          ref = ref.to_s.strip
+          next [] if ref.empty?
+
+          ref.start_with?("origin/", "refs/") ? [ ref ] : [ "origin/#{ref}", ref ]
+        end
+        refs = `git for-each-ref --format='%(refname:short)' refs/remotes/origin refs/heads 2>/dev/null`.lines.map(&:strip)
+        remote_refs = refs.grep(%r{\Aorigin/}).reject { |ref| ref == "origin/HEAD" || ref == "origin/#{current_branch}" }
+        local_refs = refs.reject { |ref| ref.start_with?("origin/") || ref == current_branch }
+        unique_remote_ref = remote_refs.first if remote_refs.size == 1
+        unique_local_ref = local_refs.first if local_refs.size == 1
+        candidates = [
+          *explicit_base_refs,
+          origin_head,
+          "origin/main",
+          "origin/master",
+          "main",
+          "master",
+          unique_remote_ref,
+          unique_local_ref
+        ].compact.map(&:to_s).map(&:strip).reject(&:empty?).uniq
+        base = candidates.find { |ref| system("git", "rev-parse", "--verify", "#{ref}^{commit}", out: File::NULL, err: File::NULL) }
+        unless base
+          warn "Could not resolve a base ref for focused RSpec selection"
+          exit 0
+        end
         scope = __SYRUS_SCOPE__
         project_path = __SYRUS_PROJECT_PATH__
         prefixed = ->(path) { project_path.empty? ? path : File.join(project_path, path) }
@@ -724,6 +776,7 @@ module Ruby
               "#{stem}_spec.rb",
               "spec/#{stem}_spec.rb",
               rel.start_with?("app/") ? "spec/#{rel.delete_prefix("app/").sub(/\.rb\z/, "_spec.rb")}" : nil,
+              rel.start_with?("lib/") ? "spec/#{rel.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}" : nil,
               rel.start_with?("lib/") ? "spec/lib/#{rel.delete_prefix("lib/").sub(/\.rb\z/, "_spec.rb")}" : nil
             ].compact.map { |candidate| prefixed.call(candidate) }
           end

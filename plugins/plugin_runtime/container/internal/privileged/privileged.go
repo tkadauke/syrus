@@ -60,6 +60,15 @@ func (r Registry) Lookup(name string) (Definition, bool) {
 	return d, ok
 }
 
+// Names returns the registered service names.
+func (r Registry) Names() []string {
+	names := make([]string, 0, len(r))
+	for name := range r {
+		names = append(names, name)
+	}
+	return names
+}
+
 // Tailscale's fixed capabilities and device grant: what it takes to run
 // tailscaled and bring up a TUN interface. Nothing here is a request field.
 var (
@@ -112,6 +121,12 @@ func refuse(format string, args ...any) error {
 // NotRegistered refuses a request for a name with no compiled Definition.
 func NotRegistered(name string) error {
 	return refuse("%q is not a registered privileged service", name)
+}
+
+// ReservedName refuses attempts to drive a privileged service through the
+// generic service lane.
+func ReservedName(name string) error {
+	return refuse("%q is a privileged service and must use the privileged service lane", name)
 }
 
 const maxEnvValueBytes = 8192
