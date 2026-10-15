@@ -143,6 +143,15 @@ This works best for test runners that produce JUnit. Binary build checks can
 still benefit from inherited-failure policy, but they provide less detail than
 test-level results.
 
+Repositories that explicitly opt into known-flaky or isolated-reproduction
+dismissals still retain regression guards: Syrus will not dismiss a failure
+when the candidate changed the failing test file. Known-flaky evidence must
+also match a historical failure-message signature, and isolated reproduction
+commands are derived from trusted grader/test metadata and run by Syrus so
+their recorded result is observed rather than agent-asserted. Dismissal also
+requires complete structured results whose aggregate counts and failed cases
+account for the grader's normal test exit; partial test output fails closed.
+
 ## JUnit and Test Insights
 
 When a grader writes JUnit output, Syrus ingests individual test cases. The

@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe JavaScript::FocusedTestCommand do
+  it "derives an exact-test isolated repro command" do
+    command = described_class.isolated_command_for(
+      grader_name: "vitest",
+      grader_command: "npx vitest run",
+      test_case: { "file_path" => "src/foo.test.ts", "name" => "does the thing" }
+    )
+
+    expect(command).to include("src/foo.test.ts -t does\\ the\\ thing")
+  end
+
   it "focuses JavaScript graders to failed test files" do
     command = described_class.command_for(
       grader_name: "react-tests",

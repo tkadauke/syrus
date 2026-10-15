@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe Ruby::FocusedTestCommand do
+  it "derives an exact-example isolated repro command" do
+    command = described_class.isolated_command_for(
+      grader_name: "rspec",
+      grader_command: "bundle exec rspec",
+      test_case: { "file_path" => "spec/foo_spec.rb", "suite_name" => "Foo", "name" => "does the thing" }
+    )
+
+    expect(command).to include("spec/foo_spec.rb --example does\\ the\\ thing")
+  end
+
   let(:bundle_prefix) { 'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"' }
 
   it "provides a one-time Rails test database setup for focused RSpec repeats" do

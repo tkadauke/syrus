@@ -51,6 +51,25 @@ module TestInsights
               .sort_by { |test_case| test_case.fetch("identity") }
     end
 
+    # A dismissal may only interpret the grader's nonzero exit as test-caused
+    # when the persisted aggregate and every persisted case agree. Missing or
+    # partial JUnit therefore fails closed instead of letting the few parsed
+    # failures stand in for the whole command result.
+    def self.grader_failure_explained_by_tests?(run:, grader_name:, failed_test_cases:)
+      test_run = TestRun.find_by(run: run, grader_name: grader_name)
+      return false unless test_run
+
+      cases = test_run.test_cases.to_a
+      return false unless cases.size == test_run.total_count.to_i
+
+      failures = cases.select { |test_case| FAILURE_STATUSES.include?(test_case.status) }
+      return false unless failures.size == test_run.failed_count.to_i + test_run.error_count.to_i
+
+      expected = Array(failed_test_cases).map { |test_case| [ test_case["suite_name"], test_case["name"] ] }.uniq.sort
+      actual = failures.map { |test_case| [ test_case.suite_name, test_case.name ] }.uniq.sort
+      actual == expected
+    end
+
     # First line only, byte-bounded -- this rides inline in the job detail
     # payload, not behind a click like the full grade log, so it must stay
     # short regardless of how verbose the underlying matcher failure was.
@@ -68,6 +87,17 @@ module TestInsights
       return nil if repository.nil? || suite_name.blank? || name.blank?
 
       TestCase.flakiness_score(repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow)
+    end
+
+    # A flaky identity is not enough: only the same failure mode may be
+    # dismissed. Compare the bounded signature used by failed_test_cases so
+    # current and historical evidence have identical normalization.
+    def self.historical_failure_signatures(repository:, suite_name:, name:, exclude_workflow: nil)
+      scope = TestCase.score_scope_for(
+        repository: repository, suite_name: suite_name, name: name, exclude_workflow: exclude_workflow
+      ).scored.failure_like.where.not(failure_message: [ nil, "" ])
+      scope.limit(TestCase::FLAKINESS_LOOKBACK).pluck(:failure_message)
+           .filter_map { |message| failure_message_snippet(message) }.uniq
     end
 
     # Backs Adjudicators::IsolatedReproDismissal. Writes into

@@ -1,3 +1,6 @@
+require "open3"
+require "timeout"
+
 # Validates and records one agent-run isolated repro attempt:
 # "I ran this exact failing example against this exact failing SHA in
 # isolation, and it did/did not reproduce." Backs the record_isolated_repro
@@ -20,10 +23,11 @@
 #     grader Step actually reported as failing -- not merely asserted by the
 #     agent -- so a record cannot be manufactured for a test that never
 #     failed.
-#   - The raw command and output are stored verbatim (via the :test_evidence
-#     provider), not a prose summary, so the record is auditable after the
-#     fact.
+#   - Syrus executes the submitted command itself. The provider stores the
+#     observed output and exit status, and a claimed result that disagrees
+#     with that exit status is rejected.
 class IsolatedReproRecorder
+  REPRO_TIMEOUT = 10.minutes
   Result = Struct.new(:ok, :error, :evidence, keyword_init: true) do
     def ok? = ok
   end
@@ -32,7 +36,7 @@ class IsolatedReproRecorder
     new(...).call
   end
 
-  def initialize(run:, grader_name:, suite_name:, name:, reproduced:, command:, output:, exit_status: nil)
+  def initialize(run:, grader_name:, suite_name:, name:, reproduced:, command: nil, output: nil, exit_status: nil)
     @run = run
     @workflow = run.workflow
     @job = run.job
@@ -42,7 +46,6 @@ class IsolatedReproRecorder
     @test_name = name.to_s.strip
     @reproduced = reproduced
     @command = command.to_s
-    @output = output.to_s
     @exit_status = exit_status
   end
 
@@ -50,7 +53,6 @@ class IsolatedReproRecorder
     return failure("grader_name is required") if @grader_name.empty?
     return failure("suite_name is required") if @suite_name.empty?
     return failure("name is required") if @test_name.empty?
-    return failure("command is required") if @command.strip.empty?
     return failure("no workflow for this run") unless @workflow
     return failure("no repository for this run") unless @repository
 
@@ -74,13 +76,26 @@ class IsolatedReproRecorder
     return failure("no Run recorded for grader #{@grader_name.inspect}") unless grader_run
 
     failing_tests = TestEvidenceLookup.failed_test_cases_for(grader_run, @grader_name)
-    unless failing_tests.any? { |test_case| test_case["suite_name"] == @suite_name && test_case["name"] == @test_name }
+    failing_test = failing_tests.find { |test_case| test_case["suite_name"] == @suite_name && test_case["name"] == @test_name }
+    unless failing_test
       return failure("#{@suite_name}##{@test_name} is not among the currently failing tests for grader #{@grader_name.inspect}")
+    end
+
+    trusted_command = isolated_command_for(grader_step, failing_test)
+    return failure("no focused-test provider can derive an isolated command for this failing test") if trusted_command.blank?
+    if @command.present? && @command.strip != trusted_command
+      return failure("submitted command does not match the Syrus-derived isolated test command")
     end
 
     provider = TestEvidenceLookup.test_evidence_providers.find { |candidate| candidate.respond_to?(:record_isolated_repro!) }
     return failure("no test_evidence provider available to record isolated repro attempts") unless provider
 
+    observed_output, observed_exit_status = execute_repro(trusted_command)
+    observed_reproduced = observed_exit_status != 0
+    return failure("reported reproduced result does not match Syrus-observed exit status") unless !!@reproduced == observed_reproduced
+    if !@exit_status.nil? && @exit_status.to_i != observed_exit_status
+      return failure("reported exit_status does not match Syrus-observed exit status")
+    end
     provider.record_isolated_repro!(
       repository: @repository,
       job: @job,
@@ -90,10 +105,10 @@ class IsolatedReproRecorder
       suite_name: @suite_name,
       name: @test_name,
       sha: current_sha,
-      reproduced: !!@reproduced,
-      command: @command,
-      output: @output,
-      exit_status: @exit_status
+      reproduced: observed_reproduced,
+      command: trusted_command,
+      output: observed_output,
+      exit_status: observed_exit_status
     )
 
     Result.new(ok: true, evidence: {
@@ -101,11 +116,40 @@ class IsolatedReproRecorder
       grader_name: @grader_name,
       suite_name: @suite_name,
       name: @test_name,
-      reproduced: !!@reproduced
+      reproduced: observed_reproduced
     })
   end
 
   private
+
+  def isolated_command_for(grader_step, failing_test)
+    Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
+      next unless provider.respond_to?(:isolated_command_for)
+
+      command = provider.isolated_command_for(
+        grader_name: @grader_name,
+        grader_command: grader_step.details.to_h["command"].to_s,
+        test_case: failing_test
+      )
+      return command.to_s.strip if command.to_s.strip.present?
+    rescue StandardError => e
+      Rails.logger.warn("[IsolatedReproRecorder] focused command provider #{provider} failed: #{e.class}: #{e.message}")
+    end
+    nil
+  end
+
+  def execute_repro(command)
+    output = nil
+    status = nil
+    Timeout.timeout(REPRO_TIMEOUT) do
+      output, status = Open3.capture2e({ "RAILS_ENV" => "test" }, "bash", "-c", command, chdir: WorkflowWorkspace.path_for(@workflow).to_s)
+    end
+    [ output.to_s, status.exitstatus ]
+  rescue Timeout::Error
+    [ "isolated repro timed out after #{REPRO_TIMEOUT.to_i}s", 124 ]
+  rescue SystemCallError => e
+    [ "isolated repro could not start: #{e.message}", 126 ]
+  end
 
   def failure(message)
     Result.new(ok: false, error: message)

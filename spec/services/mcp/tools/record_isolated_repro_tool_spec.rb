@@ -10,7 +10,7 @@ RSpec.describe Mcp::Tools::RecordIsolatedReproTool do
   let!(:grader_step) do
     Step.create!(
       workflow: workflow, kind: "grader", position: 50, iteration: 1, state: "failed",
-      details: { "name" => "rspec", "required" => true }
+      details: { "name" => "rspec", "required" => true, "command" => "bundle exec rspec" }
     )
   end
   let!(:grader_run) { grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: 1) }
@@ -58,6 +58,14 @@ RSpec.describe Mcp::Tools::RecordIsolatedReproTool do
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new(@repo_dir))
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    focused_provider = Module.new do
+      define_singleton_method(:isolated_command_for) do |**|
+        "bundle exec rspec spec/foo_spec.rb --example does\\ the\\ thing"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ focused_provider ])
+    status = instance_double(Process::Status, exitstatus: 0)
+    allow(Open3).to receive(:capture2e).and_return([ "1 example, 0 failures", status ])
   end
 
   def call(**overrides)
@@ -66,8 +74,6 @@ RSpec.describe Mcp::Tools::RecordIsolatedReproTool do
       suite_name: "spec/foo_spec.rb",
       name: "does the thing",
       reproduced: false,
-      command: "bundle exec rspec spec/foo_spec.rb -e 'does the thing'",
-      output: "1 example, 0 failures",
       exit_status: 0,
       server_context: { run: fix_run },
       **overrides
@@ -77,7 +83,7 @@ RSpec.describe Mcp::Tools::RecordIsolatedReproTool do
   it "exposes the expected tool name and required schema" do
     expect(described_class.tool_name).to eq("record_isolated_repro")
     expect(described_class.input_schema_value.to_h[:required]).to eq(
-      %w[grader_name suite_name name reproduced command output]
+      %w[grader_name suite_name name reproduced]
     )
   end
 
@@ -91,7 +97,7 @@ RSpec.describe Mcp::Tools::RecordIsolatedReproTool do
       name: "does the thing",
       sha: @failing_sha,
       reproduced: false,
-      command: "bundle exec rspec spec/foo_spec.rb -e 'does the thing'",
+      command: "bundle exec rspec spec/foo_spec.rb --example does\\ the\\ thing",
       output: "1 example, 0 failures",
       exit_status: 0
     )

@@ -16,16 +16,11 @@ module Mcp::Tools
     tool_name "record_isolated_repro"
 
     description <<~DESC
-      Call this when investigating a required-grader failure and you run the
-      exact failing example in isolation, against the exact failing commit,
-      BEFORE making any fix. Records the exact command and its raw output as
-      structured evidence -- not a summary or an opinion. Only call this for
-      a specific failing example you actually ran in isolation, not a broad
-      rerun of the whole grader (a broad rerun that happens to pass is just a
-      second grader execution and needs no special recording). The record is
-      rejected if your workspace has already moved past the failing commit
-      (e.g. because you already made a fix commit) or if the test named
-      isn't among what the grader actually reported failing.
+      Call this when investigating a required-grader failure, against the exact
+      failing commit, BEFORE making any fix. Syrus derives and runs the
+      exact-example command from trusted grader metadata, then records its
+      observed output and exit status. The record is rejected if your workspace has already moved past
+      the failing commit or if the test is not among the grader's failures.
     DESC
 
     input_schema(
@@ -48,22 +43,22 @@ module Mcp::Tools
         },
         command: {
           type: "string",
-          description: "The exact command you ran to reproduce the example in isolation."
+          description: "Optional compatibility field. If supplied, it must exactly match Syrus's derived command. Prefer omitting it."
         },
         output: {
           type: "string",
-          description: "The raw output (stdout/stderr) from that command."
+          description: "Optional compatibility field; Syrus records its own observed output."
         },
         exit_status: {
           type: "integer",
           description: "The exit status of that command, if known."
         }
       },
-      required: %w[grader_name suite_name name reproduced command output]
+      required: %w[grader_name suite_name name reproduced]
     )
 
     class << self
-      def call(grader_name:, suite_name:, name:, reproduced:, command:, output:, exit_status: nil, server_context:)
+      def call(grader_name:, suite_name:, name:, reproduced:, command: nil, output: nil, exit_status: nil, server_context:)
         run = Mcp::Tools.run_from_context(server_context)
 
         result = IsolatedReproRecorder.call(
