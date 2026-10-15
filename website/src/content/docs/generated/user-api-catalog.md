@@ -261,6 +261,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/visual_review` | `api/v1/app/job_run_commands#run_visual_review` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/dismiss` | `api/v1/app/workflow_warnings#dismiss` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/file_job` | `api/v1/app/workflow_warnings#file_job` |
+| core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/retry_review` | `api/v1/app/workflow_warnings#retry_review` |
+| core | POST | `/api/v1/app/jobs/:job_id/workflow_warnings/:id/skip_review` | `api/v1/app/workflow_warnings#skip_review` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflows/:workflow_id/discard_branch_output` | `api/v1/app/job_run_commands#discard_branch_output` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflows/:workflow_id/force_push_branch` | `api/v1/app/job_run_commands#force_push_branch` |
 | core | POST | `/api/v1/app/jobs/:job_id/workflows/:workflow_id/push_commits` | `api/v1/app/job_run_commands#push_commits` |

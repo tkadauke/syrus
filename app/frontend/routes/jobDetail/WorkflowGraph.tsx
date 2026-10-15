@@ -1283,6 +1283,9 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   const severityClass = WARNING_SEVERITY_CLASSES[warning.severity] || WARNING_SEVERITY_CLASSES.medium
   const filePath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/file_job`
   const dismissPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/dismiss`
+  const reviewRetryPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/retry_review`
+  const reviewSkipPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/skip_review`
+  const reviewRecovery = warning.kind === "post_implementation_review_failed"
 
   return (
     <section className={`mt-2 rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-3 text-xs ${severityClass}`}>
@@ -1318,6 +1321,11 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
             </>
           ) : null}
           <div className="mt-2 flex gap-2">
+            {reviewRecovery ? (
+              <Button disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: reviewRetryPath })} variant="primary">
+                {t("warning_retry_review")}
+              </Button>
+            ) : null}
             {warning.suggested_prompt ? (
               <Button
                 disabled={command.isPending || !prompt.trim()}
@@ -1329,10 +1337,10 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
             ) : null}
             <Button
               disabled={command.isPending}
-              onClick={() => command.mutate({ method: "post", path: dismissPath })}
+              onClick={() => command.mutate({ method: "post", path: reviewRecovery ? reviewSkipPath : dismissPath })}
               variant="secondary"
             >
-              {t("warning_dismiss")}
+              {reviewRecovery ? t("warning_skip_review") : t("warning_dismiss")}
             </Button>
           </div>
         </div>

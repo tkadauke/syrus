@@ -317,6 +317,14 @@ including confirmed Coding Mode handoffs, and asks it to flag changed diff
 ranges that deserve operator attention. Open notes appear in the Job review tab
 as warning-tinted ranges and plugin-owned side-panel cards.
 
+Because this pass runs after the implementation PR is published, a missing
+submission tool or reviewer failure does not block the implementation. The Job
+stays implemented and its workflow detail shows a diagnostic warning with
+actions to retry only the Review Notes pass or explicitly acknowledge and skip
+it. A successful retry clears the warning without rerunning implementation or
+replacing the PR branch; skipped and recovered warnings retain their audit
+history.
+
 Repositories can tune Review Notes in `.syrus.yml` with `review_notes.criteria`
 for high-signal interests and `review_notes.low_signal` for work the reviewer
 should usually skip. Root policy applies repo-wide; nested project policy is

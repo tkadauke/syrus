@@ -431,6 +431,16 @@ module WorkDefinitions
     self.scope = "job"
   end
 
+  class ManualPostImplementationReview < Base
+    include ResumesFailedSteps
+    include CancelPreemptable
+
+    self.kind = "manual_post_implementation_review"
+    self.workflow_trigger_kind = "manual_post_implementation_review"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class VisualDiff < Base
     include ResumesFailedSteps
     include CancelPreemptable

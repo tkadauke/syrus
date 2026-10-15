@@ -186,6 +186,8 @@ Rails.application.routes.draw do
         post "jobs/:job_id/pending_feedback/:id/retry", to: "pending_feedback#retry", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/workflow_warnings/:id/file_job", to: "workflow_warnings#file_job", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/workflow_warnings/:id/dismiss", to: "workflow_warnings#dismiss", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/workflow_warnings/:id/retry_review", to: "workflow_warnings#retry_review", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/workflow_warnings/:id/skip_review", to: "workflow_warnings#skip_review", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/retry_pr_ingestion", to: "job_run_commands#retry_pr_ingestion", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
