@@ -192,6 +192,14 @@ RSpec.describe K8sCluster::Kubectl do
 
     [
       [ "get", "secrets", "-o", "yaml" ],
+      [ "get", "secrets/db-password", "-o", "yaml" ],
+      [ "get", "secret,configmap", "-o", "json" ],
+      [ "get", "configmap,secret.v1/db-password", "-o", "json" ],
+      [ "get", "secret", "db", "-o", "custom-columns=D:.data" ],
+      [ "get", "secret", "db", "--output=custom-columns-file=columns.txt" ],
+      [ "get", "secret", "db", "-v=8" ],
+      [ "get", "secret", "db", "--v", "6", "-o", "name" ],
+      [ "get", "secret", "db" ],
       [ "get", "secrets", "-o=jsonpath={.data.token}" ],
       [ "get", "secrets", "--output=jsonpath={.data.token}" ],
       [ "get", "secrets", "-oyaml" ],
@@ -207,6 +215,21 @@ RSpec.describe K8sCluster::Kubectl do
       }.to raise_error(K8sCluster::Kubectl::RiskyCommand, /expose secret values/)
     end
     expect(runner).not_to have_received(:call)
+  end
+
+  it "allows name-only Secret reads without secret-output allowance" do
+    credential = create_credential
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "secret/db\n", stderr: "", status: 0))
+
+    result = described_class.call(
+      context: context,
+      credential: credential.id,
+      kube_context: "prod",
+      args: [ "get", "secrets/db", "-o", "name" ]
+    )
+
+    expect(result[:ok]).to be(true)
+    expect(runner).to have_received(:call)
   end
 
   it "allows raw secret API paths only with operator secret-output allowance" do

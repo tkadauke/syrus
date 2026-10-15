@@ -21,7 +21,8 @@ module K8sCluster
       wait
     ].freeze
     AUTH_READ_COMMANDS = %w[can-i whoami].freeze
-    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template custom-columns custom-columns-file].freeze
+    SECRET_RESOURCES = %w[secret secrets].freeze
+    SECRET_SAFE_OUTPUT_FORMATS = %w[name].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
@@ -235,12 +236,30 @@ module K8sCluster
       return true if command == "get" && raw_secret_api_path?
       return false unless secret_resource?
       return true if command == "describe"
+      return true if high_verbosity?
 
-      SECRET_OUTPUT_FORMATS.any? { |format| output_format.to_s.start_with?(format) }
+      !SECRET_SAFE_OUTPUT_FORMATS.include?(output_format)
     end
 
     def secret_resource?
-      normalized_args.any? { |arg| %w[secret secrets secret.v1 secrets.v1].include?(arg) }
+      normalized_args.any? do |arg|
+        arg.split(",").any? do |resource|
+          resource_type = resource.split("/", 2).first.to_s.split(".", 2).first
+          SECRET_RESOURCES.include?(resource_type)
+        end
+      end
+    end
+
+    def high_verbosity?
+      normalized_args.each_with_index.any? do |arg, index|
+        value = if %w[-v --v].include?(arg)
+          normalized_args[index + 1]
+        elsif arg.match?(/\A(?:-v|--v)=/)
+          arg.split("=", 2).last
+        end
+
+        value.to_i >= 6 if value&.match?(/\A\d+\z/)
+      end
     end
 
     def raw_secret_api_path?
