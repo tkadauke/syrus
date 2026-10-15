@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -398,7 +399,7 @@ func runCredentialExecCommand(ctx context.Context, runner credentialExecProcessR
 
 	status, duration := runWithCredentialExecMaterial(ctx, runner, input, response.Material.Payload)
 	auditErr := RecordCredentialExecAudit(ctx, client, CredentialExecAuditRequestBody{
-		Credential: input.Credential,
+		Credential: strconv.FormatInt(response.Lease.CredentialID, 10),
 		LeaseID:    response.Lease.LeaseID,
 		Purpose:    input.Purpose,
 		ToolName:   input.ToolName,
@@ -469,7 +470,7 @@ func runSSHAgentCommand(ctx context.Context, runner commandRunner, client apiCli
 
 	status, duration := runWithSSHAgent(ctx, runner, response.SSHKey, input.Command)
 	auditErr := RecordSSHAgentAudit(ctx, client, SSHAgentAuditRequestBody{
-		Credential: input.Credential,
+		Credential: strconv.FormatInt(response.Lease.CredentialID, 10),
 		LeaseID:    response.Lease.LeaseID,
 		Purpose:    input.Purpose,
 		ToolName:   input.ToolName,

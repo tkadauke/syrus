@@ -224,7 +224,7 @@ func TestCredentialStoreExecEnvVarRunsChildAuditsAndRedactsOutput(t *testing.T) 
 		t.Fatalf("material request = %#v", material)
 	}
 	audit := auditRequest["credential_exec_audit"].(map[string]any)
-	if audit["credential"] != "deploy-token" || audit["lease_id"] != "lease-exec" || audit["mode"] != "env-var" || audit["exit_status"].(float64) != 0 {
+	if audit["credential"] != "7" || audit["lease_id"] != "lease-exec" || audit["mode"] != "env-var" || audit["exit_status"].(float64) != 0 {
 		t.Fatalf("audit request = %#v", audit)
 	}
 }
@@ -304,7 +304,7 @@ func TestCredentialStoreExecFileEnvSmokeRunsChildAuditsRedactsAndCleansUp(t *tes
 		t.Fatalf("material request = %#v", material)
 	}
 	audit := auditRequest["credential_exec_audit"].(map[string]any)
-	if audit["credential"] != "deploy-token" || audit["lease_id"] != "lease-exec" || audit["mode"] != "file-env" || audit["exit_status"].(float64) != 0 {
+	if audit["credential"] != "7" || audit["lease_id"] != "lease-exec" || audit["mode"] != "file-env" || audit["exit_status"].(float64) != 0 {
 		t.Fatalf("audit request = %#v", audit)
 	}
 }
@@ -498,7 +498,7 @@ func TestCredentialStoreSSHAgentRunsChildAuditsAndCleansUp(t *testing.T) {
 		t.Fatalf("material request = %#v", sshAgent)
 	}
 	audit := auditRequest["ssh_agent_audit"].(map[string]any)
-	if audit["credential"] != "homeassistant-ssh" || audit["lease_id"] != "lease-ssh" || audit["exit_status"].(float64) != 0 {
+	if audit["credential"] != "9" || audit["lease_id"] != "lease-ssh" || audit["exit_status"].(float64) != 0 {
 		t.Fatalf("audit request = %#v", audit)
 	}
 	if strings.Contains(output.String(), "secret-key-material") || strings.Contains(output.String(), "key-passphrase") {
