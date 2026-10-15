@@ -292,7 +292,7 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
           statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
           read_only: true,
           columns: ["id", "email"],
-          rows: [{ id: 1, email: "grace@example.com" }],
+          rows: [[1, "grace@example.com"]],
           row_count: 1,
           truncated: false,
           duration_ms: 1,
@@ -318,8 +318,8 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
           read_only: true,
           columns: ["id", "email"],
           rows: [
-            { id: 1, email: "grace@example.com" },
-            { id: 2, email: "ada@example.com" }
+            [1, "grace@example.com"],
+            [2, "ada@example.com"]
           ],
           row_count: 2,
           truncated: false,
@@ -361,8 +361,8 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
           read_only: true,
           columns: ["id", "name"],
           rows: [
-            { id: 1, name: "Acme" },
-            { id: 2, name: "Umbrella" }
+            [1, "Acme"],
+            [2, "Umbrella"]
           ],
           row_count: 2,
           truncated: false,
@@ -402,7 +402,7 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
           statement: body?.mysql_query?.sql,
           read_only: true,
           columns: ["id"],
-          rows: [{ id: 1 }],
+          rows: [[1]],
           row_count: 1,
           truncated: false,
           duration_ms: 2,

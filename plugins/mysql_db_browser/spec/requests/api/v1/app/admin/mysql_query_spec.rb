@@ -13,7 +13,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
 
   def fake_result(rows)
     result = instance_double(Mysql2::Result, fields: rows.first&.keys || [])
-    allow(result).to receive(:each) { |&block| rows.each(&block) }
+    allow(result).to receive(:each) { |&block| rows.each { |row| block.call(row.values) } }
     result
   end
 
@@ -82,7 +82,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
         post "/api/v1/app/admin/mysql_connections/#{connection.id}/query", params: { mysql_query: { sql: "SELECT * FROM users" } }
 
         expect(response).to have_http_status(:ok)
-        expect(parse_body["rows"]).to eq([ { "id" => 1 } ])
+        expect(parse_body["rows"]).to eq([ [ 1 ] ])
         expect(MysqlQueryAudit.last.user).to eq(admin)
       end
 
@@ -138,7 +138,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/tables/users/content"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["rows"]).to eq([ { "id" => 1, "email" => "a@example.com" } ])
+      expect(parse_body["rows"]).to eq([ [ 1, "a@example.com" ] ])
       expect(parse_body["filter_schema"].map { |f| f["field"] }).to contain_exactly("id", "email")
     end
 
@@ -187,7 +187,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["rows"]).to eq([ { "id" => 1, "status" => "pending" } ])
+      expect(parse_body["rows"]).to eq([ [ 1, "pending" ] ])
       expect(parse_body["filter_schema"].map { |f| f["field"] }).to contain_exactly("orders.id", "orders.status")
     end
 

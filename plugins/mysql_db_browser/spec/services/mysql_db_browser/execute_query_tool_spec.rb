@@ -7,7 +7,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
 
   def fake_client(rows: [])
     result = instance_double(Mysql2::Result, fields: rows.first&.keys || [])
-    allow(result).to receive(:each) { |&block| rows.each(&block) }
+    allow(result).to receive(:each) { |&block| rows.each { |row| block.call(row.values) } }
 
     client = instance_double(Mysql2::Client, close: nil, affected_rows: 0)
     allow(client).to receive(:escape) { |value| value.to_s }
@@ -38,7 +38,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
 
     expect(response.error?).to be(false)
     payload = JSON.parse(response.content.first[:text], symbolize_names: true)
-    expect(payload[:rows]).to eq([ { id: 1 } ])
+    expect(payload[:rows]).to eq([ [ 1 ] ])
 
     audit = MysqlQueryAudit.last
     expect(audit.user).to eq(user)
@@ -74,7 +74,7 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     expect(response.error?).to be(false)
     payload = JSON.parse(response.content.first[:text], symbolize_names: true)
     expect(payload[:read_only]).to be(true)
-    expect(payload[:rows]).to eq([ { table: "users" } ])
+    expect(payload[:rows]).to eq([ [ "users" ] ])
     expect(MysqlQueryAudit.last.read_only).to be(true)
   end
 
