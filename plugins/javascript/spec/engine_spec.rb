@@ -153,6 +153,23 @@ RSpec.describe JavaScript::Engine do
         )
       end
     end
+    describe ".shell_fresh_install_command" do
+      {
+        "yarn.lock" => "yarn install --frozen-lockfile",
+        "pnpm-lock.yaml" => "pnpm install --frozen-lockfile",
+        "package-lock.json" => "npm ci",
+        "package.json" => "npm install"
+      }.each do |lockfile, expected|
+        it "installs with #{expected} when #{lockfile} is present" do
+          write(lockfile, "{}")
+          shell_stubs = 'yarn() { echo "yarn $*"; }; pnpm() { echo "pnpm $*"; }; npm() { echo "npm $*"; };'
+          output, status = Open3.capture2("bash", "-c", "#{shell_stubs} #{described_class.shell_fresh_install_command}", chdir: @dir)
+
+          expect(status).to be_success
+          expect(output.strip).to eq(expected)
+        end
+      end
+    end
 
     it "declares .node-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".node-version")

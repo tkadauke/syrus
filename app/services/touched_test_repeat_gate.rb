@@ -126,7 +126,8 @@ class TouchedTestRepeatGate
         grader_name: grader_name,
         grader_command: grader_command,
         failed_cases: @touched_files.map { |path| { "file_path" => path } },
-        base_retry: { "strategy" => "plugin" }
+        base_retry: { "strategy" => "plugin" },
+        project_path: @grader_step.details.to_h["project_path"]
       )
       return command.to_s.strip if command.to_s.strip.present?
     rescue StandardError => e
