@@ -14,17 +14,10 @@ RSpec.describe TestInsights::Query do
   end
 
   def create_case!(identity:, status:, created_at:, duration_ms: 100)
-    run = Factories.job(user: identity.repository.user, repository: identity.repository).initial_run
-    test_run = TestInsights::TestRun.create!(
-      run: run,
-      repository: identity.repository,
-      grader_name: "rspec",
-      total_count: 1,
-      passed_count: status == "passed" ? 1 : 0,
-      failed_count: status == "failed" ? 1 : 0,
-      skipped_count: 0,
-      error_count: status == "error" ? 1 : 0
-    )
+    # These examples exercise case aggregation, not ingestion. Reusing one
+    # parent run avoids constructing a complete Job/Workflow/Step graph for
+    # every individual case while preserving the real associations queried.
+    test_run = test_run_for(identity.repository)
 
     TestInsights::TestCase.create!(
       test_run: test_run,
@@ -37,6 +30,20 @@ RSpec.describe TestInsights::Query do
       created_at: created_at,
       updated_at: created_at
     ).tap { identity.refresh_summary! }
+  end
+
+  def test_run_for(repository)
+    @test_runs_by_repository ||= {}
+    @test_runs_by_repository[repository.id] ||= TestInsights::TestRun.create!(
+      run: Factories.job(user: repository.user, repository: repository).initial_run,
+      repository: repository,
+      grader_name: "rspec",
+      total_count: 0,
+      passed_count: 0,
+      failed_count: 0,
+      skipped_count: 0,
+      error_count: 0
+    )
   end
 
   it "resolves repositories by id through the user's access scope" do
@@ -208,6 +215,7 @@ RSpec.describe TestInsights::Query do
       create_case!(identity: identity, status: "failed", created_at: 2.minutes.ago)
       create_case!(identity: identity, status: "passed", created_at: 1.minute.ago)
     end
+    expect(TestInsights::TestRun.where(repository: repository).count).to eq(1)
     allow(TestInsights::TestCase).to receive(:scored_created_index_hint).and_return(" /* scored-created-index */")
 
     test_case_selects = []
