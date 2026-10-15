@@ -12,6 +12,12 @@ module DirectJobs
 
     def call(repository:, prompt_text:, title:, priority:, agent_provider:, model:, effort_level:, epic: nil, owner: nil, target_branch: nil, delivery_track: nil, planned_execution_attrs: {}, depends_on: [], depends_on_job_ids: [], dependency_requirements: [])
       chat_session, created_chat_session = proposal_chat_session(repository, depends_on | requirement_proposal_slugs(dependency_requirements))
+      depends_on_job_ids = chain_onto_epic_tail(
+        epic: epic,
+        depends_on_job_ids: depends_on_job_ids,
+        depends_on: depends_on,
+        dependency_requirements: dependency_requirements
+      )
       response = Mcp::Tools::ProposeJobTool.call(
         repo: repository.slug,
         title: proposal_title(title),
@@ -60,6 +66,48 @@ module DirectJobs
     private
 
     attr_reader :user
+
+    # ProposeJobTool refuses a Job aimed at a non-empty Epic unless it names
+    # one of that Epic's existing Jobs: Epics execute as a single stacked
+    # branch, so an unchained child would be a disconnected parallel branch.
+    # An agent satisfies that by reading the Epic and passing its tail.
+    #
+    # This path cannot. The direct-job form has no dependency control at all,
+    # so adding a second Job to an Epic from the UI always failed, with the
+    # tool's agent-facing message ("read the Epic's Jobs first if you don't
+    # already know its current tail") shown to an operator who had no field to
+    # act on it with. The requirement was unsatisfiable rather than strict.
+    #
+    # Choosing the Epic *is* the operator's intent here, and the chain
+    # invariant leaves exactly one legal position for a new Job: after the
+    # current tail. So derive it instead of demanding it. An explicit
+    # dependency of any kind is left alone -- the caller has said where this
+    # Job goes.
+    def chain_onto_epic_tail(epic:, depends_on_job_ids:, depends_on:, dependency_requirements:)
+      return depends_on_job_ids if epic.nil?
+      return depends_on_job_ids if depends_on_job_ids.present?
+      return depends_on_job_ids if depends_on.present?
+      return depends_on_job_ids if dependency_requirements.present?
+
+      tail = epic_tail_job(epic)
+      tail ? [ tail.id ] : depends_on_job_ids
+    end
+
+    # The end of the Epic's chain: the Job that nothing else in the Epic
+    # depends on. JobDependency#linear_chain_within_epic allows at most one
+    # such Job, but scan from the newest backwards so legacy data with a fork
+    # still yields a usable answer rather than none.
+    def epic_tail_job(epic)
+      jobs = epic.jobs.order(:id).to_a
+      return nil if jobs.empty?
+
+      upstream_ids = JobDependency.where(job_id: jobs.map(&:id))
+                                  .where.not(depends_on_job_id: nil)
+                                  .pluck(:depends_on_job_id)
+                                  .to_set
+
+      jobs.reverse.find { |job| !upstream_ids.include?(job.id) } || jobs.last
+    end
 
     def proposal_chat_session(repository, depends_on)
       slugs = Array(depends_on).map(&:to_s).map(&:strip).reject(&:blank?)

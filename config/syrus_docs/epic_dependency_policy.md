@@ -64,6 +64,18 @@ When `epic.epic_id` targets an existing Epic that already has child Jobs, `propo
 
 The single-Job `propose_job` MCP tool has the same exposure through `epic_id` and closes it with a narrower, existence-only check: if the target Epic already has any Jobs, `depends_on_job_ids` must include at least one of them, or the tool rejects the proposal before creating it. This does not re-run the full reachability algorithm (which needs the whole batch to reason about fan-in/fan-out) — the direct-edge `JobDependency` validation below still catches a `propose_job` call that names an existing Job that already has another same-epic dependent or dependency. The two checks together close both the disconnected-branch case and the fan-in/fan-out case for this tool.
 
+The direct-Job form (`/jobs/new`, and the `direct_jobs` API behind it) reaches
+`propose_job` through `DirectJobs::ProposalCreator`, so it inherits that
+existence-only check — but it has no dependency control of its own to satisfy
+it with. Rather than reject an operator who selected an Epic, that path
+derives the dependency: when a target Epic already has Jobs and the caller
+passed no `depends_on_job_ids`, no `depends_on` slugs and no
+`dependency_requirements`, the new Job is chained onto the Epic's current
+tail — the Job that nothing else in the Epic depends on, which is the only
+position the single-chain rule leaves open anyway. An explicit dependency of
+any kind is honored as given and never replaced. Agents calling `propose_job`
+directly are unaffected and still have to name the tail themselves.
+
 ## JobDependency-level enforcement
 
 Independent of the proposal-graph check above, `JobDependency`'s own model validation enforces same-Epic edges unconditionally, regardless of any Epic's or Repository's `epic_dependency_policy`: a Job may not have two same-Epic upstream dependencies (no merge/fan-in), and an upstream Job may not have two same-Epic downstream dependents (no fork/fan-out). This is a *direct-edge* count, not a transitive-reachability check, so it is stricter than pure reachability; proposal validation mirrors that direct-edge rule for sibling proposal slugs so an explicit redundant transitive edge (for example `C depends_on B`, `B depends_on A`, and also `C depends_on A`) is rejected before a card is created. No code path — the `add_job_dependency` MCP tool, the admin API, chat proposal confirmation, or GitHub issue `Depends-on:` footer parsing — can create a fan-in or fan-out same-Epic `JobDependency` edge. Existing `JobDependency` rows created before this enforcement are unaffected, since the check only runs on create/update; the DAG-capable services (`JobStackResolver`, `LandingQueueProcessor#dependency_order`, `EpicRestackPlan`, `MergeTrainAssembler`) do not create new `JobDependency` rows, and keep serving whatever fan-in/fan-out structure already exists on those older rows unmodified.
