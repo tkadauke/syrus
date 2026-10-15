@@ -121,6 +121,28 @@ RSpec.describe JobBundleDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch a manually paused Job as a bundle member" do
+    approved_job(1)
+    paused = approved_job(2)
+    paused.update!(manual_paused: true)
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(paused.reload.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "does not dispatch a Job with requested-changes attention as a bundle member" do
+    approved_job(1)
+    held = approved_job(2)
+    held.update!(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(held.reload.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not dispatch while a bundle member owner's landing queue is paused" do
     approved_job(1)
     approved_job(2)
