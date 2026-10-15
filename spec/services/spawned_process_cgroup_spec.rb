@@ -2,6 +2,14 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe SpawnedProcessCgroup, :ci_only do
+  # SpawnedProcessCgroup reports "unavailable" off Linux by design -- there is
+  # no cgroup enforcement on Darwin outside a Linux container -- so none of
+  # these examples can reach the behavior they describe on a developer
+  # machine. Workers are Linux, so CI still runs them.
+  before do
+    skip "cgroup v2 enforcement is Linux-only" unless Etc.uname[:sysname] == "Linux"
+  end
+
   around do |example|
     @previous_env = ENV.to_h
     @cgroup_parent = Dir.mktmpdir("spawned-process-cgroup")

@@ -349,6 +349,7 @@ RSpec.describe ProcessRunner, :ci_only do
   end
 
   it "applies a cgroup v2 memory ceiling and records exit counters" do
+    skip "cgroup v2 enforcement is Linux-only" unless Etc.uname[:sysname] == "Linux"
     Feature.find_or_create_by!(slug: "per_spawn_resource_limits") do |feature|
       feature.category = "Operations"
       feature.name = "Per-spawn resource limits"
@@ -392,6 +393,7 @@ RSpec.describe ProcessRunner, :ci_only do
   end
 
   it "samples cgroup exit counters after the subprocess is reaped even when stdio closes early" do
+    skip "cgroup v2 enforcement is Linux-only" unless Etc.uname[:sysname] == "Linux"
     Feature.find_or_create_by!(slug: "per_spawn_resource_limits") do |feature|
       feature.category = "Operations"
       feature.name = "Per-spawn resource limits"
