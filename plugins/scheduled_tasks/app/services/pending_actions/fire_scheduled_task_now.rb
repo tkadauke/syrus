@@ -3,7 +3,8 @@ module PendingActions
     action_key "fire_scheduled_task_now"
 
     def execute
-      task = ScheduledTasks::Task.alive.where(user: user).find(payload.fetch("scheduled_task_id"))
+      scope = user.admin? ? ScheduledTasks::Task.alive : ScheduledTasks::Task.alive.where(user: user)
+      task = scope.find(payload.fetch("scheduled_task_id"))
       raise ArgumentError, "Task isn't fireable in its current state." if task.archived? || task.fired?
 
       progress!("Firing scheduled task #{task.id}...")
