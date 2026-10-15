@@ -38,6 +38,15 @@ func (f *fakeStore) Register(_ context.Context, id string, reg mirror.Registrati
 }
 func (f *fakeStore) Remove(string) error   { return mirror.ErrUnknownRepository }
 func (f *fakeStore) List() []mirror.Status { return []mirror.Status{{ID: "1", HasCredential: true}} }
+func (f *fakeStore) ListPage(after string, limit int) ([]mirror.Status, bool) {
+	statuses := []mirror.Status{{ID: "1"}, {ID: "2"}, {ID: "3"}}
+	start := 0
+	for start < len(statuses) && statuses[start].ID <= after {
+		start++
+	}
+	end := min(start+limit, len(statuses))
+	return statuses[start:end], end < len(statuses)
+}
 func (f *fakeStore) Disk() mirror.Disk {
 	return mirror.Disk{TotalBytes: 100, FreeBytes: 40, MirrorBytes: 10}
 }
@@ -283,6 +292,27 @@ func TestListReportsDisk(t *testing.T) {
 	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories", "", true)
 	if !strings.Contains(rec.Body.String(), `"disk":{"total_bytes":100,"free_bytes":40,"mirror_bytes":10}`) {
 		t.Fatalf("body = %s", rec.Body)
+	}
+}
+
+func TestListPageBoundsTheRepositoryInventory(t *testing.T) {
+	rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories/page?after=1&limit=1", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list page: %d %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Repositories []mirror.Status `json:"repositories"`
+		HasMore      bool            `json:"has_more"`
+		NextCursor   string          `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Repositories) != 1 || body.Repositories[0].ID != "2" || !body.HasMore || body.NextCursor != "2" {
+		t.Fatalf("unexpected page: %+v", body)
+	}
+	if rec := do(New(&fakeStore{}, token), "GET", "/v1/repositories/page?limit=1001", "", true); rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversized page: %d", rec.Code)
 	}
 }
 
