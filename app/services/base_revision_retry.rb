@@ -167,9 +167,11 @@ class BaseRevisionRetry
 
   def interpolate_explicit_command(command)
     files = @failed_cases.filter_map { |test_case| test_case["file_path"].presence }.uniq.sort
-    command
-      .gsub("{files}", Shellwords.join(files))
-      .gsub("{failed_count}", @failed_cases.size.to_s)
+    FocusedTestCommandTemplate.interpolate(
+      command,
+      files: files,
+      failed_count: @failed_cases.size
+    )
   end
 
   def files_as_args_command
