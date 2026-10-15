@@ -3,6 +3,8 @@ module K8sCluster
   # `kubectl get pods -A`).
   class Pods < ResourceService
     MAX_PODS = 1_000
+    MAX_LOG_TAIL_LINES = 1_000
+    MAX_LOG_BYTES = 64.kilobytes
 
     def list(namespace: nil)
       with_client(api_client.core) do |client|
@@ -32,7 +34,8 @@ module K8sCluster
           name,
           namespace,
           container: container,
-          tail_lines: tail_lines,
+          tail_lines: [ tail_lines.to_i, MAX_LOG_TAIL_LINES ].min.clamp(1, MAX_LOG_TAIL_LINES),
+          limit_bytes: MAX_LOG_BYTES,
           previous: previous,
           timestamps: timestamps
         )
