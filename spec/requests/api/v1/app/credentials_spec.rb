@@ -1,5 +1,21 @@
 require "rails_helper"
 
+module CredentialsSpec
+  class CascadingProvider
+    include Syrus::Plugin::AgentProvider
+
+    def self.provider_key = "cascading"
+    def self.display_name = "Cascading"
+  end
+
+  class BetaBlockedProvider
+    include Syrus::Plugin::AgentProvider
+
+    def self.provider_key = "beta_blocked"
+    def self.display_name = "Beta Blocked"
+  end
+end
+
 RSpec.describe "API: /api/v1/app/credentials", type: :request do
   before do
     PluginRecord.find_or_create_by!(name: "muse_agent").update!(enabled: true, default_enabled: false, disableable: true)
@@ -808,6 +824,53 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(true)
       expect(claude_agent.reload.enabled).to be(true)
       expect(parse_body["message"]).to include("enabled")
+    end
+
+    it "enables the connected provider plugin's dependencies through the cascade-aware path" do
+      Syrus::PluginRegistry.register(name: "onboarding-runtime", version: "1.0.0", default_enabled: false)
+      Syrus::PluginRegistry.register(
+        name: "onboarding-provider",
+        version: "1.0.0",
+        default_enabled: false,
+        depends_on: [ "onboarding-runtime" ],
+        provides: { agent_provider: CredentialsSpec::CascadingProvider }
+      )
+      provider = PluginRecord.find_by!(name: "onboarding-provider")
+      dependency = PluginRecord.find_by!(name: "onboarding-runtime")
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "cascading" }
+
+      expect(response).to have_http_status(:ok)
+      expect(provider.reload.enabled?).to be(true)
+      expect(dependency.reload.enabled?).to be(true)
+    end
+
+    it "blocks an onboarding cascade with an experimental dependency without partially enabling it" do
+      Syrus::PluginRegistry.register(
+        name: "onboarding-experimental-runtime",
+        version: "1.0.0",
+        default_enabled: false,
+        experimental: true
+      )
+      Syrus::PluginRegistry.register(
+        name: "onboarding-beta-blocked-provider",
+        version: "1.0.0",
+        default_enabled: false,
+        depends_on: [ "onboarding-experimental-runtime" ],
+        provides: { agent_provider: CredentialsSpec::BetaBlockedProvider }
+      )
+      provider = PluginRecord.find_by!(name: "onboarding-beta-blocked-provider")
+      dependency = PluginRecord.find_by!(name: "onboarding-experimental-runtime")
+      AppSetting.current.update!(beta_mode_enabled: false)
+      sign_in_as(user)
+
+      post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "beta_blocked" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("beta_mode_not_enabled")
+      expect(provider.reload.enabled?).to be(false)
+      expect(dependency.reload.enabled?).to be(false)
     end
 
     it "is idempotent when the plugin is already enabled" do

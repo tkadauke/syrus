@@ -76,10 +76,11 @@ Antigravity, Muse) disabled — but you don't need to enable one from
 checklist, the **Configure agent** step opens a guided modal with one tab per
 provider, all reachable from the start regardless of which plugin is
 currently enabled. Connecting a provider from its tab automatically enables
-that provider's plugin for you; that auto-enable only happens from this
-onboarding modal, so after setup you manage providers from **Admin ->
-Plugins** as usual. Once a provider is connected, choose it as your default
-in **Agent Settings**.
+that provider's plugin and any required plugin dependencies for you. This
+auto-enable requires an admin who is still completing first-run setup, and it
+respects the same beta-mode restrictions as **Admin -> Plugins**. After setup
+you manage providers from **Admin -> Plugins** as usual. Once a provider is
+connected, choose it as your default in **Agent Settings**.
 
 - **Claude** uses a Claude OAuth token. Its tab first checks whether
   `claude --print` already works on this machine (common on bare-metal
