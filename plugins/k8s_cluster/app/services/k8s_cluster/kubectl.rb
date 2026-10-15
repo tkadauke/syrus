@@ -110,8 +110,8 @@ module K8sCluster
       raise InvalidCommand, "kubectl credential flags are not allowed" if contains_forbidden_credential_flag?
       raise RiskyCommand, "kubectl config commands are not allowed" if command == "config"
       raise RiskyCommand, "streaming or interactive kubectl commands are not allowed" if streaming_command?
-      raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
-      raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize secret output" if context.chat? && allow_secret_output
+      raise OperatorConfirmationRequired, "agent kubectl calls cannot self-authorize risky commands" if agent_context? && allow_risky_command
+      raise OperatorConfirmationRequired, "agent kubectl calls cannot self-authorize secret output" if agent_context? && allow_secret_output
       raise RiskyCommand, "kubectl command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
       raise RiskyCommand, "kubectl command could expose secret values" if secret_output_command? && !allow_secret_output
     end
@@ -163,6 +163,12 @@ module K8sCluster
     end
 
     def credential_denial_reason(credential)
+      registered_cluster = KubernetesCluster.find_by(credential_store_credential_id: credential.id)
+      if registered_cluster
+        return "agentic access is disabled for this Kubernetes cluster" unless registered_cluster.agentic_access_enabled?
+        return "write access is disabled for this Kubernetes cluster" if risky_command? && !registered_cluster.allow_writes?
+      end
+
       metadata = credential.safe_metadata.to_h
       expected_context = metadata["context"].to_s.presence
       expected_cluster = metadata["cluster"].to_s.presence
@@ -174,6 +180,10 @@ module K8sCluster
       return "credential namespace metadata does not match target" if expected_namespace && namespace && expected_namespace != namespace
 
       nil
+    end
+
+    def agent_context?
+      context.chat? || context.run?
     end
 
     def target

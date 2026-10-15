@@ -6,6 +6,7 @@ RSpec.describe K8sCluster::Kubectl do
   let(:job) { Factories.job_with_run(user: user, repository: repository) }
   let(:run) { job.runs.first }
   let(:context) { McpToolContext.from_run(run) }
+  let(:admin_context) { McpToolContext.new(surface: :admin, role: nil, user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
   let(:chat_context) { McpToolContext.from_chat_session(chat_session) }
   let(:kubeconfig) do
@@ -44,6 +45,14 @@ RSpec.describe K8sCluster::Kubectl do
       allowed_surfaces: [ "workflow" ],
       allowed_tools: [ "k8s_cluster_kubectl" ],
       last_rotated_at: 1.hour.ago
+    }.merge(attrs))
+  end
+
+  def register_cluster_for(credential, **attrs)
+    Factories.kubernetes_cluster(**{
+      credential_store_credential_id: credential.id,
+      agentic_access_enabled: true,
+      allow_writes: false
     }.merge(attrs))
   end
 
@@ -195,12 +204,12 @@ RSpec.describe K8sCluster::Kubectl do
     expect(runner).not_to have_received(:call)
   end
 
-  it "allows raw secret API paths only with workflow secret-output allowance" do
-    credential = create_credential
+  it "allows raw secret API paths only with operator secret-output allowance" do
+    credential = create_credential(scope_type: "instance", scope_id: nil, allowed_surfaces: [ "admin" ])
     allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "secret\n", stderr: "", status: 0))
 
     result = described_class.call(
-      context: context,
+      context: admin_context,
       credential: credential.id,
       kube_context: "prod",
       args: [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
@@ -243,8 +252,8 @@ RSpec.describe K8sCluster::Kubectl do
     expect(runner).not_to have_received(:call)
   end
 
-  it "requires explicit allowance for mutating kubectl commands" do
-    credential = create_credential
+  it "requires explicit operator allowance for mutating kubectl commands" do
+    credential = create_credential(scope_type: "instance", scope_id: nil, allowed_surfaces: %w[workflow admin])
 
     expect {
       described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "apply", "-f", "deployment.yaml" ])
@@ -253,7 +262,7 @@ RSpec.describe K8sCluster::Kubectl do
     allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "configured\n", stderr: "", status: 0))
 
     result = described_class.call(
-      context: context,
+      context: admin_context,
       credential: credential.id,
       kube_context: "prod",
       args: [ "apply", "-f", "deployment.yaml" ],
@@ -263,7 +272,7 @@ RSpec.describe K8sCluster::Kubectl do
     expect(result[:ok]).to be(true)
   end
 
-  it "does not let chat callers self-authorize risky commands or secret output" do
+  it "does not let chat or workflow callers self-authorize risky commands or secret output" do
     credential = create_credential(allowed_surfaces: [ "chat" ])
 
     expect {
@@ -295,6 +304,65 @@ RSpec.describe K8sCluster::Kubectl do
         allow_secret_output: true
       )
     }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
+
+    workflow_credential = create_credential(name: "workflow-kubeconfig")
+    expect {
+      described_class.call(
+        context: context,
+        credential: workflow_credential.id,
+        kube_context: "prod",
+        args: [ "delete", "pod", "web" ],
+        allow_risky_command: true
+      )
+    }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /risky commands/)
+
+    expect {
+      described_class.call(
+        context: context,
+        credential: workflow_credential.id,
+        kube_context: "prod",
+        args: [ "get", "secrets", "-o", "yaml" ],
+        allow_secret_output: true
+      )
+    }.to raise_error(K8sCluster::Kubectl::OperatorConfirmationRequired, /secret output/)
+  end
+
+  it "enforces registered cluster agentic access before invoking kubectl" do
+    credential = create_credential
+    register_cluster_for(credential, agentic_access_enabled: false)
+    allow(runner).to receive(:call)
+
+    expect {
+      described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "get", "pods" ])
+    }.to raise_error(CredentialStore::Broker::Denied, /agentic access is disabled/)
+    expect(runner).not_to have_received(:call)
+  end
+
+  it "requires registered cluster write access for operator-authorized mutations" do
+    credential = create_credential(scope_type: "instance", scope_id: nil, allowed_surfaces: [ "admin" ])
+    cluster = register_cluster_for(credential)
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "deleted\n", stderr: "", status: 0))
+
+    expect {
+      described_class.call(
+        context: admin_context,
+        credential: credential.id,
+        kube_context: "prod",
+        args: [ "delete", "pod", "web" ],
+        allow_risky_command: true
+      )
+    }.to raise_error(CredentialStore::Broker::Denied, /write access is disabled/)
+
+    cluster.update!(allow_writes: true)
+    result = described_class.call(
+      context: admin_context,
+      credential: credential.id,
+      kube_context: "prod",
+      args: [ "delete", "pod", "web" ],
+      allow_risky_command: true
+    )
+
+    expect(result[:ok]).to be(true)
   end
 
   it "rejects kubeconfig, context, and namespace flags in kubectl args" do
