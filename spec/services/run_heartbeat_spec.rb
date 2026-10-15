@@ -44,12 +44,25 @@ RSpec.describe RunHeartbeat do
     expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:59Z"))
   end
 
+  # What matters here is that the heartbeat thread makes progress *while* the
+  # block is still running, not how much wall clock passes. Sleeping a fixed
+  # span and counting touches afterwards is not the same assertion: on a
+  # loaded machine the thread can be starved for longer than any span worth
+  # hard-coding, leaving only the synchronous touches from entry and `ensure`
+  # and failing an otherwise healthy heartbeat. Block on the heartbeats
+  # themselves instead -- that passes at any machine speed, and a thread that
+  # never runs still fails the example on the timeout.
   it "keeps heartbeating while a blocking operation is in progress" do
     run = create_running_run(last_heartbeat_at: nil)
-    allow(described_class).to receive(:touch).and_call_original
+    heartbeats = Queue.new
+    allow(described_class).to receive(:touch).and_wrap_original do |original, *args, **kwargs|
+      original.call(*args, **kwargs).tap { heartbeats << :touched if kwargs[:force] }
+    end
 
     result = described_class.during(run, interval: 0.01.seconds) do
-      sleep 0.035
+      # One touch is synchronous on entry; the remaining two can only come
+      # from the heartbeat thread running concurrently with this block.
+      3.times { expect(heartbeats.pop(timeout: 10)).to eq(:touched) }
       :published
     end
 
