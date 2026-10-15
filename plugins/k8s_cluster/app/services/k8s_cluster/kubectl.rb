@@ -21,7 +21,7 @@ module K8sCluster
       wait
     ].freeze
     AUTH_READ_COMMANDS = %w[can-i whoami].freeze
-    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template].freeze
+    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template custom-columns custom-columns-file].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
     FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze

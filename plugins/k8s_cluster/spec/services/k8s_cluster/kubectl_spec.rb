@@ -195,6 +195,9 @@ RSpec.describe K8sCluster::Kubectl do
       [ "get", "secrets", "-o=jsonpath={.data.token}" ],
       [ "get", "secrets", "--output=jsonpath={.data.token}" ],
       [ "get", "secrets", "-oyaml" ],
+      [ "get", "secret", "prod-token", "-o", "custom-columns=TOKEN:.data.token" ],
+      [ "get", "secret", "prod-token", "-ocustom-columns=TOKEN:.data.token" ],
+      [ "get", "secret", "prod-token", "--output=custom-columns-file=columns.txt" ],
       [ "get", "--raw", "/api/v1/namespaces/default/secrets/prod-token" ],
       [ "get", "--raw=/api/v1/namespaces/default/secrets/prod-token?watch=false" ],
       [ "describe", "secret", "prod-token" ]

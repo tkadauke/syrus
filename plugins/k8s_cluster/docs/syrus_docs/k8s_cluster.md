@@ -326,7 +326,8 @@ broker can validate target constraints. Only the read commands `get`,
 plugins. Streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
 `port-forward`, interactive `exec`, and similar), all mutating commands, and
 Secret-value exposure patterns such as `get secrets -o yaml`,
-`get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
+`get secrets -o=jsonpath=...`, Secret projections via
+`custom-columns`/`custom-columns-file`, `describe secret`, or `get --raw` Kubernetes
 API paths whose segments target `secrets`, unless explicit allowance is
  supplied by a non-agent caller. Chat and workflow agents cannot self-authorize
  secret-output allowance. When the credential belongs to a registered cluster,
