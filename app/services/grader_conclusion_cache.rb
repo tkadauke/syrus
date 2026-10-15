@@ -34,14 +34,20 @@ class GraderConclusionCache
                     .exists?
   end
 
-  def self.latest_success(repository:, commit_sha:, grader_fingerprint:)
+  def self.latest_success(repository:, commit_sha:, grader_fingerprint:, required_grader_names: nil)
     return nil if repository.blank? || commit_sha.blank? || grader_fingerprint.blank?
 
-    GraderConclusion.aggregate
-                    .passed
-                    .where(repository: repository, commit_sha: commit_sha, grader_fingerprint: grader_fingerprint)
-                    .latest_first
-                    .first
+    scope = GraderConclusion.aggregate
+      .passed
+      .where(repository: repository, commit_sha: commit_sha, grader_fingerprint: grader_fingerprint)
+      .latest_first
+    return scope.first if required_grader_names.nil?
+
+    required_names = Array(required_grader_names).map(&:to_s).uniq
+    scope.detect do |conclusion|
+      covered_names = Array(conclusion.metadata.to_h["grader_names"]).map(&:to_s)
+      (required_names - covered_names).empty?
+    end
   end
 
   def self.failed?(repository:, commit_sha:, grader_fingerprint:)
@@ -162,7 +168,11 @@ class GraderConclusionCache
           "trigger_kind" => workflow.trigger_kind,
           "iteration" => run.iteration,
           "loop_id" => step.loop_id,
-          "grader_count" => grader_steps.size + carried_forward.size
+          "grader_count" => grader_steps.size + carried_forward.size,
+          "grader_names" => (
+            grader_steps.map { |grader_step| grader_step.details.to_h["name"].presence || "grader-#{grader_step.id}" } +
+              carried_forward.map { |entry| entry["name"].presence || "grader-carried-forward" }
+          ).map(&:to_s).uniq.sort
         }.compact
       )
     end
