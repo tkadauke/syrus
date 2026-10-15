@@ -154,7 +154,8 @@ func runChatREPL(ctx context.Context, client *api.Client, chatID string, reader 
 			}
 			continue
 		}
-		if err := streamTurnWithClient(ctx, client, chatID, message, reader, out, errOut); err != nil {
+		pending := false
+		if err := streamTurnWithClient(ctx, client, chatID, message, pendingProposalHandler(out, &pending), out, errOut); err != nil {
 			return err
 		}
 		if errors.Is(err, io.EOF) {
