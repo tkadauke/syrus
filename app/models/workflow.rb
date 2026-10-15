@@ -1,4 +1,5 @@
 class Workflow < ApplicationRecord
+  attr_accessor :syncing_from_terminal_work_unit
   include AASM
   include RecordsStateTransitions
   include Revisionable

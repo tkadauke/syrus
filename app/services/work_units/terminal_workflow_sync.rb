@@ -100,10 +100,15 @@ module WorkUnits
           workflow.fail! if workflow.may_fail?
           workflow.save!
         when "succeeded"
-          workflow.start! if workflow.queued? && workflow.may_start?
+          if workflow.queued? && workflow.may_start?
+            workflow.syncing_from_terminal_work_unit = true
+            workflow.start!
+          end
           workflow.succeed! if workflow.may_succeed?
           workflow.save!
         end
+      ensure
+        workflow.syncing_from_terminal_work_unit = false
       end
     end
 

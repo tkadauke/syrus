@@ -617,10 +617,10 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(new_job.epic).to eq(epic)
   end
 
-  it "rejects a job added to a non-empty epic without depends_on_job_ids through the proposal path" do
+  it "chains a job added to a non-empty epic onto its tail through the proposal path" do
     sign_in_as(user)
     epic = Factories.epic(repository: repository, user: user)
-    Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
+    existing = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Existing child")
 
     expect {
       post "/api/v1/app/jobs", params: {
@@ -629,11 +629,12 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
         title: "Next child",
         prompt: "Add the next stacked child."
       }
-    }.not_to change(Job, :count)
+    }.to change(Job, :count).by(1)
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("already has Jobs")
-    expect(parse_body.dig("error", "message")).to include("depends_on_job_ids")
+    expect(response).to have_http_status(:created)
+    created = Job.order(:id).last
+    expect(created.epic).to eq(epic)
+    expect(created.dependencies.map(&:depends_on_job)).to eq([ existing ])
   end
 
   it "creates a linear dependency when depends_on_job_ids names the epic tail" do
