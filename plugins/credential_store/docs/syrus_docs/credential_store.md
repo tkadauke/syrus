@@ -293,10 +293,12 @@ Use target policy on SSH credentials:
 
 The tool refuses credentials that have no host, known-host, or `allowed_hosts`
 constraint unless a workflow caller explicitly sets
-`allow_unconstrained_host: true`. Commands matching obviously destructive
-patterns are refused unless a workflow caller supplies
-`allow_risky_command: true`. Chat-surface calls cannot self-authorize either
-bypass; they fail instead of executing. All access attempts are audited by the
-broker, including denials for revoked credentials, wrong credential types,
+`allow_unconstrained_host: true`. Only a conservative allowlist of read-only
+diagnostic commands runs without confirmation; shell expansion, globbing,
+redirection, and every command outside that allowlist are refused unless a
+workflow caller supplies `allow_risky_command: true`. Chat-surface calls cannot
+self-authorize either bypass; they fail instead of executing. All access
+attempts are audited by the broker, including denials for revoked credentials,
+wrong credential types,
 surface/tool policy mismatches, SSH metadata mismatches, unconstrained
 credentials, and target constraint failures.

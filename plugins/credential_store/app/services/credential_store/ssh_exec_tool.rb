@@ -47,7 +47,7 @@ module CredentialStore
         },
         allow_risky_command: {
           type: "boolean",
-          description: "Explicitly allow command patterns that look destructive. Chat-surface calls cannot use this self-authorization flag."
+          description: "Explicitly allow a command outside the read-only allowlist or one using unsafe shell syntax. Chat-surface calls cannot use this self-authorization flag."
         }
       }
     )
