@@ -1193,6 +1193,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.chat_participants.find_by!(user: owner).hidden_at).to be_nil
   end
 
+  it "does not hide a participant invited after a legacy-hidden chat is restored" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, conversation_kind: "group", hidden_at: 1.day.ago)
+    owner_participant = chat.chat_participants.find_by!(user: user)
+    owner_participant.update!(hidden_at: chat.hidden_at)
+    invited_user = Factories.user
+
+    patch "/api/v1/app/chats/#{chat.id}/unhide"
+    post "/api/v1/app/chats/#{chat.id}/participants", params: { user_id: invited_user.id }
+
+    expect(response).to have_http_status(:created)
+    expect(chat.reload.hidden_at).to be_nil
+    expect(owner_participant.reload.hidden_at).to be_nil
+    expect(chat.chat_participants.find_by!(user: invited_user).hidden_at).to be_nil
+  end
+
   it "lists hidden chats for recovery in hidden order with shared sidebar context" do
     sign_in_as(user)
     older = ChatSession.create!(user: user, repository: repository, title: "Older", hidden_at: 2.days.ago)
@@ -1225,6 +1241,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(1)
     expect(queries.grep(/FROM ["`]?spawned_processes["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?chat_participants["`]?/i).size).to eq(1)
   end
 
   it "renames a chat for the signed-in user" do

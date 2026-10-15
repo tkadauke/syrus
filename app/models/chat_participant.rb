@@ -8,12 +8,11 @@ class ChatParticipant < ApplicationRecord
   validates :user_id, uniqueness: { scope: :chat_session_id }
   validates :joined_at, presence: true
 
-  before_validation :set_initial_state, on: :create
+  before_validation :set_joined_at, on: :create
 
   private
 
-  def set_initial_state
+  def set_joined_at
     self.joined_at ||= Time.current
-    self.hidden_at ||= chat_session&.hidden_at
   end
 end

@@ -213,7 +213,7 @@ module Api
           scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).hidden_to(Current.user).active
           total = scope.count
           chats = scope
-            .preload(repository_attachments: :attachable)
+            .preload(:chat_participants, repository_attachments: :attachable)
             .order("chat_participants.hidden_at DESC", id: :desc)
             .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
             .limit(HIDDEN_CHATS_PAGE_SIZE)
@@ -547,6 +547,7 @@ module Api
         def unhide
           chat_session = find_chat_session
           current_participant_for(chat_session).update!(hidden_at: nil)
+          chat_session.update_column(:hidden_at, nil) if chat_session.hidden_at?
 
           render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
         end

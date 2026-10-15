@@ -17,6 +17,7 @@ class AddHiddenAtToChatParticipants < ActiveRecord::Migration[8.1]
           AND chat_sessions.hidden_at IS NOT NULL
       )
     SQL
+    execute "UPDATE chat_sessions SET hidden_at = NULL WHERE hidden_at IS NOT NULL"
     add_index :chat_participants, [ :user_id, :hidden_at, :chat_session_id ], name: INDEX_NAME unless index_exists?(:chat_participants, name: INDEX_NAME)
   end
 
