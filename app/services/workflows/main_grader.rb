@@ -10,7 +10,9 @@ module Workflows
   # Timeouts mark the grader signal inconclusive so operators can inspect or
   # tune the timeout without spawning a speculative repair job. Infrastructure
   # interruptions (for example a worker killed during deploy) leave health
-  # unknown and enqueue a replacement check for the same SHA.
+  # unknown and enqueue a replacement check for the same SHA. Failures before
+  # required graders run settle as inconclusive so a persistent setup problem
+  # does not create a new workflow on every health poll.
   # after_success / after_fail update repository.grader_health and call
   # MainHealthChangedService when the health signal transitions.
   # The anchor Job is closed by the hook in both cases; it is excluded from
@@ -58,9 +60,9 @@ module Workflows
       else
         Rails.logger.warn(
           "[Workflows::MainGrader] Workflow ##{workflow.id} failed before required graders reported failures; " \
-          "leaving #{workflow.job.repository.slug} grader_health=#{workflow.job.repository.grader_health}"
+          "marking #{workflow.job.repository.slug} grader health inconclusive"
         )
-        close_anchor_job!(workflow)
+        update_grader_health!(workflow, "inconclusive")
       end
     end
 
