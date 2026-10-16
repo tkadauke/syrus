@@ -44,6 +44,13 @@ RSpec.describe PendingActions::CancelStaleWork do
       .to raise_error(ActiveRecord::RecordInvalid, /job_id is required/)
   end
 
+  it "rejects creation when no target can transition" do
+    job = build_job(user: admin, repository: admin_repository)
+
+    expect { pending_action_for(admin, admin_repository, "job_id" => job.id) }
+      .to raise_error(ActiveRecord::RecordInvalid, /no Run or Workflow can transition/)
+  end
+
   it "cancels active workflows and queued runs, then reconciles the Job through the concurrency-guarded entry point" do
     job = build_job(user: admin, repository: admin_repository)
     workflow = active_workflow_for(job)
@@ -115,16 +122,14 @@ RSpec.describe PendingActions::CancelStaleWork do
   it "raises when a requested workflow id is not active work for the Job" do
     job = build_job(user: admin, repository: admin_repository)
     active_workflow_for(job)
-    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "workflow_ids" => [ 999_999 ])
-
-    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /Workflow ids are not active work/)
+    expect { pending_action_for(admin, admin_repository, "job_id" => job.id, "workflow_ids" => [ 999_999 ]) }
+      .to raise_error(ActiveRecord::RecordInvalid, /Workflow ids are not active work/)
   end
 
   it "raises when a requested run id is not active work for the Job" do
     job = build_job(user: admin, repository: admin_repository)
     active_workflow_for(job)
-    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "run_ids" => [ 999_999 ])
-
-    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /Run ids are not active work/)
+    expect { pending_action_for(admin, admin_repository, "job_id" => job.id, "run_ids" => [ 999_999 ]) }
+      .to raise_error(ActiveRecord::RecordInvalid, /Run ids are not active work/)
   end
 end

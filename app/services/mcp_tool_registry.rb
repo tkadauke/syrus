@@ -237,6 +237,7 @@ class McpToolRegistry
         chat(Mcp::Tools::ReconcileJobStateTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::ForceStateTransitionTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::CancelStaleWorkTool, admin_only: true, mutation: true),
+        chat(Mcp::Tools::RetireTerminalWorkUnitTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::ReenqueueWorkTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::RepairQueueAffinityTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::ForceRebaseTool, admin_only: true, mutation: true),

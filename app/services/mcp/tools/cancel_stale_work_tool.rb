@@ -28,6 +28,9 @@ module Mcp::Tools
         job = Job.find_by(id: job_id)
         return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
+        eligibility = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+        return Mcp::Tools.invalid(eligibility.blocking_preconditions.join("; ")) unless eligibility.eligible?
+
         create_pending_admin_action(
           server_context: server_context,
           chat_session: chat_session,

@@ -58,7 +58,9 @@ class ChatPendingAction < ApplicationRecord
     replace_pr_branch_with_workflow_output
     retry_from_current_pr_branch
     rerun_ci_repair
+    retire_terminal_work_unit
     mark_ci_repair_noop
+    retire_terminal_work_unit
     override_landing_blocker_once
     wake_landing_queue
     repair_provider_circuit_evidence
@@ -218,11 +220,12 @@ class ChatPendingAction < ApplicationRecord
     end
 
     record_repair_admin_action!(record) if command.repair_action?
+    repair_outcome = command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied"
     updates = {
       state: "confirmed",
       confirmed_at: Time.current,
-      execution_status: "done",
-      execution_step: "Done.",
+      execution_status: repair_outcome,
+      execution_step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.",
       execution_error: nil,
       execution_finished_at: Time.current
     }
@@ -245,10 +248,11 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def fail_confirmation!(error)
+    rejected = error.is_a?(RepairEligibility::Ineligible)
     update!(
       state: "failed",
-      execution_status: "failed",
-      execution_step: "Failed.",
+      execution_status: rejected ? "rejected" : "failed",
+      execution_step: rejected ? "Rejected after eligibility revalidation." : "Failed.",
       execution_error: "#{error.class}: #{error.message}",
       execution_finished_at: Time.current
     )
@@ -452,6 +456,7 @@ class ChatPendingAction < ApplicationRecord
         requested_by: requested_by,
         payload: payload,
         result: repair_result_payload(record),
+        outcome: before_snapshot == after_snapshot ? "noop" : "applied",
         before_snapshot: before_snapshot,
         after_snapshot: after_snapshot
       }

@@ -121,7 +121,7 @@ module Admin
     def work_units_payload
       members = WorkUnitMember
         .joins(:work_unit)
-        .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
+        .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit, :work_unit_locks ])
         .where(job_id: job.id)
         .order(WorkUnits::Ownership.active_priority_order)
         .limit(25)
@@ -155,7 +155,9 @@ module Admin
         parent_work_unit_id: unit.parent_work_unit_id,
         created_at: unit.created_at&.iso8601,
         started_at: unit.started_at&.iso8601,
-        finished_at: unit.finished_at&.iso8601
+        finished_at: unit.finished_at&.iso8601,
+        active_lock_ids: unit.work_unit_locks.select(&:active?).map(&:id),
+        active_lock_keys: unit.work_unit_locks.select(&:active?).map(&:lock_key)
       }
     end
 
