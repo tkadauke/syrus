@@ -1463,6 +1463,21 @@ RSpec.describe GithubClient do
       expect(JobLog.where(kind: "rate_limited").count).to eq(0)
     end
 
+    it "does not block the credential for a permission 403 without rate-limit headers" do
+      stub_request(:get, "https://api.github.com/user")
+        .to_return(
+          status: 403,
+          headers: { "Content-Type" => "application/json" },
+          body: { message: "Resource not accessible by personal access token" }.to_json
+        )
+      expect(client).not_to receive(:mark_api_rate_limited!)
+
+      expect { client.accessible_owners }.to raise_error(Octokit::Forbidden)
+
+      expect(user.reload).not_to be_gh_api_blocked
+      expect(user.gh_rate_limit_remaining).to be_nil
+    end
+
     # Regression: every GH API call used to UPDATE the user row, racing
     # background pollers against the request-thread credentials update
     # and tripping innodb_lock_wait_timeout in prod. The persister now
@@ -1543,6 +1558,84 @@ RSpec.describe GithubClient do
 
         expect(user.reload.gh_rate_limit_observed_at).to be > first_observed_at
       end
+    end
+  end
+
+  describe "triage listings" do
+    let(:client) { GithubClient.for_user(user) }
+
+    it "fetches only one page of issues before applying the limit" do
+      first_page = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues")
+        .with(query: { "per_page" => "2", "state" => "open" })
+        .to_return(
+          status: 200,
+          headers: {
+            "Content-Type" => "application/json",
+            "Link" => '<https://api.github.com/repos/acme/widgets/issues?page=2&per_page=2&state=open>; rel="next"'
+          },
+          body: [
+            { number: 1, title: "Issue" },
+            { number: 2, title: "PR", pull_request: { url: "https://api.github.com/repos/acme/widgets/pulls/2" } }
+          ].to_json
+        )
+      second_page = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues")
+        .with(query: { "page" => "2", "per_page" => "2", "state" => "open" })
+
+      issues = client.list_issues_for_triage("acme/widgets", limit: 2)
+
+      expect(issues.map(&:number)).to eq([ 1 ])
+      expect(first_page).to have_been_requested.once
+      expect(second_page).not_to have_been_requested
+    end
+
+    it "fetches only one pull request listing page when the requested state needs no scan" do
+      first_page = stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls")
+        .with(query: { "page" => "1", "per_page" => "2", "state" => "open" })
+        .to_return(
+          status: 200,
+          headers: {
+            "Content-Type" => "application/json",
+            "Link" => '<https://api.github.com/repos/acme/widgets/pulls?page=2&per_page=2&state=open>; rel="next"'
+          },
+          body: [ { number: 1 }, { number: 2 } ].to_json
+        )
+      second_page = stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls")
+        .with(query: { "page" => "2", "per_page" => "2", "state" => "open" })
+      [ 1, 2 ].each do |number|
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/#{number}")
+          .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { number: number }.to_json)
+      end
+
+      pulls = client.list_pull_requests_for_triage("acme/widgets", limit: 2)
+
+      expect(pulls.map(&:number)).to eq([ 1, 2 ])
+      expect(first_page).to have_been_requested.once
+      expect(second_page).not_to have_been_requested
+    end
+
+    it "pages closed pull requests only until it finds the requested merged results" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls")
+        .with(query: { "page" => "1", "per_page" => "2", "state" => "closed" })
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [ { number: 1, merged_at: "2026-10-01T00:00:00Z" }, { number: 2, merged_at: nil } ].to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls")
+        .with(query: { "page" => "2", "per_page" => "2", "state" => "closed" })
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            { number: 3, merged_at: "2026-10-02T00:00:00Z" },
+            { number: 4, merged_at: "2026-10-03T00:00:00Z" }
+          ].to_json
+        )
+
+      pulls = client.list_pull_requests_for_triage("acme/widgets", state: "merged", limit: 2)
+
+      expect(pulls.map(&:number)).to eq([ 1, 3 ])
+      expect(a_request(:get, %r{api\.github\.com/repos/acme/widgets/pulls/\d+})).not_to have_been_made
     end
   end
 
