@@ -7,6 +7,7 @@ import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { Button, buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
+import { Modal } from "./Modal"
 import { Select } from "./Select"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 
@@ -338,42 +339,29 @@ function PreviewLogsModal({
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })
 
-  useEffect(() => {
-    closeRef.current?.focus()
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+    <Modal
+      className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-900"
+      initialFocusRef={closeRef}
+      labelledBy="preview-logs-modal-title"
+      onClose={onClose}
+      open
     >
-      <section
-        aria-labelledby="preview-logs-modal-title"
-        aria-modal="true"
-        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-900"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="preview-logs-modal-title">
-            {t("preview_logs_modal_title")}
-          </h2>
-          <button
-            aria-label={t("preview_logs_close")}
-            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
-            onClick={onClose}
-            ref={closeRef}
-            type="button"
-          >
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="space-y-2 overflow-auto p-4">
+      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="preview-logs-modal-title">
+          {t("preview_logs_modal_title")}
+        </h2>
+        <button
+          aria-label={t("preview_logs_close")}
+          className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+          onClick={onClose}
+          ref={closeRef}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="space-y-2 overflow-auto p-4">
           {logs.isPending ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_loading")}</p> : null}
           {logs.isError ? <p className="text-xs text-red-600 dark:text-red-400">{t("preview_logs_error")}</p> : null}
           {logs.data?.logs.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_empty")}</p> : null}
@@ -383,12 +371,11 @@ function PreviewLogsModal({
                 <span>{log.path}</span>
                 {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
               </div>
-              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100">{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
+              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100" tabIndex={0}>{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
             </div>
           ))}
-        </div>
-      </section>
-    </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -593,33 +580,20 @@ export function PreviewStopModal({
   const { t } = useT("jobs")
   const cancelRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    cancelRef.current?.focus()
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onKeepRunning()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onKeepRunning])
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onKeepRunning}
+    <Modal
+      className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-900"
+      initialFocusRef={cancelRef}
+      labelledBy="preview-stop-modal-title"
+      onClose={onKeepRunning}
+      open
     >
-      <section
-        aria-labelledby="preview-stop-modal-title"
-        aria-modal="true"
-        className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-900"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-      >
-        <div className="space-y-4 p-5">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="preview-stop-modal-title">
-            {t("preview_stop_on_action_title")}
-          </h2>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{t("preview_stop_on_action_body")}</p>
-          <div className="flex justify-end gap-3">
+      <div className="space-y-4 p-5">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="preview-stop-modal-title">
+          {t("preview_stop_on_action_title")}
+        </h2>
+        <p className="text-sm text-gray-700 dark:text-gray-300">{t("preview_stop_on_action_body")}</p>
+        <div className="flex justify-end gap-3">
             <Button
               variant="secondary"
               onClick={onKeepRunning}
@@ -633,9 +607,8 @@ export function PreviewStopModal({
             >
               {t("preview_stop_yes")}
             </Button>
-          </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </Modal>
   )
 }

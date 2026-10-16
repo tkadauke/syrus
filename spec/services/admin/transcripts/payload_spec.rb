@@ -28,7 +28,8 @@ RSpec.describe Admin::Transcripts::Payload do
       job_id: nil,
       step_kind: nil,
       workflow_trigger_kind: nil,
-      session_id: "chat-session-1"
+      session_id: "chat-session-1",
+      finished: false
     )
     expect(payload.fetch(:summary)).to include(
       model: "gpt-5-codex",
@@ -53,5 +54,17 @@ RSpec.describe Admin::Transcripts::Payload do
       job_id: job.id
     )
     expect(payload.fetch(:events).map { |event| event.fetch(:kind) }).to eq([ "job_log" ])
+  end
+
+  it "reports whether a Run is terminal so clients can stop polling" do
+    job = Factories.job
+    run = job.initial_run
+
+    active_payload = described_class.new(params: {}).show(run.id)
+    run.update!(state: "failed", finished_at: Time.current)
+    finished_payload = described_class.new(params: {}).show(run.id)
+
+    expect(active_payload.fetch(:finished)).to be(false)
+    expect(finished_payload.fetch(:finished)).to be(true)
   end
 end

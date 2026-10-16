@@ -45,6 +45,7 @@ module Admin
           job_slug: context.job_slug,
           step_kind: context.step_kind,
           workflow_trigger_kind: context.workflow_trigger_kind,
+          finished: context.finished?,
           session_id: session&.session_id,
           summary: serialize_summary(transcript.summary),
           pagination: {
@@ -112,6 +113,7 @@ module Admin
         def job_slug = nil
         def step_kind = nil
         def workflow_trigger_kind = nil
+        def finished? = false
         def fallback_events = []
         def include_fallback_events?(_session, _events) = false
       end
@@ -122,6 +124,7 @@ module Admin
         def job_slug = run.job&.slug
         def step_kind = run.step&.kind
         def workflow_trigger_kind = run.step&.workflow&.trigger_kind
+        def finished? = run.terminal?
 
         def include_fallback_events?(session, events)
           session.nil? ||
