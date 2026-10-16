@@ -23,6 +23,7 @@ export type ChatRecord = {
   id: number
   entity_revision?: number
   current_user_id?: number
+  user_id?: number
   title: string | null
   title_pending: boolean
   system_kind?: string | null

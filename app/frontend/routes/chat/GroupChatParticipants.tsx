@@ -22,8 +22,10 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
-  const currentUserId = bootstrap.data?.current_user?.id
+  const currentUserId = payload.chat.current_user_id ?? bootstrap.data?.current_user?.id
   const participants = payload.chat.participants || []
+  const currentParticipant = participants.find((participant) => participant.id === currentUserId)
+  const currentUserIsOwner = currentParticipant?.role === "owner"
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerSubmitting, setPickerSubmitting] = useState(false)
   const [pickerError, setPickerError] = useState<string | null>(null)
@@ -76,12 +78,13 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       {participants.map((participant) => {
         const isSelf = participant.id === currentUserId
+        const canRemove = participant.role !== "owner" && (currentUserIsOwner || isSelf)
         const actionLabel = isSelf ? t("leave_chat") : t("remove_participant", { name: participant.name })
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-1 pr-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={participant.id}>
             <Avatar avatarUrl={participant.avatar_url} name={participant.name} size="xs" />
             <span className="max-w-[8rem] truncate">{participant.name}</span>
-            <button
+            {canRemove ? <button
               aria-label={actionLabel}
               className="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               disabled={pendingRemovalId === participant.id}
@@ -90,7 +93,7 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
               type="button"
             >
               <CloseIcon className="h-3 w-3" />
-            </button>
+            </button> : null}
           </span>
         )
       })}
