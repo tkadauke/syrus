@@ -63,7 +63,7 @@ RSpec.describe RetentionArchiver do
       rows = decompressed_lines(archive)
       expect(rows.map { |row| row["error_class"] }).to contain_exactly("OldOne", "OldTwo")
 
-      # RetentionArchiver only archives; deletion remains the caller's job.
+      # RetentionArchiver only archives; RetentionPruner owns deletion.
       expect(RunDiagnostic.exists?(old_one.id)).to be true
       expect(RunDiagnostic.exists?(old_two.id)).to be true
     end

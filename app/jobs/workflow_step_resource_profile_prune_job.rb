@@ -10,7 +10,7 @@ class WorkflowStepResourceProfilePruneJob < ApplicationJob
   queue_as :cleanup
 
   def perform
-    deleted = WorkflowStepResourceProfile.stale.delete_all
+    deleted = RetentionPruner.call(scope: WorkflowStepResourceProfile.stale)
     Rails.logger.info("[WorkflowStepResourceProfilePruneJob] deleted #{deleted} stale workflow step resource profiles") if deleted > 0
   end
 end
