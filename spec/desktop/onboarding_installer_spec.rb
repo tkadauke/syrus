@@ -77,6 +77,19 @@ RSpec.describe "desktop onboarding installer" do
     expect(driver).to match(/cancelRequested[\s\S]*?\{ phase: "welcome" \}/)
   end
 
+  it "serializes installer startup before the child exists" do
+    expect(driver).to include("if (this.child || this.installPromise) return")
+    expect(driver).to match(/const promise = this\.performStartInstall[\s\S]+?this\.installPromise = promise/)
+    expect(driver).to include("if (this.child === child) this.child = null")
+    expect(main_process).to match(/onboarding:start-install[\s\S]{0,180}phase !== "local\.portConflict"/)
+  end
+
+  it "invalidates in-flight daemon polls when navigation stops polling" do
+    expect(driver).to include("private pollGeneration = 0")
+    expect(driver).to match(/private stopPolling\(\)[\s\S]{0,80}this\.pollGeneration \+= 1/)
+    expect(driver).to include("generation !== this.pollGeneration")
+  end
+
   it "adopts an existing install by copying the original .env, never moving it" do
     expect(driver).to include("fs.copyFile(")
     expect(driver).not_to include("fs.rename(")
