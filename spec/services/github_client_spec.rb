@@ -513,8 +513,8 @@ RSpec.describe GithubClient do
         github_actions_check(name: "react", status: "completed", conclusion: "success", run_id: 222)
       ]
       workflow_runs = [
-        OpenStruct.new(id: 111, name: "Release"),
-        OpenStruct.new(id: 222, name: "CI")
+        OpenStruct.new(id: 111, name: "Release", event: "workflow_dispatch"),
+        OpenStruct.new(id: 222, name: "CI", event: "push")
       ]
       client.instance_variable_set(:@client, fake_octokit(check_runs: check_runs, workflow_runs: workflow_runs))
 
@@ -524,19 +524,34 @@ RSpec.describe GithubClient do
       expect(summary[:failed_checks]).to eq([])
     end
 
-    it "still treats regular CI workflow failures as main-branch CI failures" do
+    it "treats failures from any push workflow name as main-branch CI failures" do
       client = described_class.new(user)
       check_runs = [
         github_actions_check(name: "rspec", status: "completed", conclusion: "failure", run_id: 222),
-        github_actions_check(name: "react", status: "completed", conclusion: "success", run_id: 222)
+        github_actions_check(name: "react", status: "completed", conclusion: "success", run_id: 333)
       ]
-      workflow_runs = [ OpenStruct.new(id: 222, name: "CI") ]
+      workflow_runs = [
+        OpenStruct.new(id: 222, name: "Tests", event: "push"),
+        OpenStruct.new(id: 333, name: "ci", event: "push")
+      ]
       client.instance_variable_set(:@client, fake_octokit(check_runs: check_runs, workflow_runs: workflow_runs))
 
       summary = client.main_branch_check_runs_summary_for("acme/widgets", "abc123")
 
       expect(summary).to include(any?: true, pending?: false, any_failed?: true, all_passed?: false)
       expect(summary[:failed_checks]).to include(include(name: "rspec", conclusion: "failure"))
+    end
+
+    it "keeps Actions checks whose workflow run is missing from the lookup" do
+      client = described_class.new(user)
+      check_runs = [
+        github_actions_check(name: "rspec", status: "completed", conclusion: "failure", run_id: 222)
+      ]
+      client.instance_variable_set(:@client, fake_octokit(check_runs: check_runs, workflow_runs: []))
+
+      summary = client.main_branch_check_runs_summary_for("acme/widgets", "abc123")
+
+      expect(summary).to include(any?: true, any_failed?: true, all_passed?: false)
     end
   end
 
