@@ -3100,6 +3100,57 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Autosaved owner draft")
   })
 
+  it("stops retrying a failed autosave until the draft changes and shows the server error", async () => {
+    let patchCount = 0
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: docDetail })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+        patchCount += 1
+        return jsonResponse({ error: { code: "validation_failed", message: "Title can't be blank" } }, 422)
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(editor, { target: { value: "First rejected draft" } })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Title can't be blank")
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+    expect(patchCount).toBe(1)
+
+    fireEvent.change(editor, { target: { value: "Second rejected draft" } })
+    await waitFor(() => expect(patchCount).toBe(2), { timeout: 1_500 })
+  })
+
+  it("shows the server conflict reason when accepting a stale suggestion", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: docDetail })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept" && init?.method === "POST") {
+        return jsonResponse({ error: { code: "conflict", message: "Original text no longer matches the suggestion anchor." } }, 409)
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("button", { name: "Accept" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Original text no longer matches the suggestion anchor.")
+  })
+
   it("autosaves pending suggestions so reload preserves them before owner review", async () => {
     const reviewerDoc = { ...reviewerDocDetail, suggestions: [] as typeof docDetail.suggestions, pending_suggestions_count: 0 }
     let currentDoc = reviewerDoc

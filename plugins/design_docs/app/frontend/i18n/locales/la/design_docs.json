@@ -46,6 +46,8 @@
   "empty_threads": "Nulla fila activa.",
   "empty_threads_for_version": "Nulla fila in hac versione exstiterunt.",
   "error_load_doc": "Documentum consilii onerari non potuit.",
+  "error_create": "Documentum consilii creari non potuit.",
+  "error_write": "Mutationes documenti consilii servari non potuerunt.",
   "explicit_collaborators": "Collaboratores expressi",
   "index_description": "Documenta consilii Markdown communiter edita.",
   "index_aria": "Index documentorum consilii",

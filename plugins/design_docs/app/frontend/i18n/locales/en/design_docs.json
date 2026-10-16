@@ -46,6 +46,8 @@
   "empty_threads": "No active threads.",
   "empty_threads_for_version": "No threads existed as of this version.",
   "error_load_doc": "Unable to load design doc.",
+  "error_create": "Unable to create design doc.",
+  "error_write": "Unable to save design doc changes.",
   "explicit_collaborators": "Explicit collaborators",
   "index_description": "Collaborative Markdown design documents.",
   "index_aria": "Design Docs index",

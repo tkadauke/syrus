@@ -1432,6 +1432,12 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }.to change(DesignDocVersion, :count).by(1)
 
     expect(response).to have_http_status(:conflict)
+    expect(parse_body).to include(
+      "error" => include(
+        "code" => "conflict",
+        "message" => include("Original text no longer matches anchor")
+      )
+    )
     expect(suggestion.reload.state).to eq("stale")
     expect(suggestion.anchor.reload.status).to eq("stale")
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello earth")
@@ -1454,6 +1460,12 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }.not_to change(DesignDocVersion, :count)
 
     expect(response).to have_http_status(:conflict)
+    expect(parse_body).to include(
+      "error" => include(
+        "code" => "conflict",
+        "message" => include("Anchor marker is missing")
+      )
+    )
     expect(suggestion.reload.state).to eq("conflict")
     expect(suggestion.anchor.reload.status).to eq("missing")
   end
