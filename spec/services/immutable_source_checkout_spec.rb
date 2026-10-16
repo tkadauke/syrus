@@ -735,6 +735,23 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
   end
 
+  # The fingerprint used to be written only where an archive was uploaded, and
+  # most workflows restore rather than publish -- so in production 4 of 3,286
+  # snapshots carried one and the dedupe below could never find anything to
+  # reuse. It is a property of the prepare plan and this worker's capability
+  # environment, known on every path.
+  it "records the prepare fingerprint even when it restores instead of publishing" do
+    described_class.new(step).setup
+    published_fingerprint = snapshot.reload.prepare_fingerprint
+    expect(published_fingerprint).to be_present
+
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    described_class.new(second_step).setup
+
+    expect(second_step.reload.details.dig("prepare_cache", "status")).to eq("archive_hit")
+    expect(snapshot.reload.prepare_fingerprint).to eq(published_fingerprint)
+  end
+
   # 89 archives published in one production day against 2 distinct dependency
   # closures: what the archive holds is named by the prepare fingerprint, not
   # by the revision, so a second revision attaches the published blob instead

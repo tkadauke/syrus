@@ -47,6 +47,7 @@ class ImmutableSourceCheckout
     ensure_base_ref!
     ensure_exclude_entry
     prepare_cache = build_prepare_cache(snapshot)
+    record_prepare_fingerprint!(snapshot, prepare_cache)
     if restored_from_prepare_cache && prepare_cache.hit?
       record_prepare_cache!(prepare_cache, "hit")
       log("[immutable_source_checkout] prepare cache hit: #{prepare_cache.short_cache_key}")
@@ -524,6 +525,20 @@ class ImmutableSourceCheckout
     prepared_archive_metadata_matches?(snapshot.prepared_workspace_archive.blob.metadata, snapshot, prepare_cache)
   end
 
+  # The fingerprint is a property of the prepare plan and this worker's
+  # capability environment, so it is known on every path through setup. It used
+  # to be written only where an archive was uploaded -- and most workflows
+  # restore rather than publish, so 4 of 3,286 snapshots carried one and the
+  # publish dedupe could never find a reusable archive to attach. Record it
+  # wherever it is resolved instead.
+  def record_prepare_fingerprint!(snapshot, prepare_cache)
+    fingerprint = PreparedWorkspaceArchive.prepare_fingerprint_for(prepare_cache.plan)
+    return fingerprint if snapshot.prepare_fingerprint == fingerprint
+
+    snapshot.update_columns(prepare_fingerprint: fingerprint, updated_at: Time.current)
+    fingerprint
+  end
+
   # Publishing uploaded a fresh ~526 MB archive for every revision, and what
   # is inside it is the dependency closure the prepare fingerprint names: in
   # production, 89 archives in a day against 2 distinct closures, 44.6 GB of
@@ -534,8 +549,7 @@ class ImmutableSourceCheckout
   # The snapshot records its fingerprint either way, which is what makes the
   # lookup an indexed query rather than a scan of blob metadata.
   def publish_prepared_archive!(snapshot, prepare_cache)
-    fingerprint = PreparedWorkspaceArchive.prepare_fingerprint_for(prepare_cache.plan)
-    snapshot.update_columns(prepare_fingerprint: fingerprint) if snapshot.prepare_fingerprint != fingerprint
+    fingerprint = record_prepare_fingerprint!(snapshot, prepare_cache)
 
     reusable = WorkflowSourceSnapshot.reusable_prepared_archive_for(fingerprint)
     if reusable && !snapshot.prepared_workspace_archive.attached?
