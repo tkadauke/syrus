@@ -182,9 +182,10 @@ module Mcp::Tools
         @latest_sample_by_hostname ||= WorkerHostHealthSample
           .worker_role
           .where("observed_at >= ?", PROCESS_STALE_THRESHOLD.ago)
-          .order(observed_at: :desc)
+          .order(observed_at: :desc, id: :desc)
           .to_a
-          .index_by(&:hostname)
+          .group_by(&:hostname)
+          .transform_values(&:first)
       end
 
       def drains_by_identity

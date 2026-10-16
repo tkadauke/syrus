@@ -177,9 +177,10 @@ class MacosWorkerRollout
     @latest_samples_by_hostname ||= WorkerHostHealthSample
       .worker_role
       .where(hostname: workers.map(&:hostname))
-      .order(observed_at: :desc)
+      .order(observed_at: :desc, id: :desc)
       .to_a
-      .index_by(&:hostname)
+      .group_by(&:hostname)
+      .transform_values(&:first)
   end
 
   def active_run_count(drain)

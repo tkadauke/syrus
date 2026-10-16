@@ -67,7 +67,9 @@ fields directly - only a pasted `kubeconfig` YAML string (as the
 1. Parses the YAML (`YAML.safe_load`, permitting `Date`/`Time`) and requires
    a `current-context`.
 2. Resolves that context's `cluster` and `user` entries by name.
-3. Extracts `cluster.server` as `api_server_url`.
+3. Requires `cluster.server` to be an absolute `http://` or `https://` URL
+   with a host, then extracts it as `api_server_url`. Relative paths,
+   malformed URLs, URLs without a host, and other schemes are rejected.
 4. Extracts whichever of the user's credentials are present: a bearer
    `token`, or `client-certificate-data` + `client-key-data` (both must be
    present together). `cluster.certificate-authority-data`, when present, is
@@ -76,10 +78,11 @@ fields directly - only a pasted `kubeconfig` YAML string (as the
 5. Raises `KubeconfigParser::ParseError` with a specific, user-facing
    message for every unresolvable case: blank/invalid YAML, a missing or
    unmatched `current-context`/cluster/user reference, a cluster with no
-   `server`, an `exec`-based credential plugin (aws-iam-authenticator,
-   gke-gcloud-auth-plugin, etc. - Syrus cannot run those), or credentials
-   that reference external files (`client-certificate`, `client-key`,
-   `tokenFile`) instead of inline `-data` fields.
+   `server` or an invalid/non-HTTP(S) server URL, an `exec`-based credential
+   plugin (aws-iam-authenticator, gke-gcloud-auth-plugin, etc. - Syrus cannot
+   run those), or credentials that reference external files
+   (`client-certificate`, `client-key`, `tokenFile`) instead of inline
+   `-data` fields.
 
 On `create`, a kubeconfig is required. On `update`, omitting `kubeconfig`
 leaves the cluster's existing `api_server_url`/credential reference
@@ -87,7 +90,9 @@ untouched (the same "leave blank to keep the current value" pattern
 `MysqlConnectionsController` uses for password rotation); supplying a new
 one re-parses and replaces both the metadata and the Credential Store
 payload. Responses never include the kubeconfig or extracted token/key
-material.
+material. Invalid server URLs fail create/update validation before either the
+cluster or Credential Store payload is changed, and draft connection tests
+report the parse error without attempting a network connection.
 
 ## Credential storage
 

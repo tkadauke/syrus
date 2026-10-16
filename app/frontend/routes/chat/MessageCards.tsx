@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -90,7 +91,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
   if (item.role === "assistant") {
     if (!item.text) return null
     return (
-      <article className={`group/message relative pt-6${entranceClass}`} id={`chat_message_${item.id}`}>
+      <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
         {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
@@ -100,24 +101,47 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
           {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
         </div>
         {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
-      </article>
+      </SharedMessageRenderer>
     )
   }
 
   if (item.role === "system") {
     return (
-      <SystemMessage
-        item={item.system || { tone: "neutral", label: "System", body: item.text }}
-        prefix={prefix}
-        retryText={!readOnly ? retryText : null}
-        retrying={retrying}
-        onRetry={onRetry}
-      />
+      <SharedMessageRenderer animateClass={entranceClass} readOnly={readOnly}>
+        <SystemMessage
+          item={item.system || { tone: "neutral", label: "System", body: item.text }}
+          prefix={prefix}
+          retryText={!readOnly ? retryText : null}
+          retrying={retrying}
+          onRetry={onRetry}
+        />
+      </SharedMessageRenderer>
     )
   }
 
-  return <StructuredTool tool={item.tool} fallback={item.text} />
+  return (
+    <SharedMessageRenderer animateClass={entranceClass} readOnly={readOnly}>
+      <StructuredTool tool={item.tool} fallback={item.text} />
+    </SharedMessageRenderer>
+  )
 })
+
+// The common outer message rhythm for both the live chat and read-only Run
+// transcripts. Behavior (actions, retries, navigation) stays with each caller;
+// this component owns only the responsive presentation around chat surfaces.
+export function SharedMessageRenderer({ animateClass = "", as = "article", children, id, readOnly = false, testId }: { animateClass?: string; as?: "article" | "li"; children: ReactNode; id?: string; readOnly?: boolean; testId?: string }) {
+  const Component = as
+  return (
+    <Component
+      className={`group/message relative min-w-0 pt-6 text-sm text-text-primary${animateClass}`}
+      data-message-mode={readOnly ? "read-only" : "interactive"}
+      data-testid={testId}
+      id={id}
+    >
+      {children}
+    </Component>
+  )
+}
 
 export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
   const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"

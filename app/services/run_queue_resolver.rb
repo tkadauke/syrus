@@ -239,9 +239,10 @@ class RunQueueResolver
     @latest_sample_by_hostname ||= WorkerHostHealthSample
       .worker_role
       .where("observed_at >= ?", InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago)
-      .order(observed_at: :asc)
+      .order(observed_at: :desc, id: :desc)
       .to_a
-      .index_by(&:hostname)
+      .group_by(&:hostname)
+      .transform_values(&:first)
   end
 
   def capabilities_for_process(process)

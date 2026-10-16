@@ -302,6 +302,83 @@ RSpec.describe MuseInvocation do
     expect(events).to include([ "[muse diagnostic] internal echo probe task failed after the assistant response", { kind: "system" } ])
   end
 
+  it "logs payload keys and sanitized payloads for detail-free task failures" do
+    events = []
+    lines = completed_lines_with(
+      { payload_type: "task.lifecycle.failed", payload: { phase: "delegation", secret: "muse-secret" } }.to_json
+    )
+    stub_process_runners(lines: lines)
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    diagnostic = events.map(&:first).find { |message| message.start_with?("[muse diagnostic]") }
+    expect(diagnostic).to include("payload_keys=phase,secret", '"phase":"delegation"', "[redacted]")
+    expect(diagnostic).not_to include("muse-secret")
+  end
+
+  it "logs payload keys when completed terminal metrics are absent" do
+    events = []
+    stub_process_runners(lines: [
+      { payload_type: "run.terminal.completed", payload: { outcome: "success", schema_version: 2 } }.to_json
+    ])
+
+    described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      transcript_policy: :exec_jsonl,
+      log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] }
+    ).run
+
+    result_log = events.map(&:first).find { |message| message.start_with?("[muse result]") }
+    expect(result_log).to include("payload_keys=outcome,schema_version")
+  end
+
+  it "probes the resumed Muse session log for silent-timeout activity" do
+    Dir.mktmpdir("muse-home") do |muse_home|
+      session_id = "11111111-2222-4333-8444-555555555555"
+      session_dir = File.join(muse_home, ".local/share/muse/sessions/2026/10/14", session_id)
+      FileUtils.mkdir_p(session_dir)
+      session_log = File.join(session_dir, "session.jsonl")
+      File.write(session_log, "event\n")
+      captured = []
+      stub_process_runners(lines: fixture_lines, captured: captured)
+
+      described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "muse-secret",
+        session_id: session_id,
+        muse_home: muse_home,
+        transcript_policy: :exec_jsonl
+      ).run
+
+      probe = captured.first.fetch(:activity_probe)
+      expect(Dir).to receive(:glob).once.and_call_original
+      expect(probe.call).to eq(File.mtime(session_log))
+      expect(probe.call).to eq(File.mtime(session_log))
+    end
+  end
+
+  it "does not build a session-log glob from an unsafe session id" do
+    invocation = described_class.new(
+      "/tmp/wkt",
+      prompt: "P",
+      api_key: "muse-secret",
+      muse_home: "/tmp/muse-home",
+      transcript_policy: :exec_jsonl
+    )
+
+    expect(Dir).not_to receive(:glob)
+    expect(invocation.send(:muse_session_activity_probe, "*")).to be_nil
+  end
+
   it "uses muse export redacted transcripts by default" do
     captured = []
     export_jsonl = "{\"redacted\":true}\n"

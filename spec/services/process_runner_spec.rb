@@ -901,6 +901,65 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result.duration_s).to be < 5
   end
 
+  it "counts changing out-of-band activity as output for the silent timeout" do
+    activity_path = File.join(@dir, "session.jsonl")
+    File.write(activity_path, "")
+    toucher = Thread.new do
+      6.times do
+        sleep 0.15
+        FileUtils.touch(activity_path)
+      end
+    end
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 0.8" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { File.mtime(activity_path) }
+    ).run
+
+    expect(result).to be_success
+    expect(result).not_to be_silent_timed_out
+  ensure
+    toucher&.join
+  end
+
+  it "silently times out when the configured activity probe does not change" do
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { Time.at(1) }
+    ).run
+
+    expect(result).to be_silent_timed_out
+    expect(result).not_to be_timed_out
+  end
+
+  it "silently times out when the configured activity probe fails" do
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      silent_timeout: 0.3,
+      kill_grace_seconds: 0,
+      activity_probe: -> { raise Errno::ENOENT }
+    ).run
+
+    expect(result).to be_silent_timed_out
+    expect(result).not_to be_timed_out
+  end
+
   it "detects a parent that exits while a child holds the stdout pipe open" do
     # Reproduces today's edge case: the agent process exits but a
     # child it spawned inherits the stdout fd and keeps the pipe

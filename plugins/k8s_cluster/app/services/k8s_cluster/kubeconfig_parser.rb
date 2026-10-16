@@ -36,13 +36,14 @@ module K8sCluster
 
       server = cluster["server"]
       raise ParseError, "cluster #{context['cluster'].inspect} has no server URL" if server.blank?
+      server_uri = parse_server_uri(server, context["cluster"])
 
       Result.new(
         api_server_url: server,
         credentials: credentials_for(cluster, user),
         context_name: context_name,
         cluster_name: context["cluster"],
-        host: host_for(server)
+        host: server_uri.host
       )
     end
 
@@ -109,10 +110,13 @@ module K8sCluster
       end
     end
 
-    def host_for(server)
-      URI.parse(server).host
+    def parse_server_uri(server, cluster_name)
+      uri = URI.parse(server)
+      return uri if uri.is_a?(URI::HTTP) && uri.host.present?
+
+      raise ParseError, "cluster #{cluster_name.inspect} server must be an absolute HTTP(S) URL with a host"
     rescue URI::InvalidURIError
-      nil
+      raise ParseError, "cluster #{cluster_name.inspect} server must be a valid HTTP(S) URL"
     end
   end
 end

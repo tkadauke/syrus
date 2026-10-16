@@ -38,19 +38,19 @@ module GlobalSearch
         end
       end
 
-      def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
+      def search(query, limit: 20, offset: 0, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 24)
         binds = [
           bind(snippet_start.to_s),
           bind(snippet_end.to_s),
           bind(snippet_tokens.to_i),
-          bind(parse_fts_query(query)),
-          bind(user_id)
+          bind(parse_fts_query(query))
         ]
 
         limit_sql = ""
         if limit.present?
-          limit_sql = "LIMIT ?"
+          limit_sql = "LIMIT ? OFFSET ?"
           binds << bind(limit.to_i)
+          binds << bind(offset.to_i)
         end
 
         rows = connection.exec_query(
@@ -60,7 +60,7 @@ module GlobalSearch
               bm25(job_fts) AS rank,
               snippet(job_fts, -1, ?, ?, '...', ?) AS snippet
             FROM job_fts
-            WHERE job_fts MATCH ? AND user_id = ?
+            WHERE job_fts MATCH ?
             ORDER BY rank ASC, created_at DESC, job_id DESC
             #{limit_sql}
           SQL

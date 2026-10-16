@@ -22,8 +22,8 @@ RSpec.describe GlobalSearch::JobIndex do
 
     described_class.upsert(job)
 
-    title_results = described_class.search("landing", user_id: user.id)
-    body_results = described_class.search("deployment", user_id: user.id)
+    title_results = described_class.search("landing")
+    body_results = described_class.search("deployment")
 
     expect(title_results.first).to include(job_id: job.id)
     expect(title_results.first[:snippet]).to include("<mark>landing</mark>")
@@ -43,19 +43,19 @@ RSpec.describe GlobalSearch::JobIndex do
     job.update!(issue_title: "New searchable title", issue_body: "New searchable body")
     described_class.upsert(job)
 
-    expect(described_class.search("old", user_id: user.id)).to be_empty
-    expect(described_class.search("new", user_id: user.id).map { |row| row[:job_id] }).to eq([ job.id ])
+    expect(described_class.search("old")).to be_empty
+    expect(described_class.search("new").map { |row| row[:job_id] }).to eq([ job.id ])
   end
 
-  it "scopes results to the requested user" do
+  it "returns matching rows for authorization by the caller" do
     own_job = Factories.job_record(user: user, repository: repo, issue_title: "wal search scope")
     other_job = Factories.job_record(user: other_user, repository: other_repo, issue_title: "wal search scope")
     described_class.upsert(own_job)
     described_class.upsert(other_job)
 
-    results = described_class.search("scope", user_id: user.id)
+    results = described_class.search("scope")
 
-    expect(results.map { |row| row[:job_id] }).to eq([ own_job.id ])
+    expect(results.map { |row| row[:job_id] }).to contain_exactly(own_job.id, other_job.id)
   end
 
   it "matches unquoted words as independent AND terms" do
@@ -64,7 +64,7 @@ RSpec.describe GlobalSearch::JobIndex do
     described_class.upsert(matching_job)
     described_class.upsert(partial_job)
 
-    results = described_class.search("foo bar", user_id: user.id)
+    results = described_class.search("foo bar")
 
     expect(results.map { |row| row[:job_id] }).to eq([ matching_job.id ])
   end
@@ -75,7 +75,7 @@ RSpec.describe GlobalSearch::JobIndex do
     described_class.upsert(phrase_job)
     described_class.upsert(reordered_job)
 
-    results = described_class.search('"foo bar"', user_id: user.id)
+    results = described_class.search('"foo bar"')
 
     expect(results.map { |row| row[:job_id] }).to eq([ phrase_job.id ])
   end
@@ -86,7 +86,7 @@ RSpec.describe GlobalSearch::JobIndex do
     described_class.upsert(matching_job)
     described_class.upsert(scattered_job)
 
-    results = described_class.search('foo "bar baz"', user_id: user.id)
+    results = described_class.search('foo "bar baz"')
 
     expect(results.map { |row| row[:job_id] }).to eq([ matching_job.id ])
   end
@@ -95,7 +95,7 @@ RSpec.describe GlobalSearch::JobIndex do
     job = Factories.job_record(user: user, repository: repo, issue_title: "JOB-1 global search")
     described_class.upsert(job)
 
-    results = described_class.search("JOB-1", user_id: user.id)
+    results = described_class.search("JOB-1")
 
     expect(results.map { |row| row[:job_id] }).to eq([ job.id ])
   end
@@ -112,7 +112,7 @@ RSpec.describe GlobalSearch::JobIndex do
     end
 
     queries.each_key do |query|
-      expect(described_class.search(query, user_id: user.id).map { |row| row[:job_id] }).to include(jobs.fetch(query).id)
+      expect(described_class.search(query).map { |row| row[:job_id] }).to include(jobs.fetch(query).id)
     end
   end
 
@@ -122,10 +122,19 @@ RSpec.describe GlobalSearch::JobIndex do
     described_class.upsert(weaker)
     described_class.upsert(stronger)
 
-    results = described_class.search("needle", user_id: user.id)
+    results = described_class.search("needle")
 
     expect(results.map { |row| row[:job_id] }).to start_with(stronger.id, weaker.id)
     expect(results.first[:rank]).to be < results.second[:rank]
+  end
+
+  it "supports bounded result pagination" do
+    newer = Factories.job_record(user: user, repository: repo, issue_title: "paged needle", created_at: 1.minute.ago)
+    older = Factories.job_record(user: user, repository: repo, issue_title: "paged needle", created_at: 2.minutes.ago)
+    described_class.upsert(newer)
+    described_class.upsert(older)
+
+    expect(described_class.search("needle", limit: 1, offset: 1).map { |row| row[:job_id] }).to eq([ older.id ])
   end
 
   it "parses FTS queries without quoting the whole search string" do

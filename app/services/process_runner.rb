@@ -354,6 +354,8 @@ class ProcessRunner
   # `bundle install` or `git clone` — those have natural silent
   # phases longer than any sensible threshold. Reserve for streaming
   # agent invocations where continuous output is the norm.
+  # `activity_probe` may return a changing marker for meaningful activity
+  # that occurs outside stdout; probe failures are treated as no activity.
   def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
                  stop_requested: -> { false },
@@ -368,7 +370,8 @@ class ProcessRunner
                  chat_session: nil,
                  agent: nil,
                  display_command: nil,
-                 on_spawned_process: nil)
+                 on_spawned_process: nil,
+                 activity_probe: nil)
     @env = env
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
@@ -383,6 +386,7 @@ class ProcessRunner
     @on_output_line = on_output_line
     @kill_grace_seconds = kill_grace_seconds
     @silent_timeout = silent_timeout
+    @activity_probe = activity_probe
     @kind = kind
     @run = run
     @workflow = resolve_workflow_attribution(workflow)
@@ -493,6 +497,8 @@ class ProcessRunner
         aliveness_grace = 1.0
         first_esrch_at = nil
 
+        last_probe_value = activity_probe_value
+        last_probe_activity_at = nil
         silent_check = ->(last_chunk_at) {
           # If wait_thread is done, the process exited normally — let
           # the main loop break out cleanly.
@@ -520,7 +526,13 @@ class ProcessRunner
           # (relying on the wall-clock timeout to backstop).
           return false unless @silent_timeout
           return false unless last_chunk_at
-          elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - last_chunk_at
+          probe_value = activity_probe_value
+          if probe_value && probe_value != last_probe_value
+            last_probe_value = probe_value
+            last_probe_activity_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          end
+          most_recent_activity = [ last_chunk_at, last_probe_activity_at ].compact.max
+          elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - most_recent_activity
           elapsed >= @silent_timeout ? :silent : false
         }
 
@@ -602,6 +614,12 @@ class ProcessRunner
   end
 
   private
+
+  def activity_probe_value
+    @activity_probe&.call
+  rescue StandardError
+    nil
+  end
 
   def command_with_local_execution_request_assertions
     return @command unless local_execution_request_assertions_enabled?

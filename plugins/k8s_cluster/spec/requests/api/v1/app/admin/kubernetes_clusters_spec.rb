@@ -189,6 +189,17 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       expect(KubernetesCluster.count).to eq(0)
     end
 
+    it "rejects creation when the kubeconfig server is not a URL" do
+      post "/api/v1/app/admin/kubernetes_clusters", params: {
+        kubernetes_cluster: { label: "Prod", kubeconfig: token_kubeconfig(server: "not a url") }
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to match(/valid HTTP\(S\) URL/)
+      expect(KubernetesCluster.count).to eq(0)
+      expect(CredentialStore::Credential.count).to eq(0)
+    end
+
     it "rejects invalid params" do
       post "/api/v1/app/admin/kubernetes_clusters", params: {
         kubernetes_cluster: { label: "", kubeconfig: token_kubeconfig }
@@ -226,6 +237,27 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       credential = CredentialStore::Credential.find(cluster.credential_store_credential_id)
       expect(credential.payload).to include("new-token")
       expect(credential.payload).not_to include("old-token")
+    end
+
+    it "rejects an invalid kubeconfig server on update without rotating credentials" do
+      post "/api/v1/app/admin/kubernetes_clusters", params: {
+        kubernetes_cluster: { label: "Prod", kubeconfig: token_kubeconfig(token: "old-token") }
+      }
+      cluster = KubernetesCluster.find(parse_body.dig("kubernetes_cluster", "id"))
+      original_credential_id = cluster.credential_store_credential_id
+      original_credential = CredentialStore::Credential.find(original_credential_id)
+
+      patch "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}", params: {
+        kubernetes_cluster: { kubeconfig: token_kubeconfig(token: "new-token", server: "/relative/path") }
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(cluster.reload).to have_attributes(
+        api_server_url: "https://k8s.example.com:6443",
+        credential_store_credential_id: original_credential_id
+      )
+      expect(original_credential.reload.payload).to include("old-token")
+      expect(original_credential.payload).not_to include("new-token")
     end
 
     it "rejects credential rotation when credential_store is disabled" do
@@ -271,6 +303,18 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
         expect(response).to have_http_status(:ok)
         expect(parse_body["success"]).to be(false)
         expect(parse_body["error"]).to be_present
+      end
+
+      it "reports a parse error for a draft kubeconfig with an unsupported server scheme" do
+        expect(K8sCluster::ConnectionTester).not_to receive(:test_params)
+
+        post "/api/v1/app/admin/kubernetes_clusters/test", params: {
+          kubernetes_cluster: { kubeconfig: token_kubeconfig(server: "ftp://k8s.example.com") }
+        }
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["success"]).to be(false)
+        expect(parse_body["error"]).to match(/absolute HTTP\(S\) URL/)
       end
 
       it "tests an existing cluster using its stored credentials" do

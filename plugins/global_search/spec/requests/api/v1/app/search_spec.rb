@@ -236,6 +236,45 @@ RSpec.describe "App API unified search", type: :request do
     )
   end
 
+  it "returns indexed jobs and epics from a repository shared with the current user" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "widgets")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    job = Factories.job_record(user: owner, repository: shared_repository, issue_title: "Shared needle job", state: "running")
+    epic = Factories.epic(user: owner, repository: shared_repository, title: "Shared needle epic", state: "in_progress")
+    GlobalSearch::JobIndex.upsert(job)
+    GlobalSearch::EpicIndex.upsert(epic)
+
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+    get "/api/v1/app/search", params: { query: "needle", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id, "repository_slug" => "shared/widgets"))
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "epic", "id" => epic.id, "repository_slug" => "shared/widgets"))
+  end
+
+  it "returns exact job and epic slugs from a repository shared with the current user" do
+    owner = Factories.user
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "slugs")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    job = Factories.job_record(user: owner, repository: shared_repository, issue_title: "Shared slug job")
+    epic = Factories.epic(user: owner, repository: shared_repository, title: "Shared slug epic")
+
+    get "/api/v1/app/search", params: { query: job.slug, types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id, "slug" => job.slug))
+
+    get "/api/v1/app/search", params: { query: epic.slug, types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "epic", "id" => epic.id, "slug" => epic.slug))
+  end
+
   it "groups chat message matches by chat session" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     best_message = ChatMessage.create!(chat_session: chat_session, role: "assistant", content: { "text" => "deploy deploy deploy transcript" }, created_at: 5.minutes.ago)
@@ -332,6 +371,27 @@ RSpec.describe "App API unified search", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(results).to eq([])
+  end
+
+  it "pages past a bounded batch of higher-ranked inaccessible job matches" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Accessible needle job")
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "ranked")
+    inaccessible_jobs = 3.times.map do |index|
+      Factories.job_record(
+        user: other_user,
+        repository: other_repo,
+        issue_title: "Inaccessible needle #{index}",
+        issue_body: "needle " * 10
+      )
+    end
+    (inaccessible_jobs + [ job ]).each { |record| GlobalSearch::JobIndex.upsert(record) }
+    stub_const("Api::V1::App::SearchController::FTS_BATCH_SIZE", 3)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "job" ], limit: 1 }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
   end
 
   it "uses q as an encoded filter AST when query is present" do

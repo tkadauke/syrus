@@ -4,6 +4,10 @@ module ChatProviders
   class Muse < Base
     include Syrus::Plugin::ChatProvider
 
+    HELD_SESSION_WAIT_SECONDS = 10
+    HELD_SESSION_POLL_SECONDS = 0.25
+    HELD_SESSION_OUTCOME = "muse_session_held"
+
     def self.provider_key = "muse"
     def self.display_name = "Muse Code"
     def self.available? = true
@@ -36,6 +40,10 @@ module ChatProviders
 
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:)
+      if resume_session_id.present? && !wait_for_held_session
+        return held_session_result(resume_session_id)
+      end
+
       result = run_invocation(
         workspace_path: workspace_path,
         prompt: prompt,
@@ -80,6 +88,36 @@ module ChatProviders
     end
 
     private
+
+    def wait_for_held_session
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + self.class::HELD_SESSION_WAIT_SECONDS
+      while held_session_process?
+        return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep self.class::HELD_SESSION_POLL_SECONDS
+      end
+      true
+    end
+
+    def held_session_process?
+      SpawnedProcess.live_agent.where(chat_session: chat).any? do |process|
+        process.command.to_s.match?(/(?:^|\s)muse\s+exec(?:\s|$)/)
+      end
+    end
+
+    def held_session_result(session_id)
+      detail = "The previous Muse turn is still running and holds this chat session. Your message was not sent; retry after that turn finishes."
+      AgentInvocation::Result.new(
+        turns: 0,
+        exit_status: nil,
+        timed_out: false,
+        is_error: true,
+        outcome: HELD_SESSION_OUTCOME,
+        final_text: detail,
+        session_id: session_id,
+        process_outcome: HELD_SESSION_OUTCOME
+      )
+    end
 
     def run_invocation(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                        stop_requested:, process_started:)
