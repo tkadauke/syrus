@@ -143,6 +143,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - |
 | `reset_workspace` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `restack_epic` | chat | essential | write | yes | - | - | - | - |
+| `retire_terminal_work_unit` | chat | essential | write | yes | - | - | - | - |
 | `retry_from_current_pr_branch` | chat | essential | write | yes | - | - | - | - |
 | `retry_job` | chat | essential | write | no | - | - | - | - |
 | `run_command` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |

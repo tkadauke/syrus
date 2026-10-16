@@ -60,7 +60,6 @@ class ChatPendingAction < ApplicationRecord
     rerun_ci_repair
     retire_terminal_work_unit
     mark_ci_repair_noop
-    retire_terminal_work_unit
     override_landing_blocker_once
     wake_landing_queue
     repair_provider_circuit_evidence

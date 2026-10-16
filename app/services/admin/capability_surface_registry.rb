@@ -105,6 +105,7 @@ module Admin
       reopen_job
       repair_provider_circuit_evidence
       replace_pr_branch_with_workflow_output
+      retire_terminal_work_unit
       rerun_ci_repair
       restack_epic
       resume_landing_queue

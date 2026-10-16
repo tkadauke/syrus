@@ -30,14 +30,24 @@ RSpec.describe App::Presentation do
     end
 
     it "labels and details a cancel_stale_work repair action instead of leaving the card blank" do
+      job.update!(state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "running")
+      attach_work_unit(workflow, state: "running")
+      run = Run.create!(
+        job: job,
+        user: job.user,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: "claude",
+        state: "queued"
+      )
       action = chat_session.pending_actions.create!(
         action: "cancel_stale_work",
         reason: "Zombie run after a deploy.",
-        payload: { "job_id" => job.id, "workflow_ids" => [ 7 ], "run_ids" => [ 11, 12 ] }
+        payload: { "job_id" => job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ run.id ] }
       )
 
       expect(described_class.pending_action_label(action)).to eq("Cancel stale work for JOB-#{job.id}")
-      expect(described_class.pending_action_detail(action)).to eq("Workflows: 7\nRuns: 11, 12")
+      expect(described_class.pending_action_detail(action)).to eq("Workflows: #{workflow.id}\nRuns: #{run.id}")
     end
 
     it "labels and details a reenqueue_work repair action instead of leaving the card blank" do
