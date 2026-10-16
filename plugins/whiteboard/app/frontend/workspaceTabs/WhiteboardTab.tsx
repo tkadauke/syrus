@@ -4,7 +4,6 @@ import type { ErrorInfo, ReactNode } from "react"
 import { Component, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { ApiError } from "@app/api/client"
 import { fetchChatWhiteboard, patchChatWhiteboard, type ChatPayload, type ChatWhiteboardElement, type ChatWhiteboardScene } from "@app/api/chats"
 import { errorMessage } from "@app/lib/errorMessage"
 import { errorAsError } from "@app/routes/chat/utils"
@@ -83,7 +82,6 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
   const pathRef = useRef(payload.paths.app_whiteboard_path)
   const pendingSceneRef = useRef<ChatWhiteboardScene | null>(null)
   const remoteUpdateInProgressRef = useRef(false)
-  const retryingConflictRef = useRef(false)
   const saveTimerRef = useRef<number | null>(null)
   const versionRef = useRef(payload.whiteboard.version)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
@@ -132,24 +130,12 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
     })
   }, [])
 
-  const recoverConflict = useCallback(async (originalScene: ChatWhiteboardScene) => {
-    if (retryingConflictRef.current) return
-
-    retryingConflictRef.current = true
-    try {
-      const current = await fetchChatWhiteboard(pathRef.current)
-      applyRemoteScene(normalizeWhiteboardScene(current.scene_json), current.version)
-      const retry = await patchChatWhiteboard(pathRef.current, {
-        ...originalScene,
-        expected_version: current.version
-      })
-      if (retry.status === 409) throw new ApiError("Whiteboard changed again before the retry completed.", { status: 409 })
-
-      applyRemoteScene(normalizeWhiteboardScene(retry.payload.scene_json), retry.payload.version)
-    } finally {
-      retryingConflictRef.current = false
-    }
-  }, [applyRemoteScene])
+  const recoverConflict = useCallback(async () => {
+    const current = await fetchChatWhiteboard(pathRef.current)
+    clearPendingSave()
+    pendingSceneRef.current = null
+    applyRemoteScene(normalizeWhiteboardScene(current.scene_json), current.version)
+  }, [applyRemoteScene, clearPendingSave])
 
   const savePending = useCallback(async () => {
     const pendingScene = pendingSceneRef.current
@@ -163,7 +149,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
         expected_version: versionRef.current
       })
       if (result.status === 409) {
-        await recoverConflict(pendingScene)
+        await recoverConflict()
         return
       }
 
