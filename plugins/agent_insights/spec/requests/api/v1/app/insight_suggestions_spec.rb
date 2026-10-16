@@ -667,6 +667,33 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(created_job.workflows.where(trigger_kind: "initial")).to exist
     end
 
+    it "creates only one job when accepting the same suggestion twice" do
+      suggestion = create_suggestion(suggested_prompt: "Fix the thing")
+      accept_params = { action_type: "accept", create_job: true, prompt: "Fix the thing" }
+
+      expect {
+        2.times do
+          patch "/api/v1/app/insight_suggestions/#{suggestion.id}", params: accept_params, as: :json
+        end
+      }.to change(Job, :count).by(1)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(suggestion.reload.created_job).to be_present
+    end
+
+    it "does not create a job when the suggestion was dismissed" do
+      suggestion = create_suggestion(suggested_prompt: "Fix the thing")
+      suggestion.dismiss!
+
+      expect {
+        patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+              params: { action_type: "accept", create_job: true, prompt: "Fix the thing" }, as: :json
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(suggestion.reload.created_job).to be_nil
+    end
+
     it "preserves an explicit agent provider the same way direct job creation does" do
       user.update!(codex_api_key: "ck-test")
       suggestion = create_suggestion(suggested_prompt: "Fix the thing")
@@ -1043,6 +1070,15 @@ RSpec.describe "App API insight suggestions", type: :request do
       post "/api/v1/app/repositories/#{repository.id}/run_insight_analysis"
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404 when the repository is inaccessible" do
+      inaccessible_repository = Factories.repository(user: Factories.user)
+
+      post "/api/v1/app/repositories/#{inaccessible_repository.id}/run_insight_analysis"
+
+      expect(response).to have_http_status(:not_found)
+      expect(Job.where(kind: "agent_insight", repository: inaccessible_repository)).to be_empty
     end
 
     it "creates an agent_insight job and workflow" do
