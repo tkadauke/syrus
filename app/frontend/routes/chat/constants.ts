@@ -1,3 +1,5 @@
+import chatAttachmentMimeTypes from "../../../../config/chat_attachment_mime_types.json"
+
 // Chat UI constants shared across Chat.tsx and its extracted helper/component
 // modules. Pure primitive values (thresholds, storage keys, size limits) —
 // lifting them here lets helper modules reference them without importing back
@@ -68,6 +70,10 @@ export const CHAT_WORKSPACE_SPLIT_MIN_WIDTH = 1280
 export const CHAT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 
 export const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
+
+export const CHAT_ATTACHMENT_ALLOWED_MIME_TYPES: readonly string[] = chatAttachmentMimeTypes
+
+export const CHAT_ATTACHMENT_ACCEPT = CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.join(",")
 
 export const WHITEBOARD_MAX_ELEMENTS = 1000
 
