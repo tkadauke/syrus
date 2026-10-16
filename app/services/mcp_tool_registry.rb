@@ -314,7 +314,7 @@ class McpToolRegistry
         chat(Mcp::Tools::CancelWakeupTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::PauseLandingQueueTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ResumeLandingQueueTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::ReadQueueTool, tier: :deferred),
+        chat(Mcp::Tools::ReadQueueTool, tier: :deferred, admin_only: true),
         chat(Mcp::Tools::SearchSyrusDocsTool, tier: :deferred),
         chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
         chat(Mcp::Tools::ResolveDeliveryPolicyTool, tier: :deferred),

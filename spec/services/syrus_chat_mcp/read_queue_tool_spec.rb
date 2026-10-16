@@ -5,7 +5,7 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
   after(:all) { drop_solid_queue_test_tables! }
   before { clear_solid_queue_test_tables! }
 
-  let(:user) { Factories.user }
+  let!(:user) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
@@ -24,6 +24,30 @@ RSpec.describe Mcp::Tools::ReadQueueTool do
 
   def response_payload(response)
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+  end
+
+  it "is advertised only to admins" do
+    non_admin = Factories.user
+    non_admin_session = ChatSession.create!(user: non_admin, repository: Factories.repository(user: non_admin))
+
+    expect(Mcp::Sidecar.chat_tool_names(non_admin_session, tier: :deferred)).not_to include("read_queue")
+    expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("read_queue")
+  end
+
+  it "rejects a non-admin direct call at runtime" do
+    non_admin = Factories.user
+    non_admin_session = ChatSession.create!(user: non_admin, repository: Factories.repository(user: non_admin))
+    response = described_class.call(server_context: { chat_session: non_admin_session }).to_h
+
+    expect(response[:isError]).to be(true)
+    expect(response[:content].first[:text]).to eq("Unauthorized: Admin access required")
+  end
+
+  it "allows an admin direct call at runtime" do
+    response = described_class.call(server_context: { chat_session: chat_session }).to_h
+
+    expect(response[:isError]).to be_falsey
+    expect(JSON.parse(response[:content].first[:text])).to include("active_workers", "pending_jobs")
   end
 
   it "returns a compact Solid Queue health snapshot" do

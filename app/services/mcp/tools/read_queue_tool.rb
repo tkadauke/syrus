@@ -23,12 +23,18 @@ module Mcp::Tools
 
     class << self
       def call(server_context:)
+        return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
+
         Mcp::Tools.success(snapshot)
       rescue ActiveRecord::ActiveRecordError, ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished => e
         Mcp::Tools.success(unavailable_snapshot(e))
       end
 
       private
+
+      def admin?(server_context)
+        server_context.fetch(:chat_session).user.admin?
+      end
 
       def snapshot
         reset_worker_context_cache
