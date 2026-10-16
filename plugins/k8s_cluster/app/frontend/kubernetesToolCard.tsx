@@ -2,7 +2,7 @@ import i18n from "i18next"
 import type { ReactNode } from "react"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EmptyState, FilterableList, LargeTextPreview, PreviewTextBlock, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, EmptyState, FilterableList, LargeTextPreview, PreviewTextBlock, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
 import { formatBytes, formatAge, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -65,12 +65,15 @@ type ParsedActionCard = {
 }
 type ParsedKubectlCard = {
   ok: boolean
+  validationError: boolean
   status: string
   command: string
   scope: string
   credential: string
   stdout: string
   stderr: string
+  stdoutTruncation: string | null
+  stderrTruncation: string | null
   errorMessage: string | null
 }
 
@@ -138,7 +141,7 @@ function collapsedKubectlSummary(context: ToolCardContext) {
   return t("kubectl_card_summary", {
     command: card.command,
     scope: card.scope,
-    status: card.errorMessage ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")
+    status: card.validationError ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")
   })
 }
 
@@ -149,7 +152,7 @@ function renderExpandedKubectl(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={card.errorMessage ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")} tone={card.errorMessage ? "warning" : card.ok ? "success" : "failure"} />
+        <StatePill state={card.validationError ? t("action_failure_validation") : card.ok ? t("action_state_succeeded") : t("action_failure_api")} tone={card.validationError ? "warning" : card.ok ? "success" : "failure"} />
         <span className="font-mono text-xs text-text-primary">{card.command}</span>
       </div>
       {card.errorMessage ? <Notice tone="danger">{card.errorMessage}</Notice> : null}
@@ -158,6 +161,10 @@ function renderExpandedKubectl(context: ToolCardContext) {
         <DetailRow label={t("kubectl_card_status")} value={card.status} />
         <DetailRow label={t("kubectl_card_credential")} value={card.credential} />
       </div>
+      {card.stdoutTruncation || card.stderrTruncation ? <div className="flex flex-wrap gap-2">
+        {card.stdoutTruncation ? <Badge>{card.stdoutTruncation}</Badge> : null}
+        {card.stderrTruncation ? <Badge>{card.stderrTruncation}</Badge> : null}
+      </div> : null}
       {card.stdout ? <LargeTextPreview label={t("kubectl_card_stdout")} text={card.stdout} /> : null}
       {card.stderr ? <LargeTextPreview label={t("kubectl_card_stderr")} text={card.stderr} /> : null}
     </CardShell>
@@ -239,38 +246,46 @@ function renderExpanded(context: ToolCardContext) {
   if (card.rows.length === 0) return <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
 
   const columns = columnsFor(card.kind)
-  const rows = card.rows.slice(0, ROW_LIMIT)
   return (
     <div className="mt-1 space-y-2">
       <SummaryStrip card={card} />
       <FilterableList
         itemText={(row) => JSON.stringify(row)}
-        items={rows}
+        items={card.rows}
         placeholder={t("tool_card_filter_placeholder")}
       >
-        {(visibleRows) => <KubernetesTable columns={columns} rows={visibleRows} />}
+        {(visibleRows) => <>
+          <KubernetesTable columns={columns} rows={visibleRows.slice(0, ROW_LIMIT)} />
+          {visibleRows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: visibleRows.length })}</InlineNotice> : null}
+        </>}
       </FilterableList>
-      {card.rows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: card.rows.length })}</InlineNotice> : null}
       {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
     </div>
   )
 }
 
 function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
-  const errorMessage = parseErrorMessage(context)
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const isKubectlPayload = "ok" in parsed && "status" in parsed
+  const stdout = textBlock(parsed.stdout)
+  const stderr = textBlock(parsed.stderr)
+  const validationError = context.resultError && !isKubectlPayload
+  const errorMessage = isKubectlPayload && parsed.ok !== true ? kubectlFailureMessage(stderr.text, parsed.status) : parseErrorMessage(context)
   const command = kubectlCommand(parsed, context.input || {})
   const statusValue = displayValue(parsed.status)
   const credential = isPlainObject(parsed.credential) ? displayValue(parsed.credential.credential_name) || displayValue(parsed.credential.credential_id) : null
 
   return {
     ok: parsed.ok === true,
+    validationError,
     status: statusValue || (errorMessage ? t("tool_card_error") : t("action_card_unknown")),
     command,
     scope: kubectlScope(parsed, context.input || {}),
     credential: credential || displayValue((context.input || {}).credential) || t("action_card_unknown"),
-    stdout: textBlockValue(parsed.stdout),
-    stderr: textBlockValue(parsed.stderr),
+    stdout: stdout.text,
+    stderr: stderr.text,
+    stdoutTruncation: truncationLabel("stdout", stdout),
+    stderrTruncation: truncationLabel("stderr", stderr),
     errorMessage
   }
 }
@@ -291,9 +306,19 @@ function kubectlScope(parsed: Record<string, unknown>, input: Record<string, unk
   return t("tool_card_scope_all_clusters")
 }
 
-function textBlockValue(value: unknown) {
-  if (isPlainObject(value)) return displayValue(value.text) || ""
-  return displayValue(value) || ""
+function textBlock(value: unknown) {
+  if (!isPlainObject(value)) return { text: displayValue(value) || "", truncated: false, omittedBytes: null }
+  return { text: displayValue(value.text) || "", truncated: value.truncated === true, omittedBytes: numberValue(value.omitted_bytes) }
+}
+
+function truncationLabel(stream: string, block: ReturnType<typeof textBlock>) {
+  if (!block.truncated) return null
+  return block.omittedBytes ? t("kubectl_card_output_truncated_bytes", { stream, bytes: formatBytes(block.omittedBytes) }) : t("kubectl_card_output_truncated", { stream })
+}
+
+function kubectlFailureMessage(stderr: string, status: unknown) {
+  const summary = stderr.trim().split(/\r?\n/).filter(Boolean).slice(0, 3).join("\n")
+  return summary || t("kubectl_card_exited_status", { status: displayValue(status) || t("action_card_unknown") })
 }
 
 function parseCard(context: ToolCardContext): ParsedCard | null {

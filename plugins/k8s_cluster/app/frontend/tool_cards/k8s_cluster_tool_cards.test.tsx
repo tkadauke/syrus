@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import configMapsToolCard from "./k8s_cluster_configmaps"
@@ -103,6 +103,45 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("prod-k3s")).toBeInTheDocument()
     expect(screen.getByText(/web 1\/1 Running/)).toBeInTheDocument()
     expect(screen.queryByText(/token/)).not.toBeInTheDocument()
+  })
+
+  it("renders a non-zero kubectl exit as an API failure without dumping the raw payload", () => {
+    const resultBody = JSON.stringify({ ok: false, status: 1, stderr: { text: "namespace nope not found" } })
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { credential: "prod-k3s", args: ["get", "pods", "-n", "nope"] },
+      resultBody,
+      resultError: true,
+      parsedResult: { ok: false, status: 1, stdout: { text: "", truncated: false }, stderr: { text: "namespace nope not found\nrequest aborted", truncated: false } }
+    })
+
+    expect(kubectlToolCard.collapsedSummary?.(cardContext)).toContain("API failed")
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("API failed")).toBeInTheDocument()
+    expect(screen.getAllByText(/namespace nope not found/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(resultBody)).not.toBeInTheDocument()
+    expect(screen.queryByText("validation failed")).not.toBeInTheDocument()
+  })
+
+  it("shows truncation metadata for capped kubectl output", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      parsedResult: { ok: true, status: 0, stdout: { text: "partial output", truncated: true, omitted_bytes: 2048 }, stderr: { text: "partial warning", truncated: true, omitted_bytes: 512 } }
+    })
+
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("stdout truncated · 2.0 KB omitted")).toBeInTheDocument()
+    expect(screen.getByText("stderr truncated · 512 B omitted")).toBeInTheDocument()
+  })
+
+  it("filters all Kubernetes rows before limiting the rendered preview", () => {
+    const pods = Array.from({ length: 150 }, (_, index) => ({ namespace: "default", name: `pod-${index + 1}`, status: "Running", ready: "1/1", restart_count: 0 }))
+    render(<>{podsToolCard.renderExpanded(context({ toolName: "k8s_cluster_pods", parsedResult: { pods } }))}</>)
+    expect(screen.queryByText("pod-120")).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Filter resources"), { target: { value: "pod-120" } })
+    expect(screen.getByText("pod-120")).toBeInTheDocument()
+    expect(screen.getByText("1 of 150")).toBeInTheDocument()
   })
 
   it("summarizes successful action acknowledgements with action, target, scope, and result", () => {
