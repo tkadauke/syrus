@@ -79,6 +79,9 @@ export type DesktopStore = DesktopSettings & {
   // (the non-interruptive successor to the dialog above). Set through the
   // shell-notice bridge's dismissSkillOffer(); never re-prompt after it.
   skillOfferDismissed: boolean
+  // Explicit desktop sign-out survives relaunches even though Chromium's web
+  // session cookie may still be present.
+  autoProvisioningAllowed: boolean
   // Mid-onboarding save point: the user was in the LOCAL install flow and got
   // sent off to install Docker Desktop / WSL — either can force a Windows
   // reboot that kills the wizard. On the next launch (RunOnce relaunches us
@@ -105,6 +108,7 @@ export const store = new Store<DesktopStore>({
     cliInstallOffered: false,
     skillInstallOffered: false,
     skillOfferDismissed: false,
+    autoProvisioningAllowed: true,
     onboardingResumeLocal: false
   }
 })
