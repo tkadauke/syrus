@@ -30,6 +30,7 @@ import (
 
 const sshAgentToolName = "credential.ssh-agent"
 const credentialExecToolName = "credential.exec"
+const credentialAuditTimeout = 10 * time.Second
 
 var sshAgentBaseEnvAllowlist = map[string]bool{
 	"HOME":    true,
@@ -398,7 +399,9 @@ func runCredentialExecCommand(ctx context.Context, runner credentialExecProcessR
 	}
 
 	status, duration := runWithCredentialExecMaterial(ctx, runner, input, response.Material.Payload)
-	auditErr := RecordCredentialExecAudit(ctx, client, CredentialExecAuditRequestBody{
+	auditCtx, cancelAudit := context.WithTimeout(context.Background(), credentialAuditTimeout)
+	defer cancelAudit()
+	auditErr := RecordCredentialExecAudit(auditCtx, client, CredentialExecAuditRequestBody{
 		Credential: strconv.FormatInt(response.Lease.CredentialID, 10),
 		LeaseID:    response.Lease.LeaseID,
 		Purpose:    input.Purpose,
@@ -407,13 +410,7 @@ func runCredentialExecCommand(ctx context.Context, runner credentialExecProcessR
 		DurationMS: duration.Milliseconds(),
 		Mode:       string(input.Mode),
 	})
-	if auditErr != nil && status == 0 {
-		return auditErr
-	}
-	if status != 0 {
-		return cliplugin.ExitStatusError{Status: status, Message: fmt.Sprintf("child command exited with status %d", status)}
-	}
-	return auditErr
+	return credentialCommandResult(status, auditErr, os.Stderr)
 }
 
 func runWithCredentialExecMaterial(ctx context.Context, runner credentialExecProcessRunner, input credentialExecInput, payload string) (int, time.Duration) {
@@ -443,7 +440,7 @@ func runWithCredentialExecMaterial(ctx context.Context, runner credentialExecPro
 		defer cleanup()
 	}
 
-	result := runner.RunCredentialExec(ctx, env, stdin, []string{payload}, input.Command[0], input.Command[1:]...)
+	result := runner.RunCredentialExec(ctx, env, stdin, credentialExecRedactions(payload), input.Command[0], input.Command[1:]...)
 	return result.Status, time.Since(start)
 }
 
@@ -469,7 +466,9 @@ func runSSHAgentCommand(ctx context.Context, runner commandRunner, client apiCli
 	}
 
 	status, duration := runWithSSHAgent(ctx, runner, response.SSHKey, input.Command)
-	auditErr := RecordSSHAgentAudit(ctx, client, SSHAgentAuditRequestBody{
+	auditCtx, cancelAudit := context.WithTimeout(context.Background(), credentialAuditTimeout)
+	defer cancelAudit()
+	auditErr := RecordSSHAgentAudit(auditCtx, client, SSHAgentAuditRequestBody{
 		Credential: strconv.FormatInt(response.Lease.CredentialID, 10),
 		LeaseID:    response.Lease.LeaseID,
 		Purpose:    input.Purpose,
@@ -477,8 +476,12 @@ func runSSHAgentCommand(ctx context.Context, runner commandRunner, client apiCli
 		ExitStatus: status,
 		DurationMS: duration.Milliseconds(),
 	})
-	if auditErr != nil && status == 0 {
-		return auditErr
+	return credentialCommandResult(status, auditErr, os.Stderr)
+}
+
+func credentialCommandResult(status int, auditErr error, stderr io.Writer) error {
+	if auditErr != nil {
+		fmt.Fprintf(stderr, "record credential usage audit: %v\n", auditErr)
 	}
 	if status != 0 {
 		return cliplugin.ExitStatusError{
@@ -612,6 +615,14 @@ func redactCredentialExecOutput(value string, redactions []string) string {
 		}
 	}
 	return scrubbed
+}
+
+func credentialExecRedactions(payload string) []string {
+	redactions := []string{payload, strings.TrimSpace(payload)}
+	for _, line := range strings.Split(payload, "\n") {
+		redactions = append(redactions, strings.TrimSpace(line))
+	}
+	return redactions
 }
 
 func parseSSHAgentOutput(output string) map[string]string {
