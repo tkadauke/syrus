@@ -42,7 +42,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `read_artifact` | chat | deferred | read | no | - | - | - | - |
 | `read_chat_messages` | chat | deferred | read | no | - | - | - | - |
 | `read_pr` | chat | deferred | read | no | - | - | - | - |
-| `read_queue` | chat | deferred | read | no | - | - | - | - |
+| `read_queue` | chat | deferred | read | yes | - | - | - | - |
 | `read_ref_movement_status` | chat | deferred | read | no | - | - | - | - |
 | `read_repo_document` | chat | deferred | read | no | - | - | - | - |
 | `read_run_transcript` | chat | deferred | read | no | - | - | - | - |
