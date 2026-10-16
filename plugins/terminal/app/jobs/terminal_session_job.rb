@@ -4,6 +4,7 @@ class TerminalSessionJob < ApplicationJob
   def perform(terminal_session_id)
     session = Terminal::Session.find(terminal_session_id)
     return if session.finished?
+    session.update!(relay_started_at: Time.current)
 
     Terminal::Relay.new(
       session: session,
