@@ -10,10 +10,11 @@ type MaintenanceToolDefinition = {
   subjectKind: SubjectKind
   actionLabel: string
   verb: string
+  pendingVerb?: string
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
-  approve_job: { toolName: "approve_job", subjectKind: "job", actionLabel: "Approve Job", verb: "Approved" },
+  approve_job: { toolName: "approve_job", subjectKind: "job", actionLabel: "Approve Job", verb: "Approved", pendingVerb: "Approval requested" },
   cancel_job: { toolName: "cancel_job", subjectKind: "job", actionLabel: "Cancel Job", verb: "Cancel requested" },
   close_job_successfully: { toolName: "close_job_successfully", subjectKind: "job", actionLabel: "Close Job Successfully", verb: "Close requested" },
   set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
@@ -21,7 +22,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   rebase_job: { toolName: "rebase_job", subjectKind: "job", actionLabel: "Rebase Job", verb: "Rebase requested" },
   reopen_job: { toolName: "reopen_job", subjectKind: "job", actionLabel: "Reopen Job", verb: "Reopen requested" },
   poll_job_feedback: { toolName: "poll_job_feedback", subjectKind: "job", actionLabel: "Poll Job Feedback", verb: "Feedback poll requested" },
-  unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved" },
+  unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved", pendingVerb: "Unapproval requested" },
   remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
   remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
@@ -43,6 +44,7 @@ type MaintenanceCard = {
   pendingGroupId: string | null
   memberCount: number | null
   state: string
+  hasNewState: boolean
   failed: boolean
   message: string | null
   rows: DetailRow[]
@@ -184,6 +186,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     pendingGroupId,
     memberCount,
     state,
+    hasNewState: displayValue(result.new_state) != null,
     failed,
     message,
     rows: buildRows(context, result),
@@ -202,7 +205,12 @@ export function jobEpicMaintenanceCollapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   const target = targetSummary(card)
-  const action = card.failed ? `${card.definition.actionLabel} failed` : card.definition.verb
+  const awaitingConfirmation = !card.hasNewState && Boolean(card.pendingGroupId || card.pendingId || card.state === "pending")
+  const action = card.failed
+    ? `${card.definition.actionLabel} failed`
+    : awaitingConfirmation && card.definition.pendingVerb
+      ? card.definition.pendingVerb
+      : card.definition.verb
   const pending = card.pendingGroupId
     ? `pending group #${card.pendingGroupId}`
     : card.pendingId
