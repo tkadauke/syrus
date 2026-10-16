@@ -365,6 +365,16 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received[:prompt]).to include("recommend handing off through the")
     expect(received[:prompt]).to include("checkout remains at the submitted HEAD")
     expect(received[:prompt]).to include("grader")
+    expect(received[:prompt]).to include("You are Syrus Chat in Coding Mode")
+    expect(received[:prompt]).to include("The Coding Mode checkout identified below is writable")
+    expect(received[:prompt]).not_to include("embedded research and planning assistant")
+    expect(received[:prompt]).not_to include("NOT to make code changes yourself")
+    expect(received[:prompt]).not_to include("Attached repository checkouts are READ-ONLY for you")
+    expect(received[:prompt]).not_to include("must NEVER use\nWrite, Edit, or Bash")
+    expect(received[:prompt]).not_to include("No\ncommit or push tool is available")
+    expect(received[:prompt]).not_to include("What \"proposing\" means:")
+    expect(received[:prompt]).not_to include("The durable products of this session are proposals")
+    expect(received[:prompt]).not_to include("propose a Syrus Job or Epic and wait")
   end
 
   it "includes the workspace root and attached job context in the coding mode prompt" do

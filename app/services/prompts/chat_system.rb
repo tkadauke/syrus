@@ -202,6 +202,12 @@ module Prompts
           draft proposal cards unless the operator explicitly asks for a
           proposal or review-before-implementation artifact.
         TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          You are Syrus Chat in Coding Mode for the #{chat_scope}. Your
+          role is to inspect, implement, test, and commit code directly in
+          the writable Coding Mode checkout.
+        TEXT
       else
         <<~TEXT.strip
           You are Syrus Chat, an embedded research and planning assistant
@@ -217,7 +223,7 @@ module Prompts
     end
 
     def proposal_guidance
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         What "proposing" means:
@@ -414,7 +420,7 @@ module Prompts
     end
 
     def role_context
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
       return "" unless @chat_session&.user&.product_owner?
 
       <<~TEXT.strip
@@ -450,6 +456,11 @@ module Prompts
           `syrus local`; use the Local Mode tools for repository reads,
           writes, commands, and git state.
         TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.squish
+          Use the writable Coding Mode checkout identified in the Coding Mode
+          section below for repository reads, writes, commands, and git state.
+        TEXT
       else
         <<~TEXT.squish
           Use `attach_repository(slug)` whenever you need to look at code for a
@@ -465,6 +476,8 @@ module Prompts
     def syrus_role_description
       if local_mode_chat?
         "you're the Local Mode implementation surface that works directly in the operator's connected checkout when they ask for local work."
+      elsif coding_mode_chat?
+        "you're the Coding Mode implementation surface that works directly in the session's writable checkout."
       else
         "you're the planning surface that helps them frame work before it gets handed to the implementation agent."
       end
@@ -480,6 +493,17 @@ module Prompts
             `/syrus-home/.syrus/chat-workspaces/*/repositories/` remain
             read-only. Do not use ordinary Write, Edit, or Bash to modify
             those attached checkout paths.
+          - Do not write memory to the filesystem -- use the Syrus memory MCP
+            tools instead (see Memory section above).
+        TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          - The Coding Mode checkout identified below is writable. Use Read,
+            Write, Edit, and Bash there to inspect and implement changes.
+          - Other attached repository checkouts under
+            `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only.
+            Do not modify a checkout unless the Coding Mode section identifies
+            it as the active coding checkout.
           - Do not write memory to the filesystem -- use the Syrus memory MCP
             tools instead (see Memory section above).
         TEXT
@@ -509,6 +533,12 @@ module Prompts
             effects happen only through Local Mode tools and only when the
             operator explicitly asks for those actions.
         TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          - Changes and commits in the Coding Mode checkout persist across
+            turns. Do not push them yourself; use the Coding Mode handoff flow
+            after operator confirmation.
+        TEXT
       else
         <<~TEXT.strip
           - The workspace is isolated. Nothing you do is ever pushed,
@@ -520,6 +550,7 @@ module Prompts
 
     def code_change_guidance
       return "use Local Mode tools directly, or create a coding Job with `create_coding_job` when the operator asks for a local Job." if local_mode_chat?
+      return "make it directly in the writable Coding Mode checkout." if coding_mode_chat?
 
       "propose a Syrus Job or Epic and wait for the operator to confirm it."
     end
@@ -532,6 +563,13 @@ module Prompts
           explicitly and ask the operator to retry the turn or check the local
           daemon/sidecar health before making local changes or creating a coding
           Job.
+        TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.squish
+          MCP tools can be available, pending, or unavailable at turn start.
+          Continue with ordinary checkout inspection and implementation when
+          possible; if a handoff tool is unavailable, say so explicitly and ask
+          the operator to retry the turn or check the chat sidecar health.
         TEXT
       else
         <<~TEXT.squish
@@ -548,6 +586,8 @@ module Prompts
     def job_inspection_guidance
       if local_mode_chat?
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; use `create_coding_job` for new Local Mode work only when the operator asks for a local Job."
+      elsif coding_mode_chat?
+        "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; implement the requested change in the Coding Mode checkout."
       else
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when you suspect a proposal duplicates something already in flight."
       end
@@ -555,12 +595,14 @@ module Prompts
 
     def next_step_example
       return "Run the focused local test for this change" if local_mode_chat?
+      return "Implement the fix and run its focused test" if coding_mode_chat?
 
       "Create an Epic from these findings"
     end
 
     def output_guidance
       return local_mode_output_guidance if local_mode_chat?
+      return coding_mode_output_guidance if coding_mode_chat?
 
       <<~TEXT.strip
         - The durable products of this session are proposals you draft
@@ -626,6 +668,16 @@ module Prompts
       TEXT
     end
 
+    def coding_mode_output_guidance
+      <<~TEXT.strip
+        - The durable product of Coding Mode is committed code in the writable
+          coding checkout, followed by an operator-confirmed handoff through
+          the applicable submit lane described below.
+        - Implement requested code changes directly. Do not draft Job or Epic
+          proposal cards as a substitute for implementation.
+      TEXT
+    end
+
     def local_mode_output_guidance
       <<~TEXT.strip
         - The durable product of Local Mode is the chat record plus any local
@@ -644,7 +696,7 @@ module Prompts
     end
 
     def bookmark_guidance
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         - Immediately before emitting a `propose_epic_with_jobs` card,
@@ -702,6 +754,7 @@ module Prompts
     end
 
     def onboarding_guidance
+      return "" if coding_mode_chat?
       return "" unless @chat_session&.onboarding?
 
       "\n" + Prompts::ChatOnboarding.new(repository: @repository).to_s
@@ -714,6 +767,8 @@ module Prompts
     end
 
     def developer_elaboration_guidance
+      return "" if coding_mode_chat?
+
       epic = AgentEnvironmentSnapshot.chat_elaboration_epic(@chat_session)
       return "" unless epic
 
@@ -773,6 +828,10 @@ module Prompts
 
     def local_mode_chat?
       @chat_session&.local?
+    end
+
+    def coding_mode_chat?
+      Feature.coding_mode_enabled? && @chat_session&.coding? && @repository.present?
     end
 
     def attached_repositories

@@ -31,6 +31,23 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("propose_epic_with_jobs")
   end
 
+  it "suppresses planning and onboarding instructions for active Coding Mode chats" do
+    Feature.find_or_create_by!(slug: "coding_mode") do |feature|
+      feature.category = "Labs"
+      feature.name = "Coding Mode"
+    end.update!(enabled: true)
+    chat = ChatSession.create!(user: repo.user, repository: repo, mode: "coding", onboarding: true)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("You are Syrus Chat in Coding Mode")
+    expect(out).to include("The Coding Mode checkout identified below is writable")
+    expect(out).not_to include("FIRST-RUN ONBOARDING")
+    expect(out).not_to include("What \"proposing\" means:")
+    expect(out).not_to include("Attached repository checkouts are READ-ONLY for you")
+    expect(out).not_to include("No\ncommit or push tool is available")
+  end
+
   it "injects product owner guidance near the top for product owner chats" do
     user = Factories.user(role: "product_owner")
     repo = repository(user: user, owner: "acme", name: "roadmap")
