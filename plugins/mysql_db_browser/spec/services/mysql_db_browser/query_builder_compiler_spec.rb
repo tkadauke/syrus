@@ -22,19 +22,19 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
   end
 
   def compiler(spec, join_table: nil, join_columns: [])
-    described_class.new(spec: spec, base_table: "orders", base_columns: orders_columns, join_table: join_table, join_columns: join_columns)
+    described_class.new(spec: spec, database: "analytics", base_table: "orders", base_columns: orders_columns, join_table: join_table, join_columns: join_columns)
   end
 
   it "selects explicit qualified columns from the base table" do
     sql = compiler({ table: "orders", columns: [ "orders.id", "orders.status" ] }).sql
 
-    expect(sql).to eq("SELECT `orders`.`id`, `orders`.`status` FROM `orders` LIMIT 100")
+    expect(sql).to eq("SELECT `analytics`.`orders`.`id`, `analytics`.`orders`.`status` FROM `analytics`.`orders` LIMIT 100")
   end
 
   it "defaults to SELECT * for the base table when no columns are given" do
     sql = compiler({ table: "orders" }).sql
 
-    expect(sql).to eq("SELECT `orders`.* FROM `orders` LIMIT 100")
+    expect(sql).to eq("SELECT `analytics`.`orders`.* FROM `analytics`.`orders` LIMIT 100")
   end
 
   it "raises InvalidSpec for a column not present on the resolved table" do
@@ -63,15 +63,15 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
       sql = compiler(spec).sql
 
       expect(sql).to eq(
-        "SELECT `orders`.`status`, COUNT(*) AS `row_count`, SUM(`orders`.`total`) AS `sum_total` " \
-        "FROM `orders` GROUP BY `orders`.`status` LIMIT 100"
+        "SELECT `analytics`.`orders`.`status`, COUNT(*) AS `row_count`, SUM(`analytics`.`orders`.`total`) AS `sum_total` " \
+        "FROM `analytics`.`orders` GROUP BY `analytics`.`orders`.`status` LIMIT 100"
       )
     end
 
     it "uses a caller-supplied alias when given" do
       spec = { table: "orders", aggregations: [ { function: "sum", column: "orders.total", alias: "revenue" } ] }
 
-      expect(compiler(spec).sql).to include("SUM(`orders`.`total`) AS `revenue`")
+      expect(compiler(spec).sql).to include("SUM(`analytics`.`orders`.`total`) AS `revenue`")
     end
 
     it "rejects count(*) style syntax for non-count aggregations" do
@@ -106,7 +106,8 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
       sql = compiler({ table: "orders", join: join_spec }, join_table: "customers", join_columns: customers_columns).sql
 
       expect(sql).to eq(
-        "SELECT `orders`.*, `customers`.* FROM `orders` LEFT JOIN `customers` ON `orders`.`customer_id` = `customers`.`id` LIMIT 100"
+        "SELECT `analytics`.`orders`.*, `analytics`.`customers`.* FROM `analytics`.`orders` LEFT JOIN `analytics`.`customers` " \
+        "ON `analytics`.`orders`.`customer_id` = `analytics`.`customers`.`id` LIMIT 100"
       )
     end
 
@@ -114,21 +115,21 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
       spec = { table: "orders", columns: [ "orders.id", "customers.name" ], join: join_spec }
       sql = compiler(spec, join_table: "customers", join_columns: customers_columns).sql
 
-      expect(sql).to include("SELECT `orders`.`id`, `customers`.`name` FROM `orders`")
+      expect(sql).to include("SELECT `analytics`.`orders`.`id`, `analytics`.`customers`.`name` FROM `analytics`.`orders`")
     end
 
     it "defaults the join type to LEFT when omitted" do
       spec = { table: "orders", join: join_spec.except(:type) }
       sql = compiler(spec, join_table: "customers", join_columns: customers_columns).sql
 
-      expect(sql).to include("LEFT JOIN `customers`")
+      expect(sql).to include("LEFT JOIN `analytics`.`customers`")
     end
 
     it "supports an INNER join" do
       spec = { table: "orders", join: join_spec.merge(type: "inner") }
       sql = compiler(spec, join_table: "customers", join_columns: customers_columns).sql
 
-      expect(sql).to include("INNER JOIN `customers`")
+      expect(sql).to include("INNER JOIN `analytics`.`customers`")
     end
 
     it "rejects an unknown join type" do
@@ -160,7 +161,7 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
     it "sorts by a selected column in plain mode" do
       spec = { table: "orders", columns: [ "orders.status" ], sort: { column: "orders.status", direction: "desc" } }
 
-      expect(compiler(spec).sql).to include("ORDER BY `orders`.`status` DESC LIMIT")
+      expect(compiler(spec).sql).to include("ORDER BY `analytics`.`orders`.`status` DESC LIMIT")
     end
 
     it "rejects sorting by a column that was not selected in plain mode" do
@@ -172,7 +173,7 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
     it "allows sorting by any real column when the select list defaults to *" do
       spec = { table: "orders", sort: { column: "orders.total", direction: "asc" } }
 
-      expect(compiler(spec).sql).to include("ORDER BY `orders`.`total` ASC")
+      expect(compiler(spec).sql).to include("ORDER BY `analytics`.`orders`.`total` ASC")
     end
 
     it "sorts by an aggregation alias in aggregate mode" do
@@ -189,7 +190,7 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
         sort: { column: "orders.status", direction: "asc" }
       }
 
-      expect(compiler(spec).sql).to include("ORDER BY `orders`.`status` ASC")
+      expect(compiler(spec).sql).to include("ORDER BY `analytics`.`orders`.`status` ASC")
     end
 
     it "rejects sorting by something that is neither a group_by column nor an aggregation alias" do
@@ -219,9 +220,9 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
     end
 
     it "degrades a non-Hash spec to an empty spec rather than raising a NoMethodError" do
-      sql = described_class.new(spec: "garbage", base_table: "orders", base_columns: orders_columns).sql
+      sql = described_class.new(spec: "garbage", database: "analytics", base_table: "orders", base_columns: orders_columns).sql
 
-      expect(sql).to eq("SELECT `orders`.* FROM `orders` LIMIT 100")
+      expect(sql).to eq("SELECT `analytics`.`orders`.* FROM `analytics`.`orders` LIMIT 100")
     end
   end
 
@@ -262,7 +263,13 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
 
   it "raises InvalidSpec when base_table is blank" do
     expect {
-      described_class.new(spec: {}, base_table: "", base_columns: orders_columns)
+      described_class.new(spec: {}, database: "analytics", base_table: "", base_columns: orders_columns)
     }.to raise_error(described_class::InvalidSpec, /table is required/)
+  end
+
+  it "raises InvalidSpec when database is blank" do
+    expect {
+      described_class.new(spec: {}, database: "", base_table: "orders", base_columns: orders_columns)
+    }.to raise_error(described_class::InvalidSpec, /database is required/)
   end
 end

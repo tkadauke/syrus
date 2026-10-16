@@ -66,6 +66,7 @@ module Api
 
             compiler = ::MysqlDbBrowser::QueryBuilderCompiler.new(
               spec: spec,
+              database: params[:database],
               base_table: spec[:table],
               base_columns: base_columns,
               join_table: join && join[:table],
@@ -74,7 +75,7 @@ module Api
             filter_tree = ::Filters::QueryParam.decode(params[:q])
 
             result = executor.execute_select(user: Current.user, limit: compiler.limit) do |client|
-              where_clause = filter_tree.present? ? ::MysqlDbBrowser::FilterTreeSqlCompiler.new(client: client, filter_schema: compiler.filter_schema).compile(filter_tree) : nil
+              where_clause = filter_tree.present? ? ::MysqlDbBrowser::FilterTreeSqlCompiler.new(client: client, filter_schema: compiler.filter_schema, identifier_prefix: params[:database]).compile(filter_tree) : nil
               compiler.sql(where_clause: where_clause)
             end
 
