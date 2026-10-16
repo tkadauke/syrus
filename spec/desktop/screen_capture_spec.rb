@@ -15,6 +15,10 @@ RSpec.describe "desktop screen capture" do
   it "registers a display-media handler that FORCES full-screen capture" do
     capture = read("electron/screenCapture.ts")
     expect(capture).to include("session.defaultSession.setDisplayMediaRequestHandler")
+    expect(capture).to include("request.frame !== trusted.webContents.mainFrame")
+    expect(capture).to include("matchesOrigin(request.securityOrigin, trusted.origin)")
+    expect(capture).to include("dialog.showMessageBox")
+    expect(capture).to include('message: "Syrus wants to record your entire screen."')
     # useSystemPicker OFF: a walkthrough always captures the whole screen so the
     # annotation overlay records; the native picker let users pick a window and
     # silently dropped every mark.
@@ -24,19 +28,26 @@ RSpec.describe "desktop screen capture" do
     expect(capture).to include("callback({})")
 
     main = read("electron/main.ts")
-    expect(main).to include("registerScreenCaptureHandler()")
+    expect(main).to include("registerScreenCaptureHandler(trustedCaptureContext)")
   end
 
-  it "grants the renderer's media permissions and pre-warms the mic on macOS" do
+  it "limits renderer permissions to the trusted web app top frame and pre-warms the mic on macOS" do
     capture = read("electron/screenCapture.ts")
     expect(capture).to include("setPermissionRequestHandler")
     expect(capture).to include("setPermissionCheckHandler")
+    expect(capture).to include('["media", "display-capture", "clipboard-sanitized-write"]')
+    expect(capture).to include("trusted.webContents !== null")
+    expect(capture).to include("webContents === trusted.webContents")
+    expect(capture).to include("details.isMainFrame")
+    expect(capture).to include("matchesOrigin(details.requestingUrl, trusted.origin)")
+    expect(capture).to include("matchesOrigin(requestingOrigin, trusted.origin)")
     # Pre-warm the microphone TCC prompt when recording starts.
     expect(capture).to include("prewarmMicrophonePermission")
     expect(capture).to include("systemPreferences.askForMediaAccess(\"microphone\")")
 
     main = read("electron/main.ts")
-    expect(main).to include("registerMediaPermissionHandlers()")
+    expect(main).to include("registerMediaPermissionHandlers(trustedCaptureContext)")
+    expect(main).to include("registerScreenCaptureHandler(trustedCaptureContext)")
   end
 
   it "exposes a standalone dictation microphone prewarm bridge" do
