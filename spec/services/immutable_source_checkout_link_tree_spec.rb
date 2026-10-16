@@ -85,6 +85,40 @@ RSpec.describe ImmutableSourceCheckoutLinkTree do
     expect(manifest(source)).to eq(before)
   end
 
+  # Load-bearing assumption, verified with real git rather than reasoned about:
+  # BaseRevisionRetry links the prepared checkout and then moves it to the base
+  # revision, which only works because git replaces a file (unlink, then
+  # create) instead of writing through to the inode a link shares.
+  it "survives a real git checkout in the linked tree without touching the source" do
+    source = @root.join("repo")
+    FileUtils.mkdir_p(source)
+    sh("git -C #{source} init -q -b main")
+    sh("git -C #{source} config user.email spec@example.com")
+    sh("git -C #{source} config user.name Spec")
+    source.join("tracked.rb").write("head revision\n")
+    sh("git -C #{source} add tracked.rb")
+    sh("git -C #{source} commit -q -m head")
+    head_sha = `git -C #{source} rev-parse HEAD`.strip
+    source.join("tracked.rb").write("base revision\n")
+    sh("git -C #{source} commit -q -am base")
+    base_sha = `git -C #{source} rev-parse HEAD`.strip
+    sh("git -C #{source} checkout -q #{head_sha}")
+    FileUtils.mkdir_p(source.join("vendor/bundle"))
+    source.join("vendor/bundle/gem.rb").write("module Gem; end\n")
+    expect(source.join("tracked.rb").read).to eq("head revision\n")
+
+    result = described_class.link(source: source, destination: destination)
+    expect(result).to be_linked
+    sh("git -C #{destination} checkout -q --detach #{base_sha}")
+
+    expect(destination.join("tracked.rb").read).to eq("base revision\n")
+    expect(source.join("tracked.rb").read).to eq("head revision\n")
+    # The dependencies came along, which is the entire point for a base retry.
+    expect(destination.join("vendor/bundle/gem.rb")).to exist
+    expect(File.stat(destination.join("vendor/bundle/gem.rb")).ino)
+      .to eq(File.stat(source.join("vendor/bundle/gem.rb")).ino)
+  end
+
   it "falls back to a copy when the filesystem refuses links" do
     allow(File).to receive(:link).and_raise(Errno::EXDEV.new("prepared"))
 
@@ -101,6 +135,13 @@ RSpec.describe ImmutableSourceCheckoutLinkTree do
 
     expect(result).not_to be_linked
     expect(result.reason).to eq("prepared checkout source is missing")
+  end
+
+  def sh(command)
+    output = `#{command} 2>&1`
+    raise "command failed: #{command}\n#{output}" unless $?.success?
+
+    output
   end
 
   def write(path, content)

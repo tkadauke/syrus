@@ -51,9 +51,9 @@ class BaseRevisionRetry
     timed_out = false
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
-      git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
+      materialization = materialize_base_checkout!(checkout_path)
       begin
-        @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)}: #{redacted_command(command)}")
+        @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)} in a #{materialization} checkout: #{redacted_command(command)}")
         # nil means the command was killed at TIMEOUT_SECONDS. Parsing its
         # partial output reports "not parseable", which reads as "this
         # grader's output is in an unsupported format" -- a configuration
@@ -62,7 +62,7 @@ class BaseRevisionRetry
         timed_out = run_command(command, checkout_path, output).nil?
         parsed = parse_result(output, checkout_path) unless timed_out
       ensure
-        git("worktree", "remove", "--force", checkout_path.to_s)
+        release_base_checkout!(checkout_path, materialization)
       end
     end
 
@@ -91,6 +91,45 @@ class BaseRevisionRetry
 
   private
 
+  # A bare `git worktree add` holds only tracked files, and vendor/bundle and
+  # node_modules are not tracked -- so the focused command's `bundle check`
+  # failed and it installed the whole bundle from scratch, single-job, inside a
+  # ten-minute timeout it could not meet. Every rspec base retry was recorded
+  # as base_retry_output_not_parseable, which left `allow_inherited` unable to
+  # dismiss an inherited or flaky failure: 15 of 17 retries on one production
+  # day, each of which then cost a second grade iteration.
+  #
+  # Link the grader's own prepared checkout instead and move it to the base
+  # revision. The dependencies are already there, so `bundle check` passes;
+  # hard links make the copy effectively free; and `.git` is a private copy in
+  # a linked tree, which is what lets this checkout rewrite HEAD without
+  # touching the tree the other graders on this host are reading.
+  def materialize_base_checkout!(checkout_path)
+    linked = ImmutableSourceCheckoutLinkTree.link(
+      source: workspace_path,
+      destination: checkout_path,
+      log: ->(message) { @log.call("[brr:#{grader_name}] #{message}") }
+    )
+    unless linked.linked?
+      @log.call("[brr:#{grader_name}] could not link the prepared checkout (#{linked.reason}); falling back to a worktree without dependencies")
+      git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
+      return "worktree"
+    end
+
+    GitRunner.new.run(
+      "checkout", "--detach", @base_sha,
+      chdir: checkout_path.to_s,
+      env: { "GIT_TERMINAL_PROMPT" => "0" }
+    )
+    "linked"
+  end
+
+  def release_base_checkout!(checkout_path, materialization)
+    return git("worktree", "remove", "--force", checkout_path.to_s) if materialization == "worktree"
+
+    FileUtils.rm_rf(checkout_path.to_s)
+  end
+
   def run_full_command
     command = @grader_step.details.to_h["command"].to_s.strip
     return skipped("no_grader_command") if command.blank?
@@ -99,12 +138,12 @@ class BaseRevisionRetry
     status = nil
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
-      git("worktree", "add", "--detach", checkout_path.to_s, @base_sha)
+      materialization = materialize_base_checkout!(checkout_path)
       begin
-        @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)}: #{redacted_command(command)}")
+        @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)} in a #{materialization} checkout: #{redacted_command(command)}")
         status = run_command(command, checkout_path, output)
       ensure
-        git("worktree", "remove", "--force", checkout_path.to_s)
+        release_base_checkout!(checkout_path, materialization)
       end
     end
 

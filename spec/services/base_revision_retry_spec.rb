@@ -43,6 +43,62 @@ RSpec.describe BaseRevisionRetry do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with("test_insights:parser").and_return([])
   end
 
+  describe "base checkout materialization" do
+    let(:git) { instance_double(GitRunner, run: "") }
+
+    before do
+      allow(GitRunner).to receive(:new).and_return(git)
+      FileUtils.mkdir_p(@workspace_path.join("vendor/bundle/ruby/gem"))
+      @workspace_path.join("vendor/bundle/ruby/gem/gem.rb").write("module Gem; end\n")
+      FileUtils.mkdir_p(@workspace_path.join(".git"))
+      @workspace_path.join(".git/HEAD").write("ref: refs/heads/main\n")
+    end
+
+    def retry_check
+      provider = Class.new do
+        def self.command_for(**)
+          "bin/rspec-fast spec/models/widget_spec.rb"
+        end
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+      described_class.new(
+        workflow: workflow,
+        grader_step: grader_step,
+        base_sha: "main123",
+        failed_cases: failed_cases,
+        log: ->(_message) { }
+      )
+    end
+
+    # The dependencies are what a bare worktree lacks, and what made the
+    # focused command install the whole bundle inside its own timeout.
+    it "links the prepared checkout so the base run already has its dependencies" do
+      check = retry_check
+      allow(check).to receive(:run_command) do |_command, chdir, output|
+        expect(chdir.join("vendor/bundle/ruby/gem/gem.rb")).to exist
+        output << "ran"
+        nil
+      end
+
+      check.call
+
+      expect(git).to have_received(:run).with("checkout", "--detach", "main123", hash_including(:chdir))
+      expect(git).not_to have_received(:run).with("worktree", "add", any_args)
+    end
+
+    it "falls back to a worktree when the prepared checkout cannot be linked" do
+      allow(ImmutableSourceCheckoutLinkTree).to receive(:link).and_return(
+        ImmutableSourceCheckoutLinkTree::Result.new(false, "hardlink materialization failed: Errno::EXDEV", [])
+      )
+      check = retry_check
+      allow(check).to receive(:run_command) { |_command, _chdir, output| output << "ran" and nil }
+
+      check.call
+
+      expect(git).to have_received(:run).with("worktree", "add", "--detach", anything, "main123", any_args)
+    end
+  end
+
   it "redacts compound secret assignments from recorded commands" do
     retry_check = described_class.new(
       workflow: workflow,
