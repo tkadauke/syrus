@@ -3659,7 +3659,9 @@ module WorkEngine
 
       WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
       job.reload
-      @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_for_job?(job)
+      @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_units_for_job(job).any? do |unit|
+        !unit.workflow&.terminal?
+      end
     end
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow, include_active_start_block: false)

@@ -1175,6 +1175,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       )
       workflow.update_columns(state: "failed", trigger_kind: "retry", finished_at: 5.minutes.ago)
       step.update_columns(kind: "pr_open", state: "failed", finished_at: 5.minutes.ago)
+      workflow.steps.where.not(id: step.id).update_all(state: "cancelled", finished_at: 5.minutes.ago)
       run.update_columns(state: "failed", finished_at: 5.minutes.ago)
       workflow.set_artifact!("branch_divergence", {
         "branch" => branch,

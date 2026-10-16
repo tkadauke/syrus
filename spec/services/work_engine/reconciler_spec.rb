@@ -50,12 +50,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.evidence).to include(
       "work_intent_id" => unit.work_intent_id,
       "work_intent_kind" => "initial",
-      "work_intent_state" => "failed",
+      "work_intent_state" => "requested",
       "work_unit_id" => unit.id,
       "work_unit_kind" => "initial",
-      "work_unit_state" => "failed",
+      "work_unit_state" => "running",
       "work_unit_member_job_ids" => [ job.id ],
-      "work_unit_active_lock_keys" => []
+      "work_unit_active_lock_keys" => [ "job:#{job.id}" ]
     )
   end
 
@@ -1358,6 +1358,21 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(unit.reload).to be_cancelled
   end
 
+  it "does not count stale active ownership for a terminal Workflow as runtime work" do
+    job.update_columns(state: "running", updated_at: 10.minutes.ago)
+    workflow.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
+    workflow.steps.update_all(state: "succeeded", finished_at: 10.minutes.ago)
+    workflow.runs.update_all(state: "succeeded", finished_at: 10.minutes.ago)
+    unit = workflow.work_unit
+    unit.update_columns(state: "running", finished_at: nil)
+
+    result = reconcile(job_id: job.id, execute_repairs: false)
+
+    expect(kind(result, :job_without_active_runtime_work)).to have_attributes(
+      recommended_repair_action: "operator_review_state_transition"
+    )
+  end
+
   it "memoizes the active runtime predicate for each job during a reconcile pass" do
     job.update_columns(state: "queued")
     workflow.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
@@ -1365,7 +1380,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
     workflow.work_unit.mark_terminal!("cancelled")
 
-    expect(WorkUnits::Ownership).to receive(:active_for_job?).once.and_call_original
+    expect(WorkUnits::Ownership).to receive(:active_units_for_job).once.and_call_original
 
     reconcile(job_id: job.id)
   end
