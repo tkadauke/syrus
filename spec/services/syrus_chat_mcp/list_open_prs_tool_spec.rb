@@ -75,8 +75,8 @@ RSpec.describe Mcp::Tools::ListOpenPrsTool do
         status: 200,
         headers: { "Content-Type" => "application/json" },
         body: [
-          { number: 8, title: "Merged one" },
-          { number: 9, title: "Closed one" }
+          { number: 8, title: "Merged one", merged_at: "2026-05-05T09:00:00Z" },
+          { number: 9, title: "Closed one", merged_at: nil }
         ].to_json
       )
     stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/8")
@@ -88,25 +88,11 @@ RSpec.describe Mcp::Tools::ListOpenPrsTool do
           title: "Merged one",
           head: { ref: "feature/merged" },
           base: { ref: "main" },
-          mergeable: nil,
+          mergeable: true,
           draft: false,
           created_at: "2026-05-04T09:00:00Z",
+          updated_at: "2026-05-05T09:00:00Z",
           merged_at: "2026-05-05T09:00:00Z"
-        }.to_json
-      )
-    stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/9")
-      .to_return(
-        status: 200,
-        headers: { "Content-Type" => "application/json" },
-        body: {
-          number: 9,
-          title: "Closed one",
-          head: { ref: "feature/closed" },
-          base: { ref: "main" },
-          mergeable: false,
-          draft: true,
-          created_at: "2026-05-06T09:00:00Z",
-          merged_at: nil
         }.to_json
       )
 
@@ -116,6 +102,18 @@ RSpec.describe Mcp::Tools::ListOpenPrsTool do
     })
 
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)[:pull_requests].pluck(:number)).to eq([ 8 ])
+    expect(response_payload(response)[:pull_requests]).to eq([
+      {
+        number: 8,
+        title: "Merged one",
+        head_ref: "feature/merged",
+        base_ref: "main",
+        mergeable: true,
+        draft: false,
+        created_at: "2026-05-04T09:00:00Z",
+        updated_at: "2026-05-05T09:00:00Z"
+      }
+    ])
+    expect(a_request(:get, "https://api.github.com/repos/acme/widgets/pulls/9")).not_to have_been_made
   end
 end
