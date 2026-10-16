@@ -265,6 +265,7 @@ fi
 # worker-dev image pull. prepull_worker_image below removes most of that.
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-15m}"
 ROLLOUT_STALL_DIAGNOSE_INTERVAL="${ROLLOUT_STALL_DIAGNOSE_INTERVAL:-90s}"
+ROLLOUT_MIN_POLL_INTERVAL="${ROLLOUT_MIN_POLL_INTERVAL:-5s}"
 # Pre-pull budget. Every compute node fetches the worker-dev image at the same
 # time, so this is one pull's wall clock plus contention for the uplink, not
 # one per node. Set PREPULL=0 to skip (e.g. when iterating on a tag every node
@@ -283,11 +284,51 @@ ACTIVE_FLUX_LABEL=""
 ACTIVE_BACKUP_KUBECONFIG=""
 ACTIVE_BACKUP_NAMESPACE=""
 ACTIVE_BACKUP_LABEL=""
+ACTIVE_BACKUP_SUSPENDED_BY_DEPLOY=false
 ACTIVE_PREPULL_KUBECONFIG=""
 ACTIVE_PREPULL_NAMESPACE=""
 ACTIVE_DB_PREPARE_KUBECONFIG=""
 ACTIVE_DB_PREPARE_NAMESPACE=""
 ACTIVE_DB_PREPARE_JOB=""
+ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=false
+
+duration_to_seconds() {
+  local value="$1" remaining total=0 amount unit
+
+  if [[ "$value" =~ ^[0-9]+$ ]]; then
+    echo "$((10#$value))"
+    return 0
+  fi
+  if [ -z "$value" ] || ! [[ "$value" =~ ^([0-9]+h)?([0-9]+m)?([0-9]+s)?$ ]]; then
+    echo "invalid duration '${value}'; use seconds or a compound duration such as 1h30m" >&2
+    return 1
+  fi
+
+  remaining="$value"
+  while [[ "$remaining" =~ ^([0-9]+)([hms])(.*)$ ]]; do
+    amount="${BASH_REMATCH[1]}"
+    unit="${BASH_REMATCH[2]}"
+    remaining="${BASH_REMATCH[3]}"
+    case "$unit" in
+      h) total=$((total + 10#$amount * 3600)) ;;
+      m) total=$((total + 10#$amount * 60)) ;;
+      s) total=$((total + 10#$amount)) ;;
+    esac
+  done
+
+  if [ -n "$remaining" ]; then
+    echo "invalid duration '${value}'; use seconds or a compound duration such as 1h30m" >&2
+    return 1
+  fi
+  echo "$total"
+}
+
+# Parse every operator-provided duration before changing cluster state.
+duration_to_seconds "$ROLLOUT_TIMEOUT" >/dev/null
+duration_to_seconds "$ROLLOUT_STALL_DIAGNOSE_INTERVAL" >/dev/null
+duration_to_seconds "$ROLLOUT_MIN_POLL_INTERVAL" >/dev/null
+duration_to_seconds "$PREPULL_TIMEOUT" >/dev/null
+duration_to_seconds "$DB_PREPARE_TIMEOUT" >/dev/null
 
 cleanup_rollout_controls() {
   if [ -n "$ACTIVE_DB_PREPARE_KUBECONFIG" ]; then
@@ -672,8 +713,15 @@ set_images_if_present() {
 
 suspend_mysql_backup() {
   local kubeconfig="$1" namespace="$2" label="$3"
+  local suspended
   if ! KUBECONFIG="$kubeconfig" kubectl get cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" >/dev/null 2>&1; then
     echo "→ ${label}: mysql backup cronjob '${MYSQL_BACKUP_CRONJOB}' not found — proceeding"
+    return 0
+  fi
+
+  suspended="$(KUBECONFIG="$kubeconfig" kubectl get cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" -o jsonpath='{.spec.suspend}')"
+  if [ "$suspended" = "true" ]; then
+    echo "→ ${label}: cronjob/${MYSQL_BACKUP_CRONJOB} was already suspended — leaving it suspended"
     return 0
   fi
 
@@ -682,16 +730,21 @@ suspend_mysql_backup() {
   ACTIVE_BACKUP_KUBECONFIG="$kubeconfig"
   ACTIVE_BACKUP_NAMESPACE="$namespace"
   ACTIVE_BACKUP_LABEL="$label"
+  ACTIVE_BACKUP_SUSPENDED_BY_DEPLOY=true
 
   drain_mysql_backup_pods "$kubeconfig" "$namespace" "$label"
 }
 
 resume_mysql_backup() {
   local kubeconfig="$1" namespace="$2" label="$3"
+  if [ "$ACTIVE_BACKUP_SUSPENDED_BY_DEPLOY" != true ]; then
+    return 0
+  fi
   if ! KUBECONFIG="$kubeconfig" kubectl get cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" >/dev/null 2>&1; then
     ACTIVE_BACKUP_KUBECONFIG=""
     ACTIVE_BACKUP_NAMESPACE=""
     ACTIVE_BACKUP_LABEL=""
+    ACTIVE_BACKUP_SUSPENDED_BY_DEPLOY=false
     return 0
   fi
 
@@ -700,6 +753,7 @@ resume_mysql_backup() {
   ACTIVE_BACKUP_KUBECONFIG=""
   ACTIVE_BACKUP_NAMESPACE=""
   ACTIVE_BACKUP_LABEL=""
+  ACTIVE_BACKUP_SUSPENDED_BY_DEPLOY=false
 }
 
 drain_mysql_backup_pods() {
@@ -734,9 +788,10 @@ running_mysql_backup_jobs() {
 
 wait_for_rollout_target() {
   local label="$1" kubeconfig="$2" namespace="$3" target="$4"
-  local total_seconds poll_seconds deadline started_at elapsed status_log
+  local total_seconds poll_seconds min_poll_seconds deadline started_at elapsed status_log
   total_seconds="$(duration_to_seconds "$ROLLOUT_TIMEOUT")"
   poll_seconds="$(duration_to_seconds "$ROLLOUT_STALL_DIAGNOSE_INTERVAL")"
+  min_poll_seconds="$(duration_to_seconds "$ROLLOUT_MIN_POLL_INTERVAL")"
   started_at="$SECONDS"
   deadline=$((SECONDS + total_seconds))
 
@@ -756,6 +811,13 @@ wait_for_rollout_target() {
       rm -f "$status_log"
       exit "$status"
     fi
+    if grep -qi "exceeded its progress deadline" "$status_log"; then
+      cat "$status_log" >&2
+      rm -f "$status_log"
+      diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"
+      echo "✗ ${label}: ${target} exceeded its progress deadline" >&2
+      exit 1
+    fi
     if [ "$ROLLOUT_VERBOSE_DIAGNOSTICS" = true ]; then
       cat "$status_log" >&2
     fi
@@ -773,18 +835,8 @@ wait_for_rollout_target() {
       elapsed=$((SECONDS - started_at))
       echo "→ ${label}: ${target} still rolling out after ${elapsed}s; next check in ${poll_seconds}s" >&2
     fi
+    sleep "$min_poll_seconds"
   done
-}
-
-duration_to_seconds() {
-  local value="$1"
-  case "$value" in
-    *s) echo "${value%s}" ;;
-    *m) echo "$(( ${value%m} * 60 ))" ;;
-    *h) echo "$(( ${value%h} * 3600 ))" ;;
-    *[!0-9]*) echo "900" ;;
-    *) echo "$value" ;;
-  esac
 }
 
 rollout_selector() {
@@ -912,8 +964,14 @@ flux_kustomization_exists() {
 
 flux_suspend_with_watchdog() {
   local kubeconfig="$1" label="$2"
+  local suspended
   if ! flux_kustomization_exists "$kubeconfig"; then
     echo "→ ${label}: flux kustomization '${FLUX_KUSTOMIZATION}' not found in '${FLUX_NAMESPACE}' — proceeding without suspend"
+    return 0
+  fi
+  suspended="$(KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" get kustomization "$FLUX_KUSTOMIZATION" -o jsonpath='{.spec.suspend}')"
+  if [ "$suspended" = "true" ]; then
+    echo "→ ${label}: flux kustomization/${FLUX_KUSTOMIZATION} was already suspended — leaving it suspended"
     return 0
   fi
   ensure_watchdog_rbac "$kubeconfig"
@@ -923,11 +981,15 @@ flux_suspend_with_watchdog() {
     --type merge -p '{"spec":{"suspend":true}}' >/dev/null
   ACTIVE_FLUX_KUBECONFIG="$kubeconfig"
   ACTIVE_FLUX_LABEL="$label"
+  ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=true
   schedule_resume_watchdog "$kubeconfig"
 }
 
 flux_resume_now() {
   local kubeconfig="$1" label="$2"
+  if [ "$ACTIVE_FLUX_SUSPENDED_BY_DEPLOY" != true ]; then
+    return 0
+  fi
   if ! flux_kustomization_exists "$kubeconfig"; then
     return 0
   fi
@@ -938,6 +1000,7 @@ flux_resume_now() {
   flux_request_reconcile "$kubeconfig"
   ACTIVE_FLUX_KUBECONFIG=""
   ACTIVE_FLUX_LABEL=""
+  ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=false
 }
 
 flux_pin_desired_images() {
