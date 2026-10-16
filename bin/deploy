@@ -331,7 +331,6 @@ rollout() {
   fi
 
   flux_suspend_with_watchdog "$kubeconfig" "$label"
-  flux_pin_desired_images "$kubeconfig" "$label"
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
   prepull_worker_image "$label" "$kubeconfig" "$namespace"
@@ -351,6 +350,11 @@ rollout() {
   verify_sha "$label" "$kubeconfig" "$namespace"
   verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"
   resume_mysql_backup "$kubeconfig" "$namespace" "$label"
+  # Keep Flux pointed at the previously deployed images until every fallible
+  # rollout step has succeeded. The EXIT trap (or server-side watchdog after a
+  # hard crash) can then safely resume reconciliation after a failed deploy
+  # without applying the new SHA to an unmigrated or unhealthy cluster.
+  flux_pin_desired_images "$kubeconfig" "$label"
   flux_resume_now "$kubeconfig" "$label"
   verify_flux_desired_images "$kubeconfig" "$label"
   echo "✓ ${label} rolled to ${SHA}"

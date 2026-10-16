@@ -21,6 +21,57 @@ RSpec.describe "bin/deploy database migrations" do
       "new workers must not consume work before the new image's migrations finish"
   end
 
+  it "does not pin Flux to the new image when migrations fail" do
+    rollout = deploy[/^rollout\(\) \{.*?\n\}/m]
+
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "kubectl"), <<~SH)
+        #!/bin/sh
+        exit 0
+      SH
+      File.chmod(0o755, File.join(dir, "kubectl"))
+
+      out, err, status = bash(<<~SH, { "PATH" => "#{dir}:#{ENV.fetch("PATH")}" })
+        set -euo pipefail
+        DEPLOYMENTS=(deployment/syrus-web)
+        PINNED_PLUGIN_WORKLOADS=()
+        #{rollout}
+        flux_suspend_with_watchdog() { echo suspend; }
+        suspend_mysql_backup() { echo suspend-backup; }
+        ensure_mise_cache() { echo mise-cache; }
+        prepull_worker_image() { echo prepull; }
+        run_database_migrations() { echo migration-failed; return 1; }
+        pin_live_images() { echo pin-live; }
+        wait_for_rollout_target() { echo wait-rollout; }
+        verify_sha() { echo verify-sha; }
+        verify_worker_native_toolchain() { echo verify-toolchain; }
+        resume_mysql_backup() { echo resume-backup; }
+        flux_pin_desired_images() { echo pin-flux; }
+        flux_resume_now() { echo resume-flux; }
+        verify_flux_desired_images() { echo verify-flux; }
+        rollout staging kubeconfig syrus
+      SH
+
+      expect(status).not_to be_success
+      expect(err).to be_empty
+      expect(out).to include("migration-failed")
+      expect(out).not_to include("pin-live")
+      expect(out).not_to include("pin-flux")
+      expect(out).not_to include("resume-flux")
+    end
+  end
+
+  it "pins Flux only after the rollout has been verified and backups resumed" do
+    rollout = deploy[/^rollout\(\) \{.*?\n\}/m]
+
+    expect(rollout.index('flux_pin_desired_images "$kubeconfig" "$label"')).to be >
+      rollout.index('verify_worker_native_toolchain "$label" "$kubeconfig" "$namespace"')
+    expect(rollout.index('flux_pin_desired_images "$kubeconfig" "$label"')).to be >
+      rollout.index('resume_mysql_backup "$kubeconfig" "$namespace" "$label"')
+    expect(rollout.index('flux_pin_desired_images "$kubeconfig" "$label"')).to be <
+      rollout.index('flux_resume_now "$kubeconfig" "$label"')
+  end
+
   it "runs migrations from the newly built app image" do
     helper = deploy[/^run_database_migrations\(\) \{.*?\n\}/m]
 
