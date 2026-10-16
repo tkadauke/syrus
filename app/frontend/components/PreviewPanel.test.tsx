@@ -3,6 +3,7 @@ import { render, screen, waitFor, act, fireEvent, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { useState } from "react"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
 import type { DeployWorkflowRecord, PreviewEnvironmentRecord, PreviewProjectRecord } from "../api/jobs"
 
@@ -387,6 +388,23 @@ describe("PreviewPanel", () => {
     expect(await screen.findByText("Preview logs could not be loaded.")).toBeInTheDocument()
   })
 
+  it("does not steal focus back from log content when the countdown rerenders", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview/logs")) {
+        return Promise.resolve(jsonResponse({ preview: preview(), logs: [{ path: "preview.log", content: "select me", missing: false }] }))
+      }
+      return Promise.resolve(jsonResponse({ preview: preview() }))
+    })
+
+    renderPanel({ initialPreview: preview() })
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
+    const log = await screen.findByText("select me")
+    log.focus()
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 1100)) })
+    expect(log).toHaveFocus()
+  })
+
   it("starts a preview when Start Preview is clicked", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({ preview: preview({ state: "starting", url: null, expires_at: null }), message: "Preview environment starting." })
@@ -604,10 +622,30 @@ describe("PreviewStopModal", () => {
 
   it("calls onKeepRunning when backdrop is clicked", async () => {
     const onKeepRunning = vi.fn()
-    const { container } = render(<PreviewStopModal onStop={vi.fn()} onKeepRunning={onKeepRunning} />)
+    render(<PreviewStopModal onStop={vi.fn()} onKeepRunning={onKeepRunning} />)
     // click the backdrop (the fixed overlay, not the dialog itself)
-    const backdrop = container.firstChild as HTMLElement
+    const backdrop = screen.getByRole("presentation")
     fireEvent.click(backdrop)
     expect(onKeepRunning).toHaveBeenCalledOnce()
+  })
+
+  it("traps focus and restores it to the opener when closed", () => {
+    function Fixture() {
+      const [open, setOpen] = useState(false)
+      return <><button onClick={() => setOpen(true)}>Open stop dialog</button>{open ? <PreviewStopModal onStop={vi.fn()} onKeepRunning={() => setOpen(false)} /> : null}</>
+    }
+
+    render(<Fixture />)
+    const opener = screen.getByRole("button", { name: "Open stop dialog" })
+    opener.focus()
+    fireEvent.click(opener)
+    const keepRunning = screen.getByRole("button", { name: "Keep running" })
+    const stop = screen.getByRole("button", { name: "Yes, stop it" })
+    expect(keepRunning).toHaveFocus()
+    stop.focus()
+    fireEvent.keyDown(document, { key: "Tab" })
+    expect(keepRunning).toHaveFocus()
+    fireEvent.click(keepRunning)
+    expect(opener).toHaveFocus()
   })
 })
