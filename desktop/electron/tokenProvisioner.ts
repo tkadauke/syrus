@@ -46,9 +46,10 @@ type ProvisionResult =
 type ProvisionDeps = {
   getCachedCredentials: () => Credentials | null
   autoProvisioningAllowed: () => boolean
+  getCredentialGeneration: () => number
   // main.ts's saveCredentials: validates against the server, writes
   // ~/.syrus/credentials, and starts the notification cable.
-  saveCredentials: (credentials: Credentials) => Promise<unknown>
+  saveCredentials: (credentials: Credentials, expectedGeneration: number) => Promise<unknown>
   // True when the stored token has been rejected (401) by its own instance —
   // e.g. the local backend's database was rebuilt and the token on disk
   // predates it. Suspect same-instance credentials must NOT block
@@ -81,6 +82,7 @@ export const maybeProvisionDesktopToken = async (
 ): Promise<ProvisionResult> => {
   const normalized = normalizeUrl(serverUrl)
   const cached = deps.getCachedCredentials()
+  const credentialGeneration = deps.getCredentialGeneration()
   if (!deps.autoProvisioningAllowed()) {
     return "suppressed"
   }
@@ -143,7 +145,7 @@ export const maybeProvisionDesktopToken = async (
     }
 
     try {
-      await deps.saveCredentials({ url: normalized, token: result.apiToken })
+      await deps.saveCredentials({ url: normalized, token: result.apiToken }, credentialGeneration)
       return "provisioned"
     } catch {
       return "error"
