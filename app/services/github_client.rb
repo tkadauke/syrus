@@ -565,7 +565,6 @@ class GithubClient
   # broken.
   FAILED_CONCLUSIONS = %w[failure timed_out action_required stale].freeze
   INCONCLUSIVE_CONCLUSIONS = %w[cancelled].freeze
-  MAIN_BRANCH_CI_WORKFLOW_NAMES = [ "CI" ].freeze
   ACTIONS_JOB_LOG_MAX_BYTES = 1.megabyte
   ACTIONS_INFRA_SETUP_STEP_NAMES = [
     "Set up job",
@@ -1052,8 +1051,8 @@ class GithubClient
   def filter_main_branch_check_runs(repo_slug, sha, runs)
     return runs unless runs.any? { |run| github_actions_check_run?(run) }
 
-    workflow_names_by_run_id = actions_workflow_names_by_run_id_for_sha(repo_slug, sha)
-    return runs unless workflow_names_by_run_id
+    workflow_events_by_run_id = actions_workflow_events_by_run_id_for_sha(repo_slug, sha)
+    return runs unless workflow_events_by_run_id
 
     runs.select do |run|
       next true unless github_actions_check_run?(run)
@@ -1061,7 +1060,10 @@ class GithubClient
       run_id = actions_run_id_from_url(run.html_url)
       next true unless run_id
 
-      MAIN_BRANCH_CI_WORKFLOW_NAMES.include?(workflow_names_by_run_id[run_id].to_s)
+      workflow_event = workflow_events_by_run_id[run_id]
+      next true if workflow_event.blank?
+
+      workflow_event == "push"
     end
   end
 
@@ -1076,11 +1078,11 @@ class GithubClient
     "read"
   end
 
-  def actions_workflow_names_by_run_id_for_sha(repo_slug, sha)
+  def actions_workflow_events_by_run_id_for_sha(repo_slug, sha)
     response = track_rate_limits do
       @client.repository_workflow_runs(repo_slug, head_sha: sha, per_page: 100)
     end
-    Array(response.workflow_runs).to_h { |run| [ run.id.to_i, run.name.to_s ] }
+    Array(response.workflow_runs).to_h { |run| [ run.id.to_i, run.event.to_s ] }
   rescue Octokit::NotFound, Octokit::Forbidden, Octokit::Unauthorized => e
     Rails.logger.warn("[GithubClient] could not inspect Actions workflow runs for #{repo_slug}@#{sha}: #{e.message}")
     nil
