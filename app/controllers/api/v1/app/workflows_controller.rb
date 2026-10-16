@@ -33,11 +33,10 @@ module Api
           attachment = workflow.visual_artifact_for(params[:type].to_s.strip)
           raise ActiveRecord::RecordNotFound, "Visual artifact not found" unless attachment
 
-          send_data(
+          send_secure_file(
             attachment.download,
             filename: attachment.filename.to_s,
-            type: attachment.content_type || "application/octet-stream",
-            disposition: "inline"
+            type: attachment.content_type || "application/octet-stream"
           )
         rescue StandardError => e
           raise unless StorageConnectivity.transient_error?(e)
@@ -58,8 +57,13 @@ module Api
         private
 
         def find_workflow
-          workflow = Workflow.joins(:job).where(jobs: { user_id: Current.user.id }).find(params[:workflow_id])
-          workflow
+          readable_jobs = if Current.user.admin?
+            Job.all
+          else
+            Job.where(user: Current.user).or(Job.accessible_to(Current.user))
+          end
+          workflow_scope = Workflow.joins(:job).merge(restrict_invocation_relation(readable_jobs))
+          restrict_invocation_relation(workflow_scope).find(params[:workflow_id])
         end
       end
     end

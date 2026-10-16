@@ -956,7 +956,33 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(other_job.reload).to be_open
   end
 
-  describe "approve/run_again/cancel with a repository member who does not own the job" do
+  it "allows a global admin to mutate another user's job" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+    other_job = Factories.job(repository: other_repo, issue_number: 99)
+    sign_in_as(Factories.user(admin: true))
+
+    post app_job_path(other_job, "pause"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(other_job.reload).to be_manual_paused
+  end
+
+  it "does not let a global-admin run token mutate a job outside its invocation scope", :skip_sign_in do
+    admin = Factories.user(admin: true)
+    admin_repo = Factories.repository(user: admin, owner: "admin", name: "scoped")
+    current_job = Factories.job_with_run(repository: admin_repo, issue_number: 100, run_attrs: { state: "running" })
+    other_job = Factories.job_record(user: admin, repository: admin_repo, issue_number: 101, state: "queued")
+    token = McpInvocationContext.issue_for_app_run(current_job.runs.first, expires_in: 5.minutes)
+    allow_any_instance_of(AppApi::InternalCliInvocation).to receive(:allowed?).and_return(true)
+
+    post "/api/v1/app/jobs/#{other_job.slug}/pause", headers: { "Authorization" => "Bearer #{token}" }, as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(other_job.reload).not_to be_manual_paused
+  end
+
+  describe "lifecycle mutations with a repository member who does not own the job" do
     let(:read_member) { Factories.user }
     let(:write_member) { Factories.user }
 
@@ -1052,6 +1078,27 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
 
       expect(response).to have_http_status(:ok)
+    end
+
+    it "403s pause for a read-tier member" do
+      sign_in_as(read_member)
+
+      post app_job_path(job, "pause"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.reload).not_to be_manual_paused
+    end
+
+    it "allows pause and unpause for a write-tier member" do
+      sign_in_as(write_member)
+
+      post app_job_path(job, "pause"), as: :json
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).to be_manual_paused
+
+      post app_job_path(job, "unpause"), as: :json
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).not_to be_manual_paused
     end
   end
 

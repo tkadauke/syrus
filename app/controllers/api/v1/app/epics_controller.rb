@@ -2,7 +2,9 @@ module Api
   module V1
     module App
       class EpicsController < BaseController
-        before_action :authorize_epic_action!, only: [ :update_state, :start ]
+        before_action :authorize_epic_mutation!, only: %i[
+          update archive claim unclaim reassign start update_state add_dependency remove_dependency
+        ]
 
         def index
           epics = policy_scope(Epic).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
@@ -270,9 +272,7 @@ module Api
         class UnavailableTransition < StandardError; end
 
         def form_payload(epic)
-          accessible_repos = Repository.joins(:repository_memberships)
-                                       .where(repository_memberships: { user: Current.user })
-                                       .order(:name)
+          accessible_repos = Repository.writable_by(Current.user).active.order(:owner, :name)
           {
             epic: epic_json(epic),
             repositories: accessible_repos.map { |repository| repository_json(repository) },
@@ -625,11 +625,11 @@ module Api
         end
 
         def find_epic
-          find_epic_by_ref(policy_scope(Epic).includes(:owner_user), params[:id])
+          @epic ||= find_epic_by_ref(policy_scope(Epic).includes(:owner_user, :repository), params[:id])
         end
 
         def membership_on_repo?(repository_id)
-          RepositoryMembership.at_least("write").exists?(repository_id: repository_id, user: Current.user)
+          Repository.find_by(id: repository_id)&.member_at_least?(Current.user, "write") || false
         end
 
         def resolve_repository_reference(attrs)
@@ -657,15 +657,24 @@ module Api
           false
         end
 
-        def authorize_epic_action!
+        def authorize_epic_mutation!
+          policy = EpicPolicy.new(Current.user, find_epic)
+          unless policy.write?
+            render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden)
+            return false
+          end
+
+          return true unless action_name.in?(%w[start update_state])
+
           target_state = action_name == "start" ? "in_progress" : params[:target_state].to_s
-          return if EpicPolicy.new(Current.user, nil).advance_state?(target_state: target_state)
+          return true if policy.advance_state?(target_state: target_state)
 
           render_error(
             "forbidden",
             I18n.t("api.epics.product_owner_forbidden"),
             status: :forbidden
           )
+          false
         end
 
         def transition_epic_state!(epic, target_state, override:)

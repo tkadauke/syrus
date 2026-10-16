@@ -7,6 +7,7 @@ module Api
         include Pundit::Authorization
         include JobEpicRefFinder
         include JsonErrorRendering
+        include SecureFileDelivery
 
         TokenSession = Struct.new(:user, :invocation_context, keyword_init: true) do
           def destroy; end

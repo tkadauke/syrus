@@ -168,18 +168,7 @@ class RunQueueResolver
   end
 
   def live_capable_worker_for?(queue, requirements, allow_unknown_default: false)
-    live_worker_payloads.any? do |payload|
-      next false unless WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue)
-      next false if payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
-        worker_storage_key: payload[:worker_storage_key],
-        hostname: payload[:hostname]
-      )
-
-      capabilities = payload.fetch(:capabilities)
-      next true if allow_unknown_default && requirements == DEFAULT_RUN_CAPABILITIES && capabilities.blank?
-
-      satisfies?(capabilities, requirements)
-    end
+    live_worker_payloads.any? { |payload| worker_eligible?(payload, queue, requirements, allow_unknown_default:) }
   end
 
   def live_worker_payload_for_queue?(queue)
@@ -284,7 +273,7 @@ class RunQueueResolver
       "queue_name" => queue,
       "base_queue_name" => base_queue_name,
       "requirements" => requirements,
-      "live_workers" => live_worker_diagnostics(queue),
+      "live_workers" => live_worker_diagnostics(queue, requirements),
       "run_id" => run.id,
       "workflow_id" => run.workflow_id,
       "step_id" => run.step_id,
@@ -293,13 +282,14 @@ class RunQueueResolver
     }.compact
   end
 
-  def live_worker_diagnostics(queue)
+  def live_worker_diagnostics(queue, requirements)
     live_worker_payloads.map do |payload|
       {
         "hostname" => payload[:hostname],
         "worker_storage_key" => payload[:worker_storage_key],
         "queues" => payload.fetch(:queues),
         "selected_queue" => WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue),
+        "eligible" => worker_eligible?(payload, queue, requirements, allow_unknown_default: defaulted_requirements?(requirements)),
         "draining" => payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
           worker_storage_key: payload[:worker_storage_key],
           hostname: payload[:hostname]
@@ -308,6 +298,19 @@ class RunQueueResolver
         "capability_diagnostics" => payload.fetch(:capability_diagnostics)
       }.compact
     end
+  end
+
+  def worker_eligible?(payload, queue, requirements, allow_unknown_default: false)
+    return false unless WorkerQueueTopology.queues_include?(payload.fetch(:queues), queue)
+    return false if payload.fetch(:macos_worker, false) && MacosWorkerDrain.admission_blocked?(
+      worker_storage_key: payload[:worker_storage_key],
+      hostname: payload[:hostname]
+    )
+
+    capabilities = payload.fetch(:capabilities)
+    return true if allow_unknown_default && requirements == DEFAULT_RUN_CAPABILITIES && capabilities.blank?
+
+    satisfies?(capabilities, requirements)
   end
 
   def single_token(values)

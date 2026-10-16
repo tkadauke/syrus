@@ -650,6 +650,63 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("host", "headroom", "memory_used_percent")).to eq(0.0)
   end
 
+  it "admits work when hard pressure is isolated to one worker with a healthy alternative" do
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-disk-full", worker_storage_key: "storage-full", disk: 97.0)
+    worker_sample(hostname: "worker-healthy", worker_storage_key: "storage-healthy", disk: 25.0)
+    workflow = workflow_for
+
+    decision = described_class.call(workflow: workflow)
+
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("within_budget")
+    expect(decision.details.fetch("soft_pressure_gates_present")).to eq([ "localized_worker_host_pressure_high" ])
+    expect(decision.pressure.dig("host", "locality")).to include(
+      "scope" => "localized",
+      "healthy_alternatives_present" => true
+    )
+  end
+
+  it "keeps the hard block when the only capable worker is under hard pressure" do
+    ensure_solid_queue_test_tables!
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "mac-worker", worker_storage_key: "storage-mac", disk: 97.0)
+    worker_sample(hostname: "linux-worker", worker_storage_key: "storage-linux", disk: 25.0)
+    SolidQueue::Process.create!(
+      hostname: "mac-worker",
+      kind: "Worker",
+      name: "mac-worker-1",
+      pid: 101,
+      last_heartbeat_at: Time.current,
+      metadata: {
+        "hostname" => "mac-worker",
+        "worker_storage_key" => "storage-mac",
+        "queues" => "runs-macos-arm64",
+        "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] }
+      }
+    )
+    SolidQueue::Process.create!(
+      hostname: "linux-worker",
+      kind: "Worker",
+      name: "linux-worker-1",
+      pid: 102,
+      last_heartbeat_at: Time.current,
+      metadata: {
+        "hostname" => "linux-worker",
+        "worker_storage_key" => "storage-linux",
+        "queues" => "runs",
+        "capabilities" => { "os" => [ "linux" ], "arch" => [ "x86_64" ] }
+      }
+    )
+    workflow = workflow_for
+    workflow.update!(planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+
+    decision = described_class.call(workflow: workflow)
+
+    expect(decision.action).to eq("requires_override")
+    expect(decision.reason).to eq("worker_disk_exhausted")
+  end
+
   it "does not bypass hard worker exhaustion when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
     WorkerHostHealthSample.create!(

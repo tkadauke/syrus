@@ -161,7 +161,7 @@ module Api
             return
           end
 
-          send_data blob.bytes, type: Marcel::MimeType.for(name: path), disposition: "inline"
+          send_secure_file blob.bytes, filename: File.basename(path), type: Marcel::MimeType.for(name: path)
         rescue RepositoryContent::NoProvider
           render_error("no_github_token", "GitHub token not configured. Add one in Settings to browse source.", status: :unprocessable_content)
         rescue RepositoryContent::UnknownRevision

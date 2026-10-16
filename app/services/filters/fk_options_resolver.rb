@@ -27,26 +27,23 @@ module Filters
 
     attr_reader :user
 
-    # Admins get the unscoped relation: cross-tenant admin surfaces (e.g.
-    # the worker_timeline plugin's macro view) filter across every
-    # repository/epic in the instance, not just the ones the signed-in
-    # admin happens to own, and an admin's own dashboard/jobs filters
-    # should be able to reach any repository/epic too. Non-admins keep
-    # the ownership-scoped relation everywhere else relies on.
+    # Admins get the unscoped relation for cross-tenant admin surfaces.
+    # Other users get records visible through direct or team repository
+    # membership.
     def repository_id_scope
-      user.admin? ? Repository.active : user.repositories.active
+      user.admin? ? Repository.active : Repository.accessible_to(user).active
     end
 
     def epic_id_scope
-      user.admin? ? Epic.includes(:repository) : user.epics.includes(:repository)
+      user.admin? ? Epic.includes(:repository) : Epic.accessible_to(user).includes(:repository)
     end
 
     def parent_job_id_scope
-      user.jobs.where.not(branch_name: nil)
+      accessible_jobs.where.not(branch_name: nil)
     end
 
     def job_id_scope
-      user.jobs
+      accessible_jobs
     end
 
     def user_id_scope
@@ -58,7 +55,13 @@ module Filters
     end
 
     def hostname_scope
+      return SpawnedProcess.none unless user.admin?
+
       SpawnedProcess.where("started_at > ?", 24.hours.ago).where.not(hostname: [ nil, "" ]).select(:hostname).distinct
+    end
+
+    def accessible_jobs
+      Job.where(user: user).or(Job.accessible_to(user))
     end
 
     def apply_search(field, scope, query)

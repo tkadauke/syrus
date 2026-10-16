@@ -751,10 +751,31 @@ class WorkflowAdmissionBudget
   end
 
   def hard_host_pressure_reason
-    return "worker_memory_exhausted" if host_pressure.fetch("max_memory_used_percent") >= HARD_MEMORY_USED_PERCENT
-    return "worker_disk_exhausted" if host_pressure.fetch("max_data_root_used_percent") >= HARD_DATA_ROOT_USED_PERCENT
+    reason = if host_pressure.fetch("max_memory_used_percent") >= HARD_MEMORY_USED_PERCENT
+      "worker_memory_exhausted"
+    elsif host_pressure.fetch("max_data_root_used_percent") >= HARD_DATA_ROOT_USED_PERCENT
+      "worker_disk_exhausted"
+    end
+    return if reason.blank? || eligible_healthy_host_alternative?
 
-    nil
+    reason
+  end
+
+  def eligible_healthy_host_alternative?
+    return false unless host_pressure.dig("locality", "healthy_alternatives_present")
+
+    live_workers = RunQueueResolver.resolve_candidate(workflow:, step: step || workflow.first_step).details.fetch("live_workers", [])
+    return true if live_workers.empty?
+
+    eligible_storage_keys = live_workers.filter_map do |worker|
+      next unless worker.fetch("eligible", false)
+
+      worker["worker_storage_key"].presence || worker["hostname"].presence
+    end
+
+    host_pressure.dig("locality", "healthy_alternative_storage_keys").any? do |alternative|
+      eligible_storage_keys.include?(alternative.fetch("storage_key"))
+    end
   end
 
   def soft_host_pressure?

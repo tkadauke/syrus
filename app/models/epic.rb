@@ -601,7 +601,7 @@ class Epic < ApplicationRecord
 
   def user_is_repository_member
     return unless repository && user
-    return if repository.repository_memberships.exists?(user: user)
+    return if repository.member_at_least?(user, "read")
 
     errors.add(:repository, "must have an active membership for the current user")
   end

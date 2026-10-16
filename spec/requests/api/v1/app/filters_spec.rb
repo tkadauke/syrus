@@ -148,6 +148,41 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(parse_body["options"].map { |row| row["value"] }).to eq([ epic.id ])
   end
 
+  it "includes repositories, epics, and jobs visible through repository membership" do
+    owner = Factories.user
+    repo = Factories.repository(user: owner, owner: "shared", name: "widgets")
+    epic = Factories.epic(user: owner, repository: repo, title: "Shared migration")
+    job = Factories.job_record(user: owner, repository: repo, issue_number: 42, issue_title: "Shared repair", branch_name: "shared-repair")
+    member = Factories.user
+    repo.repository_memberships.create!(user: member, role: "read")
+    sign_in_as(member)
+
+    {
+      "repository_id" => repo.id,
+      "epic_id" => epic.id,
+      "job_id" => job.id,
+      "parent_job_id" => job.id
+    }.each do |field, expected_id|
+      get "/api/v1/app/filters/fk_options", params: { field: field, ids: [ expected_id ] }
+      expect(parse_body["options"].map { |row| row["value"] }).to eq([ expected_id ])
+    end
+  end
+
+  it "only returns worker hostnames to admins" do
+    SpawnedProcess.create!(kind: "agent", command: "codex", hostname: "worker-private", started_at: 1.minute.ago)
+    Factories.user
+    member = Factories.user
+    sign_in_as(member)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "hostname", q: "private" }
+    expect(parse_body["options"]).to eq([])
+
+    admin = Factories.user(admin: true)
+    sign_in_as(admin)
+    get "/api/v1/app/filters/fk_options", params: { field: "hostname", q: "private" }
+    expect(parse_body["options"]).to eq([{ "value" => "worker-private", "label" => "worker-private" }])
+  end
+
   it "widens repository_id/epic_id typeahead to every repository/epic in the instance for admins" do
     admin = Factories.user(admin: true)
     owned_repo = Factories.repository(user: admin, owner: "acme", name: "widgets")

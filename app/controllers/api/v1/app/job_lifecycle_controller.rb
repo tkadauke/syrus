@@ -136,7 +136,8 @@ module Api
         end
 
         def restart
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           ApplicationRecord.transaction do
             job.cancel_active_runs_and_close!("replaced") if job.open?
             skip_prepare = job.sync_skip_prepare_from_source!
@@ -259,7 +260,8 @@ module Api
         end
 
         def unapprove
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           unless job.may_unapprove?
             render_error("validation_failed", lifecycle_t("unapprove_unavailable"), status: :unprocessable_content)
             return
@@ -287,7 +289,8 @@ module Api
         end
 
         def reopen
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           unless job.may_reopen?
             render_error("validation_failed", lifecycle_t("not_closed"), status: :unprocessable_content)
             return
@@ -300,7 +303,8 @@ module Api
         end
 
         def pause
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           if job.closed?
             render_error("validation_failed", lifecycle_t("pause_closed"), status: :unprocessable_content)
             return
@@ -315,7 +319,8 @@ module Api
         end
 
         def unpause
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           unless job.manual_paused?
             render_job(job.reload, message: lifecycle_t("not_paused"), changed: [ "manual_pause" ])
             return
@@ -331,7 +336,8 @@ module Api
             return
           end
 
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           unless job.implemented? || job.approved?
             render_error("validation_failed", lifecycle_t("local_mode_state_unavailable"), status: :unprocessable_content)
             return
@@ -371,7 +377,8 @@ module Api
             return
           end
 
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
           unless job.coding?
             render_error("validation_failed", lifecycle_t("not_coding"), status: :unprocessable_content)
             return
@@ -413,14 +420,13 @@ module Api
           find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
         end
 
-        # approve/run_again/cancel resolve through the wider,
-        # repository-membership-based JobPolicy::Scope (find_job's
-        # Current.user.jobs stays creator-only for the other actions in
-        # this controller) so a write-tier repository member can reach
-        # them; authorize_job_mutation! (BaseController) still gates the
-        # actual mutation.
+        # Mutations other than the creator-only initial start resolve through
+        # the repository-membership-based JobPolicy::Scope. The policy gate
+        # below then distinguishes read access from write access.
         def find_mutable_job
-          find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
+          scope = Current.user.admin? ? Job.all : policy_scope(Job)
+          scope = restrict_invocation_relation(scope)
+          find_job_by_ref(scope.includes(:repository), params[:job_id])
         end
 
         def render_job(job, message:, changed:, tab: nil)

@@ -839,16 +839,54 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "includes empty sidebar groups when no chats match the first group page" do
     sign_in_as(user)
     repository
+    member_repository = Factories.repository(user: Factories.user, owner: "shared", name: "widgets")
+    RepositoryMembership.create!(repository: member_repository, user: user, role: "read")
 
     get "/api/v1/app/chats", params: { group_by: "repository", show_empty_groups: "1" }
 
     expect(response).to have_http_status(:ok)
     groups = parse_body["groups"].index_by { |group| group["key"] }
-    expect(groups.keys).to include("general", "repository-#{repository.id}")
+    expect(groups.keys).to include("general", "repository-#{repository.id}", "repository-#{member_repository.id}")
     expect(groups.fetch("general")["chats"]).to eq([])
     expect(groups.fetch("repository-#{repository.id}")["chats"]).to eq([])
+    expect(groups.fetch("repository-#{member_repository.id}")).to include("label" => member_repository.slug, "chats" => [])
     expect(parse_body["groups_has_more"]).to eq(false)
     expect(parse_body["groups_next_offset"]).to be_nil
+  end
+
+  it "keeps repository groups for accessible chats attached to repositories owned by another user" do
+    owner = Factories.user
+    member_repository = Factories.repository(user: owner, owner: "shared", name: "member-repo")
+    participant_repository = Factories.repository(user: owner, owner: "shared", name: "participant-repo")
+    RepositoryMembership.create!(repository: member_repository, user: user, role: "write")
+    member_chat = ChatSession.create!(
+      user: user,
+      repository: member_repository,
+      title: "Member repository chat",
+      last_message_at: 2.minutes.ago
+    )
+    participant_chat = ChatSession.create!(
+      user: owner,
+      repository: participant_repository,
+      title: "Participant repository chat",
+      conversation_kind: "group",
+      last_message_at: 1.minute.ago
+    )
+    participant_chat.chat_participants.create!(user: user, role: "member")
+    sign_in_as(user)
+
+    get "/api/v1/app/chats", params: { group_by: "repository" }
+
+    expect(response).to have_http_status(:ok)
+    groups = parse_body["groups"].index_by { |group| group["key"] }
+    expect(groups.fetch("repository-#{member_repository.id}")).to include(
+      "label" => member_repository.slug,
+      "chats" => [ include("id" => member_chat.id) ]
+    )
+    expect(groups.fetch("repository-#{participant_repository.id}")).to include(
+      "label" => participant_repository.slug,
+      "chats" => [ include("id" => participant_chat.id) ]
+    )
   end
 
   it "puts unread sidebar chats in a separate status group before active and hidden groups" do
@@ -1098,6 +1136,65 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "returns a shared chat to a participant but not to a non-participant" do
+      owner = Factories.user
+      participant = Factories.user
+      stranger = Factories.user
+      shared_chat = ChatSession.create!(user: owner, title: "Shared planning")
+      shared_chat.chat_participants.create!(user: participant, role: "member")
+      message = create_indexed_message(shared_chat, text: "participantneedle shared details")
+
+      sign_in_as(participant)
+      get "/api/v1/app/chats/search", params: { q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => shared_chat.id, "best_match_message_id" => message.id)
+      )
+
+      get "/api/v1/app/chats/search/messages", params: { chat_session_id: shared_chat.id, q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["matches"]).to contain_exactly(include("message_id" => message.id))
+
+      sign_in_as(stranger)
+      get "/api/v1/app/chats/search", params: { q: "participantneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("results" => [], "total" => 0)
+    end
+
+    it "does not let a dense matching chat hide another matching chat" do
+      dense_chat = ChatSession.create!(user: user, repository: repository, title: "Dense")
+      other_chat = ChatSession.create!(user: user, repository: repository, title: "Other")
+      other_message = create_indexed_message(other_chat, text: "overflowneedle other result")
+      connection = SearchRecord.connection
+      values = 1_001.times.map do |index|
+        [
+          connection.quote("overflowneedle overflowneedle overflowneedle dense #{index}"),
+          user.id,
+          dense_chat.id,
+          1_000_000 + index,
+          connection.quote("assistant"),
+          connection.quote(index.seconds.ago.iso8601)
+        ].then { |columns| "(#{columns.join(', ')})" }
+      end
+      connection.execute(<<~SQL.squish)
+        INSERT INTO chat_message_fts
+          (content, user_id, chat_session_id, chat_message_id, role, created_at)
+        VALUES #{values.join(', ')}
+      SQL
+
+      get "/api/v1/app/chats/search", params: { q: "overflowneedle" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["total"]).to eq(2)
+      expect(parse_body["results"]).to contain_exactly(
+        include("chat_session_id" => dense_chat.id, "total_match_count" => 1_001, "has_more_matches" => true),
+        include("chat_session_id" => other_chat.id, "best_match_message_id" => other_message.id)
+      )
+    end
   end
 
   it "marks a chat read for the signed-in user" do
@@ -1276,7 +1373,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       proposal = chat.proposals.create!(slug: "catapult-job", title: "Build catapult", body: "Do it.")
       whiteboard = chat.create_whiteboard!
       ChatMessageSearchIndex.insert(message)
-      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).not_to be_empty
+      expect(ChatMessageSearchIndex.search("catapult", chat_session_ids: [ chat.id ])).not_to be_empty
 
       original_data_root = ENV["SYRUS_DATA_ROOT"]
       Dir.mktmpdir("syrus-data-root") do |data_root|
@@ -1318,7 +1415,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(ChatProposal.exists?(proposal.id)).to be(true)
       expect(Whiteboard::Board.exists?(whiteboard.id)).to be(true)
       expect(ChatAttachment.where(chat_session_id: chat.id)).not_to be_empty
-      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).to be_empty
+      expect(ChatMessageSearchIndex.search("catapult", chat_session_ids: [ chat.id ])).to be_empty
 
       # A soft-deleted chat is invisible to both the operator and the agent.
       get "/api/v1/app/chats/#{chat.id}"

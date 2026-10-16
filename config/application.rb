@@ -57,6 +57,12 @@ module Syrus
     config.active_storage.queues.analysis = :low_priority_maintenance
     config.active_storage.queues.purge = :cleanup
 
+    # Action Mailer's delivery job also subclasses ActiveJob::Base directly
+    # and otherwise uses its framework-default :mailers queue, which no Syrus
+    # worker consumes. Keep password-reset and invitation delivery on a queue
+    # serviced by the control-plane workers.
+    config.action_mailer.deliver_later_queue_name = :control_plane
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

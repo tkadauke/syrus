@@ -114,6 +114,9 @@ RSpec.describe "App API runtime sessions", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.content_type).to eq("image/png")
+      expect(response.headers["Content-Disposition"]).to include("inline")
+      expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+      expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     end
 
     it "404s when no frame has been captured yet" do

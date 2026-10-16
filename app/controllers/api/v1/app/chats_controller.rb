@@ -770,9 +770,8 @@ module Api
 
           content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
           if ActiveModel::Type::Boolean.new.cast(params[:raw])
-            send_data attachment.download,
+            send_secure_file attachment.download,
               type: content_type,
-              disposition: "inline",
               filename: File.basename(file_path)
             return
           end
@@ -1107,11 +1106,10 @@ module Api
           raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
           raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
-          send_data(
+          send_secure_file(
             document.file.download,
             filename: document.filename || "image",
-            type: document.content_type || "application/octet-stream",
-            disposition: "inline"
+            type: document.content_type || "application/octet-stream"
           )
         end
 
@@ -1364,9 +1362,8 @@ module Api
           elsif result["too_large"]
             render plain: "File is too large to preview.", status: :content_too_large, content_type: "text/plain"
           else
-            send_data result["content"].to_s,
+            send_secure_file result["content"].to_s,
               type: "text/plain; charset=utf-8",
-              disposition: "inline",
               filename: File.basename(file_path)
           end
         end

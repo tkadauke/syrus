@@ -45,6 +45,10 @@ external PR — instead shows a "Chat about this" action; using it starts a
 new chat seeded with a durable reference to the Job so the agent responds
 against the current report, permanently attaches the Job to it (visible in
 that chat's Jobs list), and the Job page then links to that chat going forward.
+Only participants in an existing Job discussion can continue it; repository
+write access by itself does not allow someone to post into another user's
+private chat or start an agent turn there. Deleting the discussion removes
+that active link and allows a fresh Job discussion to be started.
 A chat's right-sidebar Jobs tab shows a "Proposed" section above its
 confirmed Job/Epic status cards, listing that chat's own pending Job and Epic
 proposals; each card links straight to the message where the proposal was

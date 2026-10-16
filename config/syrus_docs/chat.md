@@ -399,10 +399,12 @@ responds immediately after redirect. It also attaches the Job via the same
 this doc -- so the link is immediately visible both ways: the chat's Jobs
 attachment list includes the Job, and the Job detail page's chat link now
 points at this chat going forward (`Job#discussion_chat`, the earliest-attached
-chat session; see `App::JobDetailPayload#discussion_chat_json`). Re-running the
-action once a discussion chat exists redirects to that chat without creating a
-second thread or synthetic turn. The endpoint itself requires write access to
-the Job (creator, write-tier repository member, or admin -- the same
+active chat session; see `App::JobDetailPayload#discussion_chat_json`). Re-running
+the action once a discussion chat exists redirects to that chat without creating
+a second thread or synthetic turn. Only a participant can continue an existing
+discussion chat; repository write access alone cannot post into another user's
+private chat. The endpoint itself requires write access to the Job (creator,
+write-tier repository member, or admin -- the same
 `authorize_job_mutation!` gate other Job actions use); `ChatAttachment`'s
 validation only requires read access to the Job's repository, matching the
 looser bar Repository attachments already use, so it never blocks the

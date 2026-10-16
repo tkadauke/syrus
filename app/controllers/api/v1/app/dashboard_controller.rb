@@ -153,7 +153,11 @@ module Api
         end
 
         def epic_auto_approval
-          epic = Current.user.epics.find(params[:id])
+          epic = accessible_epics.find(params[:id])
+          unless RepositoryPolicy.new(Current.user, epic.repository).write?
+            render_error("forbidden", "Only a repository member with write access, or an admin, can update Epic auto-approval.", status: :forbidden)
+            return
+          end
           epic.update!(params.expect(epic: [ :auto_approve_mode ]))
 
           render json: {
@@ -177,10 +181,15 @@ module Api
         end
 
         def bulk_epic_scope(epic_ids)
-          Current.user.epics.joins(:repository)
-                      .where(repositories: { archived_at: nil })
-                      .where(id: epic_ids)
-                      .includes(:repository)
+          accessible_epics.joins(:repository)
+                           .where(repositories: { archived_at: nil })
+                           .where(id: epic_ids)
+                           .includes(:repository)
+        end
+
+        def accessible_epics
+          scope = Current.user.admin? ? Epic.all : policy_scope(Epic)
+          restrict_invocation_relation(scope)
         end
 
         def bulk_retry_jobs(jobs, agent_provider: nil)
@@ -668,7 +677,7 @@ module Api
           skipped_ids = []
 
           epics.find_each do |epic|
-            if epic.ready? && epic.may_start?(actor: Current.user)
+            if RepositoryPolicy.new(Current.user, epic.repository).write? && epic.ready? && epic.may_start?(actor: Current.user)
               epic.start!(actor: Current.user)
               started_ids << epic.id
             else

@@ -28,6 +28,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
   end
 
   it "returns the new epic form payload with the user's repositories" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     repository
     Factories.repository(user: Factories.user, owner: "other", name: "private")
@@ -41,6 +42,60 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(body["repositories"]).to contain_exactly(include("epic_dependency_policy" => "linear"))
     expect(body.to_s).not_to include("other/private")
     expect(body["dashboard_epics_path"]).to eq(dashboard_epics_path)
+  end
+
+  it "includes repositories writable through a team grant and permits creating an Epic there" do
+    owner = Factories.user(email_address: "team-repo-owner@example.com")
+    team_repository = Factories.repository(user: owner, owner: "shared", name: "team-writable")
+    team = Team.create!(name: "Epic writers #{SecureRandom.hex(4)}")
+    team.team_memberships.create!(user: user, role: "member")
+    team.team_repositories.create!(repository: team_repository, role: "write")
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to include(include("id" => team_repository.id, "slug" => "shared/team-writable"))
+
+    expect {
+      post "/api/v1/app/epics", params: { epic: { title: "Team-owned work", repository_id: team_repository.id } }
+    }.to change(Epic, :count).by(1)
+    expect(response).to have_http_status(:created)
+    expect(Epic.order(:id).last.repository_id).to eq(team_repository.id)
+  end
+
+  it "loads the writable repository picker with bounded access queries" do
+    owner = Factories.user(email_address: "picker-repo-owner@example.com")
+    team = Team.create!(name: "Picker writers #{SecureRandom.hex(4)}")
+    team.team_memberships.create!(user: user, role: "member")
+    4.times do |index|
+      shared_repository = Factories.repository(user: owner, owner: "shared", name: "picker-#{index}")
+      team.team_repositories.create!(repository: shared_repository, role: "write")
+    end
+    sign_in_as(user)
+
+    queries = capture_sql { get "/api/v1/app/epics/new" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"].size).to eq(4)
+    access_queries = queries.grep(/repository_memberships|team_memberships|team_repositories/i)
+    expect(access_queries.size).to eq(1), access_queries.join("\n")
+  end
+
+  it "includes all active repositories for global admins and permits creating an Epic" do
+    admin = Factories.user(email_address: "epic-admin@example.com", admin: true)
+    other_repository = Factories.repository(user: user, owner: "shared", name: "admin-writable")
+    sign_in_as(admin)
+
+    get "/api/v1/app/epics/new"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repositories"]).to include(include("id" => other_repository.id, "slug" => "shared/admin-writable"))
+
+    expect {
+      post "/api/v1/app/epics", params: { epic: { title: "Admin-created work", repository_id: other_repository.id } }
+    }.to change(Epic, :count).by(1)
+    expect(response).to have_http_status(:created)
   end
 
   it "lists epics for bearer-token CLI clients with repository scoping" do
@@ -1199,6 +1254,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
   end
 
   it "rejects creating an epic on a repository the user cannot access" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     private_repository = Factories.repository(user: Factories.user, owner: "other", name: "private")
 
@@ -1414,6 +1470,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
   end
 
   it "blocks moving an Epic to a repository the user has no membership on" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Orphan road")
     other_owner = Factories.user(email_address: "other@example.com")
@@ -1442,6 +1499,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
   end
 
   it "blocks moving an Epic to a repository where the user only has read-tier membership" do
+    user.update!(global_role: "user")
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Traveling Epic")
     other_owner = Factories.user(email_address: "other@example.com")
@@ -1454,6 +1512,40 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:forbidden)
     expect(epic.reload.repository_id).to eq(repository.id)
+  end
+
+  it "forbids read-tier collaborators from every Epic mutation" do
+    owner = Factories.user(email_address: "epic-owner@example.com")
+    shared_repository = Factories.repository(user: owner, owner: "shared", name: "read-only-epics")
+    shared_repository.repository_memberships.create!(user: user, role: "read")
+    blocker = Factories.epic(user: owner, repository: shared_repository, title: "Prerequisite", state: "done")
+    sign_in_as(user)
+
+    requests = {
+      update: ->(epic) { patch "/api/v1/app/epics/#{epic.id}", params: { epic: { title: "Unauthorized rename" } } },
+      archive: ->(epic) { patch "/api/v1/app/epics/#{epic.id}/archive" },
+      claim: ->(epic) { patch "/api/v1/app/epics/#{epic.id}/claim" },
+      unclaim: ->(epic) { patch "/api/v1/app/epics/#{epic.id}/unclaim" },
+      reassign: ->(epic) { patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: user.id } },
+      start: ->(epic) { post "/api/v1/app/epics/#{epic.id}/start" },
+      update_state: ->(epic) { patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress", override: true } },
+      add_dependency: ->(epic) { post "/api/v1/app/epics/#{epic.id}/dependencies", params: { depends_on_epic_id: blocker.id } },
+      remove_dependency: ->(epic) { delete "/api/v1/app/epics/#{epic.id}/dependencies/#{blocker.id}" }
+    }
+
+    requests.each do |action, request|
+      epic = Factories.epic(user: owner, repository: shared_repository, title: "Protected #{action}", state: "ready")
+      EpicDependency.create!(epic: epic, depends_on_epic: blocker) if action == :remove_dependency
+      original_attributes = epic.attributes.slice("title", "state", "archived_at", "owner_user_id")
+      original_dependency_ids = epic.dependencies.pluck(:depends_on_epic_id)
+
+      request.call(epic)
+
+      expect(response).to have_http_status(:forbidden), "expected #{action} to be forbidden: #{response.body}"
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(epic.reload.attributes.slice("title", "state", "archived_at", "owner_user_id")).to eq(original_attributes)
+      expect(epic.dependencies.reload.pluck(:depends_on_epic_id)).to eq(original_dependency_ids)
+    end
   end
 
   it "allows moving an Epic to a repository where the user has write-tier membership" do

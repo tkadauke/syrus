@@ -732,7 +732,7 @@ RSpec.describe ChatSession do
       session = described_class.create!(repository: repo, user: repo.user)
       message = session.messages.create!(role: "user", content: { "text" => "Aqueduct feasibility" })
       ChatMessageSearchIndex.insert(message)
-      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).not_to be_empty
+      expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ session.id ])).not_to be_empty
       id = session.id
 
       session.destroy!
@@ -740,11 +740,11 @@ RSpec.describe ChatSession do
       # The purge is deliberately NOT part of the destroy transaction —
       # it runs post-commit on the worker so a rollback can't leave the
       # index half-purged.
-      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).not_to be_empty
+      expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ session.id ])).not_to be_empty
 
       ChatSessionCleanupJob.perform_now(id, nil)
 
-      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).to be_empty
+      expect(ChatMessageSearchIndex.search("aqueduct", chat_session_ids: [ session.id ])).to be_empty
     end
 
     it "enqueues the cleanup job post-commit with the chat id and recorded workspace path" do
