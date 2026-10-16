@@ -10,6 +10,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { Select } from "../components/Select"
+import { MutationError } from "../components/MutationError"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import { DataTable, Page } from "../components/ui"
 import {
@@ -287,10 +288,12 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
     onSuccess: (updated) => {
       queryClient.setQueryData(["admin", "users", String(user.id)], updated)
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
-    }
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
   })
 
   return (
+    <div>
     <Select
       aria-label={t("users.aria_role")}
       disabled={mutation.isPending}
@@ -301,6 +304,8 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
       <option value="developer">{roleLabel("developer")}</option>
       <option value="product_owner">{roleLabel("product_owner")}</option>
     </Select>
+    {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
+    </div>
   )
 }
 
@@ -349,10 +354,12 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
     onSuccess: (updated) => {
       queryClient.setQueryData(["admin", "users", String(user.id)], updated)
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
-    }
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
   })
 
   return (
+    <div>
     <button
       className={schedulingButtonClassName}
       disabled={mutation.isPending}
@@ -361,6 +368,8 @@ function SchedulingButton({ user }: { user: AdminUserDetail }) {
     >
       {mutation.isPending ? t("users.saving") : user.scheduling_paused ? t("users.resume_scheduling") : t("users.pause_scheduling")}
     </button>
+    {mutation.isError ? <MutationError error={mutation.error} fallback={t("users.mutation_error")} /> : null}
+    </div>
   )
 }
 
