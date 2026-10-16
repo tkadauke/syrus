@@ -17,6 +17,14 @@ The generated MCP tool inventory lives in
 `config/syrus_docs/mcp_tool_catalog.md`; update it with
 `bin/surface-catalogs` after registry changes.
 
+SQL-backed MCP list and transcript tools normalize one-based `page` inputs
+through a shared pagination policy. Values below 1 become page 1, ordinary
+pages beyond the available results return an empty page, and values above
+10,000 are capped at 10,000 before an SQL `OFFSET` is calculated. Per-page
+limits remain tool-specific. This bound applies to the core chat/repository
+and transcript readers as well as the Operator Briefing and Agent Insights
+pagination tools.
+
 Operators can inspect aggregate usage through:
 
 - `GET /api/v1/app/admin/mcp_tool_usage` — session-authenticated, used by the
