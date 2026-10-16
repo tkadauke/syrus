@@ -1535,11 +1535,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     Array(issue.affected_ids["workflow_ids"] || issue.affected_ids[:workflow_ids]).include?(workflow_id)
   end
 
-  def assert_chaos_case!(expectation)
+  def assert_chaos_case!(expectation, settle_terminal_workflows: false)
     # Reconciler.call is read-only and no longer syncs terminal workflows as a
-    # side effect, so settle WorkUnit ownership the way the runtime would have
-    # before the precedence under test is evaluated.
-    Job.find_each { |job| WorkUnits::TerminalWorkflowSync.for_job(job) }
+    # side effect, so the hand-built precedence cases settle WorkUnit ownership
+    # the way the runtime would have before the precedence under test runs.
+    Job.find_each { |job| WorkUnits::TerminalWorkflowSync.for_job(job) } if settle_terminal_workflows
     result = WorkEngine::Reconciler.call(source: "reconciler_chaos_spec", **expectation.target)
     repeat = WorkEngine::Reconciler.call(source: "reconciler_chaos_spec_repeat", **expectation.target)
     trace = expectation.trace.join("\n")
@@ -1625,17 +1625,17 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     simulation = ReconcilerChaosSimulation.new(seed: seed, spec_context: self)
     allow(InstanceVersion).to receive(:worker_live?) { |hostname| simulation.live_worker?(hostname) }
 
-    assert_chaos_case!(simulation.empty_topology_case)
-    assert_chaos_case!(simulation.send(:stale_auto_retry_workflow_with_queued_run))
-    assert_chaos_case!(simulation.send(:stale_auto_retry_after_branch_divergence_recovery))
-    assert_chaos_case!(simulation.send(:stale_branch_diverged_workflow))
-    assert_chaos_case!(simulation.send(:recovered_branch_diverged_failed_job))
-    assert_chaos_case!(simulation.send(:queued_job_after_epic_workflow_conflict))
-    assert_chaos_case!(simulation.send(:queued_job_after_cancelled_workflow))
-    assert_chaos_case!(simulation.send(:running_step_with_failed_terminal_run))
-    assert_chaos_case!(simulation.send(:running_step_with_succeeded_terminal_run))
-    assert_chaos_case!(simulation.send(:running_workflow_with_failed_step))
-    assert_chaos_case!(simulation.send(:closed_job_with_active_workflow))
+    assert_chaos_case!(simulation.empty_topology_case, settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:stale_auto_retry_workflow_with_queued_run), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:stale_auto_retry_after_branch_divergence_recovery), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:stale_branch_diverged_workflow), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:recovered_branch_diverged_failed_job), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:queued_job_after_epic_workflow_conflict), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:queued_job_after_cancelled_workflow), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:running_step_with_failed_terminal_run), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:running_step_with_succeeded_terminal_run), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:running_workflow_with_failed_step), settle_terminal_workflows: true)
+    assert_chaos_case!(simulation.send(:closed_job_with_active_workflow), settle_terminal_workflows: true)
   end
 
   it "reconciles one random degradation on a fully materialized random workflow topology" do
