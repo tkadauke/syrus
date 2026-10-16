@@ -53,10 +53,11 @@ When the `terminal` plugin is enabled, user-scoped app API clients
 can manage their own interactive terminal sessions. `GET
 /api/v1/app/terminal_sessions` lists the authenticated user's running
 sessions, and `GET /api/v1/app/terminal_sessions/open_count` returns just the
-count. With the plugin disabled these endpoints return `plugin_disabled`. `POST /api/v1/app/terminal_sessions` creates a session and accepts
-optional `workflow_id`, `name`, and `working_directory` fields; when
-`workflow_id` is present, Syrus defaults the working directory to that
-Workflow workspace.
+count. With the plugin disabled these endpoints return `plugin_disabled`.
+Admins can use `POST /api/v1/app/terminal_sessions` to create a session with
+an optional `workflow_id`, `candidate_key`, and `name`. Syrus selects the
+working directory from the chosen workspace; scratch sessions use the app
+root, and caller-supplied filesystem paths are ignored.
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/terminal_sessions \
