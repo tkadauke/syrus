@@ -1013,6 +1013,27 @@ describe("ReviewableDiff", () => {
     expect(onSaveEditThread).toHaveBeenCalled()
   })
 
+  it("renders an inline thread edit error without replacing the draft", () => {
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Original draft", state: "draft" }]
+          }
+        }}
+        editingThreadBody="Revised draft"
+        editingThreadError="Unable to save the edit."
+        editingThreadId={1}
+        files={files}
+        mode="single-file"
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.getByText("Unable to save the edit.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Edit comment 1")).toHaveValue("Revised draft")
+  })
+
   it("composes a new comment inline in the diff, full width, instead of a separate sidebar form", () => {
     const onChangeComposingBody = vi.fn()
     const onSaveComposing = vi.fn()

@@ -608,6 +608,7 @@
   "review_submit_error": "Diff-Feedback konnte nicht gesendet werden.",
   "review_create_error": "Diff-Kommentar konnte nicht erstellt werden.",
   "review_update_error": "Diff-Kommentar konnte nicht aktualisiert werden.",
+  "review_resolve_error": "Diff-Kommentar konnte nicht als erledigt markiert werden.",
   "review_delete_error": "Diff-Kommentar konnte nicht gelöscht werden.",
   "review_version_label": "Version",
   "review_versions_empty": "Noch keine Diff-Versionen.",
