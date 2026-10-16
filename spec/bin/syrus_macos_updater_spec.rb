@@ -31,7 +31,24 @@ RSpec.describe "native macOS worker updater" do
     stdout.split.first
   end
 
-  def write_metadata(path, artifact:, sha:, artifact_sha: sha256(artifact), retention_count: 2, drain: nil)
+  def signing_key(dir)
+    private_key = File.join(dir, "update-private.pem")
+    public_key = File.join(dir, "update-public.pem")
+    system("openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", private_key,
+      out: File::NULL, err: File::NULL)
+    system("openssl", "pkey", "-in", private_key, "-pubout", "-out", public_key, out: File::NULL, err: File::NULL)
+    [ private_key, public_key ]
+  end
+
+  def signature(path, private_key)
+    raw_signature = File.join(File.dirname(path), "artifact.sig")
+    system("openssl", "dgst", "-sha256", "-sign", private_key, "-out", raw_signature, path)
+    [ File.binread(raw_signature) ].pack("m0")
+  end
+
+  def write_metadata(path, artifact:, sha:, artifact_sha: sha256(artifact), artifact_signature: nil, retention_count: 2, drain: nil)
+    private_key, public_key = signing_key(File.dirname(path))
+    artifact_signature ||= signature(artifact, private_key)
     payload = {
       enabled: true,
       retention_count: retention_count,
@@ -41,15 +58,19 @@ RSpec.describe "native macOS worker updater" do
         git_sha: sha,
         artifact_url: "file://#{artifact}",
         artifact_sha256: artifact_sha,
+        artifact_signature: artifact_signature,
         artifact_name: File.basename(artifact)
       }
     }.compact
     File.write(path, JSON.generate(payload))
+    public_key
   end
 
   def write_env(path, metadata:)
     File.write(path, <<~ENV)
       SYRUS_UPDATE_METADATA_URL=file://#{metadata}
+      SYRUS_MACOS_UPDATE_PUBLIC_KEY_FILE=#{File.join(File.dirname(metadata), "update-public.pem")}
+      SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1
       SYRUS_APP_HOST=https://syrus.example.test
       SYRUS_WORKER_POOL_NAME=macos-xcode
       SYRUS_WORKER_STORAGE_KEY=mac-mini-a
@@ -442,6 +463,47 @@ RSpec.describe "native macOS worker updater" do
       expect(stderr).to include("desired git_sha must be a 7-40 character hex git SHA")
       expect(File).not_to exist(File.join(install_root, "escape"))
       expect(File.realpath(current_link)).to eq(current_release)
+    end
+  end
+
+  it "rejects an artifact whose detached signature does not match" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      releases_dir = File.join(install_root, "releases")
+      current_release = File.join(releases_dir, "aaa1111")
+      current_link = File.join(install_root, "current")
+      FileUtils.mkdir_p(current_release)
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "bbb2222")
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "bbb2222", artifact_signature: [ "not a signature" ].pack("m0"))
+      write_env(env_file, metadata: metadata)
+
+      _stdout, stderr, status = Open3.capture3(
+        { "SYRUS_MACOS_INSTALL_ROOT" => install_root, "SYRUS_MACOS_CURRENT_LINK" => current_link },
+        "bash", script, "--env-file", env_file, "--once", "--skip-restart"
+      )
+
+      expect(status).not_to be_success
+      expect(stderr).to include("detached signature verification failed")
+      expect(File.realpath(current_link)).to eq(current_release)
+      expect(File).not_to exist(File.join(releases_dir, "bbb2222"))
+    end
+  end
+
+  it "rejects non-HTTPS metadata URLs unless the test-only file transport is explicitly enabled" do
+    Dir.mktmpdir do |dir|
+      env_file = File.join(dir, "worker.env")
+      File.write(env_file, "SYRUS_UPDATE_METADATA_URL=http://updates.example.test/metadata.json\n")
+
+      _stdout, stderr, status = Open3.capture3("bash", script, "--env-file", env_file, "--once")
+
+      expect(status).not_to be_success
+      expect(stderr).to include("metadata URL must use https")
     end
   end
 end

@@ -6,6 +6,7 @@ ENV_FILE="/etc/syrus/worker.env"
 INSTALL_ROOT="/opt/syrus"
 DATA_ROOT="/var/lib/syrus"
 LOG_ROOT="/var/log/syrus"
+LIBEXEC_ROOT="/usr/local/libexec/syrus"
 SERVICE_USER="syrus-worker"
 SERVICE_GROUP="syrus-worker"
 DRY_RUN=0
@@ -111,8 +112,10 @@ if ! dscl . -read "/Users/$SERVICE_USER" >/dev/null 2>&1; then
   run dscl . -create "/Users/$SERVICE_USER" NFSHomeDirectory "$DATA_ROOT"
 fi
 
-run mkdir -p "$INSTALL_ROOT/releases" "$INSTALL_ROOT/shared" "$DATA_ROOT" "$LOG_ROOT" "$(dirname "$ENV_FILE")"
-run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_ROOT" "$DATA_ROOT" "$LOG_ROOT"
+run mkdir -p "$INSTALL_ROOT/releases" "$INSTALL_ROOT/shared" "$DATA_ROOT" "$LOG_ROOT" "$LIBEXEC_ROOT" "$(dirname "$ENV_FILE")"
+run chown -R root:wheel "$INSTALL_ROOT" "$LIBEXEC_ROOT"
+run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_ROOT/shared" "$DATA_ROOT" "$LOG_ROOT"
+run chmod 755 "$INSTALL_ROOT" "$INSTALL_ROOT/releases" "$LIBEXEC_ROOT"
 run chmod 750 "$DATA_ROOT" "$LOG_ROOT"
 run chown "root:$SERVICE_GROUP" "$ENV_FILE"
 run chmod 640 "$ENV_FILE"
@@ -128,17 +131,23 @@ if [[ "$ROOT" != "$RELEASE_PATH" ]]; then
     ditto "$ROOT" "$RELEASE_PATH"
   fi
 fi
-run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$RELEASE_PATH" "$INSTALL_ROOT/shared"
+run chown -R root:wheel "$RELEASE_PATH"
+run chmod -R go-w "$RELEASE_PATH"
 
 say "Preparing release dependencies"
+NODE_DEPS_PATH="$INSTALL_ROOT/shared/node/$RELEASE_SHA"
+run mkdir -p "$NODE_DEPS_PATH"
+run cp "$RELEASE_PATH/package.json" "$RELEASE_PATH/package-lock.json" "$NODE_DEPS_PATH/"
+run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$NODE_DEPS_PATH"
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "+ (cd $RELEASE_PATH && bundle install && npm ci)"
+  echo "+ (cd $RELEASE_PATH && bundle install; cd $NODE_DEPS_PATH && npm ci)"
 else
   sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
     PATH="/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
     BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$INSTALL_ROOT/shared/bundle" \
-    bash -c 'cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && npm ci' bash "$RELEASE_PATH"
+    bash -c 'cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
 fi
+run ln -s "$NODE_DEPS_PATH/node_modules" "$RELEASE_PATH/node_modules"
 
 say "Disabling interactive Git credential helpers for the service account"
 run sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" /bin/sh -c 'cd / && exec /usr/bin/git config --global credential.helper ""'
@@ -156,13 +165,14 @@ say "Activating release $RELEASE_SHA"
 run ln -sfn "$RELEASE_PATH" "$INSTALL_ROOT/current.next"
 run mv -f "$INSTALL_ROOT/current.next" "$INSTALL_ROOT/current"
 
+say "Installing the privileged updater outside the worker release tree"
+run install -o root -g wheel -m 755 "$RELEASE_PATH/bin/syrus-macos-updater" "$LIBEXEC_ROOT/syrus-macos-updater"
+
 if [[ "$SKIP_SERVICES" != "1" ]]; then
   say "Installing launchd services"
   for label in worker updater; do
     plist="com.syrus.$label.plist"
-    run cp "$INSTALL_ROOT/current/config/launchd/$plist" "/Library/LaunchDaemons/$plist"
-    run chown root:wheel "/Library/LaunchDaemons/$plist"
-    run chmod 644 "/Library/LaunchDaemons/$plist"
+    run install -o root -g wheel -m 644 "$RELEASE_PATH/config/launchd/$plist" "/Library/LaunchDaemons/$plist"
     launchctl bootout system "/Library/LaunchDaemons/$plist" >/dev/null 2>&1 || true
     run launchctl bootstrap system "/Library/LaunchDaemons/$plist"
     run launchctl kickstart -k "system/com.syrus.$label"

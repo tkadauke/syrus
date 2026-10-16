@@ -12,10 +12,10 @@
   <string>wheel</string>
 
   <key>WorkingDirectory</key>
-  <string>/opt/syrus/current</string>
+  <string>/opt/syrus</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/syrus/current/bin/syrus-macos-updater</string>
+    <string>/usr/local/libexec/syrus/syrus-macos-updater</string>
     <string>--env-file</string>
     <string>/etc/syrus/worker.env</string>
   </array>
