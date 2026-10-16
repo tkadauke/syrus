@@ -18,6 +18,7 @@ module Api
           end
 
           repository = find_repository
+          return unless repository
 
           job = AgentInsights::Scheduler.enqueue_if_idle!(repository, user: Current.user)
           unless job
