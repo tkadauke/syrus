@@ -2,7 +2,7 @@ import { jsonResponse } from "../testSupport"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
 import { EpicDetail, EpicDetailRoute, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
@@ -91,6 +91,29 @@ function renderDetail(payload: EpicDetailPayload) {
 }
 
 describe("EpicDetail", () => {
+  it("canonicalizes slug routes so mutations update the displayed payload", async () => {
+    const started = detailPayload({ id: 5, display_number: "EPIC-5", state: "in_progress", startable: false })
+    const initial = detailPayload({ id: 5, display_number: "EPIC-5" })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => Promise.resolve(jsonResponse(init?.method === "POST" ? started : initial)))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/epics/EPIC-5"]}>
+          <EpicLocationProbe />
+          <Routes>
+            <Route element={<EpicDetailRoute />} path="/epics/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId("epic-location")).toHaveTextContent("/epics/5"))
+    fireEvent.click(screen.getByRole("button", { name: "Start implementing" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
   it("uses responsive page gutters while keeping the header inset", async () => {
     const payload = detailPayload({ title: "Mobile gutter audit" })
     payload.jobs = [job("ready")]
@@ -238,6 +261,11 @@ describe("EpicDetail", () => {
     expect(within(rows[3] as HTMLElement).getByText(/Base moved while the merge train was landing/)).toBeInTheDocument()
   })
 })
+
+function EpicLocationProbe() {
+  const location = useLocation()
+  return <div data-testid="epic-location">{location.pathname}{location.search}</div>
+}
 
 describe("EpicDetail origin_chat link", () => {
   it("renders a View in Chat link when origin_chat is present", () => {

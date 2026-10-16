@@ -56,6 +56,8 @@ export function EpicDetailRoute() {
   const { t } = useT("epics")
   const params = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const id = params.id || ""
   const prefix = routePrefix(location.pathname)
   const epic = useQuery({
@@ -66,6 +68,16 @@ export function EpicDetailRoute() {
   const epicData = epic.data?.epic
   const pageTitle = epicData ? `${epicData.display_number}: ${epicData.title}` : id ? `EPIC-${id}` : undefined
   usePageTitle(pageTitle)
+
+  // Keep every writer and app-event invalidation on the numeric cache key,
+  // even when an incoming dependency-graph link used an Epic slug.
+  useEffect(() => {
+    if (!epic.data || String(epic.data.epic.id) === id) return
+
+    const canonicalId = String(epic.data.epic.id)
+    queryClient.setQueryData(["epics", canonicalId], epic.data)
+    navigate(`${location.pathname.replace(/\/epics\/[^/]+/, `/epics/${canonicalId}`)}${location.search}${location.hash}`, { replace: true })
+  }, [ epic.data, id, location.hash, location.pathname, location.search, navigate, queryClient ])
 
   return (
     <Page.Root aria-label={t("detail_label")} gutter="responsive" size="wide">
