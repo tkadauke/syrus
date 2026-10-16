@@ -112,6 +112,34 @@ RSpec.describe SkipIfPending do
       expect(SkipIfPendingTestJob).not_to have_been_enqueued.with(43)
     end
 
+    it "retries transient lock conflicts while batch-enqueueing" do
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+      calls = 0
+      allow(ActiveJob).to receive(:perform_all_later).and_wrap_original do |original, *jobs|
+        calls += 1
+        raise ActiveRecord::Deadlocked, "deadlock" if calls == 1
+
+        original.call(*jobs)
+      end
+
+      SkipIfPendingTestJob.perform_later_missing_simple_args([ [ 42 ] ])
+
+      expect(calls).to eq(2)
+      expect(SkipIfPendingTestJob).to have_been_enqueued.with(42).once
+    end
+
+    it "raises when batch-enqueue lock conflicts persist" do
+      allow(ActiveJob).to receive(:perform_all_later)
+        .and_raise(ActiveRecord::LockWaitTimeout, "lock wait timed out")
+
+      expect do
+        SkipIfPendingTestJob.perform_later_missing_simple_args([ [ 42 ] ])
+      end.to raise_error(ActiveRecord::LockWaitTimeout, "lock wait timed out")
+
+      expect(ActiveJob).to have_received(:perform_all_later)
+        .exactly(SkipIfPending::BULK_ENQUEUE_LOCK_RETRY_ATTEMPTS + 1).times
+    end
+
     it "bypasses the guard for keyword args" do
       expect(relation).not_to receive(:limit)
       expect { SkipIfPendingTestJob.perform_later(foo: "bar") }
