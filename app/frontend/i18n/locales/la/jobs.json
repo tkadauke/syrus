@@ -604,6 +604,7 @@
   "review_submit_error": "Responsum diff mitti non potuit.",
   "review_create_error": "Commentarius diff creari non potuit.",
   "review_update_error": "Commentarius diff mutari non potuit.",
+  "review_resolve_error": "Commentarius diff solvi non potuit.",
   "review_delete_error": "Commentarius diff deleri non potuit.",
   "review_version_label": "Versio",
   "review_versions_empty": "Nullae versiones diff adhuc.",
