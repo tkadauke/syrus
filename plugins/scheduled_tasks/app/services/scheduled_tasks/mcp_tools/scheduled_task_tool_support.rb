@@ -17,6 +17,16 @@ module ScheduledTasks
         [ task, nil ]
       end
 
+      def find_mutable_scheduled_task(chat_session, scheduled_task_id)
+        task, error = find_scheduled_task(chat_session, scheduled_task_id)
+        return [ nil, error ] if error
+        unless RepositoryPolicy.new(chat_session.user, task.repository).write?
+          return [ nil, Mcp::Tools.invalid("repository write access is required to change this scheduled task") ]
+        end
+
+        [ task, nil ]
+      end
+
       def scheduled_task_enabled?(task)
         task.active?
       end

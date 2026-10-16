@@ -26,6 +26,10 @@ module ScheduledTasks
       class << self
         def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil)
           chat_session = server_context.fetch(:chat_session)
+          unless chat_session.repository && RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
+            return Mcp::Tools.invalid("repository write access is required to create a scheduled task")
+          end
+
           schedule_input = schedule_input.to_s.strip.presence || cron_expression.to_s.strip
           label = label.to_s.strip
           prompt = prompt.to_s.strip
