@@ -25,6 +25,7 @@ export type TranscriptPayload = {
   job_slug?: string | null
   step_kind: string | null
   workflow_trigger_kind: string | null
+  finished: boolean
   session_id: string | null
   summary: TranscriptSummary
   pagination: {

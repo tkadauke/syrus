@@ -2,7 +2,7 @@ import { jsonResponse } from "../testSupport"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { AddRepositoryModal } from "./AddRepositoryModal"
+import { AddRepositoryModal, installWatchInterval } from "./AddRepositoryModal"
 
 function renderModal(props: { onClose?: () => void; onSaved?: () => void } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -84,6 +84,11 @@ async function submitRepository() {
 describe("AddRepositoryModal", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it("stops installation polling after the App connection lands", () => {
+    expect(installWatchInterval("pat")).toBe(3000)
+    expect(installWatchInterval("app")).toBe(false)
   })
 
   it("shows only the User/Org dropdown first and defaults the syrus label silently", async () => {
