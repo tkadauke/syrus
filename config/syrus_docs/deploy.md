@@ -90,6 +90,15 @@ db:prepare` and must complete before `pin_live_images` changes `syrus-web`,
 `syrus-worker-home`, `syrus-worker-compute`, `syrus-preview`, or plugin service
 workloads to the new SHA.
 
+While that work runs, a cluster-side watchdog guarantees that Flux is resumed
+if the deploy process exits before its cleanup runs. By default,
+`FLUX_SUSPEND_TTL` is derived separately for each cluster from the enabled
+pre-pull timeout, database preparation timeout, discovered core and plugin
+rollout targets, one additional rollout window, and `FLUX_SUSPEND_SLACK`
+(default `5m`). Operators may set `FLUX_SUSPEND_TTL` to a fixed number of
+seconds, but `bin/deploy` warns when that override is shorter than the computed
+budget.
+
 This deliberately trades "new code against the old schema" for "old code
 against the new schema" during the rollout. That is the safe direction only
 when migrations are backward compatible with the currently running release:
