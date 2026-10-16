@@ -55,7 +55,12 @@ updates live.
 
 `PreviewProxyMiddleware` gets a `preview-panel-<id>.<base_domain>`
 host-matching branch alongside its existing `preview-<job_id>` (running
-process) branch. For a panel request it looks up the open `PreviewPanel` by
+process) branch. For a panel request it looks up the `PreviewPanel` by
+id and serves it when it is open or when a registered
+`preview_panel_retention` provider reports that a durable plugin record still
+references it. The latter lets published mockups outlive their transient chat
+tabs without teaching core about the mockups model. Other closed panels remain
+unavailable. The middleware then resolves the requested version by
 id, checks access (see "Sharing" below), resolves which `PreviewPanelVersion`
 to serve from an optional `?v=<version_id>` query param (defaulting to
 `panel.current_version`, the latest, when absent or when the id doesn't
@@ -178,7 +183,8 @@ a new version, or switching visibility shows up live through the existing
 app-events refresh path. Closing a tab calls `DELETE
 /api/v1/app/chats/:id/preview_panels/:panel_id`, which drives
 `PreviewPanel::Service#close!` — the panel actually stops resolving
-server-side rather than just hiding client-side.
+server-side rather than just hiding client-side, unless a durable plugin record
+retains it (for example, a published mockup).
 
 ## Exporting a version as a zip
 
