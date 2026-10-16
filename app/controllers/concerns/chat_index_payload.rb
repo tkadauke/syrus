@@ -171,6 +171,8 @@ module ChatIndexPayload
 
       {
         id: chat_session.id,
+        current_user_id: Current.user.id,
+        user_id: chat_session.user_id,
         title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
         title_pending: chat_session.title.blank? && context.fetch(:title_pending_ids).include?(chat_session.id),
         system_kind: chat_session.system_kind,
@@ -434,11 +436,11 @@ module ChatIndexPayload
     scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
     scope = case chat_index_settings.fetch(:status)
     when "hidden"
-      scope.hidden
+      scope.where.not(chat_participants: { hidden_at: nil })
     when "all"
       scope
     else
-      scope.visible
+      scope.where(chat_participants: { hidden_at: nil })
     end
 
     return scope unless chat_index_settings.fetch(:apply_chat_type_filter)
@@ -550,7 +552,7 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql})",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general')",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
+      "status" => "CASE WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
       "mode" => "COALESCE(chat_sessions.mode, 'planning')",
       "chat_type" => chat_index_chat_type_sql,
       "agent" => chat_index_agent_sql
@@ -561,7 +563,7 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql}) = ?",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general') = ?",
-      "status" => "CASE WHEN chat_sessions.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
+      "status" => "CASE WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
       "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?",
       "chat_type" => "#{chat_index_chat_type_sql} = ?",
       "agent" => "#{chat_index_agent_sql} = ?"

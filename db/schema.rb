@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_022118) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -201,7 +201,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.integer "main_branch_health_check_retention_days", default: 7, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 3, null: false
-    t.integer "max_in_flight_workflows", default: 0, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.string "merge_train_failure_policy", default: "restart", null: false
@@ -246,6 +245,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.boolean "beta_mode_enabled", default: false, null: false
     t.integer "merge_train_multisect_section_width", default: 4, null: false
     t.integer "repository_full_poll_interval_hours", default: 24, null: false
+    t.integer "max_in_flight_workflows", default: 0, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -548,9 +548,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.string "role", default: "member", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.datetime "hidden_at"
     t.index ["chat_session_id", "user_id"], name: "index_chat_participants_on_chat_session_id_and_user_id", unique: true
     t.index ["chat_session_id"], name: "index_chat_participants_on_chat_session_id"
     t.index ["user_id", "chat_session_id"], name: "idx_chat_participants_user_session"
+    t.index ["user_id", "hidden_at"], name: "index_chat_participants_on_user_id_and_hidden_at"
     t.index ["user_id"], name: "index_chat_participants_on_user_id"
   end
 

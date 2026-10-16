@@ -720,6 +720,15 @@ describe("RecentChatsSidebar goal marker", () => {
 })
 
 describe("RecentChatsSidebar action and marker slot", () => {
+  it("hides owner-only actions from a group member", () => {
+    renderSidebar([chatNav({ current_user_id: 2, user_id: 1, conversation_kind: "group" })])
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat" }))
+
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Hide Chat" })).toBeInTheDocument()
+  })
+
   it("uses the same fixed-width slot for section controls, markers, and row actions", () => {
     renderSidebar([], {
       groups: [
@@ -900,6 +909,19 @@ describe("RecentChatsSidebar mark-as-read/unread label", () => {
   })
 })
 
+describe("RecentChatsSidebar group chat ownership", () => {
+  it("hides shared pin and delete actions from non-owner participants" , () => {
+    renderSidebar([chatNav({ id: 1, title: "Shared chat", conversation_kind: "group", current_user_id: 2, user_id: 1 })])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Shared chat" }))
+
+    expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Delete Chat" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Hide Chat" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
+  })
+})
+
 describe("RecentChatsSidebar bookmarks menu", () => {
   function renderWithBookmarks(bookmarks: ChatBookmark[], chatId = 1) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -1034,6 +1056,8 @@ describe("RecentChatsSidebar overflow menu slug", () => {
 function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
   return {
     id: 1,
+    current_user_id: 1,
+    user_id: 1,
     title: "Chat",
     title_pending: false,
     pinned: false,

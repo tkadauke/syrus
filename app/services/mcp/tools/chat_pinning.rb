@@ -29,7 +29,8 @@ module Mcp::Tools
       id ||= chat_session.id
 
       target = find_chat_session!(id)
-      if target.hidden_at.present? || target.deleted_at.present?
+      participant = target.chat_participants.find_by(user_id: chat_session.user_id)
+      if participant&.hidden_at.present? || target.deleted_at.present?
         raise AuthorizationSupport::AuthorizationError, "chat session not found or not accessible"
       end
 
