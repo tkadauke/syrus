@@ -19,7 +19,7 @@ RSpec.describe Steps::CoveragePrComment do
 
   before do
     job.user.update!(github_handle: "operator")
-    allow(GithubClient).to receive(:for).and_return(fake_client)
+    allow(GithubClient).to receive(:for_authorship).and_return(fake_client)
   end
 
   context "when coverage artifact has no pr_comment_body" do
@@ -77,6 +77,31 @@ RSpec.describe Steps::CoveragePrComment do
         ).and_return([])
         allow(fake_client).to receive(:add_issue_comment)
         handler.call
+      end
+
+      it "uses the Job authorship credential when an App installation is active" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "syrus-local")
+        job.user.update!(github_token: "ghp_operator_token")
+        installation = Factories.installation(
+          user: job.user,
+          cached_token: "installation-token",
+          cached_token_expires_at: 1.hour.from_now
+        )
+        job.repository.update!(installation: installation)
+        job.update!(credential_mode: "pat")
+        comments_url = "https://api.github.com/repos/#{job.repository.slug}/issues/42/comments"
+        list_request = stub_request(:get, comments_url)
+          .with(query: hash_including({}), headers: { "Authorization" => "token ghp_operator_token" })
+          .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json)
+        post_request = stub_request(:post, comments_url)
+          .with(headers: { "Authorization" => "token ghp_operator_token" })
+          .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: { id: 99 }.to_json)
+
+        expect(GithubClient).to receive(:for_authorship).and_call_original
+        handler.call
+
+        expect(list_request).to have_been_requested
+        expect(post_request).to have_been_requested
       end
     end
 

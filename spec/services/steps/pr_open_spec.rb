@@ -38,7 +38,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     before do
       job.update!(pr_number: 42)
-      allow(GithubClient).to receive(:for).and_return(client)
+      allow(GithubClient).to receive(:for_authorship).and_return(client)
     end
 
     {
@@ -52,6 +52,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
         expect(client).not_to receive(:update_issue_comment)
         expect(client).to receive(:add_issue_comment).with(repository.slug, 42, "#{marker}\nnew report")
+        expect(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
 
         handler.send(method_name)
       end
