@@ -1456,6 +1456,15 @@ module WorkEngine
         end
       end
 
+      class ActiveWorkUnitTerminalWorkflowLocks < Base
+        def plan
+          operator_plan(
+            "retire_terminal_work_unit",
+            "Retire the active WorkUnit attached to a terminal Workflow after confirming it has no queued or running Runs."
+          )
+        end
+      end
+
       class TerminalWorkUnitActiveChildren < Base
         def plan
           automatic_plan(
