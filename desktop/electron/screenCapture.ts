@@ -1,4 +1,13 @@
-import { desktopCapturer, screen, session, systemPreferences } from "electron"
+import {
+  BrowserWindow,
+  desktopCapturer,
+  dialog,
+  screen,
+  session,
+  systemPreferences,
+  type MessageBoxOptions,
+  type WebContents
+} from "electron"
 
 // Screen + microphone capture for the walkthrough recorder.
 //
@@ -11,16 +20,51 @@ import { desktopCapturer, screen, session, systemPreferences } from "electron"
 // (see build/entitlements.mac.plist and electron-builder.yml) AND the OS-level
 // microphone permission is granted — which we pre-warm below.
 
-// Approve the renderer's permission requests/checks so getUserMedia(audio) and
-// getDisplayMedia aren't denied at the Electron layer. This is a trusted
-// first-party shell loading only Syrus's own web app; without any handler
-// Electron already approves these by default, so granting explicitly is not a
-// widening of trust — it just makes the media surface deterministic across
-// platforms (and macOS TCC still gates the actual mic/screen access).
-export const registerMediaPermissionHandlers = () => {
+export type TrustedCaptureContext = {
+  webContents: WebContents | null
+  origin: string | null
+}
+
+type TrustedCaptureContextProvider = () => TrustedCaptureContext
+
+const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "clipboard-sanitized-write"])
+
+const matchesOrigin = (url: string, expectedOrigin: string | null): boolean => {
+  if (!expectedOrigin) return false
+
+  try {
+    return new URL(url).origin === expectedOrigin
+  } catch {
+    return false
+  }
+}
+
+// Permission handlers belong to the default session, which is shared by every
+// desktop window. Keep the grant narrower than that session: only the current
+// Syrus web-app window, its configured origin, its top frame, and the three
+// permissions the shell actually needs may pass.
+export const registerMediaPermissionHandlers = (trustedContext: TrustedCaptureContextProvider) => {
   const activeSession = session.defaultSession
-  activeSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(true))
-  activeSession.setPermissionCheckHandler(() => true)
+  activeSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const trusted = trustedContext()
+    callback(
+      trusted.webContents !== null &&
+        webContents === trusted.webContents &&
+        ALLOWED_PERMISSIONS.has(permission) &&
+        details.isMainFrame &&
+        matchesOrigin(details.requestingUrl, trusted.origin)
+    )
+  })
+  activeSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    const trusted = trustedContext()
+    return (
+      trusted.webContents !== null &&
+      webContents === trusted.webContents &&
+      ALLOWED_PERMISSIONS.has(permission) &&
+      details.isMainFrame &&
+      matchesOrigin(requestingOrigin, trusted.origin)
+    )
+  })
 }
 
 export const prewarmMicrophonePermission = async (): Promise<boolean> => {
@@ -47,9 +91,43 @@ const pickScreenSource = (sources: Electron.DesktopCapturerSource[]): Electron.D
   return sources[0]
 }
 
-export const registerScreenCaptureHandler = () => {
+export const registerScreenCaptureHandler = (trustedContext: TrustedCaptureContextProvider) => {
   session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
+    async (request, callback) => {
+      const trusted = trustedContext()
+      if (
+        !trusted.webContents ||
+        request.frame !== trusted.webContents.mainFrame ||
+        !matchesOrigin(request.securityOrigin, trusted.origin)
+      ) {
+        callback({})
+        return
+      }
+
+      const parent = BrowserWindow.fromWebContents(trusted.webContents)
+      const confirmationOptions: MessageBoxOptions = {
+        type: "question",
+        buttons: ["Share screen", "Cancel"],
+        defaultId: 1,
+        cancelId: 1,
+        title: "Share your screen?",
+        message: "Syrus wants to record your entire screen.",
+        detail: "Everything visible on the selected display may appear in the walkthrough."
+      }
+      let confirmed = false
+      try {
+        const confirmation = parent
+          ? await dialog.showMessageBox(parent, confirmationOptions)
+          : await dialog.showMessageBox(confirmationOptions)
+        confirmed = confirmation.response === 0
+      } catch {
+        confirmed = false
+      }
+      if (!confirmed) {
+        callback({})
+        return
+      }
+
       // Pre-warm the microphone TCC prompt HERE (recording is starting), so the
       // renderer's getUserMedia(audio) fired right after captures real narration
       // instead of a silent track. Best-effort + macOS-only.
