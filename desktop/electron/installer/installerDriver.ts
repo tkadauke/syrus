@@ -124,6 +124,12 @@ type InstallerEvent = {
 type DriverDeps = {
   onState: (state: OnboardingState) => void
   onLogLine: (line: OnboardingLogLine) => void
+  createRuntimeInstallerDir?: () => Promise<string>
+  downloadRuntimeInstaller?: typeof downloadDockerDesktopInstaller
+  verifyRuntimeInstaller?: typeof verifyDockerDesktopInstaller
+  runRuntimeInstaller?: typeof runDockerDesktopInstaller
+  findDockerBinary?: typeof findDockerBinary
+  daemonUp?: typeof daemonUp
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -181,7 +187,10 @@ export class OnboardingDriver {
   private lastPullPercent: number | null = null
   private lastPullEmitAt = 0
 
-  constructor(private deps: DriverDeps) {}
+  constructor(
+    private deps: DriverDeps,
+    private platform: NodeJS.Platform = process.platform
+  ) {}
 
   getState() {
     return this.state
@@ -451,7 +460,7 @@ export class OnboardingDriver {
   // download. The field flow this replaces: browser download page → manual
   // installer → forced reboot → first-run agreement modal Syrus couldn't see.
   async installRuntime() {
-    if (process.platform !== "win32" || this.state.phase !== "local.runtimeMissing") {
+    if (this.platform !== "win32" || this.state.phase !== "local.runtimeMissing") {
       return
     }
 
@@ -461,19 +470,42 @@ export class OnboardingDriver {
 
     const installAbort = new AbortController()
     this.installAbort = installAbort
-    const installerDir = await fs.mkdtemp(path.join(app.getPath("temp"), "syrus-docker-desktop-"))
-    const installerPath = path.join(installerDir, "Docker Desktop Installer.exe")
+    this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent: 0 })
 
     // setState mutates this.state across awaits, which TS's narrowing can't
     // see — same widening-closure pattern as connectRemote's stillChecking().
     const stillInstalling = (step?: "downloading" | "installing") => {
       const current = this.state as OnboardingState
-      return current.phase === "local.runtimeInstalling" && (step === undefined || current.step === step)
+      return (
+        this.installAbort === installAbort &&
+        current.phase === "local.runtimeInstalling" &&
+        (step === undefined || current.step === step)
+      )
     }
 
-    this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent: 0 })
+    let installerDir: string
     try {
-      await downloadDockerDesktopInstaller(
+      installerDir = this.deps.createRuntimeInstallerDir
+        ? await this.deps.createRuntimeInstallerDir()
+        : await fs.mkdtemp(path.join(app.getPath("temp"), "syrus-docker-desktop-"))
+    } catch (error) {
+      if (!stillInstalling("downloading")) return
+      this.installAbort = null
+      await this.showRuntimeMissing(
+        false,
+        `${errorMessage(error, "Could not create a temporary installer directory.")} You can retry, or download Docker Desktop manually.`
+      )
+      return
+    }
+
+    if (!stillInstalling("downloading")) {
+      await fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
+      return
+    }
+
+    const installerPath = path.join(installerDir, "Docker Desktop Installer.exe")
+    try {
+      await (this.deps.downloadRuntimeInstaller ?? downloadDockerDesktopInstaller)(
         installerPath,
         (percent) => {
           if (stillInstalling("downloading")) {
@@ -504,8 +536,8 @@ export class OnboardingDriver {
 
     this.setState({ phase: "local.runtimeInstalling", step: "installing", percent: null })
     try {
-      await verifyDockerDesktopInstaller(installerPath)
-      await runDockerDesktopInstaller(installerPath, installAbort.signal)
+      await (this.deps.verifyRuntimeInstaller ?? verifyDockerDesktopInstaller)(installerPath)
+      await (this.deps.runRuntimeInstaller ?? runDockerDesktopInstaller)(installerPath, installAbort.signal)
     } catch (error) {
       if (!stillInstalling()) {
         return
@@ -597,8 +629,10 @@ export class OnboardingDriver {
       let polls = 0
       const tick = async () => {
         if (generation !== this.pollGeneration) return
-        if ((await findDockerBinary()) && (await daemonUp())) {
-          if (generation !== this.pollGeneration) return
+        const binary = await (this.deps.findDockerBinary ?? findDockerBinary)()
+        const ready = binary ? await (this.deps.daemonUp ?? daemonUp)() : false
+        if (generation !== this.pollGeneration) return
+        if (ready) {
           this.finishPolling()
           resolve(true)
           return
