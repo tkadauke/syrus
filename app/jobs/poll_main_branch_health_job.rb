@@ -87,7 +87,10 @@ class PollMainBranchHealthJob < ApplicationJob
       # carried-forward "broken" that has since turned green never gets corrected
       # (the guard would early-return because main_health isn't "unknown").
       ci_evaluated = repository.last_ci_evaluated_sha == sha
-      if !sha_changed && !repository.main_health_unknown? && !grading_needed && ci_evaluated
+      # "not_configured" is never conclusive: an empty read right after a push
+      # usually means GitHub hasn't created the check runs yet, so keep
+      # re-reading until real checks show up.
+      if !sha_changed && !repository.main_health_unknown? && !grading_needed && ci_evaluated && !repository.ci_health_not_configured?
         MainHealthChangedService.ensure_repair_job!(repository) if repository.main_health_broken?
         return
       end
@@ -129,7 +132,13 @@ class PollMainBranchHealthJob < ApplicationJob
 
       if summary[:pending?]
         # Checks still running. Keep ci_health unknown so later polls keep
-        # refreshing this same SHA until GitHub reaches a terminal result.
+        # refreshing this same SHA until GitHub reaches a terminal result. An
+        # earlier empty read ("not_configured") was premature; undo it.
+        if repository.ci_health_not_configured?
+          repository.update_columns(ci_health: "unknown", last_ci_evaluated_sha: nil)
+          repository.reload
+          MainHealthChangedService.on_health_change!(repository) if repository.main_health != previous_health
+        end
         return
       end
 

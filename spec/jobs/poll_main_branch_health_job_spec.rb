@@ -159,6 +159,24 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.last_health_checked_sha).to eq(sha)
   end
 
+  it "re-reads a not_configured SHA and resets it when checks appear pending, then detects red" do
+    stub_sha(sha)
+    stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false })
+    described_class.perform_now(repository.id)
+    repository.update!(last_graded_sha: sha, grader_health: "healthy")
+    expect(repository.reload.ci_health).to eq("not_configured")
+
+    stub_check_runs({ any?: true, pending?: true, any_failed?: false, all_passed?: false })
+    described_class.perform_now(repository.id)
+    repository.reload
+    expect(repository.ci_health).to eq("unknown")
+    expect(repository.last_ci_evaluated_sha).to be_nil
+
+    stub_check_runs({ any?: true, pending?: false, any_failed?: true, all_passed?: false, any_cancelled?: false, failed_checks: [] })
+    described_class.perform_now(repository.id)
+    expect(repository.reload.ci_health).to eq("broken")
+  end
+
   it "skips the job early when SHA matches last checked, health is known, and SHA has been graded" do
     repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, last_ci_evaluated_sha: sha, ci_health: "healthy", grader_health: "healthy")
     stub_sha(sha)
