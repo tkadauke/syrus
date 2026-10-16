@@ -55,17 +55,21 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
       set_run_usage(older.initial_run, 8.00, input_tokens: 800, output_tokens: 80, created_at: Time.zone.parse("2026-05-01 12:00:00"))
       set_run_usage(other_repo_job.initial_run, 2.50, input_tokens: 200, output_tokens: 40, created_at: Time.zone.parse("2026-06-23 12:00:00"))
       set_run_usage(other_user_job.initial_run, 9.99, input_tokens: 900, output_tokens: 90, created_at: Time.zone.parse("2026-06-23 12:00:00"))
+      ChatSession.create!(user: user, cumulative_cost_usd: 0.75, created_at: Time.zone.parse("2026-01-01 12:00:00"))
 
       response = call_tool("get_spending", window: "7d", repository_id: repository.id)
       body = payload(response)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(total_cost_usd: 1.25, total_input_tokens: 100, total_output_tokens: 20)
+      expect(body).to include(total_cost_usd: 9.25, total_input_tokens: 100, total_output_tokens: 20)
       expect(body[:top_runs]).to contain_exactly(job_id: mine.id, title: "Mine", cost_usd: 1.25)
       expect(body[:by_day].size).to eq(7)
       expect(body[:by_day].select { |point| point[:cost_usd].positive? }).to eq([
         { date: "2026-06-23", cost_usd: 1.25 }
       ])
+
+      all_repositories_body = payload(call_tool("get_spending", window: "7d"))
+      expect(all_repositories_body[:total_cost_usd]).to eq(12.5)
     end
   end
 

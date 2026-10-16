@@ -1642,6 +1642,11 @@ chart, and the most expensive individual Runs. When spending exists across
 multiple agent providers, the dashboard can filter those views by model
 provider such as Claude Code or Codex.
 
+The date window controls the trend, breakdowns, and top Runs, while the week,
+month, and lifetime summaries keep their calendar meanings independently of
+that window. Lifetime combines workflow and chat costs. CLI date bounds can
+also be supplied independently to select everything since or until a date.
+
 Chat can query the same spending data for 7-, 30-, or 90-day windows,
 optionally narrowed to a repository or Epic, and returns the daily trend,
 token totals, and the most expensive Runs for the current operator.

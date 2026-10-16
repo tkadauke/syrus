@@ -4,6 +4,13 @@ Spending Insights adds a sidebar page rolling up agent spend by epic, repository
 workflow trigger kind. It reads existing accounting data (`Run#cost_usd`, `ChatSession#cumulative_cost_usd`)
 and does not change scheduling, grading, or job behavior.
 
+The selected date window controls the trend, breakdowns, and top Runs. The
+"This week", "This month", and "Lifetime" summaries use those calendar
+periods independently of the selected window while retaining applicable
+user, repository, Epic, provider, and trigger filters. Lifetime includes both
+workflow and chat costs. CLI `--since` and `--until` flags may be used together
+or independently; a lone flag creates an open-ended date filter.
+
 ## Metrics
 
 While enabled, exports one Prometheus counter to `/metrics` (see `config/syrus_docs/metrics.md`):
