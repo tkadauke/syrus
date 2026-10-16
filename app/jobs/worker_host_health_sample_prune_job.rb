@@ -4,7 +4,7 @@ class WorkerHostHealthSamplePruneJob < ApplicationJob
   queue_as :cleanup
 
   def perform
-    deleted = WorkerHostHealthSample.prunable.delete_all
+    deleted = RetentionPruner.call(scope: WorkerHostHealthSample.prunable)
     Rails.logger.info("[WorkerHostHealthSamplePruneJob] deleted #{deleted} worker host health samples") if deleted > 0
   end
 end
