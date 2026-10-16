@@ -146,6 +146,7 @@
   "dictation_browser_active": "Listening with browser dictation…",
   "dictation_too_large": "Dictation audio is too large.",
   "chat_attachments": "Chat attachments",
+  "attachment_unsupported_type": "{{name}} is not a supported type (images or PDF).",
   "open_workspace": "Open workspace panel",
   "open_panel": "Open panel",
   "resize_workspace": "Resize chat workspace",

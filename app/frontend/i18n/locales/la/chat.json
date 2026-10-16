@@ -146,6 +146,7 @@
   "dictation_browser_active": "Navigator dictationem audit…",
   "dictation_too_large": "Sonus dictationis nimis magnus est.",
   "chat_attachments": "Additamenta colloquii",
+  "attachment_unsupported_type": "{{name}} genus non admissum est (imagines vel PDF).",
   "open_workspace": "Spatium operis aperire",
   "open_panel": "Tabulam aperire",
   "resize_workspace": "Spatium operis variare",

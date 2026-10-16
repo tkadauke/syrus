@@ -29,7 +29,7 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
-import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
+import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_ACCEPT, CHAT_ATTACHMENT_ALLOWED_MIME_TYPES, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
@@ -928,6 +928,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   function attachmentValidationMessage(nextAttachments: ChatComposeAttachment[]) {
+    const unsupported = nextAttachments.find((attachment) =>
+      !CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.includes(attachment.mimeType)
+    )
+    if (unsupported) {
+      return t("attachment_unsupported_type", { name: unsupported.name })
+    }
+
     if (nextAttachments.some((attachment) => attachment.size > CHAT_ATTACHMENT_MAX_BYTES)) {
       return "Each attachment must be 5 MB or smaller."
     }
@@ -1827,7 +1834,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                       ) : null}
                     </>
                   ) : (
-                    <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+                    <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">{attachment.mimeType === "application/pdf" ? "PDF" : attachment.mimeType.split("/").at(-1)?.toUpperCase()}</span>
                   )}
                   <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
                   <button aria-label={`Remove ${attachment.name}`} className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
@@ -1888,7 +1895,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <Input
-          accept={walkthroughsEnabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
+          accept={walkthroughsEnabled ? `${CHAT_ATTACHMENT_ACCEPT},video/webm,video/mp4,video/quicktime` : CHAT_ATTACHMENT_ACCEPT}
           aria-label={t("chat_attachments")}
           className="hidden"
           disabled={send.isPending || systemAction.isPending}

@@ -146,6 +146,7 @@
   "dictation_browser_active": "Browser-Diktat hört zu…",
   "dictation_too_large": "Diktat-Audio ist zu groß.",
   "chat_attachments": "Chat-Anhänge",
+  "attachment_unsupported_type": "{{name}} ist kein unterstützter Dateityp (Bilder oder PDF).",
   "open_workspace": "Arbeitsbereich öffnen",
   "open_panel": "Bereich öffnen",
   "resize_workspace": "Arbeitsbereich skalieren",

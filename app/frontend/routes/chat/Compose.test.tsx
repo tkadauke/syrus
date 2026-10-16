@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -113,5 +113,31 @@ describe("Compose walkthrough recorder errors", () => {
     renderCompose()
 
     expect(await screen.findByText("This browser cannot record the screen. Drag a video file in instead.")).toBeInTheDocument()
+  })
+})
+
+describe("Compose attachments", () => {
+  it("rejects unsupported files before reading or adding them", async () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+
+    renderCompose()
+
+    const input = screen.getByLabelText("Chat attachments")
+    expect(input).toHaveAttribute("accept", "image/jpeg,image/png,image/gif,image/webp,application/pdf,video/webm,video/mp4,video/quicktime")
+
+    fireEvent.change(input, { target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] } })
+
+    expect(await screen.findByText("notes.txt is not a supported type (images or PDF).")).toBeInTheDocument()
+    expect(screen.queryByTitle("notes.txt")).not.toBeInTheDocument()
   })
 })
