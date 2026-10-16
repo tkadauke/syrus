@@ -70,6 +70,7 @@ module Workflows
     def fail!
       return if Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)
       return if newer_active_workflow?
+      return if job.implemented? || job.approved? || job.landing? || job.closed?
 
       if no_changes_produced_failure?
         return unless job.may_close?
@@ -177,10 +178,9 @@ module Workflows
     end
 
     def no_changes_produced_failure?
-      workflow.runs.where(state: "failed")
-        .joins(:run_diagnostic)
-        .where(run_diagnostics: { error_class: "Steps::Base::NoChangesProduced" })
-        .exists?
+      latest_failed_run = workflow.runs.where(state: "failed").reorder(created_at: :desc, id: :desc).first
+
+      latest_failed_run&.run_diagnostic&.error_class == "Steps::Base::NoChangesProduced"
     end
 
     def cancelled_rebase_without_runs_on_triaging_job?
