@@ -340,6 +340,14 @@ health is warning-only and does not hold queued work or the landing queue by
 itself. Internal main-branch grader checks still start and dispatch ahead of
 urgent Jobs so the repository health signal stays current.
 
+For GitHub Actions, main-branch CI health includes checks from every workflow
+run triggered by a push to the checked default-branch commit, regardless of
+whether the workflow is named `CI`, `Tests`, `build`, or something else.
+Non-push runs, such as manually dispatched release workflows, do not affect
+that signal. If GitHub omits a run from the workflow metadata lookup, Syrus
+keeps its checks instead of treating the repository as though CI were not
+configured.
+
 A single failed request to GitHub while polling main branch health does not
 change the health signal — Syrus just retries on the next poll. Only a
 sustained GitHub-side outage (several consecutive failed polls) downgrades an
