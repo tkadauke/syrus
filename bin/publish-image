@@ -154,7 +154,13 @@ if [ "$NO_PUSH" = 1 ]; then
   exit 0
 fi
 
-# Tests passed — push.
+# Publish plugin service images before making the backend available. A plugin
+# image nothing references yet is harmless; a backend whose service images are
+# missing or stale is not.
+echo "== Publishing plugin service images =="
+./bin/publish-plugin-images ${plugin_args[@]+"${plugin_args[@]}"} --no-login
+
+# Tests passed and every plugin image is available — publish the backend.
 if [ "$MULTI" = 1 ]; then
   echo "== Building + pushing multi-arch (amd64 + arm64) — the non-host arch is slow under QEMU =="
   # Local convenience only: whichever arch is NOT this host builds under QEMU
@@ -163,7 +169,7 @@ if [ "$MULTI" = 1 ]; then
   # build cache from above; only the host-arch variant was integration-tested.
   syrus_docker_buildx_image worker-dev "$GIT_SHA" --version="$VERSION" --built-at="$BUILT_AT" \
     --platform linux/amd64,linux/arm64 \
-    "${cache_args[@]}" \
+    ${cache_args[@]+"${cache_args[@]}"} \
     --provenance=false \
     "${tags[@]}" \
     --push \
@@ -176,13 +182,6 @@ fi
 
 if [ "$SKIP_LATEST" = 0 ]; then syrus_verify_pushed "$IMAGE" "latest"; fi
 if [ -n "$VERSION" ]; then syrus_verify_pushed "$IMAGE" "$VERSION"; fi
-
-# The plugin service images Plugin Runtime starts (plugins/*/container), with
-# the same tags, so this release's backend finds its own services. Only after
-# the backend is pushed: an image nothing references yet is harmless, a
-# backend whose services are missing is not.
-echo "== Publishing plugin service images =="
-./bin/publish-plugin-images ${plugin_args[@]+"${plugin_args[@]}"} --no-login
 
 echo
 echo "Published:"
