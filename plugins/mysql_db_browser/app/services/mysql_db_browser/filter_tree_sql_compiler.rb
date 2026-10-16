@@ -17,9 +17,10 @@ module MysqlDbBrowser
       "months" => 2_592_000
     }.freeze
 
-    def initialize(client:, filter_schema:)
+    def initialize(client:, filter_schema:, identifier_prefix: nil)
       @context = CompilationContext.new(client)
       @fields = filter_schema.index_by { |field| field[:field].to_s }
+      @identifier_prefix = identifier_prefix
     end
 
     # tree is the JSON-friendly Hash a FilterBar chip-bar submits (already
@@ -88,7 +89,7 @@ module MysqlDbBrowser
     end
 
     def quote_identifier(name)
-      SqlIdentifier.quote(name)
+      [ @identifier_prefix.presence, name ].compact.map { |part| SqlIdentifier.quote(part) }.join(".")
     end
 
     class CompilationContext
