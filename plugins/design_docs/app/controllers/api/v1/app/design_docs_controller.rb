@@ -162,11 +162,17 @@ module Api
 
         def accept_suggestion
           result = review_suggestion(:accept)
-          status = result.applied ? :ok : :conflict
+          unless result.applied
+            return render_error(
+              "conflict",
+              result.suggestion.conflict_reason.presence || "Suggestion can no longer be applied.",
+              status: :conflict
+            )
+          end
 
           payload = { design_doc: serializer.detail(result.design_doc, user: Current.user), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
           payload[:version] = serializer.version(result.version) if result.version
-          render json: payload, status: status
+          render json: payload
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
