@@ -3,6 +3,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
   # Allow one missed pong before treating the connection as lost.
   HEARTBEAT_TIMEOUT  = 45.seconds
   DISPATCH_POLL      = 0.5.seconds
+  THREAD_ERROR_BACKOFF = 1.second
 
   def subscribed
     return reject unless Feature.local_mode_enabled?
@@ -147,11 +148,12 @@ class LocalTunnelChannel < ApplicationCable::Channel
     @heartbeat_thread = Thread.new do
       loop do
         sleep HEARTBEAT_INTERVAL
-        transmit({ type: "ping" })
-        check_heartbeat_timeout
+        with_rails_context do
+          heartbeat_tick
+        end
       rescue => e
         Rails.logger.error("LocalTunnelChannel heartbeat error: #{e.message}")
-        break
+        sleep THREAD_ERROR_BACKOFF
       end
     end
   end
@@ -169,12 +171,33 @@ class LocalTunnelChannel < ApplicationCable::Channel
     @dispatch_thread = Thread.new do
       loop do
         sleep DISPATCH_POLL
-        drain_queued_tool_calls
+        with_rails_context do
+          dispatch_tick
+        end
       rescue => e
         Rails.logger.error("LocalTunnelChannel dispatch error: #{e.message}")
-        break
+        sleep THREAD_ERROR_BACKOFF
       end
     end
+  end
+
+  def with_rails_context(&block)
+    Rails.application.executor.wrap do
+      ActiveRecord::Base.connection_pool.with_connection(&block)
+    end
+  end
+
+  def heartbeat_tick
+    return unless current_connection?
+
+    transmit({ type: "ping" })
+    check_heartbeat_timeout
+  end
+
+  def dispatch_tick
+    return unless current_connection?
+
+    drain_queued_tool_calls
   end
 
   def stop_threads

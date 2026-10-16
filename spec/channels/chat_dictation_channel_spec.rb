@@ -128,6 +128,25 @@ RSpec.describe ChatDictationChannel, type: :channel do
     expect(transmissions.last).to include("type" => "cancelled")
   end
 
+  it "checks out a connection inside the Rails executor for timeout work" do
+    enable_speech_to_text!
+    stub_streaming_provider!
+    subscribe(chat_session_id: chat.id)
+    execution = []
+    allow(Rails.application.executor).to receive(:wrap) do |&block|
+      execution << :executor
+      block.call
+    end
+    allow(ActiveRecord::Base.connection_pool).to receive(:with_connection) do |&block|
+      execution << :connection
+      block.call
+    end
+
+    subscription.send(:with_rails_context) { execution << :work }
+
+    expect(execution).to eq(%i[executor connection work])
+  end
+
   class FakeStreamingProvider
     attr_reader :requests
 
