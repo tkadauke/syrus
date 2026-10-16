@@ -75,6 +75,9 @@ jobs:
   # never walked backwards, then apply the requested bump.
   # ---------------------------------------------------------------------------
   prepare:
+    # Manual dispatch lets the operator select any ref. Refuse unreviewed
+    # source before computing or handing work to the release graph.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.compute.outputs.version }} # X.Y.Z (no leading v)
@@ -154,9 +157,10 @@ jobs:
   # integration tests always on. `push_image` is gated on
   # a real run (a dry run builds + integration-tests both arches but pushes
   # nothing). Its jobs run as part of THIS graph, so `publish: needs: build`
-  # waits for the whole spine. secrets: inherit hands the module every signing
-  # secret; the module declares only contents:read + packages:write, a subset of
-  # this workflow's grants.
+  # waits for the whole spine. Signing credentials are intentionally NOT
+  # inherited from the caller: build-mac reads them only after entering the
+  # protected release-signing environment. The module declares only
+  # contents:read + packages:write, a subset of this workflow's grants.
   # ---------------------------------------------------------------------------
   build:
     needs: prepare
@@ -173,7 +177,6 @@ jobs:
       artifact_retention_days: 7
       run_integration_tests: true
       channel: stable
-    secrets: inherit
 
   # ---------------------------------------------------------------------------
   # Plugin service images (plugins/*/container) -- what Plugin Runtime starts
@@ -218,6 +221,9 @@ jobs:
   publish:
     needs: [prepare, build, plugin-images]
     if: needs.prepare.outputs.dry_run == 'false'
+    # This environment must restrict deployments to main and require reviewer
+    # approval. It is also the only home for release/signing credentials.
+    environment: release-signing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

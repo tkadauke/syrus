@@ -121,6 +121,16 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("jobs", "publish-website", "if")).to include("dry_run == 'false'")
   end
 
+  it "only releases reviewed main source and gates signing and publishing" do
+    workflow = YAML.safe_load(release_workflow)
+    build = YAML.safe_load(build_workflow)
+
+    expect(workflow.dig("jobs", "prepare", "if")).to eq("github.ref == 'refs/heads/main'")
+    expect(workflow.dig("jobs", "build")).not_to have_key("secrets")
+    expect(build.dig("jobs", "build-mac", "environment")).to eq("release-signing")
+    expect(workflow.dig("jobs", "publish", "environment")).to eq("release-signing")
+  end
+
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do
     # Signing is a hard requirement — even a dry run signs (it's the fragile
     # part worth rehearsing). The macOS guard refuses to build without it, and
