@@ -1,5 +1,5 @@
-# A TEST BUILD: deterministically build every shippable component from any
-# ref — the backend image is PUSHED to GHCR under a collision-proof test tag,
+# A TEST BUILD: deterministically build every shippable component from main —
+# the backend image is PUSHED to GHCR under a collision-proof test tag,
 # and the signed macOS DMG is built with that exact tag
 # manifested in — while making publishing structurally impossible.
 #
@@ -65,6 +65,9 @@ jobs:
   #   semver, unmistakably not a release).
   # ---------------------------------------------------------------------------
   prepare:
+    # workflow_dispatch exposes a ref picker, but signing and package pushes
+    # must only consume reviewed source from the default branch.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.compute.outputs.image_tag }} # test-<short-sha>
@@ -142,9 +145,10 @@ jobs:
   # test tag pinned into both installers (backend_image_pin), NO auto-update
   # feed staged, 14-day artifact retention. push_image is always true — uploading
   # the image is the whole point. run_integration_tests threads
-  # straight through from the dispatch inputs. secrets: inherit hands the module
-  # the signing secrets; the module's contents:read + packages:write matches
-  # this workflow's grants exactly.
+  # straight through from the dispatch inputs. Signing credentials are not
+  # inherited from this caller; build-mac reads them only through the protected
+  # release-signing environment. The module's contents:read + packages:write
+  # matches this workflow's grants exactly.
   # ---------------------------------------------------------------------------
   build:
     needs: prepare
@@ -163,4 +167,3 @@ jobs:
       # Fork the product name / appId / icon so this installs as "Syrus Test.app"
       # beside — never over — a production release.
       channel: test
-    secrets: inherit
