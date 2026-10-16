@@ -22,7 +22,7 @@ Tasks are usually created from a repository's Schedules tab (`/repositories/:id/
 
 ### cron
 
-Fires on a recurring schedule stored canonically as an RRULE in UTC. Operators enter natural cadence text such as `Every Monday at 9:00 AM`; five-field cron input (minute hour day-of-month month day-of-week) is also accepted and preserved in `legacy_cron_expression` for audit/compatibility. Recurring tasks fire at most once per hour — expressions that would fire more frequently are rejected.
+Fires on a recurring schedule stored canonically as an RRULE-compatible expression in UTC. Operators enter natural cadence text such as `Every Monday at 9:00 AM`; five-field cron input (minute hour day-of-month month day-of-week) is also accepted and preserved in `legacy_cron_expression` for audit/compatibility. Cron lists, ranges, and steps are supported, including day-of-week forms such as `1-5`, `*/2`, and `1-5/2`; both `0` and `7` mean Sunday. When day-of-month and day-of-week are both restricted, a date matching either field fires, following cron OR semantics (the canonical expression carries an `X-SYRUS-CRON-DAY-OR=TRUE` marker because standard RRULE combines those fields with AND). Recurring tasks fire at most once per hour — expressions that would fire more frequently are rejected.
 
 ```
 # Fire at 9:00 AM UTC every Monday

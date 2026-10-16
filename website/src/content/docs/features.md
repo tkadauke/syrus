@@ -576,7 +576,10 @@ supported cadence, Syrus can optionally hand it to an AI model to produce
 structured intent (frequency, day, time), which is then validated and
 canonicalized the same deterministic way as any other cadence — the model
 never writes the schedule directly, and firing itself never calls an AI
-model.
+model. Lists, ranges, and steps are supported in cron fields, including
+weekday schedules such as `0 9 * * 1-5`; both `0` and `7` mean Sunday. If
+day-of-month and day-of-week are both restricted, the schedule fires when
+either field matches, following standard cron semantics.
 
 The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
