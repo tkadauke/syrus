@@ -76,6 +76,7 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
 function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: RepositoryFormPayload; prefix: string }) {
   const { t } = useT("settings")
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const location = useLocation()
   const [values, setValues] = useState<RepositoryInput>(() => inputFromPayload(payload))
   const [repairTouched, setRepairTouched] = useState(mode === "edit")
@@ -92,7 +93,24 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
       if (mode === "new") return createRepository(values)
       return updateRepository(Number(payload.repository.id), values)
     },
-    onSuccess: (saved) => navigate(withRoutePrefix(saved.redirect_to, prefix))
+    onSuccess: (saved) => {
+      if (mode === "edit") {
+        queryClient.setQueryData<RepositoryFormPayload>(
+          ["repositories", "edit", String(payload.repository.id)],
+          (current) => current ? {
+            ...current,
+            repository: {
+              ...current.repository,
+              ...values,
+              github_owner_id: values.github_owner_id ? Number(values.github_owner_id) : null,
+              github_repository_id: values.github_repository_id ? Number(values.github_repository_id) : null
+            }
+          } : current
+        )
+      }
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] })
+      navigate(withRoutePrefix(saved.redirect_to, prefix))
+    }
   })
 
   const syncNow = useMutation({
