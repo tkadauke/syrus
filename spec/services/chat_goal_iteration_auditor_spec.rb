@@ -61,28 +61,39 @@ RSpec.describe ChatGoalIterationAuditor, type: :service do
       prompt: "Keep implementing",
       mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
     )
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      chat_goal: goal,
+      state: "queued",
+      issue_number: 12
+    )
+    state_changes = [
+      [ { state: "implemented" }, :publish_goal_implemented_event ],
+      [ { state: "approved" }, :publish_goal_approved_event ],
+      [ { state: "closed", closure_reason: "pr_merged" }, :publish_goal_closed_event ]
+    ]
+    signatures = []
+    base_time = Time.current
 
-    ChatGoal::MAX_CONSECUTIVE_NO_OP_ITERATIONS.times do |iteration|
-      ChatGoalWakeup.publish_work_event!(
-        goal: goal,
-        kind: "job_state_changed",
-        subject: "Job state changed",
-        summary: "Goal-linked work changed state.",
-        repository: repository,
-        work_state: { "state" => "running" },
-        dedupe_key: "goal:#{goal.id}:no-op:#{iteration}"
-      )
-      message = chat.chat_queued_messages.order(:id).last
+    state_changes.each_with_index do |(attributes, publish_event), index|
+      travel_to(base_time + index + 1) do
+        job.update!(attributes)
+        job.send(publish_event)
+        message = chat.chat_queued_messages.order(:id).last
 
-      described_class.after_turn!(chat_session: chat, user_message: message)
-      chat.update!(turn_in_flight: false)
+        described_class.after_turn!(chat_session: chat, user_message: message)
+        signatures << goal.reload.last_iteration_signature
+        chat.update!(turn_in_flight: false)
+      end
     end
 
+    expect(signatures.uniq.size).to eq(ChatGoal::MAX_CONSECUTIVE_NO_OP_ITERATIONS)
     expect(goal.reload).to have_attributes(
       status: "blocked",
       terminal_reason: "max_consecutive_no_op_iterations",
       consecutive_no_op_iterations: ChatGoal::MAX_CONSECUTIVE_NO_OP_ITERATIONS,
-      last_iteration_signature: "goal:#{goal.id}:empty"
+      last_iteration_signature: signatures.last
     )
     expect(chat.messages.order(:id).last.content["text"]).to eq(
       "Goal blocked after 3 continuation turns made no provenance-linked progress."
