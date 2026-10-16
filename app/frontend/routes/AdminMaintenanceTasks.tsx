@@ -23,6 +23,7 @@ import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
 import { FilterBar } from "../components/FilterBar"
 import { Modal } from "../components/Modal"
+import { MutationError } from "../components/MutationError"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { DataTable, Page, StatusPill, TonePill } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
@@ -48,7 +49,11 @@ export function AdminMaintenanceTasks() {
   })
   const discover = useMutation({
     mutationFn: discoverMaintenanceTasks,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] })
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] })
+      ])
   })
 
   return (
@@ -61,6 +66,7 @@ export function AdminMaintenanceTasks() {
         <Button disabled={discover.isPending} onClick={() => discover.mutate()} variant="secondary">
           {discover.isPending ? t("maintenance_tasks.checking") : t("maintenance_tasks.check_now")}
         </Button>
+        {discover.isError ? <MutationError error={discover.error} fallback={t("maintenance_tasks.error_action")} /> : null}
       </Page.Header>
 
       {tasks.isPending ? <AdminEventPanelMessage>{t("maintenance_tasks.loading")}</AdminEventPanelMessage> : null}
@@ -107,9 +113,11 @@ export function AdminMaintenanceTaskDetail() {
   })
   const action = useMutation({
     mutationFn: (name: "start" | "pause" | "resume" | "cancel" | "dismiss") => runMaintenanceTaskAction(id || "", name),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] })
-    }
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] })
+      ])
   })
 
   if (detail.isPending) {
@@ -138,6 +146,7 @@ export function AdminMaintenanceTaskDetail() {
       <Link className={adminEventLinkClass()} to={withRoutePrefix("/admin/maintenance_tasks", prefix)}>
         {t("maintenance_tasks.back_link")}
       </Link>
+      {action.isError ? <MutationError error={action.error} fallback={t("maintenance_tasks.error_action")} /> : null}
       <p className="max-w-3xl text-sm text-text-muted">{task.summary}</p>
       <TaskProgress task={task} large />
       <LandedCommitBackfillFailures task={task} />
@@ -452,7 +461,7 @@ export function TaskActions({
           <TaskActionButton action="start" busy={busy} compact={compact} onClick={() => onAction("start")} />
         ) : null}
         {task.state === "paused" ? <TaskActionButton action="resume" busy={busy} compact={compact} onClick={() => onAction("resume")} /> : null}
-        {["pending", "failed", "dismissed"].includes(task.state) ? (
+        {["pending", "failed"].includes(task.state) ? (
           <TaskActionButton action="dismiss" busy={busy} compact={compact} onClick={() => onAction("dismiss")} />
         ) : null}
         {["running", "paused"].includes(task.state) ? <TaskActionButton action="cancel" busy={busy} compact={compact} onClick={() => void cancel()} /> : null}

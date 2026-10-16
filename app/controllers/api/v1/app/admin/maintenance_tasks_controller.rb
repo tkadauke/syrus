@@ -3,6 +3,8 @@ module Api
     module App
       module Admin
         class MaintenanceTasksController < BaseController
+          rescue_from ArgumentError, with: :render_action_conflict
+
           def index
             render json: ::App::MaintenanceTasksPayload.index(params: params)
           end
@@ -37,6 +39,10 @@ module Api
           end
 
           private
+
+          def render_action_conflict(error)
+            render_error("maintenance_task_conflict", error.message, status: :conflict)
+          end
 
           def task
             @task ||= MaintenanceTask.find(params[:id])

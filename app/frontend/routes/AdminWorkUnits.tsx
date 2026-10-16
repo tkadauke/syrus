@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
+import { MutationError } from "../components/MutationError"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { fetchAdminWorkUnits, type AdminWorkUnitsPayload, type LinkedJob, type WorkIntentSummary, type WorkUnitSummary } from "../api/adminWorkUnits"
@@ -27,6 +28,12 @@ export function AdminWorkUnits() {
   const toggleDebug = useMutation({
     mutationFn: (enabled: boolean) => updateAdminSettings({ show_work_unit_debug: enabled }),
     onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin", "work_units"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin", "settings"] })
+      ])
+    },
+    onError: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["admin", "work_units"] }),
         queryClient.invalidateQueries({ queryKey: ["admin", "settings"] })
@@ -63,6 +70,7 @@ export function AdminWorkUnits() {
       eyebrow={t("section_label")}
       title={t("work_units.heading")}
     >
+      {toggleDebug.isError ? <MutationError error={toggleDebug.error} fallback={t("work_units.mutation_error")} /> : null}
       <AdminEventFilterBar clearLabel={t("work_units.clear_filters")} filter={workUnits.data?.filter} filterSchema={workUnits.data?.filter_schema} fields={[
         { name: "intent_state", label: t("work_units.filter_intent_state") },
         { name: "intent_kind", label: t("work_units.filter_intent_kind") },

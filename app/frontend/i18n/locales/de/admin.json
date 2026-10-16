@@ -234,6 +234,7 @@
     "timeline_empty": "Keine Browser-Fehler in diesem gefilterten Zeitfenster."
   },
   "users": {
+    "mutation_error": "Der Benutzer konnte nicht aktualisiert werden.",
     "heading": "Benutzer",
     "loading": "Benutzer werden geladen...",
     "loading_user": "Benutzer wird geladen...",
@@ -710,6 +711,7 @@
     "popup_blocked_suffix": "manuell."
   },
   "installations": {
+    "refresh_error": "Die Installationssynchronisierung konnte nicht gestartet werden.",
     "heading": "GitHub-App-Installationen",
     "description": "Syrus nutzt die GitHub-App für Repositories mit aktiver Installation. Repositories ohne eine solche nutzen das persönliche Zugriffstoken als Fallback.",
     "loading": "Installationen werden geladen...",
@@ -805,6 +807,7 @@
     "page_of": "Seite {{page}} von {{total}}"
   },
   "console": {
+    "mutation_error": "Die Operatoreinstellung konnte nicht aktualisiert werden.",
     "heading": "Betreiberkonsole",
     "loading": "Konsole wird geladen...",
     "error_load": "Betreiberkonsole konnte nicht geladen werden.",
@@ -954,6 +957,9 @@
     "no_tool_calls": "keine Tool-Aufrufe"
   },
   "processes": {
+    "kill_error": "Der Prozess konnte nicht beendet werden.",
+    "kill_confirm": "SIGKILL an Prozess #{{id}} senden?",
+    "keep_running": "Weiterlaufen lassen",
     "heading": "Prozesse",
     "loading": "Prozesse werden geladen...",
     "error_load": "Prozesse konnten nicht geladen werden.",
@@ -1150,6 +1156,7 @@
   "nav_maintenance_tasks": "Wartungsaufgaben",
   "nav_backend_exceptions": "Backend-Ausnahmen",
   "maintenance_tasks": {
+    "error_action": "Die Wartungsaktion ist fehlgeschlagen.",
     "page_title": "Wartungsaufgaben — Administration",
     "heading": "Wartungsaufgaben",
     "aria": "Wartungsaufgaben",
@@ -1219,6 +1226,7 @@
     "eta_hours": "{{hours}}h verbleibend"
   },
   "work_units": {
+    "mutation_error": "Die Anzeigeeinstellung konnte nicht aktualisiert werden.",
     "heading": "Work Units",
     "aria": "Admin-Work-Units",
     "description": "Untersuche vom Scheduler verwaltete gewünschte Arbeit und Laufzeitversuche über alle Benutzer hinweg. Dies ist eine interne Diagnoseansicht; normale Job-Seiten zeigen diese Bereiche nur, wenn die Debug-Einstellung aktiviert ist.",

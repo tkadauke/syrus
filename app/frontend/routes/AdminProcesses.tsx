@@ -11,6 +11,7 @@ import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "../components/AdminEventLogPanel"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { Button } from "../components/Button"
+import { MutationError } from "../components/MutationError"
 import { FilterBar } from "../components/FilterBar"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import {
@@ -24,6 +25,7 @@ import {
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
 import { DataTable, Page } from "../components/ui"
+import { useConfirm } from "../hooks/useConfirm"
 
 export function AdminProcessesIndex() {
   const { t } = useT("admin")
@@ -40,12 +42,14 @@ export function AdminProcessesIndex() {
   const allPath = `${basePath}?smart_folder_id=`
   const processes = useQuery({
     queryKey: ["admin", "processes", location.search],
-    queryFn: () => fetchAdminProcesses(location.search)
+    queryFn: () => fetchAdminProcesses(location.search),
+    refetchInterval: (query) => (query.state.data?.processes.some((process) => !process.finished_at) ? 5_000 : false)
   })
   const activeUserFolderId = processes.data?.smart_folders.find(
     (folder) => folder.id === processes.data.active_smart_folder_id && folder.kind === "user_defined"
   )?.id
-  const activeFolderLabel = processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id)?.name ?? t("processes.all_label")
+  const activeFolderLabel =
+    processes.data?.smart_folders.find((folder) => folder.id === processes.data.active_smart_folder_id)?.name ?? t("processes.all_label")
 
   return (
     <Page.Root aria-label={t("processes.aria_index")} gutter="responsive" size="wide">
@@ -114,7 +118,8 @@ export function AdminProcessDetail() {
   const process = useQuery({
     queryKey: ["admin", "processes", id],
     queryFn: () => fetchAdminProcess(id),
-    enabled: id.length > 0
+    enabled: id.length > 0,
+    refetchInterval: (query) => (query.state.data && !query.state.data.finished_at ? 5_000 : false)
   })
 
   return (
@@ -438,20 +443,36 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
 function KillButton({ process }: { process: SpawnedProcessPayload }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
+  const { confirm, dialog } = useConfirm()
   const kill = useMutation({
     mutationFn: () => killAdminProcess(process.id),
     onSuccess: (updated) => {
       queryClient.setQueryData(["admin", "processes", String(process.id)], updated)
       void queryClient.invalidateQueries({ queryKey: ["admin", "processes"] })
-    }
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: ["admin", "processes"] })
   })
+
+  async function requestKill() {
+    const confirmed = await confirm({
+      cancelLabel: t("processes.keep_running"),
+      confirmLabel: t("processes.kill"),
+      destructive: true,
+      message: t("processes.kill_confirm", { id: process.id })
+    })
+    if (confirmed) kill.mutate()
+  }
 
   if (process.finished_at || process.kill_requested_at) return null
 
   return (
-    <Button disabled={kill.isPending} onClick={() => kill.mutate()} size="sm" variant="danger">
-      {kill.isPending ? t("processes.killing") : t("processes.kill")}
-    </Button>
+    <>
+      <Button disabled={kill.isPending} onClick={() => void requestKill()} size="sm" variant="danger">
+        {kill.isPending ? t("processes.killing") : t("processes.kill")}
+      </Button>
+      {kill.isError ? <MutationError error={kill.error} fallback={t("processes.kill_error")} /> : null}
+      {dialog}
+    </>
   )
 }
 

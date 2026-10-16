@@ -103,4 +103,24 @@ describe("AdminInstallations repositories configurable columns", () => {
 
     expect(await screen.findByText("No repositories configured.")).toBeInTheDocument()
   })
+
+  it("shows refresh failures instead of silently leaving the page unchanged", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((_input, options) =>
+      Promise.resolve(
+        options?.method === "POST" ? jsonResponse({ error: { message: "Installation sync is unavailable" } }, 503) : jsonResponse(installationsPayload())
+      )
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/admin/installations"]}>
+          <AdminInstallations />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh installation list" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Installation sync is unavailable")
+  })
 })
