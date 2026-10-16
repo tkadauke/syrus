@@ -24,7 +24,7 @@ module Mcp::Tools
         page = normalize_page(page)
         per_page = normalize_per_page(per_page)
         scope = chat_session.user.accessible_chat_sessions
-          .visible
+          .where(chat_participants: { hidden_at: nil })
           .active
           .distinct
           .order(updated_at: :desc)

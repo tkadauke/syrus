@@ -95,6 +95,7 @@ class ChatSession < ApplicationRecord
   before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
   after_create :add_owner_participant
+  after_create :copy_initial_hidden_at_to_owner_participant
   after_create :ensure_agent_record!
   # prepend: dependent-association callbacks (declared above) also run
   # as before_destroy; the pending JobDependency placeholders must be
@@ -623,6 +624,12 @@ class ChatSession < ApplicationRecord
 
   def add_owner_participant
     chat_participants.create!(user: user, role: "owner", joined_at: created_at)
+  end
+
+  # Compatibility for imports and older callers that still seed the legacy
+  # session-level value. Runtime hide/unhide writes only participant state.
+  def copy_initial_hidden_at_to_owner_participant
+    chat_participants.find_by!(role: "owner").update!(hidden_at: hidden_at) if hidden_at.present?
   end
 
   def default_artifacts
