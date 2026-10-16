@@ -52,7 +52,7 @@ module ScheduledTasks
         def call(scheduled_task_id:, server_context:, name: nil, prompt: nil,
                  schedule_input: nil, cron_expression: nil, fire_at: nil, pr_pileup_policy: nil)
           chat_session = server_context.fetch(:chat_session)
-          task, error = find_scheduled_task(chat_session, scheduled_task_id)
+          task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
 
           if (schedule_input || cron_expression) && task.one_shot?

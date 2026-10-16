@@ -21,7 +21,7 @@ module ScheduledTasks
       class << self
         def call(scheduled_task_id:, server_context:)
           chat_session = server_context.fetch(:chat_session)
-          task, error = find_scheduled_task(chat_session, scheduled_task_id)
+          task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
           return Mcp::Tools.invalid("scheduled task is already disabled") unless scheduled_task_enabled?(task)
 

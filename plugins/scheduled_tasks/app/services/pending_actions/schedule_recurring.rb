@@ -2,7 +2,12 @@ module PendingActions
   class ScheduleRecurring < Base
     action_key "schedule_recurring"
 
+    def authorize_execution!
+      raise ArgumentError, "Repository write access is required to create a scheduled task." unless repository_write_access?
+    end
+
     def execute
+      authorize_execution!
       progress!("Creating scheduled task...")
       ScheduledTasks::Task.create!(
         user: user,
@@ -47,6 +52,12 @@ module PendingActions
         [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
         payload["prompt"].presence
       ].compact.join("\n\n").presence
+    end
+
+    private
+
+    def repository_write_access?
+      repository && RepositoryPolicy.new(user, repository).write?
     end
   end
 end

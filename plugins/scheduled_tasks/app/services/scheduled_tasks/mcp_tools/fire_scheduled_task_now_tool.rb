@@ -5,6 +5,7 @@ module ScheduledTasks
     class FireScheduledTaskNowTool < MCP::Tool
       extend ::Mcp::Tools::ProposalToolSupport
       extend ::Mcp::Tools::PendingActionToolSupport
+      extend ScheduledTaskToolSupport
 
       tool_name "fire_scheduled_task_now"
 
@@ -20,12 +21,8 @@ module ScheduledTasks
       class << self
         def call(scheduled_task_id:, server_context:)
           chat_session = server_context.fetch(:chat_session)
-          task_id = Integer(scheduled_task_id, exception: false)
-          return Mcp::Tools.invalid("scheduled_task_id is required") unless task_id
-
-          scope = chat_session.user.admin? ? ScheduledTasks::Task.alive : ScheduledTasks::Task.alive.where(user: chat_session.user)
-          task = scope.find_by(id: task_id)
-          return Mcp::Tools.invalid("scheduled task not found: #{task_id}") unless task
+          task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
+          return error if error
 
           create_pending_action!(
             server_context,

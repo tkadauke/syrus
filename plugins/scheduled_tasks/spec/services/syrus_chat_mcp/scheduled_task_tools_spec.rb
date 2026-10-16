@@ -313,6 +313,27 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     expect(task.reload).to have_attributes(name: "New name", prompt: "New prompt")
   end
 
+  it "rejects every mutation tool after the task owner is demoted to read access" do
+    task = create_scheduled_task(state: "paused")
+    membership = repository.repository_memberships.find_by!(user: user)
+    membership.update!(role: "read")
+
+    attempts = {
+      "update_scheduled_task" => { scheduled_task_id: task.id, name: "Changed" },
+      "pause_scheduled_task" => { scheduled_task_id: task.id },
+      "resume_scheduled_task" => { scheduled_task_id: task.id },
+      "delete_scheduled_task" => { scheduled_task_id: task.id }
+    }
+
+    attempts.each do |tool_name, arguments|
+      response = call_tool(tool_name, arguments)
+      expect(response.dig(:result, :isError)).to be true
+      expect(response.dig(:result, :content, 0, :text)).to include("write access")
+    end
+
+    expect(task.reload).to have_attributes(name: "Daily review", state: "paused", archived_at: nil)
+  end
+
   it "updates cron_expression on a cron task" do
     task = create_scheduled_task(cron_expression: "0 9 * * *")
 

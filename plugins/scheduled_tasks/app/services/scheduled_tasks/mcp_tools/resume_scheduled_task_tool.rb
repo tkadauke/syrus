@@ -21,7 +21,7 @@ module ScheduledTasks
       class << self
         def call(scheduled_task_id:, server_context:)
           chat_session = server_context.fetch(:chat_session)
-          task, error = find_scheduled_task(chat_session, scheduled_task_id)
+          task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
           return Mcp::Tools.invalid("scheduled task is already enabled") if scheduled_task_enabled?(task)
           return Mcp::Tools.invalid("scheduled task cannot be resumed from state: #{task.state}") unless task.paused? || task.auto_paused?
