@@ -131,16 +131,16 @@ RSpec.describe "desktop backend lifecycle" do
     expect(lifecycle).to include("UPDATE_DEADLINE_MS = 30 * 60_000")
     update_fn = lifecycle[/export const updateBackend[\s\S]*?\n\}/]
     expect(update_fn).to match(/deadline = setTimeout\(\(\) => \{[\s\S]{0,300}killUpdateChild\(\)\s*\n\s*settle\(false\)\s*\n\s*\}, UPDATE_DEADLINE_MS\)/)
-    # Every exit path clears the deadline and the child registration; a spawn
-    # error may never be followed by "close".
-    expect(update_fn).to match(/const settle = \(ok: boolean\) => \{\s*\n\s*clearTimeout\(deadline\)[\s\S]{0,100}updateChild = null[\s\S]{0,100}resolve\(ok\)/)
+    # Promise settlement clears busy promptly, but process ownership remains
+    # registered until close or the delayed force-kill is actually sent.
+    expect(update_fn).to match(/const settle = \(ok: boolean\) => \{\s*\n\s*clearTimeout\(deadline\)\s*\n\s*resolve\(ok\)/)
+    expect(update_fn).to include("updateTermination.register(child)")
+    expect(update_fn).to include("updateTermination.clear(child)")
     # POSIX spawns detached so the deadline kill reaches docker/compose
     # grandchildren via the process group; Windows uses taskkill /T.
     expect(update_fn).to match(/spawn\(command, args, \{ env, detached: true \}\)/)
-    kill_fn = lifecycle[/export const killUpdateChild[\s\S]*?\n\}/]
-    expect(kill_fn).to match(/execFile\("taskkill", \["\/pid", String\(child\.pid\), "\/T", "\/F"\]/)
-    expect(kill_fn).to match(/process\.kill\(-child\.pid, "SIGTERM"\)/)
-    expect(kill_fn).to match(/setTimeout[\s\S]*?process\.kill\(-child\.pid, "SIGKILL"\)/)
+    expect(lifecycle).to include("new ChildTerminationController(TERMINATION_GRACE_MS)")
+    expect(lifecycle).to include("busy || updateTermination.active()")
   end
 
   it "creates the update state directory and consumes install log errors" do
@@ -166,7 +166,7 @@ RSpec.describe "desktop backend lifecycle" do
     expect(menu_item).to include("if (deferRelaunchWhileBackendBusy())")
     # A genuine quit kills the installer tree instead of orphaning it.
     before_quit = main_process[/app\.on\("before-quit", \(\) => \{[\s\S]{0,600}\n\}\)/]
-    expect(before_quit).to include("backendLifecycle.killUpdateChild()")
+    expect(before_quit).to include("backendLifecycle.killUpdateChild(true)")
   end
 
   it "maps installer steps onto the coarse sidebar phases" do

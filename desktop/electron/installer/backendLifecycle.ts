@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { createWriteStream } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -18,6 +18,7 @@ import {
 import { removeSupersededSyrusImages } from "./imageCleanup.js"
 import { installerCommand, installerScriptPath } from "./installPaths.js"
 import { BackendUpdateProgressTracker, type BackendUpdateProgress } from "./updateProgress.js"
+import { ChildTerminationController } from "./childTermination.js"
 
 export type { BackendUpdateProgress } from "./updateProgress.js"
 
@@ -156,14 +157,13 @@ const ensureDaemon = async () => {
 
 let busy = false
 let lastHealthy = true
-let updateChild: ChildProcess | null = null
-let updateKillTimer: NodeJS.Timeout | null = null
+const updateTermination = new ChildTerminationController(TERMINATION_GRACE_MS)
 
 // Whether a lifecycle action (start/stop/update) is in flight. Exposed so
 // main can defer actions that must not race an update — most importantly
 // "Relaunch to update", whose quitAndInstall would orphan the installer
 // mid-pin-rewrite and relaunch into a churning stack with no update state.
-export const backendBusy = () => busy
+export const backendBusy = () => busy || updateTermination.active()
 
 // Kill the whole in-flight installer tree (same technique as the onboarding
 // driver's killInstallChild): POSIX signals the detached process group so
@@ -171,39 +171,14 @@ export const backendBusy = () => busy
 // the tree with taskkill /T. Used by the update deadline and by main's
 // before-quit, so neither a wedged pull nor a quitting app can orphan a
 // half-applied update. Best-effort by contract.
-export const killUpdateChild = () => {
-  const child = updateChild
-  if (!child?.pid) {
-    return
-  }
-
+export const killUpdateChild = (force = false) => {
+  if (!updateTermination.active()) return
   console.warn("[backend-update] killing the in-flight installer (deadline exceeded or app quitting)")
-  if (process.platform === "win32") {
-    execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, () => {})
-    return
-  }
-
-  try {
-    process.kill(-child.pid, "SIGTERM")
-  } catch {
-    child.kill("SIGTERM")
-  }
-
-  if (!updateKillTimer) {
-    updateKillTimer = setTimeout(() => {
-      updateKillTimer = null
-      if (!child.pid) return
-      try {
-        process.kill(-child.pid, "SIGKILL")
-      } catch {
-        child.kill("SIGKILL")
-      }
-    }, TERMINATION_GRACE_MS)
-  }
+  updateTermination.terminate(force)
 }
 
 export const startBackend = async (): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -232,7 +207,7 @@ export const startBackend = async (): Promise<boolean> => {
 }
 
 export const stopBackend = async (): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -275,7 +250,7 @@ type UpdateBackendDeps = {
 // the SYRUS_IMAGE pin, pull, recreate containers, health-gate. Output appends
 // to install.log so Backend → Open Install Log covers updates too.
 export const updateBackend = async (image: string, deps: UpdateBackendDeps = {}): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -332,7 +307,7 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
           process.platform === "win32"
             ? spawn(command, args, { env, windowsHide: true })
             : spawn(command, args, { env, detached: true })
-        updateChild = child
+        updateTermination.register(child)
         // Wall-clock deadline: a wedged pull / compose / health probe must
         // not leave `busy` true and the update state stuck forever. Settle at
         // the deadline itself because a process stuck in kernel I/O may not
@@ -340,7 +315,6 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
         let deadline: NodeJS.Timeout
         const settle = (ok: boolean) => {
           clearTimeout(deadline)
-          if (updateChild === child) updateChild = null
           resolve(ok)
         }
         deadline = setTimeout(() => {
@@ -364,10 +338,7 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
         // Both exits clear the deadline + child registration — a spawn
         // error may never be followed by "close".
         const settleFromChild = (ok: boolean) => {
-          if (updateKillTimer) {
-            clearTimeout(updateKillTimer)
-            updateKillTimer = null
-          }
+          updateTermination.clear(child)
           settle(ok)
         }
         child.on("error", () => settleFromChild(false))
@@ -442,7 +413,7 @@ export const startWatchdog = (deps: WatchdogDeps) => {
   }
 
   watchdogTimer = setInterval(() => {
-    if (watchdogTickInFlight || busy || getBackendMode() !== "local") {
+    if (watchdogTickInFlight || backendBusy() || getBackendMode() !== "local") {
       return
     }
 
