@@ -68,6 +68,26 @@ RSpec.describe ScheduledTasks::Fire do
       end
     end
 
+    it "auto-pauses without creating a Job when the task owner loses repository write access" do
+      repository
+      collaborator = Factories.user(email_address: "demoted@example.com", global_role: "user")
+      membership = repository.repository_memberships.create!(user: collaborator, role: "write")
+      demoted_task = ScheduledTasks::Task.create!(
+        user: collaborator, repository: repository,
+        name: "Weekly tests", prompt: "Write missing tests.",
+        kind: "cron", cron_expression: "0 9 * * 1", pr_pileup_policy: "skip"
+      )
+      membership.update!(role: "read")
+
+      expect {
+        result = described_class.new(demoted_task).call
+        expect(result).not_to be_fired
+        expect(result.reason).to eq("repository_write_access_required")
+      }.not_to change { Job.count }
+
+      expect(demoted_task.reload).to be_auto_paused
+    end
+
     it "does not spawn a second Job in the same hourly fire window" do
       now = Time.utc(2026, 5, 4, 9, 10, 0)
       first_copy = ScheduledTasks::Task.find(task.id)
