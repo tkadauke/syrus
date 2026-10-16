@@ -839,7 +839,7 @@ function submitInput(values: ScheduledTaskInput, structuredIntent: Record<string
     ...values,
     cron_expression: values.kind === "cron" ? values.cron_expression : "",
     schedule_input: values.kind === "cron" ? values.schedule_input : "",
-    fire_at: values.kind === "one_shot" ? values.fire_at : "",
+    fire_at: values.kind === "one_shot" ? toISOString(values.fire_at) : "",
     structured_intent: values.kind === "cron" ? structuredIntent : null,
     prompt: isSkillTask ? "" : values.prompt,
     skill_args: isSkillTask ? values.skill_args : {}
@@ -852,4 +852,10 @@ function toDatetimeLocal(value: string | null) {
   if (Number.isNaN(date.getTime())) return value
   const pad = (number: number) => String(number).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function toISOString(value: string) {
+  if (!value) return ""
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
 }

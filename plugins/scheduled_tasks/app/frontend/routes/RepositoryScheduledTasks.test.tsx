@@ -39,8 +39,8 @@ function repositoryTask(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderRoute() {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(tasksPayload()))
+function renderRoute(payload = tasksPayload()) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -104,6 +104,16 @@ describe("RepositoryScheduledTasksRoute loading", () => {
     fireEvent.click(within(tablePanel).getByRole("button", { name: "Columns" }))
     expect(within(tablePanel).getByLabelText("Schedule")).toBeChecked()
     expect(within(tablePanel).getByRole("button", { name: "Move Schedule down" })).toBeInTheDocument()
+  })
+
+  it("does not offer to enable a fired one-shot", async () => {
+    renderRoute(tasksPayload({
+      tasks: [repositoryTask({ name: "Completed task", state: "fired", active: false })]
+    }))
+
+    expect(await screen.findByText("Completed task")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Enable" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument()
   })
 })
 
