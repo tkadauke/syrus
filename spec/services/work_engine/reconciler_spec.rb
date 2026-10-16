@@ -50,12 +50,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.evidence).to include(
       "work_intent_id" => unit.work_intent_id,
       "work_intent_kind" => "initial",
-      "work_intent_state" => "failed",
+      "work_intent_state" => "requested",
       "work_unit_id" => unit.id,
       "work_unit_kind" => "initial",
-      "work_unit_state" => "failed",
+      "work_unit_state" => "running",
       "work_unit_member_job_ids" => [ job.id ],
-      "work_unit_active_lock_keys" => []
+      "work_unit_active_lock_keys" => [ "job:#{job.id}" ]
     )
   end
 
