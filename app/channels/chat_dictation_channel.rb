@@ -1,5 +1,6 @@
 class ChatDictationChannel < ApplicationCable::Channel
   TIMEOUT_POLL_INTERVAL = 5.seconds
+  THREAD_ERROR_BACKOFF = 1.second
 
   def subscribed
     return reject unless Feature.chat_speech_to_text_enabled?
@@ -162,15 +163,24 @@ class ChatDictationChannel < ApplicationCable::Channel
     @timeout_thread = Thread.new do
       loop do
         sleep TIMEOUT_POLL_INTERVAL
-        next unless @session&.timed_out?
+        timed_out = with_rails_context do
+          next unless @session&.timed_out?
 
-        @session.cancel(reason: "timeout")
-        transmit_failure("speech_to_text_stream_timeout", "Backend streaming transcription timed out.")
-        break
+          @session.cancel(reason: "timeout")
+          transmit_failure("speech_to_text_stream_timeout", "Backend streaming transcription timed out.")
+          true
+        end
+        break if timed_out
       rescue => e
         Rails.logger.error("ChatDictationChannel timeout error: #{e.message}")
-        break
+        sleep THREAD_ERROR_BACKOFF
       end
+    end
+  end
+
+  def with_rails_context(&block)
+    Rails.application.executor.wrap do
+      ActiveRecord::Base.connection_pool.with_connection(&block)
     end
   end
 

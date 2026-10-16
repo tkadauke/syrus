@@ -83,6 +83,27 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     expect(daemon_session.reload.disconnected_at).not_to be_nil
   end
 
+  it "does not let a stale unsubscribe disconnect a replacement connection" do
+    enable_local_mode
+    subscribe_to(daemon_session)
+    perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "main" }
+    daemon_session.mark_connected!(repo: "owner/repo", branch: "main", connection_id: "replacement")
+    pending_call = LocalToolCall.create!(
+      local_daemon_session: daemon_session,
+      chat_session: chat,
+      tool_use_id: "still-pending",
+      tool_name: "run_command",
+      state: "pending"
+    )
+
+    unsubscribe
+
+    expect(daemon_session.reload).to be_connected
+    expect(daemon_session.connection_id).to eq("replacement")
+    expect(pending_call.reload.state).to eq("pending")
+    expect(chat.reload.daemon_connected).to be(true)
+  end
+
   describe "receiving messages" do
     before { enable_local_mode }
 
@@ -202,6 +223,77 @@ RSpec.describe LocalTunnelChannel, type: :channel do
       subscription.receive_from_subscription({ "type" => "dispatch", "tool_call_id" => tool_call.id })
 
       expect(transmissions.count { |frame| frame["tool_use_id"] == "call-once" }).to eq(0)
+    end
+
+    it "transmits only once when two dispatch paths load the same pending call" do
+      subscribe_to(daemon_session)
+      perform :receive, { "type" => "connect", "repo" => "r", "branch" => "b" }
+      tool_call = LocalToolCall.create!(local_daemon_session: daemon_session, chat_session: chat, tool_use_id: "call-race", tool_name: "list_files", tool_input: { path: "/repo" }, state: "pending")
+      broadcast_copy = LocalToolCall.find(tool_call.id)
+      poll_copy = LocalToolCall.find(tool_call.id)
+
+      subscription.send(:dispatch_tool_call, broadcast_copy)
+      subscription.send(:dispatch_tool_call, poll_copy)
+
+      expect(transmissions.count { |frame| frame["tool_use_id"] == "call-race" }).to eq(1)
+      expect(tool_call.reload.state).to eq("dispatched")
+    end
+
+    it "does not drain pending calls before connect or after disconnect" do
+      subscribe_to(daemon_session)
+      allow(subscription).to receive(:drain_queued_tool_calls)
+
+      subscription.send(:dispatch_tick)
+      expect(subscription).not_to have_received(:drain_queued_tool_calls)
+
+      perform :receive, { "type" => "connect", "repo" => "r", "branch" => "b" }
+      daemon_session.mark_disconnected!
+      subscription.send(:dispatch_tick)
+      expect(subscription).to have_received(:drain_queued_tool_calls).once
+    end
+  end
+
+  describe "background thread execution" do
+    before { enable_local_mode }
+
+    it "checks out a connection inside the Rails executor" do
+      subscribe_to(daemon_session)
+      execution = []
+      allow(Rails.application.executor).to receive(:wrap) do |&block|
+        execution << :executor
+        block.call
+      end
+      allow(ActiveRecord::Base.connection_pool).to receive(:with_connection) do |&block|
+        execution << :connection
+        block.call
+      end
+
+      subscription.send(:with_rails_context) { execution << :work }
+
+      expect(execution).to eq(%i[executor connection work])
+    end
+
+    it "retries dispatch polling after a transient error" do
+      subscribe_to(daemon_session)
+      recovered = Queue.new
+      attempts = 0
+      allow(subscription).to receive(:start_dispatch_thread).and_call_original
+      allow(subscription).to receive(:sleep)
+      allow(subscription).to receive(:with_rails_context).and_yield
+      allow(subscription).to receive(:dispatch_tick) do
+        attempts += 1
+        raise ActiveRecord::ConnectionNotEstablished, "temporary" if attempts == 1
+
+        recovered << true
+        Thread.stop
+      end
+
+      subscription.send(:start_dispatch_thread)
+      Timeout.timeout(2) { recovered.pop }
+
+      expect(attempts).to eq(2)
+    ensure
+      subscription.instance_variable_get(:@dispatch_thread)&.kill
     end
   end
 
