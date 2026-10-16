@@ -1754,7 +1754,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
   end
 
-  it "skips conditional graders and logs a warning when the git diff command fails" do
+  it "runs every grader and does not cache a changed-files fingerprint when the git diff command fails" do
     write_config(<<~YAML)
       grade:
         - name: website-build
@@ -1770,9 +1770,38 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     grader_steps = workflow.steps.where(kind: "grader").order(:position)
-    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec])
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
+    expect(step.reload.details["grader_fanout_outcome"]).to eq("materialized")
+    expect(workflow.reload.artifact("grade_plan_changed_files")).to be_nil
+    expect(workflow.artifact("grade_plan_changed_files_fingerprint")).to be_nil
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("could not determine changed files")
+    expect(chunks).to include("selected website-build (changed files unavailable)")
+  end
+
+  it "runs every grader and does not cache a changed-files fingerprint when a landing validation has no predicted base" do
+    workflow.update!(trigger_kind: "landing_validation")
+    write_config(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm --prefix website run build
+          when_files_changed:
+            - "website/**"
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
+    expect(step.reload.details["grader_fanout_outcome"]).to eq("materialized")
+    expect(workflow.reload.artifact("grade_plan_changed_files")).to be_nil
+    expect(workflow.artifact("grade_plan_changed_files_fingerprint")).to be_nil
+    expect(@git).not_to have_received(:run).with("diff", "--name-only", anything, chdir: anything)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("could not determine changed files: base ref is unavailable")
+    expect(chunks).to include("selected website-build (changed files unavailable)")
   end
 
   it "skips through without materializing any steps when all graders are skipped" do

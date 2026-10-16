@@ -18,6 +18,7 @@ module Steps
   # immune to `.syrus.yml` evolution.
   class GraderFanout < Base
     CarryForwardResult = Data.define(:reason, :fingerprints, :record_refs)
+    ChangedFilesResult = Data.define(:files, :determined?)
     # Written every fanout call (including early-return paths) so
     # Steps::GraderCollect always sees a value scoped to *this* iteration,
     # never a stale entry left over from an earlier one.
@@ -54,11 +55,16 @@ module Steps
       # Skip graders whose target isn't affected by this PR's diff -- own
       # source scope (when_files_changed) or, transitively, a declared
       # dependency's source scope (TargetGraph#affected).
-      files = changed_files
-      record_changed_files!(files)
+      changed_files_result = changed_files
+      files = changed_files_result.files
+      if changed_files_result.determined?
+        record_changed_files!(files)
+      else
+        clear_changed_files!
+      end
       matching_files = matching_files_for(files)
       record_implementation_capability_escalation!(matching_files)
-      selections = selections_for(plan.graders, matching_files)
+      selections = selections_for(plan.graders, matching_files, changed_files_determined: changed_files_result.determined?)
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
@@ -136,13 +142,17 @@ module Steps
 
     def changed_files
       base_ref = changed_files_base_ref
-      return [] if base_ref.blank?
+      unless base_ref.present?
+        log("[grader_fanout] warning: could not determine changed files: base ref is unavailable")
+        return ChangedFilesResult.new(files: [], determined?: false)
+      end
 
-      GitRunner.new.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s)
+      files = GitRunner.new.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
+      ChangedFilesResult.new(files: files, determined?: true)
     rescue GitRunner::GitError => e
       log("[grader_fanout] warning: could not determine changed files: #{e.message}")
-      []
+      ChangedFilesResult.new(files: [], determined?: false)
     end
 
     def changed_files_base_ref
@@ -160,8 +170,9 @@ module Steps
       )
     end
 
-    def selections_for(graders, matching_files)
+    def selections_for(graders, matching_files, changed_files_determined:)
       baseline_reason = workflow.work_definition.grader_fanout_baseline_selection_reason(workflow)
+      baseline_reason ||= "changed files unavailable" unless changed_files_determined
       return graders.map { |grader| [ grader, baseline_selection_for(grader, baseline_reason) ] } if baseline_reason
 
       graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
@@ -512,6 +523,11 @@ module Steps
       normalized = Array(files).map(&:to_s).sort
       workflow.set_artifact!("grade_plan_changed_files", normalized)
       workflow.set_artifact!("grade_plan_changed_files_fingerprint", LandingValidationCache.changed_files_fingerprint(normalized))
+    end
+
+    def clear_changed_files!
+      workflow.set_artifact!("grade_plan_changed_files", nil)
+      workflow.set_artifact!("grade_plan_changed_files_fingerprint", nil)
     end
 
     def record_implementation_capability_escalation!(matching_files)
