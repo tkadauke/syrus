@@ -247,7 +247,8 @@ class PreviewProxyMiddleware
   # the only authorization check this middleware performs, since the panel
   # subdomain never reaches the main app's session-based auth.
   def serve_panel(env, panel_id)
-    panel = PreviewPanel.find_by(id: panel_id, state: "open")
+    panel = PreviewPanel.find_by(id: panel_id)
+    panel = nil unless panel && (panel.open? || retained_preview_panel?(panel))
     return panel_not_found_response unless panel
 
     request = Rack::Request.new(env)
@@ -264,6 +265,12 @@ class PreviewProxyMiddleware
     headers = { "Content-Type" => content_type, "Content-Security-Policy" => PREVIEW_CSP }
     set_panel_access_cookie!(headers, request, access_token) if access_token
     [200, headers, [attachment.download]]
+  end
+
+  def retained_preview_panel?(panel)
+    Syrus::PluginRegistry.providers_for(:preview_panel_retention).any? do |provider|
+      provider.retained_preview_panel?(panel)
+    end
   end
 
   def resolve_panel_version(panel, version_param)
