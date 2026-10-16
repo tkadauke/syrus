@@ -137,6 +137,19 @@ RSpec.describe "desktop onboarding installer" do
     expect(driver).to include("(INSTALL_STEP_IDS as readonly string[]).includes(event.id)")
   end
 
+  it "treats JSON primitives as plain installer output" do
+    expect(driver).to match(/typeof event !== "object" \|\| event === null[\s\S]{0,100}this\.appendLog\(line\)/)
+  end
+
+  it "resolves superseded daemon polls and escalates installer cancellation" do
+    expect(driver).to include("resolve?.(false)")
+    expect(driver).to match(/killInstallChild[\s\S]*?SIGTERM[\s\S]*?setTimeout[\s\S]*?SIGKILL/)
+  end
+
+  it "consumes install log stream errors" do
+    expect(driver).to match(/logStream\.on\("error"/)
+  end
+
   it "can reset to Welcome so a reopened wizard never shows stale terminal state" do
     reset_fn = driver[/  reset\(\) \{[\s\S]*?\n  \}/]
     expect(reset_fn).to include('this.setState({ phase: "welcome" })')

@@ -60,6 +60,7 @@ const RUNTIME_ATTENTION_POLLS = 15 // × 2s = 30s
 // timing out mid-dialog (the old 180s did) is a dead end.
 const RUNTIME_FIRST_START_POLLS = 450 // × 2s = 15 minutes
 const LOG_TAIL_LIMIT = 400
+const TERMINATION_GRACE_MS = 5_000
 
 // The install steps install.sh emits in --json mode, in order.
 // runtime_install never appears: the app always passes --skip-runtime-install
@@ -163,6 +164,8 @@ export class OnboardingDriver {
   private child: ChildProcess | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
+  private pollResolve: ((ready: boolean) => void) | null = null
+  private childKillTimer: NodeJS.Timeout | null = null
   private installAbort: AbortController | null = null
   private port = channelDefaultPort()
   private logTail: string[] = []
@@ -571,18 +574,25 @@ export class OnboardingDriver {
     this.stopPolling()
 
     return new Promise((resolve) => {
+      this.pollResolve = resolve
       let polls = 0
+      const finish = (ready: boolean) => {
+        if (this.pollResolve !== resolve) return
+        if (this.pollTimer) clearTimeout(this.pollTimer)
+        this.pollTimer = null
+        this.pollResolve = null
+        resolve(ready)
+      }
       const tick = async () => {
+        if (this.pollResolve !== resolve) return
         if ((await findDockerBinary()) && (await daemonUp())) {
-          this.stopPolling()
-          resolve(true)
+          finish(true)
           return
         }
 
         polls += 1
         if (polls >= maxPolls) {
-          this.stopPolling()
-          resolve(false)
+          finish(false)
           return
         }
 
@@ -598,6 +608,9 @@ export class OnboardingDriver {
       clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
+    const resolve = this.pollResolve
+    this.pollResolve = null
+    resolve?.(false)
   }
 
   adoptRunning() {
@@ -751,6 +764,9 @@ export class OnboardingDriver {
     this.setState({ phase: "local.installing", steps, currentStep: null, pullProgress: null })
 
     const logStream = createWriteStream(path.join(stateDir, "install.log"), { flags: "a" })
+    logStream.on("error", (error) => {
+      this.appendLog(`Unable to write install.log: ${errorMessage(error, "Unknown error")}`)
+    })
     logStream.write(`\n--- install started ${new Date().toISOString()} ---\n`)
 
     // POSIX: detached puts the script's docker/compose grandchildren in one
@@ -788,6 +804,10 @@ export class OnboardingDriver {
     // nothing writes to the log stream after end().
     child.on("close", (code) => {
       this.child = null
+      if (this.childKillTimer) {
+        clearTimeout(this.childKillTimer)
+        this.childKillTimer = null
+      }
       logStream.end()
       this.handleExit(code ?? 1)
     })
@@ -810,6 +830,19 @@ export class OnboardingDriver {
       process.kill(-this.child.pid, "SIGTERM")
     } catch {
       this.child.kill("SIGTERM")
+    }
+
+    const child = this.child
+    if (!this.childKillTimer) {
+      this.childKillTimer = setTimeout(() => {
+        this.childKillTimer = null
+        if (this.child !== child || !child.pid) return
+        try {
+          process.kill(-child.pid, "SIGKILL")
+        } catch {
+          child.kill("SIGKILL")
+        }
+      }, TERMINATION_GRACE_MS)
     }
   }
 
@@ -911,6 +944,11 @@ export class OnboardingDriver {
     try {
       event = JSON.parse(line) as InstallerEvent
     } catch {
+      this.appendLog(line)
+      return
+    }
+
+    if (typeof event !== "object" || event === null) {
       this.appendLog(line)
       return
     }

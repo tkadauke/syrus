@@ -130,16 +130,23 @@ RSpec.describe "desktop backend lifecycle" do
     # actions refuse, and the web app's gated surfaces stay suppressed.
     expect(lifecycle).to include("UPDATE_DEADLINE_MS = 30 * 60_000")
     update_fn = lifecycle[/export const updateBackend[\s\S]*?\n\}/]
-    expect(update_fn).to match(/const deadline = setTimeout\(\(\) => \{[\s\S]{0,300}killUpdateChild\(\)\s*\n\s*\}, UPDATE_DEADLINE_MS\)/)
+    expect(update_fn).to match(/deadline = setTimeout\(\(\) => \{[\s\S]{0,300}killUpdateChild\(\)\s*\n\s*settle\(false\)\s*\n\s*\}, UPDATE_DEADLINE_MS\)/)
     # Every exit path clears the deadline and the child registration; a spawn
     # error may never be followed by "close".
-    expect(update_fn).to match(/const settle = \(ok: boolean\) => \{\s*\n\s*clearTimeout\(deadline\)\s*\n\s*updateChild = null\s*\n\s*resolve\(ok\)/)
+    expect(update_fn).to match(/const settle = \(ok: boolean\) => \{\s*\n\s*clearTimeout\(deadline\)[\s\S]{0,100}updateChild = null[\s\S]{0,100}resolve\(ok\)/)
     # POSIX spawns detached so the deadline kill reaches docker/compose
     # grandchildren via the process group; Windows uses taskkill /T.
     expect(update_fn).to match(/spawn\(command, args, \{ env, detached: true \}\)/)
     kill_fn = lifecycle[/export const killUpdateChild[\s\S]*?\n\}/]
     expect(kill_fn).to match(/execFile\("taskkill", \["\/pid", String\(child\.pid\), "\/T", "\/F"\]/)
     expect(kill_fn).to match(/process\.kill\(-child\.pid, "SIGTERM"\)/)
+    expect(kill_fn).to match(/setTimeout[\s\S]*?process\.kill\(-child\.pid, "SIGKILL"\)/)
+  end
+
+  it "creates the update state directory and consumes install log errors" do
+    update_fn = lifecycle[/export const updateBackend[\s\S]*?\n\}/]
+    expect(update_fn).to match(/await fs\.mkdir\(stateDir\(\), \{ recursive: true \}\)[\s\S]*?createWriteStream/)
+    expect(update_fn).to match(/log\.on\("error"/)
   end
 
   it "never lets a relaunch or quit orphan the in-flight installer" do
