@@ -5,6 +5,18 @@ class GraderLoopProgress
   STOP_ARTIFACT_KEY = "grader_loop_stop".freeze
   NO_PROGRESS_REASON = "grader_loop_no_progress".freeze
 
+  # A grader that was killed, or that never got far enough to judge the tree,
+  # reached no verdict -- so it says nothing about whether the repair is
+  # progressing, and counting it as a failure turns absence of evidence into
+  # evidence of regression. A timeout belongs here for the same reason the
+  # infrastructure classifications do: the command was killed, so its result
+  # is "unknown", not "failing". Three merge trains in one production week
+  # were stopped as stalled by a round in which graders had merely timed out
+  # under host pressure -- one of them after 214 minutes of landing work, all
+  # of which was discarded.
+  UNMEASURED_CLASSIFICATIONS =
+    (Steps::GraderCollect::INFRASTRUCTURE_FAILURE_CLASSIFICATIONS + %w[ timeout ]).freeze
+
   def self.record_failure!(workflow:, collect_step:)
     new(workflow: workflow, collect_step: collect_step).record_failure!
   end
@@ -87,7 +99,8 @@ class GraderLoopProgress
 
   def round_payload
     failed_graders = failed_required_graders
-    failing_set = failed_graders.flat_map { |grader| failing_identities_for(grader) }.uniq.sort
+    measured_graders = failed_graders.reject { |grader| unmeasured?(grader) }
+    failing_set = measured_graders.flat_map { |grader| failing_identities_for(grader) }.uniq.sort
     result = failed_graders.map { |grader| grader_result_payload(grader) }
     repair = repair_step_payload
 
@@ -100,13 +113,23 @@ class GraderLoopProgress
       "failing_set" => failing_set,
       "failing_set_digest" => Digest::SHA256.hexdigest(failing_set.join("\0")),
       "repair" => repair,
-      "transient_only" => transient_only_round?,
+      "transient_only" => transient_only_round? || (failed_graders.any? && measured_graders.empty?),
       "recorded_at" => Time.current.iso8601
     }
   end
 
   def transient_only_round?
     collect_step.details.to_h[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY] == true
+  end
+
+  # GraderCollect marks the whole round transient only when *every* failing
+  # required grader was infrastructure, because that is the question it is
+  # answering: whether to materialize a repair agent at all. A round with one
+  # real failure and one killed grader still needs a repair, so it is not
+  # transient -- but the killed grader must still stay out of the comparison.
+  def unmeasured?(grader)
+    classification = grader.latest_run&.run_failure_classification&.classification
+    UNMEASURED_CLASSIFICATIONS.include?(classification.to_s)
   end
 
   def stop_payload(prior, current)

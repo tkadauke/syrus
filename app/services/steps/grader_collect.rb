@@ -23,6 +23,21 @@ module Steps
     # infrastructure_failed_required below.
     TRANSIENT_ONLY_FAILURE_DETAIL_KEY = "transient_only_required_grader_failure"
 
+    # A required grader that failed with one of these never reached a verdict
+    # on the tree: the worker died, the disk filled, the database would not
+    # answer. GraderLoopProgress reads this too -- a grader with no verdict
+    # cannot be evidence that a repair stopped making progress.
+    INFRASTRUCTURE_FAILURE_CLASSIFICATIONS = %w[
+      source_snapshot_metadata_invalid
+      workspace_clone_timeout
+      workspace_checkout_invalid
+      database_capacity
+      database_lock
+      disk_full
+      worker_died
+      worker_died_under_resource_pressure
+    ].freeze
+
     def call
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
@@ -567,16 +582,7 @@ module Steps
     end
 
     def infrastructure_failure_classification?(classification)
-      classification.to_s.in?(%w[
-        source_snapshot_metadata_invalid
-        workspace_clone_timeout
-        workspace_checkout_invalid
-        database_capacity
-        database_lock
-        disk_full
-        worker_died
-        worker_died_under_resource_pressure
-      ])
+      classification.to_s.in?(INFRASTRUCTURE_FAILURE_CLASSIFICATIONS)
     end
 
     def infrastructure_failed_step?(grader_step)

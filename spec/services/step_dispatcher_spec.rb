@@ -2388,6 +2388,52 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
+    # A grader that timed out was killed before it judged anything, so it is
+    # not evidence that the repair stopped making progress. Counting it as a
+    # failure stopped merge trains that were still converging -- the failing
+    # set "grew" because host pressure had killed a grader that round.
+    it "continues a retry_until grader loop when the round's extra failure was a killed grader" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb])
+      add_failed_grader!(
+        retry_workflow, second_collect,
+        failed_tests: %w[react-tests],
+        name: "react-tests",
+        classification: "timeout"
+      )
+
+      WorkflowActivity.synchronously do
+        described_class.fail_from(second_collect)
+      end
+
+      expect(retry_workflow.reload).to be_queued
+      expect(retry_workflow.artifact(GraderLoopProgress::STOP_ARTIFACT_KEY)).to be_blank
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
+    end
+
+    # Every failing required grader was killed, so the round measured nothing
+    # at all: it must not become the baseline the next real round is judged
+    # against either.
+    it "does not treat a round of only killed graders as a progress baseline" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(
+        retry_workflow, first_collect,
+        failed_tests: %w[spec/a_spec.rb],
+        classification: "timeout"
+      )
+
+      described_class.fail_from(first_collect)
+
+      rounds = Array(retry_workflow.reload.artifact(GraderLoopProgress::ARTIFACT_KEY))
+      expect(rounds.last).to include("transient_only" => true, "failing_set" => [])
+    end
+
     it "continues a retry_until grader loop while the failing set shrinks" do
       retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
       first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
@@ -3304,7 +3350,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
   end
 
-  def add_failed_grader!(workflow, collect_step, failed_tests:)
+  def add_failed_grader!(workflow, collect_step, failed_tests:, name: "rspec", classification: nil)
     workflow.steps.where("position >= ?", collect_step.position).update_all([ "position = position + ?", 1 ])
     grader = Step.create!(
       workflow: workflow,
@@ -3314,7 +3360,7 @@ RSpec.describe StepDispatcher, :ci_only do
       loop_id: collect_step.loop_id,
       state: "failed",
       details: {
-        "name" => "rspec",
+        "name" => name,
         "required" => true,
         "command" => "bin/rspec",
         "exit_code" => 1,
@@ -3322,10 +3368,17 @@ RSpec.describe StepDispatcher, :ci_only do
       }
     )
     run = grader.runs.create!(job: workflow.job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: collect_step.iteration)
+    if classification
+      run.create_run_failure_classification!(
+        classification: classification,
+        retryable: true,
+        classified_at: Time.current
+      )
+    end
     failures = failed_tests.map do |identity|
       { "suite_name" => identity, "name" => identity, "file_path" => identity, "identity" => identity }
     end
-    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(run, "rspec").and_return(failures)
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(run, name).and_return(failures)
     collect_step.reload
     grader
   end
