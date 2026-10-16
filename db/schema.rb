@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_122543) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_130446) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2759,6 +2759,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_122543) do
     t.bigint "upstream_repository_id"
     t.integer "user_id"
     t.datetime "last_full_poll_at"
+    t.string "first_empty_ci_observed_sha"
+    t.datetime "first_empty_ci_observed_at"
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

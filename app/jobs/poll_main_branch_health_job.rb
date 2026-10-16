@@ -63,7 +63,9 @@ class PollMainBranchHealthJob < ApplicationJob
         repository.update_columns(
           last_health_checked_sha: sha,
           ci_health: repository.ci_health_broken? ? "broken" : "unknown",
-          grader_health: repository.grader_health_broken? ? "broken" : "unknown"
+          grader_health: repository.grader_health_broken? ? "broken" : "unknown",
+          first_empty_ci_observed_sha: nil,
+          first_empty_ci_observed_at: nil
         )
         repository.reload
       end
@@ -105,28 +107,28 @@ class PollMainBranchHealthJob < ApplicationJob
       repository.reset_main_health_poll_error_streak!
 
       unless summary[:any?]
-        no_ci_observation = MainBranchHealthCheck.where(
-          repository: repository,
-          sha: sha,
-          ci_health: "not_configured"
-        ).recent.first
-
-        unless no_ci_observation
-          MainBranchHealthCheck.record_ci_poll(
-            repository: repository,
-            sha: sha,
-            ci_health: "not_configured",
-            ci_failed_checks: []
+        unless repository.first_empty_ci_observed_sha == sha && repository.first_empty_ci_observed_at.present?
+          repository.update_columns(
+            first_empty_ci_observed_sha: sha,
+            first_empty_ci_observed_at: Time.current
           )
           return
         end
 
-        return if no_ci_observation.checked_at > NO_CI_GRACE_PERIOD.ago
+        return if repository.first_empty_ci_observed_at > NO_CI_GRACE_PERIOD.ago
 
         repository.update_columns(
           ci_health: "not_configured",
           last_health_checked_sha: sha,
-          last_ci_evaluated_sha: sha
+          last_ci_evaluated_sha: sha,
+          first_empty_ci_observed_sha: nil,
+          first_empty_ci_observed_at: nil
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: sha,
+          ci_health: "not_configured",
+          ci_failed_checks: []
         )
         repository.reload
         if repository.main_health != previous_health
@@ -140,9 +142,12 @@ class PollMainBranchHealthJob < ApplicationJob
       if summary[:pending?]
         # Checks still running. Keep ci_health unknown so later polls keep
         # refreshing this same SHA until GitHub reaches a terminal result.
-        if repository.ci_health_not_configured?
-          repository.update_columns(ci_health: "unknown", last_ci_evaluated_sha: nil)
-        end
+        repository.update_columns(
+          ci_health: repository.ci_health_not_configured? ? "unknown" : repository.ci_health,
+          last_ci_evaluated_sha: repository.ci_health_not_configured? ? nil : repository.last_ci_evaluated_sha,
+          first_empty_ci_observed_sha: nil,
+          first_empty_ci_observed_at: nil
+        )
         return
       end
 
@@ -158,7 +163,9 @@ class PollMainBranchHealthJob < ApplicationJob
         repository.update_columns(
           ci_health: new_ci_health,
           last_health_checked_sha: sha,
-          last_ci_evaluated_sha: sha
+          last_ci_evaluated_sha: sha,
+          first_empty_ci_observed_sha: nil,
+          first_empty_ci_observed_at: nil
         )
         MainBranchHealthCheck.record_ci_poll(
           repository: repository,

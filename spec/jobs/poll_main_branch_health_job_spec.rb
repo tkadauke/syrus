@@ -158,6 +158,9 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.reload.ci_health).to eq("unknown")
     expect(repository.last_health_checked_sha).to eq(sha)
     expect(repository.last_ci_evaluated_sha).to be_nil
+    expect(repository.first_empty_ci_observed_sha).to eq(sha)
+    expect(repository.first_empty_ci_observed_at).to be_present
+    expect(MainBranchHealthCheck.where(sha: sha, ci_health: "not_configured")).not_to exist
   end
 
   it "marks ci_health not_configured after the no-checks grace period" do
@@ -166,6 +169,25 @@ RSpec.describe PollMainBranchHealthJob do
 
     described_class.perform_now(repository.id)
     travel described_class::NO_CI_GRACE_PERIOD + 1.second
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("not_configured")
+    expect(repository.last_ci_evaluated_sha).to eq(sha)
+    expect(repository.first_empty_ci_observed_at).to be_nil
+  end
+
+  it "does not restart the no-checks grace period when the grader records a result" do
+    stub_sha(sha)
+    stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+    first_observed_at = repository.reload.first_empty_ci_observed_at
+
+    travel 9.minutes
+    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+    expect(repository.reload.first_empty_ci_observed_at).to eq(first_observed_at)
+
+    travel 1.minute + 1.second
     described_class.perform_now(repository.id)
 
     expect(repository.reload.ci_health).to eq("not_configured")
@@ -487,10 +509,15 @@ RSpec.describe PollMainBranchHealthJob do
       }.not_to change(MainBranchHealthCheck, :count)
     end
 
-    it "records a health check when no CI checks exist" do
+    it "records a health check only after the no-CI grace period" do
       stub_sha(sha)
       stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] })
 
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(MainBranchHealthCheck, :count)
+
+      travel described_class::NO_CI_GRACE_PERIOD + 1.second
       expect {
         described_class.perform_now(repository.id)
       }.to change(MainBranchHealthCheck, :count).by(1)
