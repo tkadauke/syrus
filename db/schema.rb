@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_120117) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_122543) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3828,12 +3828,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_120117) do
     t.datetime "created_at", null: false
     t.bigint "creator_step_id", null: false
     t.string "fingerprint"
+    t.string "prepare_fingerprint"
     t.datetime "published_at", null: false
     t.string "source_ref", null: false
     t.string "source_sha", null: false
     t.string "tree_sha"
     t.datetime "updated_at", null: false
     t.bigint "workflow_id", null: false
+    t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
     t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end

@@ -735,6 +735,63 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     )
   end
 
+  # 89 archives published in one production day against 2 distinct dependency
+  # closures: what the archive holds is named by the prepare fingerprint, not
+  # by the revision, so a second revision attaches the published blob instead
+  # of uploading another ~526 MB copy of it.
+  it "reuses a published archive for another revision with the same prepare fingerprint" do
+    described_class.new(step).setup
+    first_blob = snapshot.reload.prepared_workspace_archive.blob
+    expect(snapshot.prepare_fingerprint).to be_present
+
+    feature_snapshot = WorkflowSourceSnapshots.record!(
+      workflow: workflow,
+      creator_step: creator_step,
+      source_sha: feature_sha,
+      source_ref: "refs/syrus/source-snapshots/runs/123",
+      tree_sha: feature_tree_sha
+    )
+    feature_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 6,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "source_snapshot_id" => feature_snapshot.id }
+    )
+    allow(PreparedWorkspaceArchive).to receive(:publish!).and_call_original
+
+    described_class.new(feature_step).setup
+
+    expect(feature_snapshot.reload.prepare_fingerprint).to eq(snapshot.prepare_fingerprint)
+    expect(feature_snapshot.prepared_workspace_archive.blob).to eq(first_blob)
+    expect(PreparedWorkspaceArchive).not_to have_received(:publish!)
+  end
+
+  # One blob backing many snapshots means purging it with a workflow would
+  # delete the archive the others still point at.
+  it "detaches rather than purges a prepared archive another snapshot shares" do
+    described_class.new(step).setup
+    blob = snapshot.reload.prepared_workspace_archive.blob
+    sharer = WorkflowSourceSnapshots.record!(
+      workflow: workflow,
+      creator_step: creator_step,
+      source_sha: feature_sha,
+      source_ref: "refs/syrus/source-snapshots/runs/123",
+      tree_sha: feature_tree_sha
+    )
+    sharer.prepared_workspace_archive.attach(blob)
+
+    snapshot.purge_prepared_workspace_archive!
+
+    expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
+    expect(sharer.reload.prepared_workspace_archive).to be_attached
+    expect(ActiveStorage::Blob.exists?(blob.id)).to be(true)
+
+    sharer.purge_prepared_workspace_archive!
+
+    expect(ActiveStorage::Blob.exists?(blob.id)).to be(false)
+  end
+
   it "skips prepared archive upload when the archive exceeds the size cap" do
     stub_const("PreparedWorkspaceArchive::MAX_BYTES", 1)
     stub_const("ImmutableSourceCheckout::PREPARED_ARCHIVE_MAX_BYTES", 1)

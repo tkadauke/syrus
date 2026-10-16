@@ -193,6 +193,12 @@ the prepare plan *and* the worker capability environment, so entries that share
 one are interchangeable; the storage key stays in the path because a data root
 is not always private to one host.
 
+Publication is deduplicated the same way: when an archive carrying this
+prepare fingerprint has already been published, the snapshot attaches that
+blob instead of uploading a second ~526 MB copy of the same dependency
+closure, and `WorkflowSourceSnapshot#purge_prepared_workspace_archive!`
+detaches rather than purges while other snapshots still point at the blob.
+
 The source revision is deliberately **not** part of the key. An entry is a
 dependency carrier whose source sits at whichever revision built it, and a
 checkout that wants a different revision is materialized from the entry and

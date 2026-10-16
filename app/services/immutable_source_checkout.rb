@@ -524,7 +524,26 @@ class ImmutableSourceCheckout
     prepared_archive_metadata_matches?(snapshot.prepared_workspace_archive.blob.metadata, snapshot, prepare_cache)
   end
 
+  # Publishing uploaded a fresh ~526 MB archive for every revision, and what
+  # is inside it is the dependency closure the prepare fingerprint names: in
+  # production, 89 archives in a day against 2 distinct closures, 44.6 GB of
+  # object storage holding about 1 GB of distinct content. So when a published
+  # archive already carries this fingerprint, attach that blob instead of
+  # uploading a second copy of it.
+  #
+  # The snapshot records its fingerprint either way, which is what makes the
+  # lookup an indexed query rather than a scan of blob metadata.
   def publish_prepared_archive!(snapshot, prepare_cache)
+    fingerprint = PreparedWorkspaceArchive.prepare_fingerprint_for(prepare_cache.plan)
+    snapshot.update_columns(prepare_fingerprint: fingerprint) if snapshot.prepare_fingerprint != fingerprint
+
+    reusable = WorkflowSourceSnapshot.reusable_prepared_archive_for(fingerprint)
+    if reusable && !snapshot.prepared_workspace_archive.attached?
+      snapshot.prepared_workspace_archive.attach(reusable.blob)
+      log("[immutable_source_checkout] prepared archive already published for #{fingerprint.first(12)}; reusing it instead of uploading")
+      return
+    end
+
     operation = lambda do
       PreparedWorkspaceArchive.publish!(
         workflow: @workflow,
