@@ -82,7 +82,7 @@ module SpendingInsights
 
     def run_cost_totals
       @run_cost_totals ||= begin
-        week, month, lifetime = filtered_runs.pick(
+        week, month, lifetime = unwindowed_runs.pick(
           Arel.sql(cost_sum_between_sql(today.beginning_of_week.beginning_of_day, today.end_of_day)),
           Arel.sql(cost_sum_between_sql(today.beginning_of_month.beginning_of_day, today.end_of_day)),
           Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
@@ -103,6 +103,13 @@ module SpendingInsights
       filter.apply(relation)
     end
 
+    def unwindowed_runs
+      relation = Run.where.not(cost_usd: nil)
+      relation = relation.where(user_id: user.id) unless user.admin?
+
+      filter.apply_without_date(relation)
+    end
+
     def scoped_jobs
       Job.where(id: filtered_runs.select(:job_id))
     end
@@ -118,15 +125,25 @@ module SpendingInsights
       relation.where(user_id: user.id)
     end
 
+    def unwindowed_chat_sessions
+      return ChatSession.none if run_only_filter?
+
+      relation = ChatSession.where.not(cumulative_cost_usd: nil)
+      relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
+      return relation if user.admin?
+
+      relation.where(user_id: user.id)
+    end
+
     def provider_scoped_runs
       scoped_runs
     end
 
     def provider_scoped_chat_sessions
       provider = filter_value("agent_provider")
-      return scoped_chat_sessions if provider.blank? || provider == "claude"
+      return unwindowed_chat_sessions if provider.blank? || provider == "claude"
 
-      scoped_chat_sessions.none
+      unwindowed_chat_sessions.none
     end
 
     def filtered_runs
