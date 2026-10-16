@@ -158,6 +158,7 @@ module Api
 
           owner = User.find_by(id: owner_param)
           return render_error("owner_not_found", I18n.t("api.epics.owner_not_found"), status: :not_found) unless owner
+          return unless authorize_epic_repository_write!(epic.repository, user: owner)
 
           if epic.owner_user_id == owner.id
             return render_error(
@@ -213,6 +214,8 @@ module Api
         def add_dependency
           epic = find_epic
           depends_on_epic = policy_scope(Epic).find(params.require(:depends_on_epic_id))
+          return unless authorize_epic_repository_write!(depends_on_epic.repository)
+
           dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
 
           if dependency.save
@@ -631,6 +634,13 @@ module Api
 
         def membership_on_repo?(repository_id)
           Repository.find_by(id: repository_id)&.member_at_least?(Current.user, "write") || false
+        end
+
+        def authorize_epic_repository_write!(repository, user: Current.user)
+          return true if RepositoryPolicy.new(user, repository).write?
+
+          render_error("forbidden", I18n.t("api.epics.access_forbidden"), status: :forbidden)
+          false
         end
 
         def resolve_repository_reference(attrs)

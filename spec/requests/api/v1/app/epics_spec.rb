@@ -598,6 +598,22 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("error", "message")).to include("would create a cycle")
   end
 
+  it "rejects adding a dependency when the user cannot write to the prerequisite Epic's repository" do
+    owner = Factories.user(email_address: "prerequisite-owner@example.com")
+    prerequisite_repository = Factories.repository(user: owner, owner: "shared", name: "read-only-prerequisite")
+    prerequisite_repository.repository_memberships.create!(user: user, role: "read")
+    epic = Factories.epic(user: user, repository: repository, title: "Writable dependent")
+    blocker = Factories.epic(user: owner, repository: prerequisite_repository, title: "Read-only prerequisite")
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/epics/#{epic.id}/dependencies", params: { depends_on_epic_id: blocker.id }, as: :json
+    }.not_to change(EpicDependency, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
   it "removes an Epic dependency and treats double-delete as success" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Chat search UI")
@@ -645,6 +661,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     sign_in_as(user)
     first_owner = Factories.user(email_address: "first@example.com")
     next_owner = Factories.user(email_address: "next@example.com")
+    repository.repository_memberships.create!(user: next_owner, role: "write")
     epic = Factories.epic(user: user, repository: repository, state: "ready", owner: first_owner, claimed_at: 1.hour.ago)
 
     patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_id: next_owner.id }
@@ -778,6 +795,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     admin = Factories.user(admin: true)
     admin_repo = Factories.repository(user: admin, owner: "acme", name: "forums")
     new_owner = Factories.user(email_address: "assignee@example.com")
+    admin_repo.repository_memberships.create!(user: new_owner, role: "write")
     epic = Factories.epic(user: admin, repository: admin_repo, owner_user: nil)
     unowned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, owner_user: nil)
     previous_child_owner = Factories.user(email_address: "previous-child@example.com")
@@ -803,6 +821,22 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(owned_child.reload.owner_user).to eq(new_owner)
   end
 
+  it "rejects reassigning an Epic to a user without repository write access" do
+    user.update!(global_role: "user")
+    next_owner = Factories.user(email_address: "reader@example.com")
+    repository.repository_memberships.create!(user: next_owner, role: "read")
+    epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: user)
+    child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user)
+    sign_in_as(user)
+
+    patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_id: next_owner.id }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(epic.reload.owner_user).to eq(user)
+    expect(child.reload.owner_user).to eq(user)
+  end
+
   it "requires admin access to reassign Epic ownership" do
     Factories.user(admin: true)
     regular = Factories.user(admin: false)
@@ -822,6 +856,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     admin = Factories.user(admin: true)
     admin_repo = Factories.repository(user: admin, owner: "acme", name: "arches")
     owner = Factories.user(email_address: "owner@example.com")
+    admin_repo.repository_memberships.create!(user: owner, role: "write")
     epic = Factories.epic(user: admin, repository: admin_repo, owner_user: owner)
     sign_in_as(admin)
 
