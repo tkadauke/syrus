@@ -1075,11 +1075,18 @@ module WorkEngine
 
       class RunningWorkflowWithoutActiveDescendants < Base
         def plan
+          unless primary_workflow&.terminal_descendant_outcome
+            return operator_plan(
+              "operator_review_terminal_workflow_outcome",
+              "The workflow has no active descendants, but its final Step does not establish a successful or failed outcome."
+            )
+          end
+
           automatic_plan(
             "finish_workflow_from_terminal_descendants",
             primary_workflow,
-            "The workflow is running with no active descendants, so its terminal state can be reconciled from completed Steps and Runs.",
-            execution_steps: [ "RunCompletionReconciler.call" ],
+            "The workflow is running with no active descendants, so its terminal state can be reconciled through the normal workflow completion path.",
+            execution_steps: [ "StepDispatcher.finish_workflow!" ],
             preconditions: { workflow_state: "running", active_descendants: false }
           )
         end

@@ -50,12 +50,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue.evidence).to include(
       "work_intent_id" => unit.work_intent_id,
       "work_intent_kind" => "initial",
-      "work_intent_state" => "failed",
+      "work_intent_state" => "requested",
       "work_unit_id" => unit.id,
       "work_unit_kind" => "initial",
-      "work_unit_state" => "failed",
+      "work_unit_state" => "running",
       "work_unit_member_job_ids" => [ job.id ],
-      "work_unit_active_lock_keys" => []
+      "work_unit_active_lock_keys" => [ "job:#{job.id}" ]
     )
   end
 
@@ -1343,6 +1343,33 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "does not synchronize terminal WorkUnit ownership during a diagnostic pass" do
+    workflow.update_columns(state: "queued", started_at: nil)
+    step.update_columns(state: "queued", started_at: nil)
+    run.update_columns(state: "queued", started_at: nil)
+    unit = workflow.work_unit
+    unit.mark_terminal!("cancelled")
+
+    expect(WorkUnits::TerminalWorkflowSync).not_to receive(:for_job)
+
+    reconcile(job_id: job.id, execute_repairs: false)
+
+    expect(workflow.reload).to be_queued
+    expect(unit.reload).to be_cancelled
+  end
+
+  it "memoizes the active runtime predicate for each job during a reconcile pass" do
+    job.update_columns(state: "queued")
+    workflow.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    step.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    run.update_columns(state: "cancelled", finished_at: 10.minutes.ago)
+    workflow.work_unit.mark_terminal!("cancelled")
+
+    expect(WorkUnits::Ownership).to receive(:active_for_job?).once.and_call_original
+
+    reconcile(job_id: job.id)
+  end
+
   it "cancels older active workflows when a newer workflow is already active for the same job" do
     older = workflow
     older_step = step
@@ -2097,6 +2124,32 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(retry_workflow.artifact("retry_reason")).to eq("epic_workflow_conflict_recovered")
     expect(retry_workflow.artifact("cancelled_workflow_id")).to eq(cancelled.id)
     expect(retry_workflow.state).to be_in(%w[queued running])
+  end
+
+  it "retries a queued Job whose latest workflow was cancelled at start by a cleared Epic-wide workflow conflict" do
+    epic = Factories.epic(user: job.user, repository: job.repository)
+    epic.update!(state: "in_progress")
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 205, agent_provider: "claude")
+    child.update!(epic: epic)
+    cancelled = child.latest_workflow
+
+    cancelled.update!(artifacts: { "start_cancelled_reason" => EpicWorkflowLock::BLOCK_REASON })
+    cancelled.update_columns(state: "cancelled", finished_at: 20.minutes.ago)
+    cancelled.steps.update_all(state: "cancelled", finished_at: 20.minutes.ago)
+    cancelled.runs.update_all(state: "cancelled", finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+
+    expect {
+      result = reconcile_and_execute(job_id: child.id)
+
+      expect(kind(result, :queued_job_after_epic_workflow_conflict)).to have_attributes(
+        recommended_repair_action: "retry_job_after_epic_workflow_conflict",
+        safe_to_auto_repair: true
+      )
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry WF-\d+ for #{child.slug}/))
+    }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    expect(child.reload.latest_workflow.artifact("retry_reason")).to eq("epic_workflow_conflict_recovered")
   end
 
   it "does not retry a queued Job after an Epic-wide conflict while active WorkUnit ownership exists" do

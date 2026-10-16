@@ -1637,7 +1637,7 @@ module WorkEngine
     def active_runtime_workflows_for_job(job)
       @active_runtime_workflows_for_job ||= {}
       @active_runtime_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
         active_work_units_for_job(job)
           .select { |unit| first_class_work_unit?(unit) }
           .filter_map(&:workflow)
@@ -1649,7 +1649,7 @@ module WorkEngine
     def active_work_unit_owned_workflows_for_job(job)
       @active_work_unit_owned_workflows_for_job ||= {}
       @active_work_unit_owned_workflows_for_job[job.id] ||= begin
-        WorkUnits::TerminalWorkflowSync.for_job(job)
+        WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
         active_work_units_for_job(job)
           .filter_map(&:workflow)
           .uniq(&:id)
@@ -2613,17 +2613,30 @@ module WorkEngine
     CLASSIFIER_PENDING_STUCK_AFTER = 10.minutes
 
     def classify_stalled_classifier_pending_jobs
-      stalled = jobs.select do |job|
-        next false unless job.state == "triaging"
-        next false unless job.created_at.present? && job.created_at < now - CLASSIFIER_PENDING_STUCK_AFTER
+      candidates = jobs.select { |job| job.state == "triaging" }
+      return [] if candidates.empty?
+
+      latest_attempt_at_by_job_id = JobClassificationAttempt
+        .where(job_id: candidates.map(&:id))
+        .group(:job_id)
+        .maximum(:started_at)
+
+      stalled = candidates.select do |job|
+        last_classification_activity_at = [
+          latest_attempt_at_by_job_id[job.id],
+          job.updated_at,
+          job.created_at
+        ].compact.max
+        next false unless last_classification_activity_at.present?
+        next false unless last_classification_activity_at < now - CLASSIFIER_PENDING_STUCK_AFTER
 
         # `classifier_uncertain` belongs here too. It used to be terminal by
         # omission -- nothing re-ran the classifier, nothing reaped it, nothing
         # surfaced it -- so a single transient provider error stranded the Job
         # for good. The attempt cap keeps both uncertainty retries and repeated
         # pending re-enqueues from becoming a loop: after the retry budget is
-        # spent, a triaged Job is a person's problem, and the triage decision
-        # opened alongside it is where that happens.
+        # spent by real classifier runs, a triaged Job is a person's problem,
+        # and the triage decision opened alongside it is where that happens.
         if job.triaging_reason.to_s == "classifier_pending"
           job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
         else
@@ -3641,8 +3654,12 @@ module WorkEngine
     def active_runtime_work_for_job?(job)
       return false unless job
 
-      WorkUnits::TerminalWorkflowSync.for_job(job)
-      job.reload.active_runtime_work?
+      @active_runtime_work_for_job ||= {}
+      return @active_runtime_work_for_job[job.id] if @active_runtime_work_for_job.key?(job.id)
+
+      WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
+      job.reload
+      @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_for_job?(job)
     end
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow, include_active_start_block: false)

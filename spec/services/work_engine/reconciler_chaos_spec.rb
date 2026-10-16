@@ -888,8 +888,9 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         }
       )
       workflow.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
-      step.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
-      run.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+      workflow.steps.update_all(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+      workflow.runs.update_all(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+      workflow.work_unit&.mark_terminal!("cancelled")
       job.update_columns(state: "queued")
       trace << "job=#{job.id}:queued_after_epic_conflict_cancel workflow=#{workflow.id}"
 
@@ -908,13 +909,14 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       job, workflow, step, run = graph
       workflow.update!(artifacts: { "main_broken" => true })
       workflow.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
-      step.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
-      run.update_columns(
+      workflow.steps.update_all(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+      workflow.runs.update_all(
         state: "cancelled",
         agent_outcome: "success",
         started_at: 20.minutes.ago,
         finished_at: 10.minutes.ago
       )
+      workflow.work_unit&.mark_terminal!("cancelled")
       job.update_columns(state: "queued")
       trace << "job=#{job.id}:queued_after_uncategorized_cancel workflow=#{workflow.id}"
 
@@ -1173,8 +1175,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         mergeability_head_sha: remote_sha
       )
       workflow.update_columns(state: "failed", trigger_kind: "retry", finished_at: 5.minutes.ago)
+      workflow.steps.update_all(state: "cancelled", finished_at: 5.minutes.ago)
+      workflow.runs.update_all(state: "cancelled", finished_at: 5.minutes.ago)
       step.update_columns(kind: "pr_open", state: "failed", finished_at: 5.minutes.ago)
       run.update_columns(state: "failed", finished_at: 5.minutes.ago)
+      workflow.work_unit&.mark_terminal!("failed")
       workflow.set_artifact!("branch_divergence", {
         "branch" => branch,
         "remote_sha" => remote_sha,

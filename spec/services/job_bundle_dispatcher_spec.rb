@@ -44,6 +44,20 @@ RSpec.describe JobBundleDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  it "does not dispatch when any member no longer satisfies delivery approval" do
+    valid = approved_job(1)
+    invalid = approved_job(2)
+    allow(LandingApprovalGate).to receive(:satisfied?) { |job, **| job != invalid }
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(valid, policy: instance_of(DeliveryPolicy))
+    expect(LandingApprovalGate).to have_received(:satisfied?).with(invalid, policy: instance_of(DeliveryPolicy))
+    expect(MergeTrain.count).to eq(0)
+    expect(valid.reload).to be_approved
+    expect(invalid.reload).to be_approved
+  end
+
   it "creates the bundle train on the delivery track landing branch shared by the members" do
     a = approved_job(1)
     b = approved_job(2)
@@ -51,6 +65,7 @@ RSpec.describe JobBundleDispatcher do
     b.update!(delivery_track: "hotfix")
     policy = instance_double(DeliveryPolicy)
     allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:approval_configured?).and_return(false)
     allow(policy).to receive(:job_landing_branch).and_return("release")
 
     workflow = described_class.try_dispatch!(repository)
@@ -65,6 +80,7 @@ RSpec.describe JobBundleDispatcher do
     a.update!(delivery_track: "hotfix")
     policy = instance_double(DeliveryPolicy)
     allow(DeliveryPolicy).to receive(:for).and_return(policy)
+    allow(policy).to receive(:approval_configured?).and_return(false)
     allow(policy).to receive(:job_landing_branch) do |job|
       job.delivery_track == "hotfix" ? "release" : repository.default_branch
     end
@@ -103,6 +119,46 @@ RSpec.describe JobBundleDispatcher do
 
     expect(described_class.try_dispatch!(repository)).to be_nil
     expect(MergeTrain.count).to eq(0)
+  end
+
+  it "does not dispatch a manually paused Job as a bundle member" do
+    approved_job(1)
+    paused = approved_job(2)
+    paused.update!(manual_paused: true)
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(paused.reload.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "does not dispatch a Job with requested-changes attention as a bundle member" do
+    approved_job(1)
+    held = approved_job(2)
+    held.update!(needs_attention_reason: Job::REQUESTED_CHANGES_ATTENTION_REASON)
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(held.reload.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "rechecks landing holds after locking members" do
+    approved_job(1)
+    held = approved_job(2)
+    assembly_count = 0
+    allow(LandingBundleAssembler).to receive(:for_repository).and_wrap_original do |method, *args|
+      result = method.call(*args)
+      assembly_count += 1
+      Job.where(id: held.id).update_all(manual_paused: true) if assembly_count == 2
+      result
+    end
+
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(held.reload).to be_manual_paused
+    expect(held.state).to eq("approved")
+    expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
   it "does not dispatch while a bundle member owner's landing queue is paused" do

@@ -146,6 +146,10 @@ module WorkEngine
           workflow&.slug || "Workflow missing"
         end
 
+        def cancelled_workflow_reason(workflow)
+          workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
+        end
+
         def workflow_id_label(id)
           id.present? ? "WF-#{id}" : "Workflow missing"
         end
@@ -586,50 +590,50 @@ module WorkEngine
           job_ids = Array(plan.affected_ids["job_ids"])
           return skipped("no stalled intake Jobs") if job_ids.empty?
 
-          reclassified = Job.where(id: job_ids).select do |job|
-            next false unless job.state == "triaging"
+          reclassified = 0
+          blocked = 0
+          Job.where(id: job_ids).find_each do |job|
+            next unless job.state == "triaging"
 
-            prepare_for_reclassification!(job)
+            reclassified += 1 if prepare_for_reclassification!(job)
+          rescue ClassifyIssueJob::EnqueueBlockedError => e
+            blocked += 1
+            Rails.logger.warn("[WorkEngine::RepairExecutor] classifier repair blocked for #{job_label(job)}: #{e.message}")
           end
-          return skipped("intake Jobs are no longer awaiting classification") if reclassified.empty?
+          return skipped("classification enqueue blocked for #{blocked} Job(s)") if reclassified.zero? && blocked.positive?
+          return skipped("intake Jobs are no longer awaiting classification") if reclassified.zero?
 
-          # ClassifyIssueJob's enqueue helper keeps a duplicate from racing a
-          # classify that is genuinely still in flight, while recovering a
-          # pruned failed execution that would otherwise keep the key blocked.
-          reclassified.each { |job| ClassifyIssueJob.enqueue_for_job!(job) }
-          success("re-enqueued classification for #{reclassified.size} Job(s)")
+          message = "re-enqueued classification for #{reclassified} Job(s)"
+          message += "; #{blocked} Job(s) remain blocked" if blocked.positive?
+          success(message)
         end
 
         private
 
         def prepare_for_reclassification!(job)
           original_reason = job.triaging_reason.to_s
-          if original_reason == "classifier_pending"
-            return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
-
-            job.with_lock do
-              job.reload
-              return false unless job.triaging? && job.triaging_reason_classifier_pending?
-              return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
-
-              job.increment!(:classifier_attempts)
-              audit_classifier_repair!(job, from_reason: original_reason, to_reason: job.triaging_reason)
-            end
-            return true
-          end
-
-          # An uncertain Job has to be put back in the classifier's queue
-          # first: IngestionClassifier and ClassifyIssueJob both refuse to
-          # run against any reason but `classifier_pending`.
-          return false unless job.may_retry_classification?
-
           job.with_lock do
             job.reload
-            return false unless job.may_retry_classification?
+            return false unless job.triaging?
+            return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
 
-            before_reason = job.triaging_reason
-            with_transition_reason { job.retry_classification! }
-            audit_classifier_repair!(job.reload, from_reason: before_reason, to_reason: job.triaging_reason)
+            if original_reason == "classifier_pending"
+              return false unless job.triaging_reason_classifier_pending?
+            else
+              # An uncertain Job has to be put back in the classifier's queue
+              # first: IngestionClassifier and ClassifyIssueJob both refuse to
+              # run against any reason but `classifier_pending`.
+              return false unless job.may_retry_classification?
+
+              with_transition_reason { job.retry_classification! }
+              job.reload
+            end
+
+            # Keep enqueueing in the lock transaction so a blocked enqueue
+            # rolls back the uncertain-to-pending transition. Only a real
+            # IngestionClassifier invocation owns the attempt counter.
+            ClassifyIssueJob.enqueue_for_job!(job)
+            audit_classifier_repair!(job, from_reason: original_reason, to_reason: job.triaging_reason)
           end
           true
         end
@@ -996,37 +1000,24 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
           return skipped("Workflow still has active descendants") if workflow.active_descendants?
 
-          outcome = orphaned_workflow_outcome(workflow)
-          return skipped("No terminal outcome could be inferred") unless outcome
+          outcome = workflow.terminal_descendant_outcome
+          return failure("No terminal outcome could be inferred; operator review is required") unless outcome
 
           with_transition_reason do
             if outcome == :succeeded
-              return skipped("Workflow cannot transition to succeeded") unless workflow.may_succeed?
-
-              workflow.succeed!
+              StepDispatcher.finish_workflow!(workflow)
             else
               return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
               workflow.fail!
+              workflow.save!
             end
-            workflow.save!
           end
-          success("marked #{workflow_label(workflow)} #{outcome}")
-        end
 
-        private
+          workflow.reload
+          return skipped("Workflow completion remains blocked") if workflow.running?
 
-        def orphaned_workflow_outcome(workflow)
-          return :failed if workflow.uncleared_retry_until_barrier?
-
-          terminal_positions = workflow.steps.reject(&:superseded_retry_until_failure?).map { |step| [ step.state, step.position ] }
-          last_succeeded = terminal_positions.filter_map { |state, position| position if state == "succeeded" }.max
-          last_failed = terminal_positions.filter_map { |state, position| position if state == "failed" }.max
-
-          return :succeeded if last_succeeded && (last_failed.nil? || last_succeeded > last_failed)
-          return :failed if last_failed && (last_succeeded.nil? || last_failed > last_succeeded)
-
-          nil
+          success("marked #{workflow_label(workflow)} #{workflow.state}")
         end
       end
 
@@ -2133,7 +2124,7 @@ module WorkEngine
 
           latest = job.latest_workflow
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?
-          return skipped("Latest Workflow was not cancelled by an Epic-wide workflow lock") unless latest.artifact("cancelled_reason") == EpicWorkflowLock::BLOCK_REASON
+          return skipped("Latest Workflow was not cancelled by an Epic-wide workflow lock") unless cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
           return skipped("Dependencies are still not ready for execution") unless job.dependencies_satisfied_for_execution?
 
@@ -2191,10 +2182,6 @@ module WorkEngine
           return true if workflow.artifact("retry_cancelled_reason").present?
 
           false
-        end
-
-        def cancelled_workflow_reason(workflow)
-          workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
         end
       end
 

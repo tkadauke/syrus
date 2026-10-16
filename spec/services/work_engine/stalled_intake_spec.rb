@@ -11,7 +11,8 @@ RSpec.describe "Stalled intake reconciliation" do
 
   def stall!(age: 30.minutes)
     job.update_columns(
-      state: "triaging", triaging_reason: "classifier_pending", created_at: age.ago
+      state: "triaging", triaging_reason: "classifier_pending",
+      created_at: age.ago, updated_at: age.ago
     )
   end
 
@@ -104,7 +105,7 @@ RSpec.describe "Stalled intake reconciliation" do
     def uncertain!(attempts: 1, age: 30.minutes)
       job.update_columns(
         state: "triaging", triaging_reason: "classifier_uncertain",
-        classifier_attempts: attempts, created_at: age.ago
+        classifier_attempts: attempts, created_at: age.ago, updated_at: age.ago
       )
     end
 
@@ -169,13 +170,115 @@ RSpec.describe "Stalled intake reconciliation" do
       }.to have_enqueued_job(ClassifyIssueJob).with(job.id)
     end
 
-    it "spends retry budget for a pending Job so repeated lost queue jobs stop looping" do
+    it "leaves attempt accounting to the classifier run" do
       stall!
       plan = repair_plan_for(job)
 
       expect {
         WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
-      }.to change { job.reload.classifier_attempts }.by(1)
+      }.not_to change { job.reload.classifier_attempts }
+    end
+
+    it "measures staleness from the latest Job activity rather than creation" do
+      stall!
+      job.update_columns(updated_at: 1.minute.ago)
+
+      expect(issue(reconcile)).to be_nil
+    end
+
+    it "measures staleness from the latest classifier attempt" do
+      stall!
+      job.classification_attempts.create!(started_at: 1.minute.ago, agent_provider: job.agent_provider)
+
+      expect(issue(reconcile)).to be_nil
+    end
+
+    it "uses recent Job activity when the latest classifier attempt is older" do
+      stall!
+      job.classification_attempts.create!(started_at: 20.minutes.ago, agent_provider: job.agent_provider)
+      job.update_columns(updated_at: 1.minute.ago)
+
+      expect(issue(reconcile)).to be_nil
+    end
+
+    it "loads latest classifier attempt timestamps in one query for the batch" do
+      second_job = Factories.job_record
+      [ job, second_job ].each do |stalled_job|
+        stalled_job.update_columns(
+          state: "triaging", triaging_reason: "classifier_pending",
+          created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+        )
+        stalled_job.classification_attempts.create!(
+          started_at: 20.minutes.ago,
+          agent_provider: stalled_job.agent_provider
+        )
+      end
+      attempt_queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+
+        sql = payload[:sql].to_s
+        attempt_queries << sql if sql.include?("job_classification_attempts")
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        WorkEngine::Reconciler.call(source: "stalled_intake_spec")
+      end
+
+      expect(attempt_queries.size).to eq(1)
+      expect(attempt_queries.first).to include("MAX")
+    end
+
+    it "continues the batch when one classifier enqueue is blocked" do
+      stalled_jobs = [ job, Factories.job_record ]
+      stalled_jobs.each do |stalled_job|
+        stalled_job.update_columns(
+          state: "triaging", triaging_reason: "classifier_pending",
+          created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+        )
+      end
+      plan = repair_plan_for(*stalled_jobs)
+      calls = []
+      allow(ClassifyIssueJob).to receive(:enqueue_for_job!) do |stalled_job|
+        calls << stalled_job.id
+        if stalled_job == stalled_jobs.first
+          raise ClassifyIssueJob::EnqueueBlockedError.new(
+            job_id: stalled_job.id,
+            concurrency_key: ClassifyIssueJob.concurrency_key_for(stalled_job.id),
+            blocking_solid_queue_job_ids: [ 123 ]
+          )
+        end
+      end
+
+      result = WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+
+      expect(result.status).to eq("applied")
+      expect(result.message).to include("1 Job(s) remain blocked")
+      expect(calls).to match_array(stalled_jobs.map(&:id))
+      expect(stalled_jobs.map { |stalled_job| stalled_job.reload.classifier_attempts }).to all(eq(0))
+    end
+
+    it "rolls back an uncertain Job when its classifier enqueue is blocked" do
+      job.update_columns(
+        state: "triaging", triaging_reason: "classifier_uncertain",
+        triaging_uncertainty_reason: "provider timeout", classifier_attempts: 1,
+        created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+      )
+      plan = repair_plan_for(job)
+      allow(ClassifyIssueJob).to receive(:enqueue_for_job!).and_raise(
+        ClassifyIssueJob::EnqueueBlockedError.new(
+          job_id: job.id,
+          concurrency_key: ClassifyIssueJob.concurrency_key_for(job.id),
+          blocking_solid_queue_job_ids: [ 123 ]
+        )
+      )
+
+      result = WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+
+      expect(result.status).to eq("skipped")
+      expect(job.reload.triaging_reason).to eq("classifier_uncertain")
+      expect(job.triaging_uncertainty_reason).to eq("provider timeout")
+      expect(job.classifier_attempts).to eq(1)
     end
 
     it "clears a pruned failed classifier execution so the repair creates a runnable attempt" do
@@ -206,7 +309,8 @@ RSpec.describe "Stalled intake reconciliation" do
       stalled_jobs = [ job, Factories.job_record, Factories.job_record ]
       stalled_jobs.each do |stalled_job|
         stalled_job.update_columns(
-          state: "triaging", triaging_reason: "classifier_pending", created_at: 30.minutes.ago
+          state: "triaging", triaging_reason: "classifier_pending",
+          created_at: 30.minutes.ago, updated_at: 30.minutes.ago
         )
       end
 

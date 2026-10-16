@@ -991,6 +991,27 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(ready.reload).to be_approved
   end
 
+  it "continues to non-overridable gates after matching an earlier override" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    user.update!(landing_paused: true)
+    job.update!(
+      pr_checks_sha: "abc123",
+      pr_checks_state: "failing",
+      pr_checks_checked_at: Time.current,
+      landing_blocker_override_key: "landing_paused",
+      landing_blocker_override_reason: "operator verified pause metadata is stale",
+      landing_blocker_override_requested_at: Time.current,
+      landing_blocker_override_requested_by_user_id: user.id
+    )
+
+    entry = described_class.entries(Job.where(id: job.id)).first
+
+    expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
+    expect(described_class.call).to be_nil
+    expect(job.reload).to be_approved
+    expect(job.landing_blocker_override_used_at).to be_nil
+  end
+
   it "does not bypass non-overridable PR check blockers" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.update!(
@@ -1946,7 +1967,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         expect(job.reload).to be_landing
       end
 
-      it "blocks landing when the required peer approval is missing" do
+      it "blocks the recurring queue tick when the required peer approval is missing" do
         job = approval_configured_job(syrus_yml: <<~YAML)
           approval:
             job:
@@ -1956,8 +1977,10 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         YAML
         JobApproval.create!(job: job, user: user, approved_at: Time.current)
 
-        expect(described_class.try_land!(job)).to be_nil
+        expect(described_class.call).to be_nil
         expect(job.reload).to be_approved
+        expect(job.landing_queue_blocked_reason).to eq({ "key" => "approval_not_satisfied" })
+        expect(LandingBlockerOverride.overridable?("approval_not_satisfied")).to be(false)
       end
 
       it "does not count a peer approval from someone without repository access" do

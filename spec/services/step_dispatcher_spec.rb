@@ -1165,7 +1165,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.reload.artifact("pause_reason")).to be_nil
       expect(workflow.artifact("start_blocked_reason")).to be_nil
       expect(unit.reload).to have_attributes(
-        state: "queued",
+        state: "running",
         blocked_reason: nil,
         blocked_details: {}
       )
@@ -2545,7 +2545,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(second_analyze.reload.runs.count).to eq(1)
       expect(second_analyze.runs.last.trigger_kind).to eq("ci_failure")
       expect(unit.reload).to have_attributes(
-        state: "queued",
+        state: "running",
         blocked_reason: nil
       )
     end

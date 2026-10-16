@@ -50,7 +50,7 @@ module WorkUnits
         unit.blocked_reason == start_blocked_reason.to_s ||
         unit.blocked_reason == blocked_reason_for(start_blocked_reason)
 
-      unit.unblock!
+      unit.resume_for_workflow!
     end
 
     private
