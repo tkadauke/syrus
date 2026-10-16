@@ -811,18 +811,27 @@ class GithubClient
   def list_pull_requests_for_triage(repo_slug, state: "open", limit: 20)
     list_state = state == "merged" ? "closed" : state
     pulls = if state == "merged"
-      merged_pull_requests_for_triage(repo_slug, limit: limit)
+      list_merged_pull_requests_for_triage(repo_slug, limit: limit)
     else
       triage_pull_request_page(repo_slug, state: list_state, limit: limit)
     end
     pulls = pulls.reject { |pull| pull.merged_at.present? } if state == "closed"
-    return pulls if state == "merged"
 
     pulls.first(limit).map do |pull|
       track_rate_limits { @client.pull_request(repo_slug, pull.number) }
     end
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing triage PRs on #{repo_slug}: #{e.message}")
+    raise
+  end
+
+  # The ingestion classifier only needs the fields returned by GitHub's list
+  # endpoint. Keeping that scan separate avoids fetching every PR again merely
+  # to build its recent-merge context.
+  def list_merged_pull_requests_for_triage(repo_slug, limit: 20)
+    merged_pull_requests_for_triage(repo_slug, limit: limit)
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing merged triage PRs on #{repo_slug}: #{e.message}")
     raise
   end
 
