@@ -2570,6 +2570,7 @@ export function App() {
 
   useEffect(() => {
     let isMounted = true
+    let credentialsChanged = false
 
     Promise.all([
       window.syrusDesktop.getCredentials(),
@@ -2593,6 +2594,10 @@ export function App() {
           }))
         )
 
+        if (credentialsChanged) {
+          return
+        }
+
         if (credentials) {
           setUrl(credentials.url)
           setToken(credentials.token)
@@ -2607,12 +2612,13 @@ export function App() {
         }
       })
       .catch(() => {
-        if (isMounted) {
+        if (isMounted && !credentialsChanged) {
           setAuthState("setup")
         }
       })
 
     const unsubscribeCleared = window.syrusDesktop.onCredentialsCleared(() => {
+      credentialsChanged = true
       queryClient.clear()
       setToken("")
       setError("")
@@ -2621,6 +2627,7 @@ export function App() {
     const unsubscribeSaved = isPreferencesView
       ? () => {}
       : window.syrusDesktop.onCredentialsSaved((credentials) => {
+          credentialsChanged = true
           queryClient.clear()
           setUrl(credentials.url)
           setToken(credentials.token)
