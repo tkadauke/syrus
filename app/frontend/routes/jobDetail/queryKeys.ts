@@ -25,11 +25,15 @@ export function jobWorkflowsQueryKey(id: string | number, search: string): JobWo
   return ["jobs", String(id), "workflows", search] as const
 }
 
-export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: JobWorkflowsPayload): JobDetailPayload {
+export function mergeJobWorkflowsPayload(
+  payload: JobDetailPayload,
+  workflows?: JobWorkflowsPayload,
+  { workflowsCommandsAreFresher = true }: { workflowsCommandsAreFresher?: boolean } = {}
+): JobDetailPayload {
   if (!workflows) return payload
   if (workflows.job_id !== undefined && workflows.job_id !== payload.job.id) return payload
 
-  const actions = { ...workflows.actions }
+  const actions = { ...(workflowsCommandsAreFresher ? workflows.actions : payload.actions) }
   if (payload.job.state === "approved" || payload.job.summary_state === "approved") {
     actions.can_approve = false
   }
@@ -42,7 +46,7 @@ export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: 
     workflows_pagination: workflows.workflows_pagination,
     feature_flags: workflows.feature_flags,
     actions,
-    paths: workflows.paths
+    paths: workflowsCommandsAreFresher ? workflows.paths : payload.paths
   }
 }
 
