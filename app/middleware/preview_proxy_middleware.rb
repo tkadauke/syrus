@@ -154,7 +154,7 @@ class PreviewProxyMiddleware
     env.each do |key, value|
       next unless key.start_with?("HTTP_")
       header = key[5..].gsub("_", "-").downcase
-      next if header == "host"
+      next if %w[host accept-encoding].include?(header)
       proxy_req[header] = value
     end
     proxy_req["Content-Type"] = env["CONTENT_TYPE"] if env["CONTENT_TYPE"].present?

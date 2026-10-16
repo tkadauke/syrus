@@ -1,4 +1,6 @@
 require "rails_helper"
+require "stringio"
+require "zlib"
 
 RSpec.describe PreviewProxyMiddleware do
   let(:inner_app) { ->(_env) { [200, { "Content-Type" => "text/plain" }, ["upstream"]] } }
@@ -164,7 +166,7 @@ RSpec.describe PreviewProxyMiddleware do
       stub_request(:get, "http://127.0.0.1:25000/")
         .to_return(status: 200, body: "", headers: {
           "Set-Cookie" => [
-            "session=abc123; Path=/; HttpOnly",
+            "session=abc123; Expires=Wed, 21 Oct 2037 07:28:00 GMT; Path=/; HttpOnly",
             "csrf=def456; Path=/; SameSite=Lax"
           ]
         })
@@ -172,7 +174,7 @@ RSpec.describe PreviewProxyMiddleware do
       _, headers, _ = middleware.call(preview_env_for(preview_env))
 
       expect(headers["set-cookie"]).to include(
-        "session=abc123; Path=/; HttpOnly",
+        "session=abc123; Expires=Wed, 21 Oct 2037 07:28:00 GMT; Path=/; HttpOnly",
         "csrf=def456; Path=/; SameSite=Lax"
       )
       access_cookies = headers["set-cookie"].grep(/\A#{described_class::PREVIEW_ACCESS_COOKIE}=/)
@@ -219,6 +221,46 @@ RSpec.describe PreviewProxyMiddleware do
       expect(body.join).to include('src="/builds/main.tsx"')
       expect(body.join).not_to include("localhost:3036")
       expect(headers.keys.map(&:downcase)).not_to include("content-length", "etag")
+    end
+
+    it "negotiates and rewrites compressed HTML instead of forwarding the browser encoding" do
+      html = '<script type="module" src="http://localhost:3036/builds/main.tsx"></script>'
+      compressed = StringIO.new.tap do |io|
+        Zlib::GzipWriter.wrap(io) { |gzip| gzip.write(html) }
+      end.string
+
+      stub_request(:get, "http://127.0.0.1:25000/")
+        .with(headers: { "Accept-Encoding" => "br, gzip" })
+        .to_return(
+          status: 200,
+          body: compressed,
+          headers: {
+            "content-type" => "text/html; charset=utf-8",
+            "content-encoding" => "gzip",
+            "content-length" => compressed.bytesize.to_s,
+            "etag" => 'W/"compressed"'
+          }
+        )
+      stub_request(:get, "http://127.0.0.1:25000/")
+        .with { |request| request.headers["Accept-Encoding"] != "br, gzip" }
+        .to_return(
+          status: 200,
+          body: html,
+          headers: {
+            "content-type" => "text/html; charset=utf-8",
+            "content-length" => html.bytesize.to_s,
+            "etag" => 'W/"plain"'
+          }
+        )
+
+      env = preview_env_for(preview_env)
+      env["HTTP_ACCEPT_ENCODING"] = "br, gzip"
+      status, headers, body = middleware.call(env)
+
+      expect(status).to eq(200)
+      expect(body.join).to include('src="/builds/main.tsx"')
+      expect(body.join).not_to include("localhost:3036")
+      expect(headers.keys.map(&:downcase)).not_to include("content-encoding", "content-length", "etag")
     end
 
     it "leaves non-HTML localhost text responses alone" do
