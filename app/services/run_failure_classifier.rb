@@ -223,12 +223,37 @@ class RunFailureClassifier
     end
   end
 
+  # "existing workflow workspace at X has no valid HEAD; recloning from <ref>"
+  # is workspace setup reporting that it healed itself, and it is routine --
+  # 102 runs emitted it in one production day, across coverage_analyze,
+  # summarize, format, implement and merge_train_land alike, almost all of
+  # which then succeeded.
+  #
+  # Treating that notice as evidence of a broken checkout meant any merge-train
+  # run that failed for an unrelated reason was read as a corrupt train
+  # workspace: one landing_fix run whose agent errored was classified
+  # merge_train_rebuild_required, which failed a two-hour train and sent its
+  # ten jobs back to approved, while the actual failure was never reported.
+  #
+  # So the notice only counts when the workspace was *not* recloned. The
+  # genuine fatal case announces itself separately -- setup refuses to discard
+  # possible agent work -- and is detected without reference to this, so a run
+  # carrying both a routine reclone and a real refusal still classifies as the
+  # refusal.
   def workspace_checkout_invalid?
+    workspace_checkout_without_head? && !workspace_checkout_recloned?
+  end
+
+  def workspace_checkout_without_head?
     text_match?(/existing workflow workspace .* has no valid HEAD|workflow workspace .* no valid HEAD/i)
   end
 
+  def workspace_checkout_recloned?
+    text_match?(/no valid HEAD; recloning/i)
+  end
+
   def workspace_checkout_refused_reclone?
-    workspace_checkout_invalid? && text_match?(/refusing to discard possible agent work/i)
+    workspace_checkout_without_head? && text_match?(/refusing to discard possible agent work/i)
   end
 
   def merge_train_workspace_checkout_invalid?

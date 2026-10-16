@@ -1048,6 +1048,49 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  # The reclone notice is routine -- 102 production runs emitted it in one day,
+  # across coverage_analyze, summarize, format and merge_train_land alike, and
+  # almost all then succeeded. Reading it as a broken checkout made every
+  # merge-train run that failed for an unrelated reason look like a corrupt
+  # train workspace, failing a two-hour train over a workspace that had already
+  # healed itself.
+  it "does not classify a workspace that recloned itself as an invalid checkout" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::AgentReportedError",
+      "existing workflow workspace at /tmp/workflows/123 has no valid HEAD; " \
+      "recloning from refs/syrus/source-snapshots/runs/216474\nagent reported error"
+    )
+
+    expect(classification.classification).not_to eq("workspace_checkout_invalid")
+  end
+
+  it "does not fail a merge train over a workspace that recloned itself" do
+    run.workflow.update!(trigger_kind: "merge_train")
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::AgentReportedError",
+      "existing workflow workspace at /tmp/workflows/123 has no valid HEAD; " \
+      "recloning from refs/syrus/source-snapshots/runs/216474\nagent reported error"
+    )
+
+    expect(classification.classification).not_to eq("merge_train_rebuild_required")
+  end
+
+  # A run can carry a routine reclone from one step and a genuine refusal from
+  # another; the refusal is the real failure and must still win.
+  it "classifies a refusal that follows a routine reclone as git state corruption" do
+    run.update!(state: "failed")
+    diagnostic(
+      "GitRunner::GitError",
+      "existing workflow workspace at /tmp/workflows/122 has no valid HEAD; recloning from refs/heads/main\n" \
+      "existing workflow workspace at /tmp/workflows/123 has no valid HEAD; " \
+      "refusing to discard possible agent work"
+    )
+
+    expect(classification.classification).to eq("git_state_corrupt")
+  end
+
   it "classifies a refused no-HEAD workspace reclone as non-retryable git state corruption" do
     run.update!(state: "failed")
     diagnostic(
