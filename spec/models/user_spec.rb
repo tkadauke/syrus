@@ -3,6 +3,30 @@ require "rails_helper"
 RSpec.describe User do
   let(:attrs) { { email_address: "user@example.com", password: "supersecret" } }
 
+  describe "email address validation" do
+    it "requires an email address" do
+      user = User.new(attrs.merge(email_address: "   "))
+
+      expect(user).not_to be_valid
+      expect(user.errors[:email_address]).to include("can't be blank")
+    end
+
+    it "requires a valid email address" do
+      user = User.new(attrs.merge(email_address: "not-an-email"))
+
+      expect(user).not_to be_valid
+      expect(user.errors[:email_address]).to include("is invalid")
+    end
+
+    it "requires a unique normalized email address" do
+      User.create!(attrs)
+      duplicate = User.new(attrs.merge(email_address: " USER@EXAMPLE.COM "))
+
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:email_address]).to include("has already been taken")
+    end
+  end
+
   describe ".search" do
     it "matches on email_address" do
       user = Factories.user(email_address: "flaky-deploy-fixer@example.com")

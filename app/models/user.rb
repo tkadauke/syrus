@@ -244,6 +244,10 @@ class User < ApplicationRecord
   validates :locale, presence: true, inclusion: { in: LOCALES }
   validates :global_role, presence: true, inclusion: { in: GLOBAL_ROLES }
   validates :first_name, :last_name, length: { maximum: 80 }
+  validates :email_address,
+            presence: true,
+            uniqueness: true,
+            format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :github_handle, length: { maximum: 100 }
   validates :profile_bio, length: { maximum: 1000 }
   validates :avatar_url, length: { maximum: 500 }

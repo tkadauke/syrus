@@ -218,6 +218,50 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
     expect(invitation.reload).to be_accepted
   end
 
+  it "rejects a duplicate normalized email address" do
+    Factories.user(email_address: "existing@example.com")
+    AppSetting.current.update!(signups_open: true)
+
+    expect {
+      post "/api/v1/app/auth/users", params: {
+        user: {
+          email_address: " EXISTING@EXAMPLE.COM ",
+          password: "supersecret",
+          password_confirmation: "supersecret"
+        }
+      }, as: :json
+    }.not_to change(User, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Email address has already been taken")
+  end
+
+  it "rejects a blank email address" do
+    post "/api/v1/app/auth/users", params: {
+      user: {
+        email_address: "   ",
+        password: "supersecret",
+        password_confirmation: "supersecret"
+      }
+    }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Email address can't be blank")
+  end
+
+  it "rejects a malformed email address" do
+    post "/api/v1/app/auth/users", params: {
+      user: {
+        email_address: "not-an-email",
+        password: "supersecret",
+        password_confirmation: "supersecret"
+      }
+    }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Email address is invalid")
+  end
+
   it "blocks closed sign-up without an invitation" do
     Factories.user
 
