@@ -5319,6 +5319,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.headers["Content-Type"]).to eq("image/svg+xml")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body).to eq("<svg></svg>")
   end
 
