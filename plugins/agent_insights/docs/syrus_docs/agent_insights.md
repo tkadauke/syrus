@@ -149,6 +149,11 @@ The insight agent receives:
 - `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
 - `retire_insight` — retire a pending or dismissed insight that is stale, duplicated, or superseded, with a required `reason` and optional `superseded_by_insight_id`/`superseded_by_job_id`. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; the row stays inspectable, never deleted.
 
+The SQL-backed `list_insights`, `list_recent_workflows`, and
+`read_run_transcript` tools accept one-based pages capped at 10,000. Ordinary
+out-of-range pages return empty results, while larger values are reduced to the
+cap before an SQL offset is calculated. Their per-page limits remain unchanged.
+
 **Scope enforcement:** workflow evidence tools are constrained to the current insight run's repository. `submit_insight` also validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
 
 Operational log matches should be treated as investigative evidence, not as
