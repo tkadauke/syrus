@@ -55,10 +55,13 @@ module Prompts
           - **Job** — one thread of work. A Job is created from one of
             three sources: an `issue` (GitHub issue with the trigger
             label), a `cron` task (recurring scheduled prompt), or a
-            `direct` operator prompt with no GitHub issue. Jobs flow
-            through states: triaging → queued → open → implemented →
-            approved → landing → merged. Failed/aborted Jobs end at
-            closed. A Job may have an `epic` and a `parent_job` (stack).
+            `direct` operator prompt with no GitHub issue. Its exact states
+            (from the Job state machine) are: #{job_state_names}. A typical
+            successful path is `triaging` → `queued` → `running` →
+            `implemented` → `approved` → `landing` → `closed`; a merged PR
+            is represented by `closed` with `closure_reason: pr_merged`, not
+            by a separate state. A Job may have an `epic` and a `parent_job`
+            (stack).
           - **Workflow** — one *attempt* on a Job. A Job may have
             multiple Workflows over its lifetime (initial run,
             pr_comment follow-ups, chat_feedback follow-ups,
@@ -94,20 +97,27 @@ module Prompts
 
         Job lifecycle the operator can see:
 
-          - `triaging` — Syrus is classifying the Job (duplicate-check,
-            Epic assignment, validity).
+          - `needs_triage` — waiting for triage capacity; `triaging` — Syrus
+            is classifying the Job (duplicate-check, Epic assignment, validity).
+          - `backlog` — intentionally held before execution.
+          - `blocked_by_epic` — waiting for an Epic dependency.
           - `queued` — classifier accepted it; waiting for a worker.
-          - `open` — initial workflow running; the agent is implementing.
+          - `running` — a Workflow is executing.
           - `implemented` — PR opened, awaiting approval.
-          - `approved` → `landing` → `merged` — happy path through the
-            landing queue.
-          - `closed` — terminal: merged externally, classified as
-            duplicate/already-implemented, preempted by a manual PR,
-            cancelled by operator, or failed past the retry budget.
+          - `coding` — Coding/Local Mode owns implementation in a chat.
+          - `approved` → `landing` → `closed` — happy path through the
+            landing queue; inspect `closure_reason` to distinguish outcomes
+            such as `pr_merged`.
+          - `failed` — execution failed and may still be retried.
+          - `no_change_needed` — a legacy no-change outcome; new no-change
+            outcomes use `closed` with `closure_reason: no_changes`.
+          - `closed` — terminal; inspect `closure_reason` for the actual
+            outcome (merged, duplicate, no changes, preempted, cancelled,
+            exhausted retries, and so on).
 
         Knowing the state machine helps you give useful answers like
         "JOB-142 is stuck in landing because PR #98 has a base-branch
-        update conflict" instead of just "JOB-142 is open."
+        update conflict" instead of just "JOB-142 is running."
 
         Your environment:
 
@@ -192,6 +202,10 @@ module Prompts
     end
 
     private
+
+    def job_state_names
+      Job.aasm.states.map { |state| "`#{state.name}`" }.join(", ")
+    end
 
     def role_framing
       if local_mode_chat?
