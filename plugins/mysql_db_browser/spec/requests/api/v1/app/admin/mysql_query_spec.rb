@@ -183,7 +183,8 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
     end
 
     it "compiles a plain column spec and runs it" do
-      stub_clients(fake_client(introspection_rows: orders_introspection_rows, content_rows: [ { "id" => 1, "status" => "pending" } ]))
+      client = fake_client(introspection_rows: orders_introspection_rows, content_rows: [ { "id" => 1, "status" => "pending" } ])
+      stub_clients(client)
       spec = { table: "orders", columns: [ "orders.id", "orders.status" ] }.to_json
 
       get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
@@ -191,6 +192,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       expect(response).to have_http_status(:ok)
       expect(parse_body["rows"]).to eq([ { "id" => 1, "status" => "pending" } ])
       expect(parse_body["filter_schema"].map { |f| f["field"] }).to contain_exactly("orders.id", "orders.status")
+      expect(client).to have_received(:query).with(a_string_including("FROM `app_prod`.`orders`"), any_args)
     end
 
     it "compiles a summarize (aggregate/group-by) spec" do
@@ -201,7 +203,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
 
       expect(response).to have_http_status(:ok)
-      expect(client).to have_received(:query).with(a_string_including("GROUP BY `orders`.`status`"), any_args)
+      expect(client).to have_received(:query).with(a_string_including("GROUP BY `app_prod`.`orders`.`status`"), any_args)
     end
 
     it "applies an encoded filter tree to the generated WHERE clause" do
@@ -213,7 +215,7 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec, q: q }
 
       expect(response).to have_http_status(:ok)
-      expect(client).to have_received(:query).with(a_string_including("WHERE (`orders`.`status` = 'pending')"), any_args)
+      expect(client).to have_received(:query).with(a_string_including("WHERE (`app_prod`.`orders`.`status` = 'pending')"), any_args)
     end
 
     it "returns invalid_spec for malformed JSON" do
