@@ -277,12 +277,6 @@ module Api
             }.compact
           end
 
-          def visible_credential!(ref)
-            ::CredentialStore::Broker.resolve_credential!(context: current_invocation_context, credential_ref: ref)
-          rescue ::CredentialStore::Broker::NotFound
-            raise ActiveRecord::RecordNotFound, "credential not found"
-          end
-
           def validate_completion_audit!(attrs, context:, expected_tool:)
             lease_id = attrs[:lease_id].to_s
             raise InvalidAudit, "lease_id is required" if lease_id.blank?
@@ -291,11 +285,12 @@ module Api
             exit_status = Integer(attrs[:exit_status], exception: false)
             raise InvalidAudit, "exit_status must be an integer" if exit_status.nil?
 
-            credential = visible_credential!(attrs.fetch(:credential))
-            event = credential.access_events.find_by(
+            event = ::CredentialStore::CredentialAccessEvent.find_by(
               action: "lease", result: "allowed", tool_name: expected_tool, lease_id: lease_id
             )
-            raise InvalidAudit, "lease was not issued for this credential and tool" unless event
+            raise InvalidAudit, "lease was not issued for this credential and tool" unless event&.credential
+            credential = event.credential
+            raise InvalidAudit, "lease was not issued for this credential and tool" unless credential_ref_matches?(attrs.fetch(:credential), credential)
             raise InvalidAudit, "lease does not belong to this runtime context" unless audit_context_matches?(event, context)
             raise InvalidAudit, "lease completion was already recorded" if ::CredentialStore::CredentialAccessEvent.exists?(completion_of_event: event)
 
@@ -305,6 +300,10 @@ module Api
             [ credential, event, exit_status ]
           rescue KeyError, ArgumentError
             raise InvalidAudit, "lease metadata is invalid"
+          end
+
+          def credential_ref_matches?(reference, credential)
+            reference.to_s == credential.id.to_s || reference.to_s == credential.name
           end
 
           def audit_context_matches?(event, context)

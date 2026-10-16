@@ -124,10 +124,19 @@ module CredentialStore
       end
 
       credential
+    rescue Ambiguous
+      record_event!(nil, result: "denied", denial_reason: "credential name is ambiguous", metadata: { credential_ref: credential_ref.to_s.truncate(120) })
+      raise
     end
 
     def resolve_credential
-      self.class.resolve_credential!(context: context, credential_ref: credential_ref)
+      if credential_ref.is_a?(Integer) || credential_ref.to_s.match?(/\A\d+\z/)
+        Credential.find_by(id: credential_ref)
+      else
+        self.class.resolve_credential!(context: context, credential_ref: credential_ref)
+      end
+    rescue NotFound
+      nil
     end
 
     def denial_reason_for(credential)
@@ -137,7 +146,8 @@ module CredentialStore
       return "surface not allowed" unless surface_allowed?(credential)
       return "tool not allowed" unless tool_allowed?(credential)
 
-      target_denial_reason(credential) || custom_denial_reason(credential)
+      custom_reason = custom_denial_reason(credential)
+      target_denial_reason(credential) || custom_reason
     end
 
     def surface_allowed?(credential)

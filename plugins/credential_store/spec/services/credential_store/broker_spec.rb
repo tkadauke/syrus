@@ -165,6 +165,32 @@ RSpec.describe CredentialStore::Broker do
     }.to raise_error(CredentialStore::Broker::Ambiguous, /ambiguous/)
   end
 
+  it "audits ambiguous credential attempts without choosing a candidate" do
+    first_team = Team.create!(name: "Platform")
+    second_team = Team.create!(name: "Operations")
+    first_team.team_memberships.create!(user: user, role: "member")
+    second_team.team_memberships.create!(user: user, role: "member")
+    create_credential(scope_type: "team", scope_id: first_team.id)
+    create_credential(scope_type: "team", scope_id: second_team.id)
+
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: "deploy-token",
+        type: "credential_store.url_token",
+        env_key: "DEPLOY_TOKEN",
+        purpose: "deploy",
+        tool_name: "deploy.push"
+      ) { |env, _metadata| env }
+    }.to raise_error(CredentialStore::Broker::Ambiguous, /ambiguous/)
+
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: nil,
+      result: "denied",
+      denial_reason: "credential name is ambiguous"
+    )
+  end
+
   it "denies inactive, mismatched, disallowed, and constrained credentials with audit rows but no payload material" do
     credential = create_credential(allowed_tools: [ "deploy.pull" ])
 

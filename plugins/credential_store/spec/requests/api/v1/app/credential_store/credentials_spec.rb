@@ -570,6 +570,15 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       allowed_surfaces: [ "workflow" ],
       allowed_tools: [ "credential.exec" ]
     )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+    post "/api/v1/app/credential_store/exec_material",
+      params: { credential_exec: {
+        credential: leased.name, type: leased.credential_type, purpose: "deploy",
+        target: { host: "github.com" }
+      } },
+      headers: { "Authorization" => "Bearer #{token}" }
+    lease_id = parse_body.dig("lease", "lease_id")
+
     leased.update!(revoked_at: Time.current)
     replacement = create_credential(
       scope_type: "repository",
@@ -578,13 +587,11 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       allowed_surfaces: [ "workflow" ],
       allowed_tools: [ "credential.exec" ]
     )
-    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
-
     post "/api/v1/app/credential_store/exec/audit",
       params: {
         credential_exec_audit: {
-          credential: leased.id,
-          lease_id: "lease-before-rotation",
+          credential: leased.name,
+          lease_id: lease_id,
           tool_name: "credential.exec",
           exit_status: 0,
           duration_ms: 1234,
