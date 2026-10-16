@@ -147,7 +147,9 @@ The insight agent receives:
   verified file-level facts.
 - `submit_insight` — record a new finding, including structured memory-removal proposals.
 - `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
-- `retire_insight` — retire a pending or dismissed insight that is stale, duplicated, or superseded, with a required `reason` and optional `superseded_by_insight_id`/`superseded_by_job_id`. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; the row stays inspectable, never deleted.
+- `accept_insight` — accept one pending insight immediately or pass `insight_ids` to stage a bounded, deduplicated batch for one operator confirmation. The full batch is authorized and validated before mutation; create-job and save-memory proposals retain their side effects and run transactionally.
+- `dismiss_insight` — dismiss one pending insight immediately or pass `insight_ids` for one grouped confirmation. A shared audit `reason` is required; dismissal never creates Jobs or memories.
+- `retire_insight` — retire one pending or dismissed insight that is stale, duplicated, or superseded, or pass `insight_ids` for one grouped confirmation. The singular `target_insight_id` interface remains supported. A shared `reason` is required, and per-item superseding references can be supplied as maps keyed by insight id. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; rows stay inspectable, never deleted.
 
 **Scope enforcement:** workflow evidence tools are constrained to the current insight run's repository. `submit_insight` also validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
 

@@ -2,141 +2,59 @@ require "mcp"
 
 module AgentInsights
   module Tools
-    # MCP tool for insight agents and repository chat agents to retire a stale,
-    # duplicated, or superseded Suggestion with an audit trail.
-    # Retirement is a state transition (state: "retired"), never a physical
-    # delete, so historical evidence stays inspectable via
-    # list_insights(state: "retired"/"all") and read_insight.
     class RetireInsightTool < MCP::Tool
+      extend MutationToolSupport
+
       tool_name "retire_insight"
-
-      description <<~DESC
-        Retires a stale, duplicated, or superseded Suggestion with an
-        audit trail. Use this instead of filing a new informational
-        "Superseded by #N" card to clear a stale pending or dismissed insight.
-        Accepted insights are operator history and are refused by default;
-        pass retire_accepted: true only when the accepted insight itself is
-        confirmed obsolete, not merely superseded by newer work (prefer filing
-        a new standalone insight in that case).
-      DESC
-
-      input_schema(
-        properties: {
-          target_insight_id: {
-            type: "integer",
-            description: "Required Suggestion id to retire."
-          },
-          reason: {
-            type: "string",
-            description: "Required concise reason for the audit trail explaining why this finding is no longer current."
-          },
-          superseded_by_insight_id: {
-            type: "integer",
-            description: "Optional id of the Suggestion that supersedes this one."
-          },
-          superseded_by_job_id: {
-            type: "integer",
-            description: "Optional id of the Job that resolved or replaced this finding."
-          },
-          retire_accepted: {
-            type: "boolean",
-            description: "Set true to retire an accepted insight. Refused unless explicitly set; prefer filing a new standalone insight instead."
-          }
-        },
-        required: %w[target_insight_id reason]
-      )
+      description "Retire one insight, or request one operator confirmation for a validated batch. Accepted history requires retire_accepted: true. Batch superseding references are maps keyed by the retired insight id."
+      input_schema(properties: {
+        target_insight_id: { type: "integer", description: "One insight id (backward-compatible interface)." },
+        insight_ids: { type: "array", items: { type: "integer" }, description: "Insight ids for one grouped confirmation." },
+        reason: { type: "string", description: "Required shared audit reason." },
+        superseded_by_insight_id: { type: "integer", description: "Optional singular superseding insight id." },
+        superseded_by_job_id: { type: "integer", description: "Optional singular superseding Job id." },
+        superseded_by_insight_ids: { type: "object", description: "Map from retired insight id to superseding insight id." },
+        superseded_by_job_ids: { type: "object", description: "Map from retired insight id to superseding Job id." },
+        retire_accepted: { type: "boolean", description: "Explicitly allow accepted targets to be retired." }
+      }, required: %w[reason])
 
       class << self
-        def call(target_insight_id:, reason:, server_context:,
-                 superseded_by_insight_id: nil, superseded_by_job_id: nil, retire_accepted: false)
-          context = McpToolContext.from_server_context(server_context)
-          reason_s = CommandRedactor.redact(Mcp::Tools.utf8(reason)).strip
-          return Mcp::Tools.invalid("reason is required") if reason_s.empty?
+        def call(target_insight_id: nil, insight_ids: nil, reason:, server_context:, superseded_by_insight_id: nil,
+                 superseded_by_job_id: nil, superseded_by_insight_ids: {}, superseded_by_job_ids: {}, retire_accepted: false)
+          ids, error = Mutations::Base.validate_ids(id: target_insight_id, ids: insight_ids, singular_name: "target_insight_id")
+          return Mcp::Tools.invalid(error) if error
 
-          insight = visible_insight(target_insight_id, context)
-          return Mcp::Tools.invalid("target_insight_id must reference an accessible insight") unless insight
-          return Mcp::Tools.invalid("Suggestion ##{insight.id} is already retired.") if insight.retired?
-
-          if insight.accepted? && !retire_accepted
-            return Mcp::Tools.invalid(
-              "Suggestion ##{insight.id} is accepted and cannot be retired without retire_accepted: true. " \
-              "Prefer filing a new standalone insight that supersedes it; only pass retire_accepted: true when this " \
-              "accepted insight itself is confirmed obsolete."
-            )
-          end
-
-          superseding_insight = nil
-          if superseded_by_insight_id.present?
-            superseding_insight = visible_insight(superseded_by_insight_id, context)
-            return Mcp::Tools.invalid("superseded_by_insight_id must reference an accessible insight in the current repository") unless superseding_insight
-            return Mcp::Tools.invalid("superseded_by_insight_id cannot reference the insight being retired") if superseding_insight.id == insight.id
-            return Mcp::Tools.invalid("superseded_by_insight_id must reference an insight in the same repository") if superseding_insight.repository_id != insight.repository_id
-          end
-
-          superseding_job = nil
-          if superseded_by_job_id.present?
-            superseding_job = visible_job(superseded_by_job_id, insight)
-            return Mcp::Tools.invalid("superseded_by_job_id must reference an accessible Job in the current repository") unless superseding_job
-          end
-
-          unless insight.retire!(
-            reason: reason_s,
-            actor: context.run || context.user,
-            superseded_by_insight: superseding_insight,
-            superseded_by_job: superseding_job,
-            retire_accepted: !!retire_accepted
-          )
-            return Mcp::Tools.invalid("Suggestion ##{insight.id} could not be retired (state changed concurrently).")
-          end
-
-          append_workflow_artifact(context.run, insight) if context.run
-          Mcp::Tools.write_log(context.run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}") if context.run
-
-          MCP::Tool::Response.new([
-            { type: "text", text: "Suggestion ##{insight.id} retired." }
-          ])
+          insight_refs = references(ids, superseded_by_insight_id, superseded_by_insight_ids)
+          job_refs = references(ids, superseded_by_job_id, superseded_by_job_ids)
+          _context, chat, actor, scope = mutation_context(server_context)
+          mutation = Mutations::Retire.new(ids: ids, actor: actor, repository_scope: scope, reason: reason,
+            retire_accepted: retire_accepted, superseded_by_insight_ids: insight_refs, superseded_by_job_ids: job_refs)
+          response = execute_or_confirm(mutation: mutation, ids: ids, chat_session: chat, server_context: server_context,
+            action: "retire_insights",
+            payload: { "insight_ids" => ids, "reason" => reason, "retire_accepted" => retire_accepted,
+              "superseded_by_insight_ids" => insight_refs, "superseded_by_job_ids" => job_refs },
+            message: "Retire insights #{ids.map { |id| "##{id}" }.join(', ')}?")
+          append_workflow_artifact(_context.run, mutation.validate.suggestions.first) if ids.one? && _context.run? && !response.error?
+          response
         rescue StandardError => e
-          Rails.logger.error("[Mcp::Tools::RetireInsightTool] #{e.class}: #{e.message}")
+          Rails.logger.error("[AgentInsights::Tools::RetireInsightTool] #{e.class}: #{e.message}")
           MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
         end
 
         private
 
-        def visible_insight(insight_id, context)
-          id = Integer(insight_id, exception: false)
-          return unless id
-
-          visible_scope(context).find_by(id: id)
+        def references(ids, singular, plural)
+          refs = plural.to_h
+          singular.present? ? refs.merge(ids.first.to_s => singular) : refs
         end
 
-        def visible_scope(context)
-          scope = Suggestion.all
-          if context.run?
-            scope.for_repository(context.repository || context.run&.job&.repository)
-          elsif context.user.admin?
-            scope
-          else
-            scope.where(repository_id: context.allowed_repository_ids)
-          end
-        end
-
-        def visible_job(job_id, insight)
-          id = Integer(job_id, exception: false)
-          return unless id
-
-          Job.find_by(id: id, repository_id: insight.repository_id)
-        end
 
         def append_workflow_artifact(run, insight)
           retirements = Array(run.workflow.artifact("insight_retirements"))
-          retirements << {
-            "id" => insight.id,
-            "title" => insight.title,
-            "reason" => insight.retired_reason,
-            "superseded_by_insight_id" => insight.superseded_by_insight_id,
-            "superseded_by_job_id" => insight.superseded_by_job_id
-          }
+          retirements << { "id" => insight.id, "title" => insight.title, "reason" => insight.retired_reason,
+            "superseded_by_insight_id" => insight.superseded_by_insight_id, "superseded_by_job_id" => insight.superseded_by_job_id }
           run.workflow.set_artifact!("insight_retirements", retirements)
+          Mcp::Tools.write_log(run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}")
         end
       end
     end
