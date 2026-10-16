@@ -49,12 +49,13 @@ RSpec.describe CredentialStore::CredentialAccessEvent do
   end
 
   it "requires a denial reason only for denied access" do
-    denied = described_class.new(credential: create_credential, surface: "workflow", action: "use", result: "denied")
+    credential = create_credential
+    denied = described_class.new(credential: credential, surface: "workflow", action: "use", result: "denied")
     expect(denied).not_to be_valid
     expect(denied.errors[:denial_reason]).to include("must be present when result is denied")
 
     allowed = described_class.new(
-      credential: create_credential,
+      credential: credential,
       surface: "workflow",
       action: "use",
       result: "allowed",
