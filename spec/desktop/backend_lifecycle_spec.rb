@@ -154,7 +154,7 @@ RSpec.describe "desktop backend lifecycle" do
     # installer mid-pin-rewrite, and the relaunched app would boot with
     # backendUpdate null while containers are still churning — resurrecting
     # the masked "GitHub not connected" failure.
-    expect(lifecycle).to include("export const backendBusy = () => busy")
+    expect(lifecycle).to include("export const backendBusy = () => busy || updateTermination.active()")
     guard = main_process[/const deferRelaunchWhileBackendBusy[\s\S]{0,900}/]
     expect(guard).to include("backendLifecycle.backendBusy()")
     expect(guard).to include("Finishing backend update…")
@@ -165,7 +165,7 @@ RSpec.describe "desktop backend lifecycle" do
     menu_item = main_process[/const updateMenuItems[\s\S]{0,900}/]
     expect(menu_item).to include("if (deferRelaunchWhileBackendBusy())")
     # A genuine quit kills the installer tree instead of orphaning it.
-    before_quit = main_process[/app\.on\("before-quit", \(\) => \{[\s\S]{0,600}\n\}\)/]
+    before_quit = main_process[/app\.on\("before-quit", \(event\) => \{[\s\S]{0,900}\n\}\)/]
     expect(before_quit).to include("backendLifecycle.killUpdateChild(true)")
   end
 
