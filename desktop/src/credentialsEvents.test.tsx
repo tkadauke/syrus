@@ -5,7 +5,15 @@ import { App } from "./App"
 
 type Credentials = { url: string; token: string }
 
-function stubBridge(initialCredentials: Credentials | null) {
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+function stubBridge(initialCredentials: Credentials | null | Promise<Credentials | null>) {
   let savedListener: ((credentials: Credentials) => void) | undefined
   let clearedListener: (() => void) | undefined
   const unsubscribeSaved = vi.fn()
@@ -14,7 +22,7 @@ function stubBridge(initialCredentials: Credentials | null) {
   const bridge = {
     platform: "darwin",
     getAppVersion: vi.fn().mockResolvedValue("1.0.0"),
-    getCredentials: vi.fn().mockResolvedValue(initialCredentials),
+    getCredentials: vi.fn().mockReturnValue(Promise.resolve(initialCredentials)),
     getDesktopSettings: vi.fn().mockResolvedValue({ localProjectsRoot: "", localRepoPaths: {} }),
     getGlobalHotkey: vi.fn().mockResolvedValue(""),
     getServerUrl: vi.fn().mockResolvedValue("https://old.example"),
@@ -98,6 +106,38 @@ describe("desktop credential events", () => {
     act(() => events.emitSaved({ url: "https://new.example", token: "new-token" }))
 
     await waitFor(() => expect(screen.getByText("https://new.example")).toBeDefined())
+    expect(screen.queryByText("https://old.example")).toBeNull()
+  })
+
+  it("does not let a pending initial credential load overwrite a save event", async () => {
+    const initialCredentials = deferred<Credentials | null>()
+    const events = stubBridge(initialCredentials.promise)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderApp(client)
+    await waitFor(() => expect(events.bridge.onCredentialsSaved).toHaveBeenCalledOnce())
+
+    act(() => events.emitSaved({ url: "https://new.example", token: "new-token" }))
+    expect(await screen.findByText("https://new.example")).toBeDefined()
+
+    await act(async () => initialCredentials.resolve({ url: "https://old.example", token: "old-token" }))
+
+    expect(screen.getByText("https://new.example")).toBeDefined()
+    expect(screen.queryByText("https://old.example")).toBeNull()
+  })
+
+  it("does not let a pending initial credential load overwrite a clear event", async () => {
+    const initialCredentials = deferred<Credentials | null>()
+    const events = stubBridge(initialCredentials.promise)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderApp(client)
+    await waitFor(() => expect(events.bridge.onCredentialsCleared).toHaveBeenCalledOnce())
+
+    act(() => events.emitCleared())
+    expect(await screen.findByRole("heading", { name: "Connect Syrus" })).toBeDefined()
+
+    await act(async () => initialCredentials.resolve({ url: "https://old.example", token: "old-token" }))
+
+    expect(screen.getByRole("heading", { name: "Connect Syrus" })).toBeDefined()
     expect(screen.queryByText("https://old.example")).toBeNull()
   })
 })
