@@ -3089,6 +3089,26 @@ describe("AppChromeV2 maintenance sidebar", () => {
     expect(screen.getByText("Backfill agents")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /2 maintenance tasks/i })).not.toBeInTheDocument()
   })
+
+  it("shows sidebar action failures", async () => {
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [maintenanceTask()] })
+    vi.spyOn(maintenanceApi, "runMaintenanceTaskAction").mockRejectedValue(new Error("Task changed before it could start"))
+
+    renderAppChrome()
+    fireEvent.click(await screen.findByRole("button", { name: "Start task" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The maintenance task action failed.")
+  })
+
+  it("handles documentation loading failures without an unhandled rejection", async () => {
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [maintenanceTask()] })
+    vi.spyOn(maintenanceApi, "fetchAdminMaintenanceTask").mockRejectedValue(new Error("Docs unavailable"))
+
+    renderAppChrome()
+    fireEvent.click(await screen.findByRole("button", { name: "Open documentation" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Maintenance task could not be loaded.")
+  })
 })
 
 function signedOutBootstrap(): BootstrapPayload {

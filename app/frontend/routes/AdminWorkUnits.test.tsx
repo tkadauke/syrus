@@ -162,4 +162,18 @@ describe("AdminWorkUnits", () => {
     expect(await screen.findByText("blocked: provider_availability")).toBeInTheDocument()
     expect(screen.getByText("Claude auth_error")).toBeInTheDocument()
   })
+
+  it("shows debug visibility update failures", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+      .mockResolvedValueOnce(jsonResponse(payload()))
+      .mockResolvedValueOnce(jsonResponse({ error: { message: "Debug setting rejected" } }, 422))
+      .mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute()
+    await screen.findByText("Showing 1-1 of 1 intents")
+    fireEvent.click(screen.getByRole("button", { name: "Show on job pages" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.length).toBeGreaterThan(1))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Debug setting rejected")
+  })
 })
