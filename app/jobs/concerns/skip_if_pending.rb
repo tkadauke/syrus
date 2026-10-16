@@ -1,6 +1,12 @@
 module SkipIfPending
   extend ActiveSupport::Concern
 
+  BULK_ENQUEUE_LOCK_ERRORS = [
+    ActiveRecord::Deadlocked,
+    ActiveRecord::LockWaitTimeout
+  ].freeze
+  BULK_ENQUEUE_LOCK_RETRY_ATTEMPTS = 3
+
   def self.declare_metrics!
     Syrus::Metrics.declare do
       counter :skip_if_pending_skips_total, tags: %i[job_class queue mode],
@@ -29,10 +35,28 @@ module SkipIfPending
       (argument_lists.size - missing.size).times { record_skip_if_pending_metric("arguments") }
       return if missing.empty?
 
-      ActiveJob.perform_all_later(missing.map { |args| new(*args) })
+      bulk_enqueue_with_lock_retries(missing)
     end
 
     private
+
+    def bulk_enqueue_with_lock_retries(argument_lists)
+      attempts = 0
+
+      begin
+        ActiveJob.perform_all_later(argument_lists.map { |args| new(*args) })
+      rescue *BULK_ENQUEUE_LOCK_ERRORS => e
+        attempts += 1
+        raise if attempts > BULK_ENQUEUE_LOCK_RETRY_ATTEMPTS
+
+        Rails.logger.warn(
+          "[#{name}] bulk enqueue lock conflict (#{e.class}); " \
+          "retrying #{attempts}/#{BULK_ENQUEUE_LOCK_RETRY_ATTEMPTS}"
+        )
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
+      end
+    end
 
     def pending_solid_queue_job_mode(args, kwargs)
       # Solid Queue keeps failed Jobs with finished_at unset and records their
