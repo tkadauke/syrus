@@ -43,4 +43,11 @@ RSpec.describe Prompts::LandingFix do
     expect(output).to include("Do not implement the entire Epic")
     expect(output.index("EPIC-70")).to be < output.index("Recent commits")
   end
+
+  it "caps an oversized issue body" do
+    issue = Struct.new(:title, :body).new("Large issue", "i" * (described_class::MAX_ISSUE_BODY_BYTES + 1))
+    output = described_class.new(issue: issue, pr_number: 1, repo_slug: "acme/widgets", branch_name: "topic").to_s
+
+    expect(output).to include("[issue body truncated, 1 more bytes]")
+  end
 end

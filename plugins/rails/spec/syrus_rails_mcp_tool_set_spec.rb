@@ -125,6 +125,67 @@ RSpec.describe SyrusRails::McpToolSet do
       end
     end
 
+    it "does not end a table at a column or comment containing end" do
+      schema = <<~RUBY
+        ActiveRecord::Schema[8.1].define do
+          create_table "events" do |t|
+            t.datetime "end"
+            t.string "status", comment: "end state"
+            t.string "location"
+          end
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("db").mkpath
+        ws.join("db/schema.rb").write(schema)
+        data = JSON.parse(tool_set.handle("read_schema", {}, ctx).content.first[:text])
+
+        expect(data["tables"].first["columns"].map { |column| column["name"] }).to eq(%w[end status location])
+      end
+    end
+
+    it "singularizes irregular default foreign-key columns" do
+      schema = <<~RUBY
+        ActiveRecord::Schema[8.1].define do
+          create_table "posts" do |t|
+            t.bigint "category_id"
+          end
+          add_foreign_key "posts", "categories"
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("db").mkpath
+        ws.join("db/schema.rb").write(schema)
+        data = JSON.parse(tool_set.handle("read_schema", {}, ctx).content.first[:text])
+
+        expect(data["tables"].first["foreign_keys"].first["from_column"]).to eq("category_id")
+      end
+    end
+
+    it "closes tables whose end statement has a trailing comment" do
+      schema = <<~RUBY
+        ActiveRecord::Schema[8.1].define do
+          create_table "events" do |t|
+            t.string "anchor", default: "#top"
+          end # events table
+          add_index "events", ["anchor"], name: "index_events_on_anchor"
+          add_foreign_key "events", "categories"
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("db").mkpath
+        ws.join("db/schema.rb").write(schema)
+        table = JSON.parse(tool_set.handle("read_schema", {}, ctx).content.first[:text])["tables"].first
+
+        expect(table["columns"].first["default"]).to eq("#top")
+        expect(table["indexes"]).to include(include("name" => "index_events_on_anchor"))
+        expect(table["foreign_keys"]).to include(include("from_column" => "category_id"))
+      end
+    end
+
     it "returns an error response when db/schema.rb is missing" do
       with_workspace do |ctx, _ws|
         response = tool_set.handle("read_schema", {}, ctx)
@@ -301,6 +362,58 @@ RSpec.describe SyrusRails::McpToolSet do
         paths = data["routes"].map { |r| r["path"] }
 
         expect(paths.any? { |p| p.include?("/api/v1") }).to be true
+      end
+    end
+
+    it "supports bracket and scalar resource action filters" do
+      routes = <<~RUBY
+        Rails.application.routes.draw do
+          resources :tags, only: :index
+          resources :cats, except: [:destroy]
+          resources :dogs, only: [:index, :show]
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("config").mkpath
+        ws.join("config/routes.rb").write(routes)
+        parsed = JSON.parse(tool_set.handle("list_routes", {}, ctx).content.first[:text])["routes"]
+
+        expect(parsed.select { |route| route["controller_action"].start_with?("tags#") }.map { |route| route["controller_action"] }).to eq(["tags#index"])
+        expect(parsed).not_to include(include("controller_action" => "cats#destroy"))
+        expect(parsed.select { |route| route["controller_action"].start_with?("dogs#") }.map { |route| route["controller_action"] }).to contain_exactly("dogs#index", "dogs#show")
+      end
+    end
+
+    it "preserves resource and namespace scopes across nested DSL blocks" do
+      routes = <<~RUBY
+        Rails.application.routes.draw do
+          namespace :admin do
+            resources :users do
+              member do
+                post :ban
+              end
+              collection do
+                get :active
+              end
+              constraints format: :json do # JSON only
+                resources :notes, only: %i[index]
+              end
+            end
+            resources :reports, only: :index
+          end
+        end
+      RUBY
+
+      with_workspace do |ctx, ws|
+        ws.join("config").mkpath
+        ws.join("config/routes.rb").write(routes)
+        parsed = JSON.parse(tool_set.handle("list_routes", {}, ctx).content.first[:text])["routes"]
+
+        expect(parsed).to include(include("method" => "POST", "path" => "/admin/users/:id/ban", "controller_action" => "admin/users#ban"))
+        expect(parsed).to include(include("method" => "GET", "path" => "/admin/users/active", "controller_action" => "admin/users#active"))
+        expect(parsed).to include(include("path" => "/admin/users/:user_id/notes", "controller_action" => "admin/notes#index"))
+        expect(parsed).to include(include("path" => "/admin/reports", "controller_action" => "admin/reports#index"))
       end
     end
 

@@ -1,3 +1,5 @@
+require "active_support/inflector"
+
 module SyrusRails
   # Line-by-line parser for Rails db/schema.rb files.
   # Handles create_table blocks with column/index declarations,
@@ -25,13 +27,13 @@ module SyrusRails
       current_table = nil
 
       @content.each_line do |raw|
-        line = raw.strip
+        line = strip_comment(raw).strip
 
         if (m = line.match(/\bcreate_table\s+["'](\w+)["']/))
           current_table = m[1]
           @tables[current_table] ||= { name: current_table, columns: [], indexes: [], foreign_keys: [] }
 
-        elsif line =~ /\bend\b/ && current_table && !line.match?(/\bdo\b/)
+        elsif line.match?(/\Aend\z/) && current_table
           current_table = nil
 
         elsif current_table
@@ -51,6 +53,27 @@ module SyrusRails
     end
 
     private
+
+    def strip_comment(line)
+      quote = nil
+      escaped = false
+
+      line.each_char.with_index do |char, index|
+        if escaped
+          escaped = false
+        elsif quote && char == "\\"
+          escaped = true
+        elsif quote
+          quote = nil if char == quote
+        elsif char == '"' || char == "'"
+          quote = char
+        elsif char == "#"
+          return line[0...index]
+        end
+      end
+
+      line
+    end
 
     def parse_column(line, table_name)
       # t.string "name", null: false, default: "x"
@@ -102,7 +125,7 @@ module SyrusRails
       col_m  = rest.match(/column:\s*["':]*(\w+)/)
       pk_m   = rest.match(/primary_key:\s*["':]*(\w+)/)
 
-      from_column = col_m ? col_m[1] : "#{to_table.sub(/s$/, "")}_id"
+      from_column = col_m ? col_m[1] : "#{to_table.singularize}_id"
       to_column   = pk_m  ? pk_m[1]  : "id"
 
       @pending_fkeys << { from_table: from_table, to_table: to_table, from_column: from_column, to_column: to_column }

@@ -1113,6 +1113,62 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(remote_has_ref?(wip_tag_ref)).to be(false)
     end
 
+    it "replaces a stale WIP tag with the current snapshot" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      stale_sha = `git -C #{coding_path} rev-parse HEAD`.strip
+      sh("git -C #{coding_path} push -q origin #{stale_sha}:#{wip_tag_ref}")
+      File.write(coding_path.join("scratch.txt"), "current work\n")
+
+      described_class.reclaim_coding_checkout!(chat_session)
+
+      expect(remote_ref_sha(wip_tag_ref)).not_to eq(stale_sha)
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      expect(coding_path.join("scratch.txt").read).to eq("current work\n")
+    end
+
+    it "deletes a stale WIP tag before reclaiming a clean checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      head = `git -C #{coding_path} rev-parse HEAD`.strip
+      sh("git -C #{coding_path} push -q origin #{head}:#{wip_tag_ref}")
+
+      described_class.reclaim_coding_checkout!(chat_session)
+
+      expect(remote_has_ref?(wip_tag_ref)).to be(false)
+    end
+
+    it "preserves a clean checkout when the remote WIP tag lookup fails" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url)
+        .and_return("file:///nonexistent/repo.git")
+
+      expect {
+        described_class.reclaim_coding_checkout!(chat_session)
+      }.to raise_error(GitRunner::GitError)
+
+      expect(coding_path.join(".git")).to exist
+    end
+
+    it "preserves a clean checkout when deleting a stale WIP tag fails" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      head = `git -C #{coding_path} rev-parse HEAD`.strip
+      sh("git -C #{coding_path} push -q origin #{head}:#{wip_tag_ref}")
+      git = GitRunner.new
+      allow(git).to receive(:run).and_wrap_original do |original, *args, **kwargs|
+        if args.first == "push" && args.include?("--delete")
+          raise GitRunner::GitError.new(args, 1, "simulated tag deletion failure")
+        end
+
+        original.call(*args, **kwargs)
+      end
+
+      expect {
+        described_class.new(chat_session, git: git).reclaim_coding_checkout!(repository)
+      }.to raise_error(GitRunner::GitError)
+
+      expect(coding_path.join(".git")).to exist
+      expect(remote_has_ref?(wip_tag_ref)).to be(true)
+    end
+
     it "transparently re-materializes a reclaimed checkout on the next turn" do
       described_class.ensure_coding_checkout!(chat_session, repository)
       File.write(coding_path.join("feature.rb"), "puts 1\n")
@@ -1174,6 +1230,36 @@ RSpec.describe ChatWorkspace, :ci_only do
       # The on-disk checkout survives so the uncommitted change isn't lost.
       expect(coding_path.join(".git")).to exist
       expect(coding_path.join("feature.rb")).to exist
+    end
+
+    it "keeps a failed WIP snapshot off the real branch before retrying" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      sh("git -C #{coding_path} checkout -q -b feature")
+      sh("git -C #{coding_path} push -q -u origin feature")
+      chat_session.update_columns(coding_checkout_branch: "feature")
+      branch_sha = `git -C #{coding_path} rev-parse HEAD`.strip
+      File.write(coding_path.join("scratch.txt"), "uncommitted work\n")
+
+      git = GitRunner.new
+      failed_once = false
+      allow(git).to receive(:run).and_wrap_original do |original, *args, **kwargs|
+        if !failed_once && args.first == "push" && args.any? { |arg| arg.to_s.include?(wip_tag_ref) }
+          failed_once = true
+          raise GitRunner::GitError.new(args, 1, "simulated tag push failure")
+        end
+
+        original.call(*args, **kwargs)
+      end
+      workspace = described_class.new(chat_session, git: git)
+
+      expect { workspace.reclaim_coding_checkout!(repository) }.to raise_error(GitRunner::GitError)
+      expect(`git -C #{coding_path} rev-parse HEAD`.strip).to eq(branch_sha)
+      expect(`git -C #{coding_path} status --porcelain`.strip).to include("scratch.txt")
+
+      workspace.reclaim_coding_checkout!(repository)
+
+      expect(remote_ref_sha("refs/heads/feature")).to eq(branch_sha)
+      expect(remote_has_ref?(wip_tag_ref)).to be(true)
     end
 
     it "reclaim_idle_coding_checkouts! only reclaims sessions idle past the window" do

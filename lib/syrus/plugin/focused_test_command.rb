@@ -6,7 +6,8 @@ module Syrus
     #
     # Implementations must define:
     #
-    #   command_for(grader_name:, grader_command:, failed_cases:) -> String | nil
+    #   command_for(grader_name:, grader_command:, failed_cases:, base_retry:,
+    #               project_path: nil) -> String | nil
     #     Return a shell command that deterministically runs the failed cases,
     #     or nil to decline. `base_retry` is the parsed `.syrus.yml`
     #     configuration for the grader; providers should only synthesize a
@@ -21,17 +22,26 @@ module Syrus
     # repeats. Use it for deterministic environment setup that the owning full
     # grader normally performs, such as preparing a serial test database.
     module FocusedTestCommand
+      def self.invoke(provider, project_path: nil, **arguments)
+        parameters = provider.method(:command_for).parameters
+        accepts_project_path = parameters.any? do |kind, name|
+          kind == :keyrest || (%i[key keyreq].include?(kind) && name == :project_path)
+        end
+        arguments[:project_path] = project_path if accepts_project_path
+        provider.command_for(**arguments)
+      end
+
       def self.included(base)
         base.extend(ClassMethods)
       end
 
       module ClassMethods
-        def command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
+        def command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
           raise NotImplementedError, "#{self}.command_for is required"
         end
       end
 
-      def command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
+      def command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
         raise NotImplementedError, "#{self.class}#command_for is required"
       end
     end

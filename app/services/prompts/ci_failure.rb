@@ -13,6 +13,7 @@ module Prompts
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
     MAX_REPAIR_DIFF_BYTES = 2_000
+    MAX_ISSUE_BODY_BYTES = 20_000
 
     def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [], grader_iterations: [], repair_attempts: [])
       @issue        = issue
@@ -39,7 +40,7 @@ module Prompts
         Title: #{@issue.title}
 
         Body:
-        #{@issue.body.to_s.strip.presence || '(empty)'}
+        #{Truncate.text(@issue.body.to_s.strip.presence || '(empty)', max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
 
         #{epic_context}
 

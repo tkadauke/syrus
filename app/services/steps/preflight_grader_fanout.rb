@@ -166,6 +166,7 @@ module Steps
         "grader_type" => grader.metadata["grader_type"],
         "grader_framework" => grader.metadata["grader_framework"],
         "grader_mode" => grader.metadata["grader_mode"],
+        "project_path" => grader.metadata["project_path"],
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],
         "artifact_outputs" => grader.metadata["artifact_outputs"],

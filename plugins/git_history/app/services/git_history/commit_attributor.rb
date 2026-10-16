@@ -86,7 +86,11 @@ module GitHistory
     def landed_commit_for(sha)
       return nil if sha.blank?
 
-      LandedCommit.find_by(sha: sha)
+      LandedCommit
+        .where(sha: sha)
+        .includes(:landable)
+        .order(Arel.sql("CASE landed_commits.kind WHEN 'implementation' THEN 0 ELSE 1 END"), :position, :id)
+        .detect { |landed_commit| landed_commit.landable&.repository_id == @repository.id }
     end
 
     def landed_job_for(sha)
