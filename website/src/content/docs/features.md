@@ -124,7 +124,9 @@ Terminal item with a live badge for running sessions. The `/terminal` page
 lists open sessions as tabs, lets operators start a session from recent
 Workflow workspaces or a scratch directory, and keeps the PTY alive while
 the browser navigates away. Returning to the page reconnects the xterm.js
-pane to the existing session; killing a tab ends that session.
+pane to the existing session; killing a tab ends that session. Creating a
+session is restricted to admins, and scratch paths are selected by Syrus rather
+than accepted from the request.
 
 ## Coding Mode
 

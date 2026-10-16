@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_153110) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3387,6 +3387,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
     t.integer "workflow_id"
     t.string "working_directory", null: false
     t.string "workspace_kind"
+    t.datetime "relay_started_at"
     t.index ["chat_session_id"], name: "index_terminal_sessions_on_chat_session_id"
     t.index ["finished_at"], name: "index_terminal_sessions_on_finished_at"
     t.index ["queue_name"], name: "index_terminal_sessions_on_queue_name"

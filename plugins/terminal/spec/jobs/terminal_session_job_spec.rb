@@ -36,6 +36,7 @@ RSpec.describe TerminalSessionJob, type: :job do
     described_class.perform_now(session.id)
 
     expect(relay).to have_received(:run)
+    expect(session.reload.relay_started_at).to be_present
   end
 
   it "does not start a relay for a finished session" do

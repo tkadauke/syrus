@@ -149,6 +149,7 @@ module Terminal
 
     def handle_connection(conn, pid, pty_in)
       return unless authenticate!(conn)
+      authenticated = true
 
       # Hold the scrollback lock while joining @connections so no PTY chunk can
       # land in the scrollback after the snapshot but before we're in the
@@ -161,12 +162,14 @@ module Terminal
 
       handle_connection_input(conn, pid, pty_in)
     ensure
-      @connections_lock.synchronize do
-        @connections.delete(conn)
-        @client_sizes.delete(conn.object_id)
-        @empty_since = Process.clock_gettime(Process::CLOCK_MONOTONIC) if @connections.empty?
+      if authenticated
+        @connections_lock.synchronize do
+          @connections.delete(conn)
+          @client_sizes.delete(conn.object_id)
+          @empty_since = Process.clock_gettime(Process::CLOCK_MONOTONIC) if @connections.empty?
+        end
+        recompute_winsize(pty_in)
       end
-      recompute_winsize(pty_in)
       close_io(conn)
     end
 

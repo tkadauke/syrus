@@ -27,7 +27,7 @@ RSpec.describe TerminalChannel, type: :channel do
   end
 
   def subscribe_without_reader(session)
-    allow(TCPSocket).to receive(:new).and_return(socket)
+    allow(Socket).to receive(:tcp).and_return(socket)
     allow_any_instance_of(described_class).to receive(:stream_from_relay)
 
     subscribe(session_id: session.id)
@@ -74,13 +74,13 @@ RSpec.describe TerminalChannel, type: :channel do
     allow_any_instance_of(described_class).to receive(:sleep) do
       session.update!(relay_address: relay_address)
     end
-    allow(TCPSocket).to receive(:new).and_return(socket)
+    allow(Socket).to receive(:tcp).and_return(socket)
     allow_any_instance_of(described_class).to receive(:stream_from_relay)
 
     subscribe(session_id: session.id)
 
     expect(subscription).to be_confirmed
-    expect(TCPSocket).to have_received(:new).with("127.0.0.1", 4444)
+    expect(Socket).to have_received(:tcp).with("127.0.0.1", 4444, connect_timeout: 1.second)
   end
 
   it "rejects when the relay address is not ready before the timeout" do
@@ -139,7 +139,7 @@ RSpec.describe TerminalChannel, type: :channel do
 
       frame
     end
-    allow(TCPSocket).to receive(:new).and_return(reader_socket)
+    allow(Socket).to receive(:tcp).and_return(reader_socket)
 
     subscribe(session_id: session.id)
     subscription.instance_variable_get(:@relay_thread).join(1)
@@ -163,7 +163,7 @@ RSpec.describe TerminalChannel, type: :channel do
 
       frame
     end
-    allow(TCPSocket).to receive(:new).and_return(reader_socket)
+    allow(Socket).to receive(:tcp).and_return(reader_socket)
 
     subscribe(session_id: session.id)
     subscription.instance_variable_get(:@relay_thread).join(1)
@@ -179,7 +179,7 @@ RSpec.describe TerminalChannel, type: :channel do
     session = terminal_session
     thread = instance_double(Thread, kill: nil)
 
-    allow(TCPSocket).to receive(:new).and_return(socket)
+    allow(Socket).to receive(:tcp).and_return(socket)
     allow(Thread).to receive(:new).and_return(thread)
 
     subscribe(session_id: session.id)
