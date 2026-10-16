@@ -149,14 +149,67 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.main_health).to eq("broken")
   end
 
-  it "marks ci_health not_configured when no checks exist" do
+  it "keeps ci_health unknown during the grace period when no checks exist" do
     stub_sha(sha)
     stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false })
 
     described_class.perform_now(repository.id)
 
-    expect(repository.reload.ci_health).to eq("not_configured")
+    expect(repository.reload.ci_health).to eq("unknown")
     expect(repository.last_health_checked_sha).to eq(sha)
+    expect(repository.last_ci_evaluated_sha).to be_nil
+  end
+
+  it "marks ci_health not_configured after the no-checks grace period" do
+    stub_sha(sha)
+    stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+    travel described_class::NO_CI_GRACE_PERIOD + 1.second
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("not_configured")
+    expect(repository.last_ci_evaluated_sha).to eq(sha)
+  end
+
+  it "keeps polling when checks appear after an empty read, then detects their failure" do
+    stub_sha(sha)
+    summaries = [
+      { any?: false, pending?: false, any_failed?: false, all_passed?: false },
+      { any?: true, pending?: true, any_failed?: false, all_passed?: false },
+      { any?: true, pending?: false, any_failed?: true, any_cancelled?: false, all_passed?: false, failed_checks: [] }
+    ]
+    allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for) { summaries.shift }
+
+    described_class.perform_now(repository.id)
+    expect(repository.reload.ci_health).to eq("unknown")
+    expect(repository.last_ci_evaluated_sha).to be_nil
+
+    described_class.perform_now(repository.id)
+    expect(repository.reload.ci_health).to eq("unknown")
+    expect(repository.last_ci_evaluated_sha).to be_nil
+
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("broken")
+    expect(repository.last_ci_evaluated_sha).to eq(sha)
+  end
+
+  it "resets a previous no-CI result when checks are pending" do
+    repository.update!(
+      last_health_checked_sha: sha,
+      last_graded_sha: "older-sha",
+      last_ci_evaluated_sha: sha,
+      ci_health: "not_configured",
+      grader_health: "unknown"
+    )
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: true, any_failed?: false, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("unknown")
+    expect(repository.last_ci_evaluated_sha).to be_nil
   end
 
   it "skips the job early when SHA matches last checked, health is known, and SHA has been graded" do

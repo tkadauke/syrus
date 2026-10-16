@@ -15,6 +15,8 @@ class PollMainBranchHealthJob < ApplicationJob
     Faraday::ConnectionFailed
   ].freeze
 
+  NO_CI_GRACE_PERIOD = 10.minutes
+
   def perform(repository_id, manual: false)
     repository = Repository.find_by(id: repository_id)
     return unless repository
@@ -93,8 +95,6 @@ class PollMainBranchHealthJob < ApplicationJob
       end
 
 
-      already_recorded_no_ci = repository.ci_health_not_configured? && repository.last_health_checked_sha == sha
-
       summary = begin
         client.main_branch_check_runs_summary_for(repository.slug, sha)
       rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
@@ -105,20 +105,30 @@ class PollMainBranchHealthJob < ApplicationJob
       repository.reset_main_health_poll_error_streak!
 
       unless summary[:any?]
-        repository.update_columns(
-          ci_health: "not_configured",
-          last_health_checked_sha: sha,
-          last_ci_evaluated_sha: sha
-        )
-        repository.reload
-        unless already_recorded_no_ci
+        no_ci_observation = MainBranchHealthCheck.where(
+          repository: repository,
+          sha: sha,
+          ci_health: "not_configured"
+        ).recent.first
+
+        unless no_ci_observation
           MainBranchHealthCheck.record_ci_poll(
             repository: repository,
             sha: sha,
             ci_health: "not_configured",
             ci_failed_checks: []
           )
+          return
         end
+
+        return if no_ci_observation.checked_at > NO_CI_GRACE_PERIOD.ago
+
+        repository.update_columns(
+          ci_health: "not_configured",
+          last_health_checked_sha: sha,
+          last_ci_evaluated_sha: sha
+        )
+        repository.reload
         if repository.main_health != previous_health
           MainHealthChangedService.on_health_change!(repository)
         elsif repository.main_health_broken?
@@ -130,6 +140,9 @@ class PollMainBranchHealthJob < ApplicationJob
       if summary[:pending?]
         # Checks still running. Keep ci_health unknown so later polls keep
         # refreshing this same SHA until GitHub reaches a terminal result.
+        if repository.ci_health_not_configured?
+          repository.update_columns(ci_health: "unknown", last_ci_evaluated_sha: nil)
+        end
         return
       end
 
