@@ -3144,8 +3144,19 @@ app.whenReady().then(async () => {
   // at the Electron layer without a permission handler. Register both, then the
   // recorder captures the whole screen + the user's narration. See
   // screenCapture.ts.
-  registerMediaPermissionHandlers()
-  registerScreenCaptureHandler()
+  const trustedCaptureContext = () => {
+    const webContents = webAppWindow?.window.webContents ?? null
+    const serverUrl = getServerUrl()
+    let origin: string | null = null
+    try {
+      origin = serverUrl === "" ? null : new URL(serverUrl).origin
+    } catch {
+      origin = null
+    }
+    return { webContents, origin }
+  }
+  registerMediaPermissionHandlers(trustedCaptureContext)
+  registerScreenCaptureHandler(trustedCaptureContext)
 
   if (process.platform === "win32") {
     // Keep this aligned with the packaged appId for this channel.
