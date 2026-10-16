@@ -181,7 +181,6 @@ module K8sCluster
       registered_cluster = KubernetesCluster.find_by(credential_store_credential_id: credential.id)
       if registered_cluster
         return "agentic access is disabled for this Kubernetes cluster" unless registered_cluster.agentic_access_enabled?
-        return "write access is disabled for this Kubernetes cluster" if risky_command? && !registered_cluster.allow_writes?
       end
 
       metadata = credential.safe_metadata.to_h

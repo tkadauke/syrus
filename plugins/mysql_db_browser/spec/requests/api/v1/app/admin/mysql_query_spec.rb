@@ -35,7 +35,9 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
     client = instance_double(Mysql2::Client, close: nil)
     allow(client).to receive(:escape) { |value| value.to_s.gsub("\\") { "\\\\" }.gsub("'") { "\\'" } }
     allow(client).to receive(:query) do |sql, **_opts|
-      if sql.match?(/FROM `/)
+      if [ "START TRANSACTION READ ONLY", "ROLLBACK" ].include?(sql)
+        true
+      elsif sql.match?(/FROM `/)
         content_result
       else
         match = introspection_rows.keys.find { |pattern| sql.match?(pattern) }

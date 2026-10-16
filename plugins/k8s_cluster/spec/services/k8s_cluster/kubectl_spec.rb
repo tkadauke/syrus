@@ -353,6 +353,17 @@ RSpec.describe K8sCluster::Kubectl do
     expect(runner).not_to have_received(:call)
   end
 
+  it "allows read-only commands for registered clusters with agentic access enabled" do
+    credential = create_credential
+    register_cluster_for(credential, agentic_access_enabled: true, allow_writes: false)
+    allow(runner).to receive(:call).and_return(K8sCluster::KubectlRunner::Result.new(stdout: "pods\n", stderr: "", status: 0))
+
+    result = described_class.call(context: context, credential: credential.id, kube_context: "prod", args: [ "get", "pods" ])
+
+    expect(result[:ok]).to be(true)
+    expect(runner).to have_received(:call)
+  end
+
   it "rejects kubeconfig, context, and namespace flags in kubectl args" do
     credential = create_credential
     allow(runner).to receive(:call)
