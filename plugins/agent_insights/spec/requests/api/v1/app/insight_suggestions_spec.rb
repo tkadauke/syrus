@@ -97,6 +97,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 
       expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("repository", "can_write")).to be false
     end
 
     it "returns 404 for a user who is neither the owner nor a member" do
@@ -466,6 +467,22 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(insight.fetch("created_job")).to include("slug" => created_job.slug, "title" => "Fix cache")
     end
 
+    it "allows a repository collaborator to preview an insight" do
+      collaborator = Factories.user(email_address: "insight-preview@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      suggestion = create_suggestion(title: "Shared cache misses")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/insight_suggestions/#{suggestion.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("insight")).to include(
+        "id" => suggestion.id,
+        "accessible" => true,
+        "title" => "Shared cache misses"
+      )
+    end
+
     it "returns neutral inaccessible slug and preview payloads for hidden repository insights" do
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user)
@@ -542,6 +559,33 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.reload.dismissed?).to be true
     end
 
+    it "allows a write-tier repository collaborator to dismiss a suggestion" do
+      collaborator = Factories.user(email_address: "insight-dismiss-writer@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
+      suggestion = create_suggestion
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "dismiss" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(suggestion.reload).to be_dismissed
+    end
+
+    it "rejects a read-only repository collaborator" do
+      collaborator = Factories.user(email_address: "insight-dismiss-reader@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      suggestion = create_suggestion
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "dismiss" }, as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+      expect(suggestion.reload).to be_pending
+    end
+
     it "returns 422 when the suggestion is already accepted" do
       suggestion = create_suggestion
       suggestion.accept!
@@ -585,6 +629,19 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(body["suggestion"]["state"]).to eq("accepted")
       expect(body["job"]).to be_nil
       expect(suggestion.reload.accepted?).to be true
+    end
+
+    it "allows a write-tier repository collaborator to accept a suggestion" do
+      collaborator = Factories.user(email_address: "insight-accept@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
+      suggestion = create_suggestion
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "accept", create_job: false }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(suggestion.reload).to be_accepted
     end
 
     it "creates a direct job and marks the suggestion accepted when create_job is true" do
@@ -756,6 +813,20 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion.accepted_at).to be_present
     end
 
+    it "allows a write-tier repository collaborator to save the suggested memory" do
+      collaborator = Factories.user(email_address: "insight-memory@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "write")
+      suggestion = create_suggestion(memory_suggestion: "Keep shared context current")
+      sign_in_as(collaborator)
+
+      expect {
+        patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+              params: { action_type: "save_memory" }, as: :json
+      }.to change(::AgentMemory::Entry.where(user: collaborator), :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "redacts GitHub credentials before saving a memory from a suggestion" do
       suggestion = create_suggestion(
         memory_suggestion: "Avoid copying https://x-access-token:ghs_memorysecret@github.com/acme/widgets.git"
@@ -798,6 +869,22 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(parse_body["message"]).to include("pending")
       expect(suggestion.reload.pending?).to be true
       expect(suggestion.reload.dismissed_at).to be_nil
+    end
+
+    it "allows a write-tier team collaborator to restore a dismissed suggestion" do
+      collaborator = Factories.user(email_address: "insight-team@example.com")
+      team = Team.create!(name: "Insight collaborators")
+      team.team_memberships.create!(user: collaborator, role: "member")
+      team.team_repositories.create!(repository: repository, role: "write")
+      suggestion = create_suggestion
+      suggestion.dismiss!
+      sign_in_as(collaborator)
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "undismiss" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(suggestion.reload).to be_pending
     end
 
     it "returns 422 when the suggestion is not dismissed (pending)" do
@@ -896,6 +983,20 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(message_text).to include("Fix repeated bundle install failures.")
       expect(message_text).to include("/jobs/#{job.id}")
       expect(message_text).to include("/admin/runs/73616/transcript")
+    end
+
+    it "allows a repository collaborator to discuss a suggestion" do
+      collaborator = Factories.user(email_address: "insight-discuss@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      suggestion = create_suggestion
+      sign_in_as(collaborator)
+
+      expect {
+        post "/api/v1/app/insight_suggestions/#{suggestion.id}/discuss", as: :json
+      }.to change(ChatSession.where(user: collaborator), :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(ChatSession.where(user: collaborator).order(:id).last.repository).to eq(repository)
     end
 
     it "returns 404 for a suggestion belonging to another user's repository" do

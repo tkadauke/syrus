@@ -164,13 +164,11 @@ function InsightSuggestionsList({
       </div>
 
       {suggestions.length === 0 ? (
-        <Notice className="p-8 text-center">
-          {t("empty")}
-        </Notice>
+        <Notice className="p-8 text-center">{t("empty")}</Notice>
       ) : (
         <div className="space-y-3">
           {suggestions.map((suggestion) => (
-            <SuggestionCard key={suggestion.id} repositoryId={repositoryId} suggestion={suggestion} />
+            <SuggestionCard canWrite={payload.repository.can_write} key={suggestion.id} repositoryId={repositoryId} suggestion={suggestion} />
           ))}
         </div>
       )}
@@ -209,9 +207,10 @@ function InsightSuggestionsList({
 // Shared by the suggested-prompt and memory-suggestion blocks below: both render
 // unbounded agent-authored text that must wrap instead of stretching the page,
 // with horizontal scroll on the box itself as a fallback for unbreakable runs.
-const WRAPPING_PRE_CLASSES = "mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+const WRAPPING_PRE_CLASSES =
+  "mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300"
 
-function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; suggestion: InsightSuggestion }) {
+function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: boolean; repositoryId: string; suggestion: InsightSuggestion }) {
   const { t } = useT("agent_insights")
   const queryClient = useQueryClient()
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -293,7 +292,12 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
   }
 
   return (
-    <article className={surfaceClasses("panel", "none", "cursor-pointer scroll-mt-24 focus:outline-none focus:ring-2 focus:ring-brand")} id={suggestion.slug} onClick={handleCardClick} tabIndex={-1}>
+    <article
+      className={surfaceClasses("panel", "none", "cursor-pointer scroll-mt-24 focus:outline-none focus:ring-2 focus:ring-brand")}
+      id={suggestion.slug}
+      onClick={handleCardClick}
+      tabIndex={-1}
+    >
       {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -309,9 +313,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
                 <span className="sr-only">{t("age_label")} </span>
                 <RelativeTimestamp value={suggestion.created_at} />
               </Text>
-              {suggestion.state !== "pending" && (
-                <StatePill state={suggestion.state} />
-              )}
+              {suggestion.state !== "pending" && <StatePill state={suggestion.state} />}
               {suggestion.state === "accepted" && suggestion.created_job && (
                 <Link className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis" to={suggestion.created_job.job_path}>
                   {suggestion.created_job.slug}
@@ -324,7 +326,10 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
           </div>
           <Button
             className="shrink-0"
-            onClick={() => { if (expanded) setShowEvidence(false); setExpanded((v) => !v) }}
+            onClick={() => {
+              if (expanded) setShowEvidence(false)
+              setExpanded((v) => !v)
+            }}
             size="sm"
             variant="secondary"
           >
@@ -337,17 +342,13 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             {suggestion.suggested_prompt && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("suggested_prompt_label")}</p>
-                <pre className={WRAPPING_PRE_CLASSES}>
-                  {suggestion.suggested_prompt}
-                </pre>
+                <pre className={WRAPPING_PRE_CLASSES}>{suggestion.suggested_prompt}</pre>
               </div>
             )}
             {suggestion.memory_suggestion && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("memory_suggestion_label")}</p>
-                <pre className={WRAPPING_PRE_CLASSES}>
-                  {suggestion.memory_suggestion}
-                </pre>
+                <pre className={WRAPPING_PRE_CLASSES}>{suggestion.memory_suggestion}</pre>
               </div>
             )}
             {suggestion.proposal_type === "remove_memory" && (
@@ -445,11 +446,11 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
 
         {suggestion.state === "pending" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            {suggestion.proposal_type === "remove_memory" ? (
+            {canWrite && suggestion.proposal_type === "remove_memory" ? (
               <Button disabled={acceptRemoveMemoryMutation.isPending} onClick={() => acceptRemoveMemoryMutation.mutate()} size="sm" variant="danger">
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
-            ) : canCreateJob ? (
+            ) : canWrite && canCreateJob ? (
               <Button disabled={showAcceptForm} onClick={() => setShowAcceptForm(true)} size="sm" variant="primary">
                 {t("accept")}
               </Button>
@@ -457,10 +458,12 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
-            <Button disabled={dismissMutation.isPending} onClick={handleDismiss} size="sm" variant="secondary">
-              {dismissMutation.isPending ? t("dismissing") : t("dismiss")}
-            </Button>
-            {suggestion.has_memory_suggestion && (
+            {canWrite && (
+              <Button disabled={dismissMutation.isPending} onClick={handleDismiss} size="sm" variant="secondary">
+                {dismissMutation.isPending ? t("dismissing") : t("dismiss")}
+              </Button>
+            )}
+            {canWrite && suggestion.has_memory_suggestion && (
               <Button disabled={saveMemoryMutation.isPending} onClick={() => saveMemoryMutation.mutate()} size="sm" variant="secondary">
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
               </Button>
@@ -473,7 +476,7 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
-            {suggestion.has_memory_suggestion && (
+            {canWrite && suggestion.has_memory_suggestion && (
               <Button disabled={saveMemoryMutation.isPending} onClick={() => saveMemoryMutation.mutate()} size="sm" variant="secondary">
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
               </Button>
@@ -486,14 +489,16 @@ function SuggestionCard({ repositoryId, suggestion }: { repositoryId: string; su
             <Button disabled={discussMutation.isPending} onClick={() => discussMutation.mutate()} size="sm" variant="secondary">
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </Button>
-            <Button disabled={undismissMutation.isPending} onClick={() => undismissMutation.mutate()} size="sm" variant="secondary">
-              {undismissMutation.isPending ? t("undismissing") : t("undismiss")}
-            </Button>
+            {canWrite && (
+              <Button disabled={undismissMutation.isPending} onClick={() => undismissMutation.mutate()} size="sm" variant="secondary">
+                {undismissMutation.isPending ? t("undismissing") : t("undismiss")}
+              </Button>
+            )}
           </div>
         )}
       </div>
 
-      {showAcceptForm && suggestion.state === "pending" && (
+      {canWrite && showAcceptForm && suggestion.state === "pending" && (
         <AcceptSuggestionModal
           onClose={() => setShowAcceptForm(false)}
           onError={(msg) => setError(msg)}

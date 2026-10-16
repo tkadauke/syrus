@@ -20,6 +20,11 @@ module OperatorBriefing
     end
 
     def generate!
+      settings.with_lock { generate_under_lock! }
+    end
+
+    def generate_under_lock!
+      return skipped("generation_already_started") if generation_started_after_request?
       return regenerate_current_briefing! if on_demand? && current_live_briefing
       return skipped("no_activity") unless on_demand? || activity_since_last_generation?
 
@@ -47,10 +52,19 @@ module OperatorBriefing
 
     private
 
+    private :generate_under_lock!
+
     attr_reader :user, :repository, :mode, :now
 
     def scheduled? = mode == :scheduled
     def on_demand? = mode == :on_demand
+
+    def generation_started_after_request?
+      return false unless on_demand?
+
+      started_at = current_live_briefing&.job&.created_at
+      started_at.present? && started_at >= now
+    end
 
     def settings
       @settings ||= BriefingSettings.for_user(user)

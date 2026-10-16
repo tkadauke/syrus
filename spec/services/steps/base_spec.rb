@@ -394,44 +394,73 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_review_notes/))
     end
 
-    # Regression: the check read tool calls only out of the provider
-    # transcript. When the Codex default model moved to a newer release its
-    # rollout format stopped yielding tool calls to the parser, and
-    # post_implementation_review failed 56 times in eight hours -- every run --
-    # while `submit_review_notes` was recorded as called in that same Run and
-    # the notes were persisted. Syrus's own record of the call is first-hand
-    # evidence and outranks an inference from a format it does not control.
-    it "accepts a required MCP tool that Syrus recorded even when the transcript does not show it" do
+    it "satisfies enforced required MCP tools from a completed persisted sidecar receipt when transcript parsing misses the call" do
       result = AgentInvocation::Result.new(
-        turns: 1, exit_status: 0, timed_out: false, is_error: false,
-        outcome: "success", final_text: nil, session_id: "sid-rec"
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "codex-thread-1"
       )
       fake_adapter = instance_double(AgentProviders::Base)
       allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
       allow(fake_adapter).to receive(:run).and_return(result)
       allow(fake_adapter).to receive(:record_result!) do
         ProviderSession.create!(
-          resumable: run, provider: "codex", session_id: "sid-rec",
-          transcript_jsonl: { type: "system", subtype: "init", session_id: "sid-rec", tools: [] }.to_json + "\n"
+          resumable: run,
+          provider: "codex",
+          session_id: "codex-thread-1",
+          transcript_jsonl: { type: "unrecognized_rollout_event", message: "submit_review_notes" }.to_json + "\n"
         )
+        McpToolUsageRecorder.record_dispatch(
+          surface: "workflow",
+          tool_name: "submit_review_notes",
+          tool_input: { notes: [] },
+          sidecar_mode: "persistent",
+          run: run,
+          provider: "codex"
+        ) { { ok: true } }
         result
       end
       allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
-      McpToolUsage.create!(
-        surface: "workflow", run: run, job: run.job, tool_name: "submit_review_notes",
-        raw_tool_name: "syrus-mcp-sidecar.submit_review_notes",
-        normalized_tool_name: "submit_review_notes",
-        status: "completed", sidecar_mode: "persistent"
-      )
 
       expect {
-        handler.send(:run_agent, prompt: "review",
-                     required_mcp_tools: %w[submit_review_notes],
-                     enforce_required_mcp_tools: true)
+        handler.send(
+          :run_agent,
+          prompt: "review",
+          required_mcp_tools: %w[submit_review_notes],
+          enforce_required_mcp_tools: true
+        )
       }.not_to raise_error
 
       chunks = run.job_logs.order(:sequence).pluck(:chunk)
-      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*recorded=submit_review_notes/))
+      expect(chunks).to include(match(/status=ok.*called=submit_review_notes.*evidence=submit_review_notes:persisted_usage\(persistent\).*mcp_tool_called=false/))
+    end
+
+    it "does not satisfy required MCP tools with receipts for another Run or another tool" do
+      other_job = Factories.job
+      other_workflow = Workflow.create!(job: other_job, trigger_kind: "initial")
+      other_step = Step.create!(workflow: other_workflow, kind: "implement", position: 0)
+      other_run = Run.create!(job: other_job, step: other_step, trigger_kind: "initial")
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", tool_input: {}
+      )
+      McpToolUsageRecorder.record_workflow_tool_result(
+        run: other_run, tool_name: "submit_review_notes", tool_use_id: "other-run", content: { ok: true }, error: false
+      )
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", tool_input: {}
+      )
+      McpToolUsageRecorder.record_workflow_tool_result(
+        run: run, tool_name: "submit_summary", tool_use_id: "other-tool", content: { ok: true }, error: false
+      )
+
+      expect(handler.send(:log_mcp_required_tool_health, %w[submit_review_notes])).to eq(%w[submit_review_notes])
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/status=missing.*missing=submit_review_notes.*evidence=.*mcp_tool_called=false/))
     end
 
     # A detector that cannot read the transcript knows nothing about what the

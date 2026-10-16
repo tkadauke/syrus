@@ -54,6 +54,22 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     expect(DesignDocs::AgentMentionDetector.mentioned?("No mention")).to be(false)
   end
 
+  it "detects mentions after same-line fenced spans" do
+    expect(DesignDocs::AgentMentionDetector.mentioned?("```json {\"key\": true}```\n@syrus help")).to be(true)
+    expect(DesignDocs::AgentMentionDetector.mentioned?("~~~text example~~~\n@syrus help")).to be(true)
+  end
+
+  it "detects mentions after multiline fenced blocks" do
+    expect(DesignDocs::AgentMentionDetector.mentioned?("```text\nexample\n```\n@syrus help")).to be(true)
+    expect(DesignDocs::AgentMentionDetector.mentioned?("~~~text\nexample\n~~~\n@syrus help")).to be(true)
+  end
+
+  it "does not let mixed fence styles close each other" do
+    body = "```text\n~~~\n@syrus inside the backtick fence\n```"
+
+    expect(DesignDocs::AgentMentionDetector.mentioned?(body)).to be(false)
+  end
+
   it "enqueues one run for a new comment mention with full thread context" do
     doc = create_design_doc
     thread = create_thread(doc)

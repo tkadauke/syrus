@@ -118,7 +118,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
 
       {loading ? <PanelMessage>{t("cron_templates.loading_form")}</PanelMessage> : null}
       {error ? <CronTemplatesError error={error} /> : null}
-      {!loading && !error ? <CronTemplateForm basePath={basePath} id={Number(id)} initial={initial} mode={mode} policies={policies} /> : null}
+      {!loading && !error ? <CronTemplateForm basePath={basePath} id={Number(id)} initial={initial} key={`${mode}:${id}`} mode={mode} policies={policies} /> : null}
     </Page.Root>
   )
 }
@@ -310,10 +310,6 @@ function CronTemplateForm({
   const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
   const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
   const previewSource = previewMatchesInput ? preview.data?.source : null
-
-  useEffect(() => {
-    setValues(initial)
-  }, [initial])
 
   useEffect(() => {
     if (!values.schedule_input.trim()) return

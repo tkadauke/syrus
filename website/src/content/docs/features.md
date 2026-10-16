@@ -1672,6 +1672,11 @@ of piling up meta-insights that only say another insight is stale; retired
 insights drop out of the default active review but stay inspectable through
 a "Retired" filter alongside Pending/Accepted/Dismissed/All.
 
+Repository collaborators, including users with access through a team, can view
+and discuss suggestions and inspect insight scheduling. Suggestion mutations
+require repository write access, while changing the repository-wide schedule
+requires repository admin access.
+
 While the plugin is enabled, regular chat agents can discover
 and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
 in the chat's attached repositories. Admin chat agents can inspect all

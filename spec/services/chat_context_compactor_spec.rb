@@ -84,6 +84,14 @@ RSpec.describe ChatContextCompactor do
     expect(described_class.context_messages_for(session).size).to eq(130)
   end
 
+  it "excludes deleted messages from full replay" do
+    session = chat
+    session.messages.create!(role: "user", content: { "text" => "keep me" })
+    session.messages.create!(role: "user", content: { "text" => "deleted secret" }, deleted_at: Time.current)
+
+    expect(described_class.context_messages_for(session).map { |message| message.content["text"] }).to eq([ "keep me" ])
+  end
+
   # The compaction algorithm itself stays fully covered (in case a future Job
   # re-enables it for some chat) by forcing the otherwise-permanent gate open
   # for the scope of these examples.
@@ -119,6 +127,46 @@ RSpec.describe ChatContextCompactor do
       expect(messages.first.role).to eq("assistant")
       expect(messages.first.content.first["text"]).to include("Prior durable chat context summary")
       expect(messages.drop(1).map(&:id)).to eq(session.messages.order(:id).last(40).map(&:id))
+    end
+
+    it "excludes deleted messages from compaction and recent replay" do
+      enable_compaction!
+      session = chat
+      add_messages(session, 130)
+      deleted = session.messages.order(:id).last
+      deleted.update!(deleted_at: Time.current)
+      add_messages(session, 1)
+      described_class.maybe_compact!(session)
+
+      messages = described_class.context_messages_for(session)
+
+      expect(messages.map(&:id)).not_to include(deleted.id)
+      expect(session.context_checkpoints.latest_first.first.source_message_count).to eq(90)
+    end
+
+    it "invalidates and rebuilds a checkpoint when a compacted message is deleted" do
+      enable_compaction!
+      session = chat
+      add_messages(session, 20)
+      deleted = session.messages.create!(
+        role: "user",
+        content: { "text" => "deleted secret from compacted history" }
+      )
+      add_messages(session, 109)
+      described_class.maybe_compact!(session)
+
+      expect(session.context_checkpoints.latest_first.first.summary).to include("deleted secret from compacted history")
+
+      deleted.soft_delete_by!(user)
+
+      expect(session.context_checkpoints.reload).to be_empty
+      expect(described_class.context_messages_for(session).map(&:id)).not_to include(deleted.id)
+
+      described_class.maybe_compact!(session)
+
+      replay = described_class.context_messages_for(session)
+      expect(session.context_checkpoints.latest_first.first.summary).not_to include("deleted secret from compacted history")
+      expect(replay.to_json).not_to include("deleted secret from compacted history")
     end
 
     it "compacts only messages after the previous checkpoint" do

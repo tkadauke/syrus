@@ -26,18 +26,33 @@ module DesignDocs
     end
 
     def searchable_lines(text)
-      in_fence = false
+      fence = nil
       text.each_line.filter_map do |line|
         stripped = line.strip
-        if stripped.start_with?("```", "~~~")
-          in_fence = !in_fence
+        if (marker = fence_marker(stripped, fence))
+          fence = toggle_fence_for_line(stripped, marker, fence)
           next
         end
-        next if in_fence
+        next if fence
         next if stripped.start_with?(">")
 
         line.gsub(/`[^`\n]*`/, "")
       end
+    end
+
+    def fence_marker(line, fence)
+      pattern = fence ? /\A#{Regexp.escape(fence[0])}{#{fence.length},}/ : /\A(`{3,}|~{3,})/
+      line[pattern]
+    end
+
+    def toggle_fence_for_line(line, marker, fence)
+      character = (fence || marker)[0]
+      minimum_length = fence ? fence.length : marker.length
+      marker_count = line.scan(/#{Regexp.escape(character)}{#{minimum_length},}/).length
+
+      return fence unless marker_count.odd?
+
+      fence ? nil : marker
     end
   end
 end

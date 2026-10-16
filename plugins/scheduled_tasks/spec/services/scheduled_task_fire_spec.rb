@@ -142,6 +142,23 @@ RSpec.describe ScheduledTasks::Fire do
 
         expect { described_class.new(task).call }.to change { Job.count }.by(1)
       end
+
+      it "closes a prior external PR before spawning the new Job" do
+        task.update!(pr_pileup_policy: "replace")
+        old = task.jobs.create!(
+          user: user, repository: repository,
+          kind: "external_pr", state: "implemented",
+          scheduled_task_id: task.id, external_pr_number: 123
+        )
+        client = instance_double(GithubClient)
+        allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+        expect(client).to receive(:close_pull_request).with(repository.slug, 123)
+
+        expect { described_class.new(task).call }.to change { Job.count }.by(1)
+
+        expect(old.reload.state).to eq("closed")
+        expect(old.closure_reason).to eq("replaced_by_scheduled_task")
+      end
     end
 
     context "skill tasks" do

@@ -17,7 +17,7 @@ class ChatTurnLiveness
   end
 
   def latest_user_message
-    @latest_user_message ||= @chat_session.messages.where(role: "user").order(:created_at, :id).last
+    @latest_user_message ||= @chat_session.messages.active.where(role: "user").order(:created_at, :id).last
   end
 
   def live_agent_process?

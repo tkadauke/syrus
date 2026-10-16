@@ -203,6 +203,24 @@ RSpec.describe McpInvocationContext do
       expect(later_message.id).not_to eq(earlier_message.id)
     end
 
+    it "ignores a deleted user message when inferring the active turn for an older session" do
+      active_message = message
+      token = described_class.issue_for_chat(
+        chat_session,
+        worker_id: worker_id,
+        current_message: active_message,
+        expires_in: AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds
+      )
+      chat_session.messages.create!(
+        role: "user",
+        content: { "text" => "retracted" },
+        deleted_at: Time.current
+      )
+      chat_session.update_columns(current_turn_message_id: nil, turn_in_flight: true)
+
+      expect(described_class.resolve(token, worker_id: worker_id).current_message_id).to eq(active_message.id)
+    end
+
     # Regression: MCP tokens are scoped to the message a turn is running for,
     # but the active turn used to be inferred as "the last user message". A
     # turn started by a non-user message -- a proposal confirmation, say --

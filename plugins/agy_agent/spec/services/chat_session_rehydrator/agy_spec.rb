@@ -42,6 +42,16 @@ RSpec.describe ChatSessionRehydrator::Agy do
     expect(lines.to_json).not_to include("private")
   end
 
+  it "does not rehydrate deleted messages" do
+    create_message!(role: "user", content: { "text" => "keep me" })
+    session.messages.create!(role: "user", content: { "text" => "deleted secret" }, deleted_at: Time.current)
+
+    jsonl = described_class.new(session, session_id: "agy-conv-1").call
+
+    expect(jsonl).to include("keep me")
+    expect(jsonl).not_to include("deleted secret")
+  end
+
   it "normalizes MCP tool use and results with Antigravity tool labels" do
     create_message!(
       role: "tool_use",

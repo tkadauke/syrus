@@ -104,6 +104,12 @@ active-review surface without any extra filtering. Both views accept an
 explicit retired state/folder (or All, which includes retired rows) to inspect
 retired insights.
 
+Repository owners, direct repository members, and members of teams granted
+access can view insights, discuss them, and view the repository's insight
+schedule. Accepting, dismissing, restoring, or saving a suggested memory
+requires repository write access. Updating the repository-wide insight schedule
+requires repository admin access.
+
 A one-off cleanup path retires the pre-existing stale backlog — pending or
 dismissed legacy `revise_existing_insight` rows and pending or dismissed
 `informational` rows titled `Superseded by #...` — without manual DB work:

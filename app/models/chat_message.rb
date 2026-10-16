@@ -31,6 +31,7 @@ class ChatMessage < ApplicationRecord
   after_create_commit :enqueue_search_index
   after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
   after_create_commit :deliver_to_platform, if: :platform_delivery_needed?
+  after_update :invalidate_context_checkpoints, if: :newly_soft_deleted?
 
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :content_is_present
@@ -91,6 +92,16 @@ class ChatMessage < ApplicationRecord
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?
+  end
+
+  def newly_soft_deleted?
+    saved_change_to_deleted_at? && deleted_at.present?
+  end
+
+  def invalidate_context_checkpoints
+    chat_session.context_checkpoints
+      .where("compacted_through_message_id >= ?", id)
+      .delete_all
   end
 
   def broadcast_app_event
