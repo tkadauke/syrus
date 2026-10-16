@@ -232,7 +232,8 @@ sidebar uses for its pin control; `update_pinned_context` and
 `remove_pinned_context` continue to mutate only the per-chat context note.
 Both pinning tools default to the current chat session and accept an optional
 `chat_session_id` for another visible, active chat in the current chat user's
-accessible chat scope. They are idempotent: pinning an already-pinned chat or
+accessible chat scope, but only the chat owner may change this shared pin
+state. They are idempotent: pinning an already-pinned chat or
 unpinning an already-unpinned chat succeeds and returns the current `pinned`
 state.
 
@@ -263,9 +264,9 @@ Only `group` chats support participant management:
 `member`, and `DELETE /api/v1/app/chats/:chat_id/participants/:user_id`
 removes one — both 404 for a `direct` chat and require the caller to already
 be a current participant (the same `accessible_chat_sessions`-scoped lookup
-`find_chat_session` uses elsewhere). Any current participant may add or remove
-any other participant, or remove themselves ("leave"); removal is rejected
-with 422 if it would leave the chat with zero human participants. Both
+`find_chat_session` uses elsewhere). Any current participant may add another
+participant. The owner may remove members, members may remove only themselves
+("leave"), and the owner participant can never be removed. Both
 endpoints call `ChatSession#broadcast_participants_update!`, which fans out an
 `updated`/`chat`/`participants` app event to the resulting participant set —
 `broadcast_to_participants` accepts an explicit `recipients:` override so a
@@ -299,8 +300,9 @@ backed by `GET /api/v1/app/users/invitable` and creates the session via
 `POST /api/v1/app/chats` with `participant_user_ids`. For an existing
 `conversation_kind: "group"` chat, the header (`GroupChatParticipants`) shows
 every current participant as a chip with a remove control — removing another
-participant reads as "Remove", removing yourself reads as "Leave" and
-navigates away once the request succeeds, since `accessible_chat_sessions` no
+member as the owner reads as "Remove", while a member removing themselves
+reads as "Leave" and navigates away once the request succeeds, since
+`accessible_chat_sessions` no
 longer includes that chat. Both flows patch the chat's `participants` in the
 TanStack Query cache directly from each endpoint's response, and also apply
 live `update_participants` broadcast events so other open tabs/participants
@@ -313,6 +315,14 @@ whenever a group chat currently has 2+ participants, mirroring the backend
 gate above without attempting to predict it from `conversation_kind` alone
 (a group can be talked down to a single remaining human, at which point the
 gate — and the hint — turn off).
+
+Delete and clear-history mutate the shared conversation and are therefore
+owner-only, as is the session-level sidebar pin. Hide/unhide is instead a
+per-participant preference stored on `ChatParticipant#hidden_at`: hiding a
+group chat removes it only from that participant's sidebar, search, slug
+resolution, and chat MCP listings, without changing what other participants
+see. The Hidden chats settings list and restore action use the same
+participant-local state.
 
 The normal UI only offers chat provider selection before a chat has started;
 after the first message, chat settings show the stored provider as read-only.

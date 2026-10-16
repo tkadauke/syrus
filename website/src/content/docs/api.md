@@ -493,10 +493,10 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
 
 ## Delete a Chat
 
-`DELETE /api/v1/app/chats/:id` permanently deletes one of the authenticated
-user's chat sessions: the conversation, its messages and bookmarks, queued
-messages, attachments, proposals, pending actions, whiteboard, search-index
-entries, and the chat workspace directory on disk. There is no undo — use
+`DELETE /api/v1/app/chats/:id` soft-deletes a chat owned by the authenticated
+user. Group members cannot delete the shared conversation. Audit records such
+as messages, attachments, and proposals remain in the database, while search
+index entries and workspace files are cleaned up. There is no UI undo — use
 hide/unhide for reversible cleanup. The request is refused with `409
 Conflict` (`error.code` `turn_in_flight`) while a turn is actively running.
 
@@ -508,9 +508,10 @@ curl -X DELETE https://syrus.example.com/api/v1/app/chats/123 \
 ## Pin or Unpin a Chat
 
 `PATCH /api/v1/app/chats/:id` accepts `{ "pinned": true }` or
-`{ "chat": { "pinned": true } }` for one of the authenticated user's chat
-sessions. Use `false` to unpin. Pinned chats sort ahead of unpinned chats in
-the sidebar.
+`{ "chat": { "pinned": true } }` for a chat owned by the authenticated user.
+Use `false` to unpin. The pin is shared session state, so group members cannot
+change it through the API, sidebar, or chat-agent tools. Pinned chats sort ahead
+of unpinned chats in the sidebar.
 
 ```bash
 curl -X PATCH https://syrus.example.com/api/v1/app/chats/123 \
@@ -562,7 +563,8 @@ curl https://syrus.example.com/api/v1/app/shared_chats/8b0d6a08-6f8d-4a2e-b2d8-0
 
 `PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's
 chat sessions from the default sidebar, search, and chat listing surfaces.
-`PATCH /api/v1/app/chats/:id/unhide` restores it.
+`PATCH /api/v1/app/chats/:id/unhide` restores it. Hide state belongs to the
+current participant, so hiding a group chat does not hide it for anyone else.
 
 ```bash
 curl -X PATCH https://syrus.example.com/api/v1/app/chats/123/hide \
