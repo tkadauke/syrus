@@ -22,7 +22,8 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
         "version" => "1.2.3",
         "git_sha" => "abc123",
         "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
-        "artifact_sha256" => "f" * 64
+        "artifact_sha256" => "f" * 64,
+        "artifact_signature" => "signed-artifact"
       }
     )
 
@@ -75,6 +76,7 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
         "git_sha" => "abc123",
         "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
         "artifact_sha256" => "f" * 64,
+        "artifact_signature" => "signed-artifact",
         "retention_count" => 4,
         "poll_interval_seconds" => 120
       }
@@ -93,7 +95,8 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
       "version" => "1.2.3",
       "git_sha" => "abc123",
       "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
-      "artifact_sha256" => "f" * 64
+      "artifact_sha256" => "f" * 64,
+      "artifact_signature" => "signed-artifact"
     )
   end
 
@@ -104,7 +107,8 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
         "version" => "1.2.3",
         "git_sha" => "abc123",
         "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
-        "artifact_sha256" => "f" * 64
+        "artifact_sha256" => "f" * 64,
+        "artifact_signature" => "signed-artifact"
       }
     )
     MacosWorkerDrain.create!(
@@ -131,7 +135,8 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
         "version" => "1.2.3",
         "git_sha" => "abc123",
         "artifact_url" => "https://releases.example.test/syrus-worker.tar.gz",
-        "artifact_sha256" => "f" * 64
+        "artifact_sha256" => "f" * 64,
+        "artifact_signature" => "signed-artifact"
       }
     )
     MacosWorkerDrain.create!(
@@ -166,7 +171,8 @@ RSpec.describe "API: /api/v1/app/admin/macos_worker_update", type: :request do
           version: "1.2.3",
           git_sha: "newsha",
           artifact_url: "https://releases.example.test/syrus-worker.tar.gz",
-          artifact_sha256: "f" * 64
+          artifact_sha256: "f" * 64,
+          artifact_signature: "signed-artifact"
         }
       }
     }

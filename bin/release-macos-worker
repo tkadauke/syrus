@@ -112,6 +112,17 @@ test ! -d "$STAGING/dist"
 tar -C "$TMP_DIR" -czf "$OUT_DIR/$NAME.tar.gz" "$NAME"
 syrus_release_checksums "$OUT_DIR" SHA256SUMS-macos-worker.txt
 
+if [ -n "${SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE:-}" ]; then
+  test -f "$SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" || {
+    echo "macOS update signing key not found: $SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" >&2
+    exit 1
+  }
+  syrus_release_require_command openssl
+  openssl dgst -sha256 -sign "$SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" "$OUT_DIR/$NAME.tar.gz" |
+    openssl base64 -A > "$OUT_DIR/$NAME.tar.gz.sig"
+  printf '\n' >> "$OUT_DIR/$NAME.tar.gz.sig"
+fi
+
 echo
 echo "Native macOS worker release artifacts:"
 find "$OUT_DIR" -maxdepth 1 -type f -print | sort

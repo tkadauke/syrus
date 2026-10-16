@@ -62,4 +62,16 @@ RSpec.describe "macOS worker installer" do
     expect(stdout).to include("--skip-services")
     expect(stdout).to include("sudo bin/install-macos-worker")
   end
+
+  it "keeps privileged code and releases root-owned" do
+    source = File.read(script)
+    updater_plist = File.read(File.join(root, "config/launchd/com.syrus.updater.plist"))
+
+    expect(source).to include('chown -R root:wheel "$INSTALL_ROOT" "$LIBEXEC_ROOT"')
+    expect(source).to include('install -o root -g wheel -m 755 "$RELEASE_PATH/bin/syrus-macos-updater" "$LIBEXEC_ROOT/syrus-macos-updater"')
+    expect(source).to include('chown -R root:wheel "$RELEASE_PATH"')
+    expect(source).not_to include('chown -R "$SERVICE_USER:$SERVICE_GROUP" "$RELEASE_PATH"')
+    expect(updater_plist).to include("/usr/local/libexec/syrus/syrus-macos-updater")
+    expect(updater_plist).not_to include("/opt/syrus/current/bin/syrus-macos-updater")
+  end
 end

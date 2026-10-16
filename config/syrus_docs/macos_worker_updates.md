@@ -12,6 +12,8 @@ Required metadata:
 - `git_sha`: desired worker release SHA.
 - `artifact_url`: URL for the `syrus-worker-macos-*.tar.gz` artifact.
 - `artifact_sha256`: SHA-256 of the artifact.
+- `artifact_signature`: base64-encoded RSA/SHA-256 detached signature of the
+  artifact.
 
 Optional metadata:
 
@@ -19,11 +21,26 @@ Optional metadata:
 - `retention_count` to bound rollback releases; default is `3`.
 - `poll_interval_seconds` for the service loop; default is `300`.
 
-The artifact is source-only. During activation the updater installs it under
-`/opt/syrus/releases/<sha>`, runs host-local dependency setup (`bundle
-install`, `npm ci`, and `bin/macos-worker-check`), atomically replaces
+The artifact is source-only. The updater requires HTTPS for metadata and
+artifact downloads, verifies the detached signature against the independently
+provisioned `/etc/syrus/macos-worker-update-public.pem`, and then checks the
+SHA-256 digest. `file://` transport is disabled unless the explicit
+`SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS=1` test override is present.
+
+During activation the updater installs the release root-owned and non-writable
+by the worker under `/opt/syrus/releases/<sha>`. It runs host-local dependency
+setup (`bundle install`, `npm ci`, and `bin/macos-worker-check`) as the
+`syrus-worker` account, atomically replaces
 `/opt/syrus/current`, and restarts `system/com.syrus.worker` with
 `launchctl kickstart -k`.
+
+The privileged updater itself is installed root-owned at
+`/usr/local/libexec/syrus/syrus-macos-updater`; launchd never executes updater
+code from the worker release tree. To produce a signature alongside a release,
+set `SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE` when running
+`bin/release-macos-worker`, then put the generated `.sig` contents in the
+desired release's `artifact_signature`. Keep that private key off worker hosts;
+provision only its public key at the pinned path above.
 
 `SYRUS_DATA_ROOT`, worker storage identity, logs, credentials, shared bundle
 cache, and environment remain outside release directories, so they survive
