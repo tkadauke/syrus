@@ -112,6 +112,8 @@ RSpec.describe AutoRebase, :ci_only do
     second = described_class.new(job)
     first_path = first.send(:clone_path)
     second_path = second.send(:clone_path)
+    first.send(:acquire_clone_lease)
+    second.send(:acquire_clone_lease)
     FileUtils.mkdir_p([ first_path, second_path ])
     File.write(first_path.join("in-progress"), "first")
     File.write(second_path.join("in-progress"), "second")
@@ -124,6 +126,35 @@ RSpec.describe AutoRebase, :ci_only do
     expect(second_path.basename.to_s).to eq("#{job.id}-second")
   ensure
     second&.send(:cleanup_clone)
+  end
+
+  it "reclaims an abandoned clone without removing a concurrent live clone" do
+    job
+    allow(SecureRandom).to receive(:hex).with(4).and_return("abandoned", "live", "next")
+    abandoned = described_class.new(job)
+    live = described_class.new(job)
+    newcomer = described_class.new(job)
+    abandoned_path = abandoned.send(:clone_path)
+    live_path = live.send(:clone_path)
+    abandoned.send(:acquire_clone_lease)
+    live.send(:acquire_clone_lease)
+    FileUtils.mkdir_p([ abandoned_path, live_path ])
+    File.write(abandoned_path.join("clone-data"), "abandoned")
+    File.write(live_path.join("clone-data"), "in use")
+
+    abandoned_lease = abandoned.instance_variable_get(:@clone_lease)
+    abandoned_lease.flock(File::LOCK_UN)
+    abandoned_lease.close
+    abandoned.instance_variable_set(:@clone_lease, nil)
+
+    newcomer.send(:acquire_clone_lease)
+    newcomer.send(:reclaim_abandoned_clones)
+
+    expect(abandoned_path).not_to exist
+    expect(live_path.join("clone-data")).to exist
+  ensure
+    live&.send(:cleanup_clone)
+    newcomer&.send(:cleanup_clone)
   end
 
   it "is a no-op when the branch is already up-to-date with base" do
