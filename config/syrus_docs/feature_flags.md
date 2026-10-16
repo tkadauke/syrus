@@ -74,7 +74,35 @@ Visual review — the headless-browser QA pass the worker agent runs against its
 
 Mounts local overlayfs workspaces for immutable grader checkouts when the worker supports it. The prepared checkout remains the read-only lower directory, while each materialized grader gets its own thin upper/work directories and mountpoint under the workflow workspace. This avoids copying large prepared dependencies such as `vendor/bundle` and `node_modules` for every grader.
 
-Syrus checks for Linux and kernel overlayfs support before attempting the mount. A mount failure, an unsupported filesystem, or a non-Linux worker falls back to the existing full-copy checkout path and records the explicit reason in the grader step's `immutable_source_workspace` details. Workflow cleanup unmounts overlay workspaces before removing the workflow directory.
+Syrus checks for Linux and kernel overlayfs support before attempting the mount. A mount failure, an unsupported filesystem, or a non-Linux worker falls back to a **hardlinked** materialization of the same prepared tree, and only to a full byte copy if the filesystem also refuses links. Workflow cleanup unmounts overlay workspaces before removing the workflow directory.
+
+Note that an unprivileged container cannot mount overlayfs: the mount is
+refused with `must be superuser to use mount` unless the worker holds an
+effective `CAP_SYS_ADMIN`, so on a stock Kubernetes worker this flag records a
+fallback on every materialization rather than mounting anything.
+
+### Materialization strategies
+
+Each grader's checkout is materialized from the prepared tree -- a complete
+checkout, dependencies included, untarred once per workflow, source SHA and
+prepare fingerprint on that worker. The strategy used is recorded in the
+grader step's and Run's `immutable_source_workspace` details, with the reason
+each earlier strategy was skipped:
+
+| strategy | how | cost on a ~1.6 GB / 69k-entry checkout |
+| --- | --- | --- |
+| `overlay` | the prepared tree as a read-only lower, a private upper per grader | mount, no data movement |
+| `hardlink` | one hard link per file, so the bytes are shared | ~2 seconds |
+| `copy` | a full recursive byte copy | 3-25 minutes, depending on how many siblings in the fanout are copying at once |
+
+The hardlink strategy gives each checkout a private copy of the paths a graded
+run writes **in place**, because the prepared tree is shared by every grader on
+the host: `.git` (a working tree's index, reflogs and packed-refs are rewritten
+by ordinary git commands), `.bundle`, `.syrus`, `Gemfile.lock`, the JavaScript
+lockfiles, `app/assets/builds`, `coverage`, `db`, `log`, `storage` and `tmp`.
+Everything else -- `node_modules` and `vendor` are 71% of the bytes -- is
+shared, which is safe because git, bundler and npm write a new file and rename
+it over the old name rather than editing in place.
 
 ## chat_context_compaction
 

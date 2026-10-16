@@ -222,7 +222,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
-  it "falls back to the byte-identical full copy and records the overlay reason when mounting is unavailable" do
+  it "falls back to a byte-identical hardlinked tree and records the overlay reason when mounting is unavailable" do
     described_class.new(step).setup
     # As in the overlay-mount example above: the published cache entry is a
     # symlink, and the code works with the concrete version directory it
@@ -259,12 +259,17 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
 
     expect(fallback_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
     expect(checkout_manifest(fallback_checkout.path)).to eq(expected_manifest)
+    # Hard links, not a byte copy: the tree is ~69,000 entries and copying it
+    # per grader is what made a graded landing attempt slow. The manifest above
+    # is what "byte-identical" has to mean here, and links satisfy it.
     expect(second_step.reload.details.fetch("immutable_source_workspace")).to include(
-      "strategy" => "copy",
+      "strategy" => "hardlink",
       "fallback_reason" => "overlayfs is not listed in /proc/filesystems",
       "lower_path" => cache_path.to_s,
       "mount_path" => fallback_checkout.path.to_s
     )
+    expect(File.stat(fallback_checkout.path.join("README.md")).ino)
+      .to eq(File.stat(cache_path.join("README.md")).ino)
   end
 
   it "keeps overlay materialization diagnostics scoped to each grader Run across retries" do
@@ -323,12 +328,12 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "lower_path" => cache_path.to_s
     )
     expect(JSON.parse(second_log.delete_prefix("[immutable_source_workspace] "))).to include(
-      "strategy" => "copy",
+      "strategy" => "hardlink",
       "fallback_reason" => "overlayfs is not listed in /proc/filesystems",
       "lower_path" => cache_path.to_s
     )
     expect(retry_step.reload.details.fetch("immutable_source_workspace")).to include(
-      "strategy" => "copy",
+      "strategy" => "hardlink",
       "fallback_reason" => "overlayfs is not listed in /proc/filesystems"
     )
   end

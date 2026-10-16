@@ -655,11 +655,39 @@ class ImmutableSourceCheckout
         mount_path: destination,
         log: ->(message) { log(message) }
       )
-      record_workspace_materialization!(overlay)
-      return if overlay.mounted
+      if overlay.mounted
+        record_workspace_materialization!(overlay)
+        return
+      end
 
+      # Deliberately not recorded yet: the Result's own strategy for an
+      # unmounted overlay is "copy", and recording it here claimed a byte copy
+      # before the fallback had chosen one. One record per materialization,
+      # naming what actually happened.
       materialization_details["fallback_reason"] = overlay.reason
     end
+
+    # Hard links before a copy: the tree is ~69,000 entries and copying it
+    # in-process took minutes per grader, which is most of what a graded
+    # landing attempt spends its time on. Links are byte-identical by
+    # definition and fall back to the copy below if the filesystem refuses
+    # them.
+    linked = ImmutableSourceCheckoutLinkTree.link(
+      source: source,
+      destination: destination,
+      log: ->(message) { log(message) }
+    )
+    if linked.linked?
+      record_workspace_materialization!(
+        materialization_details.merge(
+          "strategy" => linked.strategy,
+          "unshared_paths" => linked.unshared_paths
+        )
+      )
+      return
+    end
+
+    materialization_details["link_fallback_reason"] = linked.reason
 
     FileUtils.mkdir_p(destination)
     FileUtils.cp_r(
