@@ -75,6 +75,8 @@ module Api
           task = find_repository_task(repository)
           enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
           if enabled
+            return render_fired_one_shot_resume_error if task.one_shot? && task.fired?
+
             task.resume!
             message = "Scheduled task enabled."
           else
@@ -122,6 +124,8 @@ module Api
 
         def resume
           task = find_task
+          return render_fired_one_shot_resume_error if task.one_shot? && task.fired?
+
           task.resume!
 
           render json: scheduled_task_detail_payload(task.reload).merge(message: "Resumed.")
@@ -143,6 +147,14 @@ module Api
         end
 
         private
+
+        def render_fired_one_shot_resume_error
+          render_error(
+            "not_resumable",
+            "A fired one-shot task cannot be resumed.",
+            status: :unprocessable_content
+          )
+        end
 
         def scheduled_tasks_index_payload
           tasks = ScheduledTasks::Task.alive.where(user: Current.user).includes(:repository)
