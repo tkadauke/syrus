@@ -298,6 +298,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :prepared_layer_cache_gb,
+      type: :integer,
+      default: 100,
+      min: 0,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Per-worker disk budget, in GB, for the cache of prepared workspace trees that grader checkouts are materialized from. Least-recently-used trees are evicted once a worker is over budget, or whenever its data root is under disk pressure. SYRUS_PREPARED_LAYER_CACHE_GB overrides this on an individual worker, for hosts whose disk differs from the fleet.",
+      zero_means: "No size budget; trees are only evicted when the data root is under disk pressure.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :max_in_flight_workflows,
       type: :integer,
       default: 0,

@@ -33,6 +33,7 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `report_issue_repo_slug` | instance | Admin Settings | setting | instance | Correct: deployment support route. |
 | `max_concurrent_agent_runs` | instance | Admin Settings | setting | instance | Correct: cluster-wide resource budget. |
 | `max_in_flight_workflows` | instance | Admin Settings | setting | instance | Correct: cluster-wide work-in-progress budget. |
+| `prepared_layer_cache_gb` | instance | Admin Settings | setting | instance | Correct: instance-wide default, overridden per worker by `SYRUS_PREPARED_LAYER_CACHE_GB`. |
 | `repository_full_poll_interval_hours` | instance | Admin Settings | setting | instance default with repo override later | Correct for now; the backstop cadence is deployment-wide, while unusually large repositories may eventually want overrides. |
 | `user_daily_spend_budget_usd` | instance | Admin Settings | setting | instance | Correct: deployment spend guardrail. |
 | `proactive_rebase_commit_threshold` | instance | Admin Settings | setting | instance default with repo override later | Correct for now; repos with unusual branch protection may want overrides. |

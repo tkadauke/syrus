@@ -35,6 +35,7 @@ export type AdminSettingsPayload = {
     telegram_bot_handle: string | null
     max_concurrent_agent_runs: number
     max_in_flight_workflows: number
+    prepared_layer_cache_gb: number
     repository_full_poll_interval_hours: number
     proactive_rebase_commit_threshold: number
     show_work_unit_debug: boolean
@@ -67,6 +68,7 @@ export type AdminSettingsUpdate = {
   telegram_bot_handle?: string
   max_concurrent_agent_runs?: number
   max_in_flight_workflows?: number
+  prepared_layer_cache_gb?: number
   repository_full_poll_interval_hours?: number
   proactive_rebase_commit_threshold?: number
   show_work_unit_debug?: boolean

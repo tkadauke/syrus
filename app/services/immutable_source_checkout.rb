@@ -9,7 +9,6 @@ class ImmutableSourceCheckout
   CHECKOUT_ROOT = ".syrus/immutable-checkouts/steps".freeze
   PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
   PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
-  PREPARED_ARCHIVE_RESTORE_ROOT = ".syrus/immutable-checkouts/prepared-archive-restores".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
   PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
@@ -470,7 +469,9 @@ class ImmutableSourceCheckout
     lower_path = prepared_archive_restore_path(snapshot, attachment.blob.metadata)
     archive_path = temporary_archive_path("checkout-overlay-restore")
     WorkerIoGate.synchronize do
-      unless valid_checkout_at?(lower_path, snapshot)
+      if valid_checkout_at?(lower_path, snapshot)
+        log("[immutable_source_checkout] prepared layer cache hit: #{lower_path.basename}")
+      else
         FileUtils.rm_rf(lower_path.to_s)
         FileUtils.mkdir_p(lower_path)
         File.open(archive_path, "wb") do |file|
@@ -478,6 +479,8 @@ class ImmutableSourceCheckout
         end
         run_tar!("tar", "-xzf", archive_path.to_s, "-C", lower_path.to_s)
       end
+      PreparedLayerCache.record_use!(lower_path)
+      PreparedLayerCache.evict_over_budget!(keep: lower_path, log: ->(message) { log(message) })
 
       FileUtils.rm_rf(path.to_s)
       copy_tree!(lower_path, path)
@@ -616,15 +619,13 @@ class ImmutableSourceCheckout
     PreparedWorkspaceArchive.metadata(workflow: @workflow, snapshot: snapshot, plan: prepare_cache.plan)
   end
 
+  # Host-level, not workflow-level: see PreparedLayerCache. The old path lived
+  # inside this workflow's workspace and carried its id, so the tree was
+  # downloaded, untarred and deleted again once per workflow even when an
+  # identical one had just been built for the workflow before it.
   def prepared_archive_restore_path(snapshot, metadata)
     fingerprint = metadata.to_h["prepare_fingerprint"].presence || "unknown-fingerprint"
-    WorkflowWorkspace.path_for(@workflow).join(
-      PREPARED_ARCHIVE_RESTORE_ROOT,
-      sanitized_worker_storage_key,
-      @workflow.id.to_s,
-      snapshot.source_sha,
-      fingerprint
-    )
+    PreparedLayerCache.path_for(fingerprint: fingerprint, source_sha: snapshot.source_sha)
   end
 
   def temporary_archive_path(prefix)

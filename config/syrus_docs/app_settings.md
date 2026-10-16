@@ -178,6 +178,29 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
 
+### prepared_layer_cache_gb
+
+**Type:** integer · **Default:** 100 · `0` = no size budget
+
+Disk budget, in GB, for each worker's cache of prepared workspace trees -- the
+trees grader checkouts are materialized from. `SYRUS_PREPARED_LAYER_CACHE_GB`
+overrides it on an individual worker, which is the point of having both: a
+256 GB laptop worker and a 1 TB server should not be told the same number.
+
+Entries are keyed by prepare fingerprint (which already covers the prepare plan
+*and* the worker capability environment) and source SHA, and they live in
+`$SYRUS_DATA_ROOT/prepared-layers/`, outside any workflow workspace, so a tree
+built for one workflow is reused by the next one with the same fingerprint
+instead of being downloaded and untarred again.
+
+Least-recently-used entries are evicted once a worker is over budget. Eviction
+also runs while the data root is in disk trouble regardless of the budget: a
+full data root takes the whole worker out of rotation, which is worse than
+losing a cached tree. An entry nothing has touched for less than
+`PreparedLayerCache::EVICTION_GRACE` is never evicted, which is how a tree in
+use by a running grader is protected without holding a lock across process
+restarts.
+
 ### max_in_flight_workflows
 
 **Type:** integer · **Default:** 0 · `0` = unlimited

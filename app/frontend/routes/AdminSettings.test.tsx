@@ -20,6 +20,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       max_job_failures: 3,
       max_concurrent_agent_runs: 3,
       max_in_flight_workflows: 0,
+      prepared_layer_cache_gb: 100,
       repository_full_poll_interval_hours: 24,
       proactive_rebase_commit_threshold: 1,
       show_work_unit_debug: false,

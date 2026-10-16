@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_120117) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -212,6 +213,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_232850) do
     t.integer "notification_retention_days", default: 30, null: false
     t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
+    t.integer "prepared_layer_cache_gb", default: 100, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
     t.boolean "provider_session_archive_before_delete", default: false, null: false
     t.integer "provider_session_retention_days", default: 14, null: false

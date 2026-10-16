@@ -757,6 +757,8 @@
     "max_concurrent_agent_runs_help": "Cluster-wide cap on how many agent Runs execute at once, across all worker pods. Defaults to 3 to protect fresh instances. 0 = unlimited (bounded only by each pod's JOB_CONCURRENCY). Landing and main-branch grader runs are not counted.",
     "max_in_flight_workflows_label": "Max in-flight workflows",
     "max_in_flight_workflows_help": "Cap on how many Job attempts may be admitted and unfinished at once, so some finish before more start. Checked only when an attempt is first admitted — work already in flight is never held up by it, including the graders it fans out. Landing, main-branch health and repair workflows are exempt and do not count. 0 = no limit.",
+    "prepared_layer_cache_gb_label": "Prepared workspace cache budget (GB per worker)",
+    "prepared_layer_cache_gb_help": "Disk budget on each worker for the cache of prepared workspace trees that grader checkouts are materialized from. Least-recently-used trees are evicted once a worker is over budget, or whenever its data root is under disk pressure. 0 = no size budget (evict only under disk pressure). SYRUS_PREPARED_LAYER_CACHE_GB overrides this on an individual worker, for hosts whose disk differs from the fleet.",
     "proactive_rebase_commit_threshold_label": "Proactive rebase commit threshold",
     "proactive_rebase_commit_threshold_help": "Number of commits a PR must be behind its base before Syrus proactively rebases it, even when GitHub's mergeable_state is clean. Useful when branch-protection does not require branches to be up to date. Must be at least 1.",
     "repository_full_poll_interval_hours_label": "Repository full poll interval (hours)",
