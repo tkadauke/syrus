@@ -20,6 +20,11 @@ require "json"
 class PreparedLayerCache
   ROOT_DIRNAME = "prepared-layers".freeze
   METADATA_FILENAME = ".syrus-layer.json".freeze
+  # Written only after a successful extraction. A tree that lacks it was torn
+  # by a crash or a kill mid-untar, and must be rebuilt rather than served:
+  # the old validity check was "git rev-parse works", which a half-extracted
+  # tree can satisfy.
+  READY_FILENAME = ".syrus-layer-ready".freeze
   BUDGET_ENV_VAR = "SYRUS_PREPARED_LAYER_CACHE_GB".freeze
   DEFAULT_BUDGET_GIGABYTES = 100
 
@@ -30,18 +35,26 @@ class PreparedLayerCache
   # ever considers entries nothing has touched for hours.
   EVICTION_GRACE = 2.hours
 
-  Entry = Data.define(:path, :fingerprint, :source_sha, :bytes, :last_used_at)
+  Entry = Data.define(:path, :storage_key, :fingerprint, :bytes, :last_used_at)
 
   class << self
     def root
       WorkflowWorkspace.data_root.join(ROOT_DIRNAME)
     end
 
-    # `source_sha` is part of the key while an entry is a full checkout. Once
-    # the dependency closure is stored on its own, the fingerprint alone is the
-    # key and the source is checked out on top of it.
-    def path_for(fingerprint:, source_sha: nil)
-      root.join(*[ sanitize(fingerprint), sanitize(source_sha) ].compact)
+    # Keyed by worker storage key, then prepare fingerprint. The entry is a
+    # dependency carrier whose source happens to sit at whatever revision built
+    # it: a caller that wants another revision checks it out on top, which
+    # costs a fetch of the objects it is missing rather than another 526 MB
+    # archive. The fingerprint already covers the prepare plan and the worker
+    # capability environment, so two entries sharing one are interchangeable.
+    #
+    # The storage key stays in the path because a data root is not always
+    # private to one host: where it is shared storage, two workers must not
+    # write the same entry underneath each other, and the WorkerIoGate that
+    # guards the write is per-process.
+    def path_for(storage_key:, fingerprint:)
+      root.join(sanitize(storage_key).to_s, sanitize(fingerprint).to_s)
     end
 
     # Records that an entry was just materialized or reused. The size is
@@ -57,6 +70,17 @@ class PreparedLayerCache
       bytes
     rescue SystemCallError, JSON::GeneratorError
       nil
+    end
+
+    def mark_ready!(path)
+      Pathname.new(path).join(READY_FILENAME).write(Time.current.iso8601)
+      true
+    rescue SystemCallError
+      false
+    end
+
+    def ready?(path)
+      Pathname.new(path).join(READY_FILENAME).file?
     end
 
     def budget_bytes
@@ -95,12 +119,12 @@ class PreparedLayerCache
     def entries(now: Time.current)
       return [] unless root.directory?
 
-      root.children.select(&:directory?).flat_map do |fingerprint_path|
-        fingerprint_path.children.select(&:directory?).map do |entry_path|
+      root.children.select(&:directory?).flat_map do |storage_path|
+        storage_path.children.select(&:directory?).map do |entry_path|
           metadata = read_metadata(entry_path.join(METADATA_FILENAME))
           Entry.new(
             entry_path,
-            fingerprint_path.basename.to_s,
+            storage_path.basename.to_s,
             entry_path.basename.to_s,
             metadata["bytes"] || measure_bytes(entry_path),
             parse_time(metadata["last_used_at"]) || mtime(entry_path) || now

@@ -14,29 +14,28 @@ RSpec.describe PreparedLayerCache do
     allow(DataRootDiskUsage).to receive(:current).and_return(snapshot(used_percent: 10))
   end
 
-  it "keys an entry by prepare fingerprint and source sha, outside any workflow workspace" do
-    path = described_class.path_for(fingerprint: "abc123", source_sha: "def456")
+  it "keys an entry by worker storage key and prepare fingerprint, outside any workflow workspace" do
+    path = described_class.path_for(storage_key: "storage-a", fingerprint: "abc123")
 
-    expect(path.to_s).to eq(@data_root.join("prepared-layers", "abc123", "def456").to_s)
+    expect(path.to_s).to eq(@data_root.join("prepared-layers", "storage-a", "abc123").to_s)
     expect(path.to_s).not_to include("workflows")
   end
 
   it "measures an entry once and reports it as reusable afterwards" do
-    path = seed_entry("fp1", "sha1", bytes: 2048)
+    path = seed_entry("fp1", bytes: 2048)
 
     described_class.record_use!(path)
     entry = described_class.entries.find { |candidate| candidate.path == path }
 
     expect(entry.bytes).to be >= 2048
     expect(entry.fingerprint).to eq("fp1")
-    expect(entry.source_sha).to eq("sha1")
   end
 
   describe "eviction" do
     it "evicts least recently used entries until the cache fits its budget" do
-      old_entry = seed_entry("fp1", "old", bytes: 3.megabytes, last_used_at: 5.days.ago)
-      middle = seed_entry("fp1", "middle", bytes: 3.megabytes, last_used_at: 3.days.ago)
-      newest = seed_entry("fp2", "newest", bytes: 3.megabytes, last_used_at: 1.day.ago)
+      old_entry = seed_entry("old", bytes: 3.megabytes, last_used_at: 5.days.ago)
+      middle = seed_entry("middle", bytes: 3.megabytes, last_used_at: 3.days.ago)
+      newest = seed_entry("newest", bytes: 3.megabytes, last_used_at: 1.day.ago)
 
       evicted = with_budget_gb(0.005) { described_class.evict_over_budget! }
 
@@ -47,8 +46,8 @@ RSpec.describe PreparedLayerCache do
     end
 
     it "never evicts the entry the caller just materialized" do
-      keep = seed_entry("fp1", "keep", bytes: 3.megabytes, last_used_at: 9.days.ago)
-      other = seed_entry("fp1", "other", bytes: 3.megabytes, last_used_at: 8.days.ago)
+      keep = seed_entry("keep", bytes: 3.megabytes, last_used_at: 9.days.ago)
+      other = seed_entry("other", bytes: 3.megabytes, last_used_at: 8.days.ago)
 
       with_budget_gb(0.000001) { described_class.evict_over_budget!(keep: keep) }
 
@@ -59,7 +58,7 @@ RSpec.describe PreparedLayerCache do
     # A grader run holds no lock across process restarts, so recency stands in
     # for "in use": a sweep only considers entries nothing touched for hours.
     it "leaves recently used entries alone even when over budget" do
-      recent = seed_entry("fp1", "recent", bytes: 3.megabytes, last_used_at: 5.minutes.ago)
+      recent = seed_entry("recent", bytes: 3.megabytes, last_used_at: 5.minutes.ago)
 
       evicted = with_budget_gb(0.000001) { described_class.evict_over_budget! }
 
@@ -69,7 +68,7 @@ RSpec.describe PreparedLayerCache do
 
     it "evicts under data root pressure even when the budget would allow it" do
       allow(DataRootDiskUsage).to receive(:current).and_return(snapshot(used_percent: 96))
-      stale = seed_entry("fp1", "stale", bytes: 1.kilobyte, last_used_at: 5.days.ago)
+      stale = seed_entry("stale", bytes: 1.kilobyte, last_used_at: 5.days.ago)
 
       evicted = with_budget_gb(500) { described_class.evict_over_budget! }
 
@@ -78,7 +77,7 @@ RSpec.describe PreparedLayerCache do
     end
 
     it "treats a zero budget as unlimited" do
-      stale = seed_entry("fp1", "stale", bytes: 3.megabytes, last_used_at: 5.days.ago)
+      stale = seed_entry("stale", bytes: 3.megabytes, last_used_at: 5.days.ago)
 
       evicted = with_budget_gb(0) { described_class.evict_over_budget! }
 
@@ -102,8 +101,8 @@ RSpec.describe PreparedLayerCache do
     end
   end
 
-  def seed_entry(fingerprint, source_sha, bytes:, last_used_at: Time.current)
-    path = described_class.path_for(fingerprint: fingerprint, source_sha: source_sha)
+  def seed_entry(fingerprint, bytes:, last_used_at: Time.current)
+    path = described_class.path_for(storage_key: "storage-a", fingerprint: fingerprint)
     FileUtils.mkdir_p(path)
     path.join("payload.bin").write("x" * bytes)
     path.join(described_class::METADATA_FILENAME)

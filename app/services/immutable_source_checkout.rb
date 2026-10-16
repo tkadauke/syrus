@@ -469,7 +469,7 @@ class ImmutableSourceCheckout
     lower_path = prepared_archive_restore_path(snapshot, attachment.blob.metadata)
     archive_path = temporary_archive_path("checkout-overlay-restore")
     WorkerIoGate.synchronize do
-      if valid_checkout_at?(lower_path, snapshot)
+      if valid_layer_at?(lower_path)
         log("[immutable_source_checkout] prepared layer cache hit: #{lower_path.basename}")
       else
         FileUtils.rm_rf(lower_path.to_s)
@@ -478,6 +478,7 @@ class ImmutableSourceCheckout
           attachment.download { |chunk| file.write(chunk) }
         end
         run_tar!("tar", "-xzf", archive_path.to_s, "-C", lower_path.to_s)
+        PreparedLayerCache.mark_ready!(lower_path)
       end
       PreparedLayerCache.record_use!(lower_path)
       PreparedLayerCache.evict_over_budget!(keep: lower_path, log: ->(message) { log(message) })
@@ -485,6 +486,7 @@ class ImmutableSourceCheckout
       FileUtils.rm_rf(path.to_s)
       copy_tree!(lower_path, path)
     end
+    move_checkout_to_snapshot!(snapshot)
     verify_head!(snapshot)
     ensure_base_ref!
     ensure_exclude_entry
@@ -623,9 +625,9 @@ class ImmutableSourceCheckout
   # inside this workflow's workspace and carried its id, so the tree was
   # downloaded, untarred and deleted again once per workflow even when an
   # identical one had just been built for the workflow before it.
-  def prepared_archive_restore_path(snapshot, metadata)
+  def prepared_archive_restore_path(_snapshot, metadata)
     fingerprint = metadata.to_h["prepare_fingerprint"].presence || "unknown-fingerprint"
-    PreparedLayerCache.path_for(fingerprint: fingerprint, source_sha: snapshot.source_sha)
+    PreparedLayerCache.path_for(storage_key: sanitized_worker_storage_key, fingerprint: fingerprint)
   end
 
   def temporary_archive_path(prefix)
@@ -698,6 +700,36 @@ class ImmutableSourceCheckout
       dereference_root: false
     )
     record_workspace_materialization!(materialization_details)
+  end
+
+  # A cached layer carries the dependency closure for a prepare fingerprint;
+  # the revision its source sits at is whichever one happened to build it. So
+  # validity here is "a checkout with prepared artifacts", not "a checkout at
+  # the revision I want" -- demanding the latter is what made every revision
+  # download its own 526 MB archive even though one layer serves them all.
+  def valid_layer_at?(layer_path)
+    layer_path = Pathname.new(layer_path)
+    return false unless PreparedLayerCache.ready?(layer_path)
+    return false unless layer_path.join(".git").directory?
+
+    @git.run("rev-parse", "HEAD", chdir: layer_path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
+  end
+
+  # Moves the materialized checkout -- never the shared layer -- to the
+  # revision this step actually wants. The objects it is missing come from the
+  # same fetch the from-scratch path uses, which the git mirror answers over
+  # the LAN.
+  def move_checkout_to_snapshot!(snapshot)
+    return if valid_checkout_at?(path, snapshot)
+
+    log("[immutable_source_checkout] prepared layer sits at another revision; moving the checkout to #{snapshot.source_sha.first(9)}")
+    fetch_snapshot!(snapshot)
+    @git.run("checkout", "--detach", snapshot.source_sha, chdir: path.to_s)
+  rescue GitRunner::GitError => e
+    raise_infrastructure!("could not move the prepared layer to #{snapshot.source_sha}: #{e.message}")
   end
 
   def valid_checkout_at?(checkout_path, snapshot)

@@ -552,6 +552,66 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
   end
 
+  # The point of keying the layer by prepare fingerprint: the dependency
+  # closure is identical across revisions (production saw 2 distinct
+  # fingerprints in 14 days against 89 archives), so a second revision reuses
+  # the cached tree and checks its own source out on top, instead of
+  # downloading another 526 MB archive and untarring 1.6 GB of mostly
+  # identical bytes.
+  it "serves a different revision from the cached layer instead of downloading its archive" do
+    enable_grader_fanout_overlay!
+    allow(ImmutableSourceCheckoutOverlay).to receive(:mount).and_return(
+      ImmutableSourceCheckoutOverlay::Result.new(false, "overlayfs is not listed in /proc/filesystems", nil, nil, nil, nil)
+    )
+    described_class.new(step).setup
+    first_archive = snapshot.reload.prepared_workspace_archive
+    expect(first_archive).to be_attached
+    # A fresh worker storage root takes the archive path -- the local prepare
+    # cache belongs to the storage that built it -- so this is the checkout
+    # that downloads the archive and populates the layer. It now sits at
+    # main's revision.
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
+    described_class.new(second_step).setup
+
+    feature_snapshot = WorkflowSourceSnapshots.record!(
+      workflow: workflow,
+      creator_step: creator_step,
+      source_sha: feature_sha,
+      source_ref: "refs/syrus/source-snapshots/runs/123",
+      tree_sha: feature_tree_sha
+    )
+    # The same dependency layer, offered to the next revision: one blob, its
+    # metadata describing the revision that is asking for it.
+    feature_snapshot.prepared_workspace_archive.attach(first_archive.blob)
+    feature_snapshot.prepared_workspace_archive.blob.update!(
+      metadata: first_archive.blob.metadata.merge(
+        "source_snapshot_id" => feature_snapshot.id,
+        "source_sha" => feature_sha,
+        "source_ref" => "refs/syrus/source-snapshots/runs/123",
+        "tree_sha" => feature_tree_sha
+      )
+    )
+    feature_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 4,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "source_snapshot_id" => feature_snapshot.id }
+    )
+    allow(ProcessRunner).to receive(:new).and_call_original
+    logs = []
+    feature_checkout = described_class.new(feature_step, log: ->(message, **) { logs << message })
+
+    feature_checkout.setup
+
+    expect(logs.join("\n")).to include("prepared layer cache hit")
+    expect(logs.join("\n")).to include("moving the checkout to #{feature_sha.first(9)}")
+    expect(sh("git -C #{feature_checkout.path} rev-parse HEAD").strip).to eq(feature_sha)
+    expect(feature_checkout.path.join("feature.txt")).to exist
+    expect(feature_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
   it "preserves root symlinks when restoring a prepared archive on another worker" do
     described_class.new(step).setup
     File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-b\n")
@@ -666,7 +726,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       "strategy" => "overlay",
       "mount_path" => second_checkout.path.to_s
     )
-    expect(workspace_details.fetch("lower_path")).to include("/prepared-archive-restores/storage-b/")
+    expect(workspace_details.fetch("lower_path")).to include("/prepared-layers/storage-b/")
     expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
     expect(second_step.reload.details.fetch("prepare_cache")).to include(
       "status" => "archive_hit",

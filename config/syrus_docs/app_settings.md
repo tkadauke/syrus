@@ -187,11 +187,19 @@ trees grader checkouts are materialized from. `SYRUS_PREPARED_LAYER_CACHE_GB`
 overrides it on an individual worker, which is the point of having both: a
 256 GB laptop worker and a 1 TB server should not be told the same number.
 
-Entries are keyed by prepare fingerprint (which already covers the prepare plan
-*and* the worker capability environment) and source SHA, and they live in
-`$SYRUS_DATA_ROOT/prepared-layers/`, outside any workflow workspace, so a tree
-built for one workflow is reused by the next one with the same fingerprint
-instead of being downloaded and untarred again.
+Entries live in `$SYRUS_DATA_ROOT/prepared-layers/<worker storage key>/<prepare
+fingerprint>/`, outside any workflow workspace. The fingerprint already covers
+the prepare plan *and* the worker capability environment, so entries that share
+one are interchangeable; the storage key stays in the path because a data root
+is not always private to one host.
+
+The source revision is deliberately **not** part of the key. An entry is a
+dependency carrier whose source sits at whichever revision built it, and a
+checkout that wants a different revision is materialized from the entry and
+then moved -- fetching only the objects it is missing, which the git mirror
+answers over the LAN. That is what collapses the per-revision cost: production
+saw 2 distinct fingerprints in 14 days against 89 published archives of
+~526 MB each.
 
 Least-recently-used entries are evicted once a worker is over budget. Eviction
 also runs while the data root is in disk trouble regardless of the budget: a
