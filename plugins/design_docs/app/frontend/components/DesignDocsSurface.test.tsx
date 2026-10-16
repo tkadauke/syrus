@@ -3102,7 +3102,7 @@ describe("DesignDocsSurface", () => {
 
   it("stops retrying a failed autosave until the draft changes and shows the server error", async () => {
     let patchCount = 0
-    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const url = new URL(String(input), "http://test.host")
       if (url.pathname === "/api/v1/app/repositories") {
         return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
@@ -3114,6 +3114,9 @@ describe("DesignDocsSurface", () => {
         patchCount += 1
         return jsonResponse({ error: { code: "validation_failed", message: "Title can't be blank" } }, 422)
       }
+      if (url.pathname === "/api/v1/app/design_docs/1/threads/7/resolve" && init?.method === "POST") {
+        return jsonResponse({ thread: { ...docDetail.threads[0], state: "resolved" }, message: "Comment thread resolved." })
+      }
       return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
     })
 
@@ -3123,6 +3126,13 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(editor, { target: { value: "First rejected draft" } })
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Title can't be blank")
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+    expect(patchCount).toBe(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument())
+    expect(screen.getByRole("alert")).toHaveTextContent("Title can't be blank")
     await new Promise((resolve) => window.setTimeout(resolve, 1_000))
     expect(patchCount).toBe(1)
 
