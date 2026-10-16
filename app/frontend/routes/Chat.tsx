@@ -109,7 +109,8 @@ import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_PROGRAMMATIC_SCROLL_SUPPRESSION_MS, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, mobileHeaderScrollDeltaForMessageStream, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
-import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
+import { appendSearch, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
+import { keyboardVisualViewport } from "../lib/visualViewport"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
@@ -368,13 +369,17 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
 }
 
 function useChatVisualViewportStyle() {
-  const [height, setHeight] = useState(visualViewportHeight)
+  const readHeight = () => {
+    const viewport = keyboardVisualViewport()
+    return viewport ? Math.round(viewport.height) : null
+  }
+  const [height, setHeight] = useState(readHeight)
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return
 
     const viewport = window.visualViewport
-    const updateHeight = () => setHeight(visualViewportHeight())
+    const updateHeight = () => setHeight(readHeight())
     updateHeight()
     viewport.addEventListener("resize", updateHeight)
     viewport.addEventListener("scroll", updateHeight)

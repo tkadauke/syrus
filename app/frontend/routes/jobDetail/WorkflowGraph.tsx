@@ -16,7 +16,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobPrLinkRole, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type RunTestFailureSummary, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, workflowWarningsForDisplay, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
@@ -1015,7 +1015,7 @@ function StepCard({ step, payload, command, numberLabel, prefix, displayName, me
           <StepPlacementPanel defaultOpen={diagnosticRelevant} jobId={payload.job.id} prefix={prefix} step={step} workflowId={workflowId} />
           {cancellationNotice ? <CancellationNotice message={cancellationNotice} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
-          {pendingWarnings(step).map((warning) => (
+          {workflowWarningsForDisplay(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
           <StepOutcomePanel payload={payload} step={step} />
@@ -1283,17 +1283,29 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   const severityClass = WARNING_SEVERITY_CLASSES[warning.severity] || WARNING_SEVERITY_CLASSES.medium
   const filePath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/file_job`
   const dismissPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/dismiss`
+  const reviewRetryPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/retry_review`
+  const reviewSkipPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/skip_review`
+  const reviewRecovery = warning.kind === "post_implementation_review_failed"
+  const resolved = warning.state !== "pending"
+  const resolution = stringValue(objectDetails(warning.evidence).resolution)
+  const resolvedLabel = reviewRecovery && resolution === "retry_succeeded"
+    ? t("warning_review_retry_succeeded")
+    : reviewRecovery && resolution === "skipped"
+      ? t("warning_review_skipped")
+      : t("warning_resolved")
 
   return (
     <section className={`mt-2 rounded-[var(--radius-panel)] border border-[length:var(--border-width)] p-3 text-xs ${severityClass}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold">{warning.title}</div>
-        <SmallPill>{humanize(warning.kind)}</SmallPill>
+      <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 break-words font-semibold">{warning.title}</div>
+        <SmallPill className="max-w-full break-words" wrap>{humanize(warning.kind)}</SmallPill>
       </div>
       {warning.evidence != null ? (
         <CodeSurface code={stringify(warning.evidence)} className="mt-2" maxHeightClassName="max-h-48" />
       ) : null}
-      {warning.created_job_id ? (
+      {resolved ? (
+        <div className="mt-3"><TonePill tone="green">{resolvedLabel}</TonePill></div>
+      ) : warning.created_job_id ? (
         <p className="mt-2">{t("warning_already_filed")}</p>
       ) : (
         <div className="mt-3">
@@ -1318,6 +1330,11 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
             </>
           ) : null}
           <div className="mt-2 flex gap-2">
+            {reviewRecovery ? (
+              <Button disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: reviewRetryPath })} variant="primary">
+                {t("warning_retry_review")}
+              </Button>
+            ) : null}
             {warning.suggested_prompt ? (
               <Button
                 disabled={command.isPending || !prompt.trim()}
@@ -1329,10 +1346,10 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
             ) : null}
             <Button
               disabled={command.isPending}
-              onClick={() => command.mutate({ method: "post", path: dismissPath })}
+              onClick={() => command.mutate({ method: "post", path: reviewRecovery ? reviewSkipPath : dismissPath })}
               variant="secondary"
             >
-              {t("warning_dismiss")}
+              {reviewRecovery ? t("warning_skip_review") : t("warning_dismiss")}
             </Button>
           </div>
         </div>

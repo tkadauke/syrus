@@ -27,6 +27,15 @@ RSpec.describe Steps::PostImplementationReview do
     expect(job.job_logs.last.chunk).to include("no enabled providers requested review notes")
   end
 
+  it "keeps a manual retry warning open when its provider is no longer enabled" do
+    workflow.set_artifact!("post_implementation_review_retry", { "warning_id" => 123 })
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::CannotProceed,
+      "no enabled provider is available to retry post-implementation review"
+    )
+  end
+
   it "invokes the agent with provider prompt sections and required tools" do
     provider = Class.new do
       include Syrus::Plugin::PostImplementationReviewProvider
@@ -77,5 +86,33 @@ RSpec.describe Steps::PostImplementationReview do
     allow(handler).to receive(:run_agent).and_raise(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "agent didn't call submit_review_notes")
+  end
+
+  it "resolves the source warning after a successful manual retry" do
+    provider = Class.new do
+      include Syrus::Plugin::PostImplementationReviewProvider
+      def self.review_needed?(job:, trigger_kind:) = true
+    end
+    Syrus::PluginRegistry.register(
+      name: "post_implementation_review_retry_spec_provider",
+      version: "1.0.0",
+      provides: { post_implementation_review_provider: provider }
+    )
+    warning = WorkflowWarning.create!(
+      job: job, workflow: workflow, step: step,
+      kind: PostImplementationReviewFailure::KIND,
+      title: "Review failed", severity: "medium", state: "pending"
+    )
+    workflow.set_artifact!("post_implementation_review_retry", { "warning_id" => warning.id })
+    allow(handler).to receive(:run_agent)
+
+    handler.call
+
+    expect(warning.reload).to be_dismissed
+    expect(warning.evidence).to include(
+      "resolution" => "retry_succeeded",
+      "retry_workflow_id" => workflow.id,
+      "retry_run_id" => run.id
+    )
   end
 end

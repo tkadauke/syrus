@@ -187,10 +187,4 @@ export function isDesktopChatViewport() {
   return typeof window !== "undefined" && window.innerWidth >= CHAT_ENTER_SUBMIT_MIN_WIDTH
 }
 
-export function visualViewportHeight() {
-  if (typeof window === "undefined" || !window.visualViewport) return null
-
-  return Math.round(window.visualViewport.height)
-}
-
 export { withRoutePrefix } from "../../lib/routing"

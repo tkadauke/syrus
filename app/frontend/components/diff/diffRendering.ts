@@ -84,6 +84,7 @@ export function parseUnifiedDiff(diff: string) {
   let remainingOldLines = 0
   let remainingNewLines = 0
   let hunkId = -1
+  let hasSeenHunk = false
 
   for (const rawLine of rawLines) {
     const insideHunkBody = remainingOldLines > 0 || remainingNewLines > 0
@@ -98,6 +99,7 @@ export function parseUnifiedDiff(diff: string) {
       remainingOldLines = hunkOldLines
       remainingNewLines = hunkNewLines
       hunkId += 1
+      hasSeenHunk = true
       lines.push({ kind: "hunk", oldLine: null, newLine: null, marker: "", code: rawLine, hunkId, hunkOldStart, hunkOldLines, hunkNewStart, hunkNewLines })
       continue
     }
@@ -120,6 +122,14 @@ export function parseUnifiedDiff(diff: string) {
       remainingNewLines -= 1
     } else if (rawLine === NO_NEWLINE_MARKER) {
       lines.push(diffLine("no_newline", rawLine))
+    } else if (!hasSeenHunk && isRecognizedDiffPreambleLine(rawLine)) {
+      lines.push(diffLine("meta", rawLine))
+    } else if (!hasSeenHunk && rawLine.startsWith("+")) {
+      lines.push(diffLine("add", rawLine.slice(1), null, null, "+"))
+    } else if (!hasSeenHunk && rawLine.startsWith("-")) {
+      lines.push(diffLine("delete", rawLine.slice(1), null, null, "-"))
+    } else if (!hasSeenHunk && rawLine.startsWith(" ")) {
+      lines.push(diffLine("context", rawLine.slice(1)))
     } else {
       // Genuinely unexpected: a line inside the diff that doesn't match any
       // known unified-diff prefix (e.g. a hunk-body line arriving before

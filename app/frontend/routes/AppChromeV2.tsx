@@ -50,6 +50,7 @@ import { firstUnstartedChatInRecentCaches } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
 import { MOBILE_CHROME_BOTTOM_OVERLAP_CLASS, MOBILE_CHROME_SURFACE_CLASS, MobileChromeContext } from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
+import { keyboardVisualViewport } from "../lib/visualViewport"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
@@ -83,9 +84,8 @@ function roundedViewportValue(value: number | undefined) {
 }
 
 function readRootVisualViewportMetrics(): RootVisualViewportMetrics | null {
-  if (typeof window === "undefined" || !window.visualViewport) return null
-
-  const viewport = window.visualViewport
+  const viewport = keyboardVisualViewport()
+  if (!viewport) return null
   const height = roundedViewportValue(viewport.height)
   const width = roundedViewportValue(viewport.width)
   if (height <= 0 || width <= 0) return null

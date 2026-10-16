@@ -40,6 +40,7 @@ RSpec.describe Workflow::TriggerKind do
       "merge_train",
       "retry",
       "manual_visual_review",
+      "manual_post_implementation_review",
       "manual",
       "resume",
       "coding_handoff",

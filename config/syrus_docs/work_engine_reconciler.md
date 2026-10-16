@@ -71,6 +71,23 @@ Each repair execution includes:
 - `status` (`applied`, `skipped`, or `failed`)
 - `message`
 
+Operator repair tools run the same read-only eligibility check before a
+confirmation card is created and again while confirming it. Eligibility names
+the operation, target state, blockers, affected record IDs, and expected
+mutation counts. A request with no applicable mutations is a visible no-op or
+is rejected; it is never reported as an applied repair.
+
+`cancel_stale_work` is only for queued/running Runs and Workflows that can
+transition to cancelled. `reconcile_job_state` is only for diagnosed
+Job/Workflow state drift. If a terminal Workflow is instead held by an active
+lock-owning WorkUnit, `retire_terminal_work_unit` is the narrow repair: it
+requires no queued/running Runs, retires the WorkUnit, releases its locks, and
+preserves the Job, PR, terminal Workflow, and audit history. Its dry-run mode
+returns the same eligibility facts without creating a confirmation.
+
+CI repair reruns also preflight their requested Job lock. When another WorkUnit
+owns it, the response identifies that WorkUnit and the guarded cleanup action.
+
 ## Classified issue families
 
 The classifier currently emits these families:
@@ -128,6 +145,8 @@ The classifier currently emits these families:
   cannot collide again.
 - `nonretryable_semantic_git_failure`
 - `cleanup_blocked_by_active_descendants`
+- `active_work_unit_terminal_workflow_locks` — reports active lock ownership
+  left behind after a Workflow became terminal
 - `workflow_workspace_prune_risk`
 - `branch_diverged_pr_open` — the latest failed Workflow's `pr_open` step
   found the remote PR branch had moved; plans `retry_workflow` from the

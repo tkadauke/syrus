@@ -455,12 +455,11 @@ export function workflowDetectedPlugins(workflow: JobWorkflow): string[] {
   return Array.isArray(detected) ? detected.filter((name): name is string => typeof name === "string") : []
 }
 
-// Generic — any WorkflowWarning kind renders the same way, so no per-kind
-// extractor is needed here (contrast with prepareFailureDetails above).
-// Dismissed warnings are filtered out; they're operator history, not
-// something the step panel needs to keep showing.
-export function pendingWarnings(step: JobStep): WorkflowWarning[] {
-  return step.warnings.filter((warning) => warning.state === "pending")
+// Ordinary dismissed warnings disappear after the operator resolves them.
+// Post-implementation review warnings retain structured resolution evidence,
+// so keep those visible as non-actionable audit history.
+export function workflowWarningsForDisplay(step: JobStep): WorkflowWarning[] {
+  return step.warnings.filter((warning) => warning.state === "pending" || warning.kind === "post_implementation_review_failed")
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

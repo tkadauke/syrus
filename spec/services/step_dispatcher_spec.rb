@@ -423,6 +423,27 @@ RSpec.describe StepDispatcher, :ci_only do
       }.not_to change { s1.runs.count }
     end
 
+    it "locks the workflow before the step when creating a Run" do
+      lock_order = []
+      allow(workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :workflow
+          block.call
+        end
+      end
+      allow(s1).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :step
+          block.call
+        end
+      end
+
+      described_class.create_run_and_enqueue(s1, workflow)
+
+      expect(lock_order).to eq(%i[workflow step])
+      expect(s1.runs.count).to eq(1)
+    end
+
     it "holds ordinary Epic child workflows while an Epic-wide workflow is active" do
       epic = Factories.epic(user: job.user, repository: job.repository)
       keeper_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 101)
@@ -1917,6 +1938,94 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(new_steps.first.runs.last.iteration).to eq(2)
     end
 
+    it "materializes exactly one loop iteration when failure propagation races" do
+      loop_wf = workflow_with_loop(max_iterations: 3)
+      grade = loop_wf.steps.find_by!(kind: "grade", iteration: 1)
+      lock_attempts = Set.new
+      guard_entries = Set.new
+      guard_completions = Set.new
+      mutex = Mutex.new
+      condition = ConditionVariable.new
+      loop_node = described_class.new(loop_wf, advancing_from: grade).send(:loop_node_for, grade)
+
+      # Isolate the materialization race from the progress/activity writes that
+      # precede it and can themselves serialize SQLite. Both threads still use
+      # the public failure-propagation entry point.
+      allow_any_instance_of(Workflow).to receive(:terminal?).and_return(false)
+      allow_any_instance_of(described_class).to receive(:handle_loop_iteration).and_wrap_original do |original|
+        original.receiver.send(:enqueue_next_loop_iteration!, loop_node)
+      end
+      allow_any_instance_of(Workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        mutex.synchronize do
+          lock_attempts << Thread.current.object_id
+          condition.broadcast
+        end
+        original.call(*args, &block)
+      end
+      allow_any_instance_of(described_class)
+        .to receive(:next_loop_iteration_already_materialized?)
+        .and_wrap_original do |original, *args|
+          actor = Thread.current.object_id
+          mutex.synchronize do
+            guard_entries << actor
+            wait_for_concurrent_dispatcher!(condition, mutex) do
+              guard_entries.size >= 2 || lock_attempts.size >= 2
+            end
+          end
+
+          result = original.call(*args)
+
+          mutex.synchronize do
+            guard_completions << actor
+            condition.broadcast
+            # Without the production lock, hold both callers after the guard
+            # until both observed the old continuation. This deterministically
+            # reproduces the check-then-act race the row lock prevents.
+            if lock_attempts.empty?
+              wait_for_concurrent_dispatcher!(condition, mutex) { guard_completions.size >= 2 }
+            end
+          end
+          result
+        end
+
+      errors = Queue.new
+      ready = Queue.new
+      start = Queue.new
+      threads = 2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            competing_grade = Step.find(grade.id)
+            competing_grade.workflow
+            ready << true
+            start.pop
+            described_class.fail_from(competing_grade)
+          rescue StandardError => error
+            errors << error
+          end
+        end
+      end
+      2.times { ready.pop }
+      2.times { start << true }
+      threads.each { |thread| thread.join(10) || raise("concurrent fail_from timed out") }
+      raise errors.pop unless errors.empty?
+
+      iteration_steps = loop_wf.steps.where(loop_id: grade.loop_id, iteration: 2).order(:position)
+      expect(iteration_steps.pluck(:kind)).to eq(%w[ implement grade ])
+      expect(iteration_steps.sum { |step| step.runs.count }).to eq(1)
+    ensure
+      threads&.each(&:kill)
+    end
+
+    def wait_for_concurrent_dispatcher!(condition, mutex)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+      until yield
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise "concurrent fail_from coordination timed out" unless remaining.positive?
+
+        condition.wait(mutex, remaining)
+      end
+    end
+
     it "spends the loop budget before failing the workflow after repeated grade failures" do
       loop_wf = workflow_with_loop(max_iterations: 3)
       loop_wf.start!; loop_wf.save!
@@ -2620,6 +2729,7 @@ RSpec.describe StepDispatcher, :ci_only do
       push = try_workflow.steps.find_by!(kind: "push")
       continuation = try_workflow.steps.find_by!(kind: "auto_merge")
       push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+      competing_push = Step.find(push.id)
 
       expect {
         described_class.fail_from(push)
@@ -2647,8 +2757,30 @@ RSpec.describe StepDispatcher, :ci_only do
       )
 
       expect {
-        described_class.fail_from(push.reload)
+        described_class.fail_from(competing_push)
       }.not_to change { try_workflow.steps.count }
+    end
+
+    it "locks the workflow before mutating steps in a Try failure transaction" do
+      try_workflow = workflow_with_try_push_branch
+      push = try_workflow.steps.find_by!(kind: "push")
+      push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+      lock_order = []
+      allow(try_workflow).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        original.call(*args) do
+          lock_order << :workflow
+          block.call
+        end
+      end
+      allow(push).to receive(:update!).and_wrap_original do |original, *args|
+        lock_order << :step
+        original.call(*args)
+      end
+
+      described_class.fail_from(push)
+
+      expect(lock_order.first(2)).to eq(%i[workflow step])
+      expect(try_workflow.steps.find_by!(kind: "push_agent_rebase").runs).to exist
     end
 
     it "applies placement metadata to dynamically inserted Try failure branches when distributed workflows are enabled" do

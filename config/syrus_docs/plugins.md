@@ -899,9 +899,12 @@ and optionally implements:
 | `.prompt_sections` | `(job:, workflow:, run:) → Array<String>` | Prompt sections for the review-note agent pass |
 | `.required_mcp_tools` | `(job:, workflow:, run:) → Array<String>` | Workflow MCP tool names the agent must call |
 
-The host Step is best-effort: it logs provider or agent failures without
-failing the parent workflow. Plugin-owned data remains plugin-owned; core does
-not create review-note models.
+The host Step is best-effort: provider or agent failures create a structured
+workflow warning without failing the parent workflow. Operators can retry only
+the review pass or acknowledge and skip it from Job workflow detail; a
+successful retry resolves the warning without changing or republishing the PR.
+Plugin-owned review-note data remains plugin-owned; core stores only recovery
+status and diagnostic evidence in the generic warning record.
 
 ## `diff_review_annotation_provider`
 

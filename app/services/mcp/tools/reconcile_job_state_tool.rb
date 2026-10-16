@@ -51,6 +51,12 @@ module Mcp::Tools
         missing = ids.zip(jobs).select { |_id, job| job.nil? }.map(&:first)
         return Mcp::Tools.invalid("job not found: #{missing.join(', ')}") if missing.any?
 
+        ineligible = jobs.filter_map do |job|
+          eligibility = RepairPreflight.reconcile_job_state(job: job, mode: mode)
+          "#{job.slug}: #{eligibility.blocking_preconditions.join('; ')}" unless eligibility.eligible?
+        end
+        return Mcp::Tools.invalid(ineligible.join(" | ")) if ineligible.any?
+
         unless bulk
           job = jobs.first
           return create_pending_admin_action(

@@ -37,7 +37,8 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 | Input | Meaning |
 | --- | --- |
 | `bump` | `patch` / `minor` (default) / `major`. The version is computed by bumping the latest release tag (`desktop/package.json` stays a `0.0.0` sentinel, so you never hand-set a version). |
-| `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. |
+| `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. Build metadata such as `1.2.3+meta` is rejected because `+` is not valid in a Docker tag. The version must be greater than the latest stable tag. |
+| `force_lower` | Emergency-only escape hatch allowing an explicit `version` at or below the latest stable tag. Leave this off for normal releases: publishing a lower version also moves the backend `:latest` tag backward. |
 | `dry_run` | Build and stage **everything** (image built + integration-tested, app **signed + notarized**, CLI cross-compiled, worker source packaged) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-cli` / `staged-macos-worker`) are downloadable from the run for inspection. |
 | `review_notes` | Hold the release as a **draft** so you can read the (LLM-written) notes before it goes public. Everything runs — build, sign, generate notes, move image `:latest` — but the final draft→published flip is skipped; you edit the notes and click **Publish** in the GitHub UI when ready. Default off (auto-publish). |
 

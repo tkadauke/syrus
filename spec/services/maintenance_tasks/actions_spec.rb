@@ -55,7 +55,7 @@ RSpec.describe MaintenanceTasks::Actions do
     expect(task.dismissed_at).to be_nil
   end
 
-  it "clears stale failure details when a retry discovers no remaining work" do
+  it "defers work detection to the maintenance worker" do
     task.update!(
       state: "failed",
       completed_units: 1,
@@ -66,18 +66,20 @@ RSpec.describe MaintenanceTasks::Actions do
     )
     allow(definition).to receive(:estimate_total_units).and_return(0)
 
-    described_class.start!(task, user: admin)
+    expect { described_class.start!(task, user: admin) }
+      .to have_enqueued_job(MaintenanceTaskRunJob).with(task.id)
 
     expect(task.reload).to have_attributes(
-      state: "not_needed",
-      total_units: 0,
-      completed_units: 0,
-      failed_units: 0,
-      current_step_key: nil,
-      current_step_title: nil,
+      state: "running",
+      total_units: 3,
+      completed_units: 1,
+      failed_units: 1,
+      current_step_key: "retire",
+      current_step_title: "Retire stale insight cards",
       last_error: nil
     )
-    expect(task.events.last.message).to eq("No matching maintenance work remains.")
+    expect(definition).not_to have_received(:estimate_total_units)
+    expect(task.events.last.message).to eq("Started by #{admin.display_name}.")
   end
 
   it "pauses and resumes a running task" do
@@ -93,16 +95,15 @@ RSpec.describe MaintenanceTasks::Actions do
     expect(task.reload.state).to eq("running")
   end
 
-  it "preserves completed progress when recomputing remaining work on resume" do
+  it "preserves completed progress on resume" do
     task.update!(state: "paused", total_units: 40, completed_units: 60)
-    allow(definition).to receive(:estimate_total_units).and_return(40)
 
     described_class.resume!(task, user: admin)
 
     expect(task.reload).to have_attributes(
       state: "running",
       completed_units: 60,
-      total_units: 100
+      total_units: 40
     )
   end
 end

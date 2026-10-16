@@ -4,8 +4,14 @@ module PendingActions
 
     def perform
       job = repair_action_job
-      progress!("Cancelling stale active work for #{job.slug}...")
-      cancelled = cancel_work!(job)
+      cancelled = nil
+      ApplicationRecord.transaction do
+        job.lock!
+        eligibility = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+        eligibility.ensure_eligible!
+        progress!("Cancelling stale active work for #{job.slug}...")
+        cancelled = cancel_work!(job)
+      end
       if payload.fetch("reconcile", true)
         progress!("Reconciling #{job.slug} after cancellation...")
         WorkEngine::Reconciler.call_locked!(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
@@ -31,6 +37,7 @@ module PendingActions
       run_ids.each do |run_id|
         errors.add(:payload, "run_ids must contain integers") unless Integer(run_id, exception: false)
       end
+      validate_eligibility(errors)
     end
 
     def action_detail
@@ -58,8 +65,6 @@ module PendingActions
       workflows = target_workflows(job)
       ApplicationRecord.transaction do
         runs.each do |run|
-          next unless run.may_cancel?
-
           StateTransition.with_source("reconciler") do
             run.cancel!
             run.save!
@@ -68,8 +73,6 @@ module PendingActions
         end
 
         workflows.each do |workflow|
-          next unless workflow.may_cancel?
-
           StateTransition.with_source("reconciler") do
             WorkUnits::WorkflowCancellation.cancel!(
               workflow,
@@ -113,5 +116,15 @@ module PendingActions
 
     def workflow_ids = Array(payload["workflow_ids"]).compact
     def run_ids = Array(payload["run_ids"]).compact
+
+    def validate_eligibility(errors)
+      return unless action.new_record? && payload["job_id"].present?
+      job = repair_action_job_or_nil
+      return unless job
+      eligibility = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+      errors.add(:payload, eligibility.blocking_preconditions.join("; ")) unless eligibility.eligible?
+    rescue ArgumentError => e
+      errors.add(:payload, e.message)
+    end
   end
 end
