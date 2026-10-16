@@ -971,6 +971,9 @@ separate from pinned-message previews and pinned context notes.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.
+SQL-backed chat list and transcript tools cap one-based page numbers at 10,000
+before calculating database offsets; ordinary pages beyond the result set
+return an empty page.
 Provider usage-limit and quota-exhaustion failures are surfaced as prominent
 chat banners. When Syrus can identify the provider/model, it halts automation
 for that scope immediately; when the model is unclear, it fails closed at the
@@ -1630,6 +1633,10 @@ cards that point back to the Jobs and Workflows behind the summary. Artifact
 blocks are read-only references to artifacts already captured by the summarized
 Workflow.
 
+The workflow-list evidence tool uses the same bounded MCP pagination contract:
+one-based page numbers are capped at 10,000 before database offsets are built,
+while ordinary out-of-range pages return an empty list.
+
 Narrative spans can start wiki-style dives. The briefing can seed a small set
 of "worth a closer look" spans, and operators can also select arbitrary text
 and click "More info." Both paths start a `briefing_dive` follow-up Workflow on
@@ -1681,6 +1688,8 @@ duplicated, or superseded suggestions, can cite a superseding Job, and keeps the
 accepted-insight guard: accepted rows require an explicit
 `retire_accepted: true`. Suggestion creation and revision remain limited to
 insight workflow agents through `submit_insight` and `update_insight`.
+Agent Insights list and transcript tools cap one-based pages at 10,000 before
+database offsets are calculated; ordinary out-of-range pages remain empty.
 
 ## Repository Throughput Metrics
 

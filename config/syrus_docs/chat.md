@@ -226,6 +226,11 @@ message's `id`, `role`, `content`, and `created_at`; callers should treat
 `has_more` as a neutral "another page is available" signal because page
 direction is defined by the tool's ordering contract, not by the field name.
 
+For `list_chats`, `list_repositories`, `read_chat_messages`, and
+`read_run_transcript`, one-based page numbers are capped at 10,000 before SQL
+offset calculation. A normal page beyond the result set still returns an empty
+page; callers should not use the cap as a deep-pagination discovery mechanism.
+
 Sidebar pinning is exposed separately from pinned context. `pin_chat` and
 `unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
 sidebar uses for its pin control; `update_pinned_context` and

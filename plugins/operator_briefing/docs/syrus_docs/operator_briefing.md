@@ -52,6 +52,10 @@ including dependencies, schema/migrations, public interfaces, weakened tests,
 convention deviations, and security-sensitive paths. It emits typed content
 through `submit_briefing_block`.
 
+`list_briefing_recent_workflows` uses one-based pagination with a maximum page
+of 10,000. Ordinary pages beyond the briefing's result set return an empty
+list; larger values are capped before the tool calculates its SQL offset.
+
 The plugin owns these data-layer tables:
 
 - `operator_briefing_briefings` wraps the per-repository `briefing_generate` Job.
