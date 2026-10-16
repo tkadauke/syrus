@@ -1683,7 +1683,8 @@ filtered list stays put while you browse.
 
 Republishing a mockup updates it in place, so the reference keeps working while
 an agent iterates. Mockups are visible to whoever can see the chat they came
-from.
+from. Closing its chat sidebar tab does not remove it: the published mockup and
+its preview remain available from the Mockups page.
 
 Ships as a bundled plugin, enabled by default. Turning it off from
 Admin -> Plugins removes the page and the chat tools; mockups already published

@@ -14,6 +14,10 @@ RSpec.describe Mockups::Engine do
     expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(Mockups::ChatToolSet)
   end
 
+  it "registers closed published panels for preview retention" do
+    expect(Syrus::PluginRegistry.providers_for(:preview_panel_retention)).to include(Mockups::PreviewPanelRetention)
+  end
+
   it "registers a manifest named 'mockups'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "mockups" }
     expect(manifest).not_to be_nil

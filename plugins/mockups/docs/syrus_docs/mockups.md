@@ -27,13 +27,17 @@ Visibility: a mockup is visible to whoever can see the preview panel behind it,
 which is the panel's own rule (you can see a panel if you can see its chat) —
 not a second, looser rule.
 
+Closing the preview tab only removes it from the chat sidebar. A published
+mockup remains available from this page, including its isolated HTML preview;
+closing the tab does not archive or delete the mockup.
+
 ## Relationship to preview panels
 
 `PreviewPanel` and `PreviewPanelVersion` stay **core**. The panel is a generic
 multi-format viewer — html, markdown, pdf, image — that other features render
 into, and the mockups plugin is one of its clients rather than its owner.
 
-Two core seams make that work:
+Core seams make that work:
 
 * **`preview_panel_viewer`** — a plugin can teach the panel a content kind core
   does not know (`{ kind:, extensions: [], content_types: [] }`). Core's
@@ -43,6 +47,10 @@ Two core seams make that work:
   panel content addressed independently of the chat it was opened in, so a page
   outside chat can render one without inventing its own file serving. Scoped by
   `PreviewPanel.accessible_to`.
+* **`preview_panel_retention`** — a plugin can retain a deliberately published
+  panel for read-only serving after its transient chat tab has closed. The
+  mockups plugin uses this for panels referenced by a mockup record; ordinary
+  closed preview panels remain unavailable.
 
 ## Disabling
 

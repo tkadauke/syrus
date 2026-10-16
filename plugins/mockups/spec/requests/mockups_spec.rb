@@ -67,6 +67,23 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     expect(panel["entry_viewer_kind"]).to eq("html")
   end
 
+  it "keeps a published mockup preview servable after its chat panel closes" do
+    mockup = mockup_for(user)
+    panel = mockup.preview_panel
+    PreviewPanel::Service.new(panel).close!
+    sign_in_as(user)
+    post "/api/v1/app/preview_panels/#{panel.id}/token"
+    token = JSON.parse(response.body).fetch("token")
+    middleware = PreviewProxyMiddleware.new(->(_env) { [ 200, {}, [ "upstream" ] ] })
+
+    status, _, body = middleware.call(
+      Rack::MockRequest.env_for("/?token=#{Rack::Utils.escape(token)}", "HTTP_HOST" => "preview-panel-#{panel.id}.lvh.me")
+    )
+
+    expect(status).to eq(200)
+    expect(body.join).to eq("<h1>hi</h1>")
+  end
+
   it "accepts a bare id as well as the slug" do
     mockup = mockup_for(user)
     sign_in_as(user)

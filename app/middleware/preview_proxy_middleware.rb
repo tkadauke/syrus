@@ -247,8 +247,8 @@ class PreviewProxyMiddleware
   # the only authorization check this middleware performs, since the panel
   # subdomain never reaches the main app's session-based auth.
   def serve_panel(env, panel_id)
-    panel = PreviewPanel.find_by(id: panel_id, state: "open")
-    return panel_not_found_response unless panel
+    panel = PreviewPanel.find_by(id: panel_id)
+    return panel_not_found_response unless panel && panel_servable?(panel)
 
     request = Rack::Request.new(env)
     access_token = panel.public? ? nil : panel_access_token(request, panel)
@@ -264,6 +264,20 @@ class PreviewProxyMiddleware
     headers = { "Content-Type" => content_type, "Content-Security-Policy" => PREVIEW_CSP }
     set_panel_access_cookie!(headers, request, access_token) if access_token
     [200, headers, [attachment.download]]
+  end
+
+  # Closing a panel normally makes its isolated preview URL unavailable. A
+  # feature that deliberately retains a panel after its tab closes can opt it
+  # back into read-only serving without coupling core to that feature's model.
+  def panel_servable?(panel)
+    return true if panel.open?
+
+    Syrus::PluginRegistry.providers_for(:preview_panel_retention).any? do |provider|
+      provider.retains?(panel)
+    rescue StandardError => e
+      Rails.logger.warn("[PreviewPanel] retention check from #{provider} failed: #{e.class}: #{e.message}")
+      false
+    end
   end
 
   def resolve_panel_version(panel, version_param)
