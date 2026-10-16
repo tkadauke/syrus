@@ -75,6 +75,58 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     )
   end
 
+  it "preserves an uploaded HTML content type and forces the file to download" do
+    sign_in_as(user)
+
+    post "/api/v1/app/repositories/#{repository.id}/documents", params: {
+      repository_document: {
+        kind: "file",
+        title: "Mockup",
+        file: upload_file(
+          name: "mockup.html",
+          content_type: "text/html",
+          content: "<script src='/payload.js'></script>"
+        )
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    document = repository.repository_documents.last
+    expect(document.file.blob.content_type).to eq("text/html")
+
+    get "/api/v1/app/repository_documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("text/html")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+  end
+
+  it "preserves an uploaded PNG content type and serves the file inline inside a sandbox" do
+    sign_in_as(user)
+
+    post "/api/v1/app/repositories/#{repository.id}/documents", params: {
+      repository_document: {
+        kind: "file",
+        title: "Screenshot",
+        file: upload_file(name: "screen.png", content_type: "image/png", content: "png")
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    document = repository.repository_documents.last
+    expect(document.file.blob.content_type).to eq("image/png")
+
+    get "/api/v1/app/repository_documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("image/png")
+    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+  end
+
   it "creates a Google Docs link document" do
     sign_in_as(user)
 
