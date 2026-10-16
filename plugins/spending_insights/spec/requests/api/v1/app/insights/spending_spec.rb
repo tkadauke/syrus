@@ -285,17 +285,20 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       repo = Factories.repository(user: user)
       included = Factories.job(user: user, repository: repo, issue_number: 303)
       excluded = Factories.job(user: user, repository: repo, issue_number: 304)
-      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-10 12:00:00"))
-      set_run_cost(initial_run(excluded), 0.60, created_at: Time.zone.parse("2026-06-01 12:00:00"))
+      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2027-01-10 12:00:00"))
+      set_run_cost(initial_run(excluded), 0.60, created_at: Time.zone.parse("2026-12-01 12:00:00"))
 
       sign_in_as(user)
-      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-05" }
+      get "/api/v1/app/insights/spending", params: { start_date: "2027-01-01" }
 
       body = parse_body
       expect(body.dig("filter", "and")).to include(
-        { "field" => "created_at", "op" => "after", "value" => "2026-06-05" }
+        { "field" => "created_at", "op" => "after", "value" => "2027-01-01" }
       )
       expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id))
+      expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to eq([
+        { "date" => "2027-01-10", "total_usd" => 0.4 }
+      ])
       expect(body.dig("totals", "lifetime_usd")).to eq(1.0)
     end
   end
@@ -306,15 +309,15 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       repo = Factories.repository(user: user)
       included = Factories.job(user: user, repository: repo, issue_number: 303)
       excluded = Factories.job(user: user, repository: repo, issue_number: 304)
-      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-01 12:00:00"))
-      set_run_cost(initial_run(excluded), 0.60, created_at: Time.zone.parse("2026-06-10 12:00:00"))
+      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2025-12-01 12:00:00"))
+      set_run_cost(initial_run(excluded), 0.60, created_at: Time.zone.parse("2026-02-10 12:00:00"))
 
       sign_in_as(user)
-      get "/api/v1/app/insights/spending", params: { end_date: "2026-06-05" }
+      get "/api/v1/app/insights/spending", params: { end_date: "2026-01-05" }
 
       body = parse_body
       expect(body.dig("filter", "and")).to include(
-        { "field" => "created_at", "op" => "before", "value" => "2026-06-05" }
+        { "field" => "created_at", "op" => "before", "value" => "2026-01-05" }
       )
       expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id))
       expect(body.dig("totals", "lifetime_usd")).to eq(1.0)
