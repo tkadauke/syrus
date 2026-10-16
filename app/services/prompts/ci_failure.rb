@@ -15,7 +15,7 @@ module Prompts
     MAX_REPAIR_DIFF_BYTES = 2_000
     MAX_ISSUE_BODY_BYTES = 20_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [], grader_iterations: [], repair_attempts: [])
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [], grader_iterations: [], repair_attempts: [], spill: nil)
       @issue        = issue
       @pr_number    = pr_number
       @repo_slug    = repo_slug
@@ -28,6 +28,7 @@ module Prompts
       @injected_context = Array(injected_context).compact
       @grader_iterations = Array(grader_iterations)
       @repair_attempts = Array(repair_attempts)
+      @spill = spill
     end
 
     def to_s
@@ -40,7 +41,7 @@ module Prompts
         Title: #{@issue.title}
 
         Body:
-        #{Truncate.text(@issue.body.to_s.strip.presence || '(empty)', max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
+        #{Truncate.text(@issue.body.to_s.strip.presence || '(empty)', max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body", spill: @spill)}
 
         #{epic_context}
 

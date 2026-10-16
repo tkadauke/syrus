@@ -259,6 +259,10 @@ module Steps
       RunHeartbeat.touch(run, force: true)
     end
 
+    def prompt_spill
+      @prompt_spill ||= Prompts::Truncate::Spill.new(workspace_path: workspace.path, key: run.id)
+    end
+
     # Keep the Run attributable while Ruby is blocked inside a long operation
     # that cannot emit incremental output (for example an Active Storage
     # upload). Without this, the reconciler can mistake live work for a dead
