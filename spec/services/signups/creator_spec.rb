@@ -43,4 +43,18 @@ RSpec.describe Signups::Creator do
     expect(result).to be_forbidden
     expect(result.user).not_to be_persisted
   end
+
+  it "returns an invalid result when a concurrent signup wins the unique email race" do
+    AppSetting.current.update!(signups_open: true)
+    user = instance_double(User, save: nil, errors: ActiveModel::Errors.new(User.new))
+    allow(User).to receive(:new).and_return(user)
+    allow(user).to receive(:save).and_raise(ActiveRecord::RecordNotUnique)
+
+    result = described_class.call(
+      attributes: { email_address: "guest@example.com", password: "supersecret" }
+    )
+
+    expect(result.status).to eq(:invalid)
+    expect(result.user.errors[:email_address]).to include("has already been taken")
+  end
 end
