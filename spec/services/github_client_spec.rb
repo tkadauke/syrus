@@ -1655,7 +1655,7 @@ RSpec.describe GithubClient do
           ].to_json
         )
 
-      pulls = client.list_pull_requests_for_triage("acme/widgets", state: "merged", limit: 2)
+      pulls = client.list_merged_pull_requests_for_triage("acme/widgets", limit: 2)
 
       expect(pulls.map(&:number)).to eq([ 1, 3 ])
       expect(a_request(:get, %r{api\.github\.com/repos/acme/widgets/pulls/\d+})).not_to have_been_made

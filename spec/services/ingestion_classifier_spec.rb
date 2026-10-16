@@ -4,7 +4,7 @@ require "ostruct"
 RSpec.describe IngestionClassifier do
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
-  let(:github_client) { instance_double(GithubClient, list_pull_requests_for_triage: []) }
+  let(:github_client) { instance_double(GithubClient, list_merged_pull_requests_for_triage: []) }
 
   # The classifier goes through Judgment now, so the seam is the provider call
   # every other one-shot caller stubs.
@@ -73,7 +73,7 @@ RSpec.describe IngestionClassifier do
       html_url: "https://github.com/acme/widgets/pull/32",
       merged_at: 2.days.ago
     )
-    client = instance_double(GithubClient, list_pull_requests_for_triage: [ pr ])
+    client = instance_double(GithubClient, list_merged_pull_requests_for_triage: [ pr ])
     job = Job.create!(
       user: user,
       repository: repository,

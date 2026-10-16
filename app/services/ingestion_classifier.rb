@@ -266,7 +266,7 @@ class IngestionClassifier
     client = github_client
     return [] unless client
 
-    Array(client.list_pull_requests_for_triage(repository.slug, state: "merged", limit: 25))
+    Array(client.list_merged_pull_requests_for_triage(repository.slug, limit: 25))
       .select { |pull| pull_merged_at(pull).blank? || pull_merged_at(pull) >= now - 30.days }
       .map do |pull|
       {
