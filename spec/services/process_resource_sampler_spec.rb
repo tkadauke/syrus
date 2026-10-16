@@ -30,7 +30,7 @@ RSpec.describe ProcessResourceSampler do
 
       expect(sampler.payload).to include(
         "confidence" => "low",
-        "cpu_time_seconds" => be >= 0.5,
+        "cpu_time_seconds" => 0.7,
         "read_io_bytes" => be >= 300,
         "write_io_bytes" => be >= 400
       )
@@ -49,6 +49,28 @@ RSpec.describe ProcessResourceSampler do
       sampler.sample!
 
       expect(sampler.payload.values_at("cpu_time_seconds", "read_io_bytes", "write_io_bytes")).to all(be >= 0)
+    end
+  end
+
+  it "includes CPU from children that start and are reaped between samples" do
+    Dir.mktmpdir do |proc_root|
+      sampler = described_class.new(pid: 10, pgid: 10, proc_root: proc_root)
+      allow(sampler).to receive(:clock_ticks).and_return(100)
+      allow(sampler).to receive(:page_size).and_return(4096)
+      write_process(proc_root, pid: 10, pgid: 10, cpu_ticks: 100, read_bytes: 100, write_bytes: 100)
+      sampler.sample!
+      write_process(
+        proc_root,
+        pid: 10,
+        pgid: 10,
+        cpu_ticks: 120,
+        child_cpu_ticks: 30,
+        read_bytes: 100,
+        write_bytes: 100
+      )
+      sampler.sample!
+
+      expect(sampler.payload["cpu_time_seconds"]).to eq(0.5)
     end
   end
 
