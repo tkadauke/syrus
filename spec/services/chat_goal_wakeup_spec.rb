@@ -102,6 +102,32 @@ RSpec.describe ChatGoalWakeup, type: :service do
     expect(ChatTurnJob).not_to have_been_enqueued
   end
 
+  it "preserves the no-op iteration counter across non-blocked wakeups" do
+    goal.update!(
+      consecutive_no_op_iterations: 2,
+      last_iteration_signature: "goal:#{goal.id}:empty",
+      consecutive_blocked_events: 2,
+      last_blocked_signature: "goal_job_failed:failed"
+    )
+
+    described_class.publish_work_event!(
+      goal: goal,
+      kind: "job_implemented",
+      subject: "Job implemented",
+      summary: "Goal-linked work was implemented.",
+      repository: repository,
+      work_state: { "state" => "implemented" },
+      dedupe_key: "goal:#{goal.id}:preserve-no-op-count"
+    )
+
+    expect(goal.reload).to have_attributes(
+      consecutive_no_op_iterations: 2,
+      last_iteration_signature: "goal:#{goal.id}:empty",
+      consecutive_blocked_events: 0,
+      last_blocked_signature: nil
+    )
+  end
+
   it "publishes wakeups when a goal-linked Job reaches implementation, approval, and close milestones" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", chat_goal: goal, issue_number: 12)
 

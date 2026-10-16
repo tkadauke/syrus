@@ -99,6 +99,13 @@ class ChatGoal < ApplicationRecord
     count
   end
 
+  def clear_blocked_events!
+    update!(
+      consecutive_blocked_events: 0,
+      last_blocked_signature: nil
+    )
+  end
+
   def record_blocked_event!(signature:)
     count = last_blocked_signature == signature ? consecutive_blocked_events.to_i + 1 : 1
     update!(

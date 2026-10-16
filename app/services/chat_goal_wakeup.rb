@@ -106,7 +106,7 @@ class ChatGoalWakeup
         return
       end
     else
-      @goal.record_progress!(signature: signature)
+      @goal.clear_blocked_events!
     end
 
     @goal.increment!(:iteration_count)
