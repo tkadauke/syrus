@@ -343,6 +343,21 @@ RSpec.describe ChatTurnJob, :ci_only do
       expect(message.content["text"]).to include("valid arguments")
       expect(message.content["skill_invocation"]).to eq("status" => "invalid_args")
     end
+
+    it "persists malformed repo-local skill guidance instead of failing the turn" do
+      stub_repository_content(repository, files: {
+        ".syrus/skills/investigate/SKILL.md" => "---\nname: :investigate\n---\nBody."
+      })
+      agent_called = false
+      ChatTurnJob.agent_runner = ->(**_) { agent_called = true; result_fixture(session_id: "s1") }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(agent_called).to eq(false)
+      message = chat.messages.where(role: "system").order(:id).last
+      expect(message.content["text"]).to include("skill definition could not be loaded", "YAML parse error")
+      expect(message.content["skill_invocation"]).to eq("status" => "invalid_skill")
+    end
   end
 
   it "does not inject the coding mode section when the feature flag is off (planning mode chat)" do

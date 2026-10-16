@@ -9,6 +9,7 @@ module Skills
   # not be conflated.
   module SkillMarkdown
     FRONTMATTER_PATTERN = /\A---\n(.*?\n)---\n?(.*)\z/m
+    MAX_BYTES = 256.kilobytes
 
     ParseError = Class.new(StandardError)
 
@@ -23,10 +24,14 @@ module Skills
     # ParameterSchema::ParseError if the declared `parameters:` don't
     # match the schema shape.
     def parse(contents, name: nil)
+      if contents.to_s.bytesize > MAX_BYTES
+        raise ParseError, "SKILL.md exceeds the maximum size of #{MAX_BYTES} bytes"
+      end
+
       match = FRONTMATTER_PATTERN.match(contents.to_s)
       raise ParseError, "SKILL.md must start with a YAML frontmatter block (---...---)" unless match
 
-      raw = YAML.safe_load(match[1]) || {}
+      raw = YAML.safe_load(match[1], aliases: false) || {}
       raise ParseError, "SKILL.md frontmatter must be a mapping" unless raw.is_a?(Hash)
 
       frontmatter_name = raw["name"].to_s.strip.presence
@@ -43,7 +48,7 @@ module Skills
         parameters: ParameterSchema.normalize(raw["parameters"] || []),
         instructions: match[2].to_s.strip
       )
-    rescue Psych::SyntaxError => e
+    rescue Psych::Exception => e
       raise ParseError, "YAML parse error: #{e.message}"
     end
   end

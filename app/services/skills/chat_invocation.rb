@@ -43,6 +43,8 @@ module Skills
       return coding_mode_required(resolution, args) unless coding_mode_active?
 
       Result.new(status: :ready, resolution: resolution, args: args, message: nil)
+    rescue SkillMarkdown::ParseError, ParameterSchema::ParseError, RepositoryContent::Error => e
+      invalid_skill(match.name, e.message)
     end
 
     private
@@ -68,6 +70,15 @@ module Skills
         args: nil,
         message: "No skill named `/#{name}` is available for #{repository.slug}. " \
                  "Check this chat's slash-command list for the skills available here."
+      )
+    end
+
+    def invalid_skill(name, error)
+      Result.new(
+        status: :invalid_skill,
+        resolution: nil,
+        args: nil,
+        message: "`/#{name}` cannot run because its skill definition could not be loaded: #{error}"
       )
     end
 
