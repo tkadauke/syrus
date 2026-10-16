@@ -32,7 +32,17 @@ the next launch the app offers to update the local backend.
 **Actions → "Release" → Run workflow.** Pick the **bump** and run. That's it —
 the pipeline computes the version, builds and signs everything, and publishes
 near-atomically (a draft release flipped live as the last step, rolled back on
-any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
+any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)). The
+workflow only proceeds when dispatched from `main`; selecting another ref skips
+the release graph.
+
+The repository must have a protected GitHub Actions environment named
+`release-signing`. Restrict its deployment branches to `main`, require release
+reviewers, and store `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY_P8`,
+`APPLE_API_KEY_ID`, and `APPLE_API_ISSUER` as environment secrets rather than
+repository secrets. Both the shared macOS signing job and the final publish job
+use this environment, so approval and branch restrictions apply before secrets
+are exposed or a release goes live.
 
 | Input | Meaning |
 | --- | --- |
@@ -86,9 +96,9 @@ multi-arch manifest), CLI tarballs, the notarized macOS app, and the native
 macOS worker source tarball — and stages them as run artifacts. It owns none of the
 release-specific plumbing: version computation stays in each caller's `prepare`
 job, and publishing (draft release, `:latest` move, notes, website) stays in
-`release.yml`. Callers reach it as a single job (`build:`) and pass `secrets:
-inherit` so it gets every signing secret; it declares only `contents: read` +
-`packages: write`.
+`release.yml`. Callers reach it as a single job (`build:`); the macOS job reads
+its signing credentials from the protected `release-signing` environment. The
+module declares only `contents: read` + `packages: write`.
 
 The two callers differ **only** in inputs:
 
@@ -162,16 +172,18 @@ it at once.)
 
 ## Test builds
 
-**Actions → "Test build" → Run workflow** (pick the branch), or from a
+**Actions → "Test build" → Run workflow** on `main`, or from a
 terminal:
 
 ```
-gh workflow run test-build.yml --ref <branch>
+gh workflow run test-build.yml --ref main
 ```
 
 A test build ([`.github/workflows/test-build.yml`](../.github/workflows/test-build.yml))
-deterministically builds **every** shippable component from any ref — including
-a feature branch — without publishing anything:
+deterministically builds **every** shippable component from reviewed `main`
+source without publishing anything. The `prepare` job rejects every other
+dispatched ref, and macOS signing still waits on the protected
+`release-signing` environment:
 
 - **Backend image** — built natively per arch (same no-QEMU matrix as the
   release), integration-tested with `bin/test-docker`, and **pushed to GHCR**
@@ -358,10 +370,11 @@ To regenerate notes on your own machine: `bin/release-notes vX.Y.Z` (writes
 | --- | --- | --- |
 | Apple Developer Program membership | developer.apple.com | $99/yr; identity verification can take days |
 | Developer ID Application certificate | Xcode → Manage Certificates → **Developer ID Application** | Export `.p12` with the private key. The type must literally read **"Developer ID Application"** — an "Apple Development" cert signs locally then fails notarization on every binary. |
-| `CSC_LINK` | repo secret | base64 of the `.p12` (`base64 -i cert.p12`) |
-| `CSC_KEY_PASSWORD` | repo secret | the `.p12` export password |
+| `release-signing` environment | Repository Settings → Environments | Restrict deployments to `main` and require release reviewers |
+| `CSC_LINK` | `release-signing` environment secret | base64 of the `.p12` (`base64 -i cert.p12`) |
+| `CSC_KEY_PASSWORD` | `release-signing` environment secret | the `.p12` export password |
 | App Store Connect API key (`.p8`) | appstoreconnect.apple.com → Integrations | Developer role suffices for notarytool |
-| `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` | repo secrets | the key contents + its ids |
+| `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` | `release-signing` environment secrets | the key contents + its ids |
 | GHCR `syrus-backend` package visibility | Package settings → Change visibility | **must be public** — every end user's install pulls it anonymously. New packages are private; flip it once after the first CI publish creates it. |
 
 **No GHCR token needed.** The backend image publishes with the workflow's
@@ -390,7 +403,8 @@ for verifying signing or image changes without spending a release run. These
 stay as local tools; the canonical release path is the CI workflow above.
 
 For a local **signed + notarized** macOS build, `bin/signing-env` reads the
-same credentials CI gets from repo secrets, from `~/.config/syrus/` instead:
+same credentials CI gets from environment secrets, from `~/.config/syrus/`
+instead:
 
 1. `~/.config/syrus/mac-signing.env` (`chmod 600`), dotenv-style:
 
@@ -406,7 +420,7 @@ same credentials CI gets from repo secrets, from `~/.config/syrus/` instead:
 
 With both present, `bin/release-desktop` signs and notarizes exactly like the
 CI pipeline; without them it falls back to an unsigned local build. Neither
-file is committed — they play the role repo secrets play in CI.
+file is committed — they play the role environment secrets play in CI.
 
 ## Why unsigned releases are blocked
 
