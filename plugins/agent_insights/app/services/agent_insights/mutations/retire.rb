@@ -9,6 +9,8 @@ module AgentInsights
         @superseded_by_job_ids = normalize_references(superseded_by_job_ids)
       end
 
+      attr_reader :reason
+
       def validation_failure(suggestion)
         return "reason is required" if reason.blank?
         return "Insight ##{suggestion.id} is already retired" if suggestion.retired?
@@ -28,7 +30,7 @@ module AgentInsights
 
       def perform(suggestions)
         suggestions.each do |suggestion|
-          ok = suggestion.retire!(reason: reason, actor: actor, superseded_by_insight: superseding_insight_for(suggestion), superseded_by_job: superseding_job_for(suggestion), retire_accepted: retire_accepted)
+          ok = suggestion.retire!(reason: reason, actor: audit_actor, superseded_by_insight: superseding_insight_for(suggestion), superseded_by_job: superseding_job_for(suggestion), retire_accepted: retire_accepted)
           raise ArgumentError, "Insight ##{suggestion.id} changed concurrently" unless ok
         end
         Result.new(ok?: true, message: "Retired #{suggestions.size} #{'insight'.pluralize(suggestions.size)}.", suggestions: suggestions.map(&:reload), jobs: [], memories: [], failures: [])
@@ -36,7 +38,7 @@ module AgentInsights
 
       private
 
-      attr_reader :reason, :retire_accepted, :superseded_by_insight_ids, :superseded_by_job_ids
+      attr_reader :retire_accepted, :superseded_by_insight_ids, :superseded_by_job_ids
 
       def normalize_references(value)
         value.to_h.transform_keys(&:to_s)

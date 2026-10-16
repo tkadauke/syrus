@@ -18,11 +18,11 @@ module AgentInsights
           ids, error = Mutations::Base.validate_ids(id: insight_id, ids: insight_ids)
           return Mcp::Tools.invalid(error) if error
 
-          _context, chat, actor, scope = mutation_context(server_context)
-          mutation = Mutations::Dismiss.new(ids: ids, actor: actor, repository_scope: scope, reason: reason)
+          _context, chat, owner, audit_actor, scope = mutation_context(server_context)
+          mutation = Mutations::Dismiss.new(ids: ids, actor: owner, audit_actor: audit_actor, repository_scope: scope, reason: reason)
           execute_or_confirm(
             mutation: mutation, ids: ids, chat_session: chat, server_context: server_context,
-            action: "dismiss_insights", payload: { "insight_ids" => ids, "reason" => reason }, message: "Dismiss insights #{ids.map { |id| "##{id}" }.join(', ')}?"
+            action: "dismiss_insights", payload: { "insight_ids" => ids, "reason" => mutation.reason }, message: "Dismiss insights #{ids.map { |id| "##{id}" }.join(', ')}?"
           )
         end
       end

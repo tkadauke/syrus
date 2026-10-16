@@ -17,8 +17,8 @@ module AgentInsights
           ids, error = Mutations::Base.validate_ids(id: insight_id, ids: insight_ids)
           return Mcp::Tools.invalid(error) if error
 
-          _context, chat, actor, scope = mutation_context(server_context)
-          mutation = Mutations::Accept.new(ids: ids, actor: actor, repository_scope: scope)
+          _context, chat, owner, audit_actor, scope = mutation_context(server_context)
+          mutation = Mutations::Accept.new(ids: ids, actor: owner, audit_actor: audit_actor, repository_scope: scope)
           execute_or_confirm(
             mutation: mutation, ids: ids, chat_session: chat, server_context: server_context,
             action: "accept_insights", payload: { "insight_ids" => ids }, message: "Accept insights #{ids.map { |id| "##{id}" }.join(', ')}?"

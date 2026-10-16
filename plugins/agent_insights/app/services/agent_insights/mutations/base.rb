@@ -20,9 +20,10 @@ module AgentInsights
         [ normalized, nil ]
       end
 
-      def initialize(ids:, actor:, repository_scope:)
+      def initialize(ids:, actor:, repository_scope:, audit_actor: actor)
         @ids = ids
         @actor = actor
+        @audit_actor = audit_actor
         @repository_scope = repository_scope
       end
 
@@ -47,7 +48,7 @@ module AgentInsights
 
       private
 
-      attr_reader :ids, :actor, :repository_scope
+      attr_reader :ids, :actor, :audit_actor, :repository_scope
 
       def load_targets
         suggestions = AgentInsights::Suggestion.where(id: ids).order(:id).to_a
