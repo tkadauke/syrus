@@ -25,7 +25,7 @@ module Steps
       end
 
       pr_repo   = job.effective_pr_repository
-      client    = GithubClient.for(repository: pr_repo, user: job.user)
+      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
       repo_slug = pr_repo.slug
 
       upsert_dependency_audit_comment(client, repo_slug, pr_number, pr_comment_body)

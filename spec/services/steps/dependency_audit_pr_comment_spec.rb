@@ -19,7 +19,7 @@ RSpec.describe Steps::DependencyAuditPrComment do
 
   before do
     job.user.update!(github_handle: "operator")
-    allow(GithubClient).to receive(:for).and_return(fake_client)
+    allow(GithubClient).to receive(:for_authorship).and_return(fake_client)
   end
 
   context "when the dependency_audit artifact has no pr_comment_body" do
@@ -67,6 +67,19 @@ RSpec.describe Steps::DependencyAuditPrComment do
         expect(fake_client).to receive(:add_issue_comment).with(
           job.repository.slug, 42, pr_comment_body
         )
+        handler.call
+      end
+
+      it "uses the Job authorship credential when an App installation is active" do
+        job.user.update!(github_token: "ghp_operator_token")
+        installation = Factories.installation(user: job.user)
+        job.repository.update!(installation: installation)
+        job.update!(credential_mode: "pat")
+
+        expect(GithubClient).to receive(:for_authorship).with(
+          repository: job.repository,
+          job: job
+        ).and_return(fake_client)
         handler.call
       end
     end
