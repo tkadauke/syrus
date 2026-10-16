@@ -710,7 +710,7 @@ module Steps
       return unless pr_number.present?
 
       pr_repo   = job.effective_pr_repository
-      client    = GithubClient.for(repository: pr_repo, user: job.user)
+      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
       repo_slug = pr_repo.slug
 
       existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
@@ -742,7 +742,7 @@ module Steps
       return unless pr_number.present?
 
       pr_repo   = job.effective_pr_repository
-      client    = GithubClient.for(repository: pr_repo, user: job.user)
+      client    = GithubClient.for_authorship(repository: pr_repo, job: job)
       repo_slug = pr_repo.slug
 
       existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
