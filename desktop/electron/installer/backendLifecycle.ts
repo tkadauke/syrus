@@ -35,6 +35,7 @@ const HEALTH_WAIT_POLLS = 60 // × 2s = 120s
 // menu refusing, gated surfaces suppressed. Generous on purpose: multi-GB
 // pulls on slow links are legitimate.
 const UPDATE_DEADLINE_MS = 30 * 60_000
+const TERMINATION_GRACE_MS = 5_000
 
 // "data-gone" means Docker is healthy but the Syrus data volume no longer
 // exists (wiped containers/volumes) — the stack can never recover on its own.
@@ -156,6 +157,7 @@ const ensureDaemon = async () => {
 let busy = false
 let lastHealthy = true
 let updateChild: ChildProcess | null = null
+let updateKillTimer: NodeJS.Timeout | null = null
 
 // Whether a lifecycle action (start/stop/update) is in flight. Exposed so
 // main can defer actions that must not race an update — most importantly
@@ -185,6 +187,18 @@ export const killUpdateChild = () => {
     process.kill(-child.pid, "SIGTERM")
   } catch {
     child.kill("SIGTERM")
+  }
+
+  if (!updateKillTimer) {
+    updateKillTimer = setTimeout(() => {
+      updateKillTimer = null
+      if (!child.pid) return
+      try {
+        process.kill(-child.pid, "SIGKILL")
+      } catch {
+        child.kill("SIGKILL")
+      }
+    }, TERMINATION_GRACE_MS)
   }
 }
 
@@ -287,7 +301,11 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
     delete env.SYRUS_HEALTH_POLLS
     delete env.SYRUS_PULL_RETRY_DELAY
 
+    await fs.mkdir(stateDir(), { recursive: true })
     const log = createWriteStream(path.join(stateDir(), "install.log"), { flags: "a" })
+    log.on("error", (error) => {
+      console.error("[backend-update] unable to write install.log", error)
+    })
     try {
       const ok = await new Promise<boolean>((resolve) => {
         // Same interpreter as the onboarding driver: the image-update path IS
@@ -316,12 +334,19 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
             : spawn(command, args, { env, detached: true })
         updateChild = child
         // Wall-clock deadline: a wedged pull / compose / health probe must
-        // not leave `busy` true and the update state stuck forever. The kill
-        // surfaces as a non-zero close, which resolves false through the
-        // existing failure path (finally clears the progress state).
-        const deadline = setTimeout(() => {
+        // not leave `busy` true and the update state stuck forever. Settle at
+        // the deadline itself because a process stuck in kernel I/O may not
+        // emit close promptly even after TERM/KILL.
+        let deadline: NodeJS.Timeout
+        const settle = (ok: boolean) => {
+          clearTimeout(deadline)
+          if (updateChild === child) updateChild = null
+          resolve(ok)
+        }
+        deadline = setTimeout(() => {
           log.write(`backend update exceeded ${UPDATE_DEADLINE_MS / 60_000} minutes — killing the installer\n`)
           killUpdateChild()
+          settle(false)
         }, UPDATE_DEADLINE_MS)
         // Parse the installer's --json NDJSON line-by-line (the same protocol
         // the onboarding driver consumes) so the update reports phases and
@@ -338,15 +363,17 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
         })
         // Both exits clear the deadline + child registration — a spawn
         // error may never be followed by "close".
-        const settle = (ok: boolean) => {
-          clearTimeout(deadline)
-          updateChild = null
-          resolve(ok)
+        const settleFromChild = (ok: boolean) => {
+          if (updateKillTimer) {
+            clearTimeout(updateKillTimer)
+            updateKillTimer = null
+          }
+          settle(ok)
         }
-        child.on("error", () => settle(false))
+        child.on("error", () => settleFromChild(false))
         // "close", not "exit": close fires only after stdio has drained, so
         // the final NDJSON lines are parsed and nothing writes after end().
-        child.on("close", (code) => settle(code === 0))
+        child.on("close", (code) => settleFromChild(code === 0))
       })
 
       // Superseded-image cleanup runs ONLY on the update path (first installs
