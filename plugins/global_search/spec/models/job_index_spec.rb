@@ -112,7 +112,7 @@ RSpec.describe GlobalSearch::JobIndex do
     end
 
     queries.each_key do |query|
-      expect(described_class.search(query, user_id: user.id).map { |row| row[:job_id] }).to include(jobs.fetch(query).id)
+      expect(described_class.search(query).map { |row| row[:job_id] }).to include(jobs.fetch(query).id)
     end
   end
 
