@@ -1,4 +1,7 @@
 require "rails_helper"
+require "socket"
+require "stringio"
+require "zlib"
 
 RSpec.describe PreviewProxyMiddleware do
   let(:inner_app) { ->(_env) { [200, { "Content-Type" => "text/plain" }, ["upstream"]] } }
@@ -164,7 +167,7 @@ RSpec.describe PreviewProxyMiddleware do
       stub_request(:get, "http://127.0.0.1:25000/")
         .to_return(status: 200, body: "", headers: {
           "Set-Cookie" => [
-            "session=abc123; Path=/; HttpOnly",
+            "session=abc123; Expires=Wed, 21 Oct 2037 07:28:00 GMT; Path=/; HttpOnly",
             "csrf=def456; Path=/; SameSite=Lax"
           ]
         })
@@ -172,7 +175,7 @@ RSpec.describe PreviewProxyMiddleware do
       _, headers, _ = middleware.call(preview_env_for(preview_env))
 
       expect(headers["set-cookie"]).to include(
-        "session=abc123; Path=/; HttpOnly",
+        "session=abc123; Expires=Wed, 21 Oct 2037 07:28:00 GMT; Path=/; HttpOnly",
         "csrf=def456; Path=/; SameSite=Lax"
       )
       access_cookies = headers["set-cookie"].grep(/\A#{described_class::PREVIEW_ACCESS_COOKIE}=/)
@@ -219,6 +222,54 @@ RSpec.describe PreviewProxyMiddleware do
       expect(body.join).to include('src="/builds/main.tsx"')
       expect(body.join).not_to include("localhost:3036")
       expect(headers.keys.map(&:downcase)).not_to include("content-length", "etag")
+    end
+
+    it "negotiates and rewrites compressed HTML instead of forwarding the browser encoding" do
+      html = '<script type="module" src="http://localhost:3036/builds/main.tsx"></script>'
+      compressed = StringIO.new.tap do |io|
+        Zlib::GzipWriter.wrap(io) { |gzip| gzip.write(html) }
+      end.string
+      server = TCPServer.new("127.0.0.1", 0)
+      preview_env.update!(port: server.local_address.ip_port)
+      upstream = Thread.new do
+        socket = server.accept
+        request_headers = {}
+        socket.gets
+        while (line = socket.gets) && line != "\r\n"
+          name, value = line.split(":", 2)
+          request_headers[name.downcase] = value.strip
+        end
+        socket.write(<<~RESPONSE.gsub("\n", "\r\n"))
+          HTTP/1.1 200 OK
+          Content-Type: text/html; charset=utf-8
+          Content-Encoding: gzip
+          Content-Length: #{compressed.bytesize}
+          ETag: W/"compressed"
+          Connection: close
+
+        RESPONSE
+        socket.write(compressed)
+        request_headers.fetch("accept-encoding")
+      ensure
+        socket&.close
+      end
+
+      begin
+        env = preview_env_for(preview_env)
+        env["HTTP_ACCEPT_ENCODING"] = "br, gzip"
+        status, headers, body = VCR.turned_off { middleware.call(env) }
+        negotiated_encoding = upstream.value
+
+        expect(negotiated_encoding).to include("gzip")
+        expect(negotiated_encoding).not_to eq("br, gzip")
+        expect(status).to eq(200)
+        expect(body.join).to include('src="/builds/main.tsx"')
+        expect(body.join).not_to include("localhost:3036")
+        expect(headers.keys.map(&:downcase)).not_to include("content-encoding", "content-length", "etag")
+      ensure
+        server.close
+        upstream.kill if upstream.alive?
+      end
     end
 
     it "leaves non-HTML localhost text responses alone" do
