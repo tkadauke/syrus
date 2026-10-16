@@ -169,6 +169,20 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getAllByText("JOB-52")).toHaveLength(2)
   })
 
+  it("describes grouped approval changes as requests when no transition occurred", () => {
+    const approve = context("approve_job", {
+      input: { job_ids: [53, 54, 55] },
+      parsedResult: { pending_action_group_id: 5, pending_action_id: 18, state: "pending", member_count: 3, message: "Approve 3 Jobs?" }
+    })
+    const unapprove = context("unapprove_job", {
+      input: { job_ids: [56, 57] },
+      parsedResult: { pending_action_group_id: 6, pending_action_id: 19, state: "rejected", member_count: 2, message: "Unapprove 2 Jobs?" }
+    })
+
+    expect(approveJobCard.collapsedSummary?.(approve)).toBe("Approval requested · 3 JOBs · pending group #5")
+    expect(unapproveJobCard.collapsedSummary?.(unapprove)).toBe("Unapproval requested · 2 JOBs · pending group #6")
+  })
+
   it("renders archive, backlog, and start Epic transitions", () => {
     render(
       <>
