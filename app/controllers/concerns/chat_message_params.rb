@@ -5,13 +5,7 @@
 module ChatMessageParams
   private
 
-  CHAT_ATTACHMENT_ALLOWED_MIME_TYPES = %w[
-    image/jpeg
-    image/png
-    image/gif
-    image/webp
-    application/pdf
-  ].freeze
+  CHAT_ATTACHMENT_ALLOWED_MIME_TYPES = JSON.parse(Rails.root.join("config/chat_attachment_mime_types.json").read).freeze
   CHAT_ATTACHMENT_MAX_BASE64_BYTES = 7.megabytes
 
 
@@ -55,7 +49,7 @@ module ChatMessageParams
       data = (attributes["data"] || attributes[:data]).to_s
 
       unless CHAT_ATTACHMENT_ALLOWED_MIME_TYPES.include?(mime_type)
-        render_error("validation_failed", "Attachment MIME type is not allowed.", status: :unprocessable_content)
+        render_error("validation_failed", "#{name.to_s.presence || "Attachment"} is not a supported type (images or PDF).", status: :unprocessable_content)
         return
       end
 

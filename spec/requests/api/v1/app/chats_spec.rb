@@ -7069,7 +7069,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }.not_to change(ChatMessage, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Attachment MIME type is not allowed.")
+    expect(parse_body.dig("error", "message")).to eq("script.js is not a supported type (images or PDF).")
   end
 
   it "returns a validation error for oversized chat message attachment data" do
