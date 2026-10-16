@@ -60,6 +60,8 @@ const RUNTIME_ATTENTION_POLLS = 15 // × 2s = 30s
 // timing out mid-dialog (the old 180s did) is a dead end.
 const RUNTIME_FIRST_START_POLLS = 450 // × 2s = 15 minutes
 const LOG_TAIL_LIMIT = 400
+const INSTALL_CANCEL_GRACE_MS = 5_000
+const INSTALL_LOCK_FILENAME = "install.pid"
 
 // The install steps install.sh emits in --json mode, in order.
 // runtime_install never appears: the app always passes --skip-runtime-install
@@ -161,6 +163,10 @@ const isSyrusInstance = async (url: string) => {
 export class OnboardingDriver {
   private state: OnboardingState = { phase: "welcome" }
   private child: ChildProcess | null = null
+  private installLockPid: number | null = null
+  private cancelTimer: NodeJS.Timeout | null = null
+  private cancelPromise: Promise<void> | null = null
+  private resolveCancel: (() => void) | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
   private installAbort: AbortController | null = null
@@ -178,6 +184,64 @@ export class OnboardingDriver {
 
   getState() {
     return this.state
+  }
+
+  installRunning() {
+    return this.child !== null
+  }
+
+  private installLockPath() {
+    return path.join(localStateDir(), INSTALL_LOCK_FILENAME)
+  }
+
+  private async processIsRunning(pid: number) {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "EPERM"
+    }
+  }
+
+  private async acquireInstallLock() {
+    const lockPath = this.installLockPath()
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const lock = await fs.open(lockPath, "wx")
+        await lock.writeFile(String(process.pid))
+        await lock.close()
+        this.installLockPid = process.pid
+        return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          throw error
+        }
+
+        const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
+        if (Number.isFinite(pid) && pid > 0 && (await this.processIsRunning(pid))) {
+          return false
+        }
+
+        await fs.unlink(lockPath).catch(() => {})
+      }
+    }
+
+    return false
+  }
+
+  private async updateInstallLock(pid: number) {
+    await fs.writeFile(this.installLockPath(), String(pid))
+    this.installLockPid = pid
+  }
+
+  private async releaseInstallLock() {
+    const lockPath = this.installLockPath()
+    const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
+    if (pid === this.installLockPid) {
+      await fs.unlink(lockPath).catch(() => {})
+    }
+    this.installLockPid = null
   }
 
   private setState(state: OnboardingState) {
@@ -738,6 +802,17 @@ export class OnboardingDriver {
       flags.push("--port", String(this.port))
     }
 
+    if (!(await this.acquireInstallLock())) {
+      this.setState({
+        phase: "local.failed",
+        code: 1,
+        step: null,
+        message: "A Syrus installation is already running. Wait for it to finish, then try again.",
+        logTail: []
+      })
+      return
+    }
+
     const steps: InstallStep[] = INSTALL_STEP_IDS.map((id) => ({ id, status: "pending" }))
     this.logTail = []
     this.lastLogTransient = false
@@ -768,6 +843,7 @@ export class OnboardingDriver {
         ? spawn(command, spawnArgs, { env, windowsHide: true })
         : spawn(command, spawnArgs, { env, detached: true })
     this.child = child
+    await this.updateInstallLock(child.pid ?? process.pid)
 
     readline.createInterface({ input: child.stdout }).on("line", (line) => {
       logStream.write(`${line}\n`)
@@ -779,18 +855,33 @@ export class OnboardingDriver {
       this.appendLog(line)
     })
 
-    child.on("error", (error) => {
-      logStream.write(`spawn error: ${String(error)}\n`)
-    })
-
     // "close", not "exit": close fires only after stdio has drained, so the
     // final NDJSON error/done lines are guaranteed to have been parsed and
     // nothing writes to the log stream after end().
-    child.on("close", (code) => {
+    let childSettled = false
+    const settleChild = (code: number) => {
+      if (childSettled) {
+        return
+      }
+      childSettled = true
       this.child = null
+      if (this.cancelTimer) {
+        clearTimeout(this.cancelTimer)
+        this.cancelTimer = null
+      }
+      this.resolveCancel?.()
+      this.resolveCancel = null
+      this.cancelPromise = null
+      void this.releaseInstallLock()
       logStream.end()
-      this.handleExit(code ?? 1)
+      this.handleExit(code)
+    }
+
+    child.on("error", (error) => {
+      logStream.write(`spawn error: ${String(error)}\n`)
+      settleChild(1)
     })
+    child.on("close", (code) => settleChild(code ?? 1))
   }
 
   // Kill the whole tree so docker/compose grandchildren die with the script
@@ -811,15 +902,28 @@ export class OnboardingDriver {
     } catch {
       this.child.kill("SIGTERM")
     }
+
+    const pid = this.child.pid
+    this.cancelTimer ??= setTimeout(() => {
+      try {
+        process.kill(-pid, "SIGKILL")
+      } catch {
+        this.child?.kill("SIGKILL")
+      }
+    }, INSTALL_CANCEL_GRACE_MS)
   }
 
-  cancelInstall() {
+  cancelInstall(): Promise<void> {
     if (!this.child) {
-      return
+      return Promise.resolve()
     }
 
     this.cancelRequested = true
     this.killInstallChild()
+    this.cancelPromise ??= new Promise((resolve) => {
+      this.resolveCancel = resolve
+    })
+    return this.cancelPromise
   }
 
   // Forget all wizard progress so a reopened onboarding starts at Welcome —
