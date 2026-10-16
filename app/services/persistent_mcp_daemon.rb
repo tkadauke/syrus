@@ -32,6 +32,12 @@ require "stringio"
 # MCP::Server::Transports::StreamableHTTPTransport in stateless mode, which
 # independently enforces DNS-rebinding/loopback host protections.
 class PersistentMcpDaemon
+  # The name this daemon reports in an MCP initialize handshake. Named here
+  # because the release integration test asserts on it: chat reaches the
+  # daemon through bin/syrus-mcp-proxy, so the daemon is the server that
+  # answers a chat handshake.
+  SERVER_NAME = "syrus-persistent-mcp-daemon".freeze
+
   DEFAULT_PORT = 4805
   DEFAULT_HOST = "127.0.0.1"
 
@@ -187,7 +193,7 @@ class PersistentMcpDaemon
 
   def mcp_server
     @mcp_server ||= MCP::Server.new(
-      name: "syrus-persistent-mcp-daemon",
+      name: SERVER_NAME,
       tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + chat_tools,
       server_context: { identity: identity }
     )

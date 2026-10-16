@@ -10,6 +10,7 @@ RSpec.describe "Docker image scripts" do
   let(:deploy) { File.read(File.join(root, "bin/deploy")) }
   let(:test_docker) { File.read(File.join(root, "bin/test-docker")) }
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
+  let(:persistent_mcp_daemon) { File.read(File.join(root, "app/services/persistent_mcp_daemon.rb")) }
 
   it "waits for the release stack and uses an enabled provider in chat smoke tests" do
     expect(test_docker).to include('curl -fsS "http://127.0.0.1:${PORT}/readyz"')
@@ -27,9 +28,25 @@ RSpec.describe "Docker image scripts" do
   # Nothing in this smoke test asserts on the sidecar manager, so it does not
   # belong in the stack.
   it "leaves the plugin sidecar manager out of the integration stack" do
-    expect(test_docker).to include('compose -p "$PROJECT" up -d --scale plugin-runtime=0')
+    # `--scale plugin-runtime=0` was not enough: Compose still resolves and
+    # pulls the image of a service scaled to zero, which is how the arm64
+    # build kept failing on a manifest it never needed.
+    expect(test_docker).to include(%(config --services | grep -v '^plugin-runtime$'))
+    expect(test_docker).to include('compose -p "$PROJECT" up -d $itest_services')
+    expect(test_docker).not_to match(/up -d --scale plugin-runtime=0/)
     expect(compose_yml).to include("ghcr.io/tkadauke/syrus-plugin-runtime:latest")
-    expect(test_docker).not_to match(/compose -p "\$PROJECT" up -d$/)
+  end
+
+  # Chat reaches MCP through bin/syrus-mcp-proxy, a secret-free bridge to the
+  # worker-owned daemon, so the daemon is the server that answers a chat
+  # handshake. Pinning the old per-tier sidecar names failed the amd64 release
+  # build on a handshake that had in fact succeeded (exit=0).
+  it "accepts the persistent daemon as the server that answers a chat handshake" do
+    expect(test_docker).to include("PersistentMcpDaemon::SERVER_NAME")
+    # This spec reads scripts rather than booting Rails, so the constant is
+    # checked at its source: the two have to name the same server.
+    expect(persistent_mcp_daemon).to include(%(SERVER_NAME = "syrus-persistent-mcp-daemon"))
+    expect(test_docker).to include("served=#{'#'}{served.inspect}")
   end
 
   # Compose names the service and the reason it could not start; claiming

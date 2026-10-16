@@ -91,9 +91,16 @@ ensure_compose_env
 # does not publish. The release only moves plugin :latest at go-live, so the
 # test would be graded against whatever the last successful release pushed:
 # an image built before plugin images went multi-arch, with no linux/arm64
-# manifest at all. That is what failed the arm64 release build, reported below
-# as a db:prepare error it had nothing to do with.
-if ! compose -p "$PROJECT" up -d --scale plugin-runtime=0; then
+# manifest at all. That is what failed the arm64 release build, reported as a
+# db:prepare error it had nothing to do with.
+#
+# Naming the services rather than scaling that one to zero, because
+# `--scale plugin-runtime=0` still resolves and pulls its image -- the arm64
+# build failed on exactly that. Deriving the list from the file keeps a service
+# added later in the test by default; only this one is excluded, and nothing
+# depends_on it.
+itest_services="$(compose -p "$PROJECT" config --services | grep -v '^plugin-runtime$' | tr '\n' ' ')"
+if ! compose -p "$PROJECT" up -d $itest_services; then
   echo "Stack failed to come up — Compose's own error is above." >&2
   echo "If it got as far as starting containers, the setup service (db:prepare) log follows:" >&2
   compose -p "$PROJECT" logs setup 2>&1 | tail -30
@@ -265,11 +272,19 @@ cs="$(in_service worker '
   [ [ "syrus-chat-sidecar", "essential", true ], [ "syrus-chat-deferred-sidecar", "deferred", false ] ].each do |name, tier, always|
     cfg = j.send(:stdio_chat_server_config, tier: tier, always_load: always)
     out, _e, st = Open3.capture3(cfg[:env].to_h, cfg[:command], stdin_data: payload, unsetenv_others: true)
-    if out.include?(%(serverInfo":{"name":"#{name}"))
-      puts "  OK #{name}"
+    # Chat no longer spawns a Rails sidecar per tier: stdio-only providers get
+    # bin/syrus-mcp-proxy, a secret-free bridge to the worker-owned
+    # PersistentMcpDaemon (which is what the NOTE below prescribes). The proxy
+    # forwards the handshake verbatim, so the server that answers is the
+    # daemon. Accept either, because which transport chat selects depends on
+    # feature state, and what this check exists to catch is a chat MCP server
+    # that cannot boot under the scrubbed environment at all.
+    served = out[/serverInfo":\{"name":"([^"]+)/, 1]
+    if [ PersistentMcpDaemon::SERVER_NAME, name ].include?(served)
+      puts "  OK #{name} (served by #{served})"
     else
       bad << name
-      puts "  FAIL #{name} exit=#{st.exitstatus} env_keys=#{cfg[:env].keys.sort.join(",")}"
+      puts "  FAIL #{name} exit=#{st.exitstatus} served=#{served.inspect} env_keys=#{cfg[:env].keys.sort.join(",")}"
     end
   end
   puts(bad.empty? ? "CHAT_SIDECARS_OK" : "CHAT_SIDECARS_FAILED")
