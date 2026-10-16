@@ -14,6 +14,8 @@ require "fileutils"
 class AutoRebase
   class LeaseRejected < StandardError; end
 
+  LEASE_REJECTED_PATTERN = /\((?:non-fast-forward|fetch first|stale info|needs force)\)/i
+
   # A clean rebase that leaves nothing ahead of the base. Distinct from
   # "rebased" because the branch must NOT be pushed and the Job has, in
   # substance, landed.
@@ -128,7 +130,10 @@ class AutoRebase
   private
 
   def clone_path
-    @clone_path ||= WorkflowWorkspace.data_root.join("auto-rebase", @job.id.to_s)
+    @clone_path ||= WorkflowWorkspace.data_root.join(
+      "auto-rebase",
+      "#{@job.id}-#{SecureRandom.hex(4)}"
+    )
   end
 
   def authenticated_url
@@ -148,6 +153,9 @@ class AutoRebase
   # merge-base computation works across any history depth.
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
+    acquire_clone_lease
+    reclaim_abandoned_clones
+    FileUtils.rm_rf(clone_path)
     authenticated_git("git_auto_rebase_clone") do |url|
       @git.run(
         "clone", "--branch", base_branch,
@@ -170,7 +178,52 @@ class AutoRebase
   end
 
   def cleanup_clone
+    return unless @clone_lease
+
     FileUtils.rm_rf(clone_path)
+    FileUtils.rm_f(clone_lock_path)
+    @clone_lease.close
+    @clone_lease = nil
+  end
+
+  def acquire_clone_lease
+    FileUtils.mkdir_p(clone_path.dirname)
+    @clone_lease = File.open(clone_lock_path, File::RDWR | File::CREAT, 0o600)
+    return if @clone_lease.flock(File::LOCK_EX | File::LOCK_NB)
+
+    @clone_lease.close
+    @clone_lease = nil
+    raise "Auto-rebase clone path is already leased: #{clone_path}"
+  end
+
+  # A process death can strand a full clone before `ensure` runs. Each live
+  # invocation holds an exclusive sidecar lock, so a later call can reclaim
+  # abandoned same-Job clones without relying on age or touching concurrent
+  # work. Removing the directory and lock while holding the lock also makes a
+  # random suffix collision safe: a new owner cannot acquire the name until
+  # reclamation has finished.
+  def reclaim_abandoned_clones
+    clone_path.dirname.glob("#{@job.id}-*").each do |path|
+      next unless path.directory?
+      next if path == clone_path
+
+      reclaim_abandoned_clone(path)
+    end
+  end
+
+  def reclaim_abandoned_clone(path)
+    lock_path = clone_lock_path(path)
+    lock = File.open(lock_path, File::RDWR | File::CREAT, 0o600)
+    return unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+
+    FileUtils.rm_rf(path)
+    FileUtils.rm_f(lock_path)
+  ensure
+    lock&.close
+  end
+
+  def clone_lock_path(path = clone_path)
+    path.dirname.join(".#{path.basename}.lock")
   end
 
   # Discover and register custom merge drivers the target repo
@@ -252,7 +305,7 @@ class AutoRebase
   end
 
   def lease_rejected?(error)
-    error.output.to_s.match?(/stale info|fetch first|rejected/i)
+    error.output.to_s.match?(LEASE_REJECTED_PATTERN)
   end
 
   def head_sha

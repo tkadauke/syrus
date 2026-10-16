@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe PollPullRequestJob, :ci_only do
-  let(:user) { Factories.user(github_token: "ghp_test_token") }
+  let(:user) { Factories.user(github_token: "ghp_test_token", github_handle: "operator") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", feedback_policy: "auto") }
   let(:job) do
     j = Factories.job(repository: repository, issue_number: 42)
@@ -651,6 +651,42 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(record.actionable).to be false
       expect(record.body).to include(CoverageReport::PrCommentFormatter::MARKER)
       expect(job.reload.last_seen_comment_at).to be_nil
+    end
+
+    it "classifies a foreign comment that contains a Syrus report marker" do
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: false, reason: "quoted report", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1,
+          body: "#{CoverageReport::PrCommentFormatter::MARKER}\nPlease explain this report",
+          user: { login: "reviewer" },
+          created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      expect(PrCommentClassifier).to have_received(:call).with(
+        body: include(CoverageReport::PrCommentFormatter::MARKER),
+        user: user,
+        agent_provider: job.agent_provider
+      )
+    end
+
+    it "does not classify an authored dependency audit report comment" do
+      stub_issue_comments([
+        { id: 1,
+          body: "#{DependencyAuditReport::PrCommentFormatter::MARKER}\n## Dependency Vulnerability Scan",
+          user: { login: "operator" },
+          created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(job.id)
+
+      expect(PrCommentClassifier).not_to have_received(:call)
+      expect(PrReviewComment.last.actionable).to be false
     end
 
     it "still stores a PrReviewComment record for non-actionable comments" do

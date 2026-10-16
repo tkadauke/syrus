@@ -22,7 +22,7 @@ import {
   uploadVideoWalkthrough,
   type VideoWalkthrough
 } from "../api/videoWalkthroughs"
-import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
+import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   branchChat,
@@ -601,7 +601,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
       : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       onNotice(null)
     },
@@ -615,7 +615,7 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       return retryChatTurn(appendSearch(payload.paths.app_retry_turn_path, search))
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
       onNotice(updated.message || t("retry_turn_started"))
     },
@@ -1510,7 +1510,7 @@ function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: Chat
   const submit = useMutation({
     mutationFn: () => createCodingHandoff(submitPath!),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(t("attached_job_submit_notice"))
     },
     onError: (error) => {
@@ -1520,7 +1520,7 @@ function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: Chat
   const cancel = useMutation({
     mutationFn: () => cancelCodingCheckout(cancelPath!),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(t("attached_job_detached_notice"))
     },
     onError: (error) => {
@@ -1722,7 +1722,7 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
       return stopChatGoal(payload.chat.id)
     },
     onSuccess: (updated, action) => {
-      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
       onNotice(goalActionNotice(action, t))
     },
@@ -1810,7 +1810,7 @@ function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: C
       auto_submit_jobs: mode === "coding" || mode === "local" ? autoSubmitJobs : false
     }),
     onSuccess: (updated) => {
-      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
       onNotice(t("goal_updated_notice"))
       onClose()

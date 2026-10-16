@@ -88,6 +88,75 @@ RSpec.describe AutoRebase, :ci_only do
     expect(`git --git-dir=#{bare_remote_dir} ls-tree --name-only #{feature}`.split("\n")).to include("human.rb")
   end
 
+  it "reports a hook-declined push as an error instead of a lease rejection" do
+    feature = "syrus/issue-42-#{job.id}"
+    push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature commit")
+    push_main_advance("README.md", "README\n", "main moves forward")
+
+    git = RecordingGitRunner.new(push_error: GitRunner::GitError.new(
+      [ "push" ], 1,
+      "! [remote rejected] HEAD -> #{feature} (pre-receive hook declined)"
+    ))
+
+    result = described_class.new(job, git: git).call
+
+    expect(result).not_to be_succeeded
+    expect(result.reason).to eq("error")
+    expect(result.note).to include("pre-receive hook declined")
+  end
+
+  it "keeps overlapping calls for the same Job in independently cleaned clone directories" do
+    job
+    allow(SecureRandom).to receive(:hex).with(4).and_return("first", "second")
+    first = described_class.new(job)
+    second = described_class.new(job)
+    first_path = first.send(:clone_path)
+    second_path = second.send(:clone_path)
+    first.send(:acquire_clone_lease)
+    second.send(:acquire_clone_lease)
+    FileUtils.mkdir_p([ first_path, second_path ])
+    File.write(first_path.join("in-progress"), "first")
+    File.write(second_path.join("in-progress"), "second")
+
+    first.send(:cleanup_clone)
+
+    expect(first_path).not_to exist
+    expect(second_path.join("in-progress")).to exist
+    expect(first_path.basename.to_s).to eq("#{job.id}-first")
+    expect(second_path.basename.to_s).to eq("#{job.id}-second")
+  ensure
+    second&.send(:cleanup_clone)
+  end
+
+  it "reclaims an abandoned clone without removing a concurrent live clone" do
+    job
+    allow(SecureRandom).to receive(:hex).with(4).and_return("abandoned", "live", "next")
+    abandoned = described_class.new(job)
+    live = described_class.new(job)
+    newcomer = described_class.new(job)
+    abandoned_path = abandoned.send(:clone_path)
+    live_path = live.send(:clone_path)
+    abandoned.send(:acquire_clone_lease)
+    live.send(:acquire_clone_lease)
+    FileUtils.mkdir_p([ abandoned_path, live_path ])
+    File.write(abandoned_path.join("clone-data"), "abandoned")
+    File.write(live_path.join("clone-data"), "in use")
+
+    abandoned_lease = abandoned.instance_variable_get(:@clone_lease)
+    abandoned_lease.flock(File::LOCK_UN)
+    abandoned_lease.close
+    abandoned.instance_variable_set(:@clone_lease, nil)
+
+    newcomer.send(:acquire_clone_lease)
+    newcomer.send(:reclaim_abandoned_clones)
+
+    expect(abandoned_path).not_to exist
+    expect(live_path.join("clone-data")).to exist
+  ensure
+    live&.send(:cleanup_clone)
+    newcomer&.send(:cleanup_clone)
+  end
+
   it "is a no-op when the branch is already up-to-date with base" do
     feature = "syrus/issue-42-#{job.id}"
     push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature")
@@ -274,9 +343,10 @@ RSpec.describe AutoRebase, :ci_only do
   class RecordingGitRunner
     attr_reader :commands
 
-    def initialize(before_push: nil)
+    def initialize(before_push: nil, push_error: nil)
       @delegate = GitRunner.new
       @before_push = before_push
+      @push_error = push_error
       @commands = []
       @before_push_called = false
     end
@@ -286,6 +356,7 @@ RSpec.describe AutoRebase, :ci_only do
       if args.first == "push" && !@before_push_called
         @before_push_called = true
         @before_push&.call
+        raise @push_error if @push_error
       end
       @delegate.run(*args, **kwargs)
     end

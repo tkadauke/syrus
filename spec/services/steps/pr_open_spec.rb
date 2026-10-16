@@ -27,6 +27,49 @@ RSpec.describe Steps::PrOpen, :ci_only do
     described_class.new(pr_open_run).send(:compose_body, "Body")
   end
 
+  describe "report comment upserts" do
+    let(:user) { Factories.user(github_handle: "operator") }
+    let(:run) do
+      pr_open_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind,
+                                state: "running", iteration: pr_open_step.iteration)
+    end
+    let(:handler) { described_class.new(run) }
+    let(:client) { instance_double(GithubClient) }
+
+    before do
+      job.update!(pr_number: 42)
+      allow(GithubClient).to receive(:for_authorship).and_return(client)
+    end
+
+    {
+      coverage: [ CoverageReport::PrCommentFormatter::MARKER, :post_coverage_comment_if_present ],
+      dependency_audit: [ DependencyAuditReport::PrCommentFormatter::MARKER, :post_dependency_audit_comment_if_present ]
+    }.each do |artifact, (marker, method_name)|
+      it "does not update a foreign #{artifact} comment containing the marker" do
+        workflow.set_artifact!(artifact.to_s, { "pr_comment_body" => "#{marker}\nnew report" })
+        foreign_comment = double(id: 6, user: double(login: "reviewer"), body: "#{marker}\nquoted report")
+        allow(client).to receive(:pr_issue_comments).and_return([ foreign_comment ])
+
+        expect(client).not_to receive(:update_issue_comment)
+        expect(client).to receive(:add_issue_comment).with(repository.slug, 42, "#{marker}\nnew report")
+        expect(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
+
+        handler.send(method_name)
+      end
+
+      it "posts a new #{artifact} comment when updating the owned comment fails" do
+        workflow.set_artifact!(artifact.to_s, { "pr_comment_body" => "#{marker}\nnew report" })
+        owned_comment = double(id: 7, user: double(login: "operator"), body: "#{marker}\nold report")
+        allow(client).to receive(:pr_issue_comments).and_return([ owned_comment ])
+        allow(client).to receive(:update_issue_comment).and_raise(RuntimeError, "forbidden")
+
+        expect(client).to receive(:add_issue_comment).with(repository.slug, 42, "#{marker}\nnew report")
+
+        handler.send(method_name)
+      end
+    end
+  end
+
   it "includes the authoring agent and turn count for Claude-authored PRs" do
     body = composed_body_for(provider: "claude", turns: 7)
 

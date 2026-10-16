@@ -34,6 +34,7 @@ import {
 } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { dispatchProposalUpdated } from "../../lib/appEvents"
+import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Button } from "../../components/Button"
@@ -192,7 +193,7 @@ export function ProposalEditModal({
         ...(canRouteToBacklog ? { route_to_backlog: routeToBacklog } : {})
       }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       if (updated.proposal) dispatchProposalUpdated(queryKey[1], updated.proposal)
       onNotice(updated.message || "Proposal updated")
       onClose()
@@ -967,7 +968,7 @@ export function PendingActionCard({
       return cancelPendingAction(path)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(updated.message || null)
     }
   })
@@ -1144,7 +1145,7 @@ export function PendingActionGroupCard({
       return cancelPendingAction(path)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       onNotice(updated.message || null)
     }
   })

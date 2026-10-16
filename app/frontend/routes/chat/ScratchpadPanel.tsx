@@ -10,6 +10,7 @@ import { Input } from "../../components/Input"
 import { SendIcon } from "../../components/SendIcon"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
+import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, errorAsError } from "./utils"
 import { PencilIcon } from "./icons"
@@ -64,7 +65,7 @@ export function ScratchpadPanel({
   const create = useMutation({
     mutationFn: () => createScratchpadItem(chatId, addDraft),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       setAddDraft("")
       setTimeout(() => addInputRef.current?.focus(), 0)
     }
@@ -72,7 +73,7 @@ export function ScratchpadPanel({
 
   const reorder = useMutation({
     mutationFn: (ids: number[]) => reorderScratchpadItems(chatId, ids),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
 
   function handleDragStart(index: number) {
@@ -259,23 +260,23 @@ function ScratchpadItemRow({
   const update = useMutation({
     mutationFn: () => updateScratchpadItem(item.app_update_path, draft),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
       setEditing(false)
     }
   })
 
   const remove = useMutation({
     mutationFn: () => deleteScratchpadItem(item.app_delete_path),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
 
   const queue = useMutation({
     mutationFn: async () => {
       const afterEnqueue = await enqueueChatDraftMessage(appendSearch(enqueuePath, search), itemDraft)
-      queryClient.setQueryData(queryKey, afterEnqueue)
+      mergeChatPayloadUpdate(queryClient, queryKey, afterEnqueue)
       return deleteScratchpadItem(item.app_delete_path)
     },
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => mergeChatPayloadUpdate(queryClient, queryKey, updated)
   })
 
   useEffect(() => {
@@ -289,10 +290,10 @@ function ScratchpadItemRow({
     try {
       if (text.trim().length > 0 || attachments.length > 0) {
         const stashed = await createScratchpadItem(chatId, text, attachments)
-        queryClient.setQueryData(queryKey, stashed)
+        mergeChatPayloadUpdate(queryClient, queryKey, stashed)
       }
       const deleted = await deleteScratchpadItem(item.app_delete_path)
-      queryClient.setQueryData(queryKey, deleted)
+      mergeChatPayloadUpdate(queryClient, queryKey, deleted)
       onLoadToInput(itemDraft)
     } catch (error) {
       setLoadError(errorMessage(errorAsError(error), "Could not load item."))

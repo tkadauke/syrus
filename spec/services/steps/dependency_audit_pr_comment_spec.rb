@@ -18,7 +18,8 @@ RSpec.describe Steps::DependencyAuditPrComment do
   end
 
   before do
-    allow(GithubClient).to receive(:for).and_return(fake_client)
+    job.user.update!(github_handle: "operator")
+    allow(GithubClient).to receive(:for_authorship).and_return(fake_client)
   end
 
   context "when the dependency_audit artifact has no pr_comment_body" do
@@ -68,11 +69,25 @@ RSpec.describe Steps::DependencyAuditPrComment do
         )
         handler.call
       end
+
+      it "uses the Job authorship credential when an App installation is active" do
+        job.user.update!(github_token: "ghp_operator_token")
+        installation = Factories.installation(user: job.user)
+        job.repository.update!(installation: installation)
+        job.update!(credential_mode: "pat")
+
+        expect(GithubClient).to receive(:for_authorship).with(
+          repository: job.repository,
+          job: job
+        ).and_return(fake_client)
+        handler.call
+      end
     end
 
     context "when an existing dependency audit comment is found" do
       let(:existing_comment) do
         double("comment", id: 777,
+               user: double(login: "operator"),
                body: "#{DependencyAuditReport::PrCommentFormatter::MARKER}\nold content")
       end
 
@@ -86,6 +101,26 @@ RSpec.describe Steps::DependencyAuditPrComment do
           job.repository.slug, 777, pr_comment_body
         )
         expect(fake_client).not_to receive(:add_issue_comment)
+        handler.call
+      end
+
+      it "ignores a foreign comment containing the marker" do
+        foreign_comment = double("comment", id: 666, user: double(login: "reviewer"),
+                                 body: "#{DependencyAuditReport::PrCommentFormatter::MARKER}\nquoted content")
+        allow(fake_client).to receive(:pr_issue_comments).and_return([ foreign_comment, existing_comment ])
+
+        expect(fake_client).to receive(:update_issue_comment).with(
+          job.repository.slug, 777, pr_comment_body
+        )
+        handler.call
+      end
+
+      it "posts a new comment when updating the owned comment fails" do
+        allow(fake_client).to receive(:update_issue_comment).and_raise(RuntimeError, "forbidden")
+
+        expect(fake_client).to receive(:add_issue_comment).with(
+          job.repository.slug, 42, pr_comment_body
+        )
         handler.call
       end
     end

@@ -18,7 +18,8 @@ RSpec.describe Steps::CoveragePrComment do
   end
 
   before do
-    allow(GithubClient).to receive(:for).and_return(fake_client)
+    job.user.update!(github_handle: "operator")
+    allow(GithubClient).to receive(:for_authorship).and_return(fake_client)
   end
 
   context "when coverage artifact has no pr_comment_body" do
@@ -77,11 +78,37 @@ RSpec.describe Steps::CoveragePrComment do
         allow(fake_client).to receive(:add_issue_comment)
         handler.call
       end
+
+      it "uses the Job authorship credential when an App installation is active" do
+        AppSetting.current.update!(github_app_id: 123, github_app_slug: "syrus-local")
+        job.user.update!(github_token: "ghp_operator_token")
+        installation = Factories.installation(
+          user: job.user,
+          cached_token: "installation-token",
+          cached_token_expires_at: 1.hour.from_now
+        )
+        job.repository.update!(installation: installation)
+        job.update!(credential_mode: "pat")
+        comments_url = "https://api.github.com/repos/#{job.repository.slug}/issues/42/comments"
+        list_request = stub_request(:get, comments_url)
+          .with(query: hash_including({}), headers: { "Authorization" => "token ghp_operator_token" })
+          .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json)
+        post_request = stub_request(:post, comments_url)
+          .with(headers: { "Authorization" => "token ghp_operator_token" })
+          .to_return(status: 201, headers: { "Content-Type" => "application/json" }, body: { id: 99 }.to_json)
+
+        expect(GithubClient).to receive(:for_authorship).and_call_original
+        handler.call
+
+        expect(list_request).to have_been_requested
+        expect(post_request).to have_been_requested
+      end
     end
 
     context "when an existing coverage comment is found" do
       let(:existing_comment) do
         double("comment", id: 777,
+               user: double(login: "operator"),
                body: "#{CoverageReport::PrCommentFormatter::MARKER}\nold content")
       end
 
@@ -95,6 +122,26 @@ RSpec.describe Steps::CoveragePrComment do
           job.repository.slug, 777, pr_comment_body
         )
         expect(fake_client).not_to receive(:add_issue_comment)
+        handler.call
+      end
+
+      it "ignores a foreign comment containing the marker" do
+        foreign_comment = double("comment", id: 666, user: double(login: "reviewer"),
+                                 body: "#{CoverageReport::PrCommentFormatter::MARKER}\nquoted content")
+        allow(fake_client).to receive(:pr_issue_comments).and_return([ foreign_comment, existing_comment ])
+
+        expect(fake_client).to receive(:update_issue_comment).with(
+          job.repository.slug, 777, pr_comment_body
+        )
+        handler.call
+      end
+
+      it "posts a new comment when updating the owned comment fails" do
+        allow(fake_client).to receive(:update_issue_comment).and_raise(RuntimeError, "forbidden")
+
+        expect(fake_client).to receive(:add_issue_comment).with(
+          job.repository.slug, 42, pr_comment_body
+        )
         handler.call
       end
     end

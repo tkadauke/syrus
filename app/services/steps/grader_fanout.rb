@@ -265,7 +265,7 @@ module Steps
       lower_bound = last_code_changing_repair_iteration.to_i
       workflow.steps
               .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
-              .where("iteration > ? AND iteration < ?", lower_bound, step.iteration)
+              .where("iteration >= ? AND iteration < ?", lower_bound, step.iteration)
               .order(iteration: :desc, position: :desc)
               .each_with_object({}) do |s, memo|
                 name = s.details && s.details["name"]
@@ -291,7 +291,7 @@ module Steps
     end
 
     def code_changing_repair_run?(repair_run)
-      repair_run.head_sha.present? || repair_run.step_agent_diff.present?
+      repair_run.step_agent_diff.present? || repair_run.head_sha != repair_run.base_sha
     end
 
     def partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)
@@ -368,7 +368,7 @@ module Steps
       return @retrying_no_change_repair = false if step.loop_id.blank? || step.iteration <= 1
 
       repair_run = repair_run_for_this_iteration
-      @retrying_no_change_repair = repair_run.present? && repair_run.head_sha.blank? && repair_run.step_agent_diff.blank?
+      @retrying_no_change_repair = repair_run.present? && !code_changing_repair_run?(repair_run)
     end
 
     def repair_run_for_this_iteration
