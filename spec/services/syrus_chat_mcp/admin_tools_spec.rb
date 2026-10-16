@@ -352,6 +352,8 @@ RSpec.describe "Mcp::Tools admin tools" do
     )
     epic = Factories.epic(user: admin, repository: repository)
     Factories.job_record(user: admin, repository: repository, epic: epic, state: "approved", branch_name: "syrus/epic-#{epic.id}-child", pr_number: 77, commits_behind_base: 1)
+    drift_job = Factories.job_record(user: admin, repository: repository, state: "running")
+    Workflow.create!(job: drift_job, trigger_kind: "initial", agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
 
     cases = {
       "admin_kill_process" => [ { process_id: process.id }, { "process_id" => process.id } ],
@@ -367,7 +369,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       "admin_cleanup_workspace" => [ { workflow_id: workflow.id, reason: "Remove stale workspace files." }, { "workflow_id" => workflow.id } ],
       "admin_refresh_installations" => [ {}, {} ],
       "force_fail_job" => [ { job_id: workflow.job.id, reason: "Operator determined it is stuck." }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ],
-      "reconcile_job_state" => [ { job_id: workflow.job.id, mode: "auto", reason: "Run targeted state repair." }, { "job_id" => workflow.job.id, "mode" => "auto" } ],
+      "reconcile_job_state" => [ { job_id: drift_job.id, mode: "auto", reason: "Run targeted state repair." }, { "job_id" => drift_job.id, "mode" => "auto" } ],
       "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
       "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
       "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ],
@@ -525,7 +527,8 @@ RSpec.describe "Mcp::Tools admin tools" do
 
   it "creates and confirms Job-scoped repair actions from repositoryless admin chats" do
     repositoryless_admin_session = ChatSession.create!(user: admin)
-    job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
+    job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "running")
+    Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
     repair_result = JobStateRepair::Result.new(job: job, message: "inspected")
     allow(JobStateRepair).to receive(:reconcile!)
       .with(job: job, mode: "auto", reason: "JOB-115 has state drift.")
@@ -1004,8 +1007,10 @@ RSpec.describe "Mcp::Tools admin tools" do
     end
 
     it "creates a grouped pending action for reconcile_job_state job_ids in auto mode sharing one reason" do
-      job_one = Factories.job_record(user: admin, repository: repository, state: "open")
-      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 45, state: "open")
+      job_one = Factories.job_record(user: admin, repository: repository, state: "running")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 45, state: "running")
+      Workflow.create!(job: job_one, trigger_kind: "initial", agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
+      Workflow.create!(job: job_two, trigger_kind: "initial", agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
 
       response = call_tool(
         admin_session,

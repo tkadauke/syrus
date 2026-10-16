@@ -27,6 +27,12 @@ do that work. The UI normally stays focused on Jobs and Workflows, while the
 admin UI exposes intents and units for debugging admission control, pauses,
 preemption, and retries.
 
+Admin repair actions are preflighted before confirmation and revalidated when
+confirmed. Job-state reconciliation handles diagnosed state drift, stale-work
+cancellation handles only cancellable queued/running work, and terminal
+WorkUnit cleanup can retire stale runtime ownership and release its locks
+without changing the Job, pull request, or terminal Workflow.
+
 ## Built-In Templates
 
 ### Initial

@@ -16,8 +16,13 @@ module PendingActions
     def perform
       job = repair_action_job
       mode = payload.fetch("mode").to_s
-      progress!("Reconciling #{job.slug} with mode #{mode}...")
-      JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job
+      job.with_lock do
+        job.reload
+        eligibility = RepairPreflight.reconcile_job_state(job: job, mode: mode)
+        eligibility.ensure_eligible!
+        progress!("Reconciling #{job.slug} with mode #{mode} to #{eligibility.target_state}...")
+        JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job
+      end
     end
 
     def execution_label
@@ -29,6 +34,7 @@ module PendingActions
       errors.add(:payload, "mode is invalid") unless MODES.include?(payload["mode"].to_s)
       errors.add(:reason, "is required") if reason.blank?
       validate_transition_guard(errors)
+      validate_auto_eligibility(errors)
     end
 
     def action_detail
@@ -58,6 +64,16 @@ module PendingActions
       return unless job
 
       errors.add(:payload, "#{job.slug} cannot apply #{payload["mode"]} from #{job.state}") unless job.public_send(guard)
+    end
+
+    def validate_auto_eligibility(errors)
+      return unless action.new_record?
+      return unless payload["mode"].to_s == "auto" && payload["job_id"].present?
+
+      job = repair_action_job_or_nil
+      return unless job
+      eligibility = RepairPreflight.reconcile_job_state(job: job, mode: "auto")
+      errors.add(:payload, eligibility.blocking_preconditions.join("; ")) unless eligibility.eligible?
     end
   end
 end

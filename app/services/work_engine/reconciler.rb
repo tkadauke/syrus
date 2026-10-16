@@ -246,6 +246,7 @@ module WorkEngine
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_superseded_work_units_with_uncancelled_intents)
       issues.concat(classify_failed_work_units_with_unfailed_intents)
+      issues.concat(classify_active_work_units_with_terminal_workflow_locks)
       issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_active_child_work_units_with_terminal_parents)
       issues.concat(classify_stale_auto_retry_workflows)
@@ -1183,6 +1184,33 @@ module WorkEngine
             active_lock_keys: active_locks.map(&:lock_key)
           },
           explanation: "Terminal WorkUnit ##{unit.id} still owns active locks; terminal units must release locks so future work can proceed."
+        )
+      end
+    end
+
+    def classify_active_work_units_with_terminal_workflow_locks
+      work_units.select(&:active?).filter_map do |unit|
+        workflow = unit.workflow
+        next unless workflow&.terminal?
+        next if workflow.runs.active.exists?
+        active_locks = unit.work_unit_locks.select(&:active?)
+        next if active_locks.empty?
+
+        issue(
+          kind: :active_work_unit_terminal_workflow_locks,
+          severity: :error,
+          affected_ids: ids_for(unit).merge(workflow_ids: [ workflow.id ], lock_ids: active_locks.map(&:id)),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "retire_terminal_work_unit",
+          evidence: {
+            work_unit_id: unit.id,
+            work_unit_state: unit.state,
+            workflow_id: workflow.id,
+            workflow_state: workflow.state,
+            active_lock_ids: active_locks.map(&:id),
+            active_lock_keys: active_locks.map(&:lock_key)
+          },
+          explanation: "Active WorkUnit ##{unit.id} belongs to terminal Workflow ##{workflow.id} and still owns locks; retire the stale WorkUnit without changing the terminal Workflow or Job."
         )
       end
     end
