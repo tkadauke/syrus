@@ -33,6 +33,15 @@ RSpec.describe AutoMergeGate do
     )
   end
 
+  def review(state:, commit_id: "abc", association: "MEMBER", login: "reviewer")
+    OpenStruct.new(
+      state: state,
+      commit_id: commit_id,
+      author_association: association,
+      user: OpenStruct.new(login: login)
+    )
+  end
+
   before do
     allow(client).to receive(:pull_request).and_return(pr)
     allow(client).to receive(:pr_reviews).and_return([])
@@ -41,12 +50,64 @@ RSpec.describe AutoMergeGate do
   end
 
   it "allows a formal APPROVED review when the PR is clean" do
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
     result = described_class.new(job: job, client: client).evaluate
 
     expect(result).to be_merge_ready
     expect(result.outcome).to eq(:ready)
+  end
+
+  it "blocks when a reviewer's approval is superseded by requested changes" do
+    allow(client).to receive(:pr_reviews).and_return([
+      review(state: "APPROVED"),
+      review(state: "CHANGES_REQUESTED")
+    ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).not_to be_merge_ready
+    expect(result.reason).to include("not approved")
+  end
+
+  it "blocks a dismissed approval" do
+    allow(client).to receive(:pr_reviews).and_return([
+      review(state: "APPROVED"),
+      review(state: "DISMISSED")
+    ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).not_to be_merge_ready
+  end
+
+  it "ignores commented reviews when selecting a reviewer's latest state" do
+    allow(client).to receive(:pr_reviews).and_return([
+      review(state: "APPROVED"),
+      review(state: "COMMENTED")
+    ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).to be_merge_ready
+  end
+
+  it "blocks an approval for an earlier head commit" do
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED", commit_id: "old-head") ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).not_to be_merge_ready
+  end
+
+  it "blocks an approval from a reviewer without write access" do
+    allow(client).to receive(:pr_reviews).and_return([
+      review(state: "APPROVED", association: "CONTRIBUTOR")
+    ])
+
+    result = described_class.new(job: job, client: client).evaluate
+
+    expect(result).not_to be_merge_ready
   end
 
   it "allows a Syrus-side operator approval without any GitHub review" do
@@ -152,7 +213,7 @@ RSpec.describe AutoMergeGate do
 
   it "respects the opt-out label" do
     allow(client).to receive(:pull_request).and_return(pr(labels: [ AutoMergeGate::OPT_OUT_LABEL ]))
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
     result = described_class.new(job: job, client: client).evaluate
 
@@ -162,7 +223,7 @@ RSpec.describe AutoMergeGate do
 
   it "requires the per-repository opt-in" do
     repository.update!(auto_merge_enabled: false)
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
     result = described_class.new(job: job, client: client).evaluate
 
@@ -173,7 +234,7 @@ RSpec.describe AutoMergeGate do
   it "blocks until dependencies are satisfied" do
     prerequisite = Factories.job(user: user, repository: repository, issue_number: 99)
     JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
     result = described_class.new(job: job, client: client).evaluate
 
@@ -183,7 +244,7 @@ RSpec.describe AutoMergeGate do
 
   it "reports a closed PR as closed" do
     allow(client).to receive(:pull_request).and_return(pr(state: "closed"))
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
     result = described_class.new(job: job, client: client).evaluate
 
@@ -204,7 +265,7 @@ RSpec.describe AutoMergeGate do
   }.each do |mergeable_state, outcome|
     it "returns #{outcome.inspect} for mergeable_state=#{mergeable_state.inspect}" do
       allow(client).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state))
-      allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+      allow(client).to receive(:pr_reviews).and_return([ review(state: "APPROVED") ])
 
       result = described_class.new(job: job, client: client).evaluate
 
