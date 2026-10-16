@@ -14,7 +14,7 @@ module PendingActions
     private
 
     def mutation
-      @mutation ||= AgentInsights::Mutations::Retire.new(ids: payload.fetch("insight_ids"), actor: user,
+      @mutation ||= AgentInsights::Mutations::Retire.new(ids: payload.fetch("insight_ids"), actor: user, audit_actor: user,
         repository_scope: permitted_repositories, reason: payload["reason"], retire_accepted: payload["retire_accepted"],
         superseded_by_insight_ids: payload["superseded_by_insight_ids"], superseded_by_job_ids: payload["superseded_by_job_ids"])
     end

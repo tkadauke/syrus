@@ -8,7 +8,8 @@ module AgentInsights
       def mutation_context(server_context)
         context = McpToolContext.from_server_context(server_context)
         chat_session = server_context[:chat_session]
-        actor = context.run || context.user
+        owner = context.user
+        audit_actor = context.run || context.user
         scope = if context.run?
           Repository.where(id: context.repository || context.run&.job&.repository)
         elsif context.user.admin?
@@ -16,7 +17,7 @@ module AgentInsights
         else
           Repository.where(id: context.allowed_repository_ids)
         end
-        [ context, chat_session, actor, scope ]
+        [ context, chat_session, owner, audit_actor, scope ]
       end
 
       def execute_or_confirm(mutation:, ids:, chat_session:, server_context:, action:, payload:, message:)

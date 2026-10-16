@@ -26,12 +26,12 @@ module AgentInsights
 
           insight_refs = references(ids, superseded_by_insight_id, superseded_by_insight_ids)
           job_refs = references(ids, superseded_by_job_id, superseded_by_job_ids)
-          _context, chat, actor, scope = mutation_context(server_context)
-          mutation = Mutations::Retire.new(ids: ids, actor: actor, repository_scope: scope, reason: reason,
+          _context, chat, owner, audit_actor, scope = mutation_context(server_context)
+          mutation = Mutations::Retire.new(ids: ids, actor: owner, audit_actor: audit_actor, repository_scope: scope, reason: reason,
             retire_accepted: retire_accepted, superseded_by_insight_ids: insight_refs, superseded_by_job_ids: job_refs)
           response = execute_or_confirm(mutation: mutation, ids: ids, chat_session: chat, server_context: server_context,
             action: "retire_insights",
-            payload: { "insight_ids" => ids, "reason" => reason, "retire_accepted" => retire_accepted,
+            payload: { "insight_ids" => ids, "reason" => mutation.reason, "retire_accepted" => retire_accepted,
               "superseded_by_insight_ids" => insight_refs, "superseded_by_job_ids" => job_refs },
             message: "Retire insights #{ids.map { |id| "##{id}" }.join(', ')}?")
           append_workflow_artifact(_context.run, mutation.validate.suggestions.first) if ids.one? && _context.run? && !response.error?
