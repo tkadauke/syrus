@@ -118,7 +118,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     <DocumentBadge document={document} />
                     <DocumentSummary document={document} />
                   </button>
-                  <button
+                  {payload.can_write ? <button
                     className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={destroy.isPending}
                     onClick={async () => {
@@ -127,7 +127,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     type="button"
                   >
                     {t('repository_documents.delete')}
-                  </button>
+                  </button> : null}
                 </div>
               </li>
             ))}
@@ -135,7 +135,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
         )}
       </section>
 
-      <DocumentForms acceptedTypes={payload.accepted_file_content_types} onNotice={setNotice} payload={payload} />
+      {payload.can_write ? <DocumentForms acceptedTypes={payload.accepted_file_content_types} onNotice={setNotice} payload={payload} /> : null}
       {previewDocument && previewDocument.file_path ? (
         <DocumentPreviewModal
           file={{ title: previewDocument.title, rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}

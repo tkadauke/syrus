@@ -22,6 +22,7 @@ export type RepositoryDocument = {
 
 export type RepositoryDocumentsPayload = {
   repository: RepositoryDocumentsRepository
+  can_write: boolean
   tabs: RepositoryTab[]
   documents: RepositoryDocument[]
   accepted_file_content_types: string[]

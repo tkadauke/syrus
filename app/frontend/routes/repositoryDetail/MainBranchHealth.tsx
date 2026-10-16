@@ -99,15 +99,15 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
               </a>
             </div>
           ) : null}
-          <button
+          {payload.can_edit ? <button
             className={buttonClass("gray")}
             disabled={graders.isPending}
             onClick={() => { onNotice(null); graders.mutate() }}
             type="button"
           >
             {t("repository.run_graders_now")}
-          </button>
-          {history.ci_health !== "not_configured" ? (
+          </button> : null}
+          {payload.can_edit && history.ci_health !== "not_configured" ? (
             <button
               className={buttonClass("gray")}
               disabled={ciCheck.isPending}
@@ -117,7 +117,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
               {t("repository.check_ci_now")}
             </button>
           ) : null}
-          {history.main_branch_repair.can_request ? (
+          {payload.can_edit && history.main_branch_repair.can_request ? (
             <button
               className={buttonClass("gray")}
               disabled={repair.isPending}
@@ -176,7 +176,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
             {t("repository.health_current_validation_pending")}
           </div>
         ) : null}
-        {canResume ? (
+        {payload.can_edit && canResume ? (
           <div className="flex flex-col gap-3 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-amber-900 dark:text-amber-100">
               {t("repository.resume_landing_warning")}

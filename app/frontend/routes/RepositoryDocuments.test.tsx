@@ -9,6 +9,7 @@ import * as useConfirmModule from "../hooks/useConfirm"
 function documentsPayload(overrides: Record<string, unknown> = {}) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    can_write: true,
     tabs: [],
     documents: [
       {
@@ -84,6 +85,15 @@ describe("RepositoryDocumentsRoute delete", () => {
     await waitFor(() => {
       expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
     })
+  })
+
+  it("hides document mutations from read-tier members", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({ can_write: false })))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}><Routes><Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" /></Routes></MemoryRouter></QueryClientProvider>)
+
+    expect(await screen.findByText("Architecture notes")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Google Doc URL")).not.toBeInTheDocument()
   })
 
   it("calls the delete API when the user confirms", async () => {

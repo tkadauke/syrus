@@ -745,8 +745,8 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
           {moreOpen ? (
             <div className="absolute right-0 z-20 mt-2 min-w-48 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu" role="menu">
               <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t('repository.new_job')}</Link>
-              <button className={menuItemClass()} disabled={disabled} onClick={pollNow} role="menuitem" type="button">{t('repository.poll_now')}</button>
-              {retry.count > 0 ? (
+              {payload.can_edit ? <button className={menuItemClass()} disabled={disabled} onClick={pollNow} role="menuitem" type="button">{t('repository.poll_now')}</button> : null}
+              {payload.can_edit && retry.count > 0 ? (
                 <button className={menuItemClass()} disabled={disabled || retry.provider_circuit.open} onClick={retryFailedJobs} role="menuitem" type="button">{t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}</button>
               ) : null}
               <Link className={menuItemClass()} onClick={() => setMoreOpen(false)} role="menuitem" to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>

@@ -219,7 +219,7 @@ function buildRepositoryColumns({
       align: "right",
       renderHeader: () => <span className="sr-only">{t("repositories.col_actions")}</span>,
       renderCell: (repository) =>
-        repository.archived ? (
+        repository.archived && repository.can_edit ? (
           <button
             className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
             disabled={unarchivePending}
@@ -623,7 +623,7 @@ function RepositoryMobileList({
               <span className="truncate text-text-secondary">{repository.agent_provider_label}</span>
             </div>
           </div>
-          {repository.archived ? (
+          {repository.archived && repository.can_edit ? (
             <button
               className={classes(
                 "absolute right-4 top-3 text-[length:var(--text-caption)] text-brand underline hover:no-underline",

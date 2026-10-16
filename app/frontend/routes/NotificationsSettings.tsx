@@ -62,10 +62,25 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
   })
   const update = useMutation({
     mutationFn: ({ kind, enabled }: { kind: NotificationPreferenceKind; enabled: boolean }) => updateNotificationPreferences({ [kind]: enabled }),
+    onMutate: async ({ kind, enabled }) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<NotificationPreferencesPayload>(queryKey)
+      if (previous) {
+        queryClient.setQueryData<NotificationPreferencesPayload>(queryKey, {
+          ...previous,
+          notification_preferences: { ...previous.notification_preferences, [kind]: enabled }
+        })
+      }
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+    },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t('notifications.updated'))
-    }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey })
   })
 
   return (
@@ -78,13 +93,6 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
           disabled={update.isPending}
           onChange={(kind, enabled) => {
             onNotice(null)
-            queryClient.setQueryData<NotificationPreferencesPayload>(queryKey, {
-              ...preferences.data,
-              notification_preferences: {
-                ...preferences.data.notification_preferences,
-                [kind]: enabled
-              }
-            })
             update.mutate({ kind, enabled })
           }}
           payload={preferences.data}

@@ -35,6 +35,7 @@ export type RepositoryRow = {
   last_poll_started_at: string | null
   last_poll_error: string | null
   poll_issue_errors?: RepositoryPollIssueError[]
+  can_edit: boolean
   repository_path: string
   edit_repository_path: string
 }
