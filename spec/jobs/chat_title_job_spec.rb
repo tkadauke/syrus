@@ -52,6 +52,20 @@ RSpec.describe ChatTitleJob do
     )
   end
 
+  it "ignores a soft-deleted title seed message" do
+    message.update!(deleted_at: Time.current, deleted_by_user: user)
+    called = false
+    ChatTitleJob.agent_runner = ->(**_) {
+      called = true
+      result('{"title":"Leaked title"}')
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(called).to eq(false)
+    expect(chat.reload.title).to be_nil
+  end
+
   it "uses the chat's pinned Codex provider when generating a title" do
     user.update!(agent_provider: "codex", codex_api_key: "sk-test", claude_oauth_token: nil)
     seen = {}

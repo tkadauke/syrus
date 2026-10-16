@@ -25,7 +25,7 @@ class ChatTitleJob < ApplicationJob
       return
     end
 
-    message_text ||= chat_session.messages.where(role: "user").find(user_message_id).content["text"]
+    message_text ||= chat_session.active_messages.where(role: "user").find(user_message_id).content["text"]
     chat_provider = chat_session.pin_chat_provider!(broadcast: false)
     generated = ChatTitleGenerator.new(
       chat_session: chat_session,

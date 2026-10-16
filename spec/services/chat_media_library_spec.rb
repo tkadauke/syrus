@@ -6,6 +6,30 @@ RSpec.describe ChatMediaLibrary do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
   let(:png_bytes) { "\x89PNG\r\n\x1a\n".b }
 
+  describe ".materialize_inline_images!" do
+    it "ignores inline images on soft-deleted messages" do
+      chat_session.messages.create!(
+        role: "user",
+        deleted_at: Time.current,
+        content: {
+          "text" => "Deleted screenshot",
+          "attachments" => [
+            {
+              "name" => "deleted.png",
+              "mime_type" => "image/png",
+              "data" => Base64.strict_encode64(png_bytes)
+            }
+          ]
+        }
+      )
+
+      expect {
+        described_class.materialize_inline_images!(chat_session)
+      }.not_to change(Document, :count)
+      expect(chat_session.reload.attached_repository_documents).to be_empty
+    end
+  end
+
   describe ".materialize_captured_image!" do
     it "creates a Document attached to the chat session's user" do
       document = described_class.materialize_captured_image!(
