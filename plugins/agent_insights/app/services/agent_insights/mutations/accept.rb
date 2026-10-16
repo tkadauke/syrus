@@ -36,7 +36,6 @@ module AgentInsights
         error = Proposals::Base.for(suggestion).completed_acceptance_error
         "Insight ##{suggestion.id} #{error}" if error
       end
-
     end
   end
 end

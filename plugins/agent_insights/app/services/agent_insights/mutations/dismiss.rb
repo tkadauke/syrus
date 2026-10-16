@@ -10,7 +10,7 @@ module AgentInsights
 
       def validation_failure(suggestion)
         return "reason is required" if reason.blank?
-        return "Insight ##{suggestion.id} must be pending" unless suggestion.pending?
+        "Insight ##{suggestion.id} must be pending" unless suggestion.pending?
       end
 
       def perform(suggestions)
@@ -19,7 +19,6 @@ module AgentInsights
       end
 
       private
-
     end
   end
 end
