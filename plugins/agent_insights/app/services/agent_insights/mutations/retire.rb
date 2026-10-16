@@ -24,7 +24,7 @@ module AgentInsights
           return "superseded_by_insight_id must reference an accessible insight in the current repository"
         end
         if reference_present?(superseded_by_job_ids, suggestion) && superseding_job_for(suggestion).nil?
-          return "Insight ##{suggestion.id} has an invalid superseding Job"
+          "Insight ##{suggestion.id} has an invalid superseding Job"
         end
       end
 
