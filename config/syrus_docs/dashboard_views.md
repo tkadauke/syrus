@@ -92,7 +92,9 @@ mutation of an existing Epic requires effective write-tier access to its
 repository. This covers edits, archive, claim/unclaim/reassign, start, state
 transitions (including overrides), and dependency additions or removals.
 Starting an Epic can release child Jobs, so it uses the same write boundary as
-other execution-triggering actions.
+other execution-triggering actions. Adding a dependency also requires write
+access to the prerequisite Epic's repository, and an Epic can only be
+reassigned to a user with effective write access to its repository.
 
 Creating an Epic, moving one to another repository, and the repository picker
 also use effective write access. Direct write/admin memberships and write/admin
