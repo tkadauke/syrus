@@ -18,6 +18,7 @@ RSpec.describe Steps::DependencyAuditPrComment do
   end
 
   before do
+    job.user.update!(github_handle: "operator")
     allow(GithubClient).to receive(:for).and_return(fake_client)
   end
 
@@ -73,6 +74,7 @@ RSpec.describe Steps::DependencyAuditPrComment do
     context "when an existing dependency audit comment is found" do
       let(:existing_comment) do
         double("comment", id: 777,
+               user: double(login: "operator"),
                body: "#{DependencyAuditReport::PrCommentFormatter::MARKER}\nold content")
       end
 
@@ -86,6 +88,26 @@ RSpec.describe Steps::DependencyAuditPrComment do
           job.repository.slug, 777, pr_comment_body
         )
         expect(fake_client).not_to receive(:add_issue_comment)
+        handler.call
+      end
+
+      it "ignores a foreign comment containing the marker" do
+        foreign_comment = double("comment", id: 666, user: double(login: "reviewer"),
+                                 body: "#{DependencyAuditReport::PrCommentFormatter::MARKER}\nquoted content")
+        allow(fake_client).to receive(:pr_issue_comments).and_return([ foreign_comment, existing_comment ])
+
+        expect(fake_client).to receive(:update_issue_comment).with(
+          job.repository.slug, 777, pr_comment_body
+        )
+        handler.call
+      end
+
+      it "posts a new comment when updating the owned comment fails" do
+        allow(fake_client).to receive(:update_issue_comment).and_raise(RuntimeError, "forbidden")
+
+        expect(fake_client).to receive(:add_issue_comment).with(
+          job.repository.slug, 42, pr_comment_body
+        )
         handler.call
       end
     end

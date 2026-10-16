@@ -51,7 +51,7 @@ class PrCommentIngester
 
     github_handle = comment.user&.login.to_s.presence
     attributed_to = PrCommentAttributor.call(github_handle: github_handle.to_s, job: @job)
-    actionable = classify_actionable(comment.body)
+    actionable = classify_actionable(comment)
 
     PrReviewComment.create!(
       job: @job,
@@ -82,9 +82,10 @@ class PrCommentIngester
     Integer(value_for(comment, key), exception: false)
   end
 
-  def classify_actionable(body)
+  def classify_actionable(comment)
+    body = comment.body
     return true if body.blank?
-    return false if coverage_report_comment?(body)
+    return false if syrus_report_comment?(comment)
 
     result = PrCommentClassifier.call(
       body: body,
@@ -100,8 +101,12 @@ class PrCommentIngester
     result.actionable
   end
 
-  def coverage_report_comment?(body)
-    body.include?(CoverageReport::PrCommentFormatter::MARKER)
+  def syrus_report_comment?(comment)
+    return false unless BotIdentity.for(@job).authored_github_comment?(comment)
+
+    body = comment.body.to_s
+    body.include?(CoverageReport::PrCommentFormatter::MARKER) ||
+      body.include?(DependencyAuditReport::PrCommentFormatter::MARKER)
   end
 
   def qualifies_for_workflow?(record)
