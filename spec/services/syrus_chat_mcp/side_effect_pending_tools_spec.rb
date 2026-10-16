@@ -119,6 +119,26 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     expect(ScheduledTasks::Fire).to have_received(:new).with(task)
   end
 
+  it "rejects fire-now proposals without repository write access" do
+    task = scheduled_task
+    repository.repository_memberships.find_by!(user: user).update!(role: "read")
+
+    response = call_tool("fire_scheduled_task_now", scheduled_task_id: task.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(text(response)).to include("write access")
+    expect(chat_session.pending_actions).to be_empty
+  end
+
+  it "re-checks repository write access when a fire-now action is confirmed" do
+    task = scheduled_task
+    action = pending_action_from(call_tool("fire_scheduled_task_now", scheduled_task_id: task.id))
+    repository.repository_memberships.find_by!(user: user).update!(role: "read")
+
+    expect(ScheduledTasks::Fire).not_to receive(:new)
+    expect { action.confirm! }.to raise_error(ArgumentError, /write access/)
+  end
+
   it "lets an admin create and confirm firing another user's scheduled task" do
     admin = Factories.user(admin: true)
     owner = Factories.user
