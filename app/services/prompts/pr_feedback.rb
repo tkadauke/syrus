@@ -26,7 +26,7 @@ module Prompts
     MAX_COMMENTS_BYTES = 30_000
     MAX_SUMMARIES_BYTES = 20_000
 
-    def initialize(issue:, comments:, cutoff: nil, prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
+    def initialize(issue:, comments:, cutoff: nil, prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [], spill: nil)
       @issue = issue
       @comments = comments
       @cutoff = cutoff
@@ -37,6 +37,7 @@ module Prompts
       @user = user
       @repository_ids = repository_ids
       @injected_context = Array(injected_context).compact
+      @spill = spill
     end
 
     def to_s
@@ -62,7 +63,7 @@ module Prompts
       <<~SECTION.strip
         Original issue (Issue author, unverified GitHub user): #{@issue.title}
 
-        #{Truncate.text(@issue.body, max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
+        #{Truncate.text(@issue.body, max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body", spill: @spill)}
       SECTION
     end
 
@@ -86,7 +87,7 @@ module Prompts
       lines = @prior_summaries.each_with_index.map do |summary, index|
         "Round #{index + 1}:\n#{summary}"
       end
-      summaries = Truncate.text(lines.join("\n\n"), max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries")
+      summaries = Truncate.text(lines.join("\n\n"), max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries", spill: @spill)
 
       <<~SECTION.strip
         What you've done on this PR in previous review rounds:
@@ -148,7 +149,8 @@ module Prompts
         @comments,
         max_items: MAX_COMMENTS,
         max_bytes: MAX_COMMENTS_BYTES,
-        priority: method(:new_comment?)
+        priority: method(:new_comment?),
+        spill: @spill
       ) { |comment| render(comment) }
     end
 
@@ -180,12 +182,12 @@ module Prompts
         #{indent(comment.diff_hunk.to_s)}
 
         Comment:
-        #{Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment")}
+        #{Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment", spill: @spill)}
       BLOCK
     end
 
     def render_conversation(comment)
-      body = Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment")
+      body = Truncate.text(comment.body, max_bytes: MAX_COMMENT_BYTES, label: "comment", spill: @spill)
       "[Conversation comment from @#{comment.user.login} (#{trust_label_for(comment_attribution(comment))}) at #{comment.created_at}]\n#{body}"
     end
 
