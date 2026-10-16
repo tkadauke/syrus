@@ -1,12 +1,16 @@
 class ProcessResourceSampler
-  VERSION = 1
+  VERSION = 2
   METHOD = "linux_proc_process_group".freeze
 
-  def initialize(pid:, pgid: nil)
+  def initialize(pid:, pgid: nil, proc_root: "/proc")
     @pid = pid
     @pgid = pgid
+    @proc_root = proc_root
     @first = nil
     @last = nil
+    @process_high_water_marks = {}
+    @observed_process_ids = Set.new
+    @processes_vanished = false
     @sample_count = 0
     @max_rss_bytes = nil
     @max_descendant_process_count = 0
@@ -16,14 +20,26 @@ class ProcessResourceSampler
     return unless linux?
     return if pid.blank?
 
-    metrics = process_ids.filter_map { |process_id| process_metrics(process_id) }
+    metrics_by_process = process_ids.to_h do |process_id|
+      [ process_id, process_metrics(process_id) ]
+    end.compact
+    metrics = metrics_by_process.values
+    current_process_ids = metrics_by_process.keys.to_set
+    @processes_vanished ||= observed_process_ids.any? && (observed_process_ids - current_process_ids).any?
     return if metrics.empty?
 
+    @observed_process_ids.merge(current_process_ids)
+    metrics_by_process.each do |process_id, metric|
+      process_high_water_marks[process_id] = cumulative_metric_keys.to_h do |key|
+        [ key, [ process_high_water_marks.dig(process_id, key), metric.fetch(key) ].compact.max ]
+      end
+    end
+
     total = {
-      cpu_time_seconds: metrics.sum { |metric| metric.fetch(:cpu_time_seconds) },
+      cpu_time_seconds: cumulative_total(:cpu_time_seconds),
       rss_bytes: metrics.sum { |metric| metric.fetch(:rss_bytes) },
-      read_io_bytes: metrics.sum { |metric| metric.fetch(:read_io_bytes) },
-      write_io_bytes: metrics.sum { |metric| metric.fetch(:write_io_bytes) },
+      read_io_bytes: cumulative_total(:read_io_bytes),
+      write_io_bytes: cumulative_total(:write_io_bytes),
       descendant_process_count: [ metrics.size - 1, 0 ].max
     }
 
@@ -55,7 +71,8 @@ class ProcessResourceSampler
 
   private
 
-  attr_reader :pid, :pgid, :first, :last, :sample_count, :max_rss_bytes, :max_descendant_process_count
+  attr_reader :pid, :pgid, :proc_root, :first, :last, :sample_count, :max_rss_bytes,
+    :max_descendant_process_count, :process_high_water_marks, :observed_process_ids
 
   def unavailable_payload
     {
@@ -70,6 +87,7 @@ class ProcessResourceSampler
   def confidence
     return "unknown" if sample_count.zero?
     return "low" if sample_count == 1
+    return "low" if @processes_vanished
 
     "medium"
   end
@@ -77,13 +95,21 @@ class ProcessResourceSampler
   def delta(key)
     return nil unless first && last
 
-    (last.fetch(key) - first.fetch(key)).round(3)
+    [ last.fetch(key) - first.fetch(key), 0 ].max.round(3)
+  end
+
+  def cumulative_metric_keys
+    %i[cpu_time_seconds read_io_bytes write_io_bytes]
+  end
+
+  def cumulative_total(key)
+    process_high_water_marks.values.sum { |metrics| metrics.fetch(key) }
   end
 
   def process_ids
     return [ pid ] if pgid.blank?
 
-    Dir.glob("/proc/[0-9]*").filter_map do |path|
+    Dir.glob(File.join(proc_root, "[0-9]*")).filter_map do |path|
       process_id = Integer(File.basename(path))
       process_pgid(process_id) == pgid ? process_id : nil
     rescue ArgumentError
@@ -110,12 +136,12 @@ class ProcessResourceSampler
   end
 
   def read_stat(process_id)
-    raw = File.read("/proc/#{process_id}/stat")
+    raw = File.read(File.join(proc_root, process_id.to_s, "stat"))
     after_name = raw[(raw.rindex(")") + 2)..]
     fields = after_name.split
     {
       pgid: Integer(fields[2]),
-      cpu_time_seconds: (Integer(fields[11]) + Integer(fields[12])).to_f / clock_ticks,
+      cpu_time_seconds: fields.values_at(11, 12, 13, 14).sum { |value| Integer(value) }.to_f / clock_ticks,
       rss_bytes: Integer(fields[21]) * page_size
     }
   rescue Errno::ENOENT, Errno::EACCES, ArgumentError, TypeError
@@ -124,7 +150,7 @@ class ProcessResourceSampler
 
   def read_io(process_id)
     values = { read_io_bytes: 0, write_io_bytes: 0 }
-    File.foreach("/proc/#{process_id}/io") do |line|
+    File.foreach(File.join(proc_root, process_id.to_s, "io")) do |line|
       case line
       when /\Aread_bytes:\s+(\d+)/
         values[:read_io_bytes] = Integer(Regexp.last_match(1))
