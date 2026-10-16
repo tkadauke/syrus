@@ -14,6 +14,18 @@ RSpec.describe SyrusYml do
     File.write(File.join(@dir, ".syrus.yml"), contents)
   end
 
+  it "wraps disallowed YAML classes as parse errors" do
+    expect { parse("preview:\n  env:\n    RELEASE: 2024-01-01\n") }
+      .to raise_error(described_class::ParseError, /YAML parse error.*Date/)
+  end
+
+  it "rejects oversized configuration before parsing" do
+    stub_const("#{described_class}::MAX_CONFIG_BYTES", 10)
+
+    expect { parse("prepare: false\n") }
+      .to raise_error(described_class::ParseError, /maximum size of 10 bytes/)
+  end
+
   it "parses merge train failure policy rungs" do
     config = parse(<<~YAML)
       merge_train:
@@ -51,6 +63,17 @@ RSpec.describe SyrusYml do
       described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", base_retry: nil, deps: []),
       described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict", base_retry: nil, deps: [])
     ])
+  end
+
+  it "keeps a grader required when required has no value" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          required:
+    YAML
+
+    expect(config.grade.steps.first.required).to eq(true)
   end
 
   it "parses the bare grade array form using AppSetting.grade_max_iterations" do
@@ -1063,6 +1086,28 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.timeout_minutes).to eq(90)
   end
 
+  it "rejects non-positive grader timeout_minutes" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            timeout_minutes: 0
+      YAML
+    }.to raise_error(described_class::ParseError, /timeout_minutes: must be a positive integer/)
+  end
+
+  it "wraps non-finite grader timeout_minutes as parse errors" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            timeout_minutes: .nan
+      YAML
+    }.to raise_error(described_class::ParseError, /timeout_minutes: must be an integer/)
+  end
+
   it "allows timeout_minutes up to the hard ceiling without clamping" do
     expect(Rails.logger).not_to receive(:warn)
 
@@ -1751,17 +1796,16 @@ RSpec.describe SyrusYml do
       expect(config.preview.setup).to eq([ "npm ci" ])
     end
 
-    it "supports YAML aliases for sharing prepare commands with preview setup" do
-      config = parse(<<~YAML)
-        prepare: &prepare_commands
-          - bundle install
-        preview:
-          setup: *prepare_commands
-          start: "node server.js"
-      YAML
-
-      expect(config.prepare).to eq([ "bundle install" ])
-      expect(config.preview.setup).to eq([ "bundle install" ])
+    it "rejects YAML aliases" do
+      expect {
+        parse(<<~YAML)
+          prepare: &prepare_commands
+            - bundle install
+          preview:
+            setup: *prepare_commands
+            start: "node server.js"
+        YAML
+      }.to raise_error(described_class::ParseError, /YAML parse error.*Alias/)
     end
 
     it "rejects a non-array preview setup" do

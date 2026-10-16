@@ -3,6 +3,7 @@ require "set"
 
 class SyrusYml
   CONFIG_FILE = ".syrus.yml".freeze
+  MAX_CONFIG_BYTES = 1.megabyte
   DEFAULT_GRADE_TIMEOUT_MINUTES = 15
   # Was 60; this repo's own .syrus.yml declares timeout_minutes: 75 for the
   # rspec grader (serial suite growth), but the old ceiling silently clamped
@@ -263,8 +264,6 @@ class SyrusYml
 
   def self.load_file(path, project_path: nil)
     new(Pathname.new(path).read, project_path: project_path).parse
-  rescue Psych::SyntaxError => e
-    raise ParseError, "YAML parse error: #{e.message}"
   end
 
   def self.load_repo(workspace_path, project_path: nil)
@@ -277,7 +276,11 @@ class SyrusYml
   end
 
   def parse
-    raw = YAML.safe_load(@contents, aliases: true) || {}
+    if @contents.bytesize > MAX_CONFIG_BYTES
+      raise ParseError, ".syrus.yml exceeds the maximum size of #{MAX_CONFIG_BYTES} bytes"
+    end
+
+    raw = YAML.safe_load(@contents, aliases: false) || {}
     raise ParseError, ".syrus.yml must be a mapping" unless raw.is_a?(Hash)
 
     raw_delivery = parse_delivery(raw["delivery"])
@@ -307,7 +310,7 @@ class SyrusYml
       target_graph: parse_target_graph(raw["target_graph"]),
       scripts: parse_scripts(raw["scripts"])
     )
-  rescue Psych::SyntaxError => e
+  rescue Psych::Exception => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
@@ -588,7 +591,7 @@ class SyrusYml
       ci: ci,
       phases: phases,
       description: raw["description"].to_s.strip.presence,
-      required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
+      required: raw["required"].nil? ? true : ActiveModel::Type::Boolean.new.cast(raw["required"]),
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
       when_files_changed: when_files_changed,
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
@@ -964,13 +967,15 @@ class SyrusYml
 
   def parse_timeout_minutes(raw, name)
     minutes = Integer(raw)
+    raise ParseError, "grade step #{name.inspect} timeout_minutes: must be a positive integer" unless minutes.positive?
+
     if minutes > MAX_GRADE_TIMEOUT_MINUTES
       Rails.logger.warn("[SyrusYml] grade step #{name.inspect} timeout_minutes #{minutes} exceeds #{MAX_GRADE_TIMEOUT_MINUTES}; clamping")
       MAX_GRADE_TIMEOUT_MINUTES
     else
       minutes
     end
-  rescue ArgumentError, TypeError
+  rescue ArgumentError, TypeError, FloatDomainError
     raise ParseError, "grade step #{name.inspect} timeout_minutes: must be an integer"
   end
 

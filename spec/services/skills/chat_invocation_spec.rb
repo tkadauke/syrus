@@ -83,6 +83,26 @@ RSpec.describe Skills::ChatInvocation do
       expect(result.resolution.definition.description).to eq("Repo override.")
     end
 
+    it "returns an invalid_skill notice for malformed repo-local skill YAML" do
+      stub_repository_content(repository, files: {
+        ".syrus/skills/investigate/SKILL.md" => "---\nname: [unterminated\n---\nBody."
+      })
+
+      result = resolve(text: "/investigate question=why?")
+
+      expect(result.status).to eq(:invalid_skill)
+      expect(result.message).to include("skill definition could not be loaded", "YAML parse error")
+    end
+
+    it "returns an invalid_skill notice when repository content is unavailable" do
+      allow(Skills).to receive(:for).and_raise(RepositoryContent::Unavailable, "host unavailable")
+
+      result = resolve(text: "/investigate question=why?")
+
+      expect(result.status).to eq(:invalid_skill)
+      expect(result.message).to include("host unavailable")
+    end
+
     it "returns invalid_args when a required parameter is missing" do
       enable_coding_mode!
       chat.update!(mode: "coding")

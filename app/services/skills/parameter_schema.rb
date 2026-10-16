@@ -68,7 +68,8 @@ module Skills
 
       fields.each do |field|
         value = params[field.key]
-        errors << "#{field.key}: is required" if field.required && value.blank? && field.default.nil?
+        missing = value.nil? || value == ""
+        errors << "#{field.key}: is required" if field.required && missing && field.default.nil?
 
         if field.type == "select" && value.present? && !field.options.include?(value.to_s)
           errors << "#{field.key}: must be one of #{field.options.join(', ')}"
