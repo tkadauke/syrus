@@ -79,7 +79,19 @@ Syrus checks for Linux and kernel overlayfs support before attempting the mount.
 Note that an unprivileged container cannot mount overlayfs: the mount is
 refused with `must be superuser to use mount` unless the worker holds an
 effective `CAP_SYS_ADMIN`, so on a stock Kubernetes worker this flag records a
-fallback on every materialization rather than mounting anything.
+fallback rather than mounting anything.
+
+Support is probed once per process rather than attempted per materialization,
+because the old check -- Linux, plus `overlay` in `/proc/filesystems` -- could
+not see the missing capability and so logged a failed mount every time
+(2,232 of them in one production day). The probe also reports whether a mount
+**inside a user namespace** would succeed, which is what a stock worker can
+do on kernels 5.11 and newer (`unshare --user --map-root-user --mount
+--propagation unchanged`; the default `private` remount of `/` is itself
+privileged). Nothing uses that strategy yet: such a mount exists only inside
+the namespace, so the graded command would have to execute there too, which is
+a change to how commands are run rather than how workspaces are materialized.
+The fallback log says when a host is ready for it.
 
 ### Materialization strategies
 

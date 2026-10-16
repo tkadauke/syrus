@@ -1,11 +1,77 @@
 require "open3"
 require "rbconfig"
+require "tmpdir"
+require "fileutils"
 
 class ImmutableSourceCheckoutOverlay
   Result = Data.define(:mounted, :reason, :lower_path, :upper_path, :work_path, :mount_path) do
     def mounted? = mounted
 
     def strategy = mounted ? "overlay" : "copy"
+  end
+
+  # What this worker can actually do, probed once per process.
+  #
+  # The support check used to be "Linux, and overlay is in /proc/filesystems",
+  # which cannot see the thing that actually stops the mount: an unprivileged
+  # container has no effective CAP_SYS_ADMIN, so `mount` is refused with
+  # "must be superuser to use mount". On a stock Kubernetes worker that made
+  # every single materialization attempt a failed mount plus a misleading log
+  # line -- 2,232 of them in one production day -- before falling back.
+  #
+  # The probe also records whether a mount inside a user namespace would work
+  # (kernels 5.11+ allow unprivileged overlayfs there; `unshare` needs
+  # --propagation unchanged, since remounting / private is itself privileged).
+  # Nothing uses that strategy yet: the mount would live in the namespace, so
+  # the graded command has to execute inside it, which is a change to how
+  # commands are run rather than to how workspaces are materialized. Recording
+  # it says whether the fleet is ready for that work.
+  Capability = Data.define(:strategy, :reason) do
+    def direct? = strategy == :direct
+
+    def user_namespace? = strategy == :user_namespace
+
+    def available? = direct?
+  end
+
+  def self.capability(refresh: false)
+    @capability = nil if refresh
+    @capability ||= probe_capability
+  end
+
+  def self.probe_capability
+    return Capability.new(:unavailable, "overlayfs requires Linux workers") unless RbConfig::CONFIG.fetch("host_os").match?(/linux/i)
+    return Capability.new(:unavailable, "overlayfs is not listed in /proc/filesystems") unless overlay_filesystem_available?
+
+    Dir.mktmpdir("syrus-overlay-probe-") do |dir|
+      probe = Pathname.new(dir)
+      %w[lower upper work mount].each { |name| FileUtils.mkdir_p(probe.join(name)) }
+      options = "lowerdir=#{probe.join('lower')},upperdir=#{probe.join('upper')},workdir=#{probe.join('work')}"
+      mount_point = probe.join("mount").to_s
+
+      _out, direct_error, direct_status = Open3.capture3("mount", "-t", "overlay", "overlay", "-o", options, mount_point)
+      if direct_status.success?
+        unmount(mount_point)
+        next Capability.new(:direct, nil)
+      end
+
+      _ns_out, _ns_error, ns_status = Open3.capture3(
+        "unshare", "--user", "--map-root-user", "--mount", "--propagation", "unchanged",
+        "sh", "-c", "mount -t overlay overlay -o #{options} #{mount_point}"
+      )
+      reason = "overlay mount failed: #{direct_error.to_s.strip.presence || "exit #{direct_status.exitstatus}"}"
+      next Capability.new(:user_namespace, reason) if ns_status.success?
+
+      Capability.new(:unavailable, reason)
+    end
+  rescue StandardError => e
+    Capability.new(:unavailable, "overlay support probe failed: #{e.class}: #{e.message}")
+  end
+
+  def self.overlay_filesystem_available?
+    File.read("/proc/filesystems").lines.any? { |line| line.split.last == "overlay" }
+  rescue Errno::ENOENT, Errno::EACCES
+    false
   end
 
   def self.mount(...)
@@ -80,21 +146,11 @@ class ImmutableSourceCheckoutOverlay
   attr_reader :lower_path, :mount_path, :log
 
   def unsupported_reason
-    return "overlayfs requires Linux workers" unless linux?
-    return "overlayfs is not listed in /proc/filesystems" unless overlay_filesystem_available?
+    capability = self.class.capability
+    return capability.reason unless capability.available?
     return "prepared checkout lower directory is missing" unless lower_path.directory?
 
     nil
-  end
-
-  def linux?
-    RbConfig::CONFIG.fetch("host_os").match?(/linux/i)
-  end
-
-  def overlay_filesystem_available?
-    File.read("/proc/filesystems").lines.any? { |line| line.split.last == "overlay" }
-  rescue Errno::ENOENT, Errno::EACCES
-    false
   end
 
   def mount_options
@@ -119,7 +175,9 @@ class ImmutableSourceCheckoutOverlay
   end
 
   def fallback(reason)
-    log&.call("[immutable_source_checkout] overlay workspace unavailable; falling back to copy: #{reason}")
+    capability = self.class.capability
+    note = capability.user_namespace? ? " (a user-namespace mount is available on this host; wrapping graded commands in one is not implemented yet)" : ""
+    log&.call("[immutable_source_checkout] overlay workspace unavailable; falling back without it: #{reason}#{note}")
     Result.new(false, reason, lower_path.to_s, upper_path.to_s, work_path.to_s, mount_path.to_s)
   end
 end
