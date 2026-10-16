@@ -253,6 +253,17 @@ describe("RepositoryDetailRoute more menu", () => {
 
     await screen.findByRole("button", { name: "More actions" })
     expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    expect(screen.queryByRole("menuitem", { name: "Poll now" })).not.toBeInTheDocument()
+  })
+
+  it("hides retry failed from members without repository admin access", async () => {
+    renderRoute({ can_edit: false, retry_failed_jobs: {
+      count: 2, agent_provider: "claude", agent_provider_label: "Claude",
+      provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
+    } })
+    await openMoreMenu()
+    expect(screen.queryByRole("menuitem", { name: /Retry 2 failed/ })).not.toBeInTheDocument()
   })
 
   it("links to the skill launch picker from the more menu", async () => {
