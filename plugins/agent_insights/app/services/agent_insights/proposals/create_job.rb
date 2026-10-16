@@ -6,7 +6,7 @@ module AgentInsights
 
         if ActiveModel::Type::Boolean.new.cast(params[:create_job])
           prompt_text = params[:prompt].to_s.strip
-          return Result.error("Prompt can't be blank when creating a job.") if prompt_text.blank?
+          return Result.error(validation_error(actor: actor, params: params)) if validation_error(actor: actor, params: params)
 
           repository = suggestion.repository
           agent_provider_setting = params[:agent_provider].to_s.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
@@ -30,6 +30,27 @@ module AgentInsights
         end
 
         Base.accept_suggestion!(suggestion, created_job: created_job)
+      end
+
+      def validation_error(actor:, params: {})
+        return unless ActiveModel::Type::Boolean.new.cast(params[:create_job])
+        return "Prompt can't be blank when creating a job." if params[:prompt].to_s.strip.blank?
+
+        setting = params[:agent_provider].to_s.presence || Job::ProviderSetting::Base::DEFAULT_VALUE
+        Job::ProviderSetting::Base.for(setting).resolve(
+          Job.new(repository: suggestion.repository, user: actor, owner_user: actor)
+        )
+        nil
+      rescue KeyError, ArgumentError => e
+        e.message
+      end
+
+      def automatic_accept_params
+        { create_job: true, prompt: suggestion.suggested_prompt }
+      end
+
+      def completed_acceptance_error
+        "was accepted without its Job" unless suggestion.created_job
       end
     end
   end

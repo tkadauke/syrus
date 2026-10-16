@@ -361,6 +361,20 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
 }
 
 export function parseOutcome(context: ToolCardContext) {
+  if (isPlainObject(context.parsedResult)) {
+    const ids = Array.isArray(context.parsedResult.insight_ids) ? context.parsedResult.insight_ids : []
+    const firstId = ids.length > 0 ? displayValue(ids[0]) : null
+    const message = displayValue(context.parsedResult.message) ?? "Insight mutation requested."
+    return {
+      id: firstId,
+      message,
+      reason: typeof context.input?.reason === "string" ? context.input.reason : null,
+      targetInsightId: displayValue(context.input?.target_insight_id) ?? firstId,
+      supersededByInsightId: displayValue(context.input?.superseded_by_insight_id),
+      supersededByJobId: displayValue(context.input?.superseded_by_job_id)
+    }
+  }
+
   const message = context.resultBody.trim()
   if (!message || message.startsWith("{")) return null
   const id = message.match(/Suggestion #(\d+)/)?.[1] ?? null

@@ -1720,10 +1720,13 @@ require repository write access, while changing the repository-wide schedule
 requires repository admin access.
 
 While the plugin is enabled, regular chat agents can discover
-and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
+and call `list_insights`, `read_insight`, `accept_insight`, `dismiss_insight`,
+and `retire_insight` for suggestions
 in the chat's attached repositories. Admin chat agents can inspect all
 repositories and can narrow broad reads with repository, state, page, and limit
-filters. `retire_insight` is an audited user action for clearing stale,
+filters. Each mutation accepts one insight id or a bounded, deduplicated array;
+multi-insight changes are validated together and require one grouped operator
+confirmation before any record changes. `retire_insight` is an audited user action for clearing stale,
 duplicated, or superseded suggestions, can cite a superseding Job, and keeps the
 accepted-insight guard: accepted rows require an explicit
 `retire_accepted: true`. Suggestion creation and revision remain limited to

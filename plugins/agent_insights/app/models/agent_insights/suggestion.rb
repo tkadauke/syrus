@@ -62,11 +62,22 @@ module AgentInsights
       end
     end
 
-    def dismiss!
+    def dismiss!(reason: nil, actor: nil)
       with_lock do
         return false unless pending?
 
+        previous_values = { "state" => state, "dismissed_at" => dismissed_at }
         update!(state: "dismissed", dismissed_at: Time.current)
+        if reason.present?
+          AuditEvent.record!(
+            insight_suggestion: self,
+            event_type: "dismissed",
+            actor: actor,
+            previous_values: previous_values,
+            new_values: { "state" => state, "dismissed_at" => dismissed_at },
+            reason: reason
+          )
+        end
         true
       end
     end
