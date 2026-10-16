@@ -115,7 +115,9 @@ RSpec.describe "native macOS worker release artifact" do
       )
 
       expect(status).to be_success, stderr
-      artifact = Dir[File.join(output_dir, "*.tar.gz")].sole
+      artifacts = Dir[File.join(output_dir, "*.tar.gz")]
+      expect(artifacts.length).to eq(1)
+      artifact = artifacts.first
       encoded_signature = "#{artifact}.sig"
       raw_signature = File.join(dir, "artifact.sig")
       decode_ok = system("openssl", "base64", "-d", "-A", "-in", encoded_signature, "-out", raw_signature)
