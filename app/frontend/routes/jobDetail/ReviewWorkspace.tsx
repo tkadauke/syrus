@@ -425,6 +425,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               composingPending={feedback.composingPending}
               composingSelection={feedback.composingSelection}
               editingThreadBody={feedback.editingThreadBody}
+              editingThreadError={feedback.editingThreadError}
               editingThreadId={feedback.editingThreadId}
               emptyState={
                 <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">
