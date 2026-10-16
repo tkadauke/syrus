@@ -6,6 +6,17 @@ RSpec.describe AutoRetryFailureClassifier do
   let(:step) { workflow.first_step }
   let(:run) { step.runs.first }
 
+  def persist_auth_expiry!
+    classification = run.run_failure_classification || run.build_run_failure_classification
+    classification.update!(
+      classification: ProviderAuthFailure::CLASSIFICATION,
+      retryable: false,
+      confidence: 0.95,
+      reason: "The provider authentication token expired and needs operator reauthorization.",
+      classified_at: Time.current
+    )
+  end
+
   def fail_run!(agent_outcome: nil, error_class: nil, error_message: nil)
     run.update!(state: "failed", agent_outcome: agent_outcome, finished_at: Time.current)
     step.update!(state: "failed", finished_at: Time.current)
@@ -207,26 +218,53 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result).not_to be_retryable
   end
 
-  it "classifies persisted provider auth expiration as non-retryable before generic turn_failed" do
+  # A token can expire between admission and use -- production saw one go
+  # between 09:03 and 09:28 -- so no availability check at admission can
+  # prevent it, and the run that discovers it is the one that pays. The
+  # provider is the broken part, not the work, so the attempt is worth
+  # retrying wherever else it can go.
+  it "classifies persisted provider auth expiration as retryable when another provider is available" do
     fail_run!(agent_outcome: "turn_failed")
     run.update!(agent_provider: "codex")
-    classification = run.run_failure_classification || run.build_run_failure_classification
-    classification.update!(
-      classification: ProviderAuthFailure::CLASSIFICATION,
-      retryable: false,
-      confidence: 0.95,
-      reason: "The provider authentication token expired and needs operator reauthorization.",
-      classified_at: Time.current
-    )
+    persist_auth_expiry!
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.reason).to include("reauthorization")
+    expect(result.reason).to include("another provider")
+  end
+
+  it "keeps provider auth expiration non-retryable when nothing else is configured" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.update!(agent_provider: "codex")
+    persist_auth_expiry!
+    only_codex = [ instance_double(ProviderRouting::Resolver::Candidate, provider: "codex") ]
+    allow(ProviderRouting::Resolver).to receive(:call).and_return(only_codex)
 
     result = described_class.call(workflow: workflow)
 
     expect(result).not_to be_retryable
     expect(result.classification).to eq("provider_auth_expired")
-    expect(result.reason).to include("reauthorization")
   end
 
-  it "classifies Codex token refresh diagnostics as non-retryable before generic turn_failed" do
+  # Spending a retry to reach the same refusal is worse than escalating.
+  it "keeps provider auth expiration non-retryable when the alternative is also unusable" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.update!(agent_provider: "codex")
+    persist_auth_expiry!
+    allow(App::ProviderAvailability).to receive(:for_user).and_return({ state: "auth_error", open: true })
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+  end
+
+  # Detected from the provider's own diagnostics rather than a persisted
+  # classification: the same decision either way, or the two could disagree
+  # about whether the same expiry is worth retrying.
+  it "classifies Codex token refresh diagnostics as retryable when another provider is available" do
     fail_run!(
       agent_outcome: "turn_failed",
       error_class: "CodexInvocation::Error",
@@ -236,11 +274,12 @@ RSpec.describe AutoRetryFailureClassifier do
 
     result = described_class.call(workflow: workflow)
 
-    expect(result).not_to be_retryable
+    expect(result).to be_retryable
     expect(result.classification).to eq("provider_auth_expired")
+    expect(result.reason).to include("another provider")
   end
 
-  it "classifies Codex websocket 401 logs as non-retryable before generic turn_failed" do
+  it "classifies Codex websocket 401 logs as retryable when another provider is available" do
     fail_run!(agent_outcome: "turn_failed")
     run.update!(agent_provider: "codex")
     JobLog.append!(
@@ -251,7 +290,7 @@ RSpec.describe AutoRetryFailureClassifier do
 
     result = described_class.call(workflow: workflow)
 
-    expect(result).not_to be_retryable
+    expect(result).to be_retryable
     expect(result.classification).to eq("provider_auth_expired")
   end
 

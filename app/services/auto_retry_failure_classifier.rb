@@ -122,7 +122,7 @@ class AutoRetryFailureClassifier
       return retryable("agent_resume_unavailable", run.run_failure_classification.reason)
     end
     if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
-      return non_retryable(ProviderAuthFailure::CLASSIFICATION, run.run_failure_classification.reason.presence || "provider authentication token expired")
+      return provider_auth_result(run, run.run_failure_classification.reason)
     end
     if run.run_failure_classification&.classification == ProviderModelUnsupported::CLASSIFICATION
       return non_retryable(
@@ -135,9 +135,7 @@ class AutoRetryFailureClassifier
       reason = classification.reason.presence || "run failure classifier marked #{classification.classification}"
       return classification.retryable? ? retryable(classification.classification, reason) : non_retryable(classification.classification, reason)
     end
-    if provider_auth_failure?(run)
-      return non_retryable(ProviderAuthFailure::CLASSIFICATION, "provider authentication token expired")
-    end
+    return provider_auth_result(run, nil) if provider_auth_failure?(run)
 
     diagnostic = run.run_diagnostic
     # New Syrus-owned operational failures declare a Problem on the captured
@@ -184,6 +182,52 @@ class AutoRetryFailureClassifier
     return nil if code.blank?
 
     Problem.resolve(code)
+  end
+
+  # One decision for an expired token however it was detected -- a persisted
+  # classification or the provider's own diagnostics -- so the two cannot
+  # disagree about whether it is worth retrying.
+  def provider_auth_result(run, reason)
+    reason = reason.presence || "provider authentication token expired"
+    return non_retryable(ProviderAuthFailure::CLASSIFICATION, reason) unless provider_failover_available?(run)
+
+    retryable(ProviderAuthFailure::CLASSIFICATION, "#{reason}; another provider is available for retry")
+  end
+
+  # An expired token says nothing about the work -- only about where it was
+  # sent. A token can expire between admission and use, as one did in
+  # production between 09:03 and 09:28, so no availability check at admission
+  # can prevent it; the run that discovers the expiry is the one that pays. It
+  # is worth retrying exactly when there is somewhere else to send it, and the
+  # auth-error evidence the failure writes steers routing away from the
+  # expired provider.
+  #
+  # On a single-provider instance the retry would land on the same refusal, so
+  # escalation stays the right answer there. Unlike AutoRetryJob's circuit
+  # check this does not require a retry-specific routing rule: the question is
+  # whether another candidate exists at all, not whether one was configured
+  # for retries in particular.
+  def provider_failover_available?(run)
+    job = run.job
+    return false unless job
+
+    ProviderRouting::Resolver.call(job: job, task_key: "retry").any? do |candidate|
+      provider = candidate.provider.to_s
+      next false if provider.blank? || provider == run.agent_provider.to_s
+
+      provider_usable?(job.user, provider)
+    end
+  rescue StandardError
+    false
+  end
+
+  # "Configured" is not enough: retrying onto a provider whose own credentials
+  # are expired spends a retry to reach the same refusal. Availability reports
+  # `open` for a provider routing has to skip.
+  def provider_usable?(user, provider)
+    App::ProviderAvailability.for_user(user, provider)[:open] != true
+  rescue StandardError
+    true
   end
 
   def latest_failed_run

@@ -146,6 +146,30 @@ RSpec.describe AutoRetryJob do
     expect(retry_run.parent_session_id).to eq(Steps::Base::DISABLE_AGENT_RESUME)
   end
 
+  # The provider is the broken part of a provider-auth failure, so the retry
+  # must not inherit it: leaving it blank lets routing resolve again against
+  # the auth-error evidence the failure just wrote. And it retries the whole
+  # workflow rather than a step inside the failed one, which still has the
+  # expired provider pinned to it.
+  it "lets routing re-resolve the provider for a provider-auth failure" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    attempt.update!(failure_classification: ProviderAuthFailure::CLASSIFICATION)
+    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
+    allow(RetryFailedStepEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+      job: job,
+      agent_provider: nil,
+      artifacts: { "auto_retry_attempt_id" => attempt.id },
+      provider_validation: :none,
+      automatic: true
+    )
+    expect(RetryFailedStepEnqueuer).not_to have_received(:call)
+  end
+
   it "uses RetryWorkflowEnqueuer for retry-workflow attempts" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)

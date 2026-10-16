@@ -266,7 +266,17 @@ class AutoRetryJob < ApplicationJob
   end
 
   def perform_retry(attempt)
+    # A provider-auth failure is retried as a whole workflow, never as a step
+    # inside the failed one: the failed workflow has the expired provider
+    # pinned to it, so resuming a step there would walk straight back into the
+    # same refusal. A fresh workflow resolves its provider again.
+    return retry_workflow(attempt) if provider_auth_failure?(attempt)
+
     send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
+  end
+
+  def provider_auth_failure?(attempt)
+    attempt.failure_classification == ProviderAuthFailure::CLASSIFICATION
   end
 
   def retry_result_circuit(result)
@@ -353,11 +363,21 @@ class AutoRetryJob < ApplicationJob
   def retry_workflow(attempt)
     RetryWorkflowEnqueuer.call(
       job: attempt.job,
-      agent_provider: attempt.agent_provider,
+      agent_provider: retry_agent_provider(attempt),
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       provider_validation: :none,
       automatic: true
     )
+  end
+
+  # Keeping the failed provider is right for almost every retry -- the work is
+  # what failed, not the provider. A provider-auth failure inverts that: the
+  # provider is the broken part, so leave it blank and let routing resolve it
+  # again against the auth-error evidence this failure just wrote.
+  def retry_agent_provider(attempt)
+    return nil if provider_auth_failure?(attempt)
+
+    attempt.agent_provider
   end
 
   def resume_failed_step(attempt)
