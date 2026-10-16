@@ -1683,6 +1683,8 @@ const deleteCredentials = async () => {
   cachedCredentials = null
   setUnreadCount(0)
   stopAppUserCable()
+  mainWindow?.webContents.send("credentials-cleared")
+  preferencesWindow?.webContents.send("credentials-cleared")
 }
 
 const rendererUrl = (view?: string) => {
@@ -1817,7 +1819,6 @@ const showPreferencesWindow = async () => {
 
 const showSetupWindow = async () => {
   await showPreferencesWindow()
-  preferencesWindow?.webContents.send("credentials-cleared")
 }
 
 // The dock icon appears only while a real window is open; tray-only mode

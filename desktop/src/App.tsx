@@ -2536,6 +2536,7 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
 }
 
 export function App() {
+  const queryClient = useQueryClient()
   const view = new URLSearchParams(window.location.search).get("view")
   const isPreferencesView = view === "preferences"
   const isComposeView = view === "compose"
@@ -2611,17 +2612,28 @@ export function App() {
         }
       })
 
-    const unsubscribe = window.syrusDesktop.onCredentialsCleared(() => {
+    const unsubscribeCleared = window.syrusDesktop.onCredentialsCleared(() => {
+      queryClient.clear()
       setToken("")
       setError("")
       setAuthState("setup")
     })
+    const unsubscribeSaved = isPreferencesView
+      ? () => {}
+      : window.syrusDesktop.onCredentialsSaved((credentials) => {
+          queryClient.clear()
+          setUrl(credentials.url)
+          setToken(credentials.token)
+          setError("")
+          setAuthState("authenticated")
+        })
 
     return () => {
       isMounted = false
-      unsubscribe()
+      unsubscribeCleared()
+      unsubscribeSaved()
     }
-  }, [isPreferencesView])
+  }, [isPreferencesView, queryClient])
 
   useEffect(() => {
     if (isRecordingHotkey) {
