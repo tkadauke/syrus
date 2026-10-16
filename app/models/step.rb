@@ -184,6 +184,45 @@ class Step < ApplicationRecord
       details.to_h["superseded_by_manual_grade_loop_restart"] == true
   end
 
+  # A `try` Step records this when StepDispatcher expands one of its declared
+  # failure branches, so its own failure has already been handed to recovery
+  # steps inserted after it -- it is not an unhandled failure, and the chain
+  # it belongs to is still moving.
+  #
+  # The merge train is the case that matters. `merge_train_land` raises
+  # BaseMoved when the base branch moved under a graded integration branch,
+  # and the branch rebases the integration branch onto the new tip, skips the
+  # agent when the rebase is clean, carries the green grade forward and lands
+  # again. That worked in production -- and then the work-engine reconciler
+  # saw a failed Step, no active Run (the final land step was waiting on host
+  # admission) and a live workflow, called it an orphaned failure, and failed
+  # the workflow out from under the recovery seconds after the rebase
+  # succeeded. Eight trains died that way in one week, discarding around
+  # fifteen hours of grading between them, every one of them recoverable.
+  #
+  # Two conditions, because the marker alone outlives the recovery. The chain
+  # must have moved past this Step -- some later Step is no longer queued, so
+  # the branch actually ran -- and it must still have somewhere to go. An
+  # ordinary failed Step sits in front of a queued tail that never started,
+  # which is exactly the orphaned failure the reconciler exists to clean up,
+  # and that still reads as one here.
+  #
+  # When the recovery is finally exhausted it is the branch's own last Step
+  # that fails, and the reconciler picks the furthest failed Step, so the
+  # workflow still fails on a dead recovery -- through that Step rather than
+  # through this one.
+  #
+  # Asked of the database rather than of whatever the caller happens to have
+  # loaded: the reconciler holds Steps across state changes, and a stale
+  # association would answer with the chain as it was rather than as it is.
+  def superseded_try_branch_failure?
+    return false unless details.to_h["try_branch_expanded"] == true
+
+    later = workflow.steps.where("steps.position > ?", position.to_i)
+    later.where.not(state: "queued").exists? &&
+      later.where.not(state: TERMINAL_STATES).exists?
+  end
+
   def state_projection(runs: nil)
     Steps::StateProjection.for(self, runs: runs)
   end

@@ -4302,6 +4302,77 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(job.reload).to be_failed
   end
 
+  # merge_train_land raises BaseMoved when the base branch moves under a graded
+  # integration branch, and the try branch rebases, carries the grade across a
+  # clean rebase and lands again. In production the reconciler kept failing the
+  # workflow seconds after the rebase succeeded, while the final land step was
+  # still waiting on host admission: a failed Step with no active Run looks
+  # exactly like an orphaned failure.
+  it "leaves a workflow alone while an expanded try failure branch is still recovering" do
+    rebase = Step.create!(workflow: workflow, kind: "merge_train_rebase", position: 1)
+    land_again = Step.create!(workflow: workflow, kind: "merge_train_land_after_rebase", position: 2)
+    step.update!(
+      kind: "merge_train_land",
+      next_step: rebase,
+      details: {
+        "try_branch_expanded" => true,
+        "try_branch_failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE
+      }
+    )
+    rebase.update!(next_step: land_again)
+    job.update_columns(state: "queued", started_at: nil)
+    workflow.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    step.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    run.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    rebase.update_columns(state: "succeeded", started_at: 14.minutes.ago, finished_at: 13.minutes.ago)
+    land_again.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    attach_work_unit(workflow, state: "queued")
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_workflow_with_failed_step)).to be_nil
+    expect(plan(result, :fail_workflow_from_failed_step)).to be_nil
+    expect(workflow.reload).not_to be_failed
+    expect(job.reload).not_to be_failed
+  end
+
+  it "fails a workflow whose expanded try failure branch has itself failed" do
+    rebase = Step.create!(workflow: workflow, kind: "merge_train_rebase", position: 1)
+    land_again = Step.create!(workflow: workflow, kind: "merge_train_land_after_rebase", position: 2)
+    step.update!(
+      kind: "merge_train_land",
+      next_step: rebase,
+      details: {
+        "try_branch_expanded" => true,
+        "try_branch_failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE
+      }
+    )
+    rebase.update!(next_step: land_again)
+    job.update_columns(state: "queued", started_at: nil)
+    workflow.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    step.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    run.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    rebase.update_columns(state: "succeeded", started_at: 14.minutes.ago, finished_at: 13.minutes.ago)
+    land_again.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "failed",
+      started_at: 12.minutes.ago,
+      finished_at: 11.minutes.ago
+    )
+    land_again.update_columns(state: "failed", started_at: 12.minutes.ago, finished_at: 11.minutes.ago)
+    attach_work_unit(workflow, state: "queued")
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    issue = kind(result, :queued_workflow_with_failed_step)
+    expect(issue).to be_present
+    expect(issue.evidence["failed_step_id"]).to eq(land_again.id)
+    expect(workflow.reload).to be_failed
+  end
+
   it "fails a queued workflow that already has a failed step and a queued tail" do
     pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
     step.update!(kind: "prepare", next_step: pr_open)

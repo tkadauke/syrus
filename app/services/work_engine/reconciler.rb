@@ -3320,7 +3320,10 @@ module WorkEngine
     end
 
     def orphaned_failed_step(workflow)
-      failed_steps = workflow.steps.select(&:failed?).reject(&:superseded_retry_until_failure?)
+      failed_steps = workflow.steps
+        .select(&:failed?)
+        .reject(&:superseded_retry_until_failure?)
+        .reject(&:superseded_try_branch_failure?)
       return nil if failed_steps.empty?
       return nil if workflow.live_descendants?
 

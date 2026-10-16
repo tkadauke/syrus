@@ -131,6 +131,49 @@ RSpec.describe Step do
     end
   end
 
+  describe "#superseded_try_branch_failure?" do
+    def try_chain(land_state:, branch_state:, tail_state:, expanded: true)
+      details = expanded ? { "try_branch_expanded" => true } : {}
+      land = described_class.create!(workflow: workflow, kind: "merge_train_land", position: 0, details: details)
+      branch = described_class.create!(workflow: workflow, kind: "merge_train_rebase", position: 1)
+      tail = described_class.create!(workflow: workflow, kind: "merge_train_land_after_rebase", position: 2)
+      land.update_columns(state: land_state)
+      branch.update_columns(state: branch_state)
+      tail.update_columns(state: tail_state)
+      land
+    end
+
+    it "is false without the marker the dispatcher writes when it expands a branch" do
+      land = try_chain(land_state: "failed", branch_state: "succeeded", tail_state: "queued", expanded: false)
+
+      expect(land.superseded_try_branch_failure?).to eq(false)
+    end
+
+    # The recovery branch ran and the chain still has a step to run, which is
+    # the state a merge train is in while its rebased integration branch
+    # waits to land.
+    it "is true while the branch has run and the chain still has somewhere to go" do
+      land = try_chain(land_state: "failed", branch_state: "succeeded", tail_state: "queued")
+
+      expect(land.superseded_try_branch_failure?).to eq(true)
+    end
+
+    # An ordinary failure sits in front of a tail that never started. That is
+    # the orphaned failure the reconciler is for, and the marker alone must
+    # not disguise it.
+    it "is false when nothing after it ever started" do
+      land = try_chain(land_state: "failed", branch_state: "queued", tail_state: "queued")
+
+      expect(land.superseded_try_branch_failure?).to eq(false)
+    end
+
+    it "is false once everything after it is terminal" do
+      land = try_chain(land_state: "failed", branch_state: "succeeded", tail_state: "failed")
+
+      expect(land.superseded_try_branch_failure?).to eq(false)
+    end
+  end
+
   describe "#agentic?" do
     it "is true for kinds that spawn an agent" do
       %w[ implement summarize respond summarize_amend analyze_and_fix agent_rebase landing_fix coding_handoff_fix local_mode_handoff_fix merge_train_reconcile manual ].each do |k|

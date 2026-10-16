@@ -180,6 +180,16 @@ clean, Syrus skips `merge_train_agent_rebase`; when it conflicts, the agentic
 step resolves and completes the in-progress rebase before the train re-runs
 landing graders.
 
+The `merge_train_land` Step stays `failed` for the rest of the workflow while
+that branch runs: its failure was handed to the branch, not left unhandled. The
+work-engine reconciler therefore skips a failed Step whose branch has been
+expanded and is still progressing, instead of treating it as an orphaned
+failure. Without that, a train sitting between recovery steps — waiting on host
+admission, say, with no active Run — looked exactly like a stuck workflow, and
+was failed out from under a rebase that had already succeeded and carried its
+green grade forward. A dead recovery still fails the train, through the failure
+of the branch's own final land Step.
+
 While a merge train is active, Syrus suppresses new `rebase`, `stack_rebase`,
 and ordinary Job workflows for child Jobs in the Epic. Those workflows resume
 only after the train succeeds, fails, or is cancelled. If a race still creates
