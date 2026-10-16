@@ -30,6 +30,10 @@ Small repositories can keep a single root file. Monorepos can add nested
 [Monorepo Adoption](/docs/monorepo-adoption) for examples across app, CLI,
 desktop, iOS, Android, shared API/client code, and mixed-product layouts.
 
+Each `.syrus.yml` file is limited to 1 MiB. YAML aliases and anchors are not
+supported, so repeat shared values explicitly. Quote dates, timestamps, and
+symbol-like values when you intend them to be strings.
+
 ```yaml
 prepare:
   - bundle install
