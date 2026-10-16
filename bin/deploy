@@ -280,6 +280,7 @@ MYSQL_BACKUP_DRAIN_SECONDS="${MYSQL_BACKUP_DRAIN_SECONDS:-30}"
 
 ACTIVE_FLUX_KUBECONFIG=""
 ACTIVE_FLUX_LABEL=""
+ACTIVE_FLUX_IMAGES_SNAPSHOT=""
 ACTIVE_BACKUP_KUBECONFIG=""
 ACTIVE_BACKUP_NAMESPACE=""
 ACTIVE_BACKUP_LABEL=""
@@ -300,7 +301,15 @@ cleanup_rollout_controls() {
     resume_mysql_backup "$ACTIVE_BACKUP_KUBECONFIG" "$ACTIVE_BACKUP_NAMESPACE" "$ACTIVE_BACKUP_LABEL" || true
   fi
   if [ -n "$ACTIVE_FLUX_KUBECONFIG" ]; then
-    flux_resume_now "$ACTIVE_FLUX_KUBECONFIG" "$ACTIVE_FLUX_LABEL" || true
+    if [ -n "$ACTIVE_FLUX_IMAGES_SNAPSHOT" ]; then
+      if flux_restore_desired_images "$ACTIVE_FLUX_KUBECONFIG" "$ACTIVE_FLUX_LABEL"; then
+        flux_resume_now "$ACTIVE_FLUX_KUBECONFIG" "$ACTIVE_FLUX_LABEL" || true
+      else
+        echo "✗ ${ACTIVE_FLUX_LABEL}: leaving Flux suspended because its previous image overrides could not be restored" >&2
+      fi
+    else
+      flux_resume_now "$ACTIVE_FLUX_KUBECONFIG" "$ACTIVE_FLUX_LABEL" || true
+    fi
   fi
 }
 
@@ -888,6 +897,8 @@ EOF
 # old image midway through replacement. The desired image overrides are
 # updated before the live workloads, so resuming Flux preserves the exact pod
 # template that just completed instead of initiating another rollout.
+# The previous overrides are snapshotted first; an ordinary failure restores
+# them in the EXIT trap before Flux is resumed.
 #
 # Strategy: suspend the Kustomization for the duration of the
 # rollout, then resume on success. We DON'T rely on a bash trap
@@ -938,6 +949,7 @@ flux_resume_now() {
   flux_request_reconcile "$kubeconfig"
   ACTIVE_FLUX_KUBECONFIG=""
   ACTIVE_FLUX_LABEL=""
+  ACTIVE_FLUX_IMAGES_SNAPSHOT=""
 }
 
 flux_pin_desired_images() {
@@ -947,6 +959,7 @@ flux_pin_desired_images() {
     return 0
   fi
 
+  ACTIVE_FLUX_IMAGES_SNAPSHOT="$(flux_desired_images_snapshot_patch "$kubeconfig")"
   patch="$(flux_desired_images_patch "$kubeconfig")"
   echo "→ ${label}: pinning flux image overrides to ${SHA}"
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
@@ -954,6 +967,27 @@ flux_pin_desired_images() {
     --type merge \
     --field-manager "$FLUX_IMAGE_FIELD_MANAGER" \
     -p "$patch" >/dev/null
+}
+
+flux_desired_images_snapshot_patch() {
+  local kubeconfig="$1"
+  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    get kustomization "$FLUX_KUSTOMIZATION" -o json |
+    ruby -rjson -e '
+      doc = JSON.parse(STDIN.read)
+      puts JSON.generate({ "spec" => { "images" => doc.dig("spec", "images") } })
+    '
+}
+
+flux_restore_desired_images() {
+  local kubeconfig="$1" label="$2"
+  echo "→ ${label}: restoring previous Flux image overrides"
+  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    patch kustomization "$FLUX_KUSTOMIZATION" \
+    --type merge \
+    --field-manager "$FLUX_IMAGE_FIELD_MANAGER" \
+    -p "$ACTIVE_FLUX_IMAGES_SNAPSHOT" >/dev/null
+  ACTIVE_FLUX_IMAGES_SNAPSHOT=""
 }
 
 flux_desired_images_patch() {
