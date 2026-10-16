@@ -10,9 +10,11 @@ class ProviderSessionPruneJob < ApplicationJob
   # downstream short agentic steps may need to rehydrate provider resume state
   # after worker movement or deploys.
   def perform
-    scope = ProviderSession.prunable
-    RetentionArchiver.call(retention_key: :provider_session, scope: scope, cutoff: ProviderSession.retention_cutoff)
-    n_deleted = scope.delete_all
+    n_deleted = RetentionPruner.call(
+      scope: ProviderSession.prunable,
+      retention_key: :provider_session,
+      cutoff: ProviderSession.retention_cutoff
+    )
     Rails.logger.info("[ProviderSessionPrune] deleted #{n_deleted} sessions") if n_deleted > 0
   end
 end

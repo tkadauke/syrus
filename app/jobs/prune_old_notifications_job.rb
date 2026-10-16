@@ -4,7 +4,7 @@ class PruneOldNotificationsJob < ApplicationJob
   queue_as :cleanup
 
   def perform
-    deleted = Notification.prunable.delete_all
+    deleted = RetentionPruner.call(scope: Notification.prunable)
     Rails.logger.info("[PruneOldNotificationsJob] deleted #{deleted} notifications") if deleted > 0
   end
 end
