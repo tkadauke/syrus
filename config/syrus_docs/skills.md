@@ -21,6 +21,12 @@ tier actually resolved (`source: :repo_override` or `:built_in`); later
 surfaces (the launch picker, the Run detail view) always show that source so
 a shadowed skill is never a silent debugging trap.
 
+Repository-local `SKILL.md` files are limited to 256 KiB. Their YAML
+frontmatter does not support aliases/anchors or values that instantiate Ruby
+objects (such as unquoted dates, timestamps, or symbols); quote those values
+when they are intended to be strings. Invalid frontmatter is reported to the
+operator instead of failing the surrounding chat turn.
+
 ## Parameter schema
 
 A skill declares its launchable parameters as an array of fields — the same

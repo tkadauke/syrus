@@ -11,7 +11,7 @@ project:
   label: Syrus App
   kind: rails_app
 
-prepare: &syrus_prepare
+prepare:
   # Syrus scrubs worker/container Bundler env before running prepare
   # and preview setup. Pin Bundler's install location to the workspace
   # so bare commands like `bin/rails` and `bin/rspec` resolve gems the
@@ -82,7 +82,11 @@ targets:
       - "lib/syrus/metrics/**/*.rb"
 
 preview:
-  setup: *syrus_prepare
+  # Keep this explicit because repository-controlled YAML aliases are disabled.
+  setup:
+    - bundle config set --local path vendor/bundle
+    - bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
+    - npm ci
   start: bin/syrus-preview-dev
   seed: bin/rails db:prepare db:seed
   health_check: /up
