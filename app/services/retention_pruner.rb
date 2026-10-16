@@ -4,6 +4,7 @@
 class RetentionPruner
   DEFAULT_BATCH_SIZE = 1_000
   DEFAULT_MAX_BATCHES = 50
+  FALLBACK_BATCH_LOCK = Mutex.new
 
   def self.call(scope:, retention_key: nil, cutoff: nil, batch_size: DEFAULT_BATCH_SIZE, max_batches: DEFAULT_MAX_BATCHES)
     new(
@@ -39,15 +40,33 @@ class RetentionPruner
   private
 
   def prune_batch
-    model.transaction do
-      ids = @scope.reorder(primary_key => :asc).limit(@batch_size).pluck(primary_key)
-      next 0 if ids.empty?
+    synchronize_batch do
+      model.transaction do
+        ids = candidate_scope.pluck(primary_key)
+        next 0 if ids.empty?
 
-      batch_scope = model.where(primary_key => ids)
-      archive(batch_scope) if @retention_key
-      batch_scope.delete_all
+        batch_scope = model.where(primary_key => ids)
+        archive(batch_scope) if @retention_key
+        batch_scope.delete_all
+      end
     end
   end
+
+  def synchronize_batch(&block)
+    return yield if skip_locked?
+
+    FALLBACK_BATCH_LOCK.synchronize(&block)
+  end
+
+  def candidate_scope
+    candidates = @scope.reorder(primary_key => :asc).limit(@batch_size)
+    skip_locked? ? candidates.lock("FOR UPDATE SKIP LOCKED") : candidates
+  end
+
+  # Syrus production uses MySQL, where row claims must coordinate across
+  # processes. SQLite ignores SELECT locks, so tests and development serialize
+  # batch selection within the process instead.
+  def skip_locked? = model.connection.adapter_name.casecmp?("Mysql2")
 
   def archive(batch_scope)
     RetentionArchiver.call(retention_key: @retention_key, scope: batch_scope, cutoff: @cutoff)
