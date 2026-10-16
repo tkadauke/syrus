@@ -619,6 +619,7 @@
   "review_submit_error": "Unable to submit diff feedback.",
   "review_create_error": "Unable to create diff comment.",
   "review_update_error": "Unable to update diff comment.",
+  "review_resolve_error": "Unable to resolve diff comment.",
   "review_delete_error": "Unable to delete diff comment.",
   "review_version_label": "Version",
   "review_versions_empty": "No diff versions yet.",

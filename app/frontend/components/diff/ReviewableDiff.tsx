@@ -85,6 +85,7 @@ export type ReviewableDiffProps = {
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
   editingThreadBody?: string
+  editingThreadError?: string | null
   editingThreadId?: number | null
   emptyState?: ReactNode
   fileCommentCounts?: Record<string, number>
@@ -327,6 +328,7 @@ export function ReviewableDiff({
   composingPending,
   composingSelection,
   editingThreadBody,
+  editingThreadError,
   editingThreadId,
   emptyState = null,
   fileCommentCounts,
@@ -631,6 +633,7 @@ export function ReviewableDiff({
           composingPending={composingPending}
           composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
           editingThreadBody={editingThreadBody}
+          editingThreadError={editingThreadError}
           editingThreadId={editingThreadId}
           file={file}
           highlightedToken={wordHighlightingEnabled ? highlightedToken : null}
@@ -1078,6 +1081,7 @@ function DiffFileSection({
   composingPending,
   composingSelection,
   editingThreadBody,
+  editingThreadError,
   editingThreadId,
   file,
   highlightedToken,
@@ -1116,6 +1120,7 @@ function DiffFileSection({
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
   editingThreadBody?: string
+  editingThreadError?: string | null
   editingThreadId?: number | null
   file: ReviewableDiffFile
   highlightedToken?: string | null
@@ -1358,6 +1363,7 @@ function DiffFileSection({
           composingPending={composingPending}
           composingSelection={composingSelection}
           editingThreadBody={editingThreadBody}
+          editingThreadError={editingThreadError}
           editingThreadId={editingThreadId}
           file={file}
           highlightedToken={highlightedToken}
@@ -1550,6 +1556,7 @@ export function UnifiedDiffTable({
   composingPending,
   composingSelection,
   editingThreadBody,
+  editingThreadError,
   editingThreadId,
   file,
   highlightedToken,
@@ -1583,6 +1590,7 @@ export function UnifiedDiffTable({
   composingPending?: boolean
   composingSelection?: DiffLineSelection | null
   editingThreadBody?: string
+  editingThreadError?: string | null
   editingThreadId?: number | null
   file: ReviewableDiffFile
   highlightedToken?: string | null
@@ -1695,6 +1703,7 @@ export function UnifiedDiffTable({
                     {t("cancel")}
                   </Button>
                 </div>
+                {editingThreadError ? <p className="text-xs normal-case tracking-normal text-danger-text">{editingThreadError}</p> : null}
               </div>
             ) : (
               <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
