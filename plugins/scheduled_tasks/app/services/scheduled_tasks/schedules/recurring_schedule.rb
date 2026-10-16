@@ -114,10 +114,11 @@ module ScheduledTasks
 
       def parse_cron(value)
         fields = value.split(/\s+/)
+        minute, hour, day_of_month, month, day_of_week = fields
+        validate_cron_literal_bounds!(day_of_month, month)
         cron = Fugit.parse("#{value} UTC")
         raise ArgumentError, "is not a valid five-field cron expression" unless cron.is_a?(Fugit::Cron)
 
-        minute, hour, day_of_month, month, day_of_week = fields
         parts = [ "FREQ=#{frequency_for(hour, day_of_month, month, day_of_week)}" ]
         parts << "BYMONTH=#{cron_field_value(month, cron.months)}" unless month == "*"
         parts << "BYMONTHDAY=#{cron_field_value(day_of_month, cron.monthdays)}" unless day_of_month == "*"
@@ -134,6 +135,13 @@ module ScheduledTasks
         raise
       rescue StandardError
         raise ArgumentError, "is not a valid five-field cron expression"
+      end
+
+      def validate_cron_literal_bounds!(day_of_month, month)
+        errors = []
+        errors << "month day must be between 1 and 31" if day_of_month.match?(/\A\d+\z/) && !day_of_month.to_i.between?(1, 31)
+        errors << "month must be between 1 and 12" if month.match?(/\A\d+\z/) && !month.to_i.between?(1, 12)
+        raise ArgumentError, errors.join(", ") if errors.any?
       end
 
       # A plain single-value field (no `,`/`-`/`/`) round-trips through
