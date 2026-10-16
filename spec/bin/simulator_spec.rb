@@ -2,6 +2,7 @@
 
 require "open3"
 require "fileutils"
+require "sqlite3"
 require "spec_helper"
 
 RSpec.describe "bin/simulator", :ci_only do
@@ -156,6 +157,35 @@ RSpec.describe "bin/simulator", :ci_only do
     expect(status).to be_success, stderr
     expect(stdout).to include("provider switch relaunches blocked work: success")
     expect(stdout).to include("work-engine simulations passed (1 scenarios)")
+  end
+
+  # Regression: the persistent simulator database outlives the schema that
+  # built it, and `maintain_test_schema!` cannot see the gap -- it compares
+  # migration files against schema_migrations rows, so a database whose rows
+  # claim a migration its tables never received passes that check. Every
+  # scenario then ran against the stale schema, and the missing column
+  # surfaced as a NoMethodError blamed on whichever work-engine service read
+  # it: a required landing grader failing with a message pointing at the work
+  # engine instead of at its own database.
+  it "reloads its database when the schema it was built from has moved on" do
+    _stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
+    expect(status).to be_success, stderr
+
+    db_path = File.join(root, "storage", "test_simulator.sqlite3")
+    expect(File.exist?(db_path)).to be(true)
+    SQLite3::Database.new(db_path) do |db|
+      db.execute("UPDATE ar_internal_metadata SET value = ? WHERE key = 'schema_sha1'", [ "0" * 40 ])
+    end
+
+    stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("single initial success: success")
+    expect(stderr).to include("was built from a different db/schema.rb")
+    recorded = SQLite3::Database.new(db_path) do |db|
+      db.get_first_value("SELECT value FROM ar_internal_metadata WHERE key = 'schema_sha1'")
+    end
+    expect(recorded).not_to eq("0" * 40)
   end
 
   it "returns usage errors for extra arguments" do
