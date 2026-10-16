@@ -40,8 +40,13 @@ module MaintenanceTasks
     end
 
     def dismiss!
-      @task.update!(state: "dismissed", dismissed_at: Time.current, dismissed_by_user: @user)
-      @task.log!("Dismissed by #{@user.display_name}.")
+      @task.with_lock do
+        @task.reload
+        return @task if @task.state == "dismissed"
+
+        @task.update!(state: "dismissed", dismissed_at: Time.current, dismissed_by_user: @user)
+        @task.log!("Dismissed by #{@user.display_name}.")
+      end
       @task
     end
 

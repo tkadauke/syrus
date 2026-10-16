@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
@@ -77,6 +77,20 @@ describe("AdminMaintenanceTaskDetail", () => {
     expect(within(mobileDetails).getByText("ArgumentError")).toBeInTheDocument()
     expect(within(mobileDetails).getByText("expected 2 commits ending at abc123, found 1")).toBeInTheDocument()
     expect(screen.getAllByText("JOB-123")).toHaveLength(2)
+  })
+
+  it("shows the server error when a stale task action conflicts", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((_input, options) => {
+      if (options?.method === "POST") {
+        return Promise.resolve(jsonResponse({ error: { code: "maintenance_task_conflict", message: "maintenance task is not runnable from succeeded" } }, 409))
+      }
+      return Promise.resolve(jsonResponse(taskPayload()))
+    })
+
+    renderDetailRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "Pause task" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("maintenance task is not runnable from succeeded")
   })
 })
 

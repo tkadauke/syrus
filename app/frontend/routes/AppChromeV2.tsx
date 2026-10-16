@@ -33,6 +33,7 @@ import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { Modal } from "../components/Modal"
 import { NoticeToast } from "../components/NoticeToast"
+import { MutationError } from "../components/MutationError"
 import { ConnectionStatusButton } from "../components/ConnectionStatus"
 import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
@@ -1621,6 +1622,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
   const [collapsed, setCollapsed] = useState(() => readMaintenanceSidebarState().collapsed)
   const [docsTask, setDocsTask] = useState<MaintenanceTask | null>(null)
   const [docsLoadingTaskId, setDocsLoadingTaskId] = useState<number | null>(null)
+  const [docsError, setDocsError] = useState<unknown>(null)
   const tasks = useQuery({
     queryKey: ["maintenance_tasks", "sidebar"],
     queryFn: ({ signal }) => fetchMaintenanceSidebar(signal),
@@ -1631,7 +1633,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
   })
   const action = useMutation({
     mutationFn: ({ task, name }: { task: MaintenanceTask; name: "start" | "pause" | "resume" | "cancel" | "dismiss" }) => runMaintenanceTaskAction(task.id, name),
-    onSuccess: async () => {
+    onSettled: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] }),
         queryClient.invalidateQueries({ queryKey: ["admin", "maintenance_tasks"] })
@@ -1662,6 +1664,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
 
   async function openDocs(task: MaintenanceTask) {
     setDocsLoadingTaskId(task.id)
+    setDocsError(null)
     try {
       const fullTask = await queryClient.fetchQuery({
         queryKey: ["admin", "maintenance_tasks", String(task.id)],
@@ -1669,6 +1672,8 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
         staleTime: 0
       })
       setDocsTask(fullTask)
+    } catch (error) {
+      setDocsError(error)
     } finally {
       setDocsLoadingTaskId(null)
     }
@@ -1677,6 +1682,8 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
   return (
     <section aria-label={t("maintenance_tasks.sidebar_aria")}>
       <Surface className="space-y-2" padding="sm" variant="subtle">
+        {action.isError ? <MutationError error={action.error} fallback={t("maintenance_tasks.error_action")} /> : null}
+        {docsError ? <MutationError error={docsError} fallback={t("maintenance_tasks.detail_error_load")} /> : null}
         <div className="mb-2 flex items-center justify-between gap-2">
           <button
             aria-expanded={!collapsed}
