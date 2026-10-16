@@ -34,6 +34,13 @@ RSpec.describe ScheduledTasks::Task do
       expect(build_cron).to be_valid
     end
 
+    it "accepts a weekday range and stores its canonical expanded schedule" do
+      task = build_cron(cron_expression: "0 9 * * 1-5")
+
+      expect(task).to be_valid
+      expect(task.schedule_expression).to eq("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+    end
+
     it "canonicalizes typo-heavy natural text through the LLM fallback when structured_intent is supplied" do
       task = build_cron(
         cron_expression: nil,
