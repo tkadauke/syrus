@@ -17,6 +17,17 @@ module Steps
     include PrepareTargetExecution
 
     TIMEOUT_EXIT_CODE = 124
+    # `git status` and `git diff` rewrite .git/index opportunistically when
+    # they notice stat changes -- read-only commands, writing files. The
+    # checkout is materialized from a tree shared with the other graders on
+    # this host, so that write is exactly what must not happen; this is the
+    # documented way to turn it off, and it is what editors use for the same
+    # reason.
+    GIT_READ_ONLY_ENV = { "GIT_OPTIONAL_LOCKS" => "0" }.freeze
+    # The repository metadata a graded run must leave alone. Directories are
+    # compared by their entry names and sizes rather than by content: a
+    # reflog append or a new loose ref shows up, without hashing a pack.
+    GIT_METADATA_PATHS = %w[HEAD index packed-refs refs logs].freeze
     OUTPUT_INLINE_BYTES = 16 * 1024
     OUTPUT_CONTEXT_BEFORE_LINES = 8
     OUTPUT_CONTEXT_AFTER_LINES = 24
@@ -100,6 +111,7 @@ module Steps
       runner_command = span_recorder.wrap(span_plan.shell_command)
 
       git_status_before = capture_git_status(name: name)
+      git_metadata_before = capture_git_metadata_digest
 
       File.open(absolute_log_path, "wb") do |file|
         runner_result = run_with_span_recording(
@@ -142,6 +154,12 @@ module Steps
         command: command,
         before_status: git_status_before,
         after_status: capture_git_status(name: name)
+      )
+      record_git_metadata_mutation_warning!(
+        name: name,
+        command: command,
+        before: git_metadata_before,
+        after: capture_git_metadata_digest
       )
 
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
@@ -423,13 +441,77 @@ module Steps
     # a fast, internal, non-interactive check, not a command whose spans,
     # timeouts, or kill-switch matter the way a real grader command's does.
     def capture_git_status(name:)
-      stdout, _stderr, status = Open3.capture3("git", "status", "--porcelain", chdir: workspace.path.to_s)
+      stdout, _stderr, status = Open3.capture3(
+        GIT_READ_ONLY_ENV,
+        "git", "status", "--porcelain",
+        chdir: workspace.path.to_s
+      )
       return nil unless status.success?
 
       stdout
     rescue StandardError => e
       log("[grader:#{name}] warning: git status check failed (skipping side-effect detection): #{e.class}: #{e.message}")
       nil
+    end
+
+    # A grader command validates a checkout; it has no business writing the
+    # repository metadata inside it. That is not merely untidy: the prepared
+    # tree a checkout is materialized from is shared across the graders on a
+    # host, and sharing `.git` through a hard link or an overlay lower is only
+    # safe while nothing writes it. So the invariant is worth knowing about
+    # before anything depends on it.
+    #
+    # Detection rather than refusal, deliberately: a grader that writes `.git`
+    # is a repository-configuration problem, and failing a landing grader over
+    # it would convert that into a stalled queue. The warning names the grader
+    # so the configuration can be fixed; GIT_READ_ONLY_ENV below removes the
+    # accidental cause in the meantime.
+    def capture_git_metadata_digest
+      git_dir = workspace.path.join(".git")
+      return nil unless git_dir.directory?
+
+      entries = GIT_METADATA_PATHS.filter_map do |relative|
+        path = git_dir.join(relative)
+        next unless path.exist?
+
+        [ relative, path.directory? ? directory_signature(path) : Digest::SHA256.file(path).hexdigest ]
+      end
+      entries.to_h
+    rescue StandardError => e
+      log("[grader] warning: git metadata digest failed (skipping immutability check): #{e.class}: #{e.message}")
+      nil
+    end
+
+    def directory_signature(path)
+      Digest::SHA256.hexdigest(
+        Dir.glob(path.join("**", "*").to_s, File::FNM_DOTMATCH)
+          .sort
+          .map { |entry| "#{entry}:#{File.size(entry) rescue nil}" }
+          .join("\n")
+      )
+    end
+
+    def record_git_metadata_mutation_warning!(name:, command:, before:, after:)
+      return if before.nil? || after.nil?
+      return if before == after
+
+      mutated = (before.keys | after.keys).select { |key| before[key] != after[key] }
+      return if mutated.empty?
+
+      log("[grader:#{name}] warning: grader wrote git metadata (#{mutated.join(', ')})")
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "grader_mutated_git_metadata",
+        severity: "medium",
+        title: "Grader #{name.inspect} wrote repository metadata",
+        evidence: { "grader_name" => name, "command" => command, "mutated_paths" => mutated },
+        suggested_prompt: "Grader #{name.inspect} (`#{command}`) changed #{mutated.join(', ')} inside .git while it ran. " \
+          "A grader is meant to validate the checkout, not write to its repository: find the command or spec that " \
+          "writes git metadata and make it operate on a scratch repository instead."
+      )
+    rescue StandardError => e
+      log("[grader:#{name}] warning: failed to record git metadata warning: #{e.class}: #{e.message}")
     end
 
     def record_grader_side_effect_warning!(name:, command:, before_status:, after_status:)
@@ -619,7 +701,11 @@ module Steps
       extra_env = Prepare.prep_extra_env(scope: PrepareScope.for_workflow(workflow), workspace_path: workspace.path)
       ProcessRunner.forwarded_env(
         Prepare.prep_env_forward,
-        extra: workspace_dependency_env.merge(extra_env).merge(resource_grant_env).merge(previous_failure_env)
+        extra: workspace_dependency_env
+          .merge(extra_env)
+          .merge(resource_grant_env)
+          .merge(previous_failure_env)
+          .merge(GIT_READ_ONLY_ENV)
       )
     end
 

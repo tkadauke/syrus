@@ -66,6 +66,30 @@ matching the non-fatal posture of `record_prepare_soft_failure!`
 (`app/services/steps/prepare.rb`) and `record_autofix_failure!`
 (`app/services/steps/autofix.rb`).
 
+## Grader git-metadata immutability
+
+A grader validates a checkout; it has no business writing the repository
+metadata inside it. `Steps::Grader` digests `.git`'s `HEAD`, `index`,
+`packed-refs`, `refs` and `logs` before and after the grader command and
+records a `kind: "grader_mutated_git_metadata"` warning naming the paths that
+changed, with a `suggested_prompt` asking for the offending command or spec to
+operate on a scratch repository instead.
+
+This is a correctness precondition, not tidiness. A grader checkout is
+materialized from a prepared tree that is shared by every grader on the host,
+so `.git` can only be shared -- through a hard link, an overlay lower, or a
+read-only image layer -- while nothing writes it. The warning is how that
+invariant gets verified before more of the materialization design depends on
+it.
+
+Detection, not refusal: a grader that writes `.git` is a repository
+configuration problem, and failing a landing grader over it would turn that
+into a stalled landing queue. The accidental cause is removed separately --
+grader commands run with `GIT_OPTIONAL_LOCKS=0`, because `git status` and
+`git diff` rewrite `.git/index` opportunistically when they notice stat
+changes, which would otherwise make every grader that shells out to git a
+writer of the tree its siblings are reading.
+
 ## Formatter-like grader failures
 
 `Steps::Grader` also records a `kind: "formatter_like_grader_failure"`

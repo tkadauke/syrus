@@ -813,6 +813,49 @@ RSpec.describe Steps::Grader, :ci_only do
     end
   end
 
+  describe "git metadata immutability" do
+    # The prepared tree a checkout is materialized from is shared across the
+    # graders on a host, so sharing `.git` is only safe while nothing writes
+    # it. Detection, not refusal: failing a landing grader over a repository
+    # configuration problem would stall the queue.
+    it "records a warning when the command writes repository metadata" do
+      step.update!(details: step.details.merge("command" => "git update-ref refs/heads/grader-wrote-this HEAD"))
+
+      expect { handler.call }.not_to raise_error
+
+      warning = WorkflowWarning.where(kind: "grader_mutated_git_metadata").last
+      expect(warning).to be_present
+      expect(warning.step).to eq(step)
+      expect(warning.severity).to eq("medium")
+      expect(warning.evidence["grader_name"]).to eq("tests")
+      expect(warning.evidence["mutated_paths"]).to include("refs")
+      expect(warning.suggested_prompt).to include("scratch repository")
+    end
+
+    it "does not record a warning for a grader that only reads the repository" do
+      step.update!(details: step.details.merge("command" => "git rev-parse HEAD"))
+
+      expect { handler.call }.not_to raise_error
+
+      expect(WorkflowWarning.where(kind: "grader_mutated_git_metadata")).to be_empty
+    end
+
+    # git rewrites .git/index opportunistically on a read when it notices stat
+    # changes, which would make every grader that shells out to `git status` a
+    # writer of the tree its siblings are reading.
+    it "runs the grader command with optional git locks disabled" do
+      captured = nil
+      allow(ProcessRunner).to receive(:new).and_wrap_original do |original, **kwargs|
+        captured = kwargs[:env]
+        original.call(**kwargs)
+      end
+
+      handler.call
+
+      expect(captured).to include("GIT_OPTIONAL_LOCKS" => "0")
+    end
+  end
+
   describe "prepare target side-effect detection" do
     before do
       step.update!(details: step.details.merge(
