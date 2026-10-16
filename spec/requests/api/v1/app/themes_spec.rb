@@ -171,6 +171,18 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       expect(Theme.find(parse_body.dig("theme", "id")).tokens["shape"]).to eq("radius-panel" => "1rem")
     end
 
+    it "creates a color-only theme from top-level mode tokens" do
+      user = Factories.user
+      sign_in_as(user)
+
+      post "/api/v1/app/themes", params: {
+        theme: { name: "Legacy Colors", light: legible_tokens["light"], dark: legible_tokens["dark"] }
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(Theme.find(parse_body.dig("theme", "id")).tokens).to eq(legible_tokens)
+    end
+
     it "rejects a theme that fails the shared contrast check" do
       user = Factories.user
       tokens = legible_tokens.deep_dup
@@ -229,6 +241,20 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(mine.reload.tokens["shape"]).to eq("radius-panel" => "1rem")
+    end
+
+    it "accepts a top-level color update without adding absent extended groups" do
+      user = Factories.user
+      mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user, tokens: legible_tokens)
+      sign_in_as(user)
+
+      patch "/api/v1/app/themes/#{mine.id}", params: {
+        theme: { light: { brand: "#0f766e" } }
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(mine.reload.tokens["light"]["brand"]).to eq("#0f766e")
+      expect(mine.tokens.keys).to contain_exactly("light", "dark")
     end
 
     it "merges supplied extended token overrides" do
