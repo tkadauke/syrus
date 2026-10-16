@@ -77,7 +77,7 @@ function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload 
   } as BootstrapPayload
 }
 
-function renderOnboarding(payload: BootstrapPayload) {
+function renderOnboarding(payload: BootstrapPayload | null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -101,6 +101,28 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   afterEach(() => vi.restoreAllMocks())
+
+  it("renders after bootstrap becomes available without changing its hook order", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <OnboardingRoute bootstrap={null} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByText("Loading setup status...")).toBeInTheDocument()
+
+    expect(() => view.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <OnboardingRoute bootstrap={bootstrap()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )).not.toThrow()
+    expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
+  })
 
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {
     renderOnboarding(bootstrap())
