@@ -890,6 +890,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       workflow.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
       step.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
       run.update_columns(state: "cancelled", started_at: 20.minutes.ago, finished_at: 10.minutes.ago)
+      WorkUnits::TerminalWorkflowSync.for_job(job)
       job.update_columns(state: "queued")
       trace << "job=#{job.id}:queued_after_epic_conflict_cancel workflow=#{workflow.id}"
 
@@ -915,6 +916,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         started_at: 20.minutes.ago,
         finished_at: 10.minutes.ago
       )
+      WorkUnits::TerminalWorkflowSync.for_job(job)
       job.update_columns(state: "queued")
       trace << "job=#{job.id}:queued_after_uncategorized_cancel workflow=#{workflow.id}"
 
@@ -1192,6 +1194,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         reason: "chaos branch divergence",
         classified_at: 5.minutes.ago
       )
+      WorkUnits::TerminalWorkflowSync.for_job(job)
       trace << "job=#{job.id}:failed_recovered_branch_divergence remote=#{remote_sha} local=#{local_sha}"
 
       expectation(
