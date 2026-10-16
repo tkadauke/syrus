@@ -48,8 +48,9 @@ instances.)
   saved token ever goes stale (say, after a full reinstall rebuilt the
   database), the app detects the rejection and re-mints the token the
   next time its window is open and signed in. Choosing **Sign Out** disables
-  that automatic token provisioning until credentials are explicitly saved
-  again, even if the web window still has a signed-in browser session.
+  that automatic token provisioning across app relaunches until credentials
+  are explicitly saved again, even if the web window still has a signed-in
+  browser session.
   Non-admin users on a shared remote instance paste an API token into
   Preferences instead.
 - **The Syrus CLI, batteries included.** The app installs the bundled

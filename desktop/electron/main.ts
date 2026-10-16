@@ -40,6 +40,7 @@ import {
   type InstallTarget
 } from "./selfInstall.js"
 import { maybeProvisionDesktopToken } from "./tokenProvisioner.js"
+import { CredentialMutationCoordinator } from "./credentialMutationCoordinator.js"
 import { paintUnreadDot } from "./trayBadge.js"
 import { desktopCommandEnvironment } from "./shellEnvironment.js"
 import { createOnboardingWindow } from "./windows/onboardingWindow.js"
@@ -236,7 +237,8 @@ let tray: Tray | null = null
 let cachedCredentials: Credentials | null = null
 // Signing out must remain authoritative even while the signed-in web session
 // is still open. Explicitly saving credentials opts back into provisioning.
-let autoProvisioningAllowed = true
+let autoProvisioningAllowed = store.get("autoProvisioningAllowed", true)
+const credentialMutations = new CredentialMutationCoordinator()
 let isQuitting = false
 let cachedCliAvailable: boolean | null = null
 let appUserCable: WebSocket | null = null
@@ -1652,43 +1654,63 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
   }
 }
 
-const saveCredentials = async (credentials: Credentials) => {
+const saveCredentials = async (credentials: Credentials, expectedGeneration?: number) => {
+  const explicitSave = expectedGeneration === undefined
+  const generation = expectedGeneration ?? credentialMutations.supersede()
   const normalizedCredentials = {
     url: credentials.url.trim(),
     token: credentials.token.trim()
   }
 
-  await validateCredentialsWithServer(normalizedCredentials)
-  await writeCredentialsFile(normalizedCredentials)
+  const mutation = await credentialMutations.runIfCurrent(generation, async () => {
+    await validateCredentialsWithServer(normalizedCredentials)
+    await writeCredentialsFile(normalizedCredentials)
 
-  cachedCredentials = normalizedCredentials
-  autoProvisioningAllowed = true
-  suspectTokenKey = null
-  startAppUserCable(normalizedCredentials)
+    cachedCredentials = normalizedCredentials
+    if (explicitSave) {
+      autoProvisioningAllowed = true
+      store.set("autoProvisioningAllowed", true)
+    }
+    suspectTokenKey = null
+    startAppUserCable(normalizedCredentials)
 
-  // In remote mode the tray URL and the app window must stay in lockstep:
-  // a manual URL change in Preferences retargets the web container too
-  // (local mode's URL is owned by its .env, never by credentials). The open
-  // window closes so its next open uses the new instance.
-  const normalizedServerUrl = normalizedCredentials.url.replace(/\/+$/, "")
-  if (getBackendMode() === "remote" && getServerUrl() !== normalizedServerUrl) {
-    saveBackendConfig({ mode: "remote", serverUrl: normalizedServerUrl })
-    webAppWindow?.window.close()
+    // In remote mode the tray URL and the app window must stay in lockstep:
+    // a manual URL change in Preferences retargets the web container too
+    // (local mode's URL is owned by its .env, never by credentials). The open
+    // window closes so its next open uses the new instance.
+    const normalizedServerUrl = normalizedCredentials.url.replace(/\/+$/, "")
+    if (getBackendMode() === "remote" && getServerUrl() !== normalizedServerUrl) {
+      saveBackendConfig({ mode: "remote", serverUrl: normalizedServerUrl })
+      webAppWindow?.window.close()
+    }
+
+    await fetchBootstrap()
+    mainWindow?.webContents.send("credentials-saved", normalizedCredentials)
+    preferencesWindow?.webContents.send("credentials-saved", normalizedCredentials)
+    return normalizedCredentials
+  })
+  if (!mutation.committed) {
+    throw new Error("Credential update was superseded by a newer action.")
   }
 
-  await fetchBootstrap()
-  mainWindow?.webContents.send("credentials-saved", normalizedCredentials)
-  preferencesWindow?.webContents.send("credentials-saved", normalizedCredentials)
-  return normalizedCredentials
+  return mutation.value
 }
 
 const deleteCredentials = async () => {
-  await deleteCredentialsFile()
-
-  cachedCredentials = null
+  const generation = credentialMutations.supersede()
   autoProvisioningAllowed = false
-  setUnreadCount(0)
-  stopAppUserCable()
+  store.set("autoProvisioningAllowed", false)
+  const mutation = await credentialMutations.runIfCurrent(generation, async () => {
+    await deleteCredentialsFile()
+    autoProvisioningAllowed = false
+    store.set("autoProvisioningAllowed", false)
+    cachedCredentials = null
+    setUnreadCount(0)
+    stopAppUserCable()
+  })
+  if (!mutation.committed) {
+    return
+  }
   mainWindow?.webContents.send("credentials-cleared")
   preferencesWindow?.webContents.send("credentials-cleared")
 }
@@ -2028,6 +2050,7 @@ const showWebAppWindow = async () => {
     void maybeProvisionDesktopToken(handle.window.webContents, serverUrl, {
       getCachedCredentials: () => cachedCredentials,
       autoProvisioningAllowed: () => autoProvisioningAllowed,
+      getCredentialGeneration: () => credentialMutations.currentGeneration(),
       saveCredentials,
       // A token this instance already rejected (backend DB rebuilt) must
       // not block re-provisioning — see suspectTokenKey.
