@@ -57,6 +57,23 @@ RSpec.describe "desktop token provisioning" do
     expect(provisioner).to include("attemptInFlight")
   end
 
+  it "keeps explicit sign-out authoritative across later web-app navigations" do
+    delete_credentials = main_process[/const deleteCredentials = async[\s\S]*?\n\}/]
+    save_credentials = main_process[/const saveCredentials = async[\s\S]*?\n\}/]
+
+    expect(delete_credentials).to include("autoProvisioningAllowed = false")
+    expect(save_credentials).to include("autoProvisioningAllowed = true")
+    expect(main_process).to include("autoProvisioningAllowed: () => autoProvisioningAllowed")
+    expect(provisioner).to match(/if \(!deps\.autoProvisioningAllowed\(\)\) \{[\s\S]{0,100}suppressed/)
+  end
+
+  it "does not overwrite credentials changed while page provisioning is in flight" do
+    expect(provisioner).to include("credentialsMatch(cached, deps.getCachedCredentials())")
+    expect(provisioner).to match(
+      /await Promise\.race[\s\S]*credentialsMatch\(cached, deps\.getCachedCredentials\(\)\)[\s\S]*deps\.saveCredentials/
+    )
+  end
+
   it "bounds the in-page script so a torn-down frame cannot wedge provisioning" do
     # executeJavaScript's promise never settles when its frame is destroyed
     # mid-flight; unbounded, the attemptInFlight latch would stick for the

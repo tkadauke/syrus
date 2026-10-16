@@ -234,6 +234,9 @@ let recorderHudController: RecorderHudController | null = null
 let backendRecoveryTimer: NodeJS.Timeout | null = null
 let tray: Tray | null = null
 let cachedCredentials: Credentials | null = null
+// Signing out must remain authoritative even while the signed-in web session
+// is still open. Explicitly saving credentials opts back into provisioning.
+let autoProvisioningAllowed = true
 let isQuitting = false
 let cachedCliAvailable: boolean | null = null
 let appUserCable: WebSocket | null = null
@@ -1659,6 +1662,7 @@ const saveCredentials = async (credentials: Credentials) => {
   await writeCredentialsFile(normalizedCredentials)
 
   cachedCredentials = normalizedCredentials
+  autoProvisioningAllowed = true
   suspectTokenKey = null
   startAppUserCable(normalizedCredentials)
 
@@ -1682,6 +1686,7 @@ const deleteCredentials = async () => {
   await deleteCredentialsFile()
 
   cachedCredentials = null
+  autoProvisioningAllowed = false
   setUnreadCount(0)
   stopAppUserCable()
 }
@@ -2021,6 +2026,7 @@ const showWebAppWindow = async () => {
 
     void maybeProvisionDesktopToken(handle.window.webContents, serverUrl, {
       getCachedCredentials: () => cachedCredentials,
+      autoProvisioningAllowed: () => autoProvisioningAllowed,
       saveCredentials,
       // A token this instance already rejected (backend DB rebuilt) must
       // not block re-provisioning — see suspectTokenKey.

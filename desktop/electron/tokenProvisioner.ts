@@ -35,6 +35,7 @@ const PROVISION_SCRIPT = `
 
 type ProvisionResult =
   | "already-configured"
+  | "suppressed"
   | "different-instance"
   | "provisioned"
   | "signed_out"
@@ -44,6 +45,7 @@ type ProvisionResult =
 
 type ProvisionDeps = {
   getCachedCredentials: () => Credentials | null
+  autoProvisioningAllowed: () => boolean
   // main.ts's saveCredentials: validates against the server, writes
   // ~/.syrus/credentials, and starts the notification cable.
   saveCredentials: (credentials: Credentials) => Promise<unknown>
@@ -55,6 +57,9 @@ type ProvisionDeps = {
 }
 
 const normalizeUrl = (url: string) => url.trim().replace(/\/+$/, "")
+
+const credentialsMatch = (left: Credentials | null, right: Credentials | null) =>
+  left?.url.trim() === right?.url.trim() && left?.token.trim() === right?.token.trim()
 
 // In-page navigations can fire in bursts; one attempt at a time is plenty.
 let attemptInFlight = false
@@ -76,6 +81,9 @@ export const maybeProvisionDesktopToken = async (
 ): Promise<ProvisionResult> => {
   const normalized = normalizeUrl(serverUrl)
   const cached = deps.getCachedCredentials()
+  if (!deps.autoProvisioningAllowed()) {
+    return "suppressed"
+  }
   if (cached) {
     // ~/.syrus/credentials is shared with the syrus CLI. Credentials
     // configured for a DIFFERENT instance must never be overwritten by
@@ -127,6 +135,13 @@ export const maybeProvisionDesktopToken = async (
   }
 
   if (result?.state === "ok" && typeof result.apiToken === "string" && result.apiToken !== "") {
+    // The page script can take up to 15 seconds. A manual save or explicit
+    // sign-out during that window owns the resulting state; never overwrite
+    // it with the token minted by the now-stale attempt.
+    if (!deps.autoProvisioningAllowed() || !credentialsMatch(cached, deps.getCachedCredentials())) {
+      return "suppressed"
+    }
+
     try {
       await deps.saveCredentials({ url: normalized, token: result.apiToken })
       return "provisioned"
