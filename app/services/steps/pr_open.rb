@@ -714,12 +714,18 @@ module Steps
       repo_slug = pr_repo.slug
 
       existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
+        BotIdentity.for(job).authored_github_comment?(comment) &&
+          comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
       end
 
       if existing
-        client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
-        log("[pr_open] updated coverage comment ##{existing.id} on PR ##{pr_number}")
+        begin
+          client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
+          log("[pr_open] updated coverage comment ##{existing.id} on PR ##{pr_number}")
+        rescue => e
+          log("[pr_open] failed to update coverage comment ##{existing.id}: #{e.class}: #{e.message} — posting new comment")
+          client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
+        end
       else
         client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
         log("[pr_open] posted coverage comment on PR ##{pr_number}")
@@ -740,12 +746,18 @@ module Steps
       repo_slug = pr_repo.slug
 
       existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        comment.body.to_s.include?(DependencyAuditReport::PrCommentFormatter::MARKER)
+        BotIdentity.for(job).authored_github_comment?(comment) &&
+          comment.body.to_s.include?(DependencyAuditReport::PrCommentFormatter::MARKER)
       end
 
       if existing
-        client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
-        log("[pr_open] updated dependency audit comment ##{existing.id} on PR ##{pr_number}")
+        begin
+          client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
+          log("[pr_open] updated dependency audit comment ##{existing.id} on PR ##{pr_number}")
+        rescue => e
+          log("[pr_open] failed to update dependency audit comment ##{existing.id}: #{e.class}: #{e.message} — posting new comment")
+          client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
+        end
       else
         client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
         log("[pr_open] posted dependency audit comment on PR ##{pr_number}")

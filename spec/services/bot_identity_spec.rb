@@ -43,6 +43,33 @@ RSpec.describe BotIdentity do
     end
   end
 
+  describe "GitHub comment authorship" do
+    it "matches the operator login for a PAT-authored Job" do
+      user = Factories.user(github_handle: "Octavia")
+      job = Factories.job(user: user, credential_mode: "pat")
+      comment = double(user: double(login: "octavia"))
+
+      expect(described_class.for(job).authored_github_comment?(comment)).to be true
+    end
+
+    it "matches the configured App bot login for an App-authored Job" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      job = Factories.job
+      job.update!(credential_mode: "app")
+      comment = double(user: double(login: "syrus-local[bot]"))
+
+      expect(described_class.for(job).authored_github_comment?(comment)).to be true
+    end
+
+    it "rejects a foreign author even when the comment body carries a Syrus marker" do
+      user = Factories.user(github_handle: "operator")
+      job = Factories.job(user: user, credential_mode: "pat")
+      comment = double(user: double(login: "reviewer"))
+
+      expect(described_class.for(job).authored_github_comment?(comment)).to be false
+    end
+  end
+
   describe ".for_owner" do
     it "uses the owner's human identity when they have a connected GitHub PAT" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
