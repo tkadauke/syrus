@@ -70,6 +70,49 @@ RSpec.describe Steps::PromotionAssemble do
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("falling through to promotion_repair")
   end
 
+  it "fails with git output instead of reporting unrelated histories as a conflict" do
+    allow(git).to receive(:run).with(
+      "merge", "--no-ff", "origin/develop", "-m", "Promote develop into main", chdir: "/tmp/workspace"
+    ).and_raise(GitRunner::GitError.new(
+      %w[merge --no-ff origin/develop], 128, "fatal: refusing to merge unrelated histories"
+    ))
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed, /fatal: refusing to merge unrelated histories/
+    )
+    expect(workflow.reload.artifact("promotion_assemble_result")).to be_nil
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include("fatal: refusing to merge unrelated histories")
+  end
+
+  it "fails with git output instead of reporting a merge hook failure as a conflict" do
+    allow(git).to receive(:run).with(
+      "merge", "--no-ff", "origin/develop", "-m", "Promote develop into main", chdir: "/tmp/workspace"
+    ).and_raise(GitRunner::GitError.new(
+      %w[merge --no-ff origin/develop], 1, "pre-merge-commit hook declined"
+    ))
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed, /pre-merge-commit hook declined/
+    )
+    expect(workflow.reload.artifact("promotion_assemble_result")).to be_nil
+  end
+
+  it "fails with git output when a conflicted merge cannot be aborted" do
+    allow(git).to receive(:run).with(
+      "merge", "--no-ff", "origin/develop", "-m", "Promote develop into main", chdir: "/tmp/workspace"
+    ).and_raise(GitRunner::GitError.new(
+      %w[merge --no-ff origin/develop], 1, "CONFLICT (content): Merge conflict in app/models/job.rb"
+    ))
+    allow(git).to receive(:run).with("merge", "--abort", chdir: "/tmp/workspace").and_raise(
+      GitRunner::GitError.new(%w[merge --abort], 128, "fatal: There is no merge to abort")
+    )
+
+    expect { handler.call }.to raise_error(
+      Steps::Base::StepFailed, /fatal: There is no merge to abort/
+    )
+    expect(workflow.reload.artifact("promotion_assemble_result")).to be_nil
+  end
+
   it "fails fast when no source branch artifact is present" do
     workflow.set_artifact!("promotion_source_branch", nil)
 
