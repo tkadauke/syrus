@@ -48,7 +48,7 @@
 # 30 image pull failed (network/other) ·
 # 31 image pull denied (private package / unpublished tag / not logged in) ·
 # 32 image tag not found in the registry · 40 compose up failed · 41 health
-# check timed out · 1 anything else
+# check timed out · 42 pre-migration backup failed · 1 anything else
 set -euo pipefail
 cd "$(dirname "$0")"   # the script lives at the repo root (or the app's Resources)
 ASSETS_DIR="$PWD"      # read-only home of docker-compose.yml + compose.env.example
@@ -312,17 +312,7 @@ run_docker() {
   if [ "$START_AFTER" = "1" ]; then
     info "(--start is ignored for --docker; the Compose stack always starts.)"
   fi
-  IMAGE="${IMAGE_OVERRIDE:-${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}"
-  export SYRUS_IMAGE="$IMAGE"
-  # The Plugin Runtime manager comes from the same release as the backend when
-  # the backend is a released image; anything else (a dev or fork image, a
-  # digest pin) tracks :latest. Plugin images carry the backend's tags (see
-  # bin/publish-plugin-images).
-  case "$IMAGE" in
-    ghcr.io/tkadauke/syrus-backend:*) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:${IMAGE##*:}" ;;
-    *) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:latest" ;;
-  esac
-  export SYRUS_PLUGIN_RUNTIME_IMAGE="${SYRUS_PLUGIN_RUNTIME_IMAGE:-$RUNTIME_IMAGE}"
+  PROCESS_IMAGE="${SYRUS_IMAGE:-}"
   # The Compose project name determines the volume prefix (<PROJECT>_syrus-data)
   # and overrides the compose file's `name: syrus` default. A side-by-side test
   # stack passes --project syrus-test for a fully isolated set of volumes and
@@ -345,6 +335,30 @@ run_docker() {
     sed "s|^name: syrus\$|name: $PROJECT|" "$ASSETS_DIR/docker-compose.yml" > "$TARGET_DIR/docker-compose.yml"
     cd "$TARGET_DIR"
   fi
+
+  # Compose loads .env from the state directory, so resolve its image pin only
+  # after changing into that directory. Do not source the file: it contains
+  # secrets and is Compose dotenv, not trusted shell code. Explicit CLI and
+  # process-environment overrides retain Compose's normal precedence.
+  ENV_IMAGE=""
+  if [ -f .env ]; then
+    ENV_IMAGE="$(sed -n 's/^SYRUS_IMAGE=//p' .env | tail -1)"
+    case "$ENV_IMAGE" in
+      \"*\") ENV_IMAGE="${ENV_IMAGE#\"}"; ENV_IMAGE="${ENV_IMAGE%\"}" ;;
+      \'*\') ENV_IMAGE="${ENV_IMAGE#\'}"; ENV_IMAGE="${ENV_IMAGE%\'}" ;;
+    esac
+  fi
+  IMAGE="${IMAGE_OVERRIDE:-${PROCESS_IMAGE:-${ENV_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}}"
+  export SYRUS_IMAGE="$IMAGE"
+  # The Plugin Runtime manager comes from the same release as the backend when
+  # the backend is a released image; anything else (a dev or fork image, a
+  # digest pin) tracks :latest. Plugin images carry the backend's tags (see
+  # bin/publish-plugin-images).
+  case "$IMAGE" in
+    ghcr.io/tkadauke/syrus-backend:*) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:${IMAGE##*:}" ;;
+    *) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:latest" ;;
+  esac
+  export SYRUS_PLUGIN_RUNTIME_IMAGE="${SYRUS_PLUGIN_RUNTIME_IMAGE:-$RUNTIME_IMAGE}"
 
   emit "{\"event\":\"start\",\"mode\":\"docker\",\"image\":\"$(json_escape "$IMAGE")\",\"target_dir\":\"$(json_escape "$PWD")\"}"
 
@@ -698,6 +712,35 @@ run_docker() {
   # 5. Start the stack.
   step "Starting Syrus"
   emit_step stack_up start
+  # A changed backend image may contain migrations, and the setup service runs
+  # db:prepare before the app starts. Preserve the existing data volume first.
+  # `compose ps -aq` also finds a stopped prior container, which protects an
+  # update after a manual `docker compose stop`. Stopping the stack makes the
+  # tar archive a consistent point-in-time copy of the SQLite files.
+  prior_web_container="$(compose ps -aq web 2>/dev/null | head -1 || true)"
+  prior_image=""
+  if [ -n "$prior_web_container" ]; then
+    prior_image="$(docker inspect --format '{{.Config.Image}}' "$prior_web_container" 2>/dev/null || true)"
+  fi
+  if [ -n "$prior_image" ] && [ "$prior_image" != "$IMAGE" ] \
+     && docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+    backup_dir="$PWD/backups"
+    backup_path="$backup_dir/syrus-data-before-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+    mkdir -p "$backup_dir"
+    info "Image change detected: $prior_image -> $IMAGE"
+    info "Stopping Syrus and backing up $DATA_VOLUME to $backup_path before migrations."
+    emit_log backup "image changed; backing up $DATA_VOLUME to $backup_path before migrations"
+    run_logged up compose stop || die "couldn't stop the existing stack before backup" 42
+    if ! docker run --rm --entrypoint tar \
+      --mount "type=volume,src=$DATA_VOLUME,dst=/source,readonly" \
+      "$prior_image" -czf - -C /source . > "$backup_path.tmp"; then
+      rm -f "$backup_path.tmp"
+      die "couldn't back up $DATA_VOLUME; the new image was not started" 42
+    fi
+    mv "$backup_path.tmp" "$backup_path"
+    info "Backup complete: $backup_path"
+    emit_log backup "backup complete: $backup_path"
+  fi
   # Plugin Runtime is optional. If its image cannot be pulled, start without
   # it: plugins that run their own service stay unavailable (and say so)
   # until a later update succeeds, but Syrus itself comes up.
