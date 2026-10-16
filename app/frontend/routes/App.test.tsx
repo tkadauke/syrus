@@ -16244,6 +16244,7 @@ function repositoriesPayload(overrides: {
         last_poll_status: "ok",
         last_poll_started_at: "2026-05-30T12:00:00Z",
         last_poll_error: null,
+        can_edit: true,
         repository_path: "/repositories/3",
         edit_repository_path: "/repositories/3/edit"
       }
@@ -16278,6 +16279,7 @@ function repositoriesPayload(overrides: {
         last_poll_status: null,
         last_poll_started_at: null,
         last_poll_error: null,
+        can_edit: true,
         repository_path: "/repositories/4",
         edit_repository_path: "/repositories/4/edit"
       }
@@ -16454,6 +16456,7 @@ function repositoryDetailPayload() {
       agent_provider_label: "Codex",
       provider_circuit: closedProviderCircuit("codex")
     },
+    can_edit: true,
     credential_status: {
       mode: "pat",
       label: "PAT fallback: no active App installation",
