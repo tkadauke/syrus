@@ -151,6 +151,44 @@ RSpec.describe PlatformPollingJob do
         instance = concrete_class.new
         expect(instance.send(:duplicate_running?)).to be false
       end
+
+      it "ignores failed jobs in the count" do
+        failed_job = SolidQueue::Job.create!(
+          class_name: concrete_class.name,
+          queue_name: "default",
+          priority: 0,
+          arguments: "{}"
+        )
+        SolidQueue::FailedExecution.create!(job: failed_job, error: "worker died")
+        SolidQueue::Job.create!(
+          class_name: concrete_class.name,
+          queue_name: "default",
+          priority: 0,
+          arguments: "{}"
+        )
+
+        expect(concrete_class.new.send(:duplicate_running?)).to be false
+      end
+
+      it "ignores jobs claimed by a deregistered process" do
+        orphaned_job = SolidQueue::Job.create!(
+          class_name: concrete_class.name,
+          queue_name: "default",
+          priority: 0,
+          arguments: "{}"
+        )
+        SolidQueue::ClaimedExecution.insert!(
+          { job_id: orphaned_job.id, process_id: 123_456, created_at: Time.current }
+        )
+        SolidQueue::Job.create!(
+          class_name: concrete_class.name,
+          queue_name: "default",
+          priority: 0,
+          arguments: "{}"
+        )
+
+        expect(concrete_class.new.send(:duplicate_running?)).to be false
+      end
     end
 
     context "when SolidQueue tables are unavailable" do
@@ -251,6 +289,34 @@ RSpec.describe PlatformPollingJob do
       result = described_class.start_one_with_status(concrete_class)
       expect(result).to include(status: :started)
       expect(result).not_to have_key(:platform)
+    end
+
+    it "starts a replacement when the unfinished job has failed" do
+      failed_job = SolidQueue::Job.create!(
+        class_name: concrete_class.name,
+        queue_name: "polling",
+        priority: 0,
+        arguments: "{}"
+      )
+      SolidQueue::FailedExecution.create!(job: failed_job, error: "worker died")
+
+      expect { described_class.start_one_with_status(concrete_class) }
+        .to have_enqueued_job(concrete_class)
+    end
+
+    it "starts a replacement when the unfinished job belongs to a deregistered process" do
+      orphaned_job = SolidQueue::Job.create!(
+        class_name: concrete_class.name,
+        queue_name: "polling",
+        priority: 0,
+        arguments: "{}"
+      )
+      SolidQueue::ClaimedExecution.insert!(
+        { job_id: orphaned_job.id, process_id: 123_456, created_at: Time.current }
+      )
+
+      expect { described_class.start_one_with_status(concrete_class) }
+        .to have_enqueued_job(concrete_class)
     end
   end
 end

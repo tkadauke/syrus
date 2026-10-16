@@ -64,6 +64,24 @@ RSpec.describe PlatformConnectorWatchdogJob do
       expect { described_class.perform_now }.not_to have_enqueued_job(connector_job_class)
     end
 
+    it "re-enqueues a connector whose unfinished job has a failed execution" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: discord_adapter_class }
+      )
+      failed_job = SolidQueue::Job.create!(
+        class_name: connector_job_class.name,
+        queue_name: "polling",
+        priority: 0,
+        arguments: "{}"
+      )
+      SolidQueue::FailedExecution.create!(job: failed_job, error: "worker died")
+
+      expect(Rails.logger).to receive(:warn).with(include("FakeDiscordConnectorJob").and(include("re-enqueued")))
+
+      expect { described_class.perform_now }.to have_enqueued_job(connector_job_class)
+    end
+
     it "does not enqueue and does not log when the plugin is disabled" do
       Syrus::PluginRegistry.register(
         name: "discord_plugin", version: "1.0.0", default_enabled: false,
