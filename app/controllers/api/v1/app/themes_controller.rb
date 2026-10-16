@@ -117,8 +117,7 @@ module Api
         end
 
         def normalized_tokens(attributes)
-          token_payload = attributes[:tokens].presence ||
-            ([ "light", "dark" ] + Theme::EXTENDED_TOKEN_GROUPS.keys).index_with { |group| attributes[group] }
+          token_payload = attributes[:tokens].presence || attributes.slice(*token_group_keys)
           raw_payload = plain_json(token_payload)
           payload = raw_payload.is_a?(Hash) ? raw_payload.with_indifferent_access : {}
           payload.slice(:light, :dark, *Theme::EXTENDED_TOKEN_GROUPS.keys).transform_values do |value|
@@ -127,8 +126,11 @@ module Api
         end
 
         def token_update?(attributes)
-          attributes.key?(:tokens) ||
-            ([ "light", "dark" ] + Theme::EXTENDED_TOKEN_GROUPS.keys).any? { |group| attributes.key?(group) }
+          attributes.key?(:tokens) || token_group_keys.any? { |group| attributes.key?(group) }
+        end
+
+        def token_group_keys
+          [ "light", "dark", *Theme::EXTENDED_TOKEN_GROUPS.keys ]
         end
 
         def merged_tokens(theme, attributes)
