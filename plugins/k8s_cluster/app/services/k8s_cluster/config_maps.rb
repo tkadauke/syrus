@@ -7,6 +7,7 @@ module K8sCluster
     MAX_CONFIG_MAPS = 1_000
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_config_maps(namespace_scope(namespace)).fetch("items", [])
 
@@ -20,6 +21,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.core) do |client|
         { available: true, generated_at: Time.current.iso8601, config_map: client.get_config_map(name, namespace) }
       end

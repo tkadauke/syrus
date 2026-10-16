@@ -10,6 +10,7 @@ module K8sCluster
     MAX_SECRETS = 1_000
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_secrets(namespace_scope(namespace)).fetch("items", [])
 
@@ -23,6 +24,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.core) do |client|
         item = client.get_secret(name, namespace)
 

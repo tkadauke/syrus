@@ -115,7 +115,11 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
     it "degrades a query-time error into an available:false payload instead of raising, and audits the failure" do
       client = instance_double(Mysql2::Client, close: nil)
-      allow(client).to receive(:query).and_raise(Mysql2::Error, "You have an error in your SQL syntax")
+      allow(client).to receive(:query) do |statement|
+        next if [ "START TRANSACTION READ ONLY", "ROLLBACK" ].include?(statement)
+
+        raise Mysql2::Error, "You have an error in your SQL syntax"
+      end
       stub_client_factory(client)
 
       payload = described_class.new(connection).execute("SELECT * FROM", user: user)
@@ -126,6 +130,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       audit = MysqlQueryAudit.last
       expect(audit.success).to be(false)
       expect(audit.error_message).to include("syntax")
+      expect(client).to have_received(:query).with("ROLLBACK")
     end
 
     it "raises BlankStatement for an empty SQL string" do
@@ -142,6 +147,96 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
       expect(payload[:rows].first["note"].bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
       expect(payload[:rows].first["note"]).to end_with("…")
+    end
+
+    it "truncates each streamed value before retaining the row" do
+      long_value = "x" * 60_000_000
+      result = instance_double(Mysql2::Result, fields: [ "note" ])
+      allow(result).to receive(:each) { |&block| block.call({ "note" => long_value }) }
+      client = instance_double(Mysql2::Client, close: nil)
+      allow(client).to receive(:query).and_return(result)
+      allow(client).to receive(:abandon_results!)
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT note FROM notes", user: user)
+
+      expect(payload[:rows].first["note"].bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
+    end
+
+    it "caps the aggregate retained result bytes" do
+      rows = Array.new(500) { |i| { "id" => i, "note" => "x" * described_class::MAX_VALUE_BYTES } }
+      client = fake_client(rows: rows)
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT id, note FROM notes", user: user, limit: 500)
+
+      expect(payload[:truncated]).to be(true)
+      expect(payload[:rows].sum { |row| row.sum { |key, value| key.to_s.bytesize + value.to_s.bytesize } }).to be <= described_class::MAX_RESULT_BYTES
+      expect(client).to have_received(:abandon_results!)
+    end
+
+    it "persists a bounded pending audit before executing and finalizes it afterward" do
+      statement = "SELECT 1 /* #{'x' * 70_000} */"
+      client = fake_client(rows: [ { "1" => 1 } ])
+      allow(client).to receive(:query) do
+        expect(MysqlQueryAudit.last).to have_attributes(success: false, error_message: MysqlDbBrowser::QueryAudit::PENDING_MESSAGE)
+        fake_client(rows: [ { "1" => 1 } ]).query("SELECT 1")
+      end
+      stub_client_factory(client)
+
+      described_class.new(connection).execute(statement, user: user)
+
+      expect(MysqlQueryAudit.last.statement.bytesize).to eq(MysqlDbBrowser::QueryAudit::MAX_STATEMENT_BYTES)
+      expect(MysqlQueryAudit.last).to have_attributes(success: true, error_message: nil)
+    end
+
+    it "fails closed when the audit cannot be created" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+      allow(MysqlQueryAudit).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users", user: user)
+      }.to raise_error(ActiveRecord::RecordInvalid)
+      expect(client).not_to have_received(:query)
+    end
+
+    it "audits non-Mysql2 execution errors before re-raising them" do
+      client = instance_double(Mysql2::Client, close: nil)
+      allow(client).to receive(:query).and_return(nil)
+      stub_client_factory(client)
+
+      expect {
+        described_class.new(connection).execute("SELECT 1", user: user)
+      }.to raise_error(NoMethodError)
+      expect(MysqlQueryAudit.last).to have_attributes(success: false, error_message: a_string_including("fields"))
+    end
+
+    it "safely bounds an oversized error message without masking the original exception" do
+      failure = RuntimeError.new("é" * 40_000)
+      client = instance_double(Mysql2::Client, close: nil)
+      allow(client).to receive(:query).and_raise(failure)
+      stub_client_factory(client)
+
+      expect {
+        described_class.new(connection).execute("SELECT 1", user: user)
+      }.to raise_error { |error| expect(error).to equal(failure) }
+
+      audit = MysqlQueryAudit.last
+      expect(audit.success).to be(false)
+      expect(audit.error_message.bytesize).to be <= MysqlDbBrowser::QueryAudit::MAX_ERROR_MESSAGE_BYTES
+      expect(audit.error_message).to be_valid_encoding
+      expect(audit.error_message).not_to eq(MysqlDbBrowser::QueryAudit::PENDING_MESSAGE)
+    end
+
+    it "fails closed when no acting user is available" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      expect {
+        described_class.new(connection).execute("SELECT * FROM users", user: nil)
+      }.to raise_error(ArgumentError, /acting user/)
+      expect(client).not_to have_received(:query)
     end
 
     it "adds a MAX_EXECUTION_TIME hint to SELECT statements but not to WITH ... CTEs" do
@@ -222,6 +317,60 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       }.to raise_error(described_class::WriteNotAllowed)
     end
 
+    it "ignores quotes inside MySQL comments while classifying WITH ... DML" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      statements = [
+        "WITH a AS (SELECT 1 /* ' */) DELETE FROM t -- ' ) SELECT 1",
+        "WITH a AS (SELECT 1 /* ' */) UPDATE t SET x=1 # ' ) SELECT 1"
+      ]
+
+      statements.each do |statement|
+        expect {
+          described_class.new(connection).execute(statement, user: user)
+        }.to raise_error(described_class::WriteNotAllowed)
+      end
+
+      expect(MysqlQueryAudit.last(2).map(&:read_only)).to eq([ false, false ])
+    end
+
+    it "rejects MySQL executable comments instead of treating their contents as inert" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+      statement = "WITH a AS (SELECT 1 /*!80000 ) DELETE FROM t -- */ ) SELECT 1"
+
+      expect {
+        described_class.new(connection).execute(statement, user: user)
+      }.to raise_error(described_class::WriteNotAllowed)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.statement).to eq(statement)
+      expect(audit.read_only).to be(false)
+      expect(audit.success).to be(false)
+    end
+
+    it "does not mistake an executable-comment marker inside a string or inert comment for executable SQL" do
+      client = fake_client(rows: [ { "value" => "/*!" } ])
+      stub_client_factory(client)
+
+      string_payload = described_class.new(connection).execute("SELECT '/*!' AS value", user: user)
+      comment_payload = described_class.new(connection).execute("SELECT 1 /* text /*! still inert */", user: user)
+
+      expect(string_payload[:read_only]).to be(true)
+      expect(comment_payload[:read_only]).to be(true)
+    end
+
+    it "still treats comments containing unmatched parentheses and quotes inside a read-only CTE as read-only" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute(
+        "WITH a AS (SELECT 1 /* unmatched ) and ' */), b AS (SELECT 2 -- unmatched ) and '\n) SELECT * FROM a, b",
+        user: user
+      )
+
+      expect(payload[:read_only]).to be(true)
+    end
+
     it "rejects a WITH ... INSERT CTE on a read-only connection" do
       described_class.client_factory = ->(**) { raise "should not connect" }
 
@@ -283,6 +432,24 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect {
         described_class.new(connection).execute("EXPLAIN ANALYZE UPDATE users SET name = 'x'", user: user)
       }.to raise_error(described_class::WriteNotAllowed)
+
+      expect {
+        described_class.new(connection).execute(
+          "EXPLAIN ANALYZE WITH a AS (SELECT 1) DELETE users FROM users JOIN a",
+          user: user
+        )
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
+
+    it "executes classified reads inside a server-enforced read-only transaction" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      stub_client_factory(client)
+
+      described_class.new(connection).execute("SELECT * FROM users", user: user)
+
+      expect(client).to have_received(:query).with("START TRANSACTION READ ONLY").ordered
+      expect(client).to have_received(:query).with(a_string_starting_with("SELECT /*+ MAX_EXECUTION_TIME("), any_args).ordered
+      expect(client).to have_received(:query).with("ROLLBACK").ordered
     end
 
     it "rejects SELECT ... INTO OUTFILE without opening a connection, even though it's otherwise a SELECT" do
@@ -305,6 +472,34 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect {
         described_class.new(connection).execute("SELECT * FROM users LIMIT 1 INTO DUMPFILE '/tmp/row.dat'", user: user)
       }.to raise_error(described_class::FilesystemWriteNotAllowed)
+    end
+
+    it "rejects filesystem writes when MySQL comments separate INTO from OUTFILE or DUMPFILE" do
+      described_class.client_factory = ->(**) { raise "should not connect" }
+
+      [
+        "SELECT 'x' INTO/**/OUTFILE '/tmp/x'",
+        "SELECT 'x' INTO # comment\nOUTFILE '/tmp/x'",
+        "SELECT 'x' INTO /*! */DUMPFILE '/tmp/x'",
+        "SELECT 'x' INTO /*!50000 OUTFILE */ '/tmp/x'"
+      ].each do |statement|
+        expect {
+          described_class.new(connection).execute(statement, user: user)
+        }.to raise_error(described_class::FilesystemWriteNotAllowed), statement
+      end
+    end
+
+    it "does not treat comment markers inside string literals as token separators" do
+      client = fake_client(rows: [ { "value" => "INTO OUTFILE" } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT 'INTO OUTFILE' AS value", user: user)
+
+      expect(payload[:read_only]).to be(true)
+      expect(client).to have_received(:query).with(
+        a_string_starting_with("SELECT /*+ MAX_EXECUTION_TIME("),
+        any_args
+      )
     end
 
     it "classifies FilesystemWriteNotAllowed as a WriteNotAllowed so existing callers' rescues still catch it" do

@@ -32,6 +32,19 @@ module AlertmanagerInvestigations
         .first
     end
 
+    def canonical_host
+      self.class.canonicalize_host(host)
+    end
+
+    def self.canonicalize_host(host)
+      value = host.to_s.strip.downcase
+      bracketed = value.match(/\A\[(.+)\](?::\d+)?\z/)
+      return bracketed[1] if bracketed
+      return value unless value.count(":") == 1
+
+      value.sub(/:\d+\z/, "")
+    end
+
     def alert_name
       labels["alertname"].to_s.presence || "Alertmanager alert"
     end

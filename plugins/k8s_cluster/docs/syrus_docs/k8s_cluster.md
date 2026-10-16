@@ -292,7 +292,8 @@ args: ["get", "pods"]
 
 The tool requests a `k8s_cluster.kubeconfig` lease from
 `CredentialStore::Broker`, writes the payload to a restrictive temporary
-file, invokes `kubectl` with that file only through `KUBECONFIG`, and removes
+file, invokes `kubectl` with a replacement environment containing only
+`KUBECONFIG`, `PATH`, and `HOME`, and removes
 the file after the command completes or raises. Returned stdout, stderr, and
 errors are scrubbed through Credential Store redaction, and Credential Store
 records the lease attempt as an access event. MCP usage records and
@@ -315,19 +316,28 @@ Operators adding a k3s credential should create a Credential Store record:
 - Allowed surfaces: choose `workflow`, `chat`, or both based on where agents
   should use the credential.
 
-The tool rejects the `kubectl` executable, leading global flags,
-`--kubeconfig`, `--context`, `--namespace`, and direct credential flags in
-`args`; callers pass context and namespace through the dedicated inputs so the
-broker can validate target constraints. It also blocks `kubectl config ...`,
-streaming or interactive modes (`get --watch`, `logs -f`, `proxy`,
-`port-forward`, interactive `exec`, and similar), mutating commands (`apply`,
-`delete`, `patch`, `exec`, `cp`, `drain`, rollout/scale/set operations, and
-similar), and Secret-value exposure patterns such as `get secrets -o yaml`,
-`get secrets -o=jsonpath=...`, `describe secret`, or `get --raw` Kubernetes
+The tool rejects the `kubectl` executable, leading global flags, and flags in
+`args` that can override the kubeconfig, API server, context, cluster, user,
+impersonated identity, TLS settings, proxy, cache directory, or profiling
+output. Callers pass context and namespace through the dedicated inputs so the
+broker can validate target constraints; `-A`/`--all-namespaces` cannot override
+ a supplied namespace. Only the read commands `get`, `describe`, `logs`, `top`,
+ `events`, `api-resources`, `api-versions`, `version`, `explain`, `wait`, and
+ `diff` are allowed; `auth` is limited to `can-i` and `whoami`. This allowlist
+ also prevents arbitrary `kubectl-<name>` plugins, configuration commands,
+ streaming or interactive modes, and all mutating commands. Secret-value
+ exposure patterns such as `get secrets -o yaml`, named or comma-separated
+ Secret resources, `get secrets -o=jsonpath=...`, Secret projections via
+ `custom-columns`/`custom-columns-file`, `describe secret`, or `get --raw` Kubernetes
 API paths whose segments target `secrets`, unless explicit allowance is
-supplied on a non-chat surface. Chat calls cannot self-authorize those
-high-risk allowances. The local runner also enforces a timeout so a missed
-policy case cannot keep the temporary kubeconfig materialized indefinitely.
+ supplied by a non-agent caller. `get ... -o name` is the only Secret-read
+ exception; client verbosity at level 6 or higher remains protected. Chat and workflow agents cannot self-authorize
+ secret-output allowance. When the credential belongs to a registered cluster,
+ every command also requires that cluster's `agentic_access_enabled` opt-in.
+ Standalone Credential Store kubeconfigs remain governed by their explicit
+ scope, surface, tool, and target constraints. The local runner also enforces a
+ timeout and bounded output capture so a missed policy case cannot keep the
+ temporary kubeconfig materialized or grow memory use indefinitely.
 
 ## Cluster-browsing UI
 
@@ -447,8 +457,9 @@ mirroring `mysql_db_browser`'s own MCP tool sets:
   (an individual Event has no useful describe beyond its list row).
 - `k8s_cluster_pod_logs` - a pod's log tail via `Pods#logs`; `container` is
   required once a pod has more than one container, `tail_lines` defaults to
-  200, and `previous`/`timestamps` pass through to the same Kubernetes API
-  flags the Logs tab uses.
+  200 (maximum 1,000), responses are limited to 64 KiB, and
+  `previous`/`timestamps` pass through to the same Kubernetes API flags the
+  Logs tab uses.
 - `k8s_cluster_overview` - the aggregate CPU/memory metrics overview via
   `Overview#call`; soft-fails per-section (`available: false`) rather than
   erroring when `metrics-server` isn't installed, same as the UI's Overview

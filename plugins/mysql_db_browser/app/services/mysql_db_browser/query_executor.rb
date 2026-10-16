@@ -25,6 +25,7 @@ module MysqlDbBrowser
     DEFAULT_LIMIT = 100
     MAX_LIMIT = 500
     MAX_VALUE_BYTES = 2_000
+    MAX_RESULT_BYTES = 1_000_000
 
     class Unavailable < StandardError; end
     class WriteNotAllowed < StandardError; end
@@ -100,21 +101,48 @@ module MysqlDbBrowser
     end
 
     def run_and_audit(client, statement, read_only:, user:, limit:)
+      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
       started_at = monotonic_now
-      payload = read_only ? run_select(client, statement, clamp_limit(limit)) : run_write(client, statement)
-      duration_ms = elapsed_ms(started_at)
-      audit!(statement: statement, read_only: read_only, user: user, success: true, row_count: payload[:row_count], duration_ms: duration_ms)
-      payload.merge(statement: statement, read_only: read_only, duration_ms: duration_ms, generated_at: Time.current.iso8601)
-    rescue Mysql2::Error => e
-      duration_ms = elapsed_ms(started_at)
-      audit!(statement: statement, read_only: read_only, user: user, success: false, error_message: e.message, duration_ms: duration_ms)
-      { available: false, statement: statement, read_only: read_only, error: error_payload(e), duration_ms: duration_ms, generated_at: Time.current.iso8601 }
+      begin
+        payload = read_only ? run_read_only(client, statement, clamp_limit(limit)) : run_write(client, statement)
+        duration_ms = elapsed_ms(started_at)
+        QueryAudit.succeed!(audit, row_count: payload[:row_count], duration_ms: duration_ms)
+        payload.merge(statement: statement, read_only: read_only, duration_ms: duration_ms, generated_at: Time.current.iso8601)
+      rescue StandardError => e
+        duration_ms = elapsed_ms(started_at)
+        QueryAudit.fail!(audit, error_message: e.message, duration_ms: duration_ms)
+        raise unless e.is_a?(Mysql2::Error)
+
+        { available: false, statement: statement, read_only: read_only, error: error_payload(e), duration_ms: duration_ms, generated_at: Time.current.iso8601 }
+      end
     end
 
     def read_only_statement?(statement)
+      return false if executable_comment?(statement)
       return true if statement.match?(/\A(SELECT|SHOW|DESCRIBE|DESC)\b/i)
       return explain_statement?(statement) if statement.match?(/\AEXPLAIN\b/i)
       return read_only_with_statement?(statement) if statement.match?(/\AWITH\b/i)
+
+      false
+    end
+
+    # MySQL executes the contents of version-gated `/*! ... */` comments.
+    # Treat their presence outside strings and inert comments as potentially
+    # mutating instead of letting the CTE parser skip executable SQL.
+    def executable_comment?(statement)
+      i = 0
+
+      while i < statement.length
+        char = statement[i]
+        if [ "'", "\"", "`" ].include?(char)
+          i = skip_quoted(statement, i, char) + 1
+        else
+          return true if statement[i, 3] == "/*!"
+
+          comment_end = skip_comment(statement, i)
+          i = comment_end.is_a?(Integer) ? comment_end : i + 1
+        end
+      end
 
       false
     end
@@ -125,7 +153,49 @@ module MysqlDbBrowser
     # user has the FILE privilege, which is outside this console's safe
     # read-only envelope regardless of the connection's allow_writes flag.
     def filesystem_write_statement?(statement)
-      statement.match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
+      sql_without_comments(statement).match?(/\bINTO\s+(OUTFILE|DUMPFILE)\b/i)
+    end
+
+    # MySQL treats ordinary comments as token whitespace, but executes the
+    # body of version comments (`/*! ... */`). Normalize both forms before
+    # applying security classifications, while masking quoted values and
+    # identifiers so keyword-shaped literal content cannot affect the result.
+    def sql_without_comments(statement)
+      normalized = +""
+      i = 0
+
+      while i < statement.length
+        char = statement[i]
+
+        if [ "'", "\"", "`" ].include?(char)
+          closing_index = skip_quoted(statement, i, char)
+          normalized << " "
+          i = closing_index + 1
+        elsif statement[i, 3] == "/*!"
+          closing_index = statement.index("*/", i + 3)
+          body_end = closing_index || statement.length
+          body = statement[(i + 3)...body_end].to_s.sub(/\A\d{5,6}\s*/, "")
+          normalized << " " << sql_without_comments(body) << " "
+          i = closing_index ? closing_index + 2 : statement.length
+        elsif statement[i, 2] == "/*"
+          closing_index = statement.index("*/", i + 2)
+          normalized << " "
+          i = closing_index ? closing_index + 2 : statement.length
+        elsif char == "#"
+          newline_index = statement.index("\n", i + 1)
+          normalized << " "
+          i = newline_index || statement.length
+        elsif statement[i, 2] == "--" && statement[i + 2]&.match?(/\s/)
+          newline_index = statement.index("\n", i + 3)
+          normalized << " "
+          i = newline_index || statement.length
+        else
+          normalized << char
+          i += 1
+        end
+      end
+
+      normalized
     end
 
     def explain_statement?(statement)
@@ -135,14 +205,17 @@ module MysqlDbBrowser
       analyze = rest.match?(/\AANALYZE\b/i)
       rest = rest.sub(/\AANALYZE\b/i, "").strip
       rest = rest.sub(/\AFORMAT\s*=\s*(?:TRADITIONAL|JSON|TREE)\b/i, "").strip
-      pattern = analyze ? /\A(SELECT|WITH|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
+      return read_only_with_statement?(rest) if analyze && rest.match?(/\AWITH\b/i)
+
+      pattern = analyze ? /\A(SELECT|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
       rest.match?(pattern)
     end
 
     # A `WITH ...` statement is only read-only when its terminal statement
     # (after every CTE definition) is a SELECT/TABLE - `WITH x AS (...)
     # UPDATE/DELETE/INSERT` mutates despite starting with the WITH keyword.
-    # Parses past the CTE definitions (quote-aware, balanced-paren matching)
+    # Parses past the CTE definitions (comment/quote-aware, balanced-paren
+    # matching)
     # to find that terminal keyword rather than keying off the leading WITH
     # alone. A CTE list Syrus can't parse is treated as NOT read-only,
     # erring toward requiring write access rather than assuming safety.
@@ -192,8 +265,9 @@ module MysqlDbBrowser
     end
 
     # Finds the index (within str) of the ")" matching the "(" at
-    # open_index, skipping over quoted string/identifier literals so a
-    # paren inside a CTE body's string values doesn't unbalance the count.
+    # open_index, skipping over comments and quoted string/identifier literals
+    # so their quotes/parens don't affect the count. Unterminated block comments
+    # make the CTE unparseable and therefore non-read-only.
     def matching_paren_index(str, open_index)
       depth = 0
       i = open_index
@@ -213,7 +287,10 @@ module MysqlDbBrowser
         when "'", "\"", "`"
           i = skip_quoted(str, i, char) + 1
         else
-          i += 1
+          comment_end = skip_comment(str, i)
+          return nil if comment_end == :unterminated
+
+          i = comment_end || i + 1
         end
       end
 
@@ -246,6 +323,22 @@ module MysqlDbBrowser
       len - 1
     end
 
+    def skip_comment(str, start_index)
+      if str[start_index, 2] == "/*"
+        close_index = str.index("*/", start_index + 2)
+        return :unterminated unless close_index
+
+        close_index + 2
+      elsif str[start_index] == "#" || mysql_dash_comment?(str, start_index)
+        newline_index = str.index("\n", start_index + 1)
+        newline_index || str.length
+      end
+    end
+
+    def mysql_dash_comment?(str, start_index)
+      str[start_index, 2] == "--" && str[start_index + 2]&.match?(/[[:space:]]/)
+    end
+
     def build_client(password)
       self.class.client_factory.call(
         host: connection.host,
@@ -266,25 +359,37 @@ module MysqlDbBrowser
       result = client.query(mysql_timeout_hint(statement), stream: true, cache_rows: false, as: :hash)
       columns = result.fields
       rows = []
+      result_bytes = 0
+      truncated = false
 
       result.each do |row|
-        rows << row
-        next unless rows.length > limit
+        truncated_row = truncate_row(row)
+        row_bytes = retained_bytes(truncated_row)
+        if rows.length >= limit || result_bytes + row_bytes > MAX_RESULT_BYTES
+          truncated = true
+          client.abandon_results! if client.respond_to?(:abandon_results!)
+          break
+        end
 
-        client.abandon_results! if client.respond_to?(:abandon_results!)
-        break
+        rows << truncated_row
+        result_bytes += row_bytes
       end
-
-      truncated = rows.length > limit
-      limited_rows = rows.first(limit).map { |row| truncate_row(row) }
 
       {
         available: true,
-        columns: columns.presence || limited_rows.first&.keys || [],
-        rows: limited_rows,
-        row_count: limited_rows.length,
+        columns: columns.presence || rows.first&.keys || [],
+        rows: rows,
+        row_count: rows.length,
         truncated: truncated
       }
+    end
+
+    def run_read_only(client, statement, limit)
+      client.query("START TRANSACTION READ ONLY")
+      transaction_started = true
+      run_select(client, statement, limit)
+    ensure
+      client.query("ROLLBACK") if transaction_started
     end
 
     def run_write(client, statement)
@@ -324,6 +429,10 @@ module MysqlDbBrowser
       "#{value.safe_byteslice(0, MAX_VALUE_BYTES)}…"
     end
 
+    def retained_bytes(row)
+      row.sum { |key, value| key.to_s.bytesize + value.to_s.bytesize }
+    end
+
     def error_payload(error)
       message = error.message.to_s
       payload = { class: error.class.name, message: message }
@@ -338,18 +447,12 @@ module MysqlDbBrowser
     end
 
     def audit!(statement:, read_only:, user:, success:, row_count: nil, error_message: nil, duration_ms: nil)
-      MysqlQueryAudit.create!(
-        mysql_connection: connection,
-        user: user,
-        statement: statement,
-        read_only: read_only,
-        success: success,
-        row_count: row_count,
-        error_message: error_message,
-        duration_ms: duration_ms
-      )
-    rescue StandardError => e
-      Rails.logger.error("MysqlDbBrowser::QueryExecutor audit failed: #{e.class}: #{e.message}")
+      audit = QueryAudit.start!(connection: connection, user: user, statement: statement, read_only: read_only)
+      if success
+        QueryAudit.succeed!(audit, row_count: row_count, duration_ms: duration_ms)
+      else
+        QueryAudit.fail!(audit, error_message: error_message, duration_ms: duration_ms)
+      end
     end
 
     def monotonic_now

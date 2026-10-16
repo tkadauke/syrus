@@ -7,35 +7,46 @@ module K8sCluster
     MAX_OUTPUT_BYTES = 64.kilobytes
     RUN_TIMEOUT_SECONDS = 30
 
-    WRITE_COMMANDS = %w[
-      apply
-      annotate
-      attach
-      autoscale
-      certificate
-      cordon
-      cp
-      create
-      debug
-      delete
-      drain
-      edit
-      exec
-      expose
-      label
-      patch
-      replace
-      rollout
-      run
-      scale
-      set
-      taint
-      uncordon
+    READ_COMMANDS = %w[
+      api-resources
+      api-versions
+      describe
+      diff
+      events
+      explain
+      get
+      logs
+      top
+      version
+      wait
     ].freeze
-    SECRET_OUTPUT_FORMATS = %w[json yaml jsonpath go-template template].freeze
+    AUTH_READ_COMMANDS = %w[can-i whoami].freeze
+    SECRET_RESOURCES = %w[secret secrets].freeze
+    SECRET_SAFE_OUTPUT_FORMATS = %w[name].freeze
     STREAMING_COMMANDS = %w[port-forward proxy watch].freeze
-    FORBIDDEN_FLAGS = %w[--kubeconfig --token --password --username --client-key --client-certificate --certificate-authority].freeze
+    FORBIDDEN_FLAGS = %w[
+      --kubeconfig
+      --token
+      --password
+      --username
+      --client-key
+      --client-certificate
+      --certificate-authority
+      --server
+      --user
+      --cluster
+      --as
+      --as-group
+      --as-uid
+      --insecure-skip-tls-verify
+      --tls-server-name
+      --proxy-url
+      --cache-dir
+      --profile
+      --profile-output
+    ].freeze
     FORBIDDEN_FLAG_PREFIXES = FORBIDDEN_FLAGS.map { |flag| "#{flag}=" }.freeze
+    FORBIDDEN_SHORT_FLAG_PREFIXES = %w[-s].freeze
     FORBIDDEN_CONTEXT_PREFIXES = %w[--context= --namespace=].freeze
     FORBIDDEN_NAMESPACE_PREFIXES = %w[--namespace= -n].freeze
 
@@ -107,21 +118,25 @@ module K8sCluster
       raise InvalidCommand, "omit the kubectl executable from args" if command == "kubectl"
       raise InvalidCommand, "pass context via kube_context, not kubectl args" if contains_context_flag?
       raise InvalidCommand, "pass namespace via namespace, not kubectl args" if contains_namespace_flag?
-      raise InvalidCommand, "kubectl credential flags are not allowed" if contains_forbidden_credential_flag?
-      raise RiskyCommand, "kubectl config commands are not allowed" if command == "config"
+      raise InvalidCommand, "kubectl connection, identity, and output flags are not allowed" if contains_forbidden_flag?
+      raise InvalidCommand, "all-namespaces cannot override the validated namespace" if namespace && contains_all_namespaces_flag?
+      raise RiskyCommand, "kubectl command is not in the read-only allowlist" unless allowed_read_command?
       raise RiskyCommand, "streaming or interactive kubectl commands are not allowed" if streaming_command?
-      raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
-      raise OperatorConfirmationRequired, "chat kubectl calls cannot self-authorize secret output" if context.chat? && allow_secret_output
-      raise RiskyCommand, "kubectl command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
+      raise OperatorConfirmationRequired, "agent kubectl calls cannot self-authorize secret output" if agent_context? && allow_secret_output
       raise RiskyCommand, "kubectl command could expose secret values" if secret_output_command? && !allow_secret_output
     end
 
     def run_kubectl(kubeconfig_path:, metadata:)
       extra_secrets = sensitive_fragments_from(File.read(kubeconfig_path))
       result = self.class.runner.call(
-        env: { "KUBECONFIG" => kubeconfig_path },
+        env: {
+          "KUBECONFIG" => kubeconfig_path,
+          "PATH" => ENV.fetch("PATH", "/usr/local/bin:/usr/bin:/bin"),
+          "HOME" => ENV.fetch("HOME", "/tmp")
+        },
         argv: kubectl_argv,
-        timeout: RUN_TIMEOUT_SECONDS
+        timeout: RUN_TIMEOUT_SECONDS,
+        max_output_bytes: MAX_OUTPUT_BYTES
       )
 
       payload_for(result, metadata: metadata, extra_secrets: extra_secrets)
@@ -163,6 +178,11 @@ module K8sCluster
     end
 
     def credential_denial_reason(credential)
+      registered_cluster = KubernetesCluster.find_by(credential_store_credential_id: credential.id)
+      if registered_cluster
+        return "agentic access is disabled for this Kubernetes cluster" unless registered_cluster.agentic_access_enabled?
+      end
+
       metadata = credential.safe_metadata.to_h
       expected_context = metadata["context"].to_s.presence
       expected_cluster = metadata["cluster"].to_s.presence
@@ -174,6 +194,10 @@ module K8sCluster
       return "credential namespace metadata does not match target" if expected_namespace && namespace && expected_namespace != namespace
 
       nil
+    end
+
+    def agent_context?
+      context.chat? || context.run?
     end
 
     def target
@@ -205,9 +229,18 @@ module K8sCluster
       normalized_args.any? { |arg| arg == "--namespace" || FORBIDDEN_NAMESPACE_PREFIXES.any? { |prefix| arg.start_with?(prefix) } }
     end
 
-    def contains_forbidden_credential_flag?
+    def contains_forbidden_flag?
       normalized_args.any? do |arg|
-        FORBIDDEN_FLAGS.include?(arg) || FORBIDDEN_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) }
+        FORBIDDEN_FLAGS.include?(arg) ||
+          FORBIDDEN_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) } ||
+          FORBIDDEN_SHORT_FLAG_PREFIXES.any? { |prefix| arg.start_with?(prefix) }
+      end
+    end
+
+    def contains_all_namespaces_flag?
+      normalized_args.any? do |arg|
+        arg.start_with?("-a") ||
+          arg == "--all-namespaces" || arg.start_with?("--all-namespaces=")
       end
     end
 
@@ -215,8 +248,10 @@ module K8sCluster
       args.first.to_s.start_with?("-")
     end
 
-    def risky_command?
-      WRITE_COMMANDS.include?(command)
+    def allowed_read_command?
+      return true if READ_COMMANDS.include?(command)
+
+      command == "auth" && AUTH_READ_COMMANDS.include?(normalized_args.second)
     end
 
     def streaming_command?
@@ -231,12 +266,32 @@ module K8sCluster
       return true if command == "get" && raw_secret_api_path?
       return false unless secret_resource?
       return true if command == "describe"
+      return true if high_verbosity?
 
-      SECRET_OUTPUT_FORMATS.any? { |format| output_format.to_s.start_with?(format) }
+      output_formats != SECRET_SAFE_OUTPUT_FORMATS
     end
 
     def secret_resource?
-      normalized_args.any? { |arg| %w[secret secrets secret.v1 secrets.v1].include?(arg) }
+      normalized_args.any? do |arg|
+        arg.split(",").any? do |resource|
+          resource_type = resource.split("/", 2).first.to_s.split(".", 2).first
+          SECRET_RESOURCES.include?(resource_type)
+        end
+      end
+    end
+
+    def high_verbosity?
+      normalized_args.each_with_index.any? do |arg, index|
+        value = if %w[-v --v].include?(arg)
+          normalized_args[index + 1]
+        elsif arg.match?(/\A(?:-v|--v)=/)
+          arg.split("=", 2).last
+        elsif (match = arg.match(/\A-v(\d+)\z/))
+          match[1]
+        end
+
+        value.to_i >= 6 if value&.match?(/\A\d+\z/)
+      end
     end
 
     def raw_secret_api_path?
@@ -263,18 +318,23 @@ module K8sCluster
       end
     end
 
-    def output_format
-      normalized_args.each_with_index do |arg, index|
-        return arg.split("=", 2).last if arg.start_with?("--output=")
-        return arg.split("=", 2).last if arg.start_with?("-o=")
-        return arg.delete_prefix("-o") if arg.start_with?("-o") && arg.length > 2
-        return normalized_args[index + 1].to_s if %w[--output -o].include?(arg)
+    def output_formats
+      normalized_args.each_with_index.filter_map do |arg, index|
+        if arg.start_with?("--output=") || arg.start_with?("-o=")
+          arg.split("=", 2).last
+        elsif arg.start_with?("-o") && arg.length > 2
+          arg.delete_prefix("-o")
+        elsif %w[--output -o].include?(arg)
+          normalized_args[index + 1].to_s
+        end
       end
-      nil
     end
 
     def contains_watch_flag?
-      normalized_args.any? { |arg| arg == "-w" || arg == "--watch" || arg.start_with?("--watch=") }
+      normalized_args.any? do |arg|
+        arg == "-w" || arg == "--watch" || arg == "--watch-only" ||
+          arg.start_with?("-w=") || arg.start_with?("--watch=") || arg.start_with?("--watch-only=")
+      end
     end
 
     def contains_follow_flag?

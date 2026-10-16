@@ -3,8 +3,11 @@ module K8sCluster
   # `kubectl get pods -A`).
   class Pods < ResourceService
     MAX_PODS = 1_000
+    MAX_LOG_TAIL_LINES = 1_000
+    MAX_LOG_BYTES = 64.kilobytes
 
     def list(namespace: nil)
+      validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_pods(namespace_scope(namespace)).fetch("items", [])
 
@@ -18,6 +21,7 @@ module K8sCluster
     end
 
     def describe(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.core) do |client|
         { available: true, generated_at: Time.current.iso8601, pod: client.get_pod(name, namespace) }
       end
@@ -27,12 +31,14 @@ module K8sCluster
     # than one container - Kubernetes itself returns a 400 in that case, so
     # we let that surface as Unavailable rather than guessing which one.
     def logs(name, namespace:, container: nil, tail_lines: 200, previous: false, timestamps: false)
+      validate_identifiers!(name: name, namespace: namespace, container: container)
       with_client(api_client.core) do |client|
         body = client.get_pod_log(
           name,
           namespace,
           container: container,
-          tail_lines: tail_lines,
+          tail_lines: [ tail_lines.to_i, MAX_LOG_TAIL_LINES ].min.clamp(1, MAX_LOG_TAIL_LINES),
+          limit_bytes: MAX_LOG_BYTES,
           previous: previous,
           timestamps: timestamps
         )
@@ -48,6 +54,7 @@ module K8sCluster
     # pod is simply gone - the caller is expected to already know that from
     # `describe`/`list` before calling this.
     def delete(name, namespace:)
+      validate_identifiers!(name: name, namespace: namespace)
       with_client(api_client.core) do |client|
         before = client.get_pod(name, namespace)
         client.delete_pod(name, namespace)

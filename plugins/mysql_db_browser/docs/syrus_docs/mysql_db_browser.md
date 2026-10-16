@@ -233,15 +233,23 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   a read query or safe diagnostic/metadata statement: `SELECT`, `SHOW`,
   `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans. A `WITH`
   statement is not automatically read-only: `QueryExecutor` parses past the
-  CTE definition(s) - quote-aware, balanced-paren matching, handling an
-  optional column list and `RECURSIVE` - to find the terminal statement after
-  them, and only treats it as read-only when that terminal statement is
-  `SELECT`/`TABLE`; a MySQL 8 CTE like `WITH x AS (...) UPDATE ...`/
+  CTE definition(s) - comment/quote-aware, balanced-paren matching, handling
+  ordinary MySQL block and line comments, an optional column list, and
+  `RECURSIVE` - to find the terminal statement after them, and only treats it
+  as read-only when that terminal statement is `SELECT`/`TABLE`; a MySQL 8 CTE
+  like `WITH x AS (...) UPDATE ...`/
   `DELETE ...`/`INSERT ...` requires write access despite the leading `WITH`.
   A `WITH` statement Syrus can't parse is treated as **not** read-only,
   erring toward requiring write access rather than assuming safety.
+  MySQL executable comments (`/*! ... */`) outside strings and inert comments
+  are likewise treated as potentially mutating and require write access;
+  their contents are SQL on matching server versions, not comments the
+  classifier can safely skip.
   `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
-  the statement while collecting runtime plan data. Anything else is rejected
+  the statement while collecting runtime plan data, including applying the
+  terminal-statement check to `WITH` queries. Statements accepted as reads are
+  also executed inside `START TRANSACTION READ ONLY` and rolled back, providing
+  a server-side backstop for the classifier. Anything else is rejected
   with `403 write_not_allowed` unless the connection's `allow_writes` is
   `true`. The check runs before opening a connection, via an explicit
   `MysqlDbBrowser::AgenticAccess.connection_with_write_access!(connection)`
@@ -264,15 +272,18 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   than buffering an entire result set, reporting `truncated: true` when hit.
 - **Value truncation** - string cell values over 2,000 bytes are cut with
   `String#safe_byteslice` (never raw `byteslice`, per the UTF-8 truncation
-  convention) and suffixed with `…`.
+  convention) and suffixed with `…` as each row streams in. Retained result
+  data is also capped at 1 MB across all rows.
 - **Structured GRANT-error hints** - a query-time `Mysql2::Error` (bad SQL,
   missing privileges, timeout) doesn't raise; it comes back as
   `{ available: false, error: { class, message, hint? } }` with a `200`, so
   the Query/Content tabs can show it inline. A connection-time failure (bad
   host/credentials) raises `Unavailable`, rendered as `502
   connection_unavailable`.
-- **Audit log** - every attempt, successful, rejected, or failed, is recorded
+- **Audit log** - every query and schema-inspection statement, successful,
+  rejected, or failed, is recorded
   to `MysqlQueryAudit` (`mysql_connection`, `user`, `statement`, `read_only`,
-  `success`, `row_count`, `error_message`, `duration_ms`). Audit persistence
-  failures are logged, not raised - they never block returning query results
-  to the operator.
+  `success`, `row_count`, `error_message`, `duration_ms`). A pending row is
+  persisted before MySQL executes and then updated with the outcome. Audit
+  creation failures stop execution, and stored statements and error messages
+  are safely bounded to their audit columns' 65,535-byte capacity.

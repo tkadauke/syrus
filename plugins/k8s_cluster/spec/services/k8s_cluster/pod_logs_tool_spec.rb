@@ -39,6 +39,12 @@ RSpec.describe K8sCluster::PodLogsTool do
     expect(service).to have_received(:logs).with("web-1", namespace: "default", container: "sidecar", tail_lines: 50, previous: true, timestamps: true)
   end
 
+  it "publishes the maximum supported log tail" do
+    tail_lines = described_class.input_schema_value.to_h.dig(:properties, :tail_lines)
+
+    expect(tail_lines[:maximum]).to eq(K8sCluster::Pods::MAX_LOG_TAIL_LINES)
+  end
+
   it "returns an error response when the pod cannot be reached" do
     service = instance_double(K8sCluster::Pods)
     allow(service).to receive(:logs).and_raise(K8sCluster::ResourceService::Unavailable, "502")

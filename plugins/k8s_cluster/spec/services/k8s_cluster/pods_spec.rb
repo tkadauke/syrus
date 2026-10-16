@@ -69,12 +69,18 @@ RSpec.describe K8sCluster::Pods do
 
       expect(payload[:pod]["metadata"]["name"]).to eq("web-1")
     end
+
+    it "rejects path traversal in resource identifiers before calling Kubernetes" do
+      expect {
+        described_class.new(cluster).describe("x", namespace: "default/secrets/mysecret?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /namespace/)
+    end
   end
 
   describe "#logs" do
     it "returns the raw log tail for a pod" do
       stub_core_discovery(base)
-      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?tailLines=200", "line one\nline two\n")
+      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?limitBytes=65536&tailLines=200", "line one\nline two\n")
 
       payload = described_class.new(cluster).logs("web-1", namespace: "default")
 
@@ -84,7 +90,7 @@ RSpec.describe K8sCluster::Pods do
 
     it "passes the container param for multi-container pods" do
       stub_core_discovery(base)
-      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?container=sidecar&tailLines=50", "sidecar logs\n")
+      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?container=sidecar&limitBytes=65536&tailLines=50", "sidecar logs\n")
 
       payload = described_class.new(cluster).logs("web-1", namespace: "default", container: "sidecar", tail_lines: 50)
 
@@ -92,11 +98,26 @@ RSpec.describe K8sCluster::Pods do
       expect(payload[:container]).to eq("sidecar")
     end
 
+    it "caps requested lines and response bytes at bounded values" do
+      stub_core_discovery(base)
+      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?limitBytes=65536&tailLines=1000", "bounded logs\n")
+
+      payload = described_class.new(cluster).logs("web-1", namespace: "default", tail_lines: 1_000_000)
+
+      expect(payload[:log]).to eq("bounded logs\n")
+    end
+
     it "raises Unavailable when the pod cannot be reached" do
       stub_core_discovery(base)
-      stub_request(:get, "#{base}/api/v1/namespaces/default/pods/web-1/log?tailLines=200").to_return(status: 502)
+      stub_request(:get, "#{base}/api/v1/namespaces/default/pods/web-1/log?limitBytes=65536&tailLines=200").to_return(status: 502)
 
       expect { described_class.new(cluster).logs("web-1", namespace: "default") }.to raise_error(K8sCluster::ResourceService::Unavailable)
+    end
+
+    it "rejects an invalid container name before calling Kubernetes" do
+      expect {
+        described_class.new(cluster).logs("web-1", namespace: "default", container: "sidecar/log?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /container/)
     end
   end
 
@@ -121,6 +142,12 @@ RSpec.describe K8sCluster::Pods do
       expect {
         described_class.new(cluster).delete("missing", namespace: "default")
       }.to raise_error(K8sCluster::ResourceService::NotFound)
+    end
+
+    it "rejects a namespace path that could redirect pod deletion" do
+      expect {
+        described_class.new(cluster).delete("x", namespace: "victim?")
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument, /namespace/)
     end
   end
 end

@@ -22,6 +22,18 @@ module K8sCluster
       OpenSSL::SSL::SSLError
     ].freeze
 
+    KUBERNETES_IDENTIFIER_PATTERN = /\A[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?\z/
+    KUBERNETES_IDENTIFIER_MAX_LENGTH = 253
+
+    def self.validate_identifiers!(name: nil, namespace: nil, container: nil)
+      { name: name, namespace: namespace, container: container }.each do |field, value|
+        next if value.nil?
+        next if value.is_a?(String) && value.length <= KUBERNETES_IDENTIFIER_MAX_LENGTH && value.match?(KUBERNETES_IDENTIFIER_PATTERN)
+
+        raise InvalidArgument, "#{field} must be a valid Kubernetes DNS-1123 identifier"
+      end
+    end
+
     def initialize(cluster, context: nil, tool_name: nil)
       @cluster = cluster
       @context = context || Thread.current[:k8s_cluster_mcp_context]
@@ -49,7 +61,12 @@ module K8sCluster
     end
 
     def namespace_scope(namespace)
+      validate_identifiers!(namespace: namespace)
       namespace.presence ? { namespace: namespace } : {}
+    end
+
+    def validate_identifiers!(name: nil, namespace: nil, container: nil)
+      self.class.validate_identifiers!(name: name, namespace: namespace, container: container)
     end
 
     def integer(value)
