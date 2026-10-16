@@ -1267,13 +1267,43 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat hidden.")
-    expect(chat.reload.hidden_at).to be_present
+    expect(chat.chat_participants.find_by!(user: user).reload.hidden_at).to be_present
 
     patch "/api/v1/app/chats/#{chat.id}/unhide"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat restored.")
-    expect(chat.reload.hidden_at).to be_nil
+    expect(chat.chat_participants.find_by!(user: user).reload.hidden_at).to be_nil
+  end
+
+  it "hides a group chat only for the participant who hid it" do
+    chat = ChatSession.create!(user: user, conversation_kind: "group", title: "Shared")
+    member = Factories.user
+    chat.chat_participants.create!(user: member, role: "member")
+
+    sign_in_as(member)
+    patch "/api/v1/app/chats/#{chat.id}/hide"
+    expect(response).to have_http_status(:ok)
+
+    get "/api/v1/app/chats"
+    expect(parse_body["groups"].flat_map { |group| group["chats"] }.pluck("id")).not_to include(chat.id)
+
+    sign_in_as(user)
+    get "/api/v1/app/chats"
+    expect(parse_body["groups"].flat_map { |group| group["chats"] }.pluck("id")).to include(chat.id)
+  end
+
+  it "forbids a non-owner participant from clearing shared chat history" do
+    chat = ChatSession.create!(user: user, conversation_kind: "group")
+    member = Factories.user
+    chat.chat_participants.create!(user: member, role: "member")
+    message = chat.messages.create!(role: "user", content: { "text" => "Keep me" })
+    sign_in_as(member)
+
+    delete "/api/v1/app/chats/#{chat.id}/messages"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(message.reload.deleted_at).to be_nil
   end
 
   it "lists hidden chats for recovery in hidden order with shared sidebar context" do
@@ -1362,6 +1392,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   describe "DELETE /api/v1/app/chats/:id" do
+    it "forbids a non-owner participant from deleting the shared chat" do
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      member = Factories.user
+      chat.chat_participants.create!(user: member, role: "member")
+      sign_in_as(member)
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:forbidden)
+      expect(chat.reload.deleted_at).to be_nil
+    end
+
     it "soft-deletes the chat, keeps dependent rows for audit, cleans search index/workspace/agent homes via the worker job, and hides it from listing/show" do
       prepare_search_tables
       sign_in_as(user)
