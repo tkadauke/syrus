@@ -217,8 +217,8 @@ describe("Runtime tool cards", () => {
     render(<ToolGroup item={item} />)
 
     // Single ownership: the registered card owns the expanded view, so the
-    // summary lives only in the header's detail + summary subtitle.
-    expect(screen.getByText("options: path /settings · Runtime launch: succeeded at /settings")).toBeInTheDocument()
+    // summary lives only in the header's result + detail subtitle.
+    expect(screen.getByText("Runtime launch: succeeded at /settings · options: path /settings")).toBeInTheDocument()
     expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
   })
 
