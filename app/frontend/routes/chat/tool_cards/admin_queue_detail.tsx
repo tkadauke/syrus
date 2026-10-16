@@ -306,7 +306,7 @@ function renderExpanded(context: ToolCardContext) {
           </TBody>
         </Table>
       )}
-      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">All processes ({card.processes.length})</div>
+      <div className="text-2xs font-semibold uppercase text-text-secondary">All processes ({card.processes.length})</div>
       {card.processes.length === 0 ? (
         <EmptyState>No processes found.</EmptyState>
       ) : (
