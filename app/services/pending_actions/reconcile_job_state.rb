@@ -16,8 +16,12 @@ module PendingActions
     def perform
       job = repair_action_job
       mode = payload.fetch("mode").to_s
+      plan = RepairPreflight.reconcile_job_state(job: job, mode: mode)
+      raise ArgumentError, plan.rejection_message unless plan.eligible?
       progress!("Reconciling #{job.slug} with mode #{mode}...")
-      JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job
+      result = JobStateRepair.reconcile!(job: job, mode: mode, reason: reason)
+      action.update!(payload: payload.merge("repair_outcome" => "applied", "mutation_counts" => plan.expected_mutations))
+      result.job
     end
 
     def execution_label
@@ -29,6 +33,7 @@ module PendingActions
       errors.add(:payload, "mode is invalid") unless MODES.include?(payload["mode"].to_s)
       errors.add(:reason, "is required") if reason.blank?
       validate_transition_guard(errors)
+      validate_preflight(errors)
     end
 
     def action_detail
@@ -58,6 +63,15 @@ module PendingActions
       return unless job
 
       errors.add(:payload, "#{job.slug} cannot apply #{payload["mode"]} from #{job.state}") unless job.public_send(guard)
+    end
+
+    def validate_preflight(errors)
+      return unless action.new_record?
+      return unless payload["job_id"].present? && MODES.include?(payload["mode"].to_s)
+      job = repair_action_job_or_nil
+      return unless job
+      plan = RepairPreflight.reconcile_job_state(job: job, mode: payload["mode"])
+      errors.add(:payload, plan.rejection_message) unless plan.eligible?
     end
   end
 end

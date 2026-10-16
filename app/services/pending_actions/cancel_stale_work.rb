@@ -4,8 +4,10 @@ module PendingActions
 
     def perform
       job = repair_action_job
+      plan = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+      raise ArgumentError, plan.rejection_message unless plan.eligible?
       progress!("Cancelling stale active work for #{job.slug}...")
-      cancelled = cancel_work!(job)
+      cancelled = cancel_work!(job, plan)
       if payload.fetch("reconcile", true)
         progress!("Reconciling #{job.slug} after cancellation...")
         WorkEngine::Reconciler.call_locked!(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
@@ -15,6 +17,7 @@ module PendingActions
         "cancelled stale work workflows=#{cancelled[:workflows].inspect} runs=#{cancelled[:runs].inspect}",
         run: job.runs.reorder(created_at: :desc, id: :desc).first
       )
+      action.update!(payload: payload.merge("repair_outcome" => "applied", "mutation_counts" => { "workflows" => cancelled[:workflows].size, "runs" => cancelled[:runs].size }))
       job.reload
     end
 
@@ -30,6 +33,10 @@ module PendingActions
       end
       run_ids.each do |run_id|
         errors.add(:payload, "run_ids must contain integers") unless Integer(run_id, exception: false)
+      end
+      if action.new_record? && payload["job_id"].present? && (job = repair_action_job_or_nil)
+        plan = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
+        errors.add(:payload, plan.rejection_message) unless plan.eligible?
       end
     end
 
@@ -52,14 +59,12 @@ module PendingActions
 
     private
 
-    def cancel_work!(job)
+    def cancel_work!(job, plan)
       cancelled = { workflows: [], runs: [] }
-      runs = target_runs(job)
-      workflows = target_workflows(job)
+      runs = job.runs.where(id: plan.target[:run_ids]).to_a
+      workflows = Workflow.where(id: plan.target[:workflow_ids]).to_a
       ApplicationRecord.transaction do
         runs.each do |run|
-          next unless run.may_cancel?
-
           StateTransition.with_source("reconciler") do
             run.cancel!
             run.save!
@@ -68,8 +73,6 @@ module PendingActions
         end
 
         workflows.each do |workflow|
-          next unless workflow.may_cancel?
-
           StateTransition.with_source("reconciler") do
             WorkUnits::WorkflowCancellation.cancel!(
               workflow,

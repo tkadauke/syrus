@@ -50,6 +50,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    retire_terminal_work_unit
     reenqueue_work
     repair_queue_affinity
     force_landing_recheck
@@ -97,6 +98,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    retire_terminal_work_unit
     reenqueue_work
     repair_queue_affinity
     rerun_ci_repair
@@ -215,6 +217,9 @@ class ChatPendingAction < ApplicationRecord
     if command.repair_action?
       update_confirmation_progress!("running", "Capturing after snapshot...")
       update!(after_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+      outcome = payload.to_h["repair_outcome"].presence || (before_snapshot == after_snapshot ? "noop" : "applied")
+      counts = payload.to_h["mutation_counts"].presence || { "snapshot_targets_changed" => before_snapshot == after_snapshot ? 0 : 1 }
+      update!(payload: payload.to_h.merge("repair_outcome" => outcome, "mutation_counts" => counts, "affected_ids" => repair_affected_ids))
     end
 
     record_repair_admin_action!(record) if command.repair_action?
@@ -222,7 +227,7 @@ class ChatPendingAction < ApplicationRecord
       state: "confirmed",
       confirmed_at: Time.current,
       execution_status: "done",
-      execution_step: "Done.",
+      execution_step: payload.to_h["repair_outcome"] == "noop" ? "No changes were needed." : "Done.",
       execution_error: nil,
       execution_finished_at: Time.current
     }
@@ -230,6 +235,9 @@ class ChatPendingAction < ApplicationRecord
     update!(updates)
     true
   rescue StandardError => e
+    if defined?(command) && command&.repair_action?
+      update_column(:payload, payload.to_h.merge("repair_outcome" => "rejected", "mutation_counts" => { "total" => 0 }, "affected_ids" => repair_affected_ids))
+    end
     fail_confirmation!(e)
     raise if raise_on_error
 
@@ -252,6 +260,10 @@ class ChatPendingAction < ApplicationRecord
       execution_error: "#{error.class}: #{error.message}",
       execution_finished_at: Time.current
     )
+  end
+
+  def repair_affected_ids
+    payload.to_h.slice("job_id", "workflow_id", "workflow_ids", "run_id", "run_ids", "work_unit_id")
   end
 
   def reject!

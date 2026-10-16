@@ -1,6 +1,22 @@
 require "rails_helper"
 
 RSpec.describe Admin::StuckJobExplainer do
+  it "reports terminal Workflow lock ownership and recommends its eligible cleanup" do
+    user = Factories.user(admin: true)
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 1)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude")
+    unit = attach_work_unit(workflow, state: "blocked", blocked_reason: "active_work_lock")
+    workflow.update_columns(state: "blocked", finished_at: Time.current)
+    payload = described_class.call(job)
+    expect(payload[:stuck]).to be(true)
+    expect(payload[:work_units][:terminal_workflow_lock_leaks].first).to include(work_unit_id: unit.id, workflow_id: workflow.id, lock_keys: include("job:#{job.id}"))
+    expect(payload[:recommended_action]).to include(action: "retire_terminal_work_unit", work_unit_id: unit.id)
+    stuck_item = Admin::StuckItems.for_job(job).find { |item| item.kind.to_s == "terminal_workflow_active_lock_owner" }
+    expect(stuck_item).to have_attributes(job: job, workflow: workflow, attention_state: "operator_action_required")
+    expect(stuck_item.issue.evidence).to include("active_lock_keys" => include("job:#{job.id}"))
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 

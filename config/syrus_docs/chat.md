@@ -157,7 +157,7 @@ while waiting for the operator.
 
 A second, higher-risk conditional tier reuses the same array-of-ids pattern
 for `force_fail_job`, `mark_ci_repair_noop`, `admin_retry_step`,
-`reconcile_job_state`, `clear_provider_circuit`,
+`reconcile_job_state`, `retire_terminal_work_unit`, `clear_provider_circuit`,
 `repair_provider_circuit_evidence`, `force_rebase`,
 `admin_pause_user_scheduling`, and `admin_unpause_user_scheduling`. These
 tools already take (or now take) a `reason` param; for a plural-id call that

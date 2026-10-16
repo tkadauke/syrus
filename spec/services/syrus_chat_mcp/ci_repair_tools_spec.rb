@@ -103,6 +103,15 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
     )
   end
 
+  it "rejects rerun before confirmation when another WorkUnit owns the Job lock" do
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: "claude", state: "blocked")
+    unit = attach_work_unit(workflow, state: "blocked", blocked_reason: "active_work_lock")
+    response = call_tool("rerun_ci_repair", { job_id: job.id, reason: "Checks remain red." })
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include(unit.slug, "job:#{job.id}")
+    expect(ChatPendingAction.where(action: "rerun_ci_repair")).to be_empty
+  end
+
   it "confirms rerun_ci_repair by starting a ci_failure workflow with audit snapshots" do
     response = call_tool("rerun_ci_repair", { job_id: job.id, reason: "JOB-765 stayed red." })
     action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))

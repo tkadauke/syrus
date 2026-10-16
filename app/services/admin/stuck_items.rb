@@ -171,6 +171,8 @@ module Admin
         "Operator action required: #{issue.explanation} #{repair_plan&.reason}"
       when "job_without_active_runtime_work"
         "Operator action required: #{issue.explanation}"
+      when "terminal_workflow_active_lock_owner"
+        "Terminal Workflow lock leak: #{issue.explanation} Use the terminal WorkUnit retirement repair; do not force the Job state."
       when "runaway_protection_active"
         "Runaway protection: #{issue.explanation} Click Retry on the Job to clear the protection and resume."
       else
