@@ -1536,6 +1536,10 @@ RSpec.describe "Work engine reconciler chaos simulation" do
   end
 
   def assert_chaos_case!(expectation)
+    # Reconciler.call is read-only and no longer syncs terminal workflows as a
+    # side effect, so settle WorkUnit ownership the way the runtime would have
+    # before the precedence under test is evaluated.
+    Job.find_each { |job| WorkUnits::TerminalWorkflowSync.for_job(job) }
     result = WorkEngine::Reconciler.call(source: "reconciler_chaos_spec", **expectation.target)
     repeat = WorkEngine::Reconciler.call(source: "reconciler_chaos_spec_repeat", **expectation.target)
     trace = expectation.trace.join("\n")

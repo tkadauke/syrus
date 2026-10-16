@@ -297,7 +297,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(result.events.join("\n")).to include("repair reclassify_stalled_intake -> applied")
-    expect(Job.find(result.job_ids.first).classifier_attempts).to eq(1)
+    # Only a real classifier run spends the attempt budget; the repair just re-enqueues.
+    expect(Job.find(result.job_ids.first).classifier_attempts).to eq(0)
   end
 
   it "does not relaunch a stale initial intent after a later retry implemented the job" do
