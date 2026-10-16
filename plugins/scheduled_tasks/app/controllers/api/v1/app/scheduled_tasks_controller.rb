@@ -52,7 +52,9 @@ module Api
         end
 
         def create
-          repository = find_repository
+          repository = find_writable_repository
+          return unless repository
+
           task = ScheduledTasks::Task.new(scheduled_task_params.merge(repository: repository))
           task.skill_args = scheduled_task_skill_args
           task.user = Current.user
@@ -73,6 +75,8 @@ module Api
         def repository_update
           repository = find_repository
           task = find_repository_task(repository)
+          return unless authorize_repository_write!(repository)
+
           enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
           if enabled
             return render_fired_one_shot_resume_error if task.one_shot? && task.fired?
@@ -90,13 +94,17 @@ module Api
         def repository_destroy
           repository = find_repository
           task = find_repository_task(repository)
+          return unless authorize_repository_write!(repository)
+
           task.soft_delete!
 
           render json: repository_scheduled_tasks_payload(repository).merge(message: "Scheduled task deleted.")
         end
 
         def update
-          task = find_task
+          task = find_mutable_task
+          return unless task
+
           task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
           task.skill_args = scheduled_task_skill_args
 
@@ -109,21 +117,26 @@ module Api
         end
 
         def destroy
-          task = find_task
+          task = find_mutable_task
+          return unless task
+
           task.soft_delete!
 
           render json: scheduled_tasks_index_payload.merge(message: "Scheduled task archived.")
         end
 
         def pause
-          task = find_task
+          task = find_mutable_task
+          return unless task
+
           task.pause!(reason: "operator")
 
           render json: scheduled_task_detail_payload(task.reload).merge(message: "Paused.")
         end
 
         def resume
-          task = find_task
+          task = find_mutable_task
+          return unless task
           return render_fired_one_shot_resume_error if task.one_shot? && task.fired?
 
           task.resume!
@@ -132,7 +145,9 @@ module Api
         end
 
         def fire_now
-          task = find_task
+          task = find_mutable_task
+          return unless task
+
           if task.archived? || task.fired?
             render_error("not_fireable", "Task isn't fireable in its current state.", status: :unprocessable_content)
             return
@@ -369,11 +384,18 @@ module Api
         end
 
         def available_repositories
-          Current.user.repositories.active.order(:owner, :name)
+          Repository.accessible_to(Current.user).merge(Repository.writable_by(Current.user)).active.order(:owner, :name)
         end
 
         def find_task
           ScheduledTasks::Task.where(user: Current.user).find(params[:id])
+        end
+
+        def find_mutable_task
+          task = find_task
+          return task if authorize_repository_write!(task.repository)
+
+          nil
         end
 
         def find_repository_task(repository)
