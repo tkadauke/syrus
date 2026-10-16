@@ -5893,6 +5893,28 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :operator_review_missing_workspace).auto_executable).to eq(false)
   end
 
+  # Grader scratch used to live at <workspace>/.syrus/immutable-checkouts, so
+  # a worker that had only ever run a grader for this workflow held a
+  # workspace directory with no checkout in it, File.directory? answered
+  # "yes", and the missing workspace was never reported.
+  it "reports a missing workspace when the worker holds only grader scratch" do
+    Dir.mktmpdir("syrus-reconciler-data") do |dir|
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = dir
+      FileUtils.mkdir_p(ImmutableSourceCheckout.path_for(step).to_s)
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
+      step.update_columns(state: "running", started_at: 5.minutes.ago)
+      run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: 5.minutes.ago)
+
+      result = reconcile(workflow_id: workflow.id)
+
+      expect(kind(result, :workspace_missing)).to be_present
+    ensure
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      ENV.delete("SYRUS_DATA_ROOT") if previous_root.nil?
+    end
+  end
+
   it "does not report missing workspace when a live remote worker owns the workflow" do
     live_worker_queue!("resume-storage-remote", hostname: "syrus-worker-remote")
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: "syrus-worker-remote", worker_storage_key: "storage-remote")

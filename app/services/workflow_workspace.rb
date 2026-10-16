@@ -37,6 +37,11 @@ class WorkflowWorkspace
   LOCK_SENTINEL = ".workspace.lock".freeze
   # Sibling directory holding the per-workflow lock files.
   LOCK_DIR = ".locks".freeze
+
+  # Per-workflow scratch that is derived from the workspace but is not part
+  # of it: grader checkouts, prepare caches, archive staging. See
+  # .scratch_path_for.
+  SCRATCH_DIR = "workflow-scratch".freeze
   LS_REMOTE_OBJECT_ID_PATTERN = /\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/.freeze
 
   # A branch that an earlier Step built *inside* this workspace and that the
@@ -69,6 +74,28 @@ class WorkflowWorkspace
 
   def self.path_for(workflow)
     data_root.join("workflows", workflow.id.to_s)
+  end
+
+  # Beside the workspace, NOT inside it -- the same rule as the lock below,
+  # for the same reason, one level up.
+  #
+  # Grader checkouts and their prepare caches used to live at
+  # <workspace>/.syrus/immutable-checkouts/. A grader is routinely the first
+  # thing a given worker runs for a workflow whose workspace was cloned on a
+  # different node, and creating that scratch directory created the workspace
+  # path too -- an empty shell with no .git in it. Every later step on that
+  # node then found `path.exist?` true, concluded the checkout was broken,
+  # and recloned: 130 runs on one production day, each one re-cloning the
+  # repository and deleting the scratch tree -- prepare cache included --
+  # that the shell was made of. The same lie reached everything else that
+  # asks whether a workflow still has a workspace here: the work-engine
+  # reconciler stopped reporting genuinely missing workspaces, and
+  # RepairPlanner planned retries in place on workers holding no checkout.
+  # Keeping the scratch out of the workspace restores the only invariant
+  # that mattered: the workspace directory exists if and only if something
+  # cloned a checkout into it.
+  def self.scratch_path_for(workflow)
+    data_root.join(SCRATCH_DIR, workflow.id.to_s)
   end
 
   # Beside the workspaces, NOT inside the one it guards.
@@ -184,10 +211,11 @@ class WorkflowWorkspace
     end
 
     p = path_for(workflow)
+    scratch = scratch_path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
     lock_file = nil
 
-    if p.exist?
+    if p.exist? || scratch.exist?
       lock_file = acquire_exclusive_lock(workflow)
       unless lock_file
         Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: workspace lock is held by a live process")
@@ -202,6 +230,10 @@ class WorkflowWorkspace
     # close it below — POSIX keeps an unlinked-but-open inode alive.
     ImmutableSourceCheckoutOverlay.unmounts_under(p, log: ->(message) { Rails.logger.info(message) }) if p.exist?
     FileUtils.rm_rf(p.to_s) if p.exist?
+    if scratch.exist?
+      ImmutableSourceCheckoutOverlay.unmounts_under(scratch, log: ->(message) { Rails.logger.info(message) })
+      FileUtils.rm_rf(scratch.to_s)
+    end
     FileUtils.rm_rf(agent_home.to_s) if agent_home.exist?
     # The lock lives beside the workspace now, so removing the workspace no
     # longer removes it. Unlink the path while still holding the fd -- POSIX

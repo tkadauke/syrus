@@ -158,19 +158,13 @@ class WorkflowWorkspacePruneJob < ApplicationJob
   # even when cleaned_up_at was incorrectly set or the DB query
   # missed something.
   def filesystem_sweep
-    root = WorkflowWorkspace.data_root.join("workflows")
-    return unless root.exist?
-
     n = 0
-    root.each_child do |child|
-      next unless child.directory?
-      id = Integer(child.basename.to_s) rescue next
-
+    swept_workflow_dirs.each do |id, dirs|
       wf = Workflow.find_by(id: id)
 
       if wf.nil?
         # No DB record — the workflow was destroyed; remove the orphan.
-        FileUtils.rm_rf(child.to_s)
+        dirs.each { |dir| FileUtils.rm_rf(dir.to_s) }
         n += 1
         next
       end
@@ -201,10 +195,32 @@ class WorkflowWorkspacePruneJob < ApplicationJob
 
       n += 1 if cleanup_workflow(wf, force_local: true)
     rescue StandardError => e
-      Rails.logger.warn("[WorkflowWorkspacePrune] filesystem_sweep error on #{child}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[WorkflowWorkspacePrune] filesystem_sweep error on Workflow ##{id}: #{e.class}: #{e.message}")
     end
 
     Rails.logger.info("[WorkflowWorkspacePrune] filesystem_sweep removed #{n} orphaned workflow dirs") if n > 0
+  end
+
+  # Per-workflow local-disk directories, keyed by workflow id: the workspace
+  # itself and the scratch tree beside it. A worker that only ever ran a
+  # grader for a workflow has the scratch and no workspace, so sweeping the
+  # workspace root alone left that worker's disk growing untouched.
+  def swept_workflow_dirs
+    roots = [
+      WorkflowWorkspace.data_root.join("workflows"),
+      WorkflowWorkspace.data_root.join(WorkflowWorkspace::SCRATCH_DIR)
+    ]
+
+    roots.each_with_object({}) do |root, by_id|
+      next unless root.exist?
+
+      root.each_child do |child|
+        next unless child.directory?
+        id = Integer(child.basename.to_s) rescue next
+
+        (by_id[id] ||= []) << child
+      end
+    end
   end
 
   def chat_workspace_sweep

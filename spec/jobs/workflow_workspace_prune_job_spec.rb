@@ -397,15 +397,29 @@ RSpec.describe WorkflowWorkspacePruneJob do
       cleaned_up_at: 4.minutes.ago
     )
     wf.update_columns(worker_storage_key: "remote-storage", worker_hostname: "remote-worker")
-    wf_path = Pathname.new(data_root).join("workflows", wf.id.to_s)
-    checkout_path = wf_path.join(".syrus", "immutable-checkouts", "steps", "123")
+    scratch_path = Pathname.new(data_root).join(WorkflowWorkspace::SCRATCH_DIR, wf.id.to_s)
+    checkout_path = scratch_path.join("immutable-checkouts", "steps", "123")
     FileUtils.mkdir_p(checkout_path.to_s)
     checkout_path.join("artifact.txt").write("left behind by distributed grader")
 
     described_class.perform_now
 
-    expect(wf_path).not_to exist
+    expect(scratch_path).not_to exist
     expect(wf.reload.cleaned_up_at).to be_present
+  end
+
+  # The scratch tree is the only thing a worker that ran nothing but graders
+  # for a workflow has on disk. Sweeping the workspace root alone never
+  # visited that worker's leftovers, so they grew until the PVC filled.
+  it "filesystem_sweep removes a destroyed workflow's grader scratch with no workspace beside it" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+
+    scratch_path = Pathname.new(data_root).join(WorkflowWorkspace::SCRATCH_DIR, "99999123")
+    FileUtils.mkdir_p(scratch_path.join("immutable-checkouts", "steps", "123").to_s)
+
+    described_class.perform_now
+
+    expect(scratch_path).not_to exist
   end
 
   it "filesystem_sweep keeps retryable failed workflow dirs on this worker inside the retry window" do

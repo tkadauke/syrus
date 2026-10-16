@@ -6,9 +6,13 @@ require "rbconfig"
 require "securerandom"
 
 class ImmutableSourceCheckout
-  CHECKOUT_ROOT = ".syrus/immutable-checkouts/steps".freeze
-  PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
-  PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
+  # Relative to WorkflowWorkspace.scratch_path_for, which is beside the
+  # workflow workspace rather than inside it -- see the note there for what
+  # putting this scratch under the workspace cost.
+  CHECKOUT_ROOT = "immutable-checkouts/steps".freeze
+  PREPARE_CACHE_ROOT = "immutable-checkouts/prepare-cache".freeze
+  PREPARE_CACHE_LOCK_ROOT = "immutable-checkouts/prepare-cache-locks".freeze
+  ARCHIVE_STAGING_ROOT = "immutable-checkouts/archives".freeze
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
   PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
@@ -16,7 +20,7 @@ class ImmutableSourceCheckout
   attr_reader :path
 
   def self.path_for(step)
-    WorkflowWorkspace.path_for(step.workflow).join(CHECKOUT_ROOT, step.id.to_s)
+    WorkflowWorkspace.scratch_path_for(step.workflow).join(CHECKOUT_ROOT, step.id.to_s)
   end
 
   def initialize(step, git: nil, log: nil, run: nil)
@@ -406,7 +410,7 @@ class ImmutableSourceCheckout
   end
 
   def restore_prepare_cache_checkout!(snapshot)
-    cache_parent = WorkflowWorkspace.path_for(@workflow).join(
+    cache_parent = WorkflowWorkspace.scratch_path_for(@workflow).join(
       PREPARE_CACHE_ROOT,
       sanitized_worker_storage_key,
       @workflow.id.to_s,
@@ -664,10 +668,8 @@ class ImmutableSourceCheckout
   end
 
   def temporary_archive_path(prefix)
-    WorkflowWorkspace.path_for(@workflow).join(
-      ".syrus",
-      "immutable-checkouts",
-      "archives",
+    WorkflowWorkspace.scratch_path_for(@workflow).join(
+      ARCHIVE_STAGING_ROOT,
       "#{prefix}-#{@step.id}-#{Process.pid}-#{SecureRandom.hex(6)}.tar.gz"
     ).tap { |archive_path| FileUtils.mkdir_p(archive_path.dirname) }
   end
@@ -911,7 +913,7 @@ class ImmutableSourceCheckout
     end
 
     def path
-      WorkflowWorkspace.path_for(workflow).join(
+      WorkflowWorkspace.scratch_path_for(workflow).join(
         PREPARE_CACHE_ROOT,
         sanitized_worker_storage_key,
         workflow.id.to_s,
@@ -1044,7 +1046,7 @@ class ImmutableSourceCheckout
     end
 
     def lock_path
-      WorkflowWorkspace.path_for(workflow).join(
+      WorkflowWorkspace.scratch_path_for(workflow).join(
         PREPARE_CACHE_LOCK_ROOT,
         "#{Digest::SHA256.hexdigest(cache_key)}.lock"
       )

@@ -67,7 +67,21 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(main_sha)
     expect(sh("git -C #{checkout.path} rev-parse --abbrev-ref HEAD").strip).to eq("HEAD")
     expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/main").strip).to eq(main_sha)
-    expect(checkout.path.to_s).to include("/workflows/#{workflow.id}/.syrus/immutable-checkouts/steps/#{step.id}")
+    expect(checkout.path.to_s).to include("/workflow-scratch/#{workflow.id}/immutable-checkouts/steps/#{step.id}")
+  end
+
+  # A grader is routinely the first thing a worker runs for a workflow whose
+  # workspace was cloned on a different node. While this scratch lived under
+  # the workspace, materializing the checkout created the workspace path as a
+  # shell with no .git in it, and everything that asks "does this workflow
+  # have a workspace here?" -- WorkflowWorkspace#setup, the work-engine
+  # reconciler's workspace_missing check, RepairPlanner#workspace_available?
+  # -- got "yes" for a directory holding no checkout at all.
+  it "materializes without creating a workflow workspace that nothing cloned" do
+    described_class.new(step).setup
+
+    expect(WorkflowWorkspace.path_for(workflow)).not_to exist
+    expect(WorkflowWorkspace.scratch_path_for(workflow)).to be_directory
   end
 
   it "preserves the workflow base ref when the source snapshot is a synthetic ref" do
@@ -855,6 +869,8 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     workflow.cleanup_workspace!
 
     expect(WorkflowWorkspace.path_for(workflow)).not_to exist
+    expect(WorkflowWorkspace.scratch_path_for(workflow)).not_to exist
+    expect(described_class.path_for(step)).not_to exist
     expect(workflow.reload.cleaned_up_at).to be_present
     expect(snapshot.reload.prepared_workspace_archive).not_to be_attached
   end
