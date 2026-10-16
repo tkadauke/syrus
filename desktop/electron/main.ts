@@ -3307,7 +3307,7 @@ app.on("before-quit", () => {
   recorderHudController?.hide()
   // Never orphan an in-flight backend-update installer (detached on POSIX,
   // it would outlive the app and keep mutating the stack unwatched).
-  backendLifecycle.killUpdateChild()
+  backendLifecycle.killUpdateChild(true)
 })
 
 app.on("will-quit", () => {
