@@ -471,6 +471,7 @@ module Api
             last_poll_started_at: repository.last_poll_started_at&.iso8601,
             last_poll_error: repository.last_poll_error,
             poll_issue_errors: repository.poll_issue_errors || [],
+            can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
             repository_path: repository_path(repository),
             edit_repository_path: edit_repository_path(repository)
           }

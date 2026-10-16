@@ -148,6 +148,14 @@ function renderSection(history = buildHistory(), payload = buildPayload()) {
   )
 }
 
+it("hides repository admin health actions from members without edit access", () => {
+  renderSection(buildHistory(), { ...buildPayload(), can_edit: false })
+  expect(screen.queryByRole("button", { name: "Run graders now" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Check CI now" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /Repair/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
+})
+
 function buildHealthRecord(overrides: Partial<RepositoryHealthCheckRecord> = {}): RepositoryHealthCheckRecord {
   return {
     id: 1,

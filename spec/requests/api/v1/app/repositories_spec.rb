@@ -448,6 +448,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     sign_in_as(reader)
 
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["active_repositories"].find { |row| row["id"] == repository.id }["can_edit"]).to eq(false)
+
     get "/api/v1/app/repositories/#{repository.id}"
 
     expect(response).to have_http_status(:ok)
