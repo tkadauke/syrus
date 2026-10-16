@@ -147,6 +147,11 @@ else
     BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$INSTALL_ROOT/shared/bundle" \
     bash -c 'cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
 fi
+# A repeated install already has this symlink, while hosts installed by older
+# releases may still have a real in-release node_modules directory. Neither is
+# trusted input: replace the exact dependency path before linking the prepared
+# shared tree.
+run rm -rf "$RELEASE_PATH/node_modules"
 run ln -s "$NODE_DEPS_PATH/node_modules" "$RELEASE_PATH/node_modules"
 
 say "Disabling interactive Git credential helpers for the service account"
