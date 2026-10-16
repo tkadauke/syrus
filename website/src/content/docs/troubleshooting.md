@@ -326,6 +326,19 @@ See the [Features](/docs/features#tailscale) page for the full picture and
 `GET /api/v1/app/admin/tailscale/status` for the machine-readable status
 payload.
 
+## An admin action failed or still shows old data
+
+Admin mutation errors are shown next to the control that failed. Maintenance
+tasks, user controls, operator-console settings, and Work Unit visibility also
+refresh their data after a failure, which is especially useful when another
+operator changed the same record first.
+
+The Processes page refreshes automatically while processes are active and
+asks for confirmation before sending `SIGKILL`. GitHub App installation
+refreshes show that synchronization was queued, then poll briefly for the new
+sync result. If either action reports a conflict, use the refreshed row or
+status before retrying.
+
 ## The data volume is filling up
 
 Syrus warns in the UI when the worker data volume (`SYRUS_DATA_ROOT`) is

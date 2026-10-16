@@ -3,7 +3,7 @@ module Api
     module App
       module Admin
         class MaintenanceTasksController < BaseController
-          rescue_from ArgumentError, with: :render_action_conflict
+          rescue_from MaintenanceTasks::Actions::TransitionConflict, with: :render_action_conflict
 
           def index
             render json: ::App::MaintenanceTasksPayload.index(params: params)

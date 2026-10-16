@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AdminInstallations } from "./AdminInstallations"
@@ -53,6 +53,7 @@ describe("AdminInstallations repositories configurable columns", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     window.localStorage.clear()
     vi.restoreAllMocks()
   })
@@ -122,5 +123,24 @@ describe("AdminInstallations repositories configurable columns", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Refresh installation list" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Installation sync is unavailable")
+  })
+
+  it("shows the queued message and polls for completed sync data", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, options) => Promise.resolve(options?.method === "POST"
+      ? jsonResponse({ ...installationsPayload(), message: "Installation sync queued." })
+      : jsonResponse(installationsPayload())))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter><AdminInstallations /></MemoryRouter></QueryClientProvider>)
+    const refreshButton = await screen.findByRole("button", { name: "Refresh installation list" })
+    vi.useFakeTimers()
+    fireEvent.click(refreshButton)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+    expect(screen.getByText("Installation sync queued.")).toBeInTheDocument()
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    const callsAfterInvalidation = fetchSpy.mock.calls.length
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsAfterInvalidation)
   })
 })
