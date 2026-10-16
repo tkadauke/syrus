@@ -12,6 +12,7 @@ import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
 import { analyzeInstanceUrl } from "./instanceUrl.js"
 import { installerCommand, installerScriptPath, readBackendManifest } from "./installPaths.js"
+import { superviseInstallChild } from "./installChildLifecycle.js"
 import { PullProgressAggregator, formatPullProgress, parsePullProgressLine } from "./pullProgress.js"
 import {
   composeCommand,
@@ -164,8 +165,7 @@ export class OnboardingDriver {
   private state: OnboardingState = { phase: "welcome" }
   private child: ChildProcess | null = null
   private installLockPid: number | null = null
-  private cancelPromise: Promise<void> | null = null
-  private resolveCancel: (() => void) | null = null
+  private childCompletion: Promise<void> | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
   private pollResolve: ((ready: boolean) => void) | null = null
@@ -236,10 +236,13 @@ export class OnboardingDriver {
     this.installLockPid = pid
   }
 
-  private async releaseInstallLock() {
+  private async releaseInstallLock(force = false) {
     const lockPath = this.installLockPath()
     const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
-    if (pid === this.installLockPid) {
+    // A failed write may have truncated the file, so there may be no PID left
+    // to compare. No competing installer can acquire the still-existing path;
+    // the lifecycle supervisor may therefore force-release our acquired lock.
+    if (force || pid === this.installLockPid) {
       await fs.unlink(lockPath).catch(() => {})
     }
     this.installLockPid = null
@@ -857,7 +860,23 @@ export class OnboardingDriver {
         ? spawn(command, spawnArgs, { env, windowsHide: true })
         : spawn(command, spawnArgs, { env, detached: true })
     this.child = child
-    await this.updateInstallLock(child.pid ?? process.pid)
+
+    this.childCompletion = superviseInstallChild({
+      child,
+      updateLock: (pid) => this.updateInstallLock(pid),
+      releaseLock: (force) => this.releaseInstallLock(force),
+      terminate: () => this.killInstallChild(),
+      onError: (error) => logStream.write(`installer process error: ${String(error)}\n`),
+      onSettled: (code) => {
+        this.child = null
+        if (this.childKillTimer) {
+          clearTimeout(this.childKillTimer)
+          this.childKillTimer = null
+        }
+        logStream.end()
+        this.handleExit(code)
+      }
+    })
 
     readline.createInterface({ input: child.stdout }).on("line", (line) => {
       logStream.write(`${line}\n`)
@@ -869,33 +888,6 @@ export class OnboardingDriver {
       this.appendLog(line)
     })
 
-    // "close", not "exit": close fires only after stdio has drained, so the
-    // final NDJSON error/done lines are guaranteed to have been parsed and
-    // nothing writes to the log stream after end().
-    let childSettled = false
-    const settleChild = (code: number) => {
-      if (childSettled) {
-        return
-      }
-      childSettled = true
-      this.child = null
-      if (this.childKillTimer) {
-        clearTimeout(this.childKillTimer)
-        this.childKillTimer = null
-      }
-      this.resolveCancel?.()
-      this.resolveCancel = null
-      this.cancelPromise = null
-      void this.releaseInstallLock()
-      logStream.end()
-      this.handleExit(code)
-    }
-
-    child.on("error", (error) => {
-      logStream.write(`spawn error: ${String(error)}\n`)
-      settleChild(1)
-    })
-    child.on("close", (code) => settleChild(code ?? 1))
   }
 
   // Kill the whole tree so docker/compose grandchildren die with the script
@@ -933,15 +925,12 @@ export class OnboardingDriver {
 
   cancelInstall(): Promise<void> {
     if (!this.child) {
-      return Promise.resolve()
+      return this.childCompletion ?? Promise.resolve()
     }
 
     this.cancelRequested = true
     this.killInstallChild()
-    this.cancelPromise ??= new Promise((resolve) => {
-      this.resolveCancel = resolve
-    })
-    return this.cancelPromise
+    return this.childCompletion ?? Promise.resolve()
   }
 
   // Forget all wizard progress so a reopened onboarding starts at Welcome —

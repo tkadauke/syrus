@@ -72,8 +72,8 @@ RSpec.describe "desktop onboarding installer" do
 
   it "cancels the whole process group and finalizes only after stdio drains" do
     expect(driver).to include('process.kill(-this.child.pid, "SIGTERM")')
-    expect(driver).to include('process.kill(-pid, "SIGKILL")')
-    expect(driver).to include('child.on("close", (code) => settleChild(code ?? 1))')
+    expect(driver).to include('process.kill(-child.pid, "SIGKILL")')
+    expect(driver).to include("superviseInstallChild({")
     expect(driver).not_to include('child.on("exit"')
     expect(driver).to match(/cancelRequested[\s\S]*?\{ phase: "welcome" \}/)
   end
@@ -88,8 +88,8 @@ RSpec.describe "desktop onboarding installer" do
   it "uses an atomic pid lock to prevent installers racing across app launches" do
     expect(driver).to include('fs.open(lockPath, "wx")')
     expect(driver).to include("await this.processIsRunning(pid)")
-    expect(driver).to include("await this.updateInstallLock(child.pid ?? process.pid)")
-    expect(driver).to include("void this.releaseInstallLock()")
+    expect(driver).to include("updateLock: (pid) => this.updateInstallLock(pid)")
+    expect(driver).to include("releaseLock: (force) => this.releaseInstallLock(force)")
     expect(driver).to include("A Syrus installation is already running")
   end
 
