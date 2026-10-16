@@ -273,6 +273,7 @@ PREPULL="${PREPULL:-1}"
 PREPULL_TIMEOUT="${PREPULL_TIMEOUT:-12m}"
 PREPULL_DAEMONSET="${SYRUS_PREPULL_DAEMONSET:-syrus-image-prepull}"
 DB_PREPARE_TIMEOUT="${DB_PREPARE_TIMEOUT:-10m}"
+FLUX_SUSPEND_SLACK="${FLUX_SUSPEND_SLACK:-5m}"
 ROLLOUT_VERBOSE_DIAGNOSTICS="${ROLLOUT_VERBOSE_DIAGNOSTICS:-false}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
 MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"
@@ -315,7 +316,7 @@ trap abort_rollout INT TERM
 rollout() {
   local label="$1" kubeconfig="$2" namespace="$3"
   local targets=()
-  local dep
+  local dep plugin_target_count=0
 
   for dep in "${DEPLOYMENTS[@]}"; do
     if KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$dep" >/dev/null 2>&1; then
@@ -330,6 +331,11 @@ rollout() {
     exit 1
   fi
 
+  if [ "${#PLUGIN_REGISTRIES[@]}" -gt 0 ]; then
+    plugin_target_count="$(plugin_image_containers "$kubeconfig" "$namespace" |
+      awk '{ print $1 }' | sort -u | awk 'NF { count++ } END { print count + 0 }')"
+  fi
+  configure_flux_suspend_ttl "$label" "$(( ${#targets[@]} + plugin_target_count ))"
   flux_suspend_with_watchdog "$kubeconfig" "$label"
   flux_pin_desired_images "$kubeconfig" "$label"
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
@@ -900,9 +906,46 @@ EOF
 # the crash path.
 FLUX_NAMESPACE="${FLUX_NAMESPACE:-flux-system}"
 FLUX_KUSTOMIZATION="${FLUX_KUSTOMIZATION:-apps}"
-FLUX_SUSPEND_TTL="${FLUX_SUSPEND_TTL:-1200}"  # seconds — generous deploy budget
+FLUX_SUSPEND_TTL_OVERRIDE="${FLUX_SUSPEND_TTL:-}"
+FLUX_SUSPEND_TTL="$FLUX_SUSPEND_TTL_OVERRIDE"
 FLUX_WATCHDOG_IMAGE="${FLUX_WATCHDOG_IMAGE:-alpine/k8s:1.31.13}"
 FLUX_IMAGE_FIELD_MANAGER="${FLUX_IMAGE_FIELD_MANAGER:-flux-client-side-apply}"
+
+# Budget every bounded phase after Flux is suspended, plus one rollout timeout
+# for unbounded setup/verification work and scheduling overhead. This is
+# calculated after the cluster's existing rollout targets are discovered, so
+# optional and plugin workloads extend the watchdog instead of silently
+# consuming its safety margin.
+flux_suspend_budget_seconds() {
+  local rollout_target_count="$1" prepull_seconds=0
+  if [ "$PREPULL" != 0 ]; then
+    prepull_seconds="$(duration_to_seconds "$PREPULL_TIMEOUT")"
+  fi
+  echo "$((
+    prepull_seconds +
+    $(duration_to_seconds "$DB_PREPARE_TIMEOUT") +
+    (rollout_target_count + 1) * $(duration_to_seconds "$ROLLOUT_TIMEOUT") +
+    $(duration_to_seconds "$FLUX_SUSPEND_SLACK")
+  ))"
+}
+
+configure_flux_suspend_ttl() {
+  local label="$1" rollout_target_count="$2" minimum_ttl
+  minimum_ttl="$(flux_suspend_budget_seconds "$rollout_target_count")"
+
+  if [ -z "$FLUX_SUSPEND_TTL_OVERRIDE" ]; then
+    FLUX_SUSPEND_TTL="$minimum_ttl"
+    return 0
+  fi
+  if [[ ! "$FLUX_SUSPEND_TTL_OVERRIDE" =~ ^[0-9]+$ ]]; then
+    echo "✗ ${label}: FLUX_SUSPEND_TTL must be an integer number of seconds" >&2
+    exit 2
+  fi
+  FLUX_SUSPEND_TTL="$FLUX_SUSPEND_TTL_OVERRIDE"
+  if [ "$FLUX_SUSPEND_TTL" -lt "$minimum_ttl" ]; then
+    echo "⚠ ${label}: FLUX_SUSPEND_TTL=${FLUX_SUSPEND_TTL}s is below the computed deploy budget of ${minimum_ttl}s for ${rollout_target_count} rollout target(s)" >&2
+  fi
+}
 
 flux_kustomization_exists() {
   local kubeconfig="$1"
