@@ -669,6 +669,16 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} status --porcelain")).to be_empty
       end
 
+      it "does not track spilled prompt context" do
+        ws = described_class.new(workflow)
+        ws.setup
+        spill = Prompts::Truncate::Spill.new(workspace_path: ws.path, key: "run-1")
+
+        spill.write("issue body", "untrusted prompt content")
+
+        expect(sh("git -C #{ws.path} status --porcelain")).to be_empty
+      end
+
       it "writes the workspace lock sentinel into the git info exclude file" do
         ws = described_class.new(workflow)
         ws.setup

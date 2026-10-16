@@ -11,12 +11,13 @@ module Prompts
     MAX_SUMMARIES_BYTES = 20_000
     MAX_DIFF_BYTES = 30_000
 
-    def initialize(job:, current_pr: nil, prior_summaries: [], feedback: nil, diff: nil)
+    def initialize(job:, current_pr: nil, prior_summaries: [], feedback: nil, diff: nil, spill: nil)
       @job = job
       @current_pr = current_pr
       @prior_summaries = prior_summaries || []
       @feedback = feedback
       @diff = diff
+      @spill = spill
     end
 
     def to_s
@@ -29,7 +30,7 @@ module Prompts
         #{@job.title}
 
         Original Job prompt/body:
-        #{Truncate.text(@job.issue_body, max_bytes: MAX_BODY_BYTES, label: "issue body")}
+        #{Truncate.text(@job.issue_body, max_bytes: MAX_BODY_BYTES, label: "issue body", spill: @spill)}
 
         Current PR title:
         #{current_pr_title}
@@ -38,7 +39,7 @@ module Prompts
         #{current_pr_body}
 
         Operator input handled in this workflow:
-        #{Truncate.text(@feedback.presence || "(none recorded)", max_bytes: MAX_FEEDBACK_BYTES, label: "feedback")}
+        #{Truncate.text(@feedback.presence || "(none recorded)", max_bytes: MAX_FEEDBACK_BYTES, label: "feedback", spill: @spill)}
 
         Prior workflow summaries:
         #{prior_summary_text}
@@ -71,19 +72,19 @@ module Prompts
 
     def current_pr_body
       body = @current_pr&.body.to_s.presence || "(no managed PR body available)"
-      Truncate.text(body, max_bytes: MAX_BODY_BYTES, label: "PR body")
+      Truncate.text(body, max_bytes: MAX_BODY_BYTES, label: "PR body", spill: @spill)
     end
 
     def prior_summary_text
       return "(none)" if @prior_summaries.empty?
 
       text = @prior_summaries.each_with_index.map { |summary, index| "Round #{index + 1}: #{summary}" }.join("\n")
-      Truncate.text(text, max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries")
+      Truncate.text(text, max_bytes: MAX_SUMMARIES_BYTES, label: "prior summaries", spill: @spill)
     end
 
     def diff_text
       diff = @diff.to_s.presence || "(no diff captured)"
-      Truncate.text(diff, max_bytes: MAX_DIFF_BYTES, label: "diff")
+      Truncate.text(diff, max_bytes: MAX_DIFF_BYTES, label: "diff", spill: @spill)
     end
   end
 end
