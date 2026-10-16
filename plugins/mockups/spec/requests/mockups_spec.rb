@@ -67,6 +67,27 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     expect(panel["entry_viewer_kind"]).to eq("html")
   end
 
+  it "keeps a mockup viewable after its chat panel is closed" do
+    mockup = mockup_for(user, files: { "index.html" => "<h1>saved mockup</h1>" })
+    mockup.preview_panel.update!(state: "closed")
+    sign_in_as(user)
+
+    get "/api/v1/app/mockups/#{mockup.slug}"
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body).dig("panel", "url")).to be_present
+    proxy = PreviewProxyMiddleware.new(->(_env) { [ 200, {}, [ "upstream" ] ] })
+    base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
+    token = PreviewPanel::AccessToken.issue(mockup.preview_panel)
+    env = Rack::MockRequest.env_for(
+      "http://preview-panel-#{mockup.preview_panel_id}.#{base_domain}/?token=#{Rack::Utils.escape(token)}"
+    )
+    env["HTTP_HOST"] = "preview-panel-#{mockup.preview_panel_id}.#{base_domain}"
+    status, _, body = proxy.call(env)
+    expect(status).to eq(200)
+    expect(body.join).to eq("<h1>saved mockup</h1>")
+  end
+
   it "accepts a bare id as well as the slug" do
     mockup = mockup_for(user)
     sign_in_as(user)

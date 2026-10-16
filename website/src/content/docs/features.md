@@ -1715,8 +1715,9 @@ filter bar. Selecting one opens it beside the list for a quick look, so a
 filtered list stays put while you browse.
 
 Republishing a mockup updates it in place, so the reference keeps working while
-an agent iterates. Mockups are visible to whoever can see the chat they came
-from.
+an agent iterates. Closing the preview tab only dismisses it from chat; the
+published mockup remains viewable from the Mockups page. Mockups are visible to
+whoever can see the chat they came from.
 
 Ships as a bundled plugin, enabled by default. Turning it off from
 Admin -> Plugins removes the page and the chat tools; mockups already published

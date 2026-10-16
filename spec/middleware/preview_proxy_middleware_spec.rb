@@ -550,6 +550,22 @@ RSpec.describe PreviewProxyMiddleware do
       expect(status).to eq(404)
     end
 
+    it "serves a closed panel retained by a plugin" do
+      panel = create_panel(state: "closed")
+      panel.create_version!("index.html" => "<h1>saved mockup</h1>")
+      retention = Class.new do
+        include Syrus::Plugin::PreviewPanelRetention
+        define_singleton_method(:retained_preview_panel?) { |candidate| candidate.id == panel.id }
+      end
+      allow(Syrus::PluginRegistry).to receive(:providers_for)
+        .with(:preview_panel_retention).and_return([ retention ])
+
+      status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>saved mockup</h1>")
+    end
+
     it "returns 404 for a path with no matching attachment" do
       panel = create_panel
       panel.create_version!("index.html" => "<h1>hi</h1>")
