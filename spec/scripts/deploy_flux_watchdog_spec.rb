@@ -4,6 +4,7 @@ require "open3"
 RSpec.describe "bin/deploy Flux watchdog" do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:env_example) { File.read(File.join(root, ".env.example")) }
 
   def bash(script)
     Open3.capture3("bash", "-c", script, chdir: root)
@@ -92,5 +93,13 @@ RSpec.describe "bin/deploy Flux watchdog" do
     expect(out).to eq("12 15")
     expect(deploy).to include('configure_flux_suspend_ttl "$label" "$(( ${#targets[@]} + plugin_target_count ))"')
     expect(deploy).to include("activeDeadlineSeconds: $((FLUX_SUSPEND_TTL + 120))")
+  end
+
+  it "does not opt template-based deployments into a short fixed TTL" do
+    expect(env_example).to include(
+      "FLUX_SUSPEND_TTL= # Optional fixed watchdog TTL in seconds; unset derives it from all deploy phase budgets."
+    )
+    expect(env_example).to include("FLUX_SUSPEND_SLACK=5m")
+    expect(env_example).not_to match(/^FLUX_SUSPEND_TTL=\d+/)
   end
 end
