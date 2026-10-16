@@ -76,8 +76,8 @@ describe("JobEpicPickerPopup — jobs mode", () => {
   })
 
   it("searches the server for jobs outside the initial result page", async () => {
-    vi.spyOn(jobsApi, "fetchPickerJobs").mockImplementation(async ({ q }) =>
-      q === "999"
+    vi.spyOn(jobsApi, "fetchPickerJobs").mockImplementation(async (params) =>
+      params?.q === "999"
         ? { count: 1, jobs: [{ id: 999, title: "Older job", issue_title: "Older job", state: "open", repository_slug: "acme/repo", pr_url: null }] }
         : sampleJobs
     )
