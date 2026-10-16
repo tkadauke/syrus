@@ -26,18 +26,18 @@ module SpendingInsights
 
     def sample!
       now = Time.current
-      cursor = read_cursor
-      totals = read_totals
+      checkpoint = read_checkpoint
 
-      instrument_finished_runs!(cursor, totals, now)
+      instrument_finished_runs!(checkpoint, now)
 
-      write_cursor(cursor)
-      write_totals(totals)
-      true
+      write_checkpoint(checkpoint)
+    rescue StandardError => e
+      Rails.logger.warn("[SpendingInsights::MetricsSampler] could not sample finished runs: #{e.class}: #{e.message}")
+      false
     end
 
     def refresh_gauges!
-      totals = read_totals
+      totals = read_checkpoint
       return false if totals.blank?
 
       counter = Syrus::Metrics.counter(:syrus_spending_insights_run_cost_usd_total)
@@ -50,19 +50,19 @@ module SpendingInsights
     # Bootstraps to "now" the first time this ever runs, rather than
     # backfilling every historical Run -- the same instinct as
     # Metrics::ProductUsage's zero-preset and Metrics::LandingSampler's cursor.
-    def instrument_finished_runs!(cursor, totals, now)
-      after = cursor["through"]
-      return cursor["through"] = now.iso8601(6) if after.nil?
+    def instrument_finished_runs!(checkpoint, now)
+      after = checkpoint["through"]
+      return checkpoint["through"] = now.iso8601(6) if after.nil?
 
-      rows = guard("finished runs", []) { finished_runs(after: Time.iso8601(after), through: now) }
+      rows = finished_runs(after: Time.iso8601(after), through: now)
 
-      running_totals = (totals["run_cost_usd_total"] ||= {})
+      running_totals = (checkpoint["run_cost_usd_total"] ||= {})
       rows.each do |provider, trigger_kind, cost_usd|
         key = { provider: provider, trigger_kind: trigger_kind }
         running_totals[key] = (running_totals[key] || 0.0) + cost_usd.to_f
       end
 
-      cursor["through"] = now.iso8601(6)
+      checkpoint["through"] = now.iso8601(6)
     end
 
     def finished_runs(after:, through:)
@@ -72,28 +72,16 @@ module SpendingInsights
          .pluck(:agent_provider, :trigger_kind, :cost_usd)
     end
 
-    def read_cursor
-      Rails.cache.read(CURSOR_CACHE_KEY) || {}
+    def read_checkpoint
+      Rails.cache.read(CACHE_KEY) || legacy_checkpoint
     end
 
-    def write_cursor(cursor)
-      Rails.cache.write(CURSOR_CACHE_KEY, cursor, expires_in: CURSOR_TTL)
+    def legacy_checkpoint
+      (Rails.cache.read(TOTALS_CACHE_KEY) || {}).merge(Rails.cache.read(CURSOR_CACHE_KEY) || {})
     end
 
-    def read_totals
-      Rails.cache.read(TOTALS_CACHE_KEY) || {}
-    end
-
-    def write_totals(totals)
-      Rails.cache.write(TOTALS_CACHE_KEY, totals, expires_in: CURSOR_TTL)
-    end
-
-    # One unreachable source costs this tick's sample, not the whole tick.
-    def guard(what, fallback)
-      yield
-    rescue StandardError => e
-      Rails.logger.warn("[SpendingInsights::MetricsSampler] could not sample #{what}: #{e.class}: #{e.message}")
-      fallback
+    def write_checkpoint(checkpoint)
+      Rails.cache.write(CACHE_KEY, checkpoint, expires_in: CURSOR_TTL)
     end
   end
 end
