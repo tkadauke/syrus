@@ -9,8 +9,6 @@ module SpendingInsights
       @params = params
       @today = Time.zone.today
       @filter = SpendingInsights::Filter.from_params(params, user: user)
-      @start_date = @filter.start_date
-      @end_date = @filter.end_date
     end
 
     def as_json(*)
@@ -35,7 +33,7 @@ module SpendingInsights
 
     private
 
-    attr_reader :user, :start_date, :end_date, :today, :filter
+    attr_reader :user, :today, :filter
 
     def scope_json
       {
@@ -47,8 +45,8 @@ module SpendingInsights
 
     def filters_json
       {
-        start_date: start_date.iso8601,
-        end_date: end_date.iso8601,
+        start_date: trend_start_date.iso8601,
+        end_date: trend_end_date.iso8601,
         default_window_days: DEFAULT_WINDOW_DAYS,
         agent_provider: filter_value("agent_provider"),
         repository_id: filter_value("repository_id")&.to_i,
@@ -123,7 +121,9 @@ module SpendingInsights
     end
 
     def scoped_chat_spend_entries
-      relation = ChatSpendEntry.where(incurred_at: start_date.beginning_of_day..end_date.end_of_day)
+      relation = ChatSpendEntry.all
+      relation = relation.where(incurred_at: filter.start_date.beginning_of_day..) if filter.start_date
+      relation = relation.where(incurred_at: ..filter.end_date.end_of_day) if filter.end_date
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
@@ -157,11 +157,11 @@ module SpendingInsights
     end
 
     def filtered_runs
-      runs_in_window(start_date, end_date)
+      provider_scoped_runs
     end
 
     def runs_in_window(first_date, last_date)
-      provider_scoped_runs.where(finished_at: first_date.beginning_of_day..last_date.end_of_day)
+      unwindowed_runs.where(finished_at: first_date.beginning_of_day..last_date.end_of_day)
     end
 
     def jobs_with_windowed_run_cost(first_date, last_date)
@@ -352,20 +352,40 @@ module SpendingInsights
     end
 
     def trend
-      range_start = [ start_date, end_date - (TREND_LIMIT_DAYS - 1).days ].max
-      sums = runs_in_window(range_start, end_date)
+      sums = filtered_runs
+             .where(finished_at: trend_start_date.beginning_of_day..trend_end_date.end_of_day)
              .group(date_bucket_sql)
              .sum(:cost_usd)
       chat_sums = provider_scoped_chat_spend_entries
-                  .where(incurred_at: range_start.beginning_of_day..end_date.end_of_day)
+                  .where(incurred_at: trend_start_date.beginning_of_day..trend_end_date.end_of_day)
                   .group(chat_date_bucket_sql)
                   .sum(:cost_usd)
 
-      (range_start..end_date).map do |date|
+      (trend_start_date..trend_end_date).map do |date|
         {
           date: date.iso8601,
           total_usd: decimal_to_float((sums[date.to_s] || sums[date] || 0) + (chat_sums[date.to_s] || chat_sums[date] || 0))
         }
+      end
+    end
+
+    def trend_end_date
+      @trend_end_date ||= begin
+        selected_end = filter.end_date
+        if selected_end
+          selected_end
+        else
+          latest_run_date = filtered_runs.maximum(:finished_at)&.to_date
+          latest_chat_date = provider_scoped_chat_spend_entries.maximum(:incurred_at)&.to_date
+          [ today, filter.start_date, latest_run_date, latest_chat_date ].compact.max
+        end
+      end
+    end
+
+    def trend_start_date
+      @trend_start_date ||= begin
+        earliest = filter.start_date || (trend_end_date - (DEFAULT_WINDOW_DAYS - 1).days)
+        [ earliest, trend_end_date - (TREND_LIMIT_DAYS - 1).days ].max
       end
     end
 
