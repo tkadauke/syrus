@@ -48,8 +48,13 @@ The installer:
 2. Generates `.env` from `compose.env.example` with fresh secrets
    (`SECRET_KEY_BASE` and the three Active Record encryption keys) on first
    run. `.env` is gitignored — keep it.
-3. Pulls `ghcr.io/tkadauke/syrus-backend`.
-4. Starts the stack: a one-shot **setup** task (prepares the SQLite
+3. Pulls `ghcr.io/tkadauke/syrus-backend`. On a rerun, an existing
+   `SYRUS_IMAGE` pin in `.env` is honored unless `--image` or the process
+   environment explicitly overrides it.
+4. When the selected image differs from the existing web container's image,
+   stops the stack and archives the data volume under `backups/` before any
+   database migration can run.
+5. Starts the stack: a one-shot **setup** task (prepares the SQLite
    databases and fixes volume ownership), then **web** and **worker**.
 
 When it finishes, open **http://localhost:3000**. The first signup becomes
@@ -105,7 +110,9 @@ are optional; without them the behavior above is unchanged.
 
 `step` events carry an `id` from this fixed sequence: `runtime_check`,
 `runtime_install`, `runtime_start`, `compose_resolve`, `env_check`,
-`env_generate`, `image_pull`, `stack_up`, `health`. The final `health` step
+`env_generate`, `image_pull`, `stack_up`, `health`. During `stack_up`, an image
+change may emit `backup` log events while the stopped data volume is archived.
+The final `health` step
 polls the app's `/up` endpoint, so `done` means the web UI actually answers,
 not just that containers were created.
 
@@ -126,6 +133,7 @@ parsing text:
 | `32` | The image tag does not exist in the registry and no local copy exists. |
 | `40` | `docker compose up` failed. |
 | `41` | The stack started but never became healthy. |
+| `42` | The existing stack could not be stopped or its data volume could not be backed up before an image change; the new image was not started. |
 
 The pull is retried twice before failing, and a failure that matches the
 stale-saved-credential patterns triggers one automatic

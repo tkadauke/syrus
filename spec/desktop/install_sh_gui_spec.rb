@@ -33,7 +33,8 @@ RSpec.describe "install.sh GUI interface", :ci_only do
   # invocation is appended to <dir>/calls.log for argument assertions.
   def write_docker_stub(dir, volume_exists:, pull_ok: false, local_image: false,
                         pull_error: "stub: pull refused",
-                        contexts: [], current_context: "", volume_contexts: [])
+                        contexts: [], current_context: "", volume_contexts: [],
+                        existing_container: "", prior_image: "")
     stub = File.join(dir, "docker")
     context_lines = contexts.map { |c| "#{c}\n" }.join
     holders = volume_contexts.join(" ")
@@ -59,12 +60,19 @@ RSpec.describe "install.sh GUI interface", :ci_only do
           exit 0 ;;
         volume) exit #{volume_exists ? 0 : 1} ;;
         image) exit #{local_image ? 0 : 1} ;;
+        inspect)
+          [ "$4" = "#{existing_container}" ] && printf '%s\n' "#{prior_image}"
+          exit 0 ;;
+        run) exit 0 ;;
         logout) exit 0 ;;
         compose)
           shift
           while [ $# -gt 0 ] && [ "${1#--}" != "$1" ]; do shift; done
           case "$1" in
             version) exit 0 ;;
+            ps)
+              [ -n "#{existing_container}" ] && printf '%s\n' "#{existing_container}"
+              exit 0 ;;
             pull) #{pull_ok ? "exit 0" : "echo '#{pull_error}'; exit 1"} ;;
             *) exit 0 ;;
           esac ;;
@@ -890,6 +898,58 @@ RSpec.describe "install.sh GUI interface", :ci_only do
             "event" => "log", "stream" => "env",
             "line" => "SYRUS_IMAGE pin updated: ghcr.io/example/pinned:1 -> ghcr.io/example/pinned:2"
           )
+        )
+      end
+    end
+  end
+
+  it "honors an existing .env image pin when --image is omitted" do
+    Dir.mktmpdir do |stub_dir|
+      Dir.mktmpdir do |target|
+        write_docker_stub(stub_dir, volume_exists: false, pull_ok: true)
+        write_curl_stub(stub_dir)
+        File.write(File.join(target, ".env"), <<~ENV)
+          SECRET_KEY_BASE=abc123
+          SYRUS_IMAGE=ghcr.io/example/pinned:7.4.1
+        ENV
+
+        out, _err, status = run_install(
+          "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+          "--target-dir", target, stub_dir: stub_dir
+        )
+
+        expect(status.exitstatus).to eq(0)
+        expect(parse_events(out).first).to include("image" => "ghcr.io/example/pinned:7.4.1")
+        expect(stub_calls(stub_dir)).not_to include(a_string_including("syrus-backend:latest"))
+      end
+    end
+  end
+
+  it "stops and archives the data volume before starting a changed image" do
+    Dir.mktmpdir do |stub_dir|
+      Dir.mktmpdir do |target|
+        write_docker_stub(
+          stub_dir, volume_exists: true, pull_ok: true,
+          existing_container: "old-web", prior_image: "ghcr.io/example/syrus-backend:1"
+        )
+        write_curl_stub(stub_dir)
+        File.write(File.join(target, ".env"), <<~ENV)
+          SECRET_KEY_BASE=abc123
+          SYRUS_IMAGE=ghcr.io/example/syrus-backend:2
+        ENV
+
+        out, _err, status = run_install(
+          "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+          "--target-dir", target, stub_dir: stub_dir
+        )
+
+        expect(status.exitstatus).to eq(0)
+        calls = stub_calls(stub_dir)
+        expect(calls.index("compose stop")).to be < calls.index { |call| call.start_with?("compose up -d") }
+        expect(calls).to include(a_string_matching(/\Arun --rm --entrypoint tar .*syrus_syrus-data.*ghcr\.io\/example\/syrus-backend:1/))
+        expect(Dir[File.join(target, "backups", "syrus-data-before-*.tar.gz")].length).to eq(1)
+        expect(parse_events(out)).to include(
+          hash_including("event" => "log", "stream" => "backup", "line" => a_string_including("backup complete"))
         )
       end
     end
