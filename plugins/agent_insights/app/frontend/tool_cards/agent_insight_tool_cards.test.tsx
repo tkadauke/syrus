@@ -137,6 +137,20 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
   })
 
+  it("renders the structured result returned by insight mutation tools", () => {
+    const cardContext = context({
+      toolName: "retire_insight",
+      resultBody: JSON.stringify({ message: "Retired 2 insights.", insight_ids: [41, 42] }),
+      parsedResult: { message: "Retired 2 insights.", insight_ids: [41, 42] },
+      input: { insight_ids: [41, 42], reason: "Both findings are stale." }
+    })
+
+    expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Retired insight #41")
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Retired 2 insights.")).toBeInTheDocument()
+    expect(screen.getByText("Both findings are stale.")).toBeInTheDocument()
+  })
+
   it("falls back to the generic renderer for malformed list and detail payloads", () => {
     expect(listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: "oops" } }))).toBeNull()
     expect(readInsightToolCard.renderExpanded(context({ toolName: "read_insight", parsedResult: { insight: { id: 5 } } }))).toBeNull()

@@ -2,7 +2,7 @@ module AgentInsights
   class AuditEvent < ApplicationRecord
     self.table_name = "agent_insight_audit_events"
 
-    EVENT_TYPES = %w[ updated retired ].freeze
+    EVENT_TYPES = %w[ updated dismissed retired ].freeze
     ACTOR_KINDS = %w[ user agent system ].freeze
 
     belongs_to :insight_suggestion, class_name: "AgentInsights::Suggestion", foreign_key: :insight_suggestion_id, inverse_of: :audit_events
