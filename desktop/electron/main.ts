@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { promisify } from "node:util"
 import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
+import { AppUserCableClient } from "./appUserCable.js"
 import { dispatchNativeNotification } from "./nativeNotifications.js"
 import {
   deleteCredentialsFile,
@@ -241,17 +242,9 @@ let autoProvisioningAllowed = store.get("autoProvisioningAllowed", true)
 const credentialMutations = new CredentialMutationCoordinator()
 let isQuitting = false
 let cachedCliAvailable: boolean | null = null
-let appUserCable: WebSocket | null = null
-let appUserCableReconnectTimer: NodeJS.Timeout | null = null
-let appUserCableGeneration = 0
-let appUserCableCredentialsKey: string | null = null
 let plainTrayIcon: NativeImage | null = null
 let unreadCount = 0
 
-const APP_USER_CHANNEL_IDENTIFIER = JSON.stringify({ channel: "AppUserChannel" })
-const APP_USER_CABLE_INITIAL_RECONNECT_MS = 1_000
-const APP_USER_CABLE_MAX_RECONNECT_MS = 30_000
-let appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
 let registeredGlobalHotkey = ""
 
 // Set when the stored token gets a 401 from its own instance (backend DB
@@ -324,29 +317,6 @@ const appCableUrl = (baseUrl: string, token: string) => {
 }
 
 const credentialsKey = (credentials: Credentials) => `${credentials.url.trim()}\n${credentials.token.trim()}`
-
-const clearAppUserCableReconnect = () => {
-  if (appUserCableReconnectTimer) {
-    clearTimeout(appUserCableReconnectTimer)
-    appUserCableReconnectTimer = null
-  }
-}
-
-const closeAppUserCable = () => {
-  clearAppUserCableReconnect()
-
-  if (appUserCable) {
-    const socket = appUserCable
-    appUserCable = null
-    socket.onopen = null
-    socket.onmessage = null
-    socket.onerror = null
-    socket.onclose = null
-    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
-      socket.close()
-    }
-  }
-}
 
 const normalizeUnreadCount = (value: unknown) => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -444,108 +414,19 @@ const handleNotificationCreated = (event: unknown) => {
   setUnreadCount(unreadCount + 1)
 }
 
-const stopAppUserCable = () => {
-  appUserCableGeneration += 1
-  appUserCableCredentialsKey = null
-  closeAppUserCable()
-}
-
-const scheduleAppUserCableReconnect = (credentials: Credentials, generation: number) => {
-  if (isQuitting || generation !== appUserCableGeneration) {
-    return
+const appUserCableClient = new AppUserCableClient({
+  createSocket: (url, protocol) => new WebSocket(url, protocol),
+  cableUrl: (credentials) => appCableUrl(credentials.url, credentials.token),
+  credentialsKey,
+  onMessage: (message) => desktopNotificationEvents.emit(DESKTOP_NOTIFICATION_EVENT, message),
+  onUnauthorized: (credentials) => {
+    suspectTokenKey = credentialsKey(credentials)
   }
+})
 
-  clearAppUserCableReconnect()
-  const delay = appUserCableReconnectMs
-  appUserCableReconnectMs = Math.min(appUserCableReconnectMs * 2, APP_USER_CABLE_MAX_RECONNECT_MS)
-  appUserCableReconnectTimer = setTimeout(() => {
-    appUserCableReconnectTimer = null
-    connectAppUserCable(credentials, generation)
-  }, delay)
-}
-
-const connectAppUserCable = (credentials: Credentials, generation = appUserCableGeneration) => {
-  if (isQuitting || generation !== appUserCableGeneration) {
-    return
-  }
-
-  closeAppUserCable()
-
-  const socket = new WebSocket(appCableUrl(credentials.url, credentials.token), "actioncable-v1-json")
-  appUserCable = socket
-
-  socket.onopen = () => {
-    appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
-    socket.send(JSON.stringify({
-      command: "subscribe",
-      identifier: APP_USER_CHANNEL_IDENTIFIER
-    }))
-  }
-
-  socket.onmessage = (event) => {
-    if (generation !== appUserCableGeneration) {
-      return
-    }
-
-    let data: unknown
-    try {
-      data = JSON.parse(String(event.data))
-    } catch {
-      return
-    }
-
-    if (!data || typeof data !== "object") {
-      return
-    }
-
-    const message = data as { type?: string; message?: unknown }
-    if (message.type === "reject_subscription") {
-      socket.close()
-      return
-    }
-
-    if ("message" in message) {
-      desktopNotificationEvents.emit(DESKTOP_NOTIFICATION_EVENT, message.message)
-    }
-  }
-
-  let socketFinished = false
-  const finishSocket = () => {
-    if (socketFinished) {
-      return
-    }
-
-    socketFinished = true
-    if (appUserCable === socket) {
-      appUserCable = null
-    }
-    scheduleAppUserCableReconnect(credentials, generation)
-  }
-
-  socket.onerror = () => {
-    finishSocket()
-  }
-
-  socket.onclose = () => {
-    finishSocket()
-  }
-}
-
+const stopAppUserCable = () => appUserCableClient.stop()
 const startAppUserCable = (credentials: Credentials | null) => {
-  if (!credentials) {
-    stopAppUserCable()
-    return
-  }
-
-  const key = credentialsKey(credentials)
-  if (appUserCableCredentialsKey === key && appUserCable) {
-    return
-  }
-
-  appUserCableGeneration += 1
-  appUserCableCredentialsKey = key
-  appUserCableReconnectMs = APP_USER_CABLE_INITIAL_RECONNECT_MS
-  connectAppUserCable(credentials, appUserCableGeneration)
+  if (!isQuitting) appUserCableClient.start(credentials)
 }
 
 const broadcastNotificationEvent = (event: unknown) => {
