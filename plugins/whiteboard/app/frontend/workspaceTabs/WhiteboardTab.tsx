@@ -24,6 +24,29 @@ import type { PluginWorkspaceTabProps } from "@app/pluginWorkspaceTabs"
 type ExcalidrawComponent = typeof import("@excalidraw/excalidraw")["Excalidraw"]
 type ExcalidrawApi = Pick<ExcalidrawImperativeAPI, "addFiles" | "updateScene">
 
+function mergeWhiteboardScenes(local: ChatWhiteboardScene, remote: ChatWhiteboardScene): ChatWhiteboardScene {
+  const localById = new Map(local.elements.map((element) => [element.id, element]))
+  const mergedElements = remote.elements.map((remoteElement) => {
+    const localElement = localById.get(remoteElement.id)
+    localById.delete(remoteElement.id)
+    if (!localElement) return remoteElement
+
+    const localVersion = typeof localElement.version === "number" ? localElement.version : 0
+    const remoteVersion = typeof remoteElement.version === "number" ? remoteElement.version : 0
+    const localVersionNonce = typeof localElement.versionNonce === "number" ? localElement.versionNonce : 0
+    const remoteVersionNonce = typeof remoteElement.versionNonce === "number" ? remoteElement.versionNonce : 0
+    const localWins = localVersion > remoteVersion ||
+      (localVersion === remoteVersion && localVersionNonce < remoteVersionNonce)
+    return localWins ? localElement : remoteElement
+  })
+
+  return cloneWhiteboardScene({
+    elements: [...mergedElements, ...localById.values()],
+    appState: local.appState,
+    files: { ...remote.files, ...local.files }
+  })
+}
+
 export default function WhiteboardTab({ payload }: PluginWorkspaceTabProps) {
   return (
     <WhiteboardBoundary>
@@ -82,6 +105,8 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
   const pathRef = useRef(payload.paths.app_whiteboard_path)
   const pendingSceneRef = useRef<ChatWhiteboardScene | null>(null)
   const remoteUpdateInProgressRef = useRef(false)
+  const saveInFlightRef = useRef(false)
+  const savePendingRef = useRef<() => Promise<void>>(async () => {})
   const saveTimerRef = useRef<number | null>(null)
   const versionRef = useRef(payload.whiteboard.version)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
@@ -132,15 +157,26 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
 
   const recoverConflict = useCallback(async () => {
     const current = await fetchChatWhiteboard(pathRef.current)
+    const currentScene = normalizeWhiteboardScene(current.scene_json)
+    const queuedScene = pendingSceneRef.current
     clearPendingSave()
-    pendingSceneRef.current = null
-    applyRemoteScene(normalizeWhiteboardScene(current.scene_json), current.version)
+    if (!queuedScene) {
+      applyRemoteScene(currentScene, current.version)
+      return
+    }
+
+    const mergedScene = mergeWhiteboardScenes(queuedScene, currentScene)
+    pendingSceneRef.current = mergedScene
+    applyRemoteScene(mergedScene, current.version)
   }, [applyRemoteScene, clearPendingSave])
 
   const savePending = useCallback(async () => {
+    if (saveInFlightRef.current) return
+
     const pendingScene = pendingSceneRef.current
     if (!pendingScene) return
 
+    saveInFlightRef.current = true
     pendingSceneRef.current = null
     setSaveError(null)
     try {
@@ -153,11 +189,25 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
         return
       }
 
-      applyRemoteScene(normalizeWhiteboardScene(result.payload.scene_json), result.payload.version)
+      if (pendingSceneRef.current) {
+        versionRef.current = result.payload.version
+      } else {
+        applyRemoteScene(normalizeWhiteboardScene(result.payload.scene_json), result.payload.version)
+      }
     } catch (error) {
       setSaveError(errorMessage(errorAsError(error), "Whiteboard save failed."))
+    } finally {
+      saveInFlightRef.current = false
+      if (pendingSceneRef.current) {
+        clearPendingSave()
+        saveTimerRef.current = window.setTimeout(() => {
+          void savePendingRef.current()
+        }, WHITEBOARD_SAVE_DEBOUNCE_MS)
+      }
     }
-  }, [applyRemoteScene, recoverConflict])
+  }, [applyRemoteScene, clearPendingSave, recoverConflict])
+
+  savePendingRef.current = savePending
 
   useEffect(() => {
     let cancelled = false
