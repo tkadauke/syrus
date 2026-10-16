@@ -10,6 +10,7 @@ class ProcessResourceSampler
     @last = nil
     @process_high_water_marks = {}
     @observed_process_ids = Set.new
+    @vanished_process_ids = Set.new
     @processes_vanished = false
     @sample_count = 0
     @max_rss_bytes = nil
@@ -25,7 +26,9 @@ class ProcessResourceSampler
     end.compact
     metrics = metrics_by_process.values
     current_process_ids = metrics_by_process.keys.to_set
-    @processes_vanished ||= observed_process_ids.any? && (observed_process_ids - current_process_ids).any?
+    newly_vanished_process_ids = observed_process_ids - current_process_ids
+    @processes_vanished ||= newly_vanished_process_ids.any?
+    vanished_process_ids.merge(newly_vanished_process_ids)
     return if metrics.empty?
 
     @observed_process_ids.merge(current_process_ids)
@@ -36,7 +39,7 @@ class ProcessResourceSampler
     end
 
     total = {
-      cpu_time_seconds: cumulative_total(:cpu_time_seconds),
+      cpu_time_seconds: cumulative_cpu_time_seconds,
       rss_bytes: metrics.sum { |metric| metric.fetch(:rss_bytes) },
       read_io_bytes: cumulative_total(:read_io_bytes),
       write_io_bytes: cumulative_total(:write_io_bytes),
@@ -73,6 +76,7 @@ class ProcessResourceSampler
 
   attr_reader :pid, :pgid, :proc_root, :first, :last, :sample_count, :max_rss_bytes,
     :max_descendant_process_count, :process_high_water_marks, :observed_process_ids
+  attr_reader :vanished_process_ids
 
   def unavailable_payload
     {
@@ -99,11 +103,21 @@ class ProcessResourceSampler
   end
 
   def cumulative_metric_keys
-    %i[cpu_time_seconds read_io_bytes write_io_bytes]
+    %i[self_cpu_time_seconds children_cpu_time_seconds read_io_bytes write_io_bytes]
   end
 
   def cumulative_total(key)
     process_high_water_marks.values.sum { |metrics| metrics.fetch(key) }
+  end
+
+  def cumulative_cpu_time_seconds
+    directly_observed = cumulative_total(:self_cpu_time_seconds)
+    waited_children = cumulative_total(:children_cpu_time_seconds)
+    transferred_observed = vanished_process_ids.sum do |process_id|
+      process_high_water_marks.dig(process_id, :self_cpu_time_seconds).to_f
+    end
+
+    directly_observed + [ waited_children - transferred_observed, 0 ].max
   end
 
   def process_ids
@@ -128,7 +142,8 @@ class ProcessResourceSampler
 
     io = read_io(process_id)
     {
-      cpu_time_seconds: stat.fetch(:cpu_time_seconds),
+      self_cpu_time_seconds: stat.fetch(:self_cpu_time_seconds),
+      children_cpu_time_seconds: stat.fetch(:children_cpu_time_seconds),
       rss_bytes: stat.fetch(:rss_bytes),
       read_io_bytes: io.fetch(:read_io_bytes),
       write_io_bytes: io.fetch(:write_io_bytes)
@@ -141,7 +156,8 @@ class ProcessResourceSampler
     fields = after_name.split
     {
       pgid: Integer(fields[2]),
-      cpu_time_seconds: fields.values_at(11, 12, 13, 14).sum { |value| Integer(value) }.to_f / clock_ticks,
+      self_cpu_time_seconds: fields.values_at(11, 12).sum { |value| Integer(value) }.to_f / clock_ticks,
+      children_cpu_time_seconds: fields.values_at(13, 14).sum { |value| Integer(value) }.to_f / clock_ticks,
       rss_bytes: Integer(fields[21]) * page_size
     }
   rescue Errno::ENOENT, Errno::EACCES, ArgumentError, TypeError
