@@ -15,11 +15,19 @@ RSpec.describe "native macOS worker updater" do
     File.chmod(0o755, path)
   end
 
-  def make_artifact(dir, sha:)
+  def make_artifact(dir, sha:, command_log: nil)
     release_root = File.join(dir, "artifact-root")
     FileUtils.mkdir_p(File.join(release_root, "bin"))
     File.write(File.join(release_root, "GIT_SHA"), "#{sha}\n")
-    write_executable(File.join(release_root, "bin/macos-worker-check"), "#!/usr/bin/env bash\nexit 0\n")
+    File.write(File.join(release_root, "package.json"), "{}\n")
+    File.write(File.join(release_root, "package-lock.json"), %({"lockfileVersion":3,"packages":{}}\n))
+    check_body = if command_log
+      "#!/usr/bin/env bash\nprintf 'check %s\\n' \"$*\" >> #{command_log.inspect}\n"
+    else
+      "#!/usr/bin/env bash\nexit 0\n"
+    end
+    write_executable(File.join(release_root, "bin/macos-worker-check"), check_body)
+    write_executable(File.join(release_root, "bin/syrus-macos-updater"), "#!/usr/bin/env bash\nexit 0\n")
     artifact = File.join(dir, "worker.tar.gz")
     system("tar", "-C", dir, "-czf", artifact, "artifact-root")
     artifact
@@ -203,6 +211,81 @@ RSpec.describe "native macOS worker updater" do
       expect(File.read(File.join(current_link, "GIT_SHA")).strip).to eq(new_sha)
       expect(Dir.children(releases_dir)).to include(new_sha)
       expect(Dir.children(releases_dir).length).to eq(2)
+    end
+  end
+
+  it "drops privileges for preparation and restores root ownership before installing the privileged updater" do
+    Dir.mktmpdir do |raw_dir|
+      dir = File.realpath(raw_dir)
+      install_root = File.join(dir, "install")
+      releases_dir = File.join(install_root, "releases")
+      current_link = File.join(install_root, "current")
+      current_release = File.join(releases_dir, "aaa1111")
+      command_log = File.join(dir, "commands.log")
+      privileged_updater = File.join(install_root, "libexec", "syrus-macos-updater")
+      FileUtils.mkdir_p([ current_release, File.dirname(privileged_updater) ])
+      File.write(File.join(current_release, "GIT_SHA"), "aaa1111\n")
+      File.symlink(current_release, current_link)
+
+      artifact = make_artifact(dir, sha: "bbb2222", command_log: command_log)
+      metadata = File.join(dir, "metadata.json")
+      env_file = File.join(dir, "worker.env")
+      write_metadata(metadata, artifact: artifact, sha: "bbb2222")
+      write_env(env_file, metadata: metadata)
+      File.open(env_file, "a") do |file|
+        file.puts "SYRUS_MACOS_SERVICE_USER=test-worker"
+        file.puts "SYRUS_MACOS_PRIVILEGED_UPDATER_PATH=#{privileged_updater}"
+      end
+
+      bin_dir = stub_prepare_commands(dir)
+      %w[bundle npm].each do |command|
+        write_executable(File.join(bin_dir, command), <<~BASH)
+          #!/usr/bin/env bash
+          printf '#{command} %s\n' "$PWD $*" >> #{command_log.inspect}
+        BASH
+      end
+      write_executable(File.join(bin_dir, "chown"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'chown %s\n' "$*" >> #{command_log.inspect}
+      BASH
+      write_executable(File.join(bin_dir, "sudo"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'sudo %s\n' "$*" >> #{command_log.inspect}
+        while [[ "$1" == "-H" || "$1" == "-u" ]]; do
+          if [[ "$1" == "-u" ]]; then shift 2; else shift; fi
+        done
+        exec "$@"
+      BASH
+      write_executable(File.join(bin_dir, "install"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'install %s\n' "$*" >> #{command_log.inspect}
+        while [[ "$1" == -* ]]; do shift 2; done
+        cp "$1" "$2"
+        chmod 755 "$2"
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        {
+          "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}",
+          "SYRUS_MACOS_INSTALL_ROOT" => install_root,
+          "SYRUS_MACOS_CURRENT_LINK" => current_link,
+          "SYRUS_MACOS_UPDATE_TEST_ROOT" => "1"
+        },
+        "bash", script, "--env-file", env_file, "--once", "--skip-restart"
+      )
+
+      expect(status).to be_success, "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      release_path = File.join(releases_dir, "bbb2222")
+      commands = File.read(command_log)
+      expect(commands).to include("sudo -H -u test-worker env")
+      expect(commands).to include("bundle #{release_path}")
+      expect(commands).to include("npm #{install_root}/shared/node/bbb2222")
+      expect(commands).to include("check --env-file #{env_file}")
+      expect(commands).to include("chown -R root:wheel #{release_path}")
+      expect(commands).to include("install -o root -g wheel -m 755 #{release_path}/bin/syrus-macos-updater #{privileged_updater}")
+      expect(File).to exist(privileged_updater)
+      expect(File.stat(privileged_updater).mode & 0o777).to eq(0o755)
+      expect(File.stat(release_path).mode & 0o022).to eq(0)
     end
   end
 

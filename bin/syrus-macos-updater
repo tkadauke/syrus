@@ -301,13 +301,19 @@ validate_target_sha() {
   return 1
 }
 
+running_as_root() {
+  [[ "$EUID" -eq 0 ]] ||
+    [[ "${SYRUS_MACOS_UPDATE_TEST_ROOT:-0}" == "1" && "$ALLOW_FILE_URLS" == "1" &&
+      "$PRIVILEGED_UPDATER_PATH" == "$INSTALL_ROOT/"* ]]
+}
+
 prepare_release() {
   local release_path="$1"
   local command node_deps_path
   node_deps_path="$SHARED_DIR/node/$TARGET_SHA"
   command='cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
 
-  if [[ "$EUID" -eq 0 ]]; then
+  if running_as_root; then
     mkdir -p "$node_deps_path"
     cp "$release_path/package.json" "$release_path/package-lock.json" "$node_deps_path/"
     chown -R "$SERVICE_USER:$SERVICE_USER" "$node_deps_path"
@@ -317,6 +323,7 @@ prepare_release() {
       bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
     chown -R root:wheel "$release_path"
     chmod -R go-w "$release_path"
+    rm -rf "$release_path/node_modules"
     ln -s "$node_deps_path/node_modules" "$release_path/node_modules"
   else
     node_deps_path="$release_path"
@@ -344,7 +351,7 @@ restart_worker() {
 
 install_privileged_updater() {
   local release_path="$1"
-  [[ "$EUID" -eq 0 ]] || return 0
+  running_as_root || return 0
 
   install -o root -g wheel -m 755 "$release_path/bin/syrus-macos-updater" "$PRIVILEGED_UPDATER_PATH"
 }
