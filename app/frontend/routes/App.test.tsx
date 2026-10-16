@@ -13860,6 +13860,61 @@ describe("App", () => {
     expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
   })
 
+  it("keeps the server scene after a whiteboard save conflict", async () => {
+    excalidrawMock.updateScene.mockClear()
+    let whiteboardPatchCount = 0
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
+        whiteboardPatchCount += 1
+        return Promise.resolve(new Response(JSON.stringify({
+          error: "Whiteboard changed while you were editing it.",
+          current_version: 3
+        }), { status: 409, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method == null) {
+        return Promise.resolve(new Response(JSON.stringify({
+          scene_json: {
+            elements: [
+              { id: "box-1", type: "rectangle" },
+              { id: "agent-box", type: "rectangle" }
+            ],
+            appState: {},
+            files: {}
+          },
+          version: 3
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await openWhiteboardPanel()
+    fireEvent.click(await screen.findByRole("button", { name: "Draw on whiteboard" }))
+
+    await waitFor(() => {
+      expect(excalidrawMock.updateScene).toHaveBeenCalledWith({
+        elements: [
+          { id: "box-1", type: "rectangle" },
+          { id: "agent-box", type: "rectangle" }
+        ],
+        appState: {}
+      })
+    })
+    expect(whiteboardPatchCount).toBe(1)
+    expect(fetchSpy.mock.calls.some(([path, init]) =>
+      String(path) === "/api/v1/app/chats/8/whiteboard" && init?.method == null
+    )).toBe(true)
+  })
+
   it("shows whiteboard snapshots in media and loads one onto the canvas", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
