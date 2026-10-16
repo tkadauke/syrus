@@ -404,7 +404,12 @@ function draftFromTheme(theme: ColorTheme): ThemeDraft {
 function cloneTokens(tokens: ColorTheme["tokens"]): ColorTheme["tokens"] {
   return {
     light: cloneModeTokens(tokens.light),
-    dark: cloneModeTokens(tokens.dark)
+    dark: cloneModeTokens(tokens.dark),
+    shape: { ...tokens.shape },
+    shadow: { ...tokens.shadow },
+    spacing: { ...tokens.spacing },
+    density: { ...tokens.density },
+    typography: { ...tokens.typography }
   }
 }
 

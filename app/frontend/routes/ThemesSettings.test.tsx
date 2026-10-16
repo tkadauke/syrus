@@ -39,7 +39,9 @@ describe("ThemesSettingsRoute", () => {
       }))
     })
     const updateCall = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/themes/2" && call[1]?.method === "PATCH")
-    expect(JSON.parse(String(updateCall?.[1]?.body)).theme.tokens.light.brand).toBe("#0f766e")
+    const updateTokens = JSON.parse(String(updateCall?.[1]?.body)).theme.tokens
+    expect(updateTokens.light.brand).toBe("#0f766e")
+    expect(updateTokens.shape["radius-panel"]).toBe("0.75rem")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#0f766e")
     expect(await screen.findByText("Theme saved.")).toBeInTheDocument()
     expect(customThemeNames()).toEqual(["Solar Edited", "Night Shift"])
@@ -69,7 +71,9 @@ describe("ThemesSettingsRoute", () => {
       }))
     })
     const createCall = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/themes" && call[1]?.method === "POST")
-    expect(JSON.parse(String(createCall?.[1]?.body)).theme.tokens.light.brand).toBe("#b6492e")
+    const createTokens = JSON.parse(String(createCall?.[1]?.body)).theme.tokens
+    expect(createTokens.light.brand).toBe("#b6492e")
+    expect(createTokens.shape["radius-panel"]).toBe("0.75rem")
     expect(await screen.findByRole("button", { name: /Custom Theme 3/ })).toBeInTheDocument()
     expect(customThemeNames()).toEqual(["Solar Draft", "Night Shift", "Custom Theme 3"])
   })
@@ -255,6 +259,11 @@ function fullTokens(brand: string): ColorTheme["tokens"] {
       info: "#93c5fd",
       neutral: "#d1d5db",
       "on-brand": "#111827"
-    }
+    },
+    shape: { "radius-control": "0.375rem", "radius-panel": "0.75rem", "radius-pill": "999px", "border-width": "1px" },
+    shadow: { "shadow-panel": "0 1px 2px rgb(0 0 0 / 0.06)" },
+    spacing: { "space-page-x": "1.5rem", "space-page-y": "1.5rem", "space-section": "1rem", "space-section-compact": "0.75rem" },
+    density: { "control-height-sm": "2rem", "control-height-md": "2.5rem", "table-row-height": "3rem" },
+    typography: { "font-sans": "Inter, sans-serif", "font-mono": "monospace", "text-page-title": "2rem", "text-section-title": "0.95rem", "text-body": "0.875rem", "text-caption": "0.75rem" }
   }
 }
