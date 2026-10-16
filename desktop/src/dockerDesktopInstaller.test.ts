@@ -7,6 +7,7 @@ import {
   dockerDesktopInstallerUrl,
   downloadDockerDesktopInstaller,
   runDockerDesktopInstaller,
+  stopDockerDesktopInstaller,
   verifyDockerDesktopInstaller
 } from "../electron/installer/dockerDesktopInstaller"
 
@@ -25,6 +26,7 @@ vi.mock("node:child_process", () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  execFileMock.mockReset()
   execFileAsyncMock.mockReset()
 })
 
@@ -70,7 +72,7 @@ describe("dockerDesktopInstaller", () => {
               start(controller) {
                 controller.enqueue(new Uint8Array([1]))
                 controller.enqueue(new Uint8Array([2]))
-              controller.close()
+                controller.close()
               }
             })
           )
@@ -124,5 +126,27 @@ describe("dockerDesktopInstaller", () => {
       expect.any(Function)
     )
     expect(onChild).toHaveBeenCalledWith({ pid: 1234 })
+  })
+
+  it("kills the installer tree before aborting the parent process", async () => {
+    let taskkillFinished: (() => void) | undefined
+    execFileMock.mockImplementationOnce((_file, _args, _options, callback) => {
+      taskkillFinished = () => callback(null, "", "")
+      return { pid: 4321 }
+    })
+    const controller = new AbortController()
+
+    const stopping = stopDockerDesktopInstaller({ pid: 1234 } as Parameters<typeof stopDockerDesktopInstaller>[0], controller)
+    expect(execFileMock).toHaveBeenCalledWith(
+      "taskkill",
+      ["/pid", "1234", "/T", "/F"],
+      { windowsHide: true, timeout: 15_000 },
+      expect.any(Function)
+    )
+    expect(controller.signal.aborted).toBe(false)
+
+    taskkillFinished?.()
+    await stopping
+    expect(controller.signal.aborted).toBe(true)
   })
 })

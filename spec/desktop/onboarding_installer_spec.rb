@@ -77,6 +77,12 @@ RSpec.describe "desktop onboarding installer" do
     expect(driver).to match(/cancelRequested[\s\S]*?\{ phase: "welcome" \}/)
   end
 
+  it "waits for Docker Desktop tree termination before aborting its parent" do
+    back_fn = driver[/  async backToWelcome\(\) \{[\s\S]*?\n  \}/]
+    expect(back_fn).to match(/await stopDockerDesktopInstaller[\s\S]+?installAbort = null/)
+    expect(main_process).to include("await ensureOnboardingDriver().backToWelcome()")
+  end
+
   it "serializes installer startup before the child exists" do
     expect(driver).to include("if (this.child || this.installPromise) return")
     expect(driver).to match(/const promise = this\.performStartInstall[\s\S]+?this\.installPromise = promise/)
