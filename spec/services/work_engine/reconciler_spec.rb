@@ -1506,14 +1506,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-# The terminal sync that runs while the reconciler reads a job's active
-# workflows converges this first: TerminalWorkflowSync drives the stale
-# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
-# and WorkIntents::TerminalUnitSync resolves the intent and releases the
-# locks. So this repair is still diagnosed, planned and executed, and
-# correctly reports that it found the work already done. Assert that it ran
-# and that the pass converged, rather than pinning the message of whichever
-# path happened to get there first.
+    # The terminal sync that runs while the reconciler reads a job's active
+    # workflows converges this first: TerminalWorkflowSync drives the stale
+    # Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+    # and WorkIntents::TerminalUnitSync resolves the intent and releases the
+    # locks. So this repair is still diagnosed, planned and executed, and
+    # correctly reports that it found the work already done. Assert that it ran
+    # and that the pass converged, rather than pinning the message of whichever
+    # path happened to get there first.
     expect(result.repair_executions.map(&:action)).to include("release_terminal_work_unit_locks")
     expect(lock.reload).not_to be_active
   end
@@ -1932,14 +1932,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-# The terminal sync that runs while the reconciler reads a job's active
-# workflows converges this first: TerminalWorkflowSync drives the stale
-# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
-# and WorkIntents::TerminalUnitSync resolves the intent and releases the
-# locks. So this repair is still diagnosed, planned and executed, and
-# correctly reports that it found the work already done. Assert that it ran
-# and that the pass converged, rather than pinning the message of whichever
-# path happened to get there first.
+    # The terminal sync that runs while the reconciler reads a job's active
+    # workflows converges this first: TerminalWorkflowSync drives the stale
+    # Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+    # and WorkIntents::TerminalUnitSync resolves the intent and releases the
+    # locks. So this repair is still diagnosed, planned and executed, and
+    # correctly reports that it found the work already done. Assert that it ran
+    # and that the pass converged, rather than pinning the message of whichever
+    # path happened to get there first.
     expect(result.repair_executions.map(&:action)).to include("satisfy_work_intent_from_succeeded_work_unit")
     expect(intent.reload).to be_satisfied
   end
@@ -1989,14 +1989,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-# The terminal sync that runs while the reconciler reads a job's active
-# workflows converges this first: TerminalWorkflowSync drives the stale
-# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
-# and WorkIntents::TerminalUnitSync resolves the intent and releases the
-# locks. So this repair is still diagnosed, planned and executed, and
-# correctly reports that it found the work already done. Assert that it ran
-# and that the pass converged, rather than pinning the message of whichever
-# path happened to get there first.
+    # The terminal sync that runs while the reconciler reads a job's active
+    # workflows converges this first: TerminalWorkflowSync drives the stale
+    # Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+    # and WorkIntents::TerminalUnitSync resolves the intent and releases the
+    # locks. So this repair is still diagnosed, planned and executed, and
+    # correctly reports that it found the work already done. Assert that it ran
+    # and that the pass converged, rather than pinning the message of whichever
+    # path happened to get there first.
     expect(result.repair_executions.map(&:action)).to include("cancel_work_intent_from_superseded_work_unit")
     expect(intent.reload).to be_cancelled
   end
@@ -2046,14 +2046,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-# The terminal sync that runs while the reconciler reads a job's active
-# workflows converges this first: TerminalWorkflowSync drives the stale
-# Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
-# and WorkIntents::TerminalUnitSync resolves the intent and releases the
-# locks. So this repair is still diagnosed, planned and executed, and
-# correctly reports that it found the work already done. Assert that it ran
-# and that the pass converged, rather than pinning the message of whichever
-# path happened to get there first.
+    # The terminal sync that runs while the reconciler reads a job's active
+    # workflows converges this first: TerminalWorkflowSync drives the stale
+    # Workflow from its terminal WorkUnit, WorkUnit#mark_terminal! runs again,
+    # and WorkIntents::TerminalUnitSync resolves the intent and releases the
+    # locks. So this repair is still diagnosed, planned and executed, and
+    # correctly reports that it found the work already done. Assert that it ran
+    # and that the pass converged, rather than pinning the message of whichever
+    # path happened to get there first.
     expect(result.repair_executions.map(&:action)).to include("fail_work_intent_from_failed_work_unit")
     expect(intent.reload).to be_failed
   end
@@ -4506,12 +4506,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow.update_columns(state: "running", started_at: agent_run.started_at)
     ensure_solid_queue_test_tables!
 
-# An agentic Step recovers from worker death as in-place replacement work:
-# the dead Run fails as worker_died and the dispatcher re-queues the Step
-# with a fresh Run. The repair finds that work already present and declines
-# to stack an AutoRetryAttempt on top of it ("worker_died failure already
-# created active replacement work"), so counting attempts no longer
-# describes the recovery. Non-agentic Steps still take the attempt path.
+    # An agentic Step recovers from worker death as in-place replacement work:
+    # the dead Run fails as worker_died and the dispatcher re-queues the Step
+    # with a fresh Run. The repair finds that work already present and declines
+    # to stack an AutoRetryAttempt on top of it ("worker_died failure already
+    # created active replacement work"), so counting attempts no longer
+    # describes the recovery. Non-agentic Steps still take the attempt path.
     expect {
       reconcile_and_execute(run_id: agent_run.id)
     }.to change { agent_step.runs.count }.by(1)
@@ -4537,12 +4537,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
 
-# An agentic Step recovers from worker death as in-place replacement work:
-# the dead Run fails as worker_died and the dispatcher re-queues the Step
-# with a fresh Run. The repair finds that work already present and declines
-# to stack an AutoRetryAttempt on top of it ("worker_died failure already
-# created active replacement work"), so counting attempts no longer
-# describes the recovery. Non-agentic Steps still take the attempt path.
+    # An agentic Step recovers from worker death as in-place replacement work:
+    # the dead Run fails as worker_died and the dispatcher re-queues the Step
+    # with a fresh Run. The repair finds that work already present and declines
+    # to stack an AutoRetryAttempt on top of it ("worker_died failure already
+    # created active replacement work"), so counting attempts no longer
+    # describes the recovery. Non-agentic Steps still take the attempt path.
     expect {
       reconcile_and_execute(run_id: agent_run.id)
     }.to change { agent_step.runs.count }.by(1)
