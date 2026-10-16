@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe MysqlDbBrowser::AgenticAccess do
+  let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:owner) { Factories.user }
   let(:member) { Factories.user }
   let(:outsider) { Factories.user }
