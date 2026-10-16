@@ -30,6 +30,24 @@ RSpec.describe JobChannel, type: :channel do
     expect(subscription).to have_stream_from("job_resource:#{job.id}")
   end
 
+  it "resolves prefixed job references to the canonical job stream" do
+    job = Factories.job_record(user: user)
+
+    subscribe(job_id: "JOB-#{job.id}")
+
+    expect(subscription).to be_confirmed
+    expect(subscription).to have_stream_from("job_resource:#{job.id}")
+  end
+
+  it "resolves human-readable slugs to the canonical job stream" do
+    job = Factories.job_record(user: user, slug: "canonical-live-events")
+
+    subscribe(job_id: job.slug)
+
+    expect(subscription).to be_confirmed
+    expect(subscription).to have_stream_from("job_resource:#{job.id}")
+  end
+
   it "confirms for a repository member who isn't the job's owner" do
     job = Factories.job_record(user: user)
     member = Factories.user

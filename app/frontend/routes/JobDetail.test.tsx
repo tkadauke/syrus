@@ -3002,6 +3002,30 @@ describe("JobDetailRoute", () => {
     vi.restoreAllMocks()
   })
 
+  it("canonicalizes slug routes onto the numeric live-update cache key", async () => {
+    const payload = jobPayload({ job: { ...baseJob(), id: 5 } })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/JOB-5?tab=summary"]}>
+            <LocationProbe />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/5?tab=summary"))
+    expect(queryClient.getQueryData(["jobs", "5", "detail", ""])).toEqual(payload)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
     const payload = jobPayload({
       landing_queue_entry: {

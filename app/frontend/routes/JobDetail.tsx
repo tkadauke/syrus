@@ -171,6 +171,18 @@ export function JobDetailRoute() {
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
   usePageTitle(pageTitle)
 
+  // Slug refs are accepted by the API, but live events and the rest of the
+  // application address Job caches by database id. Move the resolved payload
+  // onto that canonical key before replacing the URL so the route does not
+  // refetch and all subsequent mutations/invalidations share one cache entry.
+  useEffect(() => {
+    if (!detail.data || String(detail.data.job.id) === id) return
+
+    const canonicalId = String(detail.data.job.id)
+    queryClient.setQueryData(jobDetailQueryKey(canonicalId, detailSearch), detail.data)
+    navigate(`${location.pathname.replace(/\/jobs\/[^/]+/, `/jobs/${canonicalId}`)}${location.search}${location.hash}`, { replace: true })
+  }, [ detail.data, detailSearch, id, location.hash, location.pathname, location.search, navigate, queryClient ])
+
   function selectTab(tab: JobTab) {
     const search = new URLSearchParams(location.search)
     if (tab === "summary" || tab === "source") search.delete("tab")
