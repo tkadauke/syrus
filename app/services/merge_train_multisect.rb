@@ -1,6 +1,4 @@
-require "open3"
 require "shellwords"
-require "timeout"
 
 class MergeTrainMultisect
   ARTIFACT_KEY = "merge_train_multisect".freeze
@@ -420,14 +418,19 @@ class MergeTrainMultisect
 
     def run_focused_command(context, command, failing_set)
       output = +""
-      status = nil
-      Timeout.timeout(TIMEOUT_SECONDS) do
-        Open3.popen2e(env, "bash", "-c", command, chdir: workspace_path.to_s) do |stdin, stream, wait_thread|
-          stdin.close
-          stream.each { |chunk| output << chunk }
-          status = wait_thread.value
-        end
-      end
+      result = ProcessRunner.new(
+        env: env,
+        command: [ "bash", "-c", command ],
+        mounts: ProcessRunner.mounts(workspace_path),
+        network: "grader",
+        timeout: TIMEOUT_SECONDS,
+        kind: "grader",
+        workflow: workflow,
+        display_command: command,
+        on_output_chunk: ->(chunk) { output << chunk }
+      ).run
+      return Evaluation.clean(reason: "focused_timeout", details: { grader_name: context.name }) if result.timed_out?
+
       parsed = parse_result(context, output)
       return Evaluation.clean(reason: "focused_output_not_parseable") unless parsed
 
@@ -437,12 +440,10 @@ class MergeTrainMultisect
       details = {
         grader_name: context.name,
         command: CommandRedactor.redact(command),
-        exit_status: status&.exitstatus,
+        exit_status: result.exit_status,
         failed_identities: identities
       }
       reproduced ? Evaluation.reproduced(details: details) : Evaluation.clean(details: details)
-    rescue Timeout::Error
-      Evaluation.clean(reason: "focused_timeout", details: { grader_name: context.name })
     end
 
     def parse_result(context, output)
@@ -457,7 +458,17 @@ class MergeTrainMultisect
     end
 
     def env
-      { "RAILS_ENV" => "test", "GIT_TERMINAL_PROMPT" => "0" }
+      ProcessRunner.forwarded_env(
+        Steps::Prepare.prep_env_forward,
+        extra: WorkspaceDependencyEnv.for(workspace_path).merge(
+          Steps::Prepare.prep_extra_env(
+            scope: PrepareScope.for_workflow(workflow),
+            workspace_path: workspace_path
+          ),
+          "RAILS_ENV" => "test",
+          "GIT_TERMINAL_PROMPT" => "0"
+        )
+      )
     end
 
     def restore_checkout(original_ref, original_sha, subset_branch)
