@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AdminProcessesIndex } from "./AdminProcesses"
@@ -80,6 +80,7 @@ describe("AdminProcesses configurable columns", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     window.localStorage.clear()
     vi.restoreAllMocks()
   })
@@ -128,5 +129,42 @@ describe("AdminProcesses configurable columns", () => {
       "outcome",
       "kill_requested"
     ])
+  })
+
+  it("confirms kills, shows a conflict, and refreshes the stale process row", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) =>
+      Promise.resolve(init?.method === "POST"
+        ? jsonResponse({ error: { code: "already_finished", message: "Process already finished" } }, 409)
+        : jsonResponse(processesPayload()))
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/admin/processes"]}>
+          <AdminProcessesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Kill" }))
+    expect(screen.getByText("Send SIGKILL to process #9?")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0)
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Kill" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Process already finished")
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method !== "POST").length).toBeGreaterThan(1))
+  })
+
+  it("polls while a process is running", async () => {
+    vi.useFakeTimers()
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(processesPayload()))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter><AdminProcessesIndex /></MemoryRouter></QueryClientProvider>)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    const initialCalls = fetchSpy.mock.calls.length
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(initialCalls)
   })
 })

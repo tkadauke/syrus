@@ -1,5 +1,7 @@
 module MaintenanceTasks
   class Actions
+    class TransitionConflict < StandardError; end
+
     def self.start!(task, user:) = new(task, user: user).start!
     def self.pause!(task, user:) = new(task, user: user).pause!
     def self.resume!(task, user:) = new(task, user: user).resume!
@@ -55,7 +57,7 @@ module MaintenanceTasks
     def transition_to_running!(verb)
       @task.with_lock do
         @task.reload
-        raise ArgumentError, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
+        raise TransitionConflict, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
 
         remaining = @task.definition.estimate_total_units
         if remaining.zero?

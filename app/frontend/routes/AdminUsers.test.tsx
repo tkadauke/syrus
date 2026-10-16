@@ -1,9 +1,9 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { AdminUsersIndex } from "./AdminUsers"
+import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
 
 function userRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -112,6 +112,22 @@ function renderRoute() {
   )
 }
 
+function renderDetailRoute(fetchImplementation: typeof fetch) {
+  vi.spyOn(window, "fetch").mockImplementation(fetchImplementation)
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/admin/users/1"]}>
+        <Routes><Route path="/app-shell/admin/users/:id" element={<AdminUserDetailRoute />} /></Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function userDetail() {
+  return { ...userRow(), recent_jobs: [], recent_runs: [], recent_admin_actions: [] }
+}
+
 describe("AdminUsers configurable columns", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -183,5 +199,25 @@ describe("AdminUsers configurable columns", () => {
       "created_at",
       "updated_at"
     ])
+  })
+
+  it("shows role update failures", async () => {
+    renderDetailRoute((_input, init) => Promise.resolve(init?.method === "PATCH"
+      ? jsonResponse({ error: { message: "Role update forbidden" } }, 403)
+      : jsonResponse(userDetail())))
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "User role" }), { target: { value: "product_owner" } })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Role update forbidden")
+  })
+
+  it("shows scheduling update failures", async () => {
+    renderDetailRoute((_input, init) => Promise.resolve(init?.method === "POST"
+      ? jsonResponse({ error: { message: "Scheduling update failed" } }, 422)
+      : jsonResponse(userDetail())))
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pause scheduling" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Scheduling update failed")
   })
 })

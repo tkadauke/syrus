@@ -154,4 +154,14 @@ RSpec.describe "API: /api/v1/app/admin/maintenance_tasks", type: :request do
     expect(task.reload.dismissed_at).to eq(dismissed_at)
     expect(task.events.pluck(:message)).to eq([ "Dismissed previously." ])
   end
+
+  it "does not disguise unrelated discovery argument errors as action conflicts" do
+    admin = Factories.user
+    sign_in_as(admin)
+    allow(MaintenanceTasks::Discovery).to receive(:call).and_raise(ArgumentError, "invalid discovery definition")
+
+    expect {
+      post "/api/v1/app/admin/maintenance_tasks/discover"
+    }.to raise_error(ArgumentError, "invalid discovery definition")
+  end
 end
