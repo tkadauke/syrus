@@ -215,6 +215,27 @@ RSpec.describe Steps::PreflightGraderCollect do
     end
   end
 
+  [ "cancelled", "blocked", "skipped" ].each do |terminal_state|
+    context "when a required preflight grader is #{terminal_state}" do
+      before do
+        create_preflight_grader(name: "rspec", required: true, state: terminal_state)
+      end
+
+      it "continues to implement because main was not proven healthy" do
+        downstream = create_downstream_steps
+
+        expect { handler.call }.not_to raise_error
+
+        expect(workflow.reload.artifact("preflight_passed")).to be_nil
+        expect(workflow.artifact("preflight_failures")).to contain_exactly(
+          include("name" => "rspec", "required" => true, "status" => terminal_state)
+        )
+        expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("queued"))
+        expect(run.reload.job_logs.pluck(:chunk).join).to include("rspec (#{terminal_state})", "proceeding to implement")
+      end
+    end
+  end
+
   context "when no preflight grader steps exist (no graders configured)" do
     it "does not set the preflight_passed artifact" do
       handler.call
