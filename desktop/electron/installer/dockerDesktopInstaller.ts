@@ -2,7 +2,7 @@ import { createWriteStream } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { pipeline } from "node:stream/promises"
-import { execFile } from "node:child_process"
+import { execFile, type ChildProcess } from "node:child_process"
 import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
@@ -145,4 +145,23 @@ export const runDockerDesktopInstaller = async (
     )
     onChild?.(child)
   })
+}
+
+// Keep the installer parent alive until taskkill has walked and terminated
+// its whole tree. Aborting execFile first can make the parent disappear before
+// taskkill discovers its descendants, leaving installation running after Back.
+export const stopDockerDesktopInstaller = async (child: ChildProcess, controller: AbortController): Promise<void> => {
+  try {
+    if (child.pid) {
+      await new Promise<void>((resolve) => {
+        try {
+          execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 15_000 }, () => resolve())
+        } catch {
+          resolve()
+        }
+      })
+    }
+  } finally {
+    controller.abort()
+  }
 }

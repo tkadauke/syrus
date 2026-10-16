@@ -3023,7 +3023,7 @@ ipcMain.handle("onboarding:cancel-install", async () => {
 })
 ipcMain.handle("onboarding:retry", async () => ensureOnboardingDriver().precheck())
 ipcMain.handle("onboarding:back", async () => {
-  ensureOnboardingDriver().backToWelcome()
+  await ensureOnboardingDriver().backToWelcome()
 })
 ipcMain.handle("onboarding:locate-env", async (event) =>
   ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender))

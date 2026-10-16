@@ -6,7 +6,12 @@ import readline from "node:readline"
 import { promisify } from "node:util"
 import { app, dialog, shell, type BrowserWindow } from "electron"
 import { currentStackIdentity, localStateDir, saveBackendConfig, setOnboardingResumeLocal } from "../settings.js"
-import { downloadDockerDesktopInstaller, runDockerDesktopInstaller, verifyDockerDesktopInstaller } from "./dockerDesktopInstaller.js"
+import {
+  downloadDockerDesktopInstaller,
+  runDockerDesktopInstaller,
+  stopDockerDesktopInstaller,
+  verifyDockerDesktopInstaller
+} from "./dockerDesktopInstaller.js"
 import { restampEnvPort } from "./envRestamp.js"
 import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
@@ -285,11 +290,16 @@ export class OnboardingDriver {
     void clearRunOnceResume(currentStackIdentity().channel)
   }
 
-  backToWelcome() {
+  async backToWelcome() {
     this.stopPolling()
-    this.installAbort?.abort()
+    const installAbort = this.installAbort
+    const runtimeInstallerChild = this.runtimeInstallerChild
+    if (installAbort && runtimeInstallerChild) {
+      await stopDockerDesktopInstaller(runtimeInstallerChild, installAbort)
+    } else {
+      installAbort?.abort()
+    }
     this.installAbort = null
-    this.killRuntimeInstallerChild()
     if (this.installPromise) {
       this.cancelRequested = true
     }
@@ -967,11 +977,6 @@ export class OnboardingDriver {
         }
       }, TERMINATION_GRACE_MS)
     }
-  }
-
-  private killRuntimeInstallerChild() {
-    if (!this.runtimeInstallerChild?.pid) return
-    execFile("taskkill", ["/pid", String(this.runtimeInstallerChild.pid), "/T", "/F"], { windowsHide: true }, () => {})
   }
 
   cancelInstall(): Promise<void> {
