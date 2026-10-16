@@ -46,8 +46,8 @@ module WorkUnits
         workflow.reload
         if workflow.may_cancel?
           workflow.artifacts = workflow.artifacts.to_h.merge(merged_artifacts)
+          workflow.finished_at = Time.current
           workflow.cancel!
-          workflow.save!
           workflow.work_unit&.preempt!(reason: reason, by_work_unit: by_work_unit)
         end
       end

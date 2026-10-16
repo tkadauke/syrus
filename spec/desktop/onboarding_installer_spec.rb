@@ -72,9 +72,25 @@ RSpec.describe "desktop onboarding installer" do
 
   it "cancels the whole process group and finalizes only after stdio drains" do
     expect(driver).to include('process.kill(-this.child.pid, "SIGTERM")')
-    expect(driver).to include('child.on("close", (code) => {')
+    expect(driver).to include('process.kill(-child.pid, "SIGKILL")')
+    expect(driver).to include("superviseInstallChild({")
     expect(driver).not_to include('child.on("exit"')
     expect(driver).to match(/cancelRequested[\s\S]*?\{ phase: "welcome" \}/)
+  end
+
+  it "waits for an onboarding installer to stop before quitting" do
+    before_quit = main_process[/app\.on\("before-quit", \(event\) => \{[\s\S]{0,900}\n\}\)/]
+    expect(before_quit).to include("onboardingDriver?.installRunning()")
+    expect(before_quit).to include("event.preventDefault()")
+    expect(before_quit).to include("onboardingDriver.cancelInstall().finally(() => app.quit())")
+  end
+
+  it "uses an atomic pid lock to prevent installers racing across app launches" do
+    expect(driver).to include('fs.open(lockPath, "wx")')
+    expect(driver).to include("await this.processIsRunning(pid)")
+    expect(driver).to include("updateLock: (pid) => this.updateInstallLock(pid)")
+    expect(driver).to include("releaseLock: (force) => this.releaseInstallLock(force)")
+    expect(driver).to include("A Syrus installation is already running")
   end
 
   it "adopts an existing install by copying the original .env, never moving it" do
@@ -135,6 +151,19 @@ RSpec.describe "desktop onboarding installer" do
 
   it "ignores unknown step ids from the installer protocol" do
     expect(driver).to include("(INSTALL_STEP_IDS as readonly string[]).includes(event.id)")
+  end
+
+  it "treats JSON primitives as plain installer output" do
+    expect(driver).to match(/typeof event !== "object" \|\| event === null[\s\S]{0,100}this\.appendLog\(line\)/)
+  end
+
+  it "resolves superseded daemon polls and escalates installer cancellation" do
+    expect(driver).to include("resolve?.(false)")
+    expect(driver).to match(/killInstallChild[\s\S]*?SIGTERM[\s\S]*?setTimeout[\s\S]*?SIGKILL/)
+  end
+
+  it "consumes install log stream errors" do
+    expect(driver).to match(/logStream\.on\("error"/)
   end
 
   it "can reset to Welcome so a reopened wizard never shows stale terminal state" do

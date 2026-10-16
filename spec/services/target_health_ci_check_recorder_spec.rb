@@ -109,6 +109,82 @@ RSpec.describe TargetHealthCiCheckRecorder do
     expect(passed.artifacts).to include("summary" => "retry passed")
   end
 
+  it "records the worst result once when several checks map to one target, regardless of order" do
+    write(".syrus.yml", <<~YAML)
+      targets:
+        - name: backend
+          kind: repo_check
+          run: bin/check-backend
+          ci_checks: ["Ruby 3.3", "Ruby 3.4"]
+    YAML
+
+    [
+      [
+        { name: "Ruby 3.3", status: "completed", conclusion: "failure" },
+        { name: "Ruby 3.4", status: "completed", conclusion: "success" }
+      ],
+      [
+        { name: "Ruby 3.4", status: "completed", conclusion: "success" },
+        { name: "Ruby 3.3", status: "completed", conclusion: "failure" }
+      ]
+    ].each do |checks|
+      records = record_checks(checks)
+
+      expect(records.one?).to be(true)
+      expect(records.first).to have_attributes(status: "failed", target_label: "//:backend")
+      expect(records.first.metadata).to include(
+        "check_names" => contain_exactly("Ruby 3.3", "Ruby 3.4"),
+        "check_name" => "Ruby 3.3"
+      )
+    end
+
+    expect(TargetHealthRecord.count).to eq(1)
+  end
+
+  it "records a target as inconclusive while one of its mapped checks is pending" do
+    write(".syrus.yml", <<~YAML)
+      targets:
+        - name: backend
+          kind: repo_check
+          run: bin/check-backend
+          ci_checks: ["Ruby 3.3", "Ruby 3.4"]
+    YAML
+
+    records = record_checks(
+      [ { name: "Ruby 3.3", status: "completed", conclusion: "success" } ],
+      pending_checks: [ { name: "Ruby 3.4", status: "in_progress" } ]
+    )
+
+    expect(records.one?).to be(true)
+    expect(records.first).to have_attributes(status: "inconclusive", target_label: "//:backend")
+    expect(records.first.metadata).to include(
+      "check_statuses" => { "Ruby 3.3" => "completed", "Ruby 3.4" => "in_progress" }
+    )
+  end
+
+  it "invalidates an existing pass when a mapped sibling check later becomes pending" do
+    write(".syrus.yml", <<~YAML)
+      targets:
+        - name: backend
+          kind: repo_check
+          run: bin/check-backend
+          ci_checks: ["Ruby 3.3", "Ruby 3.4"]
+    YAML
+
+    passed = record_checks([
+      { name: "Ruby 3.3", status: "completed", conclusion: "success" }
+    ]).first
+
+    pending = record_checks(
+      [ { name: "Ruby 3.3", status: "completed", conclusion: "success" } ],
+      pending_checks: [ { name: "Ruby 3.4", status: "in_progress" } ]
+    ).first
+
+    expect(pending.id).to eq(passed.id)
+    expect(pending.reload).to have_attributes(status: "inconclusive")
+    expect(TargetHealthRecord.passed).to be_empty
+  end
+
   it "falls back to exact executable target names when no explicit check mapping exists" do
     write(".syrus.yml", <<~YAML)
       targets:
@@ -124,11 +200,11 @@ RSpec.describe TargetHealthCiCheckRecorder do
     expect(records.first.target_label).to eq("//:backend")
   end
 
-  def record_checks(checks)
+  def record_checks(checks, pending_checks: [])
     described_class.record!(
       job: job,
       head_sha: head_sha,
-      detail: { completed_checks: checks },
+      detail: { completed_checks: checks, pending_checks: pending_checks },
       graph: TargetGraph::Compiler.compile(@dir),
       workspace_path: @dir.to_s
     )

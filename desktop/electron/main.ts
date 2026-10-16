@@ -3009,9 +3009,7 @@ ipcMain.handle("onboarding:install-wsl", async () => ensureOnboardingDriver().in
 ipcMain.handle("onboarding:start-install", async (_event, port?: number) =>
   ensureOnboardingDriver().startInstall(port)
 )
-ipcMain.handle("onboarding:cancel-install", async () => {
-  ensureOnboardingDriver().cancelInstall()
-})
+ipcMain.handle("onboarding:cancel-install", async () => ensureOnboardingDriver().cancelInstall())
 ipcMain.handle("onboarding:retry", async () => ensureOnboardingDriver().precheck())
 ipcMain.handle("onboarding:back", async () => {
   ensureOnboardingDriver().backToWelcome()
@@ -3297,7 +3295,7 @@ app.on("window-all-closed", () => {
   // Tray apps stay resident until the user chooses Quit.
 })
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
   isQuitting = true
   stopAppUserCable()
   // Destroy the annotation overlay + floating HUD before teardown so no
@@ -3307,7 +3305,14 @@ app.on("before-quit", () => {
   recorderHudController?.hide()
   // Never orphan an in-flight backend-update installer (detached on POSIX,
   // it would outlive the app and keep mutating the stack unwatched).
-  backendLifecycle.killUpdateChild()
+  backendLifecycle.killUpdateChild(true)
+  // Onboarding uses the same detached-process-group strategy. Keep Electron
+  // alive until its installer tree has actually closed; cancelInstall
+  // escalates a resistant POSIX group to SIGKILL after a short grace period.
+  if (onboardingDriver?.installRunning()) {
+    event.preventDefault()
+    void onboardingDriver.cancelInstall().finally(() => app.quit())
+  }
 })
 
 app.on("will-quit", () => {

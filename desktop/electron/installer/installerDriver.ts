@@ -12,6 +12,7 @@ import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
 import { analyzeInstanceUrl } from "./instanceUrl.js"
 import { installerCommand, installerScriptPath, readBackendManifest } from "./installPaths.js"
+import { superviseInstallChild } from "./installChildLifecycle.js"
 import { PullProgressAggregator, formatPullProgress, parsePullProgressLine } from "./pullProgress.js"
 import {
   composeCommand,
@@ -60,6 +61,8 @@ const RUNTIME_ATTENTION_POLLS = 15 // × 2s = 30s
 // timing out mid-dialog (the old 180s did) is a dead end.
 const RUNTIME_FIRST_START_POLLS = 450 // × 2s = 15 minutes
 const LOG_TAIL_LIMIT = 400
+const TERMINATION_GRACE_MS = 5_000
+const INSTALL_LOCK_FILENAME = "install.pid"
 
 // The install steps install.sh emits in --json mode, in order.
 // runtime_install never appears: the app always passes --skip-runtime-install
@@ -161,8 +164,12 @@ const isSyrusInstance = async (url: string) => {
 export class OnboardingDriver {
   private state: OnboardingState = { phase: "welcome" }
   private child: ChildProcess | null = null
+  private installLockPid: number | null = null
+  private childCompletion: Promise<void> | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
+  private pollResolve: ((ready: boolean) => void) | null = null
+  private childKillTimer: NodeJS.Timeout | null = null
   private installAbort: AbortController | null = null
   private port = channelDefaultPort()
   private logTail: string[] = []
@@ -178,6 +185,67 @@ export class OnboardingDriver {
 
   getState() {
     return this.state
+  }
+
+  installRunning() {
+    return this.child !== null
+  }
+
+  private installLockPath() {
+    return path.join(localStateDir(), INSTALL_LOCK_FILENAME)
+  }
+
+  private async processIsRunning(pid: number) {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "EPERM"
+    }
+  }
+
+  private async acquireInstallLock() {
+    const lockPath = this.installLockPath()
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const lock = await fs.open(lockPath, "wx")
+        await lock.writeFile(String(process.pid))
+        await lock.close()
+        this.installLockPid = process.pid
+        return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          throw error
+        }
+
+        const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
+        if (Number.isFinite(pid) && pid > 0 && (await this.processIsRunning(pid))) {
+          return false
+        }
+
+        await fs.unlink(lockPath).catch(() => {})
+      }
+    }
+
+    return false
+  }
+
+  private async updateInstallLock(pid: number) {
+    await fs.writeFile(this.installLockPath(), String(pid))
+    this.installLockPid = pid
+  }
+
+  private async releaseInstallLock(force = false) {
+    const lockPath = this.installLockPath()
+    const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
+    // A failed write may have truncated the file, so there may be no PID left
+    // to compare. No competing installer can acquire the still-existing path;
+    // the lifecycle supervisor may therefore force-release our acquired lock.
+    if (force || pid === this.installLockPid) {
+      await fs.unlink(lockPath).catch(() => {})
+    }
+    this.installLockPid = null
   }
 
   private setState(state: OnboardingState) {
@@ -571,18 +639,25 @@ export class OnboardingDriver {
     this.stopPolling()
 
     return new Promise((resolve) => {
+      this.pollResolve = resolve
       let polls = 0
+      const finish = (ready: boolean) => {
+        if (this.pollResolve !== resolve) return
+        if (this.pollTimer) clearTimeout(this.pollTimer)
+        this.pollTimer = null
+        this.pollResolve = null
+        resolve(ready)
+      }
       const tick = async () => {
+        if (this.pollResolve !== resolve) return
         if ((await findDockerBinary()) && (await daemonUp())) {
-          this.stopPolling()
-          resolve(true)
+          finish(true)
           return
         }
 
         polls += 1
         if (polls >= maxPolls) {
-          this.stopPolling()
-          resolve(false)
+          finish(false)
           return
         }
 
@@ -598,6 +673,9 @@ export class OnboardingDriver {
       clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
+    const resolve = this.pollResolve
+    this.pollResolve = null
+    resolve?.(false)
   }
 
   adoptRunning() {
@@ -738,6 +816,17 @@ export class OnboardingDriver {
       flags.push("--port", String(this.port))
     }
 
+    if (!(await this.acquireInstallLock())) {
+      this.setState({
+        phase: "local.failed",
+        code: 1,
+        step: null,
+        message: "A Syrus installation is already running. Wait for it to finish, then try again.",
+        logTail: []
+      })
+      return
+    }
+
     const steps: InstallStep[] = INSTALL_STEP_IDS.map((id) => ({ id, status: "pending" }))
     this.logTail = []
     this.lastLogTransient = false
@@ -751,6 +840,9 @@ export class OnboardingDriver {
     this.setState({ phase: "local.installing", steps, currentStep: null, pullProgress: null })
 
     const logStream = createWriteStream(path.join(stateDir, "install.log"), { flags: "a" })
+    logStream.on("error", (error) => {
+      this.appendLog(`Unable to write install.log: ${errorMessage(error, "Unknown error")}`)
+    })
     logStream.write(`\n--- install started ${new Date().toISOString()} ---\n`)
 
     // POSIX: detached puts the script's docker/compose grandchildren in one
@@ -769,6 +861,23 @@ export class OnboardingDriver {
         : spawn(command, spawnArgs, { env, detached: true })
     this.child = child
 
+    this.childCompletion = superviseInstallChild({
+      child,
+      updateLock: (pid) => this.updateInstallLock(pid),
+      releaseLock: (force) => this.releaseInstallLock(force),
+      terminate: () => this.killInstallChild(),
+      onError: (error) => logStream.write(`installer process error: ${String(error)}\n`),
+      onSettled: (code) => {
+        this.child = null
+        if (this.childKillTimer) {
+          clearTimeout(this.childKillTimer)
+          this.childKillTimer = null
+        }
+        logStream.end()
+        this.handleExit(code)
+      }
+    })
+
     readline.createInterface({ input: child.stdout }).on("line", (line) => {
       logStream.write(`${line}\n`)
       this.handleInstallerEvent(line)
@@ -779,18 +888,6 @@ export class OnboardingDriver {
       this.appendLog(line)
     })
 
-    child.on("error", (error) => {
-      logStream.write(`spawn error: ${String(error)}\n`)
-    })
-
-    // "close", not "exit": close fires only after stdio has drained, so the
-    // final NDJSON error/done lines are guaranteed to have been parsed and
-    // nothing writes to the log stream after end().
-    child.on("close", (code) => {
-      this.child = null
-      logStream.end()
-      this.handleExit(code ?? 1)
-    })
   }
 
   // Kill the whole tree so docker/compose grandchildren die with the script
@@ -811,15 +908,29 @@ export class OnboardingDriver {
     } catch {
       this.child.kill("SIGTERM")
     }
+
+    const child = this.child
+    if (!this.childKillTimer) {
+      this.childKillTimer = setTimeout(() => {
+        this.childKillTimer = null
+        if (this.child !== child || !child.pid) return
+        try {
+          process.kill(-child.pid, "SIGKILL")
+        } catch {
+          child.kill("SIGKILL")
+        }
+      }, TERMINATION_GRACE_MS)
+    }
   }
 
-  cancelInstall() {
+  cancelInstall(): Promise<void> {
     if (!this.child) {
-      return
+      return this.childCompletion ?? Promise.resolve()
     }
 
     this.cancelRequested = true
     this.killInstallChild()
+    return this.childCompletion ?? Promise.resolve()
   }
 
   // Forget all wizard progress so a reopened onboarding starts at Welcome —
@@ -911,6 +1022,11 @@ export class OnboardingDriver {
     try {
       event = JSON.parse(line) as InstallerEvent
     } catch {
+      this.appendLog(line)
+      return
+    }
+
+    if (typeof event !== "object" || event === null) {
       this.appendLog(line)
       return
     }

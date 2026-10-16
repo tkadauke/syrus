@@ -601,6 +601,29 @@ RSpec.describe GithubClient do
 
       expect(detail[:failed_checks].first[:log]).to be_nil
     end
+
+    context "when a check is still running" do
+      let(:check_runs_body) do
+        {
+          check_runs: [
+            {
+              name: "rspec",
+              status: "in_progress",
+              conclusion: nil,
+              html_url: "https://github.com/acme/widgets/actions/runs/111/job/222",
+              output: { summary: nil, text: nil }
+            }
+          ]
+        }.to_json
+      end
+
+      it "returns normalized pending checks so target health can avoid partial results" do
+        detail = described_class.new(user).check_runs_detail_for("acme/widgets", "abc123")
+
+        expect(detail).to include(pending?: true, completed_checks: [])
+        expect(detail[:pending_checks]).to contain_exactly(include(name: "rspec", status: "in_progress"))
+      end
+    end
   end
 
   describe "installation-auth API fallback" do

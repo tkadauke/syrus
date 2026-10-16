@@ -1,4 +1,4 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { createWriteStream } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -18,6 +18,7 @@ import {
 import { removeSupersededSyrusImages } from "./imageCleanup.js"
 import { installerCommand, installerScriptPath } from "./installPaths.js"
 import { BackendUpdateProgressTracker, type BackendUpdateProgress } from "./updateProgress.js"
+import { ChildTerminationController } from "./childTermination.js"
 
 export type { BackendUpdateProgress } from "./updateProgress.js"
 
@@ -35,6 +36,7 @@ const HEALTH_WAIT_POLLS = 60 // × 2s = 120s
 // menu refusing, gated surfaces suppressed. Generous on purpose: multi-GB
 // pulls on slow links are legitimate.
 const UPDATE_DEADLINE_MS = 30 * 60_000
+const TERMINATION_GRACE_MS = 5_000
 
 // "data-gone" means Docker is healthy but the Syrus data volume no longer
 // exists (wiped containers/volumes) — the stack can never recover on its own.
@@ -155,13 +157,13 @@ const ensureDaemon = async () => {
 
 let busy = false
 let lastHealthy = true
-let updateChild: ChildProcess | null = null
+const updateTermination = new ChildTerminationController(TERMINATION_GRACE_MS)
 
 // Whether a lifecycle action (start/stop/update) is in flight. Exposed so
 // main can defer actions that must not race an update — most importantly
 // "Relaunch to update", whose quitAndInstall would orphan the installer
 // mid-pin-rewrite and relaunch into a churning stack with no update state.
-export const backendBusy = () => busy
+export const backendBusy = () => busy || updateTermination.active()
 
 // Kill the whole in-flight installer tree (same technique as the onboarding
 // driver's killInstallChild): POSIX signals the detached process group so
@@ -169,27 +171,14 @@ export const backendBusy = () => busy
 // the tree with taskkill /T. Used by the update deadline and by main's
 // before-quit, so neither a wedged pull nor a quitting app can orphan a
 // half-applied update. Best-effort by contract.
-export const killUpdateChild = () => {
-  const child = updateChild
-  if (!child?.pid) {
-    return
-  }
-
+export const killUpdateChild = (force = false) => {
+  if (!updateTermination.active()) return
   console.warn("[backend-update] killing the in-flight installer (deadline exceeded or app quitting)")
-  if (process.platform === "win32") {
-    execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true }, () => {})
-    return
-  }
-
-  try {
-    process.kill(-child.pid, "SIGTERM")
-  } catch {
-    child.kill("SIGTERM")
-  }
+  updateTermination.terminate(force)
 }
 
 export const startBackend = async (): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -218,7 +207,7 @@ export const startBackend = async (): Promise<boolean> => {
 }
 
 export const stopBackend = async (): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -261,7 +250,7 @@ type UpdateBackendDeps = {
 // the SYRUS_IMAGE pin, pull, recreate containers, health-gate. Output appends
 // to install.log so Backend → Open Install Log covers updates too.
 export const updateBackend = async (image: string, deps: UpdateBackendDeps = {}): Promise<boolean> => {
-  if (getBackendMode() !== "local" || busy) {
+  if (getBackendMode() !== "local" || backendBusy()) {
     return false
   }
 
@@ -287,7 +276,11 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
     delete env.SYRUS_HEALTH_POLLS
     delete env.SYRUS_PULL_RETRY_DELAY
 
+    await fs.mkdir(stateDir(), { recursive: true })
     const log = createWriteStream(path.join(stateDir(), "install.log"), { flags: "a" })
+    log.on("error", (error) => {
+      console.error("[backend-update] unable to write install.log", error)
+    })
     try {
       const ok = await new Promise<boolean>((resolve) => {
         // Same interpreter as the onboarding driver: the image-update path IS
@@ -314,14 +307,20 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
           process.platform === "win32"
             ? spawn(command, args, { env, windowsHide: true })
             : spawn(command, args, { env, detached: true })
-        updateChild = child
+        updateTermination.register(child)
         // Wall-clock deadline: a wedged pull / compose / health probe must
-        // not leave `busy` true and the update state stuck forever. The kill
-        // surfaces as a non-zero close, which resolves false through the
-        // existing failure path (finally clears the progress state).
-        const deadline = setTimeout(() => {
+        // not leave `busy` true and the update state stuck forever. Settle at
+        // the deadline itself because a process stuck in kernel I/O may not
+        // emit close promptly even after TERM/KILL.
+        let deadline: NodeJS.Timeout
+        const settle = (ok: boolean) => {
+          clearTimeout(deadline)
+          resolve(ok)
+        }
+        deadline = setTimeout(() => {
           log.write(`backend update exceeded ${UPDATE_DEADLINE_MS / 60_000} minutes — killing the installer\n`)
           killUpdateChild()
+          settle(false)
         }, UPDATE_DEADLINE_MS)
         // Parse the installer's --json NDJSON line-by-line (the same protocol
         // the onboarding driver consumes) so the update reports phases and
@@ -338,15 +337,14 @@ export const updateBackend = async (image: string, deps: UpdateBackendDeps = {})
         })
         // Both exits clear the deadline + child registration — a spawn
         // error may never be followed by "close".
-        const settle = (ok: boolean) => {
-          clearTimeout(deadline)
-          updateChild = null
-          resolve(ok)
+        const settleFromChild = (ok: boolean) => {
+          updateTermination.clear(child)
+          settle(ok)
         }
-        child.on("error", () => settle(false))
+        child.on("error", () => settleFromChild(false))
         // "close", not "exit": close fires only after stdio has drained, so
         // the final NDJSON lines are parsed and nothing writes after end().
-        child.on("close", (code) => settle(code === 0))
+        child.on("close", (code) => settleFromChild(code === 0))
       })
 
       // Superseded-image cleanup runs ONLY on the update path (first installs
@@ -415,7 +413,7 @@ export const startWatchdog = (deps: WatchdogDeps) => {
   }
 
   watchdogTimer = setInterval(() => {
-    if (watchdogTickInFlight || busy || getBackendMode() !== "local") {
+    if (watchdogTickInFlight || backendBusy() || getBackendMode() !== "local") {
       return
     }
 

@@ -97,15 +97,16 @@ module WorkUnits
             artifacts: { "cancelled_reason" => "terminal_work_unit" }
           )
         when "failed"
+          workflow.finished_at = Time.current
           workflow.fail! if workflow.may_fail?
-          workflow.save!
         when "succeeded"
           if workflow.queued? && workflow.may_start?
             workflow.syncing_from_terminal_work_unit = true
+            workflow.started_at = Time.current
             workflow.start!
           end
+          workflow.finished_at = Time.current
           workflow.succeed! if workflow.may_succeed?
-          workflow.save!
         end
       ensure
         workflow.syncing_from_terminal_work_unit = false

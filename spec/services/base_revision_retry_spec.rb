@@ -29,6 +29,26 @@ RSpec.describe BaseRevisionRetry do
     ]
   end
 
+  def command_execution(success: true, skip_reason: nil)
+    described_class::CommandExecution.new(
+      result: instance_double(Process::Status, success?: success),
+      skip_reason: skip_reason
+    )
+  end
+
+  def process_runner_result(timed_out: false, operator_killed: false, exit_status: nil)
+    ProcessRunner::Result.new(
+      exit_status: exit_status,
+      timed_out: timed_out,
+      stopped: false,
+      silent_timed_out: false,
+      operator_killed: operator_killed,
+      aliveness_failed: false,
+      duration_s: 0.1,
+      spawned_process_id: nil
+    )
+  end
+
   around do |example|
     Dir.mktmpdir("syrus-brr-spec-workspace") do |dir|
       @workspace_path = Pathname.new(dir)
@@ -140,6 +160,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 1 failure"
+      command_execution
     end
 
     result = retry_check.call
@@ -176,7 +197,7 @@ RSpec.describe BaseRevisionRetry do
     # which it is covered for separately.
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "some output\n[brr] timed out after 600s\n"
-      nil
+      command_execution(skip_reason: "base_retry_timed_out")
     end
 
     result = retry_check.call
@@ -184,7 +205,7 @@ RSpec.describe BaseRevisionRetry do
     expect(result).to have_attributes(
       ran: false,
       inherited: false,
-      reason: "base_retry_focused_command_timed_out",
+      reason: "base_retry_timed_out",
       command: "bin/rspec-fast spec/models/widget_spec.rb"
     )
     expect(result.output).to include("[brr] timed out")
@@ -213,6 +234,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 0 failures"
+      command_execution
     end
 
     result = retry_check.call
@@ -223,6 +245,45 @@ RSpec.describe BaseRevisionRetry do
       reason: "base_retry_found_introduced_cases"
     )
     expect(result.introduced_failed_identities).to eq([ "spec/models/widget_spec.rb\0Widget fails" ])
+  end
+
+  it "keeps the failure when the matching base test errors in the temporary worktree" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:run_command) do |_command, chdir, output|
+      path = chdir.join(".syrus/grade-output/rspec-junit.xml")
+      FileUtils.mkdir_p(path.dirname)
+      path.write(<<~XML)
+        <testsuite name="spec/models/widget_spec.rb">
+          <testcase classname="spec/models/widget_spec.rb" name="Widget fails">
+            <error message="Missing generated schema">LoadError: cannot load generated/schema</error>
+          </testcase>
+        </testsuite>
+      XML
+      output << "1 example, 1 error"
+      command_execution
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: false,
+      reason: "base_retry_found_introduced_cases",
+      base_failed_identities: [],
+      introduced_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ]
+    )
   end
 
   it "appends failed test files when configured for files_as_args" do
@@ -245,6 +306,7 @@ RSpec.describe BaseRevisionRetry do
           </testcase>
         </testsuite>
       XML
+      command_execution
     end
 
     result = retry_check.call
@@ -252,7 +314,7 @@ RSpec.describe BaseRevisionRetry do
     expect(result.command).to eq("bin/rspec-fast spec/models/widget_spec.rb")
   end
 
-  it "falls back to the full grader command when files_as_args has no failed cases" do
+  it "does not run the full grader command when a focused strategy has no structured failed cases" do
     grader_step.update!(
       details: grader_step.details.merge(
         "output" => "Vitest failed before structured cases were stored\n",
@@ -266,22 +328,19 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: [],
       log: ->(_message) { }
     )
-    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
-      output << "Vitest failed before structured cases were stored\n"
-      instance_double(Process::Status, success?: false)
-    end
+    expect(retry_check).not_to receive(:run_command)
 
     result = retry_check.call
 
     expect(result).to have_attributes(
-      ran: true,
-      inherited: true,
-      reason: "base_retry_full_command_failed_same_output",
-      command: "bin/rspec-fast"
+      ran: false,
+      inherited: false,
+      reason: "no_structured_cases",
+      command: nil
     )
   end
 
-  it "falls back to the full grader command when files_as_args cannot synthesize a focused command" do
+  it "does not run the full grader command when files_as_args cannot synthesize a focused command" do
     grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "files_as_args" }))
     retry_check = described_class.new(
       workflow: workflow,
@@ -290,18 +349,15 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: failed_cases.map { |test_case| test_case.except("file_path") },
       log: ->(_message) { }
     )
-    allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
-      output << "Base passed\n"
-      instance_double(Process::Status, success?: true)
-    end
+    expect(retry_check).not_to receive(:run_command)
 
     result = retry_check.call
 
     expect(result).to have_attributes(
-      ran: true,
+      ran: false,
       inherited: false,
-      reason: "base_retry_full_command_base_passed",
-      command: "bin/rspec-fast"
+      reason: "focused_command_unavailable",
+      command: nil
     )
   end
 
@@ -322,7 +378,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build failed: missing generated plugin data\n"
-      instance_double(Process::Status, success?: false)
+      command_execution(success: false)
     end
 
     result = retry_check.call
@@ -352,7 +408,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "1 scenario stuck: reason B\n"
-      instance_double(Process::Status, success?: false)
+      command_execution(success: false)
     end
 
     result = retry_check.call
@@ -382,7 +438,7 @@ RSpec.describe BaseRevisionRetry do
     )
     allow(retry_check).to receive(:run_command) do |_command, _chdir, output|
       output << "Build succeeded\n"
-      instance_double(Process::Status, success?: true)
+      command_execution
     end
 
     result = retry_check.call
@@ -395,7 +451,19 @@ RSpec.describe BaseRevisionRetry do
   end
 
   it "kills a hung base command when the timeout expires" do
-    stub_const("#{described_class}::TIMEOUT_SECONDS", 0.2)
+    stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
+    child_pid_path = @workspace_path.join("child.pid")
+    grader_step.update!(details: grader_step.details.merge(
+      "command" => "printf 'started\\n'; sleep 5 & child=$!; printf '%s' \"$child\" > #{Shellwords.escape(child_pid_path.to_s)}; wait \"$child\"",
+      "base_retry" => { "strategy" => "full_command" }
+    ))
+    grader_run = Run.create!(
+      job: job,
+      step: grader_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "failed"
+    )
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,
@@ -403,16 +471,82 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: failed_cases,
       log: ->(_message) { }
     )
-    output = +""
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
 
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    status = retry_check.send(:run_command, "printf 'started\\n'; sleep 5", @workspace_path, output)
+    result = nil
+    expect do
+      result = retry_check.call
+    end.to change(SpawnedProcess, :count).by(1)
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
-    expect(status).to be_nil
-    expect(elapsed).to be < 1.5
-    expect(output).to include("started")
-    expect(output).to include("[brr] timed out")
+    expect(result).to have_attributes(ran: false, reason: "base_retry_timed_out")
+    expect(elapsed).to be < 2.5
+    expect(SpawnedProcess.order(:id).last).to have_attributes(
+      kind: "grader",
+      run: grader_run,
+      workflow: workflow,
+      outcome: "timed_out"
+    )
+    child_pid = child_pid_path.read.to_i
+    child_active = begin
+      File.read("/proc/#{child_pid}/stat").split.fetch(2) != "Z"
+    rescue Errno::ENOENT
+      false
+    end
+    expect(child_active).to be(false)
+  end
+
+  it "reports an operator-killed focused retry without parsing partial output" do
+    provider = Class.new do
+      def self.command_for(**)
+        "bin/rspec-fast spec/models/widget_spec.rb"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    allow(ProcessRunner).to receive(:new).and_return(
+      instance_double(ProcessRunner, run: process_runner_result(operator_killed: true))
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
+    expect(retry_check).not_to receive(:parse_result)
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: false, reason: "base_retry_operator_killed")
+  end
+
+  it "reports an operator-killed full-command retry without calling it a timeout" do
+    grader_step.update!(details: grader_step.details.merge("base_retry" => { "strategy" => "full_command" }))
+    allow(ProcessRunner).to receive(:new).and_return(
+      instance_double(ProcessRunner, run: process_runner_result(operator_killed: true))
+    )
+    retry_check = described_class.new(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      log: ->(_message) { }
+    )
+    allow(retry_check).to receive(:git) do |*args|
+      FileUtils.mkdir_p(args.fetch(3)) if args.first(3) == [ "worktree", "add", "--detach" ]
+      ""
+    end
+
+    result = retry_check.call
+
+    expect(result).to have_attributes(ran: false, reason: "base_retry_operator_killed")
   end
 
   # Regression. A focused retry runs `bin/rspec-worker` directly instead of the
@@ -461,6 +595,7 @@ RSpec.describe BaseRevisionRetry do
         </testsuite>
       XML
       output << "1 example, 1 failure"
+      command_execution
     end
 
     result = retry_check.call

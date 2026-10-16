@@ -1,6 +1,5 @@
 require "digest"
 require "fileutils"
-require "open3"
 require "shellwords"
 require "tempfile"
 require "tmpdir"
@@ -22,6 +21,10 @@ class BaseRevisionRetry
   ].freeze
 
   Result = Data.define(:ran, :inherited, :reason, :command, :base_failed_identities, :introduced_failed_identities, :output)
+  CommandExecution = Data.define(:result, :skip_reason) do
+    def interrupted? = skip_reason.present?
+    def success? = result.success?
+  end
 
   def self.call(...)
     new(...).call
@@ -41,36 +44,36 @@ class BaseRevisionRetry
 
     return run_full_command if config.fetch("strategy") == "full_command"
 
-    return run_full_command if @failed_cases.empty?
+    return skipped("no_structured_cases") if @failed_cases.empty?
 
     command = focused_command(config)
-    return run_full_command if command.blank?
+    return skipped("focused_command_unavailable") if command.blank?
 
     output = +""
     parsed = nil
-    timed_out = false
+    execution = nil
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
       materialization = materialize_base_checkout!(checkout_path)
       begin
         @log.call("[brr:#{grader_name}] running failed tests at base #{@base_sha.first(9)} in a #{materialization} checkout: #{redacted_command(command)}")
-        # nil means the command was killed at TIMEOUT_SECONDS. Parsing its
-        # partial output reports "not parseable", which reads as "this
-        # grader's output is in an unsupported format" -- a configuration
-        # problem -- when the fact is that the focused command never
-        # finished. The two call for different responses, so name them apart.
-        timed_out = run_command(command, checkout_path, output).nil?
-        parsed = parse_result(output, checkout_path) unless timed_out
+        execution = run_command(command, checkout_path, output)
+        parsed = parse_result(output, checkout_path) unless execution.interrupted?
       ensure
         release_base_checkout!(checkout_path, materialization)
       end
     end
 
-    return skipped("base_retry_focused_command_timed_out", command: command, output: output) if timed_out
+    return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
     return skipped("base_retry_output_not_parseable", command: command, output: output) unless parsed
 
     candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
-    base = parsed.cases.select { |test_case| %w[failed error].include?(test_case.status) }
+    # A base-side error can be caused by the temporary worktree lacking
+    # prepared dependencies or generated artifacts. The candidate evidence
+    # carries identities but no normalized status or failure signature, so an
+    # error with the same identity is not enough to prove the PR failure was
+    # inherited.
+    base = parsed.cases.select { |test_case| test_case.status == "failed" }
                  .map { |test_case| [ test_case.suite_name, test_case.name ].join(0.chr) }
                  .uniq
                  .sort
@@ -135,17 +138,19 @@ class BaseRevisionRetry
     return skipped("no_grader_command") if command.blank?
 
     output = +""
-    status = nil
+    execution = nil
     Dir.mktmpdir("syrus-brr-") do |dir|
       checkout_path = Pathname.new(dir).join("base")
       materialization = materialize_base_checkout!(checkout_path)
       begin
         @log.call("[brr:#{grader_name}] running full grader at base #{@base_sha.first(9)} in a #{materialization} checkout: #{redacted_command(command)}")
-        status = run_command(command, checkout_path, output)
+        execution = run_command(command, checkout_path, output)
       ensure
         release_base_checkout!(checkout_path, materialization)
       end
     end
+
+    return skipped(execution.skip_reason, command: command, output: output) if execution.interrupted?
 
     candidate_fingerprint = output_fingerprint(@grader_step.details.to_h["output"])
     base_fingerprint = output_fingerprint(output)
@@ -157,11 +162,11 @@ class BaseRevisionRetry
     # exactly the case this whole-command strategy exists to cover. The
     # fingerprint match is still recorded (see full_command_reason) so the
     # UI can distinguish "same failure" from "also fails, differently."
-    inherited = status.present? && !status.success?
+    inherited = !execution.success?
     Result.new(
       ran: true,
       inherited: inherited,
-      reason: full_command_reason(status, candidate_fingerprint, base_fingerprint, inherited),
+      reason: full_command_reason(execution, candidate_fingerprint, base_fingerprint, inherited),
       command: redacted_command(command),
       base_failed_identities: [],
       introduced_failed_identities: [],
@@ -226,36 +231,29 @@ class BaseRevisionRetry
   end
 
   def run_command(command, chdir, output)
-    result = nil
-    timed_out = false
-    Open3.popen2e(env, "bash", "-c", command, chdir: chdir.to_s, pgroup: true) do |stdin, stream, wait_thread|
-      stdin.close
-      reader = Thread.new do
-        stream.each { |chunk| output << chunk }
-      end
+    result = ProcessRunner.new(
+      env: env,
+      command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(chdir),
+      network: "grader",
+      timeout: TIMEOUT_SECONDS,
+      kind: "grader",
+      run: @grader_step.latest_run,
+      workflow: @workflow,
+      display_command: redacted_command(command),
+      on_output_chunk: ->(chunk) { output << chunk }
+    ).run
 
-      timed_out = wait_thread.join(TIMEOUT_SECONDS).nil?
-      if timed_out
-        kill_process_group(wait_thread.pid)
-        wait_thread.join
-      end
-
-      reader.join
-      result = wait_thread.value unless timed_out
-    end
-
-    if timed_out
+    if result.timed_out?
       output << "\n[brr] timed out after #{TIMEOUT_SECONDS.to_i}s\n"
-      return nil
+      return CommandExecution.new(result: result, skip_reason: "base_retry_timed_out")
+    end
+    if result.operator_killed?
+      output << "\n[brr] operator killed\n"
+      return CommandExecution.new(result: result, skip_reason: "base_retry_operator_killed")
     end
 
-    result
-  end
-
-  def kill_process_group(pid)
-    Process.kill("KILL", -pid)
-  rescue Errno::ESRCH
-    nil
+    CommandExecution.new(result: result, skip_reason: nil)
   end
 
   def parse_result(output, checkout_path)
