@@ -15,11 +15,9 @@ class MaybeDeployJob < ApplicationJob
     deploy_config = App::DeployAvailability.deploy_config(repository)
     return unless deploy_config&.mode == "continuous"
 
-    # A merge landing while another deploy is already in flight is a
-    # no-op here, not a reschedule: rescheduling on top of an unknown
-    # in-flight duration would stack up duplicate pending jobs. The
-    # min_interval_minutes throttle below is what guarantees a burst of
-    # merges still converges on exactly one deploy of the latest HEAD.
+    # The successful deploy's lifecycle hook enqueues a fresh check, so a
+    # merge that lands while this deploy is in flight is picked up without
+    # polling or stacking retries of an unknown duration.
     return if active_deploy_workflow?(repository)
 
     if (wait_until = throttled_until(repository, deploy_config))
@@ -66,6 +64,7 @@ class MaybeDeployJob < ApplicationJob
 
     sha = current_default_branch_sha(repository)
     return if sha.blank?
+    return if latest_finished_deploy_sha(repository) == sha
 
     Job.transaction do
       job = Job.create!(
@@ -84,6 +83,15 @@ class MaybeDeployJob < ApplicationJob
 
       WorkUnits::Launcher.start!(workflow)
     end
+  end
+
+  def latest_finished_deploy_sha(repository)
+    Workflow.joins(:job)
+      .where(trigger_kind: "deploy", jobs: { repository_id: repository.id })
+      .where.not(finished_at: nil)
+      .order(finished_at: :desc, id: :desc)
+      .first
+      &.artifact("deploy_sha")
   end
 
   def current_default_branch_sha(repository)

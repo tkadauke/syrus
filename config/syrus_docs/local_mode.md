@@ -28,11 +28,14 @@ tunnel can be authorized. The flow is:
    reactivates) a `LocalDaemonSession` and returns its `chat_session_id` and
    `auth_token`. The banner renders these interpolated into a copyable
    command: `syrus local --chat <chat_session_id> --token <auth_token>`.
+   Only the chat owner may create or remove this pairing session; other group
+   chat participants can see its connection status but cannot redirect or
+   terminate the owner's daemon tunnel.
 2. **The operator runs the command** in their local repository checkout.
 3. **The CLI subscribes to `LocalTunnelChannel`** over Action Cable, sending
    `chat_session_id` and `tunnel_token` (the pairing session's `auth_token`)
    in the subscribe identifier. `LocalTunnelChannel#subscribed` looks up a
-   connected `LocalDaemonSession` owned by the current user with a matching
+   `LocalDaemonSession` owned by the current user with a matching
    token and rejects the subscription (`reject_subscription`) if none is
    found — for example when the values were copied incorrectly, the session
    has expired, or `local_mode` is disabled.
@@ -61,6 +64,11 @@ seconds (`LocalDaemonSession::HEARTBEAT_TIMEOUT`); the CLI must reply to
 every `ping` with a `pong` to stay connected. A session that drops this way
 needs a fresh pairing command from the chat UI to reconnect — the CLI does
 not currently re-pair automatically.
+
+Each successful `connect` handshake replaces the session's prior connection
+generation. Delayed frames or disconnect callbacks from an older socket are
+ignored, and a pending tool call is claimed atomically so competing broadcast
+and polling dispatch paths cannot execute it twice.
 
 ## Tools
 

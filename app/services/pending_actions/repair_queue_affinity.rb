@@ -98,12 +98,10 @@ module PendingActions
     end
 
     def matching_solid_queue_jobs(run)
-      SolidQueue::Job
+      scope = SolidQueue::Job
         .where(class_name: "RunJob", finished_at: nil)
-        .where("arguments LIKE ?", "%#{run.id}%")
         .lock
-        .to_a
-        .select { |job| active_job_arguments(job.arguments).any? { |argument| active_job_argument_matches_run?(argument, run.id) } }
+      SolidQueueRunJobQuery.matching(scope: scope, run_id: run.id)
     rescue NameError, ActiveRecord::StatementInvalid => e
       Rails.logger.warn("[PendingActions::RepairQueueAffinity] Solid Queue tables unavailable: #{e.class}: #{e.message}")
       []
@@ -125,23 +123,6 @@ module PendingActions
       SolidQueue::FailedExecution.where(job_id: job_ids).delete_all if defined?(SolidQueue::FailedExecution)
       SolidQueue::Job.where(id: job_ids).delete_all
       job_ids
-    end
-
-    def active_job_arguments(arguments)
-      payload = arguments.is_a?(String) ? JSON.parse(arguments) : arguments
-      args = payload.is_a?(Hash) ? (payload["arguments"] || payload[:arguments]) : payload
-      args.is_a?(Array) ? args : []
-    rescue JSON::ParserError, TypeError
-      []
-    end
-
-    def active_job_argument_matches_run?(argument, run_id)
-      return argument.to_i == run_id if argument.is_a?(Integer) || argument.is_a?(String)
-
-      return false unless argument.is_a?(Hash)
-
-      global_id = argument["_aj_globalid"] || argument[:_aj_globalid]
-      global_id.to_s.end_with?("/Run/#{run_id}")
     end
 
     def set_in_memory_affinity!(workflow, hostname:, storage_key:)

@@ -81,6 +81,21 @@ RSpec.describe CredentialStore::Credential do
     expect(credential.errors[:scope_id]).to include("must be nil for instance scope")
   end
 
+  it "requires active credential names to be unique within a scope" do
+    build_credential(name: "deploy-token").save!
+
+    duplicate = build_credential(name: "deploy-token")
+
+    expect(duplicate).not_to be_valid
+    expect(duplicate.errors[:name]).to include("has already been taken in this scope")
+  end
+
+  it "allows a replacement name when the prior credential is inactive" do
+    build_credential(name: "deploy-token", revoked_at: Time.current).save!
+
+    expect(build_credential(name: "deploy-token")).to be_valid
+  end
+
   it "rejects unsafe metadata keys and nested payload-like values" do
     credential = build_credential(safe_metadata: {
       "host" => "github.com",

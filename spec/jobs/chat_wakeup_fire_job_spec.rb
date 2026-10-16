@@ -35,6 +35,28 @@ RSpec.describe ChatWakeupFireJob do
     expect(wakeup.reload).to be_cancelled
   end
 
+  it "locks the chat before the pending wakeup" do
+    wakeup = create_wakeup
+    turn = instance_double(ChatSession::WakeupTurn, run: true)
+    allow(ChatSession::WakeupTurn).to receive(:new).and_return(turn)
+
+    expect(ChatSession).to receive(:lock).ordered.and_call_original
+    expect(ChatWakeup).to receive(:pending).ordered.and_call_original
+
+    described_class.perform_now(wakeup.id)
+  end
+
+  it "cancels a still-pending wakeup when its chat was soft-deleted" do
+    wakeup = create_wakeup
+    chat_session.update_column(:deleted_at, Time.current)
+
+    expect(ChatSession::WakeupTurn).not_to receive(:new)
+
+    described_class.perform_now(wakeup.id)
+
+    expect(wakeup.reload).to be_cancelled
+  end
+
   it "does not fire the same wakeup twice after it leaves pending" do
     wakeup = create_wakeup
     turn = instance_double(ChatSession::WakeupTurn, run: true)

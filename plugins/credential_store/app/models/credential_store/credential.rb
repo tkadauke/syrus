@@ -48,6 +48,7 @@ module CredentialStore
     validates :credential_type, presence: true, format: { with: TYPE_NAME_PATTERN }
     validates :scope_type, presence: true, inclusion: { in: ALLOWED_SCOPES }
     validates :payload, presence: true
+    validate :active_name_is_unique_within_scope
     validate :scope_record_is_valid
     validate :safe_metadata_is_display_safe
     validate :target_constraints_are_valid
@@ -167,6 +168,15 @@ module CredentialStore
       return if revoked_at.blank? || last_rotated_at.blank?
 
       errors.add(:revoked_at, "cannot be before last_rotated_at") if revoked_at < last_rotated_at
+    end
+
+    def active_name_is_unique_within_scope
+      return if name.blank? || scope_type.blank? || !active?
+
+      conflicts = self.class.where(name: name, scope_type: scope_type, scope_id: scope_id, revoked_at: nil)
+      conflicts = conflicts.where.not(id: id) if persisted?
+      conflicts = conflicts.where("expires_at IS NULL OR expires_at > ?", Time.current)
+      errors.add(:name, "has already been taken in this scope") if conflicts.exists?
     end
   end
 end

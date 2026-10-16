@@ -43,12 +43,11 @@ module ChatShellCommandExecutor
     # `LocalDaemonSession#connected?` (`disconnected_at.nil?`) is true from the
     # moment `LocalDaemonSessionsController#create` mints the row to hand the
     # operator a connect token -- well before the daemon has actually dialed
-    # in. `ChatSession#daemon_connected?` is the flag `mark_connected!` /
-    # `mark_disconnected!` flip on the real "connect" handshake over
-    # LocalTunnelChannel (the same signal the "not connected" banner reads),
-    # so gate on that instead of the session row's mere existence.
+    # in. `connection_id` is assigned by the real handshake and cleared on
+    # disconnect, so gate on it instead of a possibly stale ChatSession flag.
     def daemon_actually_connected?(chat_session)
-      chat_session.daemon_connected? && chat_session.local_daemon_session&.connected?
+      session = chat_session.local_daemon_session
+      session&.connected? && session.connection_id.present?
     end
 
     # `outcome` is the daemon's raw run_command result hash

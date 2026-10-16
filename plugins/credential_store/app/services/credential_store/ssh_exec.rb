@@ -1,13 +1,24 @@
 require "shellwords"
 require "tempfile"
+require "digest"
+require "ipaddr"
 
 module CredentialStore
   class SshExec
     SSH_PRIVATE_KEY_TYPE = "ssh_private_key".freeze
     TOOL_NAME = "credential_store_ssh_exec".freeze
     MAX_OUTPUT_BYTES = 64.kilobytes
+    USER_PATTERN = /\A[A-Za-z0-9_][A-Za-z0-9._-]*\z/.freeze
+    HOSTNAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9.-]*\z/.freeze
 
-    class Error < StandardError; end
+    class Error < StandardError
+      attr_reader :audit_metadata
+
+      def initialize(message = nil, audit_metadata: {})
+        @audit_metadata = audit_metadata
+        super(message)
+      end
+    end
     class InvalidTarget < Error; end
     class RiskyCommand < Error; end
     class OperatorConfirmationRequired < Error; end
@@ -37,8 +48,8 @@ module CredentialStore
     def initialize(context:, credential:, host:, user:, command:, port:, allow_unconstrained_host:, allow_risky_command:, connect_timeout:)
       @context = context
       @credential = credential
-      @host = host.to_s.strip
-      @user = user.to_s.strip
+      @host = host.to_s
+      @user = user.to_s
       @command = command.to_s
       @port = normalized_port(port)
       @allow_unconstrained_host = allow_unconstrained_host == true
@@ -47,8 +58,6 @@ module CredentialStore
     end
 
     def call
-      validate_inputs!
-
       CredentialStore::Broker.with_credential_env(
         context: context,
         credential: credential,
@@ -57,7 +66,8 @@ module CredentialStore
         purpose: "ssh exec #{user}@#{host}",
         tool_name: TOOL_NAME,
         target: target,
-        credential_validator: method(:credential_denial_reason)
+        credential_validator: method(:validate_credential_attempt!),
+        attempt_metadata: command_metadata
       ) do |credential_env, metadata|
         credential_metadata = metadata.fetch(:safe_metadata, {})
         key_material = SshKeyMaterial.from_payload(credential_env.fetch("SYRUS_CREDENTIAL_STORE_SSH_PAYLOAD"))
@@ -84,12 +94,23 @@ module CredentialStore
     attr_reader :context, :credential, :host, :user, :command, :port, :allow_unconstrained_host, :allow_risky_command, :connect_timeout
 
     def validate_inputs!
-      raise InvalidTarget, "host is required" if host.blank?
-      raise InvalidTarget, "user is required" if user.blank?
-      raise InvalidTarget, "command is required" if command.blank?
-      raise OperatorConfirmationRequired, "chat SSH calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
-      raise OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
-      raise RiskyCommand, "command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
+      raise_audited InvalidTarget, "host is required" if host.blank?
+      raise_audited InvalidTarget, "user is required" if user.blank?
+      raise_audited InvalidTarget, "command is required" if command.blank?
+      raise_audited InvalidTarget, "host must be a hostname or IP address" unless valid_host?
+      raise_audited InvalidTarget, "user contains invalid characters" unless user.match?(USER_PATTERN)
+      raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
+      raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
+      raise_audited RiskyCommand, "command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
+    end
+
+    def raise_audited(error_class, message)
+      raise error_class.new(message, audit_metadata: command_metadata)
+    end
+
+    def validate_credential_attempt!(credential)
+      validate_inputs!
+      credential_denial_reason(credential)
     end
 
     def credential_denial_reason(credential)
@@ -108,15 +129,43 @@ module CredentialStore
     end
 
     def run_ssh(key_path:, known_hosts_path:, askpass_env:, metadata:, credential_metadata:, extra_secrets:)
-      result = self.class.runner.call(
-        env: ssh_env.merge(askpass_env),
-        argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
-      )
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      result = begin
+        self.class.runner.call(
+          env: ssh_env.merge(askpass_env),
+          argv: ssh_argv(key_path: key_path, known_hosts_path: known_hosts_path, passphrase: askpass_env.present?)
+        )
+      rescue StandardError => e
+        record_completion!(metadata, nil, started_at, error: e)
+        raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
+      end
 
+      record_completion!(metadata, result.status.to_i, started_at)
       payload = payload_for(result, metadata: metadata, credential_metadata: credential_metadata, known_hosts_enforced: known_hosts_path.present?)
       CredentialStore::Broker.redact(payload, extra_secrets: extra_secrets)
-    rescue StandardError => e
-      raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: extra_secrets)
+    end
+
+    def record_completion!(lease_metadata, exit_status, started_at, error: nil)
+      credential_record = Credential.find(lease_metadata.fetch(:credential_id))
+      lease_event = CredentialAccessEvent.find_by!(lease_id: lease_metadata.fetch(:lease_id))
+      CredentialAccessEvent.record!(
+        credential: credential_record,
+        user: context.user, repository: context.repository, job: context.job,
+        workflow: context.workflow, run: context.run, chat_session: context.chat_session,
+        surface: context.run? ? "workflow" : context.surface.to_s,
+        tool_name: TOOL_NAME, action: "use", purpose: "ssh exec #{user}@#{host}",
+        result: error || exit_status != 0 ? "failed" : "allowed",
+        metadata: Redaction.scrub_object(command_metadata, credentials: [ credential_record ]).merge(
+          lease_id: lease_metadata.fetch(:lease_id), exit_status: exit_status,
+          duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round,
+          error_class: error&.class&.name
+        ).compact,
+        completion_of_event: lease_event
+      )
+    end
+
+    def command_metadata
+      { command_sha256: Digest::SHA256.hexdigest(command), command: command.truncate(500) }
     end
 
     def ssh_env
@@ -126,15 +175,19 @@ module CredentialStore
     def ssh_argv(key_path:, known_hosts_path:, passphrase:)
       argv = [
         "ssh",
+        "-F", "/dev/null",
         "-i", key_path,
         "-o", "IdentitiesOnly=yes",
         "-o", "BatchMode=#{passphrase ? 'no' : 'yes'}",
         "-o", "LogLevel=ERROR",
-        "-o", "StrictHostKeyChecking=yes"
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", "ProxyCommand=none",
+        "-o", "PermitLocalCommand=no"
       ]
       argv.concat([ "-o", "UserKnownHostsFile=#{known_hosts_path}" ]) if known_hosts_path
       argv.concat([ "-o", "ConnectTimeout=#{connect_timeout}" ]) if connect_timeout
       argv.concat([ "-p", port.to_s ]) if port
+      argv << "--"
       argv << "#{user}@#{host}"
       argv << command
       argv
@@ -216,20 +269,40 @@ module CredentialStore
       RiskyCommandClassifier.risky?(command)
     end
 
+    def valid_host?
+      return false unless host.match?(HOSTNAME_PATTERN) || ip_address?(host)
+
+      !host.start_with?("-") && !host.match?(/[[:space:][:cntrl:]]/)
+    end
+
+    def ip_address?(value)
+      IPAddr.new(value)
+      true
+    rescue IPAddr::InvalidAddressError
+      false
+    end
+
     class RiskyCommandClassifier
-      RISKY_COMMANDS = %w[dd shutdown reboot nft].freeze
       COMMAND_SEPARATORS = %w[; & |].freeze
       ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
-      SHELL_EVALUATION_PATTERN = /(?:\$\(|`|\A\()/.freeze
+      UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\\r\n]/.freeze
+      READ_ONLY_COMMANDS = %w[
+        arch basename cat cut df dirname du file free grep head id jq ls
+        lsb_release nproc pgrep ps pwd readlink realpath stat tail test true
+        uname uptime wc which who whoami
+      ].freeze
+      COMMAND_WRAPPERS = %w[command].freeze
 
       class << self
         def risky?(command)
-          tokens = Shellwords.split(command.to_s.gsub(/([;&|])/, ' \1 '))
+          source = command.to_s
+          return true if source.match?(UNSAFE_SHELL_SYNTAX_PATTERN)
+
+          tokens = Shellwords.split(source.gsub(/([;&|])/, ' \1 '))
           return true if tokens.empty?
-          return true if tokens.any? { |token| shell_evaluation_token?(token) }
           return true if tokens.any? { |token| nested_command_fragment?(token) }
 
-          command_segments(tokens).any? { |segment| risky_segment?(segment) }
+          command_segments(tokens).any? { |segment| !read_only_segment?(segment) }
         rescue ArgumentError
           true
         end
@@ -246,43 +319,24 @@ module CredentialStore
           end.reject(&:empty?)
         end
 
-        def risky_segment?(segment)
-          segment.each_with_index.any? do |word, index|
-            next false if word.match?(ASSIGNMENT_PATTERN) || flag?(word)
+        def read_only_segment?(segment)
+          return false if segment.any? { |word| word.match?(ASSIGNMENT_PATTERN) }
 
-            risky_invocation?(command_name(word), segment[(index + 1)..])
-          end
-        end
+          words = segment
+          words = unwrap_command_wrapper(words)
+          executable = words.first.to_s
 
-        def shell_evaluation_token?(token)
-          token.match?(SHELL_EVALUATION_PATTERN)
+          executable == command_name(executable) && READ_ONLY_COMMANDS.include?(executable.downcase)
         end
 
         def nested_command_fragment?(token)
           token.match?(/\s/) && risky?(token)
         end
 
-        def risky_invocation?(executable, arguments)
-          return false unless executable
-          return true if risky_command_name?(executable)
+        def unwrap_command_wrapper(words)
+          return words unless COMMAND_WRAPPERS.include?(command_name(words.first))
 
-          flags = Array(arguments).select { |word| flag?(word) }
-          case executable
-          when "rm"
-            rm_force?(flags) && rm_recursive?(flags)
-          when "chmod", "chown"
-            recursive?(flags)
-          else
-            false
-          end
-        end
-
-        def risky_command_name?(executable)
-          RISKY_COMMANDS.include?(executable) ||
-            executable == "mkfs" ||
-            executable.start_with?("mkfs.") ||
-            executable == "iptables" ||
-            executable.start_with?("iptables-")
+          words.drop(1).drop_while { |word| flag?(word) }
         end
 
         def command_name(word)
@@ -292,31 +346,12 @@ module CredentialStore
         def flag?(word)
           word.to_s.start_with?("-") && word != "-"
         end
-
-        def rm_force?(flags)
-          flags.any? { |flag| long_flag?(flag, "force") || short_flag?(flag, "f") }
-        end
-
-        def rm_recursive?(flags)
-          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "r") || short_flag?(flag, "R") }
-        end
-
-        def recursive?(flags)
-          flags.any? { |flag| long_flag?(flag, "recursive") || short_flag?(flag, "R") }
-        end
-
-        def long_flag?(flag, name)
-          flag == "--#{name}" || flag.start_with?("--#{name}=")
-        end
-
-        def short_flag?(flag, letter)
-          flag.start_with?("-") && !flag.start_with?("--") && flag.delete_prefix("-").include?(letter)
-        end
       end
     end
 
     def normalized_port(value)
       return nil if value.blank?
+      raise InvalidTarget, "port must be between 1 and 65535" unless value.to_s.match?(/\A[0-9]+\z/)
 
       Integer(value).tap do |integer|
         raise InvalidTarget, "port must be between 1 and 65535" unless integer.between?(1, 65_535)
@@ -327,6 +362,7 @@ module CredentialStore
 
     def normalized_timeout(value)
       return nil if value.blank?
+      raise InvalidTarget, "connect_timeout must be between 1 and 120" unless value.to_s.match?(/\A[0-9]+\z/)
 
       Integer(value).tap do |integer|
         raise InvalidTarget, "connect_timeout must be between 1 and 120" unless integer.between?(1, 120)

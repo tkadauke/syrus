@@ -128,6 +128,16 @@ RSpec.describe ChatScopedEventEvaluatorJob do
     expect(ChatEventEvaluator).not_to have_received(:new)
   end
 
+  it "does not evaluate events for a soft-deleted chat" do
+    event
+    chat_session.update_column(:deleted_at, Time.current)
+    allow(ChatEventEvaluator).to receive(:new)
+
+    described_class.perform_now(event.id, chat_session.id)
+
+    expect(ChatEventEvaluator).not_to have_received(:new)
+  end
+
   it "retries failed evaluator events" do
     event.record_evaluator_failure!("JSON::ParserError: evaluator did not return JSON")
     evaluator = instance_double(ChatEventEvaluator, call: { "decision" => "no_op", "reason" => "handled on retry" })

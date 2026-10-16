@@ -1260,8 +1260,25 @@ Each user owns their own profile, credentials, defaults, and preferences:
   scripts, and `syrus credential exec` for non-SSH script credentials. Wrapper
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
   handles, never payload material. The broker enforces scope, surface, tool,
-  type, target constraints, expiry, and revocation; wrappers use temporary
-  process-local material, redaction, cleanup, and access audit events.
+  type, target constraints, expiry, and revocation. Omitted target constraints
+  are unrestricted, while present empty constraints deny access; URL prefixes
+  require the same HTTP(S) origin and a traversal-safe path-boundary match.
+  Wrappers use temporary process-local material, redaction, cleanup, and access
+  audit events. The MCP SSH tool accepts a restricted ASCII account name plus
+  an ASCII hostname or raw IP address (including an unbracketed IPv6 address);
+  it rejects option-like targets, whitespace, and control characters before
+  invoking OpenSSH. SSH execution runs only read-only diagnostic commands by
+  default; other commands and unsafe shell syntax require explicit workflow
+  authorization that chat callers cannot grant themselves.
+  The audit trail includes denied SSH attempts, bounded command evidence and
+  completion status, credential create/update policy changes, and explicit
+  un-revocation during rotation. Runtime wrapper completion events must match
+  an unexpired lease issued for the same credential, tool, and runtime context,
+  and each lease accepts only one completion event.
+  Name-based leases ignore inactive credentials, prefer user scope over
+  repository, team, and instance scopes, and reject equally ranked ambiguous
+  matches. Personal user-scoped credentials remain private to their owner even
+  from other administrators' agent runs.
 - **Agent Settings and Credentials** store the default agent provider,
   max-turn setting, auto-approval fallback, credentials, and "My default
   routing" rules. Repository settings can layer repository-specific routing

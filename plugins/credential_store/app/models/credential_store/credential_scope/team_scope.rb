@@ -13,6 +13,8 @@ module CredentialStore
         TeamMembership.where(team_id: credential.scope_id, user: context.user).exists?
       end
 
+      def resolution_precedence = 2
+
       private
 
       def model_class = ::Team

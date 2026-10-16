@@ -4,16 +4,17 @@ module CredentialStore
 
     SURFACES = %w[workflow chat admin api].freeze
     RESULTS = %w[allowed denied failed].freeze
-    ACTIONS = %w[read lease use test rotate revoke].freeze
+    ACTIONS = %w[create update read lease use test rotate revoke].freeze
     TOOL_NAME_PATTERN = /\A[a-z][a-z0-9_.:-]*\z/
 
-    belongs_to :credential, class_name: "CredentialStore::Credential", inverse_of: :access_events
+    belongs_to :credential, class_name: "CredentialStore::Credential", inverse_of: :access_events, optional: true
     belongs_to :user, class_name: "::User", optional: true
     belongs_to :repository, class_name: "::Repository", optional: true
     belongs_to :job, class_name: "::Job", optional: true
     belongs_to :workflow, class_name: "::Workflow", optional: true
     belongs_to :run, class_name: "::Run", optional: true
     belongs_to :chat_session, class_name: "::ChatSession", optional: true
+    belongs_to :completion_of_event, class_name: "CredentialStore::CredentialAccessEvent", optional: true
 
     validates :surface, presence: true, inclusion: { in: SURFACES }
     validates :action, presence: true, inclusion: { in: ACTIONS }
@@ -26,7 +27,7 @@ module CredentialStore
     before_update { raise ActiveRecord::ReadOnlyRecord, "CredentialStore::CredentialAccessEvent is append-only" }
     before_destroy { raise ActiveRecord::ReadOnlyRecord, "CredentialStore::CredentialAccessEvent is append-only" unless destroyed_by_association }
 
-    def self.record!(credential:, surface:, action:, result:, user: nil, repository: nil, job: nil, workflow: nil, run: nil, chat_session: nil, tool_name: nil, purpose: nil, denial_reason: nil, metadata: {})
+    def self.record!(credential:, surface:, action:, result:, user: nil, repository: nil, job: nil, workflow: nil, run: nil, chat_session: nil, tool_name: nil, purpose: nil, denial_reason: nil, metadata: {}, lease_id: nil, completion_of_event: nil)
       create!(
         credential: credential,
         user: user,
@@ -41,7 +42,9 @@ module CredentialStore
         purpose: purpose,
         result: result,
         denial_reason: denial_reason,
-        metadata: metadata || {}
+        metadata: metadata || {},
+        lease_id: lease_id,
+        completion_of_event: completion_of_event
       )
     end
 

@@ -90,12 +90,22 @@ expiry. A successful call issues a short-lived local lease, materializes the
 payload only inside the block as either a restrictive temporary file or a
 per-call env hash, and cleans that local material in `ensure`.
 
+Name lookup considers active credentials only and resolves scopes in user,
+repository, team, then instance order. Names must be unique among active
+credentials within the same scope; an equally ranked match across multiple
+accessible repositories or teams is rejected as ambiguous. Admin status does
+not make another user's user-scoped credential available.
+
 Target constraints are deliberately small and broker-owned. Supported keys are
 `allowed_hosts`, `allowed_url_prefixes`, `allowed_kube_contexts`,
 `allowed_kube_clusters`, and `allowed_kube_namespaces`. Dependent tools pass a
 target hash such as `host`, `url`, `kube_context`, `kube_cluster`, and
 `kube_namespace`; the broker records allowed/denied audit rows without storing
-payload material.
+payload material. Omitting a constraint leaves that dimension unrestricted;
+configuring it with an empty or blank-only array denies every target. URL
+prefixes match only HTTP(S) URLs with the same scheme, host, and effective port,
+paths must match at a slash boundary, and literal or percent-encoded dot-segment
+traversal is rejected.
 
 Broker return values and broker-wrapped exceptions are scrubbed with
 `CredentialStore::Redaction`, which removes the known credential payload and
@@ -175,6 +185,17 @@ completion audit row with the lease id, credential handle, current
 job/workflow/run/repository/user context, wrapper command namespace, child exit
 status, and duration. It does not print private keys, passphrases, raw payload
 material, or child command arguments.
+
+Completion audit submissions are accepted exactly once for an unexpired lease
+issued to the same credential, wrapper tool, and runtime context. Exit status must be
+an integer, and wrapper tool names cannot be overridden by the child process.
+Direct SSH execution records a SHA-256 command digest, a bounded command
+preview, duration, and exit status; rejected input and policy checks are also
+recorded as denied attempts. Creating or editing a credential records an admin
+audit row with the non-secret scope, surface, tool, and target-constraint
+changes. Payload replacement is recorded only as a boolean, never as payload
+material, and rotating a revoked credential explicitly records that it was
+un-revoked.
 
 ## Repository-Owned Script Policy
 
@@ -281,6 +302,15 @@ file only for the duration of the SSH process, and returns sanitized
 with `private_key` and optional `passphrase`; passphrases are passed through a
 temporary askpass helper and redacted from results.
 
+SSH targets use a deliberately narrow syntax. `user` must begin with an ASCII
+letter, digit, or underscore and may then contain only ASCII letters, digits,
+underscores, dots, or hyphens. `host` must be an ASCII hostname beginning with
+a letter or digit, or a raw IPv4 or unbracketed IPv6 address. Option-like
+values, whitespace, and control characters are rejected rather than passed to
+OpenSSH. `port` and `connect_timeout`, when supplied, must contain decimal
+digits only; `port` is limited to `1..65535` and `connect_timeout` to
+`1..120` seconds.
+
 Use target policy on SSH credentials:
 
 - Set `safe_metadata.host` and `safe_metadata.username` when a key belongs to
@@ -293,10 +323,12 @@ Use target policy on SSH credentials:
 
 The tool refuses credentials that have no host, known-host, or `allowed_hosts`
 constraint unless a workflow caller explicitly sets
-`allow_unconstrained_host: true`. Commands matching obviously destructive
-patterns are refused unless a workflow caller supplies
-`allow_risky_command: true`. Chat-surface calls cannot self-authorize either
-bypass; they fail instead of executing. All access attempts are audited by the
-broker, including denials for revoked credentials, wrong credential types,
+`allow_unconstrained_host: true`. Only a conservative allowlist of read-only
+diagnostic commands runs without confirmation; shell expansion, globbing,
+redirection, and every command outside that allowlist are refused unless a
+workflow caller supplies `allow_risky_command: true`. Chat-surface calls cannot
+self-authorize either bypass; they fail instead of executing. All access
+attempts are audited by the broker, including denials for revoked credentials,
+wrong credential types,
 surface/tool policy mismatches, SSH metadata mismatches, unconstrained
 credentials, and target constraint failures.

@@ -3,7 +3,10 @@ module Api
     module App
       module CredentialStore
         class LeasesController < BaseController
+          class InvalidAudit < StandardError; end
+
           before_action :require_credential_store_enabled
+          rescue_from ::CredentialStore::Broker::Ambiguous, with: :render_ambiguous_credential
 
           def create
             context = current_invocation_context
@@ -96,7 +99,9 @@ module Api
             context = require_runtime_context!
             return unless context
 
-            credential = visible_credential!(exec_audit_attrs.fetch(:credential))
+            credential, lease_event, exit_status = validate_completion_audit!(
+              exec_audit_attrs, context: context, expected_tool: "credential.exec"
+            )
             ::CredentialStore::CredentialAccessEvent.record!(
               credential: credential,
               user: context.user,
@@ -106,23 +111,30 @@ module Api
               run: context.run,
               chat_session: context.chat_session,
               surface: context.run? ? "workflow" : context.surface.to_s,
-              tool_name: exec_audit_attrs[:tool_name].presence || "credential.exec",
+              tool_name: "credential.exec",
               action: "use",
               purpose: exec_audit_attrs[:purpose].presence || "credential exec command",
-              result: exec_audit_attrs[:exit_status].to_i.zero? ? "allowed" : "failed",
-              metadata: exec_audit_metadata
+              result: exit_status.zero? ? "allowed" : "failed",
+              metadata: exec_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status),
+              completion_of_event: lease_event
             )
 
             head :no_content
           rescue ActiveRecord::RecordNotFound => e
             render_error("not_found", e.message, status: :not_found)
+          rescue InvalidAudit => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
+          rescue ActiveRecord::RecordNotUnique
+            render_error("validation_failed", "lease completion was already recorded", status: :unprocessable_content)
           end
 
           def ssh_agent_audit
             context = require_runtime_context!
             return unless context
 
-            credential = visible_credential!(ssh_agent_audit_attrs.fetch(:credential))
+            credential, lease_event, exit_status = validate_completion_audit!(
+              ssh_agent_audit_attrs, context: context, expected_tool: "credential.ssh-agent"
+            )
             ::CredentialStore::CredentialAccessEvent.record!(
               credential: credential,
               user: context.user,
@@ -132,19 +144,28 @@ module Api
               run: context.run,
               chat_session: context.chat_session,
               surface: context.run? ? "workflow" : context.surface.to_s,
-              tool_name: ssh_agent_audit_attrs[:tool_name].presence || "credential.ssh-agent",
+              tool_name: "credential.ssh-agent",
               action: "use",
               purpose: ssh_agent_audit_attrs[:purpose].presence || "ssh-agent command",
-              result: ssh_agent_audit_attrs[:exit_status].to_i.zero? ? "allowed" : "failed",
-              metadata: ssh_agent_audit_metadata
+              result: exit_status.zero? ? "allowed" : "failed",
+              metadata: ssh_agent_audit_metadata.merge(lease_event_id: lease_event.id, exit_status: exit_status),
+              completion_of_event: lease_event
             )
 
             head :no_content
           rescue ActiveRecord::RecordNotFound => e
             render_error("not_found", e.message, status: :not_found)
+          rescue InvalidAudit => e
+            render_error("validation_failed", e.message, status: :unprocessable_content)
+          rescue ActiveRecord::RecordNotUnique
+            render_error("validation_failed", "lease completion was already recorded", status: :unprocessable_content)
           end
 
           private
+
+          def render_ambiguous_credential(error)
+            render_error("conflict", error.message, status: :conflict)
+          end
 
           def require_credential_store_enabled
             return if ::CredentialStore.enabled?
@@ -233,7 +254,6 @@ module Api
           def exec_audit_metadata
             {
               lease_id: exec_audit_attrs[:lease_id].presence,
-              exit_status: exec_audit_attrs[:exit_status].to_i,
               duration_ms: exec_audit_attrs[:duration_ms].to_i,
               mode: exec_audit_attrs[:mode].presence
             }.compact
@@ -253,15 +273,46 @@ module Api
           def ssh_agent_audit_metadata
             {
               lease_id: ssh_agent_audit_attrs[:lease_id].presence,
-              exit_status: ssh_agent_audit_attrs[:exit_status].to_i,
               duration_ms: ssh_agent_audit_attrs[:duration_ms].to_i
             }.compact
           end
 
-          def visible_credential!(ref)
-            relation = ::CredentialStore::Credential.all
-            relation = ref.to_s.match?(/\A\d+\z/) ? relation.where(id: ref) : relation.where(name: ref.to_s)
-            relation.detect { |credential| credential.scope_policy.usable_by?(credential, current_invocation_context) } || raise(ActiveRecord::RecordNotFound, "credential not found")
+          def validate_completion_audit!(attrs, context:, expected_tool:)
+            lease_id = attrs[:lease_id].to_s
+            raise InvalidAudit, "lease_id is required" if lease_id.blank?
+            raise InvalidAudit, "tool_name does not match the lease tool" if attrs[:tool_name].present? && attrs[:tool_name] != expected_tool
+
+            exit_status = Integer(attrs[:exit_status], exception: false)
+            raise InvalidAudit, "exit_status must be an integer" if exit_status.nil?
+
+            event = ::CredentialStore::CredentialAccessEvent.find_by(
+              action: "lease", result: "allowed", tool_name: expected_tool, lease_id: lease_id
+            )
+            raise InvalidAudit, "lease was not issued for this credential and tool" unless event&.credential
+            credential = event.credential
+            raise InvalidAudit, "lease was not issued for this credential and tool" unless credential_ref_matches?(attrs.fetch(:credential), credential)
+            raise InvalidAudit, "lease does not belong to this runtime context" unless audit_context_matches?(event, context)
+            raise InvalidAudit, "lease completion was already recorded" if ::CredentialStore::CredentialAccessEvent.exists?(completion_of_event: event)
+
+            expires_at = Time.iso8601(event.metadata.fetch("expires_at"))
+            raise InvalidAudit, "lease has expired" if Time.current >= expires_at
+
+            [ credential, event, exit_status ]
+          rescue KeyError, ArgumentError
+            raise InvalidAudit, "lease metadata is invalid"
+          end
+
+          def credential_ref_matches?(reference, credential)
+            reference.to_s == credential.id.to_s || reference.to_s == credential.name
+          end
+
+          def audit_context_matches?(event, context)
+            event.user_id == context.user&.id &&
+              event.repository_id == context.repository&.id &&
+              event.job_id == context.job&.id &&
+              event.workflow_id == context.workflow&.id &&
+              event.run_id == context.run&.id &&
+              event.chat_session_id == context.chat_session&.id
           end
         end
       end

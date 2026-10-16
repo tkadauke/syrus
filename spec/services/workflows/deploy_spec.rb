@@ -50,31 +50,38 @@ RSpec.describe Workflows::Deploy do
 
     it ".after_success closes a continuous-deploy anchor Job" do
       workflow = described_class.instantiate(job: anchor_job, artifacts: { "deploy_sha" => "abc123" })
+      allow(DeployContinuousTrigger).to receive(:after_deploy!)
 
       expect { described_class.after_success(workflow) }
         .to change { anchor_job.reload.state }.from("running").to("closed")
 
       expect(anchor_job.closure_reason).to eq(Job::DEPLOY_CLOSURE_REASON)
+      expect(DeployContinuousTrigger).to have_received(:after_deploy!).with(repository)
     end
 
     it ".after_fail closes a continuous-deploy anchor Job" do
       workflow = described_class.instantiate(job: anchor_job, artifacts: { "deploy_sha" => "abc123" })
+      allow(DeployContinuousTrigger).to receive(:after_deploy!)
 
       expect { described_class.after_fail(workflow) }
         .to change { anchor_job.reload.state }.from("running").to("closed")
 
       expect(anchor_job.closure_reason).to eq(Job::DEPLOY_CLOSURE_REASON)
+      expect(DeployContinuousTrigger).to have_received(:after_deploy!).with(repository)
     end
 
     it "does not close an ordinary Job used for a manual deploy" do
       manual_job = Factories.job_record(repository: repository, state: "approved")
       workflow = described_class.instantiate(job: manual_job)
+      allow(DeployContinuousTrigger).to receive(:after_deploy!)
 
       expect { described_class.after_success(workflow) }
         .not_to change { manual_job.reload.state }
 
       expect { described_class.after_fail(workflow) }
         .not_to change { manual_job.reload.state }
+
+      expect(DeployContinuousTrigger).not_to have_received(:after_deploy!)
     end
   end
 end

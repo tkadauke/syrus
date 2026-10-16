@@ -7,8 +7,10 @@ module CredentialStore
       end
 
       def usable_by?(credential, context)
-        context.user.present? && (context.user.admin? || credential.scope_id.to_i == context.user.id)
+        context.user.present? && credential.scope_id.to_i == context.user.id
       end
+
+      def resolution_precedence = 0
 
       private
 

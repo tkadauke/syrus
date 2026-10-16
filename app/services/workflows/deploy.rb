@@ -26,16 +26,23 @@ module Workflows
     # it here the same way Workflows::MainGrader.close_anchor_job! closes
     # its own anchor Job — regardless of whether the deploy succeeded or
     # failed, since failure detail lives on the Workflow/Run, not the Job.
-    def self.after_success(workflow) = close_anchor_job!(workflow)
-    def self.after_fail(workflow) = close_anchor_job!(workflow)
+    def self.after_success(workflow)
+      finish_anchor_job!(workflow)
+    end
 
-    private_class_method def self.close_anchor_job!(workflow)
+    def self.after_fail(workflow)
+      finish_anchor_job!(workflow)
+    end
+
+    private_class_method def self.finish_anchor_job!(workflow)
       job = workflow.job
       return unless job.deploy_job?
 
       StateTransition.with_source("system") do
         job.close_with_reason!(Job::DEPLOY_CLOSURE_REASON) if job.may_close?
       end
+
+      DeployContinuousTrigger.after_deploy!(job.repository)
     end
   end
 end

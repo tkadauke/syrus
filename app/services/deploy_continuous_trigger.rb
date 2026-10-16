@@ -11,6 +11,17 @@
 # MaybeDeployJob; this class only decides whether to enqueue one at all.
 class DeployContinuousTrigger
   def self.after_landing!(repository)
+    enqueue_if_continuous!(repository)
+  end
+
+  # A landing trigger can be consumed while its predecessor is still
+  # deploying. Recheck after that deploy finishes; MaybeDeployJob compares
+  # the attempted SHA with current HEAD and only launches when HEAD advanced.
+  def self.after_deploy!(repository)
+    enqueue_if_continuous!(repository)
+  end
+
+  private_class_method def self.enqueue_if_continuous!(repository)
     return unless repository
 
     deploy_config = App::DeployAvailability.deploy_config(repository)

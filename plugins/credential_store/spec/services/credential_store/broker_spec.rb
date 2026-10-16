@@ -102,6 +102,95 @@ RSpec.describe CredentialStore::Broker do
     expect(CredentialStore::CredentialAccessEvent.where(credential: credential, result: "allowed").count).to eq(1)
   end
 
+  it "resolves an active replacement instead of an older revoked credential with the same name" do
+    create_credential(revoked_at: Time.current, payload: "retired-secret")
+    create_credential(expires_at: 1.minute.ago, payload: "expired-secret")
+    replacement = create_credential(payload: "replacement-secret")
+
+    result = described_class.with_credential_env(
+      context: context,
+      credential: "deploy-token",
+      type: "credential_store.url_token",
+      env_key: "DEPLOY_TOKEN",
+      purpose: "deploy",
+      tool_name: "deploy.push",
+      target: { host: "api.example.com", url: "https://api.example.com/releases" }
+    ) { |env, metadata| [ env.fetch("DEPLOY_TOKEN"), metadata.fetch(:credential_id) ] }
+
+    expect(result).to eq([ CredentialStore::Redaction::REDACTION, replacement.id ])
+  end
+
+  it "does not let an admin resolve another user's user-scoped credential" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_job = Factories.job_with_run(user: admin, repository: admin_repository)
+    personal = create_credential(scope_type: "user", scope_id: user.id)
+
+    expect {
+      described_class.with_credential_env(
+        context: McpToolContext.from_run(admin_job.runs.first),
+        credential: personal.name,
+        type: "credential_store.url_token",
+        env_key: "DEPLOY_TOKEN",
+        purpose: "deploy",
+        tool_name: "deploy.push"
+      ) { |env, _metadata| env }
+    }.to raise_error(CredentialStore::Broker::NotFound)
+  end
+
+  it "prefers user, repository, team, then instance credentials by name" do
+    team = Team.create!(name: "Platform")
+    team.team_memberships.create!(user: user, role: "member")
+    team.team_repositories.create!(repository: repository, role: "read")
+    create_credential(scope_type: "instance", scope_id: nil, payload: "instance-secret")
+    create_credential(scope_type: "team", scope_id: team.id, payload: "team-secret")
+    create_credential(payload: "repository-secret")
+    personal = create_credential(scope_type: "user", scope_id: user.id, payload: "user-secret")
+
+    resolved = described_class.resolve_credential!(context: context, credential_ref: "deploy-token")
+
+    expect(resolved).to eq(personal)
+  end
+
+  it "rejects ambiguous names at the same scope precedence" do
+    first_team = Team.create!(name: "Platform")
+    second_team = Team.create!(name: "Operations")
+    first_team.team_memberships.create!(user: user, role: "member")
+    second_team.team_memberships.create!(user: user, role: "member")
+    duplicate = create_credential(scope_type: "team", scope_id: first_team.id)
+    create_credential(scope_type: "team", scope_id: second_team.id)
+
+    expect {
+      described_class.resolve_credential!(context: context, credential_ref: duplicate.name)
+    }.to raise_error(CredentialStore::Broker::Ambiguous, /ambiguous/)
+  end
+
+  it "audits ambiguous credential attempts without choosing a candidate" do
+    first_team = Team.create!(name: "Platform")
+    second_team = Team.create!(name: "Operations")
+    first_team.team_memberships.create!(user: user, role: "member")
+    second_team.team_memberships.create!(user: user, role: "member")
+    create_credential(scope_type: "team", scope_id: first_team.id)
+    create_credential(scope_type: "team", scope_id: second_team.id)
+
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: "deploy-token",
+        type: "credential_store.url_token",
+        env_key: "DEPLOY_TOKEN",
+        purpose: "deploy",
+        tool_name: "deploy.push"
+      ) { |env, _metadata| env }
+    }.to raise_error(CredentialStore::Broker::Ambiguous, /ambiguous/)
+
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: nil,
+      result: "denied",
+      denial_reason: "credential name is ambiguous"
+    )
+  end
+
   it "denies inactive, mismatched, disallowed, and constrained credentials with audit rows but no payload material" do
     credential = create_credential(allowed_tools: [ "deploy.pull" ])
 
@@ -188,7 +277,31 @@ RSpec.describe CredentialStore::Broker do
       ) { |env, _metadata| env }
     }.to raise_error(CredentialStore::Broker::NotFound)
 
-    expect(CredentialStore::CredentialAccessEvent.where(credential: credential)).to be_empty
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      result: "denied",
+      denial_reason: "credential scope not usable"
+    )
+  end
+
+  it "audits unknown credential attempts without changing the not-found response" do
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: "missing-credential",
+        type: "credential_store.generic",
+        env_key: "TOKEN",
+        purpose: "deploy",
+        tool_name: "git.push"
+      ) { raise "must not yield" }
+    }.to raise_error(CredentialStore::Broker::NotFound, "credential not found")
+
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: nil,
+      result: "denied",
+      denial_reason: "credential not found"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("credential_ref" => "missing-credential")
   end
 
   it "authorizes team-scoped credentials through team repository membership" do

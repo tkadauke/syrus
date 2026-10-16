@@ -513,6 +513,10 @@ opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
 backend and reconnects automatically (with backoff) if the connection
 drops; press Ctrl+C to disconnect cleanly.
 
+In a group chat, only the chat owner can create or remove this daemon pairing.
+Other participants can see whether Local Mode is connected, but cannot attach
+their own daemon to the chat or disconnect the owner's machine.
+
 While connected, read-only tool calls run immediately. File writes and shell
 commands first appear in chat as pending actions; Syrus does not send them to
 the local daemon until you confirm. Confirming a write or command approves

@@ -36,6 +36,15 @@ RSpec.describe LocalToolCall, type: :model do
         expect(call.dispatched_at).to be_within(1.second).of(Time.current)
       end
     end
+
+    it "only claims a pending call once" do
+      call = tool_call
+      stale_copy = described_class.find(call.id)
+
+      expect(call.dispatch!).to be(true)
+      expect(stale_copy.dispatch!).to be(false)
+      expect(stale_copy.reload.state).to eq("dispatched")
+    end
   end
 
   describe "#complete!" do

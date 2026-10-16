@@ -209,6 +209,33 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(parse_body.fetch("credentials").find { |item| item.fetch("id") == credential.id }).to include("revoked_at")
   end
 
+  it "audits credential creation and privilege-affecting updates without payload material" do
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/credentials", params: {
+      credential: credential_params(scope_type: "repository", scope_id: repository.id, payload: "created-secret")
+    }
+
+    credential = CredentialStore::Credential.order(:id).last
+    created = CredentialStore::CredentialAccessEvent.last
+    expect(created).to have_attributes(action: "create", result: "allowed", user: operator)
+    expect(created.metadata).to include("before" => nil, "payload_replaced" => true)
+    expect(created.metadata.to_json).not_to include("created-secret")
+
+    patch "/api/v1/app/credential_store/credentials/#{credential.id}", params: {
+      credential: credential_params(scope_type: "repository", scope_id: repository.id, payload: "").merge(
+        allowed_tools: [ "git.push", "deploy.push" ],
+        target_constraints: { allowed_hosts: [ "github.com", "api.example.com" ] }
+      )
+    }
+
+    expect(response).to have_http_status(:ok)
+    updated = CredentialStore::CredentialAccessEvent.last
+    expect(updated).to have_attributes(action: "update", result: "allowed", user: operator)
+    expect(updated.metadata.dig("before", "allowed_tools")).to eq([ "git.push" ])
+    expect(updated.metadata.dig("after", "allowed_tools")).to eq([ "git.push", "deploy.push" ])
+    expect(updated.metadata).to include("payload_replaced" => false)
+  end
+
   it "does not allow an operator to move an editable credential into an unauthorized scope" do
     credential = create_credential(scope_type: "user", scope_id: operator.id)
 
@@ -485,11 +512,19 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     )
     token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
 
+    post "/api/v1/app/credential_store/exec_material",
+      params: { credential_exec: {
+        credential: credential.name, type: credential.credential_type, purpose: "deploy",
+        target: { host: "github.com" }
+      } },
+      headers: { "Authorization" => "Bearer #{token}" }
+    lease_id = parse_body.dig("lease", "lease_id")
+
     post "/api/v1/app/credential_store/exec/audit",
       params: {
         credential_exec_audit: {
           credential: credential.name,
-          lease_id: "lease-exec",
+          lease_id: lease_id,
           purpose: "deploy",
           tool_name: "credential.exec",
           exit_status: 37,
@@ -506,12 +541,72 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       action: "use",
       tool_name: "credential.exec",
       metadata: include(
-        "lease_id" => "lease-exec",
+        "lease_id" => lease_id,
         "exit_status" => 37,
         "duration_ms" => 1234,
         "mode" => "file-env"
       )
     )
+
+    post "/api/v1/app/credential_store/exec/audit",
+      params: {
+        credential_exec_audit: {
+          credential: credential.name, lease_id: lease_id,
+          tool_name: "credential.exec", exit_status: 0
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(CredentialStore::CredentialAccessEvent.where(completion_of_event_id: CredentialStore::CredentialAccessEvent.find_by!(lease_id: lease_id).id).count).to eq(1)
+  end
+
+  it "attributes completion to the leased credential after name-based rotation" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    leased = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+    post "/api/v1/app/credential_store/exec_material",
+      params: { credential_exec: {
+        credential: leased.name, type: leased.credential_type, purpose: "deploy",
+        target: { host: "github.com" }
+      } },
+      headers: { "Authorization" => "Bearer #{token}" }
+    lease_id = parse_body.dig("lease", "lease_id")
+
+    leased.update!(revoked_at: Time.current)
+    replacement = create_credential(
+      scope_type: "repository",
+      scope_id: repository.id,
+      credential_type: "credential_store.url_token",
+      allowed_surfaces: [ "workflow" ],
+      allowed_tools: [ "credential.exec" ]
+    )
+    post "/api/v1/app/credential_store/exec/audit",
+      params: {
+        credential_exec_audit: {
+          credential: leased.name,
+          lease_id: lease_id,
+          tool_name: "credential.exec",
+          exit_status: 0,
+          duration_ms: 1234,
+          mode: "env-var"
+        }
+      },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:no_content)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: leased,
+      action: "use",
+      result: "allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.where(credential: replacement)).to be_empty
   end
 
   it "issues SSH agent material only through runtime CLI authentication without writing payload into lease metadata" do
@@ -627,11 +722,18 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     )
     token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
 
+    post "/api/v1/app/credential_store/ssh_agent",
+      params: { ssh_agent: {
+        credential: credential.name, purpose: "deploy", target: { host: "github.com" }
+      } },
+      headers: { "Authorization" => "Bearer #{token}" }
+    lease_id = parse_body.dig("lease", "lease_id")
+
     post "/api/v1/app/credential_store/ssh_agent/audit",
       params: {
         ssh_agent_audit: {
           credential: credential.name,
-          lease_id: "lease-ssh",
+          lease_id: lease_id,
           purpose: "deploy",
           tool_name: "credential.ssh-agent",
           exit_status: 37,
@@ -647,11 +749,35 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       action: "use",
       tool_name: "credential.ssh-agent",
       metadata: include(
-        "lease_id" => "lease-ssh",
+        "lease_id" => lease_id,
         "exit_status" => 37,
         "duration_ms" => 1234
       )
     )
+  end
+
+
+  it "rejects forged completion audits and malformed tool names with 422" do
+    job = Factories.job_with_run(user: operator, repository: repository, run_attrs: { state: "running" })
+    credential = create_credential(
+      scope_type: "repository", scope_id: repository.id,
+      credential_type: "credential_store.url_token", payload: "secret",
+      allowed_surfaces: [ "workflow" ], allowed_tools: [ "credential.exec" ]
+    )
+    token = McpInvocationContext.issue_for_app_run(job.runs.first, expires_in: 5.minutes)
+
+    [
+      { lease_id: "invented", tool_name: "credential.exec", exit_status: 0 },
+      { lease_id: "invented", tool_name: "Bad Tool", exit_status: 0 },
+      { lease_id: "invented", tool_name: "credential.exec", exit_status: "nope" }
+    ].each do |audit_attrs|
+      post "/api/v1/app/credential_store/exec/audit",
+        params: { credential_exec_audit: audit_attrs.merge(credential: credential.name) },
+        headers: { "Authorization" => "Bearer #{token}" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+    expect(CredentialStore::CredentialAccessEvent.where(action: "use")).to be_empty
   end
 
   def credential_params(scope_type:, scope_id:, payload:)
