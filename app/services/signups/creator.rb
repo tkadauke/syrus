@@ -36,6 +36,9 @@ module Signups
       end
 
       result
+    rescue ActiveRecord::RecordNotUnique
+      user.errors.add(:email_address, :taken)
+      Result.new(user:, status: :invalid)
     end
 
     private
