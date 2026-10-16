@@ -105,8 +105,26 @@ class AutoMergeGate
     self.class.syrus_side_approval?(@job)
   end
 
-  def formal_approval?(_pr)
-    @client.pr_reviews(@repository.slug, @job.pr_number).any? { |review| review.state == "APPROVED" }
+  def formal_approval?(pr)
+    head_sha = pr.head&.sha.to_s
+    return false if head_sha.blank?
+
+    latest_reviews_by_author.values.any? do |review|
+      review.state == "APPROVED" &&
+        WRITE_ASSOCIATIONS.include?(review.author_association.to_s) &&
+        review.commit_id.to_s == head_sha
+    end
+  end
+
+  def latest_reviews_by_author
+    @client.pr_reviews(@repository.slug, @job.pr_number).each_with_object({}) do |review, latest|
+      next if review.state == "COMMENTED"
+
+      author = review.user&.login.to_s.downcase
+      next if author.blank?
+
+      latest[author] = review
+    end
   end
 
   def slash_approval?(pr)

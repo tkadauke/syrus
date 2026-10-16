@@ -34,7 +34,14 @@ RSpec.describe "landing failure handling" do
     run = step.runs.create!(job: job, trigger_kind: "auto_merge", agent_provider: workflow.agent_provider)
 
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr)
-    allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
+      OpenStruct.new(
+        state: "APPROVED",
+        commit_id: "abc",
+        author_association: "MEMBER",
+        user: OpenStruct.new(login: "reviewer")
+      )
+    ])
     allow_any_instance_of(GithubClient).to receive(:pr_issue_comments).and_return([])
     allow_any_instance_of(GithubClient).to receive(:pr_commits).and_return([])
 

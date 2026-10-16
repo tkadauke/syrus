@@ -24,12 +24,22 @@ RSpec.describe PollMergeStateJob, :ci_only do
     )
   end
 
+  def review(login: "reviewer", submitted_at: nil)
+    OpenStruct.new(
+      state: "APPROVED",
+      commit_id: "abc",
+      author_association: "MEMBER",
+      user: OpenStruct.new(login: login),
+      submitted_at: submitted_at
+    )
+  end
+
   before do
     job.mark_implemented! if job.may_mark_implemented?
     job.save!
     mark_workflows_succeeded_for_polling!(job)
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr)
-    allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ review ])
     allow_any_instance_of(GithubClient).to receive(:pr_issue_comments).and_return([])
     allow_any_instance_of(GithubClient).to receive(:pr_commits).and_return([])
     allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_return("base")
@@ -396,7 +406,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
       reviewer = Factories.user(github_handle: "reviewer")
       submitted = 1.hour.ago
       allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
-        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "reviewer"), submitted_at: submitted.iso8601)
+        review(submitted_at: submitted.iso8601)
       ])
 
       expect {
@@ -412,7 +422,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
       reviewer = Factories.user(github_handle: "reviewer")
       job.job_approvals.create!(user: reviewer, approved_at: 2.hours.ago)
       allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
-        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "reviewer"), submitted_at: 1.hour.ago.iso8601)
+        review(submitted_at: 1.hour.ago.iso8601)
       ])
 
       expect {
@@ -422,7 +432,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
     it "does not create a JobApproval for an external approver with no Syrus account" do
       allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([
-        OpenStruct.new(state: "APPROVED", user: OpenStruct.new(login: "outsider"), submitted_at: 1.hour.ago.iso8601)
+        review(login: "outsider", submitted_at: 1.hour.ago.iso8601)
       ])
 
       expect {
