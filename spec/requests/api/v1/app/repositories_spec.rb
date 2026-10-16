@@ -221,6 +221,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "open_jobs_count" => 1,
         "last_job_activity_at" => job_activity_at.iso8601,
         "last_poll_status" => "ok",
+        "can_edit" => true,
         "repository_path" => repository_path(active),
         "edit_repository_path" => edit_repository_path(active)
       )
@@ -439,6 +440,13 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       ci_health: "healthy"
     )
     repository.repository_memberships.create!(user: reader, role: "read")
+    archived_repository = Factories.repository(user: owner, owner: "archived", name: "shared")
+    archived_repository.repository_memberships.create!(user: reader, role: "read")
+    archived_repository.archive!
+    2.times do |index|
+      visible = Factories.repository(user: owner, owner: "shared", name: "repo-#{index}")
+      visible.repository_memberships.create!(user: reader, role: "write")
+    end
     job = repository.jobs.create!(
       user: owner,
       kind: "direct",
@@ -448,10 +456,15 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     sign_in_as(reader)
 
-    get "/api/v1/app/repositories"
+    queries = capture_sql do
+      get "/api/v1/app/repositories"
+    end
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["active_repositories"].find { |row| row["id"] == repository.id }["can_edit"]).to eq(false)
+    row = parse_body["archived_repositories"].find { |candidate| candidate["id"] == archived_repository.id }
+    expect(row).to include("can_edit" => false)
+    expect(queries).not_to include(a_string_matching(/repository_memberships.*repository_id.*LIMIT/i))
+    expect(queries).not_to include(a_string_matching(/team_repositories.*repository_id.*LIMIT/i))
 
     get "/api/v1/app/repositories/#{repository.id}"
 
@@ -488,6 +501,22 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository).not_to be_archived
     expect(repository.landing_paused).to be(true)
     expect(job.reload).to be_needs_triage
+  end
+
+  it "lists team-readable repositories without exposing admin controls" do
+    owner = Factories.user(email_address: "team-repository-owner@example.com")
+    reader = Factories.user(email_address: "team-repository-reader@example.com", admin: false)
+    repository = Factories.repository(user: owner, owner: "shared", name: "team-repo")
+    repository.archive!
+    team = Team.create!(name: "Repository readers")
+    team.team_memberships.create!(user: reader, role: "member")
+    team.team_repositories.create!(repository: repository, role: "read")
+    sign_in_as(reader)
+
+    get "/api/v1/app/repositories"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["archived_repositories"]).to include(include("id" => repository.id, "can_edit" => false))
   end
 
   it "allows admin-tier repository members to mutate repository settings" do
