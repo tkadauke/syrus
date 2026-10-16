@@ -14,6 +14,8 @@ require "fileutils"
 class AutoRebase
   class LeaseRejected < StandardError; end
 
+  LEASE_REJECTED_PATTERN = /\((?:non-fast-forward|fetch first|stale info|needs force)\)/i
+
   # A clean rebase that leaves nothing ahead of the base. Distinct from
   # "rebased" because the branch must NOT be pushed and the Job has, in
   # substance, landed.
@@ -128,7 +130,10 @@ class AutoRebase
   private
 
   def clone_path
-    @clone_path ||= WorkflowWorkspace.data_root.join("auto-rebase", @job.id.to_s)
+    @clone_path ||= WorkflowWorkspace.data_root.join(
+      "auto-rebase",
+      "#{@job.id}-#{SecureRandom.hex(4)}"
+    )
   end
 
   def authenticated_url
@@ -148,6 +153,7 @@ class AutoRebase
   # merge-base computation works across any history depth.
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
+    FileUtils.rm_rf(clone_path)
     authenticated_git("git_auto_rebase_clone") do |url|
       @git.run(
         "clone", "--branch", base_branch,
@@ -252,7 +258,7 @@ class AutoRebase
   end
 
   def lease_rejected?(error)
-    error.output.to_s.match?(/stale info|fetch first|rejected/i)
+    error.output.to_s.match?(LEASE_REJECTED_PATTERN)
   end
 
   def head_sha
