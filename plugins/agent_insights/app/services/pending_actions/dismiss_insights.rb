@@ -13,7 +13,7 @@ module PendingActions
 
     private
 
-    def mutation = @mutation ||= AgentInsights::Mutations::Dismiss.new(ids: payload.fetch("insight_ids"), actor: user, repository_scope: permitted_repositories, reason: payload["reason"])
+    def mutation = @mutation ||= AgentInsights::Mutations::Dismiss.new(ids: payload.fetch("insight_ids"), actor: user, audit_actor: user, repository_scope: permitted_repositories, reason: payload["reason"])
     def permitted_repositories = user.admin? ? Repository.all : Repository.accessible_to(user)
   end
 end
