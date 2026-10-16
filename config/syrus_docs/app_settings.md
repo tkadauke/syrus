@@ -561,7 +561,10 @@ such column at all.
 **`RetentionPruner`** (`app/services/retention_pruner.rb`) is the shared
 bounded-delete service used by retention PruneJobs. It selects ordered
 primary-key batches (1,000 rows by default), processes at most 50 batches per
-run, and commits each batch separately. Archivable jobs supply a retention key
+run, and commits each batch separately. MySQL workers claim rows with
+`FOR UPDATE SKIP LOCKED`, allowing overlapping workers to process distinct
+batches without duplicate archives; SQLite development/test processes
+serialize batch selection in-process. Archivable jobs supply a retention key
 and cutoff:
 
 ```ruby
