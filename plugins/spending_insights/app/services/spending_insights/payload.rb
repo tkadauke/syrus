@@ -82,7 +82,7 @@ module SpendingInsights
 
     def run_cost_totals
       @run_cost_totals ||= begin
-        week, month, lifetime = filtered_runs.pick(
+        week, month, lifetime = unwindowed_runs.pick(
           Arel.sql(cost_sum_between_sql(today.beginning_of_week.beginning_of_day, today.end_of_day)),
           Arel.sql(cost_sum_between_sql(today.beginning_of_month.beginning_of_day, today.end_of_day)),
           Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
@@ -94,13 +94,13 @@ module SpendingInsights
 
     def chat_cost_totals
       @chat_cost_totals ||= begin
-        week, month, window = provider_scoped_chat_spend_entries.pick(
+        week, month, lifetime = provider_scoped_unwindowed_chat_spend_entries.pick(
           Arel.sql(chat_cost_sum_between_sql(today.beginning_of_week.beginning_of_day, today.end_of_day)),
           Arel.sql(chat_cost_sum_between_sql(today.beginning_of_month.beginning_of_day, today.end_of_day)),
           Arel.sql("COALESCE(SUM(chat_spend_entries.cost_usd), 0)")
         )
 
-        { week: week || 0, month: month || 0, window: window || 0 }
+        { week: week || 0, month: month || 0, window: lifetime || 0 }
       end
     end
 
@@ -111,12 +111,27 @@ module SpendingInsights
       filter.apply(relation)
     end
 
+    def unwindowed_runs
+      relation = Run.where.not(cost_usd: nil)
+      relation = relation.where(user_id: user.id) unless user.admin?
+
+      filter.apply_without_date(relation)
+    end
+
     def scoped_jobs
       Job.where(id: filtered_runs.select(:job_id))
     end
 
     def scoped_chat_spend_entries
       relation = ChatSpendEntry.where(incurred_at: start_date.beginning_of_day..end_date.end_of_day)
+      relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
+      return relation if user.admin?
+
+      relation.where(user_id: user.id)
+    end
+
+    def unwindowed_chat_spend_entries
+      relation = ChatSpendEntry.all
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
@@ -132,6 +147,13 @@ module SpendingInsights
 
       provider = filter_value("agent_provider")
       provider.present? ? scoped_chat_spend_entries.where(agent_provider: provider) : scoped_chat_spend_entries
+    end
+
+    def provider_scoped_unwindowed_chat_spend_entries
+      return unwindowed_chat_spend_entries.none if run_only_filter?
+
+      provider = filter_value("agent_provider")
+      provider.present? ? unwindowed_chat_spend_entries.where(agent_provider: provider) : unwindowed_chat_spend_entries
     end
 
     def filtered_runs

@@ -32,6 +32,11 @@ module SpendingInsights
       Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :spending_report)
     end
 
+    def apply_without_date(scope)
+      ast = without_field(@ast, "created_at") || Filters::Ast::EMPTY
+      Filters::Compiler.call(ast, scope: scope, user: @user, subject: :spending_report)
+    end
+
     def start_date
       bounds.fetch(:start_date)
     end
@@ -99,7 +104,13 @@ module SpendingInsights
       chips = []
       start_date = parse_date(params["start_date"])
       end_date = parse_date(params["end_date"])
-      chips << chip("created_at", "between", [ start_date.iso8601, end_date.iso8601 ]) if start_date && end_date
+      if start_date && end_date
+        chips << chip("created_at", "between", [ start_date.iso8601, end_date.iso8601 ])
+      elsif start_date
+        chips << chip("created_at", "after", start_date.iso8601)
+      elsif end_date
+        chips << chip("created_at", "before", end_date.iso8601)
+      end
       chips << chip("repository_id", "is", params["repository_id"]) if params["repository_id"].present?
       chips << chip("epic_id", "is", params["epic_id"]) if params["epic_id"].present?
       chips << chip("user_id", "is", params["user_id"]) if params["user_id"].present?
@@ -149,6 +160,22 @@ module SpendingInsights
 
     def parse_date(value)
       self.class.send(:parse_date, value)
+    end
+
+    def without_field(node, field)
+      case node
+      when Filters::Ast::Chip
+        node unless node.field == field
+      when Filters::Ast::AndNode
+        children = node.children.filter_map { |child| without_field(child, field) }
+        Filters::Ast::AndNode.new(children: children) if children.any?
+      when Filters::Ast::OrNode
+        children = node.children.filter_map { |child| without_field(child, field) }
+        Filters::Ast::OrNode.new(children: children) if children.any?
+      when Filters::Ast::NotNode
+        child = without_field(node.child, field)
+        Filters::Ast::NotNode.new(child: child) if child
+      end
     end
 
     def default_end_date
