@@ -9,6 +9,8 @@ import {
   type WebContents
 } from "electron"
 
+import { isPermissionCheckAllowed, isPermissionRequestAllowed } from "./mediaPermissionPolicy.js"
+
 // Screen + microphone capture for the walkthrough recorder.
 //
 // getDisplayMedia REJECTS in Electron unless a display-media handler is
@@ -26,8 +28,6 @@ export type TrustedCaptureContext = {
 }
 
 type TrustedCaptureContextProvider = () => TrustedCaptureContext
-
-const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "clipboard-sanitized-write"])
 
 const matchesOrigin = (url: string, expectedOrigin: string | null): boolean => {
   if (!expectedOrigin) return false
@@ -47,23 +47,30 @@ export const registerMediaPermissionHandlers = (trustedContext: TrustedCaptureCo
   const activeSession = session.defaultSession
   activeSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const trusted = trustedContext()
+    const mediaTypes = "mediaTypes" in details ? details.mediaTypes : undefined
     callback(
-      trusted.webContents !== null &&
-        webContents === trusted.webContents &&
-        ALLOWED_PERMISSIONS.has(permission) &&
-        details.isMainFrame &&
-        matchesOrigin(details.requestingUrl, trusted.origin)
+      isPermissionRequestAllowed({
+        permission,
+        webContents,
+        trustedWebContents: trusted.webContents,
+        requestingUrl: details.requestingUrl,
+        expectedOrigin: trusted.origin,
+        isMainFrame: details.isMainFrame,
+        mediaTypes
+      })
     )
   })
   activeSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
     const trusted = trustedContext()
-    return (
-      trusted.webContents !== null &&
-      webContents === trusted.webContents &&
-      ALLOWED_PERMISSIONS.has(permission) &&
-      details.isMainFrame &&
-      matchesOrigin(requestingOrigin, trusted.origin)
-    )
+    return isPermissionCheckAllowed({
+      permission,
+      webContents,
+      trustedWebContents: trusted.webContents,
+      requestingUrl: requestingOrigin,
+      expectedOrigin: trusted.origin,
+      isMainFrame: details.isMainFrame,
+      mediaType: details.mediaType
+    })
   })
 }
 
