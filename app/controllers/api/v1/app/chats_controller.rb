@@ -526,6 +526,7 @@ module Api
           ApplicationRecord.transaction do
             chat_session.messages.active.update_all(deleted_at: Time.current, deleted_by_user_id: Current.user.id)
             chat_session.context_checkpoints.delete_all
+            ChatMediaLibrary.remove_materialized_inline_images!(chat_session)
             chat_session.chat_queued_messages.destroy_all
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end
@@ -822,7 +823,7 @@ module Api
 
         def create_bookmark
           chat_session = find_chat_session
-          message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last
+          message = params[:message_id].present? ? chat_session.active_messages.find(params[:message_id]) : chat_session.active_messages.order(:created_at, :id).last
           unless message
             render_error("validation_failed", "Cannot bookmark an empty chat.", status: :unprocessable_content)
             return

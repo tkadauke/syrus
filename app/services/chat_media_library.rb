@@ -8,6 +8,10 @@ class ChatMediaLibrary
     new(chat_session).materialize_inline_images!
   end
 
+  def self.remove_materialized_inline_images!(chat_session)
+    new(chat_session).remove_materialized_inline_images!
+  end
+
   # Turns already-in-memory image bytes (not sourced from a ChatMessage's
   # inline attachment JSON) into a chat-visible Document + ChatAttachment,
   # e.g. a screenshot captured by a Coding Mode runtime session tool. Same
@@ -42,6 +46,18 @@ class ChatMediaLibrary
     inline_image_attachments.each do |message, attachment, index|
       materialize_inline_image!(message, attachment, index)
     end
+  end
+
+  def remove_materialized_inline_images!
+    documents = chat_session.attached_repository_documents.where(
+      "documents.source_url LIKE ?",
+      "#{ActiveRecord::Base.sanitize_sql_like(inline_image_source_prefix)}%"
+    )
+    document_ids = documents.ids
+    return if document_ids.empty?
+
+    chat_session.chat_attachments.where(attachable_type: "Document", attachable_id: document_ids).destroy_all
+    Document.where(id: document_ids).destroy_all
   end
 
   def any_inline_images?
@@ -89,7 +105,7 @@ class ChatMediaLibrary
   end
 
   def inline_image_attachments
-    chat_session.messages.where(role: "user").order(:created_at, :id).flat_map do |message|
+    chat_session.active_messages.where(role: "user").order(:created_at, :id).flat_map do |message|
       image_attachments_in(message).map { |attachment, index| [ message, attachment, index ] }
     end
   end
@@ -137,7 +153,11 @@ class ChatMediaLibrary
   end
 
   def inline_image_source_url(message, index)
-    "#{INLINE_IMAGE_SOURCE_PREFIX}://#{chat_session.id}/#{message.id}/#{index}"
+    "#{inline_image_source_prefix}#{message.id}/#{index}"
+  end
+
+  def inline_image_source_prefix
+    "#{INLINE_IMAGE_SOURCE_PREFIX}://#{chat_session.id}/"
   end
 
   def attachment_name(attachment, index)

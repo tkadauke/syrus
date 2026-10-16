@@ -61,6 +61,16 @@ RSpec.describe Mcp::Tools::SetBookmarkTool do
     expect(chat_session.bookmarks).to be_empty
   end
 
+  it "treats a chat with only soft-deleted messages as empty" do
+    chat_session.messages.create!(role: "assistant", content: { "text" => "Cleared" }, deleted_at: Time.current)
+
+    response = call_tool(label: "Nothing yet", kind: "topic")
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/empty chat/)
+    expect(ChatBookmark.count).to eq(0)
+  end
+
   it "rejects invalid bookmark kinds" do
     chat_session.messages.create!(role: "assistant", content: { "text" => "Salve" })
 

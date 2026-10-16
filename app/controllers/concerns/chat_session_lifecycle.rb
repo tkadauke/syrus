@@ -122,7 +122,7 @@ module ChatSessionLifecycle
   end
 
   def first_user_message(chat_session)
-    chat_session.messages.where(role: "user").order(:created_at, :id).first
+    chat_session.active_messages.where(role: "user").order(:created_at, :id).first
   end
 
   def enqueue_chat_turn(chat_session, user_message)
@@ -166,7 +166,7 @@ module ChatSessionLifecycle
   end
 
   def branch_chat_messages!(source_chat, branched_chat)
-    rows = source_chat.messages.order(:created_at, :id).map do |message|
+    rows = source_chat.active_messages.order(:created_at, :id).map do |message|
       message.attributes.slice(
         "role",
         "content",
