@@ -650,6 +650,7 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const autosaveAttemptFingerprintRef = useRef<string | null>(null)
   const failedAutosaveFingerprintRef = useRef<string | null>(null)
+  const [autosaveError, setAutosaveError] = useState<string | null>(null)
   const [writeError, setWriteError] = useState<string | null>(null)
   const handleWriteError = useCallback((error: unknown) => {
     setWriteError(errorMessage(error, t("error_write")))
@@ -686,6 +687,8 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       }),
     onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
+      failedAutosaveFingerprintRef.current = null
+      setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
@@ -713,15 +716,15 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         autosave: true
         })
     },
-    onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
       failedAutosaveFingerprintRef.current = null
+      setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       onDocChange(payload.design_doc)
     },
     onError: (error) => {
       failedAutosaveFingerprintRef.current = autosaveAttemptFingerprintRef.current
-      handleWriteError(error)
+      setAutosaveError(errorMessage(error, t("error_write")))
     }
   })
   const metadataMutation = useMutation({
@@ -1089,6 +1092,14 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
+    if (!failedAutosaveFingerprintRef.current || fingerprint === failedAutosaveFingerprintRef.current) return
+
+    failedAutosaveFingerprintRef.current = null
+    setAutosaveError(null)
+  }, [doc.id, draft, title])
+
+  useEffect(() => {
     if (isArchived) return
 
     const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
@@ -1235,6 +1246,11 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       {writeError ? (
         <Notice tone="danger">
           <div role="alert">{writeError}</div>
+        </Notice>
+      ) : null}
+      {autosaveError ? (
+        <Notice tone="danger">
+          <div role="alert">{autosaveError}</div>
         </Notice>
       ) : null}
       {isArchived ? (
