@@ -798,9 +798,9 @@ class GithubClient
   end
 
   def list_issues_for_triage(repo_slug, state: "open", label: nil, limit: 20)
-    options = { state: state }
+    options = { state: state, per_page: limit }
     options[:labels] = label if label.present?
-    track_rate_limits { @client.list_issues(repo_slug, options) }
+    track_rate_limits { @client.get("repos/#{repo_slug}/issues", options) }
       .reject { |i| i.respond_to?(:pull_request) && i.pull_request }
       .first(limit)
   rescue Octokit::TooManyRequests => e
@@ -810,18 +810,16 @@ class GithubClient
 
   def list_pull_requests_for_triage(repo_slug, state: "open", limit: 20)
     list_state = state == "merged" ? "closed" : state
-    pulls = track_rate_limits { @client.pull_requests(repo_slug, state: list_state) }.first(limit)
-    detailed_pulls = pulls.map do |pull|
-      track_rate_limits { @client.pull_request(repo_slug, pull.number) }
-    end
-
-    case state
-    when "merged"
-      detailed_pulls.select { |pull| pull.merged_at.present? }
-    when "closed"
-      detailed_pulls.reject { |pull| pull.merged_at.present? }
+    pulls = if state == "merged"
+      merged_pull_requests_for_triage(repo_slug, limit: limit)
     else
-      detailed_pulls
+      triage_pull_request_page(repo_slug, state: list_state, limit: limit)
+    end
+    pulls = pulls.reject { |pull| pull.merged_at.present? } if state == "closed"
+    return pulls if state == "merged"
+
+    pulls.first(limit).map do |pull|
+      track_rate_limits { @client.pull_request(repo_slug, pull.number) }
     end
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing triage PRs on #{repo_slug}: #{e.message}")
@@ -1511,8 +1509,30 @@ class GithubClient
   end
 
   def github_rate_limit_error?(error)
+    remaining = error.response_headers&.[]("x-ratelimit-remaining")
     error.message.to_s.match?(/rate limit exceeded|secondary rate limit|abuse detection/i) ||
-      error.response_headers&.[]("x-ratelimit-remaining").to_i.zero?
+      (remaining.present? && remaining.to_i.zero?)
+  end
+
+  def triage_pull_request_page(repo_slug, state:, limit:, page: 1)
+    track_rate_limits do
+      @client.get("repos/#{repo_slug}/pulls", state: state, per_page: limit, page: page)
+    end
+  end
+
+  def merged_pull_requests_for_triage(repo_slug, limit:)
+    merged = []
+    page = 1
+
+    while merged.length < limit
+      pulls = triage_pull_request_page(repo_slug, state: "closed", limit: limit, page: page)
+      merged.concat(pulls.select { |pull| pull.merged_at.present? })
+      break if pulls.length < limit
+
+      page += 1
+    end
+
+    merged.first(limit)
   end
 
   def mark_api_rate_limited!(error, headers)
