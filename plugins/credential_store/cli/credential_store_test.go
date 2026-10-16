@@ -399,6 +399,68 @@ func TestCredentialStoreExecStdinFeedsPayloadWithoutChildEnv(t *testing.T) {
 	}
 }
 
+func TestCredentialStoreExecAuditsAfterChildCancelsCommandContext(t *testing.T) {
+	var audited bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/app/credential_store/exec_material":
+			w.Write([]byte(`{"lease":{"lease_id":"lease-exec"},"material":{"payload":"secret-token"}}`))
+		case "/api/v1/app/credential_store/exec/audit":
+			audited = true
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := &fakeProcessRunner{childStatus: 130, cancel: cancel}
+	original := credentialExecRunner
+	credentialExecRunner = runner
+	t.Cleanup(func() { credentialExecRunner = original })
+
+	command := NewCredentialStoreCommand()
+	command.SetContext(ctx)
+	command.SetArgs([]string{"exec", "--credential", "deploy-token", "--type", "credential_store.url_token", "--env-var", "TOKEN", "--", "./deploy.sh"})
+
+	err := command.Execute()
+	var exitStatus cliplugin.ExitStatusError
+	if !errors.As(err, &exitStatus) || exitStatus.ExitStatus() != 130 {
+		t.Fatalf("expected exit status 130 error, got %#v", err)
+	}
+	if !audited {
+		t.Fatal("expected audit request after command context cancellation")
+	}
+}
+
+func TestCredentialCommandResultReportsAuditFailureAndPreservesChildStatus(t *testing.T) {
+	stderr := &bytes.Buffer{}
+	err := credentialCommandResult(37, errors.New("audit unavailable"), stderr)
+
+	var exitStatus cliplugin.ExitStatusError
+	if !errors.As(err, &exitStatus) || exitStatus.ExitStatus() != 37 {
+		t.Fatalf("expected exit status 37 error, got %#v", err)
+	}
+	if got := stderr.String(); !strings.Contains(got, "record credential usage audit: audit unavailable") {
+		t.Fatalf("stderr = %q", got)
+	}
+}
+
+func TestCredentialExecRedactionsIncludeTrimmedPayloadAndNontrivialLines(t *testing.T) {
+	redactions := credentialExecRedactions("first-secret\nxy\nsecond-secret\n")
+	got := redactCredentialExecOutput("first-secret and second-secret remain; xy is harmless", redactions)
+
+	if strings.Contains(got, "first-secret") || strings.Contains(got, "second-secret") {
+		t.Fatalf("output included a payload line: %q", got)
+	}
+	if !strings.Contains(got, "xy is harmless") {
+		t.Fatalf("short payload line was unexpectedly redacted: %q", got)
+	}
+}
+
 func TestCredentialStoreExecRequiresExactlyOneMaterializationMode(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -530,12 +592,14 @@ func TestCredentialStoreSSHAgentPropagatesChildFailureAndStillAudits(t *testing.
 	defer server.Close()
 	withCredentials(t, server.URL)
 
-	runner := &fakeProcessRunner{childStatus: 37}
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := &fakeProcessRunner{childStatus: 37, cancel: cancel}
 	original := sshAgentRunner
 	sshAgentRunner = runner
 	defer func() { sshAgentRunner = original }()
 
 	command := NewCredentialStoreCommand()
+	command.SetContext(ctx)
 	command.SetOut(&bytes.Buffer{})
 	command.SetArgs([]string{"ssh-agent", "--credential", "homeassistant-ssh", "--", "./deploy.sh"})
 
@@ -634,6 +698,7 @@ func TestCredentialStoreSSHAgentChildEnvironmentIsSanitized(t *testing.T) {
 
 type fakeProcessRunner struct {
 	childStatus  int
+	cancel       context.CancelFunc
 	calls        []string
 	keyPath      string
 	askpassPath  string
@@ -670,6 +735,9 @@ func (runner *fakeProcessRunner) Run(_ context.Context, env []string, name strin
 		}
 		return processResult{Status: 0}
 	default:
+		if runner.cancel != nil {
+			runner.cancel()
+		}
 		runner.childCommand = append([]string{name}, args...)
 		runner.childEnv = append([]string{}, env...)
 		return processResult{Status: runner.childStatus}
@@ -678,6 +746,9 @@ func (runner *fakeProcessRunner) Run(_ context.Context, env []string, name strin
 }
 
 func (runner *fakeProcessRunner) RunCredentialExec(_ context.Context, env []string, stdin io.Reader, _ []string, name string, args ...string) processResult {
+	if runner.cancel != nil {
+		runner.cancel()
+	}
 	runner.credentialExecCommand = append([]string{name}, args...)
 	runner.credentialExecEnv = append([]string{}, env...)
 	if stdin != nil {
