@@ -97,6 +97,18 @@ RSpec.describe "App API terminal sessions", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
+  it "forbids non-admin users from creating terminal sessions" do
+    Factories.user(admin: true)
+    member = Factories.user(admin: false)
+    sign_in_as(member)
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { name: "Scratch" } }, as: :json
+    }.not_to change { Terminal::Session.count }
+
+    expect(response).to have_http_status(:forbidden)
+  end
+
   it "lists current-user running sessions and structured terminal workspace candidates" do
     sign_in_as(user)
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new("/tmp/workflows/#{workflow.id}"))
@@ -332,6 +344,15 @@ RSpec.describe "App API terminal sessions", type: :request do
     sign_in_as(user)
 
     post "/api/v1/app/terminal_sessions", params: { terminal_session: { name: "Scratch" } }, as: :json
+    expect(response).to have_http_status(:created)
+    expect(Terminal::Session.last.working_directory).to eq(Rails.root.to_s)
+  end
+
+  it "ignores a caller-supplied scratch working directory" do
+    sign_in_as(user)
+
+    post "/api/v1/app/terminal_sessions", params: { terminal_session: { name: "Scratch", working_directory: "/etc" } }, as: :json
+
     expect(response).to have_http_status(:created)
     expect(Terminal::Session.last.working_directory).to eq(Rails.root.to_s)
   end

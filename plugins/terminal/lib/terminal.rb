@@ -13,13 +13,15 @@ module Terminal
     # security boundary is the per-session token exchanged over the relay
     # socket, not network isolation.
     default_enabled false
+    tick_interval 1.minute
 
     description "Interactive shell sessions against a running workflow's workspace, streamed to the browser."
     long_description "Terminal opens a real PTY on the worker that owns a workflow's workspace and streams it to the browser over an authenticated Action Cable channel. Sessions survive browser navigation because the PTY lives in the worker-side session until it exits or is killed.\n\nIt is off by default and is a genuine shell: enable it only where operators are trusted with the worker filesystem. Sessions do not survive a worker restart or deploy, and there is no idle timeout."
 
     link "Open Terminal", "/terminal", description: "Open the top-level Terminal workspace browser."
 
-    provides sidebar_page: "Terminal::SidebarPages",
+    provides callbacks:    "Terminal::Callbacks",
+             sidebar_page: "Terminal::SidebarPages",
              ui_slot:      "Terminal::UiSlots"
 
     route :get,    "/api/v1/app/terminal_sessions", to: "api/v1/app/terminal_sessions#index"

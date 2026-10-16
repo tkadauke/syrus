@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class TerminalSessionsController < BaseController
+        before_action :require_admin, only: :create
+
         def index
           render json: sessions_payload
         end
@@ -141,17 +143,15 @@ module Api
         def working_directory(availability = nil)
           if selected_workflow
             (availability || workflow_workspace_availability).working_directory
-          elsif terminal_session_params[:working_directory].present?
-            terminal_session_params[:working_directory]
           else
             Rails.root.to_s
           end
         end
 
         def terminal_session_params
-          return params.permit(:candidate_key, :workflow_id, :working_directory, :name) unless params[:terminal_session].is_a?(ActionController::Parameters)
+          return params.permit(:candidate_key, :workflow_id, :name) unless params[:terminal_session].is_a?(ActionController::Parameters)
 
-          params.require(:terminal_session).permit(:candidate_key, :workflow_id, :working_directory, :name)
+          params.require(:terminal_session).permit(:candidate_key, :workflow_id, :name)
         end
       end
     end

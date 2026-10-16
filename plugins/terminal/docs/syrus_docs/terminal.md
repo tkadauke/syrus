@@ -10,7 +10,7 @@ Enable it from Admin -> Plugins, or:
 PluginRecord.find_by(name: "terminal").update(enabled: true)
 ```
 
-Once enabled, a Terminal entry appears in the sidebar (badged with the number of open sessions) and an "Open terminal in workspace" button appears on each workflow card on the Job page. The Terminal page's plus menu opens a searchable workspace picker grouped into actionable workflows, retained coding chat workspaces, and live worker scratch targets. Disabling the plugin withholds both, and its API routes return `plugin_disabled`; the Action Cable channel rejects new subscriptions.
+Once enabled, a Terminal entry appears in the sidebar (badged with the number of open sessions) and an "Open terminal in workspace" button appears on each workflow card on the Job page. Only admins can create a terminal session. The Terminal page's plus menu opens a searchable workspace picker grouped into actionable workflows, retained coding chat workspaces, and live worker scratch targets. Disabling the plugin withholds both, and its API routes return `plugin_disabled`; the Action Cable channel rejects new subscriptions.
 
 The plugin owns `Terminal::Session` (table `terminal_sessions`), `TerminalChannel`, `TerminalSessionJob`, `Terminal::Relay`, its controller, and the SPA route. It reaches the sidebar through `:sidebar_page` and the Job page through the `job.workflow.actions` `:ui_slot`.
 
@@ -37,7 +37,7 @@ Traefik and public ingress are not involved — the relay is internal only.
 - Scratch sessions are chosen from explicit worker candidates and are labeled as `Scratch on <hostname>`. Exact hostname targeting is only guaranteed when the candidate has a live storage-affinity queue; hostname-only fallback workers enqueue on the generic `chat` queue and are labeled best-effort.
 - Chat workspace candidates are only offered for active visible chats with a recorded `workspace_path`; newly created chats that have not materialized a workspace are omitted so the PTY is not started with a missing `chdir`.
 - Sessions survive browser navigation; the PTY lives in the worker process until it exits or the operator kills it.
-- Sessions die on worker restart or redeploy; there is no wall-clock idle timeout.
+- Sessions die on worker restart or redeploy; a minute tick marks sessions whose relay is unreachable (or never appeared within the startup grace period) as orphaned so they disappear from open-session lists. There is no wall-clock idle timeout for a reachable session.
 - Security is enforced by a per-session auth token exchanged over the relay socket after the browser's authenticated Action Cable subscription is authorized.
 
 ### Isolation model is network topology, not a firewalled protocol
