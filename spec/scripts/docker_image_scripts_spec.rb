@@ -20,6 +20,25 @@ RSpec.describe "Docker image scripts" do
     expect(test_docker).to include('ChatSession.create!(repository: r, user: u, chat_provider: provider)')
   end
 
+  # The arm64 release build failed here: the stack pulled
+  # ghcr.io/tkadauke/syrus-plugin-runtime:latest, which the release only moves
+  # at go-live, so the test ran against the last successful release's image --
+  # built before plugin images went multi-arch, with no linux/arm64 manifest.
+  # Nothing in this smoke test asserts on the sidecar manager, so it does not
+  # belong in the stack.
+  it "leaves the plugin sidecar manager out of the integration stack" do
+    expect(test_docker).to include('compose -p "$PROJECT" up -d --scale plugin-runtime=0')
+    expect(compose_yml).to include("ghcr.io/tkadauke/syrus-plugin-runtime:latest")
+    expect(test_docker).not_to match(/compose -p "\$PROJECT" up -d$/)
+  end
+
+  # Compose names the service and the reason it could not start; claiming
+  # db:prepare errored buried a manifest failure under the wrong log.
+  it "does not blame the setup service for every failure to come up" do
+    expect(test_docker).to include("Compose's own error is above.")
+    expect(test_docker).not_to include("the setup service (db:prepare) likely errored")
+  end
+
   it "disables host-native whisper tuning in portable plugin images" do
     dockerfile = File.read(File.join(root, "plugins/whisper_stt/container/Dockerfile"))
 

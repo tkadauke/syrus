@@ -85,8 +85,17 @@ in_service() { # in_service <service> <ruby>
 note "Bringing up an isolated stack (project=$PROJECT, port=$PORT)"
 echo "   image: ${SYRUS_IMAGE:-<compose default ghcr.io/tkadauke/syrus-backend:latest>}"
 ensure_compose_env
-if ! compose -p "$PROJECT" up -d; then
-  echo "Stack failed to come up — the setup service (db:prepare) likely errored." >&2
+# The plugin sidecar manager is deliberately left out of this stack. Nothing
+# below asserts on it, it wants the host's Docker socket, and starting it makes
+# the test pull ghcr.io/tkadauke/syrus-plugin-runtime:latest -- a tag this run
+# does not publish. The release only moves plugin :latest at go-live, so the
+# test would be graded against whatever the last successful release pushed:
+# an image built before plugin images went multi-arch, with no linux/arm64
+# manifest at all. That is what failed the arm64 release build, reported below
+# as a db:prepare error it had nothing to do with.
+if ! compose -p "$PROJECT" up -d --scale plugin-runtime=0; then
+  echo "Stack failed to come up — Compose's own error is above." >&2
+  echo "If it got as far as starting containers, the setup service (db:prepare) log follows:" >&2
   compose -p "$PROJECT" logs setup 2>&1 | tail -30
   exit 1
 fi
