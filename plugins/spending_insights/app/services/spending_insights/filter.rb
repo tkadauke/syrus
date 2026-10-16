@@ -61,11 +61,9 @@ module SpendingInsights
       @bounds ||= begin
         dates = positive_top_level_chips.select { |chip| chip.field == "created_at" }.filter_map { |chip| dates_for(chip) }
         {
-          start_date: dates.map(&:first).compact.max || default_start_date,
-          end_date: dates.map(&:last).compact.min || default_end_date
-        }.then do |range|
-          range[:start_date] > range[:end_date] ? { start_date: range[:end_date], end_date: range[:start_date] } : range
-        end
+          start_date: dates.map(&:first).compact.max,
+          end_date: dates.map(&:last).compact.min
+        }
       end
     end
 
@@ -176,14 +174,6 @@ module SpendingInsights
         child = without_field(node.child, field)
         Filters::Ast::NotNode.new(child: child) if child
       end
-    end
-
-    def default_end_date
-      Time.zone.today
-    end
-
-    def default_start_date
-      default_end_date - DEFAULT_WINDOW_DAYS.days
     end
   end
 end
