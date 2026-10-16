@@ -37,8 +37,7 @@ module Steps
       existing = find_existing_coverage_comment(client, repo_slug, pr_number)
 
       if existing
-        client.update_issue_comment(repo_slug, existing.id, body)
-        log("[coverage_pr_comment] updated coverage comment ##{existing.id} on #{repo_slug}##{pr_number}")
+        update_coverage_comment(client, repo_slug, pr_number, existing, body)
       else
         client.add_issue_comment(repo_slug, pr_number, body)
         log("[coverage_pr_comment] posted coverage comment on #{repo_slug}##{pr_number}")
@@ -47,11 +46,20 @@ module Steps
 
     def find_existing_coverage_comment(client, repo_slug, pr_number)
       client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
+        BotIdentity.for(job).authored_github_comment?(comment) &&
+          comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
       end
     rescue => e
       log("[coverage_pr_comment] failed to list PR comments: #{e.class}: #{e.message} — will post new comment")
       nil
+    end
+
+    def update_coverage_comment(client, repo_slug, pr_number, existing, body)
+      client.update_issue_comment(repo_slug, existing.id, body)
+      log("[coverage_pr_comment] updated coverage comment ##{existing.id} on #{repo_slug}##{pr_number}")
+    rescue => e
+      log("[coverage_pr_comment] failed to update coverage comment ##{existing.id}: #{e.class}: #{e.message} — posting new comment")
+      client.add_issue_comment(repo_slug, pr_number, body)
     end
   end
 end

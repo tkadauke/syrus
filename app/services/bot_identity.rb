@@ -64,6 +64,23 @@ class BotIdentity
     end
   end
 
+  # The GitHub login expected on comments written with this Job's captured
+  # credential. This intentionally follows credential_mode rather than the
+  # currently available credential so comment ownership remains stable when
+  # an installation or PAT changes after the Job was created.
+  def github_login
+    if @job.credential_mode == "app"
+      "#{app_slug.delete_suffix("[bot]")}[bot]" if app_slug.present?
+    else
+      @user&.github_handle.to_s.presence
+    end
+  end
+
+  def authored_github_comment?(comment)
+    expected_login = github_login
+    expected_login.present? && comment.user&.login.to_s.casecmp?(expected_login)
+  end
+
   def co_authored_by_trailer
     return nil unless app_author?
     return nil if @job.cron?
