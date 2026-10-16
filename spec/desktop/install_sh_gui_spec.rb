@@ -34,7 +34,8 @@ RSpec.describe "install.sh GUI interface", :ci_only do
   def write_docker_stub(dir, volume_exists:, pull_ok: false, local_image: false,
                         pull_error: "stub: pull refused",
                         contexts: [], current_context: "", volume_contexts: [],
-                        existing_container: "", prior_image: "")
+                        existing_container: "", prior_image_id: "",
+                        resolved_image_id: "sha256:current")
     stub = File.join(dir, "docker")
     context_lines = contexts.map { |c| "#{c}\n" }.join
     holders = volume_contexts.join(" ")
@@ -59,9 +60,14 @@ RSpec.describe "install.sh GUI interface", :ci_only do
           esac
           exit 0 ;;
         volume) exit #{volume_exists ? 0 : 1} ;;
-        image) exit #{local_image ? 0 : 1} ;;
+        image)
+          if [ "$2" = "inspect" ] && [ "$3" = "--format" ]; then
+            printf '%s\n' "#{resolved_image_id}"
+            exit 0
+          fi
+          exit #{local_image ? 0 : 1} ;;
         inspect)
-          [ "$4" = "#{existing_container}" ] && printf '%s\n' "#{prior_image}"
+          [ "$4" = "#{existing_container}" ] && printf '%s\n' "#{prior_image_id}"
           exit 0 ;;
         run) exit 0 ;;
         logout) exit 0 ;;
@@ -937,7 +943,8 @@ RSpec.describe "install.sh GUI interface", :ci_only do
       Dir.mktmpdir do |target|
         write_docker_stub(
           stub_dir, volume_exists: true, pull_ok: true,
-          existing_container: "old-web", prior_image: "ghcr.io/example/syrus-backend:1"
+          existing_container: "old-web", prior_image_id: "sha256:old",
+          resolved_image_id: "sha256:new"
         )
         write_curl_stub(stub_dir)
         File.write(File.join(target, ".env"), <<~ENV)
@@ -953,11 +960,60 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         expect(status.exitstatus).to eq(0)
         calls = stub_calls(stub_dir)
         expect(calls.index("compose stop")).to be < calls.index { |call| call.start_with?("compose up -d") }
-        expect(calls).to include(a_string_matching(/\Arun --rm --entrypoint tar .*syrus_syrus-data.*ghcr\.io\/example\/syrus-backend:1/))
+        expect(calls).to include(a_string_matching(/\Arun --rm --entrypoint tar .*syrus_syrus-data.*sha256:old/))
         expect(Dir[File.join(target, "backups", "syrus-data-before-*.tar.gz")].length).to eq(1)
         expect(parse_events(out)).to include(
           hash_including("event" => "log", "stream" => "backup", "line" => a_string_including("backup complete"))
         )
+      end
+    end
+  end
+
+  it "backs up a retained data volume when compose down removed its containers" do
+    Dir.mktmpdir do |stub_dir|
+      Dir.mktmpdir do |target|
+        write_docker_stub(stub_dir, volume_exists: true, pull_ok: true)
+        write_curl_stub(stub_dir)
+        File.write(File.join(target, ".env"), "SECRET_KEY_BASE=abc123\nSYRUS_IMAGE=ghcr.io/example/syrus-backend:2\n")
+
+        out, _err, status = run_install(
+          "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+          "--target-dir", target, stub_dir: stub_dir
+        )
+
+        expect(status.exitstatus).to eq(0)
+        calls = stub_calls(stub_dir)
+        expect(calls).to include(a_string_matching(/\Arun --rm --entrypoint tar .*syrus_syrus-data.*ghcr\.io\/example\/syrus-backend:2/))
+        expect(parse_events(out)).to include(
+          hash_including("event" => "log", "stream" => "backup",
+            "line" => a_string_including("no prior container metadata"))
+        )
+      end
+    end
+  end
+
+  it "backs up when a mutable tag resolves to a new image ID" do
+    Dir.mktmpdir do |stub_dir|
+      Dir.mktmpdir do |target|
+        write_docker_stub(
+          stub_dir, volume_exists: true, pull_ok: true,
+          existing_container: "old-web", prior_image_id: "sha256:old-latest",
+          resolved_image_id: "sha256:new-latest"
+        )
+        write_curl_stub(stub_dir)
+        File.write(File.join(target, ".env"), "SECRET_KEY_BASE=abc123\nSYRUS_IMAGE=ghcr.io/example/syrus-backend:latest\n")
+
+        out, _err, status = run_install(
+          "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+          "--target-dir", target, stub_dir: stub_dir
+        )
+
+        expect(status.exitstatus).to eq(0)
+        backup = parse_events(out).find { |event| event["stream"] == "backup" }
+        expect(backup["line"]).to include("image changed: sha256:old-latest -> sha256:new-latest")
+        calls = stub_calls(stub_dir)
+        expect(calls.index { |call| call.include?("inspect --format {{.Image}} old-web") }).to be <
+          calls.index { |call| call.start_with?("compose --progress=json pull") }
       end
     end
   end

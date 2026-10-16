@@ -51,9 +51,10 @@ The installer:
 3. Pulls `ghcr.io/tkadauke/syrus-backend`. On a rerun, an existing
    `SYRUS_IMAGE` pin in `.env` is honored unless `--image` or the process
    environment explicitly overrides it.
-4. When the selected image differs from the existing web container's image,
+4. When the pulled image ID differs from the existing web container's image ID,
    stops the stack and archives the data volume under `backups/` before any
-   database migration can run.
+   database migration can run. A retained data volume with no container to
+   compare (after `docker compose down`, for example) is always backed up.
 5. Starts the stack: a one-shot **setup** task (prepares the SQLite
    databases and fixes volume ownership), then **web** and **worker**.
 
