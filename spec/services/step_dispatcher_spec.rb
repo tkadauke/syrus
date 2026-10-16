@@ -2514,7 +2514,12 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(job.reload.needs_attention_reason).to be_nil
     end
 
-    it "stops a retry_until grader loop when a repair trades failures instead of shrinking the set" do
+    # The failing set spans every required grader at once, so "the set did
+    # not shrink" stopped loops that were working: the repair fixed what it
+    # was given and one unrelated spec -- often a flaky one, or a different
+    # grader entirely -- failed in the same round. Fixing something is the
+    # progress the loop is looking for; the iteration budget is the bound.
+    it "continues a retry_until grader loop when a repair trades one failure for another" do
       retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
       first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
       add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
@@ -2525,10 +2530,53 @@ RSpec.describe StepDispatcher, :ci_only do
 
       described_class.fail_from(second_collect)
 
+      expect(retry_workflow.reload).to be_queued
+      expect(retry_workflow.artifact("grader_loop_stop")).to be_blank
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 3)).to be_present
+      expect(job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "stops a retry_until grader loop when a round fixes nothing and only adds failures" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(second_collect)
+
       expect(retry_workflow.reload).to be_failed
       expect(retry_workflow.artifact("grader_loop_stop")).to include(
-        "explanation" => "failing set did not shrink monotonically; fixed 1, introduced 1",
-        "failing_set" => contain_exactly("spec/a_spec.rb", "spec/c_spec.rb")
+        "explanation" => "nothing that was failing is passing now; 1 new failure(s)",
+        "failing_set" => contain_exactly("spec/a_spec.rb", "spec/b_spec.rb")
+      )
+      expect(job.reload.needs_attention_reason).to eq("grader_loop_no_progress")
+    end
+
+    # Trading failures round after round is still churn, it just cannot be
+    # recognized by looking only at the round before: the loop has to come
+    # back to a failing set it already produced.
+    it "stops a retry_until grader loop that cycles back to a set it already produced" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 4)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(first_collect)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/a_spec.rb spec/c_spec.rb])
+
+      described_class.fail_from(second_collect)
+      third_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 3)
+      add_failed_grader!(retry_workflow, third_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+
+      described_class.fail_from(third_collect)
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.artifact("grader_loop_stop")).to include(
+        "explanation" => "failing set repeats iteration 1; the loop is cycling",
+        "repeated_iteration" => 1
       )
       expect(job.reload.needs_attention_reason).to eq("grader_loop_no_progress")
     end

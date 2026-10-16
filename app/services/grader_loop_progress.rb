@@ -37,18 +37,21 @@ class GraderLoopProgress
     return Result.continue unless retry_until_grader_collect?
 
     current = round_payload
-    prior = previous_round
+    earlier = earlier_rounds(current)
+    prior = earlier.max_by { |round| round["iteration"].to_i }
     rounds = Array(workflow.artifact(ARTIFACT_KEY)).reject { |round| round["iteration"] == current["iteration"] }
     workflow.set_artifact!(ARTIFACT_KEY, rounds + [ current ])
 
     return Result.continue if current["transient_only"]
     return Result.continue unless prior
-    if progressing?(prior.fetch("failing_set"), current.fetch("failing_set"))
+
+    repeated = repeated_round(earlier, current)
+    if repeated.nil? && progressing?(prior.fetch("failing_set"), current.fetch("failing_set"))
       workflow.job.clear_needs_attention!(reason: NO_PROGRESS_REASON)
       return Result.continue
     end
 
-    stop = stop_payload(prior, current)
+    stop = stop_payload(prior, current, repeated)
     workflow.set_artifact!(STOP_ARTIFACT_KEY, stop)
     workflow.job.set_needs_attention!(reason: NO_PROGRESS_REASON)
     Result.stop(stop)
@@ -75,26 +78,44 @@ class GraderLoopProgress
   # the wrong question -- a rolling deploy that killed graders mid-fan-out
   # produced a transient round, and the next genuine round was then judged
   # against that noise and stopped.
-  def previous_round
-    comparable_rounds
-      .select { |round| round["loop_id"] == collect_step.loop_id && round["iteration"].to_i < collect_step.iteration }
-      .max_by { |round| round["iteration"].to_i }
+  def earlier_rounds(current)
+    comparable_rounds.select do |round|
+      round["loop_id"] == collect_step.loop_id && round["iteration"].to_i < current["iteration"].to_i
+    end
+  end
+
+  # The loop has been in this exact state before, so whatever the repair is
+  # doing, it is cycling rather than converging. This is the condition the
+  # old shrink-or-stop rule was really reaching for, and unlike that rule it
+  # does not depend on which round happens to be adjacent: a loop that
+  # alternates between two failing sets is caught here, while one that keeps
+  # genuinely fixing things is not.
+  def repeated_round(earlier, current)
+    return nil if Array(current["failing_set"]).empty?
+
+    earlier.find { |round| round["failing_set_digest"] == current["failing_set_digest"] }
   end
 
   def comparable_rounds
     Array(workflow.artifact(ARTIFACT_KEY)).reject { |round| round["transient_only"] }
   end
 
-  # Shrinking is the invariant that bounds the loop. This previously also
-  # required `current` to be a strict subset of `prior`, so a round that
-  # fixed most of the failing set while surfacing a single new failure read
-  # as no progress at all -- a loop going from 28 failing graders to 2 was
-  # stopped as stalled. Requiring the set to shrink still rules out churn
-  # that never converges, without punishing a repair that is plainly working.
+  # Progress is "something that was failing is now passing". Requiring the
+  # set to shrink instead measured the wrong thing, because the set spans
+  # every required grader at once: a repair that fixed the grader it was
+  # given and then saw one unrelated spec fail -- a flaky seeded-random
+  # spec, say, or an entirely different grader -- scored "fixed 1,
+  # introduced 1" and the loop was stopped as stalled. Three merge trains in
+  # one production week died that way, each discarding a landing attempt
+  # that was converging.
+  #
+  # The cases a stop is actually for are still caught: a round that fixes
+  # nothing stops here, whether the failing set stood still or only grew,
+  # and a loop that cycles back to a set it has already produced stops in
+  # repeated_round. Beyond that the iteration budget
+  # (AppSetting.grade_max_iterations) is the bound, which is what it is for.
   def progressing?(prior_set, current_set)
-    prior = Array(prior_set)
-    current = Array(current_set)
-    current.present? && current.length < prior.length
+    (Array(prior_set) - Array(current_set)).any?
   end
 
   def round_payload
@@ -132,7 +153,7 @@ class GraderLoopProgress
     UNMEASURED_CLASSIFICATIONS.include?(classification.to_s)
   end
 
-  def stop_payload(prior, current)
+  def stop_payload(prior, current, repeated = nil)
     {
       "reason" => NO_PROGRESS_REASON,
       "stopped_at" => Time.current.iso8601,
@@ -144,20 +165,24 @@ class GraderLoopProgress
       "loop_id" => collect_step.loop_id,
       "previous_iteration" => prior["iteration"],
       "current_iteration" => current["iteration"],
-      "explanation" => stop_explanation(prior.fetch("failing_set"), current.fetch("failing_set")),
+      "repeated_iteration" => repeated && repeated["iteration"],
+      "explanation" => stop_explanation(prior, current, repeated),
       "failing_set" => current.fetch("failing_set"),
       "rounds" => [ prior, current ]
     }
   end
 
-  def stop_explanation(prior_set, current_set)
-    prior = Array(prior_set)
-    current = Array(current_set)
-    return "failing set unchanged" if prior == current
+  def stop_explanation(prior, current, repeated)
+    prior_set = Array(prior.fetch("failing_set"))
+    current_set = Array(current.fetch("failing_set"))
+    if repeated
+      return "failing set unchanged" if repeated["iteration"] == prior["iteration"]
 
-    introduced = current - prior
-    fixed = prior - current
-    "failing set did not shrink monotonically; fixed #{fixed.length}, introduced #{introduced.length}"
+      return "failing set repeats iteration #{repeated['iteration']}; the loop is cycling"
+    end
+
+    introduced = current_set - prior_set
+    "nothing that was failing is passing now; #{introduced.length} new failure(s)"
   end
 
   def failed_required_graders

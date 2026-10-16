@@ -342,10 +342,18 @@ cap and efficiency metrics are intentionally absent until parallel landing
 grader fanout is designed and enabled separately.
 
 If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and
-graders re-run. This loop repeats up to `grade_max_iterations` times unless the
-failed grader identity set stops shrinking. An unchanged set, or a round that
-fixes some failures while introducing new ones, stops the loop early with
-`needs_attention_reason: grader_loop_no_progress`. The Workflow records
+graders re-run. This loop repeats up to `grade_max_iterations` times unless it
+stops making progress. Progress means at least one previously failing grader
+identity now passes: a round that fixes something still counts even if an
+unrelated failure appears in the same round, because the failing set spans
+every required grader at once. Two rounds end the loop early with
+`needs_attention_reason: grader_loop_no_progress` — one that fixes nothing
+(whether the failing set stood still or only grew), and one that returns to a
+failing set an earlier round in the same loop already produced, which is how a
+repair that trades failures round after round is caught. Required graders that
+never reached a verdict — killed by a timeout, a dead worker, a full disk —
+are left out of the comparison entirely, since they measure the worker rather
+than the tree. The Workflow records
 `grader_loop_progress` and `grader_loop_stop` artifacts with the per-round
 grader results, failing set, and repair diff summary so an operator can split
 targeted follow-up work without rerunning the same broad repair.
