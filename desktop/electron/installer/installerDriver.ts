@@ -6,7 +6,11 @@ import readline from "node:readline"
 import { promisify } from "node:util"
 import { app, dialog, shell, type BrowserWindow } from "electron"
 import { currentStackIdentity, localStateDir, saveBackendConfig, setOnboardingResumeLocal } from "../settings.js"
-import { downloadDockerDesktopInstaller, runDockerDesktopInstaller } from "./dockerDesktopInstaller.js"
+import {
+  downloadDockerDesktopInstaller,
+  runDockerDesktopInstaller,
+  verifyDockerDesktopInstaller
+} from "./dockerDesktopInstaller.js"
 import { restampEnvPort } from "./envRestamp.js"
 import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
@@ -161,8 +165,11 @@ const isSyrusInstance = async (url: string) => {
 export class OnboardingDriver {
   private state: OnboardingState = { phase: "welcome" }
   private child: ChildProcess | null = null
+  private installStarting = false
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
+  private pollGeneration = 0
+  private pollResolve: ((ready: boolean | null) => void) | null = null
   private installAbort: AbortController | null = null
   private port = channelDefaultPort()
   private logTail: string[] = []
@@ -218,6 +225,9 @@ export class OnboardingDriver {
     this.stopPolling()
     this.installAbort?.abort()
     this.installAbort = null
+    if (this.installStarting) {
+      this.cancelRequested = true
+    }
     if (this.child) {
       this.cancelRequested = true
       this.killInstallChild()
@@ -387,6 +397,7 @@ export class OnboardingDriver {
     if (this.state.phase !== "local.runtimeStarting") {
       return // user navigated away while we waited
     }
+    if (ready === null) return
 
     if (!ready) {
       this.setState({ phase: "local.runtimeStarting", needsAttention: true })
@@ -394,6 +405,7 @@ export class OnboardingDriver {
       if (this.state.phase !== "local.runtimeStarting") {
         return
       }
+      if (ready === null) return
     }
 
     if (ready) {
@@ -447,8 +459,10 @@ export class OnboardingDriver {
     // sure setup comes back afterwards.
     this.armRebootResume()
 
-    this.installAbort = new AbortController()
-    const installerPath = path.join(app.getPath("temp"), "syrus-docker-desktop-installer.exe")
+    const installAbort = new AbortController()
+    this.installAbort = installAbort
+    const installerDir = await fs.mkdtemp(path.join(app.getPath("temp"), "syrus-docker-desktop-"))
+    const installerPath = path.join(installerDir, "Docker Desktop Installer.exe")
 
     // setState mutates this.state across awaits, which TS's narrowing can't
     // see — same widening-closure pattern as connectRemote's stillChecking().
@@ -466,12 +480,16 @@ export class OnboardingDriver {
             this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent })
           }
         },
-        this.installAbort.signal
+        installAbort.signal
       )
     } catch (error) {
       if (!stillInstalling()) {
+        if (this.installAbort === installAbort) this.installAbort = null
+        await fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
         return // user backed out; the abort landed here
       }
+      if (this.installAbort === installAbort) this.installAbort = null
+      await fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
       await this.showRuntimeMissing(
         false,
         `${errorMessage(error, "The download failed.")} You can retry, or download Docker Desktop manually.`
@@ -480,12 +498,14 @@ export class OnboardingDriver {
     }
 
     if (!stillInstalling()) {
+      await fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
       return
     }
 
     this.setState({ phase: "local.runtimeInstalling", step: "installing", percent: null })
     try {
-      await runDockerDesktopInstaller(installerPath)
+      await verifyDockerDesktopInstaller(installerPath)
+      await runDockerDesktopInstaller(installerPath, installAbort.signal)
     } catch (error) {
       if (!stillInstalling()) {
         return
@@ -496,7 +516,8 @@ export class OnboardingDriver {
       )
       return
     } finally {
-      void fs.rm(installerPath, { force: true }).catch(() => {})
+      if (this.installAbort === installAbort) this.installAbort = null
+      await fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
     }
 
     if (!stillInstalling()) {
@@ -554,7 +575,7 @@ export class OnboardingDriver {
       const wslMissing = this.state.wslMissing
       this.setState({ phase: "local.runtimeMissing", polling: true, wslMissing, installError: null })
       void this.pollForDaemon(RUNTIME_DOWNLOAD_POLLS).then((ready) => {
-        if (this.state.phase !== "local.runtimeMissing") {
+        if (ready === null || this.state.phase !== "local.runtimeMissing") {
           return
         }
 
@@ -567,21 +588,25 @@ export class OnboardingDriver {
     }
   }
 
-  private pollForDaemon(maxPolls: number): Promise<boolean> {
+  private pollForDaemon(maxPolls: number): Promise<boolean | null> {
     this.stopPolling()
+    const generation = this.pollGeneration
 
     return new Promise((resolve) => {
+      this.pollResolve = resolve
       let polls = 0
       const tick = async () => {
+        if (generation !== this.pollGeneration) return
         if ((await findDockerBinary()) && (await daemonUp())) {
-          this.stopPolling()
+          if (generation !== this.pollGeneration) return
+          this.finishPolling()
           resolve(true)
           return
         }
 
         polls += 1
         if (polls >= maxPolls) {
-          this.stopPolling()
+          this.finishPolling()
           resolve(false)
           return
         }
@@ -594,10 +619,20 @@ export class OnboardingDriver {
   }
 
   private stopPolling() {
+    this.pollGeneration += 1
     if (this.pollTimer) {
       clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
+    const resolve = this.pollResolve
+    this.pollResolve = null
+    resolve?.(null)
+  }
+
+  private finishPolling() {
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = null
+    this.pollResolve = null
   }
 
   adoptRunning() {
@@ -709,88 +744,99 @@ export class OnboardingDriver {
   }
 
   async startInstall(portOverride?: number) {
-    if (this.child) {
+    if (this.child || this.installStarting) {
       return
     }
-
-    const stateDir = localStateDir()
-    await fs.mkdir(stateDir, { recursive: true })
-
-    if (typeof portOverride === "number" && Number.isFinite(portOverride) && portOverride > 0) {
-      this.port = Math.floor(portOverride)
-    }
-
-    const manifest = await readBackendManifest()
-    const identity = currentStackIdentity()
-    const flags = ["--docker", "--non-interactive", "--json", "--skip-runtime-install", "--target-dir", stateDir]
-    // Isolate this channel's Compose project + volumes; a test stack also
-    // seeds repository polling paused so it does not race production to file
-    // Jobs (install.sh applies --pause-polling only when generating a fresh
-    // .env, so re-installs are unaffected).
-    flags.push("--project", identity.project)
-    if (identity.channel === "test") {
-      flags.push("--pause-polling")
-    }
-    if (manifest?.image) {
-      flags.push("--image", manifest.image)
-    }
-    if (this.port !== INSTALLER_BUILTIN_DEFAULT_PORT) {
-      flags.push("--port", String(this.port))
-    }
-
-    const steps: InstallStep[] = INSTALL_STEP_IDS.map((id) => ({ id, status: "pending" }))
-    this.logTail = []
-    this.lastLogTransient = false
-    this.lastError = null
-    this.doneUrl = null
+    this.installStarting = true
     this.cancelRequested = false
-    this.pullAggregator = null
-    this.lastPullLabel = null
-    this.lastPullPercent = null
-    this.lastPullEmitAt = 0
-    this.setState({ phase: "local.installing", steps, currentStep: null, pullProgress: null })
 
-    const logStream = createWriteStream(path.join(stateDir, "install.log"), { flags: "a" })
-    logStream.write(`\n--- install started ${new Date().toISOString()} ---\n`)
+    try {
+      const stateDir = localStateDir()
+      await fs.mkdir(stateDir, { recursive: true })
 
-    // POSIX: detached puts the script's docker/compose grandchildren in one
-    // process group, so cancel can signal the whole group instead of
-    // orphaning an in-flight multi-GB pull. Windows has no process groups —
-    // cancel uses taskkill /T there instead (killInstallChild), and detached
-    // would pop a new console. The spec knobs are scrubbed so a stray value
-    // in the user's environment can't silently gate a real install.
-    const env = execEnv()
-    delete env.SYRUS_HEALTH_POLLS
-    delete env.SYRUS_PULL_RETRY_DELAY
-    const { command, args: spawnArgs } = installerCommand(installerScriptPath(), flags)
-    const child =
-      process.platform === "win32"
-        ? spawn(command, spawnArgs, { env, windowsHide: true })
-        : spawn(command, spawnArgs, { env, detached: true })
-    this.child = child
+      if (typeof portOverride === "number" && Number.isFinite(portOverride) && portOverride > 0) {
+        this.port = Math.floor(portOverride)
+      }
 
-    readline.createInterface({ input: child.stdout }).on("line", (line) => {
-      logStream.write(`${line}\n`)
-      this.handleInstallerEvent(line)
-    })
+      const manifest = await readBackendManifest()
+      if (this.cancelRequested) {
+        this.cancelRequested = false
+        this.setState({ phase: "welcome" })
+        return
+      }
+      const identity = currentStackIdentity()
+      const flags = ["--docker", "--non-interactive", "--json", "--skip-runtime-install", "--target-dir", stateDir]
+      // Isolate this channel's Compose project + volumes; a test stack also
+      // seeds repository polling paused so it does not race production to file
+      // Jobs (install.sh applies --pause-polling only when generating a fresh
+      // .env, so re-installs are unaffected).
+      flags.push("--project", identity.project)
+      if (identity.channel === "test") {
+        flags.push("--pause-polling")
+      }
+      if (manifest?.image) {
+        flags.push("--image", manifest.image)
+      }
+      if (this.port !== INSTALLER_BUILTIN_DEFAULT_PORT) {
+        flags.push("--port", String(this.port))
+      }
 
-    readline.createInterface({ input: child.stderr }).on("line", (line) => {
-      logStream.write(`${line}\n`)
-      this.appendLog(line)
-    })
+      const steps: InstallStep[] = INSTALL_STEP_IDS.map((id) => ({ id, status: "pending" }))
+      this.logTail = []
+      this.lastLogTransient = false
+      this.lastError = null
+      this.doneUrl = null
+      this.pullAggregator = null
+      this.lastPullLabel = null
+      this.lastPullPercent = null
+      this.lastPullEmitAt = 0
+      this.setState({ phase: "local.installing", steps, currentStep: null, pullProgress: null })
 
-    child.on("error", (error) => {
-      logStream.write(`spawn error: ${String(error)}\n`)
-    })
+      const logStream = createWriteStream(path.join(stateDir, "install.log"), { flags: "a" })
+      logStream.write(`\n--- install started ${new Date().toISOString()} ---\n`)
 
-    // "close", not "exit": close fires only after stdio has drained, so the
-    // final NDJSON error/done lines are guaranteed to have been parsed and
-    // nothing writes to the log stream after end().
-    child.on("close", (code) => {
-      this.child = null
-      logStream.end()
-      this.handleExit(code ?? 1)
-    })
+      // POSIX: detached puts the script's docker/compose grandchildren in one
+      // process group, so cancel can signal the whole group instead of
+      // orphaning an in-flight multi-GB pull. Windows has no process groups —
+      // cancel uses taskkill /T there instead (killInstallChild), and detached
+      // would pop a new console. The spec knobs are scrubbed so a stray value
+      // in the user's environment can't silently gate a real install.
+      const env = execEnv()
+      delete env.SYRUS_HEALTH_POLLS
+      delete env.SYRUS_PULL_RETRY_DELAY
+      const { command, args: spawnArgs } = installerCommand(installerScriptPath(), flags)
+      const child =
+        process.platform === "win32"
+          ? spawn(command, spawnArgs, { env, windowsHide: true })
+          : spawn(command, spawnArgs, { env, detached: true })
+      this.child = child
+      this.installStarting = false
+
+      readline.createInterface({ input: child.stdout }).on("line", (line) => {
+        logStream.write(`${line}\n`)
+        this.handleInstallerEvent(line)
+      })
+
+      readline.createInterface({ input: child.stderr }).on("line", (line) => {
+        logStream.write(`${line}\n`)
+        this.appendLog(line)
+      })
+
+      child.on("error", (error) => {
+        logStream.write(`spawn error: ${String(error)}\n`)
+      })
+
+      // "close", not "exit": close fires only after stdio has drained, so the
+      // final NDJSON error/done lines are guaranteed to have been parsed and
+      // nothing writes to the log stream after end().
+      child.on("close", (code) => {
+        this.child = null
+        logStream.end()
+        this.handleExit(code ?? 1)
+      })
+    } finally {
+      this.installStarting = false
+    }
   }
 
   // Kill the whole tree so docker/compose grandchildren die with the script
@@ -814,18 +860,21 @@ export class OnboardingDriver {
   }
 
   cancelInstall() {
-    if (!this.child) {
+    if (!this.child && !this.installStarting) {
       return
     }
 
     this.cancelRequested = true
-    this.killInstallChild()
+    if (this.child) this.killInstallChild()
   }
 
   // Forget all wizard progress so a reopened onboarding starts at Welcome —
   // used by "Run Setup Again…", which clears the backend config.
   reset() {
     this.stopPolling()
+    if (this.installStarting) {
+      this.cancelRequested = true
+    }
     if (this.child) {
       this.cancelRequested = true
       this.killInstallChild()

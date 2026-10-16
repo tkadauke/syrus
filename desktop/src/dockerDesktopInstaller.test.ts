@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { dockerDesktopInstallArgs, dockerDesktopInstallerUrl } from "../electron/installer/dockerDesktopInstaller"
+import {
+  dockerDesktopInstallArgs,
+  dockerDesktopInstallerUrl,
+  validDockerDesktopSignature
+} from "../electron/installer/dockerDesktopInstaller"
 
 describe("dockerDesktopInstaller", () => {
   it("installs unattended: license pre-accepted, per-user (no UAC), WSL 2, quiet", () => {
@@ -30,5 +34,13 @@ describe("dockerDesktopInstaller", () => {
     expect(dockerDesktopInstallerUrl({ PROCESSOR_ARCHITEW6432: "ARM64" }, "x64")).toBe(
       "https://desktop.docker.com/win/main/arm64/Docker%20Desktop%20Installer.exe"
     )
+  })
+
+  it("accepts only a valid Authenticode signature from Docker Inc.", () => {
+    expect(validDockerDesktopSignature({ Status: "Valid", Subject: "CN=Docker Inc, O=Docker Inc, L=Palo Alto" })).toBe(
+      true
+    )
+    expect(validDockerDesktopSignature({ Status: "HashMismatch", Subject: "CN=Docker Inc, O=Docker Inc" })).toBe(false)
+    expect(validDockerDesktopSignature({ Status: "Valid", Subject: "CN=Attacker, O=Not Docker Inc" })).toBe(false)
   })
 })

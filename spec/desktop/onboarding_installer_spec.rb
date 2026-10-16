@@ -77,6 +77,30 @@ RSpec.describe "desktop onboarding installer" do
     expect(driver).to match(/cancelRequested[\s\S]*?\{ phase: "welcome" \}/)
   end
 
+  it "guards installer startup before its first await and rejects stale IPC phases" do
+    expect(driver).to match(/if \(this\.child \|\| this\.installStarting\) \{\s*return\s*\}\s*this\.installStarting = true/)
+    expect(driver).to match(/cancelInstall\(\)[\s\S]*?!this\.child && !this\.installStarting/)
+    expect(main_process).to match(/onboarding:start-install[\s\S]{0,250}phase !== "local\.portConflict"/)
+  end
+
+  it "invalidates in-flight daemon polls so stale ticks cannot re-arm" do
+    expect(driver).to include("private pollGeneration = 0")
+    expect(driver).to include("if (generation !== this.pollGeneration) return")
+    expect(driver).to match(/private stopPolling\(\) \{\s*this\.pollGeneration \+= 1/)
+  end
+
+  it "isolates, verifies, aborts, and cleans up Docker Desktop installers" do
+    docker_installer = read("electron/installer/dockerDesktopInstaller.ts")
+    expect(driver).to include('fs.mkdtemp(path.join(app.getPath("temp"), "syrus-docker-desktop-"))')
+    expect(driver).to include("verifyDockerDesktopInstaller(installerPath)")
+    expect(driver).to include("runDockerDesktopInstaller(installerPath, installAbort.signal)")
+    expect(driver).to include("fs.rm(installerDir, { recursive: true, force: true })")
+    expect(docker_installer).to include("Get-AuthenticodeSignature")
+    expect(docker_installer).to include("DOWNLOAD_IDLE_TIMEOUT_MS = 60_000")
+    expect(docker_installer).to match(/catch \(error\)[\s\S]*?fs\.rm\(destPath, \{ force: true \}\)/)
+    expect(docker_installer).to include("INDETERMINATE_PROGRESS_INTERVAL_MS")
+  end
+
   it "adopts an existing install by copying the original .env, never moving it" do
     expect(driver).to include("fs.copyFile(")
     expect(driver).not_to include("fs.rename(")

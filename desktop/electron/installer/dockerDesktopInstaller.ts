@@ -6,6 +6,8 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
+const DOWNLOAD_IDLE_TIMEOUT_MS = 60_000
+const INDETERMINATE_PROGRESS_INTERVAL_MS = 500
 
 // Guided Docker Desktop acquisition, Windows only. Instead of pointing the
 // user at the download page and hoping they survive the installer + the
@@ -57,35 +59,83 @@ export const dockerDesktopInstallArgs = (): string[] => [
 export const downloadDockerDesktopInstaller = async (
   destPath: string,
   onProgress: (percent: number | null) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  idleTimeoutMs = DOWNLOAD_IDLE_TIMEOUT_MS
 ): Promise<void> => {
-  const response = await fetch(dockerDesktopInstallerUrl(), { signal })
-  if (!response.ok || !response.body) {
-    throw new Error(`installer download failed (HTTP ${response.status})`)
+  const idleAbort = new AbortController()
+  let timedOut = false
+  let idleTimer: NodeJS.Timeout | undefined
+  const abortFromCaller = () => idleAbort.abort(signal?.reason)
+  signal?.addEventListener("abort", abortFromCaller, { once: true })
+  if (signal?.aborted) abortFromCaller()
+  const refreshIdleTimeout = () => {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      timedOut = true
+      idleAbort.abort()
+    }, idleTimeoutMs)
   }
 
-  const total = Number.parseInt(response.headers.get("content-length") ?? "", 10)
-  let received = 0
-  let lastReported = -1
-  const progress = new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      received += chunk.byteLength
-      if (Number.isFinite(total) && total > 0) {
-        const percent = Math.floor((received / total) * 100)
-        if (percent !== lastReported) {
-          lastReported = percent
-          onProgress(percent)
-        }
-      } else {
-        onProgress(null)
-      }
-      controller.enqueue(chunk)
+  try {
+    refreshIdleTimeout()
+    const response = await fetch(dockerDesktopInstallerUrl(), { signal: idleAbort.signal })
+    if (!response.ok || !response.body) {
+      throw new Error(`installer download failed (HTTP ${response.status})`)
     }
-  })
 
-  await fs.mkdir(path.dirname(destPath), { recursive: true })
-  await pipeline(response.body.pipeThrough(progress), createWriteStream(destPath), { signal })
+    const total = Number.parseInt(response.headers.get("content-length") ?? "", 10)
+    let received = 0
+    let lastReported = -1
+    let lastIndeterminateReport = 0
+    const progress = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        refreshIdleTimeout()
+        received += chunk.byteLength
+        if (Number.isFinite(total) && total > 0) {
+          const percent = Math.floor((received / total) * 100)
+          if (percent !== lastReported) {
+            lastReported = percent
+            onProgress(percent)
+          }
+        } else if (Date.now() - lastIndeterminateReport >= INDETERMINATE_PROGRESS_INTERVAL_MS) {
+          lastIndeterminateReport = Date.now()
+          onProgress(null)
+        }
+        controller.enqueue(chunk)
+      }
+    })
+
+    await fs.mkdir(path.dirname(destPath), { recursive: true })
+    await pipeline(response.body.pipeThrough(progress), createWriteStream(destPath), { signal: idleAbort.signal })
+  } catch (error) {
+    await fs.rm(destPath, { force: true }).catch(() => {})
+    if (timedOut) {
+      throw new Error("installer download stalled for 60 seconds")
+    }
+    throw error
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer)
+    signal?.removeEventListener("abort", abortFromCaller)
+  }
 }
+
+export const verifyDockerDesktopInstaller = async (installerPath: string): Promise<void> => {
+  const script =
+    "$s = Get-AuthenticodeSignature -LiteralPath $args[0]; " +
+    "[pscustomobject]@{Status=[string]$s.Status; Subject=[string]$s.SignerCertificate.Subject} | ConvertTo-Json -Compress"
+  const { stdout } = await execFileAsync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script, installerPath],
+    { windowsHide: true, timeout: 30_000 }
+  )
+  const signature = JSON.parse(stdout) as { Status?: string; Subject?: string }
+  if (!validDockerDesktopSignature(signature)) {
+    throw new Error("Docker Desktop installer signature is not valid or is not published by Docker Inc.")
+  }
+}
+
+export const validDockerDesktopSignature = (signature: { Status?: string; Subject?: string }): boolean =>
+  signature.Status === "Valid" && /(?:^|,\s*)O=Docker Inc(?:\.|,|$)/i.test(signature.Subject ?? "")
 
 // Run the installer unattended and wait for it to finish. Per-user mode needs
 // no elevation, so this is a plain child process — no UAC round-trip (unlike
@@ -93,10 +143,11 @@ export const downloadDockerDesktopInstaller = async (
 // installer exit codes; anything nonzero is surfaced as a failure and the
 // wizard falls back to the manual download path. First installs regularly
 // take several minutes (WSL distro import).
-export const runDockerDesktopInstaller = async (installerPath: string): Promise<void> => {
+export const runDockerDesktopInstaller = async (installerPath: string, signal?: AbortSignal): Promise<void> => {
   await execFileAsync(installerPath, dockerDesktopInstallArgs(), {
     timeout: 20 * 60_000,
     windowsHide: true,
-    maxBuffer: 16 * 1024 * 1024
+    maxBuffer: 16 * 1024 * 1024,
+    signal
   })
 }
