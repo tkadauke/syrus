@@ -39,7 +39,8 @@ module Steps
         job: job,
         user: job.user,
         repository_ids: [ job.repository_id ],
-        injected_context: collect_injected_context
+        injected_context: collect_injected_context,
+        spill: prompt_spill
       ).to_s
     end
 
@@ -54,7 +55,8 @@ module Steps
         job: job,
         user: job.user,
         repository_ids: [ job.repository_id ],
-        injected_context: collect_injected_context
+        injected_context: collect_injected_context,
+        spill: prompt_spill
       ).to_s
     end
 
