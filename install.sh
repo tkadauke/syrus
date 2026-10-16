@@ -504,6 +504,16 @@ run_docker() {
   SYRUS_PLUGIN_RUNTIME_IMAGE="$(grep -E '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env | tail -1 | cut -d= -f2-)"
   export SYRUS_PLUGIN_RUNTIME_IMAGE
 
+  # Capture the installed container's immutable image identity BEFORE pulling.
+  # A mutable tag such as :latest may point at a different image afterwards,
+  # while Config.Image remains the same tag string and cannot reveal the
+  # upgrade. `compose ps -aq` also finds a stopped container.
+  prior_web_container="$(compose ps -aq web 2>/dev/null | head -1 || true)"
+  prior_image_id=""
+  if [ -n "$prior_web_container" ]; then
+    prior_image_id="$(docker inspect --format '{{.Image}}' "$prior_web_container" 2>/dev/null || true)"
+  fi
+
   # 4. Pull the prebuilt image. The daemon is already known reachable, so a
   #    failure here is about the image itself — surface the real error. The
   #    download is large, so a transient network blip (e.g. "tls: bad record
@@ -712,28 +722,34 @@ run_docker() {
   # 5. Start the stack.
   step "Starting Syrus"
   emit_step stack_up start
-  # A changed backend image may contain migrations, and the setup service runs
-  # db:prepare before the app starts. Preserve the existing data volume first.
-  # `compose ps -aq` also finds a stopped prior container, which protects an
-  # update after a manual `docker compose stop`. Stopping the stack makes the
-  # tar archive a consistent point-in-time copy of the SQLite files.
-  prior_web_container="$(compose ps -aq web 2>/dev/null | head -1 || true)"
-  prior_image=""
-  if [ -n "$prior_web_container" ]; then
-    prior_image="$(docker inspect --format '{{.Config.Image}}' "$prior_web_container" 2>/dev/null || true)"
+  # The setup service runs db:prepare before the app starts. Back up when the
+  # pulled image's immutable ID differs from the installed container's ID. If
+  # `docker compose down` removed all container metadata but retained the data
+  # volume, there is nothing reliable to compare, so take the safe path and
+  # back up unconditionally. Stopping first makes the SQLite archive consistent.
+  resolved_image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || true)"
+  backup_reason=""
+  if docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+    if [ -z "$prior_web_container" ]; then
+      backup_reason="existing data volume has no prior container metadata"
+    elif [ -z "$prior_image_id" ] || [ -z "$resolved_image_id" ]; then
+      backup_reason="image identity could not be verified"
+    elif [ "$prior_image_id" != "$resolved_image_id" ]; then
+      backup_reason="image changed: $prior_image_id -> $resolved_image_id"
+    fi
   fi
-  if [ -n "$prior_image" ] && [ "$prior_image" != "$IMAGE" ] \
-     && docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+  if [ -n "$backup_reason" ]; then
     backup_dir="$PWD/backups"
     backup_path="$backup_dir/syrus-data-before-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
     mkdir -p "$backup_dir"
-    info "Image change detected: $prior_image -> $IMAGE"
+    info "Pre-migration backup required: $backup_reason"
     info "Stopping Syrus and backing up $DATA_VOLUME to $backup_path before migrations."
-    emit_log backup "image changed; backing up $DATA_VOLUME to $backup_path before migrations"
+    emit_log backup "$backup_reason; backing up $DATA_VOLUME to $backup_path before migrations"
     run_logged up compose stop || die "couldn't stop the existing stack before backup" 42
+    backup_image="${prior_image_id:-$IMAGE}"
     if ! docker run --rm --entrypoint tar \
       --mount "type=volume,src=$DATA_VOLUME,dst=/source,readonly" \
-      "$prior_image" -czf - -C /source . > "$backup_path.tmp"; then
+      "$backup_image" -czf - -C /source . > "$backup_path.tmp"; then
       rm -f "$backup_path.tmp"
       die "couldn't back up $DATA_VOLUME; the new image was not started" 42
     fi
