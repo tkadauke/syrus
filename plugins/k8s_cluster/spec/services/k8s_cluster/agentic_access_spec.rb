@@ -39,15 +39,15 @@ RSpec.describe K8sCluster::AgenticAccess do
       expect { described_class.cluster!(-1, context: context(user: owner)) }.to raise_error(described_class::ClusterNotFound)
     end
 
-    it "makes hidden and legacy clusters nonexistent, while admins see both" do
+    it "keeps user-scoped clusters private while allowing admins to use legacy clusters" do
       cluster = scoped_cluster
       legacy = Factories.kubernetes_cluster(agentic_access_enabled: true, token: "legacy")
       admin = Factories.user(admin: true)
 
-      [ cluster, legacy ].each do |hidden|
-        expect { described_class.cluster!(hidden.id, context: context(user: outsider)) }.to raise_error(described_class::ClusterNotFound)
-        expect(described_class.cluster!(hidden.id, context: context(user: admin))).to eq(hidden)
-      end
+      expect { described_class.cluster!(cluster.id, context: context(user: outsider)) }.to raise_error(described_class::ClusterNotFound)
+      expect { described_class.cluster!(cluster.id, context: context(user: admin)) }.to raise_error(described_class::ClusterNotFound)
+      expect { described_class.cluster!(legacy.id, context: context(user: outsider)) }.to raise_error(described_class::ClusterNotFound)
+      expect(described_class.cluster!(legacy.id, context: context(user: admin))).to eq(legacy)
     end
 
     it "honors repository run-token narrowing and team and instance scopes" do
