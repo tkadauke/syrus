@@ -178,12 +178,13 @@ sudo dscl . -create /Users/syrus-worker UserShell /usr/bin/false
 sudo dscl . -create /Users/syrus-worker NFSHomeDirectory /var/lib/syrus
 
 sudo mkdir -p /opt/syrus/releases /opt/syrus/shared /var/lib/syrus /var/log/syrus /etc/syrus
-sudo chown -R syrus-worker:syrus-worker /opt/syrus /var/lib/syrus /var/log/syrus
+sudo chown -R root:wheel /opt/syrus
+sudo chown -R syrus-worker:syrus-worker /opt/syrus/shared /var/lib/syrus /var/log/syrus
 sudo chmod 750 /var/lib/syrus /var/log/syrus
 sudo chown root:syrus-worker /etc/syrus/worker.env
 sudo chmod 640 /etc/syrus/worker.env
 
-sudo cp /opt/syrus/current/config/launchd/com.syrus.worker.plist /Library/LaunchDaemons/com.syrus.worker.plist
+sudo install -o root -g wheel -m 644 /opt/syrus/current/config/launchd/com.syrus.worker.plist /Library/LaunchDaemons/com.syrus.worker.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.syrus.worker.plist
 sudo launchctl kickstart -k system/com.syrus.worker
 ```
@@ -192,9 +193,10 @@ The expected filesystem layout is:
 
 | Path | Purpose |
 | --- | --- |
-| `/opt/syrus/releases/<sha>` | immutable release checkout with gems and npm assets prepared |
+| `/opt/syrus/releases/<sha>` | root-owned, immutable release checkout; the worker cannot modify privileged code |
 | `/opt/syrus/current` | symlink to the active release |
 | `/opt/syrus/shared/bundle` | Bundler install path reused by releases |
+| `/usr/local/libexec/syrus/syrus-macos-updater` | root-owned updater executed by launchd, outside the release tree |
 | `/var/lib/syrus` | `SYRUS_DATA_ROOT`: clone cache, workflow workspaces, search SQLite file if configured there, and `.syrus-worker-storage-id` |
 | `/var/log/syrus/worker.log` / `worker.err.log` | launchd stdout/stderr logs |
 | `/etc/syrus/worker.env` | root-owned env file with app, DB, storage, and worker capability credentials |

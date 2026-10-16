@@ -46,6 +46,11 @@ validates the worker; and loads the worker and updater LaunchDaemons. Homebrew
 itself, Xcode, simulator runtimes, deployment credentials, network tunnels,
 and Apple signing identities remain operator-managed prerequisites.
 
+Before enabling automatic updates, provision the release-signing public key as
+root-owned `/etc/syrus/macos-worker-update-public.pem`. Keep the corresponding
+private key on the release system only; pass its path as
+`SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE` when building worker releases.
+
 The wrapper forces the host into compute-worker mode with
 `SYRUS_ROLE=worker`, `SOLID_QUEUE_CONFIG=config/queue.compute.yml`, and
 `SOLID_QUEUE_SKIP_RECURRING=1`. A typical env file includes:
@@ -130,12 +135,17 @@ mutate keychains, signing state, simulator contents, or selected devices.
 Mac hosts run two launchd services:
 
 - `com.syrus.worker` starts `/opt/syrus/current/bin/macos-worker`.
-- `com.syrus.updater` starts `/opt/syrus/current/bin/syrus-macos-updater`.
+- `com.syrus.updater` starts the root-owned
+  `/usr/local/libexec/syrus/syrus-macos-updater`, outside the worker-writable
+  runtime paths.
 
 The updater polls Syrus or `SYRUS_UPDATE_METADATA_URL` for desired release
-metadata, downloads the `syrus-worker-macos-*.tar.gz` artifact, verifies its
-SHA-256, installs it into `/opt/syrus/releases/<sha>`, runs host-local
-dependency setup, flips `/opt/syrus/current`, and restarts the worker service.
+metadata over HTTPS, downloads the `syrus-worker-macos-*.tar.gz` artifact over
+HTTPS, verifies its detached RSA/SHA-256 signature using the public key pinned
+at `/etc/syrus/macos-worker-update-public.pem`, checks its SHA-256, installs it
+root-owned into `/opt/syrus/releases/<sha>`, runs host-local dependency setup as
+`syrus-worker`, flips `/opt/syrus/current`, and restarts the worker service.
+Local `file://` update sources are rejected outside explicit test setups.
 
 The worker env file keeps host-local state outside release directories:
 `SYRUS_DATA_ROOT`, storage identity, credentials, logs, and shared dependency
