@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { RepositoryCognitiveDebtRoute } from "./RepositoryCognitiveDebt"
@@ -41,10 +41,10 @@ function cognitiveDebtPayload(overrides = {}) {
   }
 }
 
-function renderRoute(debt = cognitiveDebtPayload()) {
+function renderRoute(debtResponse: Promise<Response> = Promise.resolve(jsonResponse({ cognitive_debt: cognitiveDebtPayload() }))) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = String(input)
-    return Promise.resolve(jsonResponse(url.endsWith("/cognitive_debt") ? { cognitive_debt: debt } : detailPayload))
+    return url.endsWith("/cognitive_debt") ? debtResponse : Promise.resolve(jsonResponse(detailPayload))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -74,15 +74,35 @@ describe("RepositoryCognitiveDebtRoute", () => {
 
   it("renders the empty state when there is no cognitive evidence", async () => {
     renderRoute(
-      cognitiveDebtPayload({
-        empty: true,
-        summary: { key: "acme/widgets", line_count: 0, covered_count: 0, stale_count: 0, blind_count: 0, cognitive_coverage_pct: null },
-        subsystems: [],
-        files: [],
-        review_queue: []
-      })
+      Promise.resolve(
+        jsonResponse({
+          cognitive_debt: cognitiveDebtPayload({
+            empty: true,
+            summary: { key: "acme/widgets", line_count: 0, covered_count: 0, stale_count: 0, blind_count: 0, cognitive_coverage_pct: null },
+            subsystems: [],
+            files: [],
+            review_queue: []
+          })
+        })
+      )
     )
 
     expect(await screen.findByText(/No cognitive coverage evidence is available yet/)).toBeInTheDocument()
+  })
+
+  it("shows a loading state while cognitive debt is being calculated", async () => {
+    renderRoute(new Promise<Response>(() => undefined))
+
+    expect(await screen.findByText("Loading cognitive debt...")).toBeInTheDocument()
+  })
+
+  it("shows an error with a retry action when cognitive debt fails to load", async () => {
+    const debtResponse = Promise.resolve(jsonResponse({ error: "Cognitive debt calculation failed." }, 500))
+    renderRoute(debtResponse)
+
+    expect(await screen.findByText("Request failed with 500")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledTimes(3))
   })
 })

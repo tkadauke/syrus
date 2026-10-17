@@ -158,7 +158,22 @@ export function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryD
     staleTime: 5 * 60 * 1000,
   })
   const debt = debtQuery.data?.cognitive_debt
-  if (!debt) return null
+  if (debtQuery.isPending) {
+    return <PanelMessage>{t("repository.cognitive_debt_loading")}</PanelMessage>
+  }
+  if (debtQuery.isError) {
+    return (
+      <PanelMessage tone="error">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage(debtQuery.error, t("repository.cognitive_debt_error"))}</span>
+          <Button disabled={debtQuery.isFetching} onClick={() => void debtQuery.refetch()} size="sm" variant="secondary">
+            {t("repository.cognitive_debt_retry")}
+          </Button>
+        </div>
+      </PanelMessage>
+    )
+  }
+  if (!debt) return <PanelMessage>{t("repository.cognitive_debt_empty")}</PanelMessage>
 
   const summary = debt.summary
 
