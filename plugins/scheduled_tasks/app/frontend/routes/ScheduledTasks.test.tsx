@@ -312,8 +312,7 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
   })
 
   it("round-trips a one-shot time as the same instant outside UTC", async () => {
-    const previousTimezone = process.env.TZ
-    process.env.TZ = "America/New_York"
+    vi.stubEnv("TZ", "America/New_York")
     const fireAt = "2027-01-15T15:30:00.000Z"
     let submittedFireAt: string | undefined
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -341,7 +340,7 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
 
       await waitFor(() => expect(submittedFireAt).toBe(fireAt))
     } finally {
-      process.env.TZ = previousTimezone
+      vi.unstubAllEnvs()
     }
   })
 
