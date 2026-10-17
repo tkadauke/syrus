@@ -1027,6 +1027,20 @@ guarded Runs. It records `run_host_admission` artifacts instead of
 `start_blocked_details` / `pause_details`, because it does not change workflow
 phase ownership or create a WorkUnit admission block.
 
+### Docker Compose CPU sizing
+
+Docker Desktop, OrbStack, and Colima may expose no cgroup CPU quota inside the
+worker container. For installs managed by `install.sh`, the installer records
+the Docker VM's CPU count as `SYRUS_WORKER_CPU_LIMIT` in `.env` the first time
+the key is missing or blank. Because `docker-compose.yml` supplies that file to
+the shared app configuration, the worker receives it without extra wiring.
+
+If worker capacity is unexpectedly low or Runs remain blocked with
+`host_resource_semaphore_busy`, check that `SYRUS_WORKER_CPU_LIMIT` is a
+positive integer appropriate for the VM, then restart the worker. The installer
+never replaces a nonblank operator value when the VM size changes. Manual
+Compose setups can add the same key to `.env` themselves.
+
 Manual Job pause is operator-controlled and is not an admission-control signal.
 It persists on the Job (`manual_paused`) and takes effect at the next Step
 boundary: the current Run finishes, then the dispatcher records
