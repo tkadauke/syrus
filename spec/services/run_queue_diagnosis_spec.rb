@@ -67,6 +67,14 @@ RSpec.describe RunQueueDiagnosis do
     expect(described_class.call(run)).to include(kind: "scheduled", details: include(scheduled_at: scheduled_at.iso8601))
   end
 
+  it "reports an overdue scheduled RunJob as unknown" do
+    queued = queue_job
+    scheduled_at = 5.minutes.ago.change(usec: 0)
+    SolidQueue::ScheduledExecution.insert_all!([ { job_id: queued.id, queue_name: "runs", priority: 0, scheduled_at: scheduled_at, created_at: 10.minutes.ago } ])
+
+    expect(described_class.call(run)).to include(kind: "unknown", details: include(scheduled_at: scheduled_at.iso8601))
+  end
+
   it "reports a claimed RunJob that has not started" do
     queued = queue_job
     SolidQueue::ClaimedExecution.create!(job: queued, process_id: worker.id, created_at: Time.current)
