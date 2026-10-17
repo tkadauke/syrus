@@ -331,6 +331,17 @@ resolution, and chat MCP listings, without changing what other participants
 see. The Hidden chats settings list and restore action use the same
 participant-local state.
 
+The recent-chat sidebar also summarizes Jobs created from confirmed proposals
+in a chat and Jobs for which that chat is the earliest active discussion
+attachment. Queued or running implementation work shows a spinner (with a
+count for concurrent Jobs); landing and CI-repair workflows are excluded.
+Fresh terminal failures and implemented/PR-ready results show failure or
+success glyphs until that participant opens the chat. Hovering or focusing a
+row's indicator cluster opens a portaled breakdown of agent, Job, Epic, goal,
+pending-action, and scratch-pad activity. Collapsed groups roll up Job activity
+so work remains visible, while unread messages use the existing bold title
+without a separate dot.
+
 The normal UI only offers chat provider selection before a chat has started;
 after the first message, chat settings show the stored provider as read-only.
 Operators can still intentionally switch an existing chat through the chat
