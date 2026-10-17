@@ -13,10 +13,20 @@ RSpec.describe RemoveUserDailySpendBudgetFromAppSettings, :ci_only do
     migration.down
     AppSetting.reset_column_information
     expect(AppSetting.column_names).to include("user_daily_spend_budget_usd")
+    expect(ActiveRecord::Base.connection.index_exists?(
+      :runs,
+      described_class::SPEND_WINDOW_COLUMNS,
+      name: described_class::SPEND_WINDOW_INDEX
+    )).to be(true)
 
     migration.up
     AppSetting.reset_column_information
 
     expect(AppSetting.column_names).not_to include("user_daily_spend_budget_usd")
+    expect(ActiveRecord::Base.connection.index_exists?(
+      :runs,
+      described_class::SPEND_WINDOW_COLUMNS,
+      name: described_class::SPEND_WINDOW_INDEX
+    )).to be(false)
   end
 end
