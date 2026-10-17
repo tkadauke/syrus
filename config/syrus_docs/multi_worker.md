@@ -305,6 +305,32 @@ between admission and enqueue, the Run is failed with
 Workflow records a `run_queue_blocked` artifact with the queue and requirement
 details.
 
+### Diagnosing a queued Run
+
+The queued-Run banner on a Job's Workflows tab reflects the RunJob's current
+Solid Queue state instead of assuming every wait is worker saturation:
+
+- **Waiting for a slot** means a live worker consumes the selected queue and
+  all of its advertised threads are occupied.
+- **No queue consumer** means the RunJob is ready, but no live worker consumes
+  its queue. Check **Admin → Queue → Workers**, especially for a stale
+  `resume-<storage-key>` affinity queue.
+- **Concurrency blocked** means Solid Queue is holding the RunJob behind the
+  per-Job concurrency key. Check the pending queue and retry the Job if the
+  earlier work is no longer active.
+- **Scheduled** means Solid Queue will make the RunJob ready at the displayed
+  future time.
+- **Claimed but not started** means a worker process owns the RunJob, but the
+  Run record has not transitioned to running yet.
+- **No RunJob** means no unfinished Solid Queue RunJob refers to the queued Run;
+  retry the Job to recreate it.
+- **No live workers** means no fresh worker heartbeat is visible. Restore a
+  worker before retrying.
+- **Start blocked** uses the same admission-reason vocabulary shown elsewhere
+  in the UI (for example, no capable worker or provider availability).
+- **Unknown** is the safe fallback when Solid Queue state is unavailable or
+  inconsistent. It deliberately does not claim that the worker pool is busy.
+
 Search schema is not part of the primary MySQL schema. It lives in
 `db/search_migrate` and is applied to the local SQLite search database by
 `bin/rails syrus:prepare_search`. Container boot runs this task before web and
@@ -569,6 +595,27 @@ guard count/limit, resource guard kind, high-cost grader count when relevant,
 step kind, Run id, queue name, whether the queue was sticky resume,
 `deferred_at`, and `retry_at`. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
+
+For `host_resource_semaphore_busy`, the Job page's queued-Run banner and the
+artifact's `resource_guard_binding_terms` identify whether compute units,
+reserved memory, measured memory, or more than one term bound admission. Compare
+`active_compute_units + candidate_compute_units` with `host_compute_capacity`,
+and compare `active_reserved_memory_bytes + candidate_reserved_memory_bytes`
+and `current_memory_bytes + candidate_reserved_memory_bytes` with
+`host_memory_effective_budget_bytes`. The effective budget is
+`host_memory_budget_bytes - grader_memory_reserve_bytes`; the reserve is zero
+for non-grader candidates. A host with no active guarded Run ignores these soft
+memory estimates; only critical sampled memory, disk, or CPU pressure can defer
+the lone candidate.
+
+Per-run fallback memory reservation is the effective memory limit divided by
+host compute capacity, then multiplied by the Run's capacity units.
+`SYRUS_WORKER_CPU_LIMIT` controls that compute-capacity calculation when the
+container CPU quota is not the desired value. On Docker Desktop, a small CPU
+allocation can therefore make one Run reserve most of the container's memory;
+increase the Docker Desktop memory setting for real headroom, and set
+`SYRUS_WORKER_CPU_LIMIT` to the worker's intended CPU budget rather than using
+it to claim capacity the Docker VM does not have.
 The Job detail payload uses that `run_id` to attach the admission block only to
 the Step that owns the queued Run. Worker-slot admission artifacts use their
 `step_id` the same way. This keeps one waiting distributed grader from making
@@ -876,16 +923,18 @@ rather than `within_budget`, that is the symptom to look for.
 
 ## Workflow Admission Control Kill Switch
 
-`AppSetting.workflow_admission_control_enabled` is the global operator kill
-switch for the soft workflow admission budget. It defaults to `true`. When an
-admin disables it from Admin Settings, `WorkflowAdmissionBudget` still blocks
-hard worker memory/disk exhaustion but bypasses soft worker pressure and
-landing-queue capacity reservation. Per-host `RunHostAdmission` is separate:
-it still prevents pickups on critically pressured workers and still applies
-host-local guarded-run limits once a queued Run is claimed. Other start
-blockers remain outside this switch: provider circuits, explicit landing
-pauses, dependency blockers, archived repositories, missing PRs, and Job
-readiness checks still apply.
+`AppSetting.workflow_admission_control_enabled` is the opt-in master switch for
+soft capacity pacing. It defaults to `false`, so fresh single-host and Docker
+Compose installs need no capacity tuning. Busy shared, multi-user instances can
+enable it to apply `WorkflowAdmissionBudget` soft pressure and in-flight
+limits, `RunHostAdmission` background yielding, host compute/memory reservations
+and staggering, the global agent-run concurrency cap, and per-actor fair share.
+
+Hard worker memory/disk exhaustion in `WorkflowAdmissionBudget` and critical
+local pressure in `RunHostAdmission` remain unconditional. Provider circuits,
+per-user daily spend budgets, manual pauses, explicit landing pauses,
+dependency blockers, landing-queue correctness gates, archived repositories,
+missing PRs, and Job readiness checks also remain outside this switch.
 
 Every disabled admission decision records `admission_control_disabled=true`,
 the last changed timestamp/user, and the `bypassed_gates` list in the Workflow
@@ -977,6 +1026,20 @@ and can therefore act on that worker's local pressure and already-running
 guarded Runs. It records `run_host_admission` artifacts instead of
 `start_blocked_details` / `pause_details`, because it does not change workflow
 phase ownership or create a WorkUnit admission block.
+
+### Docker Compose CPU sizing
+
+Docker Desktop, OrbStack, and Colima may expose no cgroup CPU quota inside the
+worker container. For installs managed by `install.sh`, the installer records
+the Docker VM's CPU count as `SYRUS_WORKER_CPU_LIMIT` in `.env` the first time
+the key is missing or blank. Because `docker-compose.yml` supplies that file to
+the shared app configuration, the worker receives it without extra wiring.
+
+If worker capacity is unexpectedly low or Runs remain blocked with
+`host_resource_semaphore_busy`, check that `SYRUS_WORKER_CPU_LIMIT` is a
+positive integer appropriate for the VM, then restart the worker. The installer
+never replaces a nonblank operator value when the VM size changes. Manual
+Compose setups can add the same key to `.env` themselves.
 
 Manual Job pause is operator-controlled and is not an admission-control signal.
 It persists on the Job (`manual_paused`) and takes effect at the next Step

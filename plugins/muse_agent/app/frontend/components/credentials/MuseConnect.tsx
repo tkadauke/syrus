@@ -18,10 +18,12 @@ import { StatusBox, Spinner } from "@app/components/credentials/ConnectFlowUi"
 // ClaudeConnect) rather than importing that generic, narrower-message type.
 export function MuseConnect({
   autoFocus = false,
+  deferBootstrapRefresh = false,
   onConnected,
   secondaryAction
 }: {
   autoFocus?: boolean
+  deferBootstrapRefresh?: boolean
   onConnected: (result: CredentialTestResult) => void
   secondaryAction?: ReactNode
 }) {
@@ -45,7 +47,7 @@ export function MuseConnect({
       await savePartialCredentials({ muse_api_key: candidate })
       const payload = await testCredential("muse_api_key")
       if (payload.credential_test.ok) {
-        await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+        if (!deferBootstrapRefresh) await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
         await queryClient.invalidateQueries({ queryKey: ["credentials"] })
         setApiKey("")
         onConnected(payload.credential_test)

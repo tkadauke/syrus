@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { AddRepositoryModal, installWatchInterval } from "./AddRepositoryModal"
 
-function renderModal(props: { onClose?: () => void; onSaved?: () => void } = {}) {
+function renderModal(props: { onClose?: () => void; onSaved?: () => void; reconciliationRefetchIntervalMs?: number; reconciliationPolls?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <AddRepositoryModal onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      <AddRepositoryModal reconciliationRefetchIntervalMs={props.reconciliationRefetchIntervalMs} reconciliationPolls={props.reconciliationPolls} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
     </QueryClientProvider>
   )
 }
@@ -93,7 +93,7 @@ describe("AddRepositoryModal", () => {
 
   it("shows only the User/Org dropdown first and defaults the syrus label silently", async () => {
     mockRoutes()
-    renderModal()
+    renderModal({ reconciliationRefetchIntervalMs: 10, reconciliationPolls: 1 })
 
     const owner = (await screen.findByRole("combobox", { name: "User/Org" })) as HTMLSelectElement
     expect(Array.from(owner.options).map((o) => o.value)).toEqual(["", "octocat", "acme"])
@@ -163,7 +163,7 @@ describe("AddRepositoryModal", () => {
       })
     })
     const openSpy = vi.spyOn(window, "open").mockReturnValue({ opener: null } as unknown as Window)
-    renderModal()
+    renderModal({ reconciliationRefetchIntervalMs: 10, reconciliationPolls: 1 })
 
     await submitRepository()
 
@@ -174,6 +174,7 @@ describe("AddRepositoryModal", () => {
   })
 
   it("offers the pre-scoped App install after adding a PAT-fallback repository, and detects the install", async () => {
+    let installedAfterClick = false
     mockRoutes({
       create: () => jsonResponse({
         message: "Saved",
@@ -181,20 +182,21 @@ describe("AddRepositoryModal", () => {
         repository: savedRepository,
         credential_status: credentialStatus("pat")
       }),
-      detail: () => jsonResponse({ credential_status: credentialStatus("app") })
+      detail: () => jsonResponse({ credential_status: credentialStatus(installedAfterClick ? "app" : "pat") })
     })
     const opened = { opener: {} as unknown }
     const openSpy = vi.spyOn(window, "open").mockReturnValue(opened as Window)
     const onClose = vi.fn()
-    renderModal({ onClose })
+    renderModal({ onClose, reconciliationRefetchIntervalMs: 10, reconciliationPolls: 1 })
 
     await submitRepository()
 
     expect(await screen.findByText("octocat/hello-world is ready.")).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByText(/Optional: install the Syrus GitHub App/)).toBeInTheDocument()
+    expect(await screen.findByText(/Optional: install the Syrus GitHub App/)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: /Install on GitHub/ }))
+    fireEvent.click(await screen.findByRole("button", { name: /Install on GitHub/ }))
+    installedAfterClick = true
     expect(openSpy).toHaveBeenCalledWith("https://github.com/apps/operator-syrus/installations/new?suggested_target_id=3", "_blank")
 
     // The install-watch poll sees the linked installation and flips the
@@ -204,6 +206,34 @@ describe("AddRepositoryModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it("reconciles an initially stale PAT response and closes when the existing installation covers the repository", async () => {
+    const onClose = vi.fn()
+    const onSaved = vi.fn()
+    mockRoutes({
+      create: () => jsonResponse({ message: "Saved", redirect_to: "/repositories/1", repository: savedRepository, credential_status: credentialStatus("pat") }),
+      detail: () => jsonResponse({ credential_status: credentialStatus("app") })
+    })
+    renderModal({ onClose, onSaved, reconciliationRefetchIntervalMs: 10, reconciliationPolls: 5 })
+
+    await submitRepository()
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("button", { name: /Install on GitHub/ })).not.toBeInTheDocument()
+  })
+
+  it("offers installation after bounded reconciliation finds no covering installation", async () => {
+    mockRoutes({
+      create: () => jsonResponse({ message: "Saved", redirect_to: "/repositories/1", repository: savedRepository, credential_status: credentialStatus("pat") })
+    })
+    renderModal({ reconciliationRefetchIntervalMs: 10, reconciliationPolls: 2 })
+
+    await submitRepository()
+
+    expect(await screen.findByText(/Checking whether the GitHub App already covers/)).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /Install on GitHub/ })).toBeInTheDocument()
   })
 
   it("closes immediately when the owner's installation already covers the new repository", async () => {

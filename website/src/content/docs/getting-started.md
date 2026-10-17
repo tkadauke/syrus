@@ -113,15 +113,16 @@ Access Token (PAT) and a custom GitHub App. The **GitHub integration**
 step guides you through them one at a time:
 
 1. **Personal access token.** Syrus links straight to
-   [GitHub's fine-grained token form](https://github.com/settings/personal-access-tokens/new),
-   tells you to scope the token only to the repositories this instance will
-   manage, grant Contents read/write, Pull requests read/write, and Checks
-   read, then choose an expiration you can rotate. Syrus verifies the token the
-   moment you paste it. Classic tokens still work with `repo` for private
-   repositories or `public_repo` for public repositories; `workflow` is only
-   needed if agents must modify GitHub Actions workflow files through that
-   token. The PAT covers private clones, PR operations, CI-failure detection,
-   and fallback for repositories without an active App installation.
+   [GitHub's classic token form](https://github.com/settings/tokens/new).
+   Select `repo` for private-repository use, or `public_repo` instead when you
+   intentionally need public repositories only. The `workflow` scope is
+   optional: add it only when agents must edit GitHub Actions workflow files
+   through the PAT. Choose an expiration you can rotate. Syrus verifies the
+   token the moment you paste it, with no repository probe required for a
+   classic token. Fine-grained tokens remain supported; enter an `owner/repo`
+   in the secondary validation field so Syrus can verify their repository
+   access before saving. The PAT covers clones, PR operations, CI-failure
+   detection, and fallback for repositories without an active App installation.
 2. **GitHub App** (admin only). Click the button: your browser opens
    GitHub, GitHub creates the singleton Syrus App from a manifest and sends
    you straight back — Syrus picks up the registration automatically.
@@ -129,7 +130,9 @@ step guides you through them one at a time:
    Syrus offers GitHub's install page for the App. Keep GitHub's
    **All repositories** default and every repository you add to Syrus
    connects to the App automatically; Syrus detects the installation by
-   itself within seconds and shows _Installed on \<account\>_. If you skip
+   itself within seconds and shows _Installed on \<account\>_. If registration
+   arrives before GitHub's installation list catches up, Syrus keeps checking
+   for a short bounded period before it offers the install action. If you skip
    it, Syrus works through your PAT and offers a per-repository install
    link whenever you add a repository that isn't covered.
 
@@ -167,11 +170,15 @@ fine-tuning, including the trigger label — happen later from the full
 
 After the repository is added, Syrus offers the one optional step that's
 now actionable: **installing the Syrus GitHub App on that owner**, via a
-link pre-scoped to the repository. Skip it and Syrus works through your
-PAT; take it and the modal detects the installation by itself and confirms
-when actions will come from the Syrus bot. If the owner already has an
-active installation, none of this appears — the repository connects to the
-App automatically.
+link pre-scoped to the repository. Before showing that offer, it briefly
+reconciles GitHub's installation state and refreshes the repository's
+credential mode, avoiding a duplicate prompt when a just-installed App is
+still being discovered. Skip it and Syrus works through your PAT; take it and
+the modal detects the installation by itself and confirms when actions will
+come from the Syrus bot. An **All repositories** installation covers new
+repositories for its account automatically. A **Selected repositories**
+installation only covers repositories GitHub reports as selected, so the
+permission/install offer remains available for the others.
 
 To add more repositories after the first, open **Repositories**. You
 can pick from GitHub when credentials can list accessible

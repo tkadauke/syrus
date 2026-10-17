@@ -93,12 +93,12 @@ module SystemAlerts
                "CI-failure detection are degraded until this is fixed; " \
                "the banner clears automatically on the next successful API call.",
       action_steps: [
-        "Generate a fine-grained PAT at " \
-          "<a class=\"underline\" href=\"https://github.com/settings/personal-access-tokens/new\">github.com/settings/personal-access-tokens/new</a> " \
-          "scoped only to the repositories this Syrus instance manages, with repository <code>Contents</code> read/write and " \
-          "<code>Pull requests</code> read/write permissions, plus <code>Checks</code> read for CI-failure detection. Use an expiration you can rotate.",
-        "If you use a classic PAT instead, <code>repo</code> is sufficient for private repositories. Syrus does not require the " \
-          "<code>workflow</code> scope unless you expect agents to modify GitHub Actions workflow files through that token.",
+        "Generate a classic PAT at " \
+          "<a class=\"underline\" href=\"https://github.com/settings/tokens/new\">github.com/settings/tokens/new</a>. " \
+          "Select <code>repo</code> for private-repository use, or <code>public_repo</code> instead when you intentionally need public repositories only. " \
+          "The <code>workflow</code> scope is optional; add it only when agents must edit GitHub Actions workflow files through this PAT. Use an expiration you can rotate.",
+        "Fine-grained PATs remain supported when you need repository-specific access. Enter an <code>owner/repo</code> in Credentials so Syrus can verify " \
+          "repository Contents, Pull requests, Workflows, and Checks access before saving.",
         "Paste the new token into <a class=\"underline\" href=\"/credentials\">Settings → Credentials</a> and save. " \
           "The banner clears on the next successful API call."
       ],

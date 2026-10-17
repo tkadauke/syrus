@@ -39,18 +39,21 @@ type Preflight =
 // are what re-run it, so hosts that keep this component mounted-hidden
 // never double-fire the check).
 //
-// The exchange saves + tests the token server-side; on success the
-// bootstrap + credentials queries are invalidated before onConnected fires.
+// The exchange saves + tests the token server-side; on success Settings
+// refreshes bootstrap and credentials before onConnected fires. Onboarding
+// defers bootstrap until its provider-selection request succeeds.
 export function ClaudeConnect({
   onConnected,
   onPreflight,
   secondaryAction,
-  autoFocus = false
+  autoFocus = false,
+  deferBootstrapRefresh = false
 }: {
   onConnected: (result: CredentialTestResult) => void
   onPreflight?: (ready: boolean) => void
   secondaryAction?: ReactNode
   autoFocus?: boolean
+  deferBootstrapRefresh?: boolean
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
@@ -120,7 +123,7 @@ export function ClaudeConnect({
     try {
       const payload = await exchangeClaudeOauth(codeToExchange)
       if (payload.credential_test.ok) {
-        await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+        if (!deferBootstrapRefresh) await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
         await queryClient.invalidateQueries({ queryKey: ["credentials"] })
         setCode("")
         onConnected(payload.credential_test)

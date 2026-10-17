@@ -11,6 +11,10 @@ module App
       new(provider).enable!
     end
 
+    def self.connect!(provider, user:)
+      new(provider).connect!(user)
+    end
+
     def initialize(provider)
       @provider = provider.to_s
     end
@@ -20,6 +24,18 @@ module App
       return nil unless record
 
       ::Admin::PluginEnabler.enable!(record)
+    end
+
+    def connect!(user)
+      record = matching_plugin_record
+      return nil unless record
+
+      ActiveRecord::Base.transaction do
+        ::Admin::PluginEnabler.enable!(record)
+        user.update!(agent_provider: provider)
+      end
+
+      record
     end
 
     private

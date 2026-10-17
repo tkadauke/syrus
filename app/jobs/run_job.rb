@@ -189,6 +189,8 @@ class RunJob < ApplicationJob
   # signal stale or keep main broken while the landing queue is paused.
   # Landing/merge Runs are not capped (different queues, isolated pools).
   def defer_for_agent_concurrency?(run_id)
+    return false unless AdmissionControl.enabled?
+
     limit = AppSetting.max_concurrent_agent_runs
     return false if limit <= 0
 
@@ -217,15 +219,17 @@ class RunJob < ApplicationJob
     return false unless run && !run.terminal? && run.agentic_step?
     return false if work_definition_for_run(run).agent_concurrency_exempt?
 
-    share = Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
     budget = Admission::SpendBudget.for(user: run.user)
-    return false unless share.over_share? || budget.over_budget?
+    share = if AdmissionControl.enabled?
+      Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
+    end
+    return false unless share&.over_share? || budget.over_budget?
 
-    reason = share.over_share? ? "actor_fair_share" : "actor_spend_budget"
+    reason = share&.over_share? ? "actor_fair_share" : "actor_spend_budget"
     delay = budget.over_budget? ? SPEND_BUDGET_RETRY_DELAY : AGENT_CONCURRENCY_RETRY_DELAY
     Rails.logger.info(
       "[RunJob] #{reason} for user ##{run.user_id} " \
-        "(#{share.to_h.inspect} #{budget.to_h.inspect}) — deferring Run ##{run_id} by #{delay.inspect}"
+        "(#{share&.to_h.inspect} #{budget.to_h.inspect}) — deferring Run ##{run_id} by #{delay.inspect}"
     )
     defer_run(run_id, delay)
     true
@@ -331,10 +335,19 @@ class RunJob < ApplicationJob
       kind: "system",
       chunk: "compute host admission deferred before #{@step.kind}: #{admission.reason}"
     ) unless admission_deferral_log_exists?("compute host admission deferred before #{@step.kind}: #{admission.reason}")
+    record_memory_binding_guidance!(admission)
     payload
   rescue StandardError => e
     Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
     admission.details.merge("reason" => admission.reason, "run_id" => @run.id, "deferral_count" => 1)
+  end
+
+  def record_memory_binding_guidance!(admission)
+    binding_terms = Array(admission.details["resource_guard_binding_terms"])
+    return unless binding_terms.intersect?(%w[memory_reservation measured_memory])
+
+    chunk = "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+    JobLog.append!(run: @run, kind: "system", chunk: chunk) unless admission_deferral_log_exists?(chunk)
   end
 
   def pinned_host_admission_budget_exhausted?(artifact)

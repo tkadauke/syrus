@@ -8,11 +8,39 @@ RSpec.describe RunHostAdmission do
   let(:run) { workflow.first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
 
   before do
+    AppSetting.current.update!(workflow_admission_control_enabled: true)
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
     allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
     allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16.gigabytes)
     allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.gigabytes)
     workflow.update!(worker_hostname: "worker-a")
+  end
+
+  it "bypasses host-local soft pacing when admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    worker_sample(cpu_pressure_some: 10.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    admission = described_class.new(run: run)
+    allow(admission).to receive(:background_work_should_yield?).and_return(true)
+    expect(admission).not_to receive(:resource_guard_full?)
+    expect(admission).not_to receive(:admitted_within_stagger_window?)
+
+    decision = admission.call
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("admission_control_disabled")
+  end
+
+  it "keeps critical local pressure active when admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
   end
 
   it "defers compute runs on a worker with critical local pressure" do
@@ -195,6 +223,44 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("host_capacity_available")
+  end
+
+  it "admits a lone agentic run when one capacity unit reserves more than the memory budget" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(1)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
+    worker_sample(memory_used_percent: 25.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+  end
+
+  it "admits a lone agentic run at capacity three despite a measured working set above the old threshold" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
+    worker_sample(memory_used_percent: 25.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    expect(described_class.call(run: run)).to be_admit
+  end
+
+  it "still defers a second agentic run when memory reservation is full" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
+    worker_sample(memory_used_percent: 25.0)
+    saturate_guarded_slots!(count: 1)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect(decision.details["resource_guard_binding_terms"]).to include("memory_reservation")
+    expect(decision.details["resource_guard_binding_terms"]).not_to include("compute_units")
   end
 
   # syrus_admission_decisions_total is the same per-process counter
@@ -401,9 +467,14 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      memory_budget = (16.gigabytes * described_class::MEMORY_UTILIZATION).floor
+      grader_reserve = (16.gigabytes / 6) * 2
       expect(decision.details).to include(
         "host_memory_limit_bytes" => 16.gigabytes,
-        "current_memory_bytes" => 13.gigabytes
+        "current_memory_bytes" => 13.gigabytes,
+        "host_memory_budget_bytes" => memory_budget,
+        "grader_memory_reserve_bytes" => grader_reserve,
+        "host_memory_effective_budget_bytes" => memory_budget
       )
     end
 

@@ -24,24 +24,45 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true, checks_read: true, unverified_repository_permissions: ["pull_requests:write"] } }
+const okResult = {
+  credential: "github_token",
+  ok: true,
+  message:
+    "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.",
+  details: {
+    login: "octocat",
+    scopes: [],
+    missing_scopes: [],
+    fine_grained: true,
+    probed_repository: "acme/widgets",
+    workflow_file_write: true,
+    checks_read: true,
+    unverified_repository_permissions: ["pull_requests:write"]
+  }
+}
+const classicOkResult = {
+  credential: "github_token",
+  ok: true,
+  message: "GitHub token is valid for octocat.",
+  details: { login: "octocat", scopes: ["repo"], missing_scopes: [] }
+}
 
 describe("GithubTokenStep", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("renders the guided steps: settings link, permission checklist, paste field", () => {
+  it("leads with classic token creation and the exact classic scopes", () => {
     renderStep()
 
-    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
+    const link = screen.getByRole("link", { name: /Create a classic token/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
-    expect(screen.getByText("Contents")).toBeInTheDocument()
-    expect(screen.getByText("Pull requests")).toBeInTheDocument()
-    expect(screen.getByText("Workflows")).toBeInTheDocument()
-    expect(screen.getByText("Checks")).toBeInTheDocument()
+    expect(screen.getByText(/Generate a classic personal access token/)).toBeInTheDocument()
+    expect(screen.getByText("repo")).toBeInTheDocument()
+    expect(screen.getByText("public_repo")).toBeInTheDocument()
+    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Leave this blank for a classic token/)).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("owner/repo")).toBeInTheDocument()
   })
@@ -62,7 +83,8 @@ describe("GithubTokenStep", () => {
     const needsRepository = {
       credential: "github_token",
       ok: false,
-      message: "Fine-grained token authenticated as octocat. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.",
+      message:
+        "Fine-grained token authenticated as octocat. Enter a repository slug so Syrus can verify repository write, GitHub Actions workflow-file access, and Checks read access before saving.",
       details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, needs_repository_probe: true }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: needsRepository }) })
@@ -106,7 +128,7 @@ describe("GithubTokenStep", () => {
 
   it("saves via a partial PATCH containing only the token, then calls onSaved", async () => {
     const fetchSpy = mockRoutes({
-      test: () => jsonResponse({ credential_test: okResult }),
+      test: () => jsonResponse({ credential_test: classicOkResult }),
       save: () => jsonResponse({ message: "Credentials updated." })
     })
     const onSaved = vi.fn()
@@ -117,6 +139,8 @@ describe("GithubTokenStep", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    const testCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/test_github_token"))
+    expect(JSON.parse(testCall?.[1]?.body as string)).toEqual({ github_token: "ghp_good", probe_repository: "" })
     const saveCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/credentials"))
     expect(JSON.parse(saveCall?.[1]?.body as string)).toEqual({ user: { github_token: "ghp_good" } })
   })

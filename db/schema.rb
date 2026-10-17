@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_153110) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -241,7 +241,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_153110) do
     t.integer "worker_host_health_sample_retention_days", default: 7, null: false
     t.datetime "workflow_admission_control_changed_at"
     t.integer "workflow_admission_control_changed_by_user_id"
-    t.boolean "workflow_admission_control_enabled", default: true, null: false
+    t.boolean "workflow_admission_control_enabled", default: false, null: false
     t.string "workflow_admission_policy", default: "whole_workflow", null: false
     t.integer "workflow_step_resource_profile_input_retention_days", default: 180, null: false
     t.integer "workflow_step_resource_profile_retention_days", default: 180, null: false
@@ -1498,6 +1498,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_153110) do
     t.datetime "removed_at"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "repository_selection", default: "all", null: false
+    t.json "selected_repository_ids"
     t.index ["github_installation_id"], name: "index_installations_on_github_installation_id", unique: true
     t.index ["user_id"], name: "index_installations_on_user_id"
   end

@@ -229,7 +229,12 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "title" => a_string_matching(/GitHub API access/i),
       "cta" => { "text" => "Update token", "path" => "/credentials" }
     )
-    expect(alert.fetch("action_steps")).not_to be_empty
+    guidance = alert.fetch("action_steps").join(" ")
+    expect(guidance).to include("https://github.com/settings/tokens/new")
+    expect(guidance).to include("<code>repo</code>", "<code>public_repo</code>")
+    expect(guidance).to include("<code>workflow</code> scope is optional")
+    expect(guidance).to include("Fine-grained PATs remain supported")
+    expect(guidance).not_to include("personal-access-tokens/new")
   end
 
   it "reports credentials-only setup status without exposing write-only credential values" do

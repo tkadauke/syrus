@@ -585,7 +585,7 @@ class Repository < ApplicationRecord
 
   def link_installation_from_owner
     return unless will_save_change_to_owner? || installation_id.blank?
-    self.installation = InstallationLinker.find_for_owner(owner)
+    self.installation = InstallationLinker.find_for_repository(self)
   end
 
   def destroy_chat_sessions

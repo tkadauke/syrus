@@ -15,11 +15,13 @@ import { Button } from "./Button"
 export function GithubAppPanel({
   onClose,
   onSaved,
-  confirmRefetchIntervalMs = 3000
+  confirmRefetchIntervalMs = 3000,
+  installationDiscoveryPolls = 10
 }: {
   onClose: () => void
   onSaved?: () => void
   confirmRefetchIntervalMs?: number
+  installationDiscoveryPolls?: number
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
@@ -28,6 +30,7 @@ export function GithubAppPanel({
   const [popupBlocked, setPopupBlocked] = useState<string | null>(null)
   const onSavedRef = useRef(onSaved)
   const registrationSavedRef = useRef(false)
+  const [discoveryPollsRemaining, setDiscoveryPollsRemaining] = useState<number | null>(null)
 
   useEffect(() => {
     onSavedRef.current = onSaved
@@ -56,11 +59,16 @@ export function GithubAppPanel({
   const installations = status?.installations ?? []
   const installed = installations.length > 0
 
-  // Once the App is registered, the GitHub step is satisfied — refresh
-  // bootstrap so the checklist marks it complete, and stop polling.
+  // Once registration lands, keep polling for the asynchronous installation
+  // sync before presenting an install action. Registration alone does not
+  // prove whether GitHub already installed the App.
   useEffect(() => {
     if (!registered || registrationSavedRef.current) return
     registrationSavedRef.current = true
+    if (awaiting) {
+      setDiscoveryPollsRemaining(installationDiscoveryPolls)
+      setAwaitingInstall(true)
+    }
     setAwaiting(false)
     queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => {
       if (!current?.setup_status) return current
@@ -77,7 +85,19 @@ export function GithubAppPanel({
     })
     void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     onSavedRef.current?.()
-  }, [queryClient, registered])
+  }, [awaiting, installationDiscoveryPolls, queryClient, registered])
+
+  useEffect(() => {
+    if (!awaitingInstall || installed || discoveryPollsRemaining === null) return
+    setDiscoveryPollsRemaining((remaining) => remaining === null ? null : remaining - 1)
+  }, [confirm.dataUpdatedAt])
+
+  useEffect(() => {
+    if (discoveryPollsRemaining !== null && discoveryPollsRemaining <= 0) {
+      setAwaitingInstall(false)
+      setDiscoveryPollsRemaining(null)
+    }
+  }, [discoveryPollsRemaining])
 
   // Installations are only discovered by polling GitHub (Syrus has no
   // webhooks) — while the operator is on GitHub's install page, keep asking
@@ -130,7 +150,7 @@ export function GithubAppPanel({
           {t('github_app_panel.install_prompt')}
         </p>
 
-        {status?.install_url ? (
+        {!awaitingInstall && status?.install_url ? (
           <Button
             onClick={() => {
               const installUrl = status.install_url as string
@@ -160,7 +180,7 @@ export function GithubAppPanel({
         ) : null}
 
         <div className="flex justify-end">
-          <Button variant="secondary" onClick={onClose}>
+            <Button variant="secondary" onClick={onClose}>
             {awaitingInstall ? t('github_app_panel.close_connecting') : t('github_app_panel.skip_for_now')}
           </Button>
         </div>

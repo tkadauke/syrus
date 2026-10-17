@@ -8,7 +8,7 @@ import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
-import { Notice, Pill, Section, surfaceClasses, Text, Timeline } from "../../components/ui"
+import { Notice, Pill, Section, surfaceClasses, Text, Timeline, type NoticeTone } from "../../components/ui"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
@@ -57,10 +57,19 @@ export function useNow(active: boolean) {
   return now
 }
 
-// A queued Run hasn't started_at yet — it's waiting for a free worker in
-// the SolidQueue pool, NOT "starting the agent". Surface that honestly
-// (with how long it's been waiting) so a capacity wait doesn't read as a
-// hung job; a running Run shows how long it's been going.
+const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], { tone: NoticeTone; link?: "pending" | "workers" }> = {
+  ready_waiting_for_slot: { tone: "info", link: "pending" },
+  ready_no_consumer: { tone: "warning", link: "workers" },
+  concurrency_blocked: { tone: "warning", link: "pending" },
+  scheduled: { tone: "info", link: "pending" },
+  claimed_not_started: { tone: "info", link: "workers" },
+  no_run_job: { tone: "warning", link: "pending" },
+  no_live_workers: { tone: "warning", link: "workers" },
+  start_blocked: { tone: "warning" },
+  host_admission_deferred: { tone: "warning", link: "workers" },
+  unknown: { tone: "neutral", link: "pending" }
+}
+
 export function ActiveRunBanner({ run }: { run: JobRun }) {
   const { t } = useT("jobs")
   const location = useLocation()
@@ -79,12 +88,36 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
   }
 
   if (queued) {
+    const wait = run.queue_wait ?? { kind: "unknown" as const, details: {} }
+    const presentation = queueWaitPresentation[wait.kind]
+    const reason = wait.details.reason
+    const grossMemoryBudget = wait.details.host_memory_budget_bytes ?? 0
+    const memoryBudget = wait.details.host_memory_effective_budget_bytes ?? Math.max(grossMemoryBudget - (wait.details.grader_memory_reserve_bytes ?? 0), 0)
+    const bindingTerms = wait.details.resource_guard_binding_terms ?? []
+    const binding = bindingTerms.map((term) => {
+      if (term === "compute_units") return t("run_queue_wait.binding_compute", { active: wait.details.active_compute_units, candidate: wait.details.candidate_compute_units, capacity: wait.details.host_compute_capacity })
+      if (term === "memory_reservation") return t("run_queue_wait.binding_reservation", { active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
+      if (term === "measured_memory") return t("run_queue_wait.binding_measured", { current: formatBytes(wait.details.current_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
+      return term
+    }).join("; ")
+    const message = wait.kind === "start_blocked" && reason
+      ? t("run_queue_wait.start_blocked", { reason: t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason }) })
+      : t(`run_queue_wait.${wait.kind}`, {
+          queue: wait.details.queue_name,
+          count: wait.details.live_worker_count,
+          queues: wait.details.live_worker_queues?.join(", "),
+          time: wait.details.scheduled_at ? formatRelativeDate(new Date(wait.details.scheduled_at)) : "",
+          reason,
+          deferralCount: wait.details.deferral_count,
+          deferred: wait.details.first_deferred_at ? formatRelativeDate(new Date(wait.details.first_deferred_at)) : "",
+          binding
+        })
+    const linkPath = presentation.link === "workers" ? "/admin/queue/workers" : "/admin/queue/pending"
     return (
-      <Notice className="mt-2 px-3 py-2 text-xs" tone="warning">
+      <Notice className="mt-2 px-3 py-2 text-xs" tone={presentation.tone}>
         <span className="font-semibold">{t("run_queued_waiting", { id: run.id })}{elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}</span>
         <span className="mt-1 block">
-          {t("run_queued_backlog")}{" "}
-          <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>{t("run_queued_backlog_link")}</Link> {t("run_queued_backlog_suffix")}
+          {message}{presentation.link ? <> {t("run_queue_wait.check")} <Link className="underline" to={withRoutePrefix(linkPath, prefix)}>{t(`run_queue_wait.${presentation.link}_link`)}</Link>.</> : null}
         </span>
       </Notice>
     )

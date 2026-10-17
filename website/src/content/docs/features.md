@@ -1059,14 +1059,14 @@ pressure, and IO pressure. Only fresh heartbeat rows appear in the primary
 current-worker tables; hosts that stopped heartbeating remain chartable while
 their samples are in the selected range and are labeled historical, and stale
 Solid Queue process rows are labeled stale in the process inventory.
-Admins can temporarily disable workflow admission control from Admin Settings
-during incidents where predicted capacity is blocking useful work. This is a
-resource-risk kill switch: it bypasses soft worker pressure and prediction
-throttles, but provider circuits, dependencies, landing pauses, archived
-repositories, missing PRs, and hard worker memory/disk exhaustion still block
-starts. Syrus audits the operator and timestamp, records which admission gates
-were bypassed on each admitted Workflow, and wakes delayed Workflows when the
-switch changes.
+Workflow admission control is off by default, so a fresh single-host install
+needs no capacity tuning. Admins of busy shared, multi-user instances can opt
+in from Admin Settings. The master switch covers workflow-level soft pressure
+and in-flight limits, host-local yielding, reservations and staggering, the
+global agent-run cap, and per-user fair share. Hard worker memory/disk and
+critical local-pressure protection remain active, as do provider availability,
+daily spend budgets, manual pauses, dependencies, and landing correctness
+gates. Syrus audits switch changes and wakes delayed Workflows when it changes.
 When the switch is enabled, admission control still keeps a minimum-progress
 floor of one controlled workflow per healthy worker while running agentic work
 is below that floor. Soft pressure and conservative predictions can slow the
@@ -1567,13 +1567,12 @@ the human owner does not need one. Jobs persist the selected
 `credential_mode` as `app` or `pat` so operators can tell which identity
 actually authored that run's PR.
 
-For PAT setup, fine-grained tokens are recommended. Scope the token only to
-repositories this Syrus instance manages, grant repository Contents
-read/write, Pull requests read/write, and Checks read, then choose an
-expiration you can rotate. Classic PATs still work with `repo` for private
-repositories or `public_repo` for public repositories. The `workflow` scope
-is not required for normal Syrus operation; add it only if you expect agents
-to modify GitHub Actions workflow files through the PAT.
+For PAT setup, create a classic token with `repo` for private-repository use,
+or `public_repo` instead when you intentionally need public repositories only,
+then choose an expiration you can rotate. The `workflow` scope is optional;
+add it only if agents must modify GitHub Actions workflow files through the
+PAT. Classic tokens do not need a repository probe. Fine-grained tokens remain
+supported through the secondary `owner/repo` validation path in Credentials.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-

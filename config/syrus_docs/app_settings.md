@@ -178,6 +178,9 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
 
+This soft cap is enforced only when `workflow_admission_control_enabled` is
+enabled. Per-user daily spend protection remains active independently.
+
 ### prepared_layer_cache_gb
 
 **Type:** integer · **Default:** 100 · `0` = no size budget
@@ -223,7 +226,8 @@ Cap on how many Job workflow attempts may be admitted and unfinished at once,
 instance-wide. `WorkflowAdmissionBudget` checks it when an attempt is **first**
 admitted and answers `delay_until` with reason `in_flight_workflow_limit` once
 that many are already running; the attempt stays queued and is reconsidered
-after the soft delay.
+after the soft delay. This soft limit is active only when
+`workflow_admission_control_enabled` is enabled.
 
 The limit paces starts so that some attempts finish before more begin. Without
 it a burst of filed Jobs can each reach a prepared workspace and then sit
@@ -285,6 +289,21 @@ When the GitHub App was registered. Informational; does not affect runtime behav
 **Type:** datetime
 
 When the latest GitHub App installation sync attempt started. Used by the admin installation diagnostic and chat MCP diagnostic tool to distinguish a stale or never-run sync from a missing App installation.
+
+### workflow_admission_control_enabled
+
+**Type:** boolean · **Default:** `false`
+
+Master switch for optional soft capacity pacing. Enable it on busy shared,
+multi-user instances to apply workflow-level pressure and in-flight limits,
+host-local background yielding, compute/memory reservations and start
+staggering, the global agent-run cap, and per-actor fair share. A fresh
+single-host or Docker Compose install needs no admission tuning by default.
+
+The switch does not disable hard worker memory/disk or critical local-pressure
+protection. Provider-availability pauses, per-user daily spend budgets, manual
+pauses, dependencies, and landing-queue correctness gates also remain active.
+Changing the switch does not rewrite any other setting or existing record.
 
 ### workflow_admission_policy
 

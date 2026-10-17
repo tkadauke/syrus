@@ -24,6 +24,15 @@ class GithubAppClient
     client.find_app_installations
   end
 
+  def self.installation_repository_ids(installation)
+    client = Octokit::Client.new(
+      access_token: installation.fresh_token,
+      user_agent: USER_AGENT,
+      auto_paginate: true
+    )
+    Array(client.list_app_installation_repositories.repositories).map(&:id)
+  end
+
   def self.app_jwt(settings = AppSetting.current, now: Time.current)
     header = { alg: "RS256", typ: "JWT" }
     payload = {

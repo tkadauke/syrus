@@ -115,10 +115,14 @@ describe("GithubCredentialCard", () => {
 
     expect(screen.getByText("Not set")).toBeInTheDocument()
     expect(screen.getByPlaceholderText("ghp_…")).toBeInTheDocument()
-    expect(screen.getByText("Contents")).toBeInTheDocument()
-    expect(screen.getByText("Pull requests")).toBeInTheDocument()
-    expect(screen.getByText("Workflows")).toBeInTheDocument()
-    expect(screen.getByText("Checks")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Create a classic token/ })).toHaveAttribute(
+      "href",
+      "https://github.com/settings/tokens/new"
+    )
+    expect(screen.getByText("repo")).toBeInTheDocument()
+    expect(screen.getByText("public_repo")).toBeInTheDocument()
+    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Leave this blank for a classic token/)).toBeInTheDocument()
   })
 
   it("shows a connected summary when set, and Replace reveals the same guided step", () => {

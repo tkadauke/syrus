@@ -27,6 +27,7 @@ RSpec.describe RunJob, :ci_only do
   end
 
   before do
+    AppSetting.current.update!(workflow_admission_control_enabled: true)
     FileUtils.rm_rf(bare_remote_dir)
     cloned = system(
       "git", "clone", "--local", "--bare",
@@ -1100,6 +1101,25 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+
+    it "logs memory tuning guidance only once when memory binds host admission" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = RunHostAdmission::Decision.new(
+        action: "defer", reason: "host_resource_semaphore_busy", delay: 30.seconds,
+        details: { "hostname" => "worker-a", "resource_guard_binding_terms" => [ "memory_reservation" ] }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      2.times { RunJob.perform_now(run.id) }
+
+      guidance = JobLog.where(run: run).where("chunk LIKE ?", "host memory admission is binding;%")
+      expect(guidance.pluck(:chunk)).to eq([
+        "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+      ])
+    end
+
     it "drops storage affinity after a pinned Run exhausts its host admission deferral budget" do
       job
       wf = job.workflows.last
@@ -1778,6 +1798,27 @@ RSpec.describe RunJob, :ci_only do
       running_agent_run!
 
       expect(RunJob.new.send(:defer_for_agent_concurrency?, queued_run.id)).to be(false)
+    end
+    it "skips the global cap when admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false, max_concurrent_agent_runs: 1)
+      running_agent_run!
+
+      expect {
+        expect(RunJob.new.send(:defer_for_agent_concurrency?, queued_run.id)).to be(false)
+      }.not_to have_enqueued_job(RunJob)
+    end
+
+    it "skips fair share but still evaluates the spend budget when admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false)
+      spend_budget = instance_double(Admission::SpendBudget::Result, over_budget?: true, to_h: {})
+      allow(Admission::FairShare).to receive(:for)
+      allow(Admission::SpendBudget).to receive(:for).and_return(spend_budget)
+
+      expect {
+        expect(RunJob.new.send(:defer_for_actor_share?, queued_run.id)).to be(true)
+      }.to have_enqueued_job(RunJob).with(queued_run.id)
+      expect(Admission::FairShare).not_to have_received(:for)
+      expect(Admission::SpendBudget).to have_received(:for).with(user: queued_run.user)
     end
 
     it "does not defer when running agent Runs are below the cap" do

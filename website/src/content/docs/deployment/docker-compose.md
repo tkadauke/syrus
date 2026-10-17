@@ -364,6 +364,9 @@ and fills the secrets. Notable values:
   token (and adds both to an existing `.env` on update).
 - `SYRUS_PLUGIN_RUNTIME_IMAGE` — the manager image; the installer pins it to
   the backend's release.
+- `SYRUS_WORKER_CPU_LIMIT` — the CPU count used to size worker parallelism when
+  Docker exposes no cgroup CPU quota. The installer fills it once from the
+  Docker VM's CPU count; an existing nonblank operator value is preserved.
 - `SECRET_KEY_BASE`, `ACTIVE_RECORD_ENCRYPTION_*` — generated; keep them
   stable across restarts or stored GitHub/agent credentials can't be
   decrypted. Regenerate a key by hand with `openssl rand -hex 32`.

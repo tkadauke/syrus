@@ -487,7 +487,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | --- | --- |
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
-| GitHub token | Used to list issues, read PRs, push branches, open PRs, edit `.github/workflows/*`, and post updates for that user's repositories. Fine-grained PATs need repository access for the managed repositories with Contents, Pull requests, and Workflows read/write plus Checks read; classic PATs need `repo` for private repositories or `public_repo` for public repositories, plus `workflow` when agents must edit GitHub Actions workflow files through the PAT. Configured on `/credentials` |
+| GitHub token | Used to list issues, read PRs, push branches, open PRs, edit `.github/workflows/*`, and post updates for that user's repositories. Create a classic PAT with `repo` for private-repository use or `public_repo` for intentionally public-only use; add the optional `workflow` scope only when agents must edit GitHub Actions workflow files through the PAT. Fine-grained PATs remain supported through repository-specific validation. Configured on `/credentials` |
 | Agent provider | Default provider for new Jobs, selected from enabled agent-provider plugins such as `claude`, `codex`, `agy`, or `muse`; configured on `/settings/agent`, with ordered routing rules available for user defaults, repository overrides, and Job overrides |
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns, selected from enabled chat-provider plugins such as `claude`, `codex`, `agy`, or `muse`; when blank, chat follows the user's default agent provider |
@@ -560,15 +560,16 @@ use `mode: operator` copy instead of automatic-unavailability copy. Chat
 provider failover is out of scope: this policy does not rewrite
 `ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
-Syrus ships with a global concurrency cap for fresh instances:
-`AppSetting.max_concurrent_agent_runs` defaults to `3`, so autonomous agent
-work cannot scale linearly with worker pods. A second, separate limit paces how
-much work is started at all: `AppSetting.max_in_flight_workflows` (default `0`,
-unlimited) caps how many Job attempts may be admitted and unfinished at once,
-so some finish before more begin instead of a burst of Jobs each stopping
-half-way with a prepared workspace. It is checked only when an attempt is first
-admitted, never against work already in flight, and landing and main-branch
-health work is exempt. The per-user USD budget,
+Syrus provides opt-in soft capacity pacing for busy shared instances through
+`AppSetting.workflow_admission_control_enabled`, which is off by default. When
+enabled, `AppSetting.max_concurrent_agent_runs` defaults to `3`, preventing
+autonomous agent work from scaling linearly with worker pods. A second limit,
+`AppSetting.max_in_flight_workflows` (default `0`, unlimited), caps how many Job
+attempts may be admitted and unfinished at once. It is checked only when an
+attempt is first admitted, never against work already in flight, and landing
+and main-branch health work is exempt. Fresh single-host and Docker Compose
+installs need no capacity tuning unless an admin enables this pacing. The
+per-user USD budget,
 `AppSetting.user_daily_spend_budget_usd`, defaults to `20` dollars per user per
 day. Set it to `0` for unlimited provider-reported spend. The gate defers
 queued work until the next day instead of failing Jobs once provider-reported
