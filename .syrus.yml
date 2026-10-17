@@ -333,13 +333,15 @@ grade:
     # fresh-production-db-prepare.
     timeout_minutes: 5
 
-  - name: work-engine-simulations
+  - type: rspec
+    name: work-engine-simulations
+    fixed_full_path: true
+    paths: [spec/services/work_engine/simulation/scenario_runner_spec.rb]
     description: |
       Runs every deterministic WorkEngine simulation scenario in series.
       These fixtures replay stuck production-style states with mocked
       execution and scenario-specific assertions, so scheduler/reconciler
       regressions surface before they block the landing queue for hours.
-    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/simulator && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rails db:test:prepare && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_TAG_ARGS="--tag ~ci_only --tag work_engine_simulation_assertions" RSPEC_OUTPUT_PREFIX=work-engine-simulation-assertions RSPEC_JUNIT_PREFIX=work-engine-simulation-assertions-junit bin/rspec-worker spec/services/work_engine/simulation/scenario_runner_spec.rb
     phases: [review, landing, ci]
     required: true
     timeout_minutes: 30
