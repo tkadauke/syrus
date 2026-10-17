@@ -35,7 +35,8 @@ RSpec.describe "install.sh GUI interface", :ci_only do
                         pull_error: "stub: pull refused",
                         contexts: [], current_context: "", volume_contexts: [],
                         existing_container: "", prior_image_id: "",
-                        resolved_image_id: "sha256:current")
+                        resolved_image_id: "sha256:current", cpu_count: "8",
+                        cpu_detection_ok: true)
     stub = File.join(dir, "docker")
     context_lines = contexts.map { |c| "#{c}\n" }.join
     holders = volume_contexts.join(" ")
@@ -52,7 +53,12 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         exit 0
       fi
       case "$1" in
-        info) exit 0 ;;
+        info)
+          if [ "$2" = "--format" ]; then
+            printf '%s\n' "#{cpu_count}"
+            exit #{cpu_detection_ok ? 0 : 1}
+          fi
+          exit 0 ;;
         context)
           case "$2" in
             show) printf '%s\n' "#{current_context}" ;;
@@ -883,6 +889,91 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         )
         expect(File.read(File.join(target, ".env"), encoding: "UTF-8")).to eq(env)
         expect(File.stat(File.join(target, ".env")).mode & 0o777).to eq(0o600)
+      end
+    end
+  end
+
+  describe "Docker VM CPU limit stamping" do
+    let(:base_args) do
+      ["--docker", "--json", "--non-interactive", "--skip-runtime-install"]
+    end
+
+    it "writes the detected CPU count on a new install and keeps .env private" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          write_docker_stub(stub_dir, volume_exists: false, cpu_count: "12")
+          out, _err, status = run_install(*base_args, "--target-dir", target, stub_dir: stub_dir)
+
+          expect(status.exitstatus).to eq(30)
+          env_path = File.join(target, ".env")
+          expect(File.read(env_path, encoding: "UTF-8")).to include("SYRUS_WORKER_CPU_LIMIT=12\n")
+          expect(File.stat(env_path).mode & 0o777).to eq(0o600)
+          expect(parse_events(out)).to include(
+            hash_including("event" => "log", "stream" => "env",
+              "line" => "Set SYRUS_WORKER_CPU_LIMIT=12 (Docker VM CPUs) so the worker can size parallelism")
+          )
+        end
+      end
+    end
+
+    it "appends the detected CPU count to an existing .env when the key is absent or blank" do
+      ["SECRET_KEY_BASE=abc123\n", "SECRET_KEY_BASE=abc123\nSYRUS_WORKER_CPU_LIMIT=\n"].each do |original|
+        Dir.mktmpdir do |stub_dir|
+          Dir.mktmpdir do |target|
+            write_docker_stub(stub_dir, volume_exists: false, cpu_count: "6")
+            File.write(File.join(target, ".env"), original)
+
+            run_install(*base_args, "--target-dir", target, stub_dir: stub_dir)
+
+            env = File.read(File.join(target, ".env"), encoding: "UTF-8")
+            expect(env.scan(/^SYRUS_WORKER_CPU_LIMIT=/).length).to eq(1)
+            expect(env).to include("SYRUS_WORKER_CPU_LIMIT=6\n")
+            expect(File.stat(File.join(target, ".env")).mode & 0o777).to eq(0o600)
+          end
+        end
+      end
+    end
+
+    it "does not replace an operator's existing value" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          write_docker_stub(stub_dir, volume_exists: false, cpu_count: "16")
+          env_path = File.join(target, ".env")
+          File.write(env_path, "SECRET_KEY_BASE=abc123\nSYRUS_WORKER_CPU_LIMIT=3\n")
+
+          run_install(*base_args, "--target-dir", target, stub_dir: stub_dir)
+
+          expect(File.read(env_path, encoding: "UTF-8")).to include("SYRUS_WORKER_CPU_LIMIT=3\n")
+          expect(stub_calls(stub_dir)).not_to include("info --format {{.NCPU}}")
+        end
+      end
+    end
+
+    it "leaves .env untouched when CPU detection fails or is non-numeric" do
+      [["", false], ["unknown", true], ["0", true], ["4.5", true]].each do |detected, detection_ok|
+        Dir.mktmpdir do |stub_dir|
+          Dir.mktmpdir do |target|
+            write_docker_stub(stub_dir, volume_exists: false, cpu_count: detected,
+              cpu_detection_ok: detection_ok)
+            env_path = File.join(target, ".env")
+            original = <<~ENV
+              SECRET_KEY_BASE=abc123
+              SYRUS_PLUGIN_RUNTIME_TOKEN=operator-token
+              SYRUS_PLUGIN_RUNTIME_URL=http://plugin-runtime:8080
+              SYRUS_PLUGIN_RUNTIME_IMAGE=ghcr.io/tkadauke/syrus-plugin-runtime:latest
+            ENV
+            File.write(env_path, original)
+
+            out, _err, status = run_install(*base_args, "--target-dir", target, stub_dir: stub_dir)
+
+            expect(status.exitstatus).to eq(30)
+            expect(File.read(env_path, encoding: "UTF-8")).to eq(original)
+            expect(parse_events(out)).to include(
+              hash_including("event" => "log", "stream" => "env",
+                "line" => "Could not detect a positive Docker VM CPU count; leaving SYRUS_WORKER_CPU_LIMIT unset")
+            )
+          end
+        end
       end
     end
   end
