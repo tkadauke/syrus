@@ -180,6 +180,19 @@ clean, Syrus skips `merge_train_agent_rebase`; when it conflicts, the agentic
 step resolves and completes the in-progress rebase before the train re-runs
 landing graders.
 
+Either way the rebased integration branch is **published as soon as it is
+verified**, before anything downstream depends on it. A rebase rewrites the
+branch, so until it is pushed the new head exists on one worker's disk and
+nowhere else -- while the land step that consumes it is not pinned to that
+worker. A train was lost exactly there: its recovery rebase succeeded, the
+land step ran on a different node, and it refused with
+`WorkflowWorkspace::RequiredBranchUnavailable` because the commit it required
+"is not available from the branch or a checkpoint". Publishing also stamps the
+required-branch artifact, so a workspace rebuilt on any node can restore the
+branch. For the agent path, publishing happens only after
+`verify_rebase_complete!` and `verify_integration_branch_rebased!` pass -- an
+unverified or wrong-base rebase must never reach the remote.
+
 The `merge_train_land` Step stays `failed` for the rest of the workflow while
 that branch runs: its failure was handed to the branch, not left unhandled. The
 work-engine reconciler therefore skips a failed Step whose branch has been

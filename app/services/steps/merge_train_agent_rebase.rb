@@ -22,13 +22,20 @@ module Steps
       run_agent(prompt: run.prompt)
 
       verify_rebase_complete!(git, train, new_base_sha, chdir)
-      new_integration_sha = ensure_integration_branch_ref_at_head!(
+      ensure_integration_branch_ref_at_head!(git, train, chdir: chdir, context: "merge_train_agent_rebase")
+      verify_integration_branch_rebased!(git, train, new_base_sha, chdir)
+      # Published only once the agent's rebase is verified -- an unverified
+      # or wrong-base result must not reach the remote. Published for the
+      # same reason Steps::MergeTrainRebase does: an agent-resolved rebase
+      # rewrites the branch too, so its head exists on one worker's disk and
+      # nowhere else until pushed, and the land step may run elsewhere.
+      new_integration_sha = publish_integration_head!(
         git,
         train,
         chdir: chdir,
-        context: "merge_train_agent_rebase"
+        context: "merge_train_agent_rebase",
+        operation_type: "git_merge_train_agent_rebase_push"
       )
-      verify_integration_branch_rebased!(git, train, new_base_sha, chdir)
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
       run.update!(head_sha: new_integration_sha)

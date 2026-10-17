@@ -40,8 +40,23 @@ module Steps
         return
       end
 
-      new_integration_sha = git.run("rev-parse", "HEAD", chdir: chdir).strip
       tree_sha = git.run("rev-parse", "HEAD^{tree}", chdir: chdir).to_s.strip.presence
+      # Publish before anything downstream depends on this commit existing.
+      # The rebase rewrites the integration branch, so until it is pushed the
+      # new head lives on one worker's disk and nowhere else -- and the land
+      # step that consumes it is not pinned to that worker. A train whose
+      # recovery rebase succeeded was lost that way: the land step ran on
+      # another node and refused with RequiredBranchUnavailable, because the
+      # commit it required "is not available from the branch or a
+      # checkpoint". Publishing also stamps the required-branch artifact, so
+      # a workspace rebuilt anywhere can restore the branch.
+      new_integration_sha = publish_integration_head!(
+        git,
+        train,
+        chdir: chdir,
+        context: "merge_train_rebase",
+        operation_type: "git_merge_train_rebase_push"
+      )
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
       skip_agent_rebase!(reason: "merge_train_rebase already succeeded; agent rebase not needed")

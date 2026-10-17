@@ -1957,6 +1957,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run)
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+      # After `git rebase`, the integration branch ref moves with HEAD -- which
+      # is what lets publish_integration_head! push it without re-checkout.
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws").and_return("newintsha999\n")
+      allow(git).to receive(:run)
+        .with("ls-remote", "--heads", "https://push.example/repo.git", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws")
+        .and_return("remotetip111\trefs/heads/#{train.integration_branch}\n")
 
       handler.call
 
@@ -1966,6 +1972,16 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(handler.workflow.steps.find_by!(kind: "merge_train_agent_rebase")).to be_skipped
       expect(handler.workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
+      # The rebase rewrites the integration branch, so until it is pushed the
+      # new head exists on one worker's disk and nowhere else -- and the land
+      # step that needs it is not pinned to that worker. A production train
+      # was lost exactly there, its land step refusing with
+      # RequiredBranchUnavailable on a different node.
+      expect(git).to have_received(:run).with(
+        "push", "--force-with-lease=refs/heads/#{train.integration_branch}:remotetip111",
+        "https://push.example/repo.git", "HEAD:refs/heads/#{train.integration_branch}", chdir: "/tmp/ws"
+      )
+      expect(handler.workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq(train.integration_branch)
     end
 
     it "recreates and checks out the integration branch from integration_sha before rebasing" do
@@ -1985,6 +2001,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").ordered.and_return("newbase222\n")
       expect(git).to receive(:run).with("rebase", "FETCH_HEAD", chdir: "/tmp/ws").ordered
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+      # After `git rebase`, the integration branch ref moves with HEAD -- which
+      # is what lets publish_integration_head! push it without re-checkout.
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws").and_return("newintsha999\n")
 
       handler.call
     end
@@ -2025,6 +2044,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run)
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+      # After `git rebase`, the integration branch ref moves with HEAD -- which
+      # is what lets publish_integration_head! push it without re-checkout.
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
       allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/services/new_base_only.rb\n")
       target_graph = TargetGraph.new
@@ -2097,6 +2119,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run)
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+      # After `git rebase`, the integration branch ref moves with HEAD -- which
+      # is what lets publish_integration_head! push it without re-checkout.
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
       allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
       allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(TargetGraph.new)
@@ -2172,6 +2197,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
       expect(run.head_sha).to eq("newintsha999")
+      # An agent-resolved rebase rewrites the branch too, so its head is
+      # local-only until pushed and the land step may run on another node.
+      expect(git).to have_received(:run).with(
+        "push", anything, "HEAD:refs/heads/#{train.integration_branch}", chdir: "/tmp/ws"
+      )
     end
 
     it "fails before invoking the agent when the integration branch cannot be restored" do
@@ -2259,6 +2289,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return(__dir__)
 
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /rebase is still in progress/)
+      # Publishing happens only after the rebase is verified complete and on
+      # the right base; an unverified result must not reach the remote.
+      expect(git).not_to have_received(:run).with("push", any_args)
     end
   end
 
