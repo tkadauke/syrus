@@ -1302,17 +1302,17 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Review artifacts")
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
 
-    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
-    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
-    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
-    const unversionedOption = within(selector).getByRole("option", { name: /No provenance at all/ }) as HTMLOptionElement
-    fireEvent.change(selector, { target: { value: unversionedOption.value } })
-
     expect(screen.getByText("No provenance at all")).toBeInTheDocument()
     expect(screen.getByText("Unversioned")).toBeInTheDocument()
+    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
+    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const matchingOption = within(selector).getByRole("option", { name: /Matches selected version/ }) as HTMLOptionElement
+    fireEvent.change(selector, { target: { value: matchingOption.value } })
+
+    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
   })
 
-  it("keeps narrower-version review artifacts visible for All changes when they share the selected head", async () => {
+  it("shows artifacts from every workflow and head for All changes", async () => {
     const initialVersion = version({ id: 100, version_index: 1, label: "Initial implementation", head_sha: "first-head" })
     const repairVersion = version({
       id: 200,
@@ -1345,23 +1345,40 @@ describe("ReviewWorkspace", () => {
       typed_artifacts: [
         {
           type: "rails_migration_diff",
-          title: "Repair migration artifact",
-          payload: { headers: ["Column"], rows: [["visible-body"]] },
-          created_at: "2026-01-02T00:00:00Z",
+          title: "Current head artifact",
+          payload: { headers: ["Column"], rows: [["current-head-body"]] },
+          created_at: "2026-01-04T00:00:00Z",
+          renderer_type: "data_table",
+          run_id: 33,
+          head_sha: "all-changes-head",
+          diff_review_version_id: 500
+        },
+        {
+          type: "rails_migration_diff",
+          title: "Repair artifact",
+          payload: { headers: ["Column"], rows: [["repair-body"]] },
+          created_at: "2026-01-03T00:00:00Z",
           renderer_type: "data_table",
           run_id: 22,
           head_sha: "all-changes-head",
           diff_review_version_id: 200
         },
         {
-          type: "visual_review_screenshot_run_9_1",
-          title: "Different head artifact",
-          payload: {},
-          created_at: "2026-01-03T00:00:00Z",
-          renderer_type: "image_diff",
+          type: "rails_migration_diff",
+          title: "Initial implementation artifact",
+          payload: { headers: ["Column"], rows: [["initial-body"]] },
+          created_at: "2026-01-02T00:00:00Z",
+          renderer_type: "data_table",
           run_id: 9,
-          head_sha: "different-head",
+          head_sha: "first-head",
           diff_review_version_id: 100
+        },
+        {
+          type: "rails_schema_erd",
+          title: "Unversioned artifact",
+          payload: { tables: [] },
+          created_at: "2026-01-05T00:00:00Z",
+          renderer_type: "erd_diagram"
         }
       ]
     })
@@ -1371,9 +1388,17 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
 
     expect(screen.getByText("Review the diff")).toBeInTheDocument()
-    expect(screen.getByText("Repair migration artifact")).toBeInTheDocument()
-    expect(screen.getByText("visible-body")).toBeInTheDocument()
-    expect(screen.queryByText("Different head artifact")).not.toBeInTheDocument()
+    expect(screen.getByText("Unversioned")).toBeInTheDocument()
+
+    const artifactSelector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const artifactOptions = within(artifactSelector).getAllByRole("option")
+    expect(artifactOptions.map((option) => option.textContent)).toEqual([
+      expect.stringContaining("Unversioned artifact"),
+      expect.stringContaining("Current head artifact"),
+      expect.stringContaining("Repair artifact"),
+      expect.stringContaining("Initial implementation artifact")
+    ])
+    expect(artifactSelector.selectedIndex).toBe(0)
     expect(screen.queryByText("No artifacts for the selected version.")).not.toBeInTheDocument()
   })
 
