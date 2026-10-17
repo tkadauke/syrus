@@ -842,7 +842,7 @@ function artifactMatchesSelection(
 ) {
   if (selectedRange) return artifact.head_sha === selectedRange.headSha
   if (!selectedVersion) return true
-  if (isAllChangesVersion(selectedVersion) && artifact.head_sha) return artifact.head_sha === selectedVersion.head_sha
+  if (isAllChangesVersion(selectedVersion)) return true
   if (artifact.diff_review_version_id != null) return artifact.diff_review_version_id === selectedVersion.id
   return artifact.head_sha === selectedVersion.head_sha
 }
