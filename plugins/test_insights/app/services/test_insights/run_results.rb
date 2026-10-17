@@ -187,8 +187,6 @@ module TestInsights
     end
 
     def slow_counts_by_run(test_runs)
-      return {} unless @include_slow_cases
-
       TestCase.where(test_run_id: test_runs.map(&:id)).where.not(duration_ms: nil).group(:test_run_id).count
     end
 
@@ -295,7 +293,7 @@ module TestInsights
         failed_error_cases_returned: failed_error_returned,
         failed_error_cases_omitted: failed_error_omitted,
         slow_cases_returned: @include_slow_cases ? slow_returned : 0,
-        slow_cases_omitted: @include_slow_cases ? slow_omitted : 0,
+        slow_cases_omitted: @include_slow_cases ? slow_omitted : slow_counts_by_run.values.sum,
         suite_cases_returned: @include_suites ? test_runs.sum { |test_run| returned_count(test_run.total_count.to_i) } : 0,
         suite_cases_omitted: @include_suites ? test_runs.sum { |test_run| omitted_count(test_run.total_count.to_i) } : 0,
         suites_included: @include_suites
