@@ -1808,17 +1808,36 @@ RSpec.describe RunJob, :ci_only do
       }.not_to have_enqueued_job(RunJob)
     end
 
-    it "skips fair share but still evaluates the spend budget when admission control is disabled" do
+    it "skips actor pacing when admission control is disabled" do
       AppSetting.current.update!(workflow_admission_control_enabled: false)
-      spend_budget = instance_double(Admission::SpendBudget::Result, over_budget?: true, to_h: {})
       allow(Admission::FairShare).to receive(:for)
-      allow(Admission::SpendBudget).to receive(:for).and_return(spend_budget)
 
       expect {
-        expect(RunJob.new.send(:defer_for_actor_share?, queued_run.id)).to be(true)
-      }.to have_enqueued_job(RunJob).with(queued_run.id)
+        expect(RunJob.new.send(:defer_for_actor_share?, queued_run.id)).to be(false)
+      }.not_to have_enqueued_job(RunJob)
       expect(Admission::FairShare).not_to have_received(:for)
-      expect(Admission::SpendBudget).to have_received(:for).with(user: queued_run.user)
+    end
+
+    it "does not defer a Job because the user has recorded Run and chat costs" do
+      AppSetting.current.update!(workflow_admission_control_enabled: true, max_concurrent_agent_runs: 3)
+      spent_run = agentic_run_for(other_job)
+      spent_run.update_columns(cost_usd: 1_000, finished_at: Time.current)
+      ChatSession.create!(
+        user: queued_run.user,
+        repository: repository,
+        cumulative_cost_usd: 1_000,
+        daily_cost_usd: 1_000,
+        daily_cost_date: Date.current
+      )
+      allow(Admission::FairShare).to receive(:for).and_return(
+        Admission::FairShare::Result.new(
+          over_share: false, active: 0, share: 3, contenders: 1, limit: 3
+        )
+      )
+
+      expect {
+        expect(RunJob.new.send(:defer_for_actor_share?, queued_run.id)).to be(false)
+      }.not_to have_enqueued_job(RunJob)
     end
 
     it "does not defer when running agent Runs are below the cap" do

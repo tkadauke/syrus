@@ -932,7 +932,7 @@ and staggering, the global agent-run concurrency cap, and per-actor fair share.
 
 Hard worker memory/disk exhaustion in `WorkflowAdmissionBudget` and critical
 local pressure in `RunHostAdmission` remain unconditional. Provider circuits,
-per-user daily spend budgets, manual pauses, explicit landing pauses,
+manual pauses, explicit landing pauses,
 dependency blockers, landing-queue correctness gates, archived repositories,
 missing PRs, and Job readiness checks also remain outside this switch.
 

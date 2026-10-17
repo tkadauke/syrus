@@ -179,7 +179,7 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
 
 This soft cap is enforced only when `workflow_admission_control_enabled` is
-enabled. Per-user daily spend protection remains active independently.
+enabled.
 
 ### prepared_layer_cache_gb
 
@@ -252,12 +252,6 @@ reasonable starting point is a small multiple of the fleet's concurrent agent
 capacity — enough to keep every host fed and pipelined, not enough to leave
 dozens of half-finished attempts parked.
 
-### user_daily_spend_budget_usd
-
-**Type:** integer · **Default:** 20 · `0` = unlimited
-
-Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. Fresh instances default to a $20/day cap per user; set it to `0` to allow unlimited provider-reported spend. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage, so subscription-based or token-only providers may not produce reliable USD budget enforcement unless they report dollar costs directly.
-
 ## GitHub App
 
 ### github_app_id
@@ -301,7 +295,7 @@ staggering, the global agent-run cap, and per-actor fair share. A fresh
 single-host or Docker Compose install needs no admission tuning by default.
 
 The switch does not disable hard worker memory/disk or critical local-pressure
-protection. Provider-availability pauses, per-user daily spend budgets, manual
+protection. Provider-availability pauses, manual
 pauses, dependencies, and landing-queue correctness gates also remain active.
 Changing the switch does not rewrite any other setting or existing record.
 

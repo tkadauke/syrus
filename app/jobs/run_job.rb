@@ -84,9 +84,6 @@ class RunJob < ApplicationJob
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
-  # A spend budget resets on a day boundary, so retrying in fifteen seconds
-  # would just burn queue cycles until midnight.
-  SPEND_BUDGET_RETRY_DELAY = 15.minutes
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
@@ -219,19 +216,16 @@ class RunJob < ApplicationJob
     return false unless run && !run.terminal? && run.agentic_step?
     return false if work_definition_for_run(run).agent_concurrency_exempt?
 
-    budget = Admission::SpendBudget.for(user: run.user)
-    share = if AdmissionControl.enabled?
-      Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
-    end
-    return false unless share&.over_share? || budget.over_budget?
+    return false unless AdmissionControl.enabled?
 
-    reason = share&.over_share? ? "actor_fair_share" : "actor_spend_budget"
-    delay = budget.over_budget? ? SPEND_BUDGET_RETRY_DELAY : AGENT_CONCURRENCY_RETRY_DELAY
+    share = Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
+    return false unless share.over_share?
+
     Rails.logger.info(
-      "[RunJob] #{reason} for user ##{run.user_id} " \
-        "(#{share&.to_h.inspect} #{budget.to_h.inspect}) — deferring Run ##{run_id} by #{delay.inspect}"
+      "[RunJob] actor_fair_share for user ##{run.user_id} " \
+        "(#{share.to_h.inspect}) — deferring Run ##{run_id} by #{AGENT_CONCURRENCY_RETRY_DELAY.inspect}"
     )
-    defer_run(run_id, delay)
+    defer_run(run_id, AGENT_CONCURRENCY_RETRY_DELAY)
     true
   end
 
