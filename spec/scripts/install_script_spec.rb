@@ -80,7 +80,8 @@ RSpec.describe "install.sh" do
     end
 
     it "keeps CPU detection best-effort and preserves private file mode" do
-      expect(script).to include(%q(docker info --format '{{.NCPU}}' 2>/dev/null || true))
+      expect(script).to include(%q(docker_vm_cpus="$(docker info --format '{{.NCPU}}' 2>/dev/null)" || docker_vm_cpu_status=$?))
+      expect(script).to include('[ "$docker_vm_cpu_status" -eq 0 ]')
       expect(script).to include("Could not detect a positive Docker VM CPU count")
       expect(script).to include("mv .env.tmp .env && chmod 600 .env")
     end

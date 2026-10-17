@@ -950,7 +950,7 @@ RSpec.describe "install.sh GUI interface", :ci_only do
     end
 
     it "leaves .env untouched when CPU detection fails or is non-numeric" do
-      [["", false], ["unknown", true], ["0", true], ["4.5", true]].each do |detected, detection_ok|
+      [["12", false], ["", false], ["unknown", true], ["0", true], ["4.5", true]].each do |detected, detection_ok|
         Dir.mktmpdir do |stub_dir|
           Dir.mktmpdir do |target|
             write_docker_stub(stub_dir, volume_exists: false, cpu_count: detected,
