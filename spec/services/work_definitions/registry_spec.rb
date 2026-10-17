@@ -370,6 +370,31 @@ RSpec.describe WorkDefinitions do
     expect(keys).to contain_exactly("job:#{job.id}")
   end
 
+  # Grading main is observation; the landing unit that follows is built on the
+  # commit being graded. Holding the repository key landing needs turned every
+  # landed train into a wait for the grade of the commit it had just produced.
+  it "grades main without holding the repository lock landing needs" do
+    job = Factories.job_record
+    keys = WorkDefinitions.for("main_grader").lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})
+
+    expect(keys).to include("main_grader:repository:#{job.repository_id}")
+    expect(keys).not_to include("repository:#{job.repository_id}")
+    expect(keys).not_to include(WorkDefinitions.landing_lock_key_for(job))
+  end
+
+  it "still serializes one main grade at a time per repository" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    first = Factories.job_record(user: user, repository: repository, issue_number: 801)
+    second = Factories.job_record(user: user, repository: repository, issue_number: 802)
+    definition = WorkDefinitions.for("main_grader")
+
+    first_keys = definition.lock_keys_for(job: first, member_jobs: [ first ], artifacts: {})
+    second_keys = definition.lock_keys_for(job: second, member_jobs: [ second ], artifacts: {})
+
+    expect(first_keys & second_keys).to eq([ "main_grader:repository:#{repository.id}" ])
+  end
+
   it "resolves merge train members from the train artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)
