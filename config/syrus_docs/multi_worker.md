@@ -305,6 +305,32 @@ between admission and enqueue, the Run is failed with
 Workflow records a `run_queue_blocked` artifact with the queue and requirement
 details.
 
+### Diagnosing a queued Run
+
+The queued-Run banner on a Job's Workflows tab reflects the RunJob's current
+Solid Queue state instead of assuming every wait is worker saturation:
+
+- **Waiting for a slot** means a live worker consumes the selected queue and
+  all of its advertised threads are occupied.
+- **No queue consumer** means the RunJob is ready, but no live worker consumes
+  its queue. Check **Admin → Queue → Workers**, especially for a stale
+  `resume-<storage-key>` affinity queue.
+- **Concurrency blocked** means Solid Queue is holding the RunJob behind the
+  per-Job concurrency key. Check the pending queue and retry the Job if the
+  earlier work is no longer active.
+- **Scheduled** means Solid Queue will make the RunJob ready at the displayed
+  future time.
+- **Claimed but not started** means a worker process owns the RunJob, but the
+  Run record has not transitioned to running yet.
+- **No RunJob** means no unfinished Solid Queue RunJob refers to the queued Run;
+  retry the Job to recreate it.
+- **No live workers** means no fresh worker heartbeat is visible. Restore a
+  worker before retrying.
+- **Start blocked** uses the same admission-reason vocabulary shown elsewhere
+  in the UI (for example, no capable worker or provider availability).
+- **Unknown** is the safe fallback when Solid Queue state is unavailable or
+  inconsistent. It deliberately does not claim that the worker pool is busy.
+
 Search schema is not part of the primary MySQL schema. It lives in
 `db/search_migrate` and is applied to the local SQLite search database by
 `bin/rails syrus:prepare_search`. Container boot runs this task before web and

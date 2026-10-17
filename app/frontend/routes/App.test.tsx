@@ -11137,7 +11137,17 @@ describe("App", () => {
     expect(screen.getByText("Run #10").compareDocumentPosition(screen.getByText("Run #9"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
-  it("shows a queued run as waiting for a worker, not a hang", async () => {
+  it.each([
+    ["ready_waiting_for_slot", { queue_name: "runs", live_worker_count: 2 }, "all of its threads are in use", "bg-info-surface", "pending"],
+    ["ready_no_consumer", { queue_name: "resume-storage-a", live_worker_queues: ["runs"] }, "no live worker consumes that queue", "bg-warning-surface", "workers"],
+    ["concurrency_blocked", { queue_name: "runs" }, "concurrency lock", "bg-warning-surface", "pending"],
+    ["scheduled", { queue_name: "runs", scheduled_at: "2026-05-30T12:00:00Z" }, "scheduled to become ready", "bg-info-surface", "pending"],
+    ["claimed_not_started", { queue_name: "runs" }, "claimed the RunJob", "bg-info-surface", "workers"],
+    ["no_run_job", {}, "No RunJob exists", "bg-warning-surface", "pending"],
+    ["no_live_workers", { queue_name: "runs" }, "No live worker heartbeat", "bg-warning-surface", "workers"],
+    ["start_blocked", { reason: "no_capable_worker" }, "Waiting on worker capability", "bg-warning-surface", null],
+    ["unknown", {}, "could not determine", "bg-neutral-surface", "pending"]
+  ])("explains queued run diagnosis %s with the appropriate tone", async (kind, details, copy, toneClass, link) => {
     const base = jobDetailPayload()
     const workflow = base.workflows[0]
     const step = workflow.steps[0] as JobStep
@@ -11148,7 +11158,8 @@ describe("App", () => {
       started_at: null,
       finished_at: null,
       created_at: "2026-05-30T10:00:00Z",
-      updated_at: "2026-05-30T10:00:00Z"
+      updated_at: "2026-05-30T10:00:00Z",
+      queue_wait: { kind, details }
     }
     vi.spyOn(window, "fetch").mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify(jobDetailPayload({
@@ -11166,7 +11177,11 @@ describe("App", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Implement/i }))
     expect(await screen.findByText(/Run #30 is waiting for a worker/)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /pending queue/i })).toHaveAttribute("href", "/app-shell/admin/queue/pending")
+    const message = screen.getByText(new RegExp(copy, "i"))
+    expect(message.closest(`.${toneClass}`)).toBeInTheDocument()
+    if (link) {
+      expect(screen.getByRole("link", { name: new RegExp(`Queue.*${link}`, "i") })).toHaveAttribute("href", `/app-shell/admin/queue/${link}`)
+    }
   })
 
   it("renders prepare failures as setup failures on the workflows tab", async () => {

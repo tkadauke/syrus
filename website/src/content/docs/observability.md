@@ -141,7 +141,12 @@ For a slow page:
 For a stuck Job:
 
 1. Open the Job workflow tab.
-2. Check the latest workflow, Work Unit status, and pause reason.
-3. Read the activity and reconciler logs around the same time.
-4. Inspect provider availability and admission-control status if the work is
+2. Read the queued-Run banner. It distinguishes a saturated worker pool from
+   an unconsumed queue, a concurrency lock, a future schedule, a claimed job,
+   a missing RunJob, no live workers, and a workflow start block. Use its link
+   to inspect **Admin → Queue → Pending** or **Workers**; an unknown diagnosis
+   is intentionally neutral and does not imply that the pool is busy.
+3. Check the latest workflow, Work Unit status, and pause reason.
+4. Read the activity and reconciler logs around the same time.
+5. Inspect provider availability and admission-control status if the work is
    waiting rather than failed.
