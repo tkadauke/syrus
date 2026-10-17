@@ -43,6 +43,7 @@ RSpec.describe "bin/deploy database migrations" do
         ACTIVE_FLUX_KUBECONFIG=""
         ACTIVE_FLUX_LABEL=""
         ACTIVE_FLUX_IMAGES_SNAPSHOT=""
+        ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=false
         ACTIVE_BACKUP_KUBECONFIG=""
         ACTIVE_PREPULL_KUBECONFIG=""
         ACTIVE_DB_PREPARE_KUBECONFIG=""
@@ -58,7 +59,9 @@ RSpec.describe "bin/deploy database migrations" do
         flux_suspend_with_watchdog() {
           ACTIVE_FLUX_KUBECONFIG="$1"
           ACTIVE_FLUX_LABEL="$2"
+          ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=true
         }
+        configure_flux_suspend_ttl() { :; }
         suspend_mysql_backup() { :; }
         ensure_mise_cache() { :; }
         prepull_worker_image() { :; }

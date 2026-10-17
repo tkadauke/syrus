@@ -1023,6 +1023,11 @@ flux_suspend_with_watchdog() {
     echo "→ ${label}: flux kustomization '${FLUX_KUSTOMIZATION}' not found in '${FLUX_NAMESPACE}' — proceeding without suspend"
     return 0
   fi
+  # Track image override changes even when Flux was suspended by the operator.
+  # Resume ownership is recorded separately so cleanup can restore a failed
+  # deploy's overrides without undoing the operator's suspension.
+  ACTIVE_FLUX_KUBECONFIG="$kubeconfig"
+  ACTIVE_FLUX_LABEL="$label"
   suspended="$(KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" get kustomization "$FLUX_KUSTOMIZATION" -o jsonpath='{.spec.suspend}')"
   if [ "$suspended" = "true" ]; then
     echo "→ ${label}: flux kustomization/${FLUX_KUSTOMIZATION} was already suspended — leaving it suspended"
@@ -1033,25 +1038,19 @@ flux_suspend_with_watchdog() {
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     patch kustomization "$FLUX_KUSTOMIZATION" \
     --type merge -p '{"spec":{"suspend":true}}' >/dev/null
-  ACTIVE_FLUX_KUBECONFIG="$kubeconfig"
-  ACTIVE_FLUX_LABEL="$label"
   ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=true
   schedule_resume_watchdog "$kubeconfig"
 }
 
 flux_resume_now() {
   local kubeconfig="$1" label="$2"
-  if [ "$ACTIVE_FLUX_SUSPENDED_BY_DEPLOY" != true ]; then
-    return 0
+  if [ "$ACTIVE_FLUX_SUSPENDED_BY_DEPLOY" = true ] && flux_kustomization_exists "$kubeconfig"; then
+    echo "→ ${label}: resuming flux kustomization/${FLUX_KUSTOMIZATION}"
+    KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+      patch kustomization "$FLUX_KUSTOMIZATION" \
+      --type merge -p '{"spec":{"suspend":false}}' >/dev/null
+    flux_request_reconcile "$kubeconfig"
   fi
-  if ! flux_kustomization_exists "$kubeconfig"; then
-    return 0
-  fi
-  echo "→ ${label}: resuming flux kustomization/${FLUX_KUSTOMIZATION}"
-  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
-    patch kustomization "$FLUX_KUSTOMIZATION" \
-    --type merge -p '{"spec":{"suspend":false}}' >/dev/null
-  flux_request_reconcile "$kubeconfig"
   ACTIVE_FLUX_KUBECONFIG=""
   ACTIVE_FLUX_LABEL=""
   ACTIVE_FLUX_IMAGES_SNAPSHOT=""

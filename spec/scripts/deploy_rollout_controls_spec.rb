@@ -122,4 +122,52 @@ RSpec.describe "bin/deploy rollout controls" do
     expect(out).not_to include("WATCHDOG")
     expect(out).not_to include("RECONCILE")
   end
+
+  it "restores image overrides without resuming operator-suspended Flux" do
+    out, err, status = bash(<<~SH)
+      set -euo pipefail
+      SHA=new-sha
+      REGISTRY=ghcr.io/example/syrus
+      WORKER_DEV_REGISTRY=ghcr.io/example/syrus-worker-dev
+      PLUGIN_REGISTRIES=()
+      FLUX_NAMESPACE=flux-system
+      FLUX_KUSTOMIZATION=apps
+      FLUX_SUSPEND_TTL=1200
+      FLUX_IMAGE_FIELD_MANAGER=flux-client-side-apply
+      ACTIVE_FLUX_KUBECONFIG=
+      ACTIVE_FLUX_LABEL=
+      ACTIVE_FLUX_IMAGES_SNAPSHOT=
+      ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=false
+      ACTIVE_BACKUP_KUBECONFIG=
+      ACTIVE_PREPULL_KUBECONFIG=
+      ACTIVE_DB_PREPARE_KUBECONFIG=
+      kubectl() {
+        case " $* " in
+          *" -o jsonpath="*) echo true ;;
+          *" -o json "*) echo '{"spec":{"images":[{"name":"ghcr.io/example/syrus","newTag":"old-sha"}]}}' ;;
+          *" patch "*) echo "PATCH $*" >&2 ;;
+        esac
+      }
+      flux_kustomization_exists() { return 0; }
+      ensure_watchdog_rbac() { echo RBAC; }
+      schedule_resume_watchdog() { echo WATCHDOG; }
+      flux_request_reconcile() { echo RECONCILE; }
+      #{helper("flux_suspend_with_watchdog")}
+      #{helper("flux_resume_now")}
+      #{helper("flux_desired_images_snapshot_patch")}
+      #{helper("flux_desired_images_patch")}
+      #{helper("flux_pin_desired_images")}
+      #{helper("flux_restore_desired_images")}
+      #{helper("cleanup_rollout_controls")}
+      flux_suspend_with_watchdog kubeconfig staging
+      flux_pin_desired_images kubeconfig staging
+      cleanup_rollout_controls
+    SH
+
+    expect(status).to be_success, err
+    expect(err).to include("old-sha")
+    expect(err).not_to include('{"spec":{"suspend":false}}')
+    expect(out).not_to include("WATCHDOG")
+    expect(out).not_to include("RECONCILE")
+  end
 end
