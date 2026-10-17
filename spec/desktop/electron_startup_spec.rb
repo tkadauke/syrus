@@ -58,4 +58,11 @@ RSpec.describe "desktop Electron startup" do
     expect(main_process).not_to include('fetchJobList(credentials, "queued")')
     expect(main_process).not_to include('fetchJobList(credentials, "running")')
   end
+
+  it "broadcasts credential changes to the tray and preferences windows" do
+    expect(main_process).to include('mainWindow?.webContents.send("credentials-saved", normalizedCredentials)')
+    expect(main_process).to include('preferencesWindow?.webContents.send("credentials-saved", normalizedCredentials)')
+    expect(main_process).to include('mainWindow?.webContents.send("credentials-cleared")')
+    expect(main_process).to include('preferencesWindow?.webContents.send("credentials-cleared")')
+  end
 end

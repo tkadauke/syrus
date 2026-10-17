@@ -55,10 +55,13 @@ module Prompts
           - **Job** — one thread of work. A Job is created from one of
             three sources: an `issue` (GitHub issue with the trigger
             label), a `cron` task (recurring scheduled prompt), or a
-            `direct` operator prompt with no GitHub issue. Jobs flow
-            through states: triaging → queued → open → implemented →
-            approved → landing → merged. Failed/aborted Jobs end at
-            closed. A Job may have an `epic` and a `parent_job` (stack).
+            `direct` operator prompt with no GitHub issue. Its exact states
+            (from the Job state machine) are: #{job_state_names}. A typical
+            successful path is `triaging` → `queued` → `running` →
+            `implemented` → `approved` → `landing` → `closed`; a merged PR
+            is represented by `closed` with `closure_reason: pr_merged`, not
+            by a separate state. A Job may have an `epic` and a `parent_job`
+            (stack).
           - **Workflow** — one *attempt* on a Job. A Job may have
             multiple Workflows over its lifetime (initial run,
             pr_comment follow-ups, chat_feedback follow-ups,
@@ -94,20 +97,27 @@ module Prompts
 
         Job lifecycle the operator can see:
 
-          - `triaging` — Syrus is classifying the Job (duplicate-check,
-            Epic assignment, validity).
+          - `needs_triage` — waiting for triage capacity; `triaging` — Syrus
+            is classifying the Job (duplicate-check, Epic assignment, validity).
+          - `backlog` — intentionally held before execution.
+          - `blocked_by_epic` — waiting for an Epic dependency.
           - `queued` — classifier accepted it; waiting for a worker.
-          - `open` — initial workflow running; the agent is implementing.
+          - `running` — a Workflow is executing.
           - `implemented` — PR opened, awaiting approval.
-          - `approved` → `landing` → `merged` — happy path through the
-            landing queue.
-          - `closed` — terminal: merged externally, classified as
-            duplicate/already-implemented, preempted by a manual PR,
-            cancelled by operator, or failed past the retry budget.
+          - `coding` — Coding/Local Mode owns implementation in a chat.
+          - `approved` → `landing` → `closed` — happy path through the
+            landing queue; inspect `closure_reason` to distinguish outcomes
+            such as `pr_merged`.
+          - `failed` — execution failed and may still be retried.
+          - `no_change_needed` — a legacy no-change outcome; new no-change
+            outcomes use `closed` with `closure_reason: no_changes`.
+          - `closed` — terminal; inspect `closure_reason` for the actual
+            outcome (merged, duplicate, no changes, preempted, cancelled,
+            exhausted retries, and so on).
 
         Knowing the state machine helps you give useful answers like
         "JOB-142 is stuck in landing because PR #98 has a base-branch
-        update conflict" instead of just "JOB-142 is open."
+        update conflict" instead of just "JOB-142 is running."
 
         Your environment:
 
@@ -193,6 +203,10 @@ module Prompts
 
     private
 
+    def job_state_names
+      Job.aasm.states.map { |state| "`#{state.name}`" }.join(", ")
+    end
+
     def role_framing
       if local_mode_chat?
         <<~TEXT.strip
@@ -201,6 +215,12 @@ module Prompts
           through the connected local daemon and Local Mode tools — NOT to
           draft proposal cards unless the operator explicitly asks for a
           proposal or review-before-implementation artifact.
+        TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          You are Syrus Chat in Coding Mode for the #{chat_scope}. Your
+          role is to inspect, implement, test, and commit code directly in
+          the writable Coding Mode checkout.
         TEXT
       else
         <<~TEXT.strip
@@ -217,7 +237,7 @@ module Prompts
     end
 
     def proposal_guidance
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         What "proposing" means:
@@ -414,7 +434,7 @@ module Prompts
     end
 
     def role_context
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
       return "" unless @chat_session&.user&.product_owner?
 
       <<~TEXT.strip
@@ -450,6 +470,11 @@ module Prompts
           `syrus local`; use the Local Mode tools for repository reads,
           writes, commands, and git state.
         TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.squish
+          Use the writable Coding Mode checkout identified in the Coding Mode
+          section below for repository reads, writes, commands, and git state.
+        TEXT
       else
         <<~TEXT.squish
           Use `attach_repository(slug)` whenever you need to look at code for a
@@ -465,6 +490,8 @@ module Prompts
     def syrus_role_description
       if local_mode_chat?
         "you're the Local Mode implementation surface that works directly in the operator's connected checkout when they ask for local work."
+      elsif coding_mode_chat?
+        "you're the Coding Mode implementation surface that works directly in the session's writable checkout."
       else
         "you're the planning surface that helps them frame work before it gets handed to the implementation agent."
       end
@@ -480,6 +507,17 @@ module Prompts
             `/syrus-home/.syrus/chat-workspaces/*/repositories/` remain
             read-only. Do not use ordinary Write, Edit, or Bash to modify
             those attached checkout paths.
+          - Do not write memory to the filesystem -- use the Syrus memory MCP
+            tools instead (see Memory section above).
+        TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          - The Coding Mode checkout identified below is writable. Use Read,
+            Write, Edit, and Bash there to inspect and implement changes.
+          - Other attached repository checkouts under
+            `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only.
+            Do not modify a checkout unless the Coding Mode section identifies
+            it as the active coding checkout.
           - Do not write memory to the filesystem -- use the Syrus memory MCP
             tools instead (see Memory section above).
         TEXT
@@ -509,6 +547,12 @@ module Prompts
             effects happen only through Local Mode tools and only when the
             operator explicitly asks for those actions.
         TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.strip
+          - Changes and commits in the Coding Mode checkout persist across
+            turns. Do not push them yourself; use the Coding Mode handoff flow
+            after operator confirmation.
+        TEXT
       else
         <<~TEXT.strip
           - The workspace is isolated. Nothing you do is ever pushed,
@@ -520,6 +564,7 @@ module Prompts
 
     def code_change_guidance
       return "use Local Mode tools directly, or create a coding Job with `create_coding_job` when the operator asks for a local Job." if local_mode_chat?
+      return "make it directly in the writable Coding Mode checkout." if coding_mode_chat?
 
       "propose a Syrus Job or Epic and wait for the operator to confirm it."
     end
@@ -532,6 +577,13 @@ module Prompts
           explicitly and ask the operator to retry the turn or check the local
           daemon/sidecar health before making local changes or creating a coding
           Job.
+        TEXT
+      elsif coding_mode_chat?
+        <<~TEXT.squish
+          MCP tools can be available, pending, or unavailable at turn start.
+          Continue with ordinary checkout inspection and implementation when
+          possible; if a handoff tool is unavailable, say so explicitly and ask
+          the operator to retry the turn or check the chat sidecar health.
         TEXT
       else
         <<~TEXT.squish
@@ -548,6 +600,8 @@ module Prompts
     def job_inspection_guidance
       if local_mode_chat?
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; use `create_coding_job` for new Local Mode work only when the operator asks for a local Job."
+      elsif coding_mode_chat?
+        "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references existing Syrus work; implement the requested change in the Coding Mode checkout."
       else
         "Inspect prior Jobs (`list_jobs`, `read_job`) when the operator references past work or when you suspect a proposal duplicates something already in flight."
       end
@@ -555,12 +609,14 @@ module Prompts
 
     def next_step_example
       return "Run the focused local test for this change" if local_mode_chat?
+      return "Implement the fix and run its focused test" if coding_mode_chat?
 
       "Create an Epic from these findings"
     end
 
     def output_guidance
       return local_mode_output_guidance if local_mode_chat?
+      return coding_mode_output_guidance if coding_mode_chat?
 
       <<~TEXT.strip
         - The durable products of this session are proposals you draft
@@ -626,6 +682,16 @@ module Prompts
       TEXT
     end
 
+    def coding_mode_output_guidance
+      <<~TEXT.strip
+        - The durable product of Coding Mode is committed code in the writable
+          coding checkout, followed by an operator-confirmed handoff through
+          the applicable submit lane described below.
+        - Implement requested code changes directly. Do not draft Job or Epic
+          proposal cards as a substitute for implementation.
+      TEXT
+    end
+
     def local_mode_output_guidance
       <<~TEXT.strip
         - The durable product of Local Mode is the chat record plus any local
@@ -644,7 +710,7 @@ module Prompts
     end
 
     def bookmark_guidance
-      return "" if local_mode_chat?
+      return "" if local_mode_chat? || coding_mode_chat?
 
       <<~TEXT.strip
         - Immediately before emitting a `propose_epic_with_jobs` card,
@@ -702,6 +768,7 @@ module Prompts
     end
 
     def onboarding_guidance
+      return "" if coding_mode_chat?
       return "" unless @chat_session&.onboarding?
 
       "\n" + Prompts::ChatOnboarding.new(repository: @repository).to_s
@@ -714,6 +781,8 @@ module Prompts
     end
 
     def developer_elaboration_guidance
+      return "" if coding_mode_chat?
+
       epic = AgentEnvironmentSnapshot.chat_elaboration_epic(@chat_session)
       return "" unless epic
 
@@ -773,6 +842,10 @@ module Prompts
 
     def local_mode_chat?
       @chat_session&.local?
+    end
+
+    def coding_mode_chat?
+      Feature.coding_mode_enabled? && @chat_session&.coding? && @repository.present?
     end
 
     def attached_repositories

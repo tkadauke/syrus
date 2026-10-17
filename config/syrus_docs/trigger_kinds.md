@@ -446,7 +446,23 @@ legacy shape: a repo-wide grader target with no file scope is affected by
 every incremental main update and can skip only when target health proves the
 same inputs already passed.
 
-Main-branch CI health is intentionally narrower than "any failed GitHub check on the SHA." For GitHub Actions, Syrus only treats checks from the regular `CI` workflow as the CI signal. Release, test-build, website deploy, and other packaging/operations workflows can fail on the same commit without marking main broken or spawning a main-branch repair job.
+If the workflow fails before any required grader can report a result — for
+example, because repository preparation fails — Syrus records the checked SHA
+as `inconclusive` and links the health-check history row to the failed
+workflow. The SHA is considered graded for scheduled polling, so a persistent
+setup problem does not create a new infrastructure Job on every poll. This is
+warning-only rather than evidence that main is broken; an explicit retry can
+still check the same SHA again, and a later main SHA receives its own check.
+
+Main-branch CI health counts GitHub Actions checks from every workflow run
+triggered by a `push` to the checked default-branch SHA; the workflow's display
+name is irrelevant. A failing workflow named `Tests`, `ci`, release, deploy, or
+anything else can therefore mark main broken, pause landing under the
+repository's breakage policy, and spawn a main-branch repair Job. Checks from
+non-`push` runs, such as a manually dispatched release, are excluded. Syrus
+also keeps non-Actions checks and Actions checks whose workflow-run metadata is
+missing from GitHub's bounded lookup, so an incomplete lookup cannot make a
+repository with checks appear not configured.
 
 **GitHub outage handling:** `PollMainBranchHealthJob` (every 5 minutes, per `config/recurring.yml`) rescues transient GitHub-side failures (`Octokit::ServerError`, `Faraday::TimeoutError`, `Faraday::ConnectionFailed`) around its two GitHub calls instead of letting them crash the job. A single failed poll is normal noise — it's logged, `Repository#main_health_poll_error_streak` is incremented, and `last_main_health_poll_error_at` is stamped; the next scheduled tick retries. Only after `Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD` (3, roughly 15 minutes of sustained outage) *consecutive* failures, and only when `ci_health` is already `"broken"`, does the job downgrade `ci_health` to `"inconclusive"` and call `MainHealthChangedService.on_health_change!` — this reuses the existing inconclusive path (resumes landing, emits a `main_inconclusive` notification) instead of a distinct outage notification, and never fabricates a `"healthy"` result from missing data. Any successful poll resets the streak to zero and normal broken/healthy/inconclusive/not_configured evaluation resumes.
 

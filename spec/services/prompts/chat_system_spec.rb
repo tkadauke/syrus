@@ -31,6 +31,23 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("propose_epic_with_jobs")
   end
 
+  it "suppresses planning and onboarding instructions for active Coding Mode chats" do
+    Feature.find_or_create_by!(slug: "coding_mode") do |feature|
+      feature.category = "Labs"
+      feature.name = "Coding Mode"
+    end.update!(enabled: true)
+    chat = ChatSession.create!(user: repo.user, repository: repo, mode: "coding", onboarding: true)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("You are Syrus Chat in Coding Mode")
+    expect(out).to include("The Coding Mode checkout identified below is writable")
+    expect(out).not_to include("FIRST-RUN ONBOARDING")
+    expect(out).not_to include("What \"proposing\" means:")
+    expect(out).not_to include("Attached repository checkouts are READ-ONLY for you")
+    expect(out).not_to include("No\ncommit or push tool is available")
+  end
+
   it "injects product owner guidance near the top for product owner chats" do
     user = Factories.user(role: "product_owner")
     repo = repository(user: user, owner: "acme", name: "roadmap")
@@ -200,10 +217,19 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("JOB-142 is stuck in landing because PR #98 has a base-branch")
-    expect(out).to include("instead of just \"JOB-142 is open.\"")
+    expect(out).to include("instead of just \"JOB-142 is running.\"")
     expect(out).to include("canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534) and")
     expect(out).to include("`EPIC-<id>` for Epics (e.g. EPIC-101)")
     expect(out).to match(/Never write "Job #142",\s+"job 142", or "J142" — use JOB-142\./)
+  end
+
+  it "derives its exact Job state inventory from the Job state machine" do
+    out = described_class.new(repository: repo).to_s
+    inventory = out[/Its exact states\s+\(from the Job state machine\) are: (?<states>.*?)\. A typical/m, :states]
+
+    expect(inventory).to be_present
+    expect(inventory.scan(/`([^`]+)`/).flatten).to eq(Job.aasm.states.map { |state| state.name.to_s })
+    expect(inventory).not_to include("`open`", "`merged`")
   end
 
   it "instructs chat to recognize and use the canonical CHAT-<id> reference format" do
@@ -516,7 +542,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("What Syrus is")
     expect(out).to include("**Job** — one thread of work")
     expect(out).to include("**Epic** — a named grouping of Jobs")
-    expect(out).to include("triaging → queued → open → implemented")
+    expect(out).to include("`triaging` → `queued` → `running` →")
     expect(out).to include("propose_epic_with_jobs")
     expect(out).to include("When the operator hands you a planning document")
   end

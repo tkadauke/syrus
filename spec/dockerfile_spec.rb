@@ -62,15 +62,33 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 
-  it "installs Muse Code without requiring build-time credentials" do
-    expect(dockerfile).to include("ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh")
-    expect(dockerfile).to include('curl -fsSL "${MUSE_LAUNCHER_URL}" -o /opt/muse/bin/muse')
-    expect(dockerfile).to include("MUSE_LAUNCHER_INSTALL=1 /opt/muse/bin/muse")
-    expect(dockerfile).to include("MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version")
-    expect(dockerfile).to include('PATH="/opt/muse/bin:${PATH}"')
-    expect(dockerfile).to include('MUSE_NO_AUTO_UPDATE="1"')
-    expect(dockerfile).not_to include("muse login")
-    expect(dockerfile).not_to include("muse auth")
+  it "installs checksum-pinned Muse artifacts only in the worker image" do
+    worker_stage = worker_deps_stage
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(worker_stage).to include("ARG MUSE_LAUNCHER_SHA256=")
+    expect(worker_stage).to include("ARG MUSE_VERSION=1.4.9-R6297.1")
+    expect(worker_stage).to include("ARG MUSE_LINUX_AMD64_SHA256=")
+    expect(worker_stage).to include("ARG MUSE_LINUX_ARM64_SHA256=")
+    expect(worker_stage).to include('echo "$MUSE_LAUNCHER_SHA256  /opt/muse/bin/muse" | sha256sum -c -')
+    expect(worker_stage).to include('echo "$muse_sha256  $muse_binary" | sha256sum -c -')
+    expect(worker_stage).to include('printf \'%s\\n\' "$MUSE_VERSION" > /opt/muse/bin/.muse-version')
+    expect(worker_stage).to include("MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version")
+    expect(worker_stage).not_to include("MUSE_LAUNCHER_INSTALL=1")
+    expect(worker_stage).not_to include("muse login")
+    expect(worker_stage).not_to include("muse auth")
+    expect(app_stage).not_to include("/opt/muse")
+  end
+
+  it "configures NodeSource with its verified signing key instead of a remote setup script" do
+    browser_dockerfile = Rails.root.join("plugins/browser/container/Dockerfile").read
+
+    [ dockerfile, browser_dockerfile ].each do |contents|
+      expect(contents).to include("ARG NODESOURCE_KEY_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4")
+      expect(contents).to include("gpg --show-keys --with-colons /tmp/nodesource.key")
+      expect(contents).to include("signed-by=/usr/share/keyrings/nodesource.gpg")
+      expect(contents).not_to include("deb.nodesource.com/setup_")
+    end
   end
 
   it "installs a pinned Antigravity CLI binary into the base image" do
@@ -133,6 +151,16 @@ RSpec.describe "Dockerfile" do
     expect(assembly_stage).to include("/usr/local/bin/mise reshim")
   end
 
+  it "installs mise from an architecture-specific checksum-pinned release" do
+    runtime_stage = stage("runtime-base")
+
+    expect(runtime_stage).to include("ARG MISE_LINUX_AMD64_SHA256=")
+    expect(runtime_stage).to include("ARG MISE_LINUX_ARM64_SHA256=")
+    expect(runtime_stage).to include('echo "$mise_sha256  $mise_tarball" | sha256sum -c -')
+    expect(runtime_stage).to include("github.com/jdx/mise/releases/download/\${MISE_VERSION}")
+    expect(runtime_stage).not_to include("install.sh")
+  end
+
   it "preinstalls Go for the worker image" do
     runtime_stage = stage("runtime-go-cache")
     worker_deps = worker_deps_stage
@@ -156,6 +184,8 @@ RSpec.describe "Dockerfile" do
 
     expect(stage).to include("ARG MULL_LLVM_VERSION=18")
     expect(stage).to include("mull-project-mull-stable-archive-keyring.gpg")
+    expect(stage).to include("ARG MULL_APT_KEY_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F")
+    expect(stage).to include("gpg --show-keys --with-colons /tmp/mull.key")
     expect(stage).to include("mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main")
     expect(stage).to include("clang-${MULL_LLVM_VERSION}")
     expect(stage).to include("mull-${MULL_LLVM_VERSION}")
@@ -232,6 +262,9 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include('"https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${sccache_tarball}"')
     expect(stage).to include("amd64) sccache_arch=x86_64-unknown-linux-musl")
     expect(stage).to include("arm64) sccache_arch=aarch64-unknown-linux-musl")
+    expect(stage).to include("ARG SCCACHE_LINUX_AMD64_SHA256=")
+    expect(stage).to include("ARG SCCACHE_LINUX_ARM64_SHA256=")
+    expect(stage).to include('echo "$sccache_sha256  /tmp/${sccache_tarball}" | sha256sum -c -')
     expect(stage).to include("install -m 0755 \"/tmp/${sccache_dir}/sccache\" /usr/local/bin/sccache")
 
     expect(stage).to include("COPY <<'EOF' /usr/local/bin/syrus-sccache-compiler")
@@ -243,6 +276,16 @@ RSpec.describe "Dockerfile" do
     # The `app` stage is the web pod image — it never compiles C/C++, so the
     # compiler cache has no reason to ship there.
     expect(app_stage).not_to include("sccache")
+  end
+
+  it "pins worker package-manager versions" do
+    stage = worker_deps_stage
+
+    expect(stage).to include("ARG YARN_VERSION=1.22.22")
+    expect(stage).to include("ARG PNPM_VERSION=12.11.2")
+    expect(stage).to include("ARG PIP_VERSION=26.2.1")
+    expect(stage).to include('npm install -g "yarn@${YARN_VERSION}" "pnpm@${PNPM_VERSION}"')
+    expect(stage).to include('/opt/python-tools/bin/pip install --no-cache-dir "pip==${PIP_VERSION}"')
   end
 
   it "does not install the tailscale package in the worker image" do

@@ -1684,6 +1684,8 @@ const deleteCredentials = async () => {
   cachedCredentials = null
   setUnreadCount(0)
   stopAppUserCable()
+  mainWindow?.webContents.send("credentials-cleared")
+  preferencesWindow?.webContents.send("credentials-cleared")
 }
 
 const rendererUrl = (view?: string) => {
@@ -1818,7 +1820,6 @@ const showPreferencesWindow = async () => {
 
 const showSetupWindow = async () => {
   await showPreferencesWindow()
-  preferencesWindow?.webContents.send("credentials-cleared")
 }
 
 // The dock icon appears only while a real window is open; tray-only mode
@@ -3012,13 +3013,17 @@ ipcMain.handle("onboarding:probe-instance", async (_event, request: { url: strin
 )
 // One-click WSL 2 install (Windows; elevates via UAC).
 ipcMain.handle("onboarding:install-wsl", async () => ensureOnboardingDriver().installWsl())
-ipcMain.handle("onboarding:start-install", async (_event, port?: number) =>
-  ensureOnboardingDriver().startInstall(port)
-)
-ipcMain.handle("onboarding:cancel-install", async () => ensureOnboardingDriver().cancelInstall())
+ipcMain.handle("onboarding:start-install", async (_event, port?: number) => {
+  const driver = ensureOnboardingDriver()
+  if (driver.getState().phase !== "local.portConflict") return
+  await driver.startInstall(port)
+})
+ipcMain.handle("onboarding:cancel-install", async () => {
+  await ensureOnboardingDriver().cancelInstall()
+})
 ipcMain.handle("onboarding:retry", async () => ensureOnboardingDriver().precheck())
 ipcMain.handle("onboarding:back", async () => {
-  ensureOnboardingDriver().backToWelcome()
+  await ensureOnboardingDriver().backToWelcome()
 })
 ipcMain.handle("onboarding:locate-env", async (event) =>
   ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender))

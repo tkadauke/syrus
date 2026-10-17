@@ -2536,6 +2536,7 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
 }
 
 export function App() {
+  const queryClient = useQueryClient()
   const view = new URLSearchParams(window.location.search).get("view")
   const isPreferencesView = view === "preferences"
   const isComposeView = view === "compose"
@@ -2569,6 +2570,7 @@ export function App() {
 
   useEffect(() => {
     let isMounted = true
+    let credentialsChanged = false
 
     Promise.all([
       window.syrusDesktop.getCredentials(),
@@ -2592,6 +2594,10 @@ export function App() {
           }))
         )
 
+        if (credentialsChanged) {
+          return
+        }
+
         if (credentials) {
           setUrl(credentials.url)
           setToken(credentials.token)
@@ -2606,22 +2612,35 @@ export function App() {
         }
       })
       .catch(() => {
-        if (isMounted) {
+        if (isMounted && !credentialsChanged) {
           setAuthState("setup")
         }
       })
 
-    const unsubscribe = window.syrusDesktop.onCredentialsCleared(() => {
+    const unsubscribeCleared = window.syrusDesktop.onCredentialsCleared(() => {
+      credentialsChanged = true
+      queryClient.clear()
       setToken("")
       setError("")
       setAuthState("setup")
     })
+    const unsubscribeSaved = isPreferencesView
+      ? () => {}
+      : window.syrusDesktop.onCredentialsSaved((credentials) => {
+          credentialsChanged = true
+          queryClient.clear()
+          setUrl(credentials.url)
+          setToken(credentials.token)
+          setError("")
+          setAuthState("authenticated")
+        })
 
     return () => {
       isMounted = false
-      unsubscribe()
+      unsubscribeCleared()
+      unsubscribeSaved()
     }
-  }, [isPreferencesView])
+  }, [isPreferencesView, queryClient])
 
   useEffect(() => {
     if (isRecordingHotkey) {

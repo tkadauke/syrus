@@ -6,7 +6,12 @@ import readline from "node:readline"
 import { promisify } from "node:util"
 import { app, dialog, shell, type BrowserWindow } from "electron"
 import { currentStackIdentity, localStateDir, saveBackendConfig, setOnboardingResumeLocal } from "../settings.js"
-import { downloadDockerDesktopInstaller, runDockerDesktopInstaller } from "./dockerDesktopInstaller.js"
+import {
+  downloadDockerDesktopInstaller,
+  runDockerDesktopInstaller,
+  stopDockerDesktopInstaller,
+  verifyDockerDesktopInstaller
+} from "./dockerDesktopInstaller.js"
 import { restampEnvPort } from "./envRestamp.js"
 import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
@@ -166,11 +171,14 @@ export class OnboardingDriver {
   private child: ChildProcess | null = null
   private installLockPid: number | null = null
   private childCompletion: Promise<void> | null = null
+  private installPromise: Promise<void> | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
   private pollResolve: ((ready: boolean) => void) | null = null
+  private pollGeneration = 0
   private childKillTimer: NodeJS.Timeout | null = null
   private installAbort: AbortController | null = null
+  private runtimeInstallerChild: ChildProcess | null = null
   private port = channelDefaultPort()
   private logTail: string[] = []
   private lastLogTransient = false
@@ -188,7 +196,7 @@ export class OnboardingDriver {
   }
 
   installRunning() {
-    return this.child !== null
+    return this.child !== null || this.installPromise !== null
   }
 
   private installLockPath() {
@@ -282,10 +290,19 @@ export class OnboardingDriver {
     void clearRunOnceResume(currentStackIdentity().channel)
   }
 
-  backToWelcome() {
+  async backToWelcome() {
     this.stopPolling()
-    this.installAbort?.abort()
+    const installAbort = this.installAbort
+    const runtimeInstallerChild = this.runtimeInstallerChild
+    if (installAbort && runtimeInstallerChild) {
+      await stopDockerDesktopInstaller(runtimeInstallerChild, installAbort)
+    } else {
+      installAbort?.abort()
+    }
     this.installAbort = null
+    if (this.installPromise) {
+      this.cancelRequested = true
+    }
     if (this.child) {
       this.cancelRequested = true
       this.killInstallChild()
@@ -516,7 +533,16 @@ export class OnboardingDriver {
     this.armRebootResume()
 
     this.installAbort = new AbortController()
-    const installerPath = path.join(app.getPath("temp"), "syrus-docker-desktop-installer.exe")
+    this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent: 0 })
+    let installerDir: string
+    try {
+      installerDir = await fs.mkdtemp(path.join(app.getPath("temp"), "syrus-docker-desktop-"))
+    } catch (error) {
+      this.installAbort = null
+      await this.showRuntimeMissing(false, errorMessage(error, "Could not create a temporary installer directory."))
+      return
+    }
+    const installerPath = path.join(installerDir, "Docker Desktop Installer.exe")
 
     // setState mutates this.state across awaits, which TS's narrowing can't
     // see — same widening-closure pattern as connectRemote's stillChecking().
@@ -525,7 +551,6 @@ export class OnboardingDriver {
       return current.phase === "local.runtimeInstalling" && (step === undefined || current.step === step)
     }
 
-    this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent: 0 })
     try {
       await downloadDockerDesktopInstaller(
         installerPath,
@@ -536,7 +561,10 @@ export class OnboardingDriver {
         },
         this.installAbort.signal
       )
+      await verifyDockerDesktopInstaller(installerPath)
     } catch (error) {
+      this.installAbort = null
+      void fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
       if (!stillInstalling()) {
         return // user backed out; the abort landed here
       }
@@ -548,12 +576,16 @@ export class OnboardingDriver {
     }
 
     if (!stillInstalling()) {
+      this.installAbort = null
+      void fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
       return
     }
 
     this.setState({ phase: "local.runtimeInstalling", step: "installing", percent: null })
     try {
-      await runDockerDesktopInstaller(installerPath)
+      await runDockerDesktopInstaller(installerPath, this.installAbort.signal, (child) => {
+        this.runtimeInstallerChild = child
+      })
     } catch (error) {
       if (!stillInstalling()) {
         return
@@ -564,7 +596,9 @@ export class OnboardingDriver {
       )
       return
     } finally {
-      void fs.rm(installerPath, { force: true }).catch(() => {})
+      this.runtimeInstallerChild = null
+      this.installAbort = null
+      void fs.rm(installerDir, { recursive: true, force: true }).catch(() => {})
     }
 
     if (!stillInstalling()) {
@@ -637,6 +671,7 @@ export class OnboardingDriver {
 
   private pollForDaemon(maxPolls: number): Promise<boolean> {
     this.stopPolling()
+    const generation = this.pollGeneration
 
     return new Promise((resolve) => {
       this.pollResolve = resolve
@@ -650,7 +685,15 @@ export class OnboardingDriver {
       }
       const tick = async () => {
         if (this.pollResolve !== resolve) return
+        if (generation !== this.pollGeneration) {
+          finish(false)
+          return
+        }
         if ((await findDockerBinary()) && (await daemonUp())) {
+          if (generation !== this.pollGeneration) {
+            finish(false)
+            return
+          }
           finish(true)
           return
         }
@@ -661,7 +704,11 @@ export class OnboardingDriver {
           return
         }
 
-        this.pollTimer = setTimeout(() => void tick(), 2_000)
+        if (generation === this.pollGeneration) {
+          this.pollTimer = setTimeout(() => void tick(), 2_000)
+        } else {
+          resolve(false)
+        }
       }
 
       void tick()
@@ -669,6 +716,7 @@ export class OnboardingDriver {
   }
 
   private stopPolling() {
+    this.pollGeneration += 1
     if (this.pollTimer) {
       clearTimeout(this.pollTimer)
       this.pollTimer = null
@@ -787,10 +835,18 @@ export class OnboardingDriver {
   }
 
   async startInstall(portOverride?: number) {
-    if (this.child) {
-      return
+    if (this.child || this.installPromise) return
+    this.cancelRequested = false
+    const promise = this.performStartInstall(portOverride)
+    this.installPromise = promise
+    try {
+      await promise
+    } finally {
+      if (this.installPromise === promise) this.installPromise = null
     }
+  }
 
+  private async performStartInstall(portOverride?: number) {
     const stateDir = localStateDir()
     await fs.mkdir(stateDir, { recursive: true })
 
@@ -799,6 +855,7 @@ export class OnboardingDriver {
     }
 
     const manifest = await readBackendManifest()
+    if (this.cancelRequested) return
     const identity = currentStackIdentity()
     const flags = ["--docker", "--non-interactive", "--json", "--skip-runtime-install", "--target-dir", stateDir]
     // Isolate this channel's Compose project + volumes; a test stack also
@@ -832,7 +889,6 @@ export class OnboardingDriver {
     this.lastLogTransient = false
     this.lastError = null
     this.doneUrl = null
-    this.cancelRequested = false
     this.pullAggregator = null
     this.lastPullLabel = null
     this.lastPullPercent = null
@@ -868,7 +924,7 @@ export class OnboardingDriver {
       terminate: () => this.killInstallChild(),
       onError: (error) => logStream.write(`installer process error: ${String(error)}\n`),
       onSettled: (code) => {
-        this.child = null
+        if (this.child === child) this.child = null
         if (this.childKillTimer) {
           clearTimeout(this.childKillTimer)
           this.childKillTimer = null
@@ -924,13 +980,17 @@ export class OnboardingDriver {
   }
 
   cancelInstall(): Promise<void> {
-    if (!this.child) {
+    if (!this.child && !this.installPromise) {
       return this.childCompletion ?? Promise.resolve()
     }
 
     this.cancelRequested = true
+    if (this.installPromise && !this.child) {
+      this.setState({ phase: "welcome" })
+      return this.installPromise
+    }
     this.killInstallChild()
-    return this.childCompletion ?? Promise.resolve()
+    return this.childCompletion ?? this.installPromise ?? Promise.resolve()
   }
 
   // Forget all wizard progress so a reopened onboarding starts at Welcome —
