@@ -67,14 +67,14 @@ module SpendingInsights
 
     def totals_json
       run_totals = run_cost_totals
-      chat_lifetime_usd = chat_lifetime_cost
+      chat_totals = chat_cost_totals
 
       {
-        week_usd: decimal_to_float(run_totals.fetch(:week)),
-        month_usd: decimal_to_float(run_totals.fetch(:month)),
-        lifetime_usd: decimal_to_float(run_totals.fetch(:lifetime) + chat_lifetime_usd),
+        week_usd: decimal_to_float(run_totals.fetch(:week) + chat_totals.fetch(:week)),
+        month_usd: decimal_to_float(run_totals.fetch(:month) + chat_totals.fetch(:month)),
+        lifetime_usd: decimal_to_float(run_totals.fetch(:lifetime) + chat_totals.fetch(:window)),
         workflow_lifetime_usd: decimal_to_float(run_totals.fetch(:lifetime)),
-        chat_lifetime_usd: decimal_to_float(chat_lifetime_usd),
+        chat_lifetime_usd: decimal_to_float(chat_totals.fetch(:window)),
         average_job_30d_usd: average_cost_per_job(30.days.ago.to_date, today),
         average_merged_pr_30d_usd: average_cost_per_merged_pr(30.days.ago.to_date, today)
       }
@@ -92,8 +92,16 @@ module SpendingInsights
       end
     end
 
-    def chat_lifetime_cost
-      @chat_lifetime_cost ||= provider_scoped_chat_sessions.sum(:cumulative_cost_usd)
+    def chat_cost_totals
+      @chat_cost_totals ||= begin
+        week, month, window = provider_scoped_chat_spend_entries.pick(
+          Arel.sql(chat_cost_sum_between_sql(today.beginning_of_week.beginning_of_day, today.end_of_day)),
+          Arel.sql(chat_cost_sum_between_sql(today.beginning_of_month.beginning_of_day, today.end_of_day)),
+          Arel.sql("COALESCE(SUM(chat_spend_entries.cost_usd), 0)")
+        )
+
+        { week: week || 0, month: month || 0, window: window || 0 }
+      end
     end
 
     def scoped_runs
@@ -107,11 +115,8 @@ module SpendingInsights
       Job.where(id: filtered_runs.select(:job_id))
     end
 
-    def scoped_chat_sessions
-      return ChatSession.none if run_only_filter?
-
-      relation = ChatSession.where.not(cumulative_cost_usd: nil)
-      relation = relation.where(created_at: start_date.beginning_of_day..end_date.end_of_day)
+    def scoped_chat_spend_entries
+      relation = ChatSpendEntry.where(incurred_at: start_date.beginning_of_day..end_date.end_of_day)
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
@@ -122,11 +127,11 @@ module SpendingInsights
       scoped_runs
     end
 
-    def provider_scoped_chat_sessions
-      provider = filter_value("agent_provider")
-      return scoped_chat_sessions if provider.blank? || provider == "claude"
+    def provider_scoped_chat_spend_entries
+      return scoped_chat_spend_entries.none if run_only_filter?
 
-      scoped_chat_sessions.none
+      provider = filter_value("agent_provider")
+      provider.present? ? scoped_chat_spend_entries.where(agent_provider: provider) : scoped_chat_spend_entries
     end
 
     def filtered_runs
@@ -134,20 +139,20 @@ module SpendingInsights
     end
 
     def runs_in_window(first_date, last_date)
-      provider_scoped_runs.where(created_at: first_date.beginning_of_day..last_date.end_of_day)
+      provider_scoped_runs.where(finished_at: first_date.beginning_of_day..last_date.end_of_day)
     end
 
     def jobs_with_windowed_run_cost(first_date, last_date)
       scoped_jobs
         .joins(:runs)
         .where(runs: { id: filtered_runs.select(:id) })
-        .where(runs: { created_at: first_date.beginning_of_day..last_date.end_of_day })
+        .where(runs: { finished_at: first_date.beginning_of_day..last_date.end_of_day })
     end
 
     def available_agent_providers
       @available_agent_providers ||= begin
         providers = base_accessible_runs.distinct.pluck(:agent_provider).compact
-        providers << "claude" if scoped_chat_sessions.where("cumulative_cost_usd > 0").exists?
+        providers.concat(scoped_chat_spend_entries.distinct.pluck(:agent_provider))
         User.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
           { value: provider, label: App::Presentation.agent_provider_label(provider) }
         end
@@ -293,7 +298,7 @@ module SpendingInsights
     def top_runs
       filtered_runs
         .includes(job: [ :repository, :epic ], step: :workflow)
-        .order(cost_usd: :desc, created_at: :desc)
+        .order(cost_usd: :desc, finished_at: :desc)
         .limit(TOP_RUN_LIMIT)
         .map do |run|
           job = run.job
@@ -303,7 +308,7 @@ module SpendingInsights
             cost_usd: decimal_to_float(run.cost_usd),
             trigger_kind: run.trigger_kind,
             agent_provider: run.agent_provider,
-            created_at: run.created_at.iso8601,
+            created_at: run.finished_at.iso8601,
             job: {
               id: job.id,
               title: job.issue_title,
@@ -329,11 +334,15 @@ module SpendingInsights
       sums = runs_in_window(range_start, end_date)
              .group(date_bucket_sql)
              .sum(:cost_usd)
+      chat_sums = provider_scoped_chat_spend_entries
+                  .where(incurred_at: range_start.beginning_of_day..end_date.end_of_day)
+                  .group(chat_date_bucket_sql)
+                  .sum(:cost_usd)
 
       (range_start..end_date).map do |date|
         {
           date: date.iso8601,
-          total_usd: decimal_to_float(sums[date.to_s] || sums[date] || 0)
+          total_usd: decimal_to_float((sums[date.to_s] || sums[date] || 0) + (chat_sums[date.to_s] || chat_sums[date] || 0))
         }
       end
     end
@@ -341,17 +350,29 @@ module SpendingInsights
     def date_bucket_sql
       adapter = ActiveRecord::Base.connection.adapter_name.downcase
       if adapter.include?("mysql")
-        "DATE(runs.created_at)"
+        "DATE(runs.finished_at)"
       else
-        "date(runs.created_at)"
+        "date(runs.finished_at)"
       end
+    end
+
+    def chat_date_bucket_sql
+      adapter = ActiveRecord::Base.connection.adapter_name.downcase
+      adapter.include?("mysql") ? "DATE(chat_spend_entries.incurred_at)" : "date(chat_spend_entries.incurred_at)"
     end
 
     def cost_sum_between_sql(first_time, last_time)
       connection = ActiveRecord::Base.connection
       start_sql = connection.quote(first_time)
       end_sql = connection.quote(last_time)
-      "COALESCE(SUM(CASE WHEN runs.created_at BETWEEN #{start_sql} AND #{end_sql} THEN runs.cost_usd ELSE 0 END), 0)"
+      "COALESCE(SUM(CASE WHEN runs.finished_at BETWEEN #{start_sql} AND #{end_sql} THEN runs.cost_usd ELSE 0 END), 0)"
+    end
+
+    def chat_cost_sum_between_sql(first_time, last_time)
+      connection = ActiveRecord::Base.connection
+      start_sql = connection.quote(first_time)
+      end_sql = connection.quote(last_time)
+      "COALESCE(SUM(CASE WHEN chat_spend_entries.incurred_at BETWEEN #{start_sql} AND #{end_sql} THEN chat_spend_entries.cost_usd ELSE 0 END), 0)"
     end
 
     def parse_date(value)

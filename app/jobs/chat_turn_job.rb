@@ -80,6 +80,8 @@ class ChatTurnJob < ApplicationJob
     end
     record_skill_provenance!(@skill_invocation.resolution) if @skill_invocation
 
+    return if stop_requested?(force: true)
+
     workspace_path = ensure_workspace!
     parent_session_id = resume_session_id_for(provider)
     ChatContextCompactor.maybe_compact!(@chat) if Feature.chat_context_compaction_enabled?
@@ -106,10 +108,18 @@ class ChatTurnJob < ApplicationJob
       end
     end
 
+    return if stop_requested?(force: true)
+
     log_mcp_startup_stall!(result) if result
     flush_current_assistant_content!
+    return if @chat.reload.deleted?
+
     capture_session!(provider, result) if result
+    return if @chat.reload.deleted?
+
     @chat.record_turn_usage!(result) if result
+    return if @chat.reload.deleted?
+
     record_provider_success_evidence!(provider, result)
     update_coding_checkout_uncommitted_state!
     touch_chat!
@@ -148,6 +158,10 @@ class ChatTurnJob < ApplicationJob
 
   def finalize_turn!
     return unless @chat
+    if @chat.reload.deleted?
+      @chat.end_turn_for!(@user_message) if @user_message
+      return
+    end
 
     ChatGoalIterationAuditor.after_turn!(chat_session: @chat, user_message: @user_message)
     @chat.end_turn_for!(@user_message) if @user_message
@@ -673,6 +687,7 @@ class ChatTurnJob < ApplicationJob
                          tool_use_id: nil, thinking: nil, signature: nil,
                          mcp_servers: nil, **)
     @last_stop_request_polled_at = nil
+    return if stop_requested?(force: true)
 
     case kind.to_s
     when "thinking"
@@ -791,6 +806,10 @@ class ChatTurnJob < ApplicationJob
 
   def flush_current_assistant_content!
     return if @current_assistant_content.nil? || @current_assistant_content.empty?
+    if @chat.reload.deleted?
+      @current_assistant_content = []
+      return
+    end
 
     blocks = @current_assistant_content.dup
     @current_assistant_content = []
@@ -926,6 +945,11 @@ class ChatTurnJob < ApplicationJob
 
     @last_stop_request_polled_at = Time.current unless force
     @chat.reload
+    if @chat.deleted?
+      @cancelled = true
+      @current_assistant_content = []
+      return true
+    end
     return false unless @chat.stop_requested_at && @chat.stop_requested_at > @stop_request_cutoff_at
 
     unless @cancelled
@@ -949,6 +973,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def create_message!(role, content)
+    return if @chat.reload.deleted?
+
     @chat.messages.create!(role: role, content: content.stringify_keys)
   end
 
@@ -1013,6 +1039,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def capture_session!(provider, result)
+    return if @chat.reload.deleted?
+
     capture = provider.session_capture(result)
     return unless capture
 
@@ -1074,6 +1102,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def touch_chat!
+    return if @chat.reload.deleted?
+
     @chat.update!(last_message_at: Time.current)
   end
 end

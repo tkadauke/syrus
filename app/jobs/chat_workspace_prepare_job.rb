@@ -4,8 +4,15 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
   PER_COMMAND_TIMEOUT = 10.minutes.to_i
 
+  limits_concurrency to: 1,
+                     group: ChatTurnJob::CONCURRENCY_GROUP,
+                     key: ->(chat_session_id, *) { "chat:#{chat_session_id}" },
+                     duration: 30.minutes
+
   def perform(chat_session_id, repository_id)
     chat_session = ChatSession.find(chat_session_id)
+    return if chat_session.deleted?
+
     repository = Repository.find(repository_id)
     mark_prepare_running!(chat_session)
 
@@ -29,6 +36,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     if plan.commands.empty?
       Rails.logger.info("[ChatWorkspacePrepareJob] no commands to run; skipping")
+      return if chat_session.reload.deleted?
+
       refresh_relay_credentials!(chat_session, repository)
       mark_prepare_succeeded!(chat_session)
       ChatQueuedMessagePromoter.deliver_one_if_idle!(chat_session)
@@ -36,6 +45,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
     end
 
     plan.commands.each_with_index do |cmd, i|
+      return if chat_session.reload.deleted?
+
       Rails.logger.info("[ChatWorkspacePrepareJob] (#{i + 1}/#{plan.commands.size}) $ #{cmd}")
       success = run_prep_command(cmd, path, chat_session, repository)
       next if success
@@ -51,11 +62,15 @@ class ChatWorkspacePrepareJob < ApplicationJob
     end
 
     Rails.logger.info("[ChatWorkspacePrepareJob] all commands completed successfully")
+    return if chat_session.reload.deleted?
+
     refresh_relay_credentials!(chat_session, repository)
     mark_prepare_succeeded!(chat_session)
     ChatQueuedMessagePromoter.deliver_one_if_idle!(chat_session)
   rescue StandardError => e
-    mark_prepare_failed!(chat_session, "#{e.class}: #{e.message}") if defined?(chat_session) && chat_session
+    if defined?(chat_session) && chat_session && !chat_session.reload.deleted?
+      mark_prepare_failed!(chat_session, "#{e.class}: #{e.message}")
+    end
     raise
   end
 
@@ -87,6 +102,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
   end
 
   def mark_prepare_running!(chat_session)
+    return if chat_session.reload.deleted?
+
     chat_session.update_columns(
       coding_checkout_prepare_status: "running",
       coding_checkout_prepare_started_at: Time.current,
@@ -103,6 +120,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
   end
 
   def mark_prepare_succeeded!(chat_session)
+    return if chat_session.reload.deleted?
+
     chat_session.update_columns(
       coding_checkout_prepare_status: "succeeded",
       coding_checkout_prepare_finished_at: Time.current,
@@ -112,6 +131,8 @@ class ChatWorkspacePrepareJob < ApplicationJob
   end
 
   def mark_prepare_failed!(chat_session, message)
+    return if chat_session.reload.deleted?
+
     chat_session.update_columns(
       coding_checkout_prepare_status: "failed",
       coding_checkout_prepare_finished_at: Time.current,

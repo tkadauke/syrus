@@ -1271,9 +1271,73 @@ RSpec.describe MainHealthChangedService, :ci_only do
         described_class.recovered!(repository)
         expect(RetryWorkflowEnqueuer).to have_received(:call).exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES).times
       end
+
+      it "only scans the most recent bounded set of failed workflows" do
+        now = Time.current
+        rows = Array.new(10_000) do |index|
+          {
+            job_id: held_job.id,
+            user_id: user.id,
+            trigger_kind: "retry",
+            agent_provider: "claude",
+            state: "failed",
+            artifacts: "{}",
+            created_at: now + index.seconds,
+            updated_at: now + index.seconds
+          }
+        end
+        Workflow.insert_all!(rows)
+
+        workflow_selects = []
+        subscriber = lambda do |*, payload|
+          sql = payload[:sql]
+          workflow_selects << sql if sql.match?(/\ASELECT/i) && sql.include?("workflows")
+        end
+
+        expect(RetryWorkflowEnqueuer).not_to receive(:call)
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          described_class.new(repository).send(:retry_held_jobs!)
+        end
+
+        expect(workflow_selects.size).to eq(2)
+        expect(workflow_selects.first).to include("LIMIT")
+        expect(workflow_selects.join("\n")).not_to match(/IN\s*\(\s*SELECT.+LIMIT/im)
+      end
+
+      it "looks up newer workflows in one grouped query instead of once per candidate" do
+        20.times do
+          job = Factories.job_record(repository: repository)
+          workflow = Workflow.create!(
+            job: job,
+            user: user,
+            trigger_kind: "initial",
+            agent_provider: "claude",
+            state: "failed"
+          )
+          workflow.set_artifact!("main_broken", true)
+        end
+
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "retry unavailable", circuit: nil)
+        )
+        workflow_selects = 0
+        subscriber = lambda do |*, payload|
+          sql = payload[:sql]
+          workflow_selects += 1 if sql.match?(/\ASELECT/i) && sql.include?("workflows")
+        end
+
+        ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+          described_class.new(repository).send(:retry_held_jobs!)
+        end
+
+        expect(workflow_selects).to eq(4)
+      end
     end
 
     context "rebasing PRs left with failing CI" do
+      let(:started_launch_result) { instance_double(WorkUnits::Launcher::Result, started?: true) }
+      let(:blocked_launch_result) { instance_double(WorkUnits::Launcher::Result, started?: false) }
+
       it "dispatches a mechanical rebase for an open Job with pr_checks_state == failing" do
         failing_job = Factories.job_record(
           repository: repository,
@@ -1285,7 +1349,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
 
         rebase_workflow = instance_double(Workflow)
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(rebase_workflow)
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
@@ -1362,7 +1426,7 @@ RSpec.describe MainHealthChangedService, :ci_only do
         end
 
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
@@ -1378,10 +1442,109 @@ RSpec.describe MainHealthChangedService, :ci_only do
           pr_checks_state: "failing"
         )
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(WorkUnits::Launcher).to receive(:start!)
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(started_launch_result)
 
         described_class.recovered!(repository)
 
+        expect(Notification.last.body).to include("1 PR rebased")
+      end
+
+      it "does not count blocked launches toward the rebase count or fan-out cap" do
+        (MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times do |i|
+          Factories.job_record(
+            repository: repository,
+            state: "implemented",
+            branch_name: "syrus/issue-blocked-#{i}",
+            pr_number: 200 + i,
+            pr_checks_state: "failing"
+          )
+        end
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
+        allow(WorkUnits::Launcher).to receive(:start!).and_return(
+          *Array.new(MainHealthChangedService::MAX_RECOVERY_RETRIES, blocked_launch_result),
+          started_launch_result
+        )
+
+        described_class.recovered!(repository)
+
+        expect(WorkUnits::Launcher).to have_received(:start!)
+          .exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times
+        expect(Notification.last.body).to include("1 PR rebased")
+      end
+
+      it "continues rebasing and emits the recovery notification after a lock conflict" do
+        conflicting_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-conflicting",
+          pr_number: 11,
+          pr_checks_state: "failing"
+        )
+        remaining_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-remaining",
+          pr_number: 12,
+          pr_checks_state: "failing"
+        )
+        conflicting_workflow = instance_double(Workflow)
+        remaining_workflow = instance_double(Workflow)
+        conflict = WorkUnits::Launcher::LockConflict.new(
+          lock_key: "job:#{conflicting_job.id}",
+          work_unit: WorkUnit.new(id: -1)
+        )
+
+        allow(RebaseWorkflowSelector).to receive(:instantiate)
+          .with(job: conflicting_job, artifacts: hash_including("repair_reason"))
+          .and_return(conflicting_workflow)
+        allow(RebaseWorkflowSelector).to receive(:instantiate)
+          .with(job: remaining_job, artifacts: hash_including("repair_reason"))
+          .and_return(remaining_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!).with(conflicting_workflow).and_raise(conflict)
+        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow).and_return(started_launch_result)
+
+        expect {
+          described_class.recovered!(repository)
+        }.to change { Notification.where(kind: "main_recovered").count }.by(1)
+
+        expect(WorkUnits::Launcher).to have_received(:start!).with(remaining_workflow)
+        expect(Notification.last.body).to include("1 PR rebased")
+      end
+
+      it "logs other dispatch failures and continues with remaining Jobs" do
+        failing_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-dispatch-error",
+          pr_number: 13,
+          pr_checks_state: "failing"
+        )
+        remaining_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-after-error",
+          pr_number: 14,
+          pr_checks_state: "failing"
+        )
+        remaining_workflow = instance_double(Workflow)
+
+        allow(RebaseWorkflowSelector).to receive(:instantiate)
+          .with(job: failing_job, artifacts: hash_including("repair_reason"))
+          .and_raise(StandardError, "dispatch failed")
+        allow(RebaseWorkflowSelector).to receive(:instantiate)
+          .with(job: remaining_job, artifacts: hash_including("repair_reason"))
+          .and_return(remaining_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!).with(remaining_workflow).and_return(started_launch_result)
+        allow(Rails.logger).to receive(:error)
+
+        expect {
+          described_class.recovered!(repository)
+        }.to change { Notification.where(kind: "main_recovered").count }.by(1)
+
+        expect(Rails.logger).to have_received(:error).with(
+          include(repository.slug, failing_job.slug, "StandardError: dispatch failed")
+        )
+        expect(WorkUnits::Launcher).to have_received(:start!).with(remaining_workflow)
         expect(Notification.last.body).to include("1 PR rebased")
       end
     end

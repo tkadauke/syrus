@@ -794,6 +794,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
     t.index ["user_id"], name: "index_chat_shell_commands_on_user_id"
   end
 
+  create_table "chat_spend_entries", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "user_id", null: false
+    t.datetime "incurred_at", null: false
+    t.decimal "cost_usd", precision: 12, scale: 6, null: false
+    t.string "agent_provider", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agent_provider", "incurred_at"], name: "idx_chat_spend_entries_provider_window"
+    t.index ["chat_session_id"], name: "index_chat_spend_entries_on_chat_session_id"
+    t.index ["user_id", "incurred_at", "cost_usd"], name: "idx_chat_spend_entries_user_window"
+    t.index ["user_id"], name: "index_chat_spend_entries_on_user_id"
+  end
+
   create_table "chat_turn_auto_retry_attempts", force: :cascade do |t|
     t.integer "attempt_number", null: false
     t.integer "chat_session_id", null: false
@@ -2761,6 +2775,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
     t.integer "user_id"
     t.datetime "last_full_poll_at"
     t.json "poll_external_pr_errors"
+    t.string "vcs", default: "git", null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -2769,6 +2784,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
     t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
+    t.index ["vcs", "archived_at", "id"], name: "idx_repositories_vcs_active_scan"
   end
 
   create_table "repository_final_approvers", force: :cascade do |t|
@@ -3108,7 +3124,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_145843) do
     t.datetime "sent_at"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.datetime "fire_job_claimed_until"
     t.index ["chat_session_id"], name: "index_scheduled_chat_messages_on_chat_session_id"
+    t.index ["sent_at", "fire_at", "fire_job_claimed_until"], name: "idx_on_sent_at_fire_at_fire_job_claimed_until_de3ffb0c66"
     t.index ["sent_at", "fire_at"], name: "index_scheduled_chat_messages_on_sent_at_and_fire_at"
     t.index ["user_id"], name: "index_scheduled_chat_messages_on_user_id"
   end

@@ -17,6 +17,14 @@ RSpec.describe SwitchChatProviderJob do
     expect(described_class.concurrency_group).to eq(ChatTurnJob::CONCURRENCY_GROUP)
   end
 
+  it "does not switch a soft-deleted chat" do
+    chat.soft_delete_by!(user)
+
+    described_class.perform_now(chat.id, "codex")
+
+    expect(chat.reload.chat_provider).to eq("claude")
+  end
+
   describe "when a turn is in-flight" do
     before do
       chat.messages.create!(role: "user", content: { "text" => "hello" })

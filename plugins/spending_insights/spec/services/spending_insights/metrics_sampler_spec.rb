@@ -108,10 +108,36 @@ RSpec.describe SpendingInsights::MetricsSampler do
       expect(Syrus::Metrics.render).not_to include("syrus_spending_insights_run_cost_usd_total{")
     end
 
-    it "degrades without raising when the source is unreachable" do
+    it "does not advance the cursor when the source is unreachable" do
+      t0 = Time.current
+      travel_to(t0) { described_class.sample! }
+      checkpoint_before_failure = cache.read(described_class::CACHE_KEY)
+
       allow(Run).to receive(:terminal).and_raise(ActiveRecord::StatementInvalid, "no such table")
-      travel_to(Time.current) { described_class.sample! } # bootstrap
-      travel_to(Time.current + 1.minute) { expect { described_class.sample! }.not_to raise_error }
+
+      travel_to(t0 + 1.minute) { expect(described_class.sample!).to be(false) }
+
+      expect(cache.read(described_class::CACHE_KEY)).to eq(checkpoint_before_failure)
+    end
+
+    it "retries the full interval when the atomic checkpoint write fails" do
+      t0 = Time.current
+      travel_to(t0) { described_class.sample! }
+      checkpoint_before_failure = cache.read(described_class::CACHE_KEY)
+
+      travel_to(t0 + 1.minute) do
+        job_with_run(run_attrs: { state: "succeeded", trigger_kind: "initial", agent_provider: "claude", cost_usd: 2.5, finished_at: Time.current })
+      end
+
+      allow(cache).to receive(:write).and_raise(IOError, "cache unavailable")
+      travel_to(t0 + 2.minutes) { expect(described_class.sample!).to be(false) }
+      expect(cache.read(described_class::CACHE_KEY)).to eq(checkpoint_before_failure)
+
+      allow(cache).to receive(:write).and_call_original
+      travel_to(t0 + 3.minutes) { expect(described_class.sample!).to be(true) }
+      described_class.refresh_gauges!
+
+      expect(Syrus::Metrics.render).to include('syrus_spending_insights_run_cost_usd_total{provider="claude",trigger_kind="initial"} 2.5')
     end
   end
 

@@ -1,8 +1,14 @@
 # Spending Insights
 
 Spending Insights adds a sidebar page rolling up agent spend by epic, repository, user, provider, and
-workflow trigger kind. It reads existing accounting data (`Run#cost_usd`, `ChatSession#cumulative_cost_usd`)
+workflow trigger kind. It reads completed Run accounting (`Run#cost_usd` at `Run#finished_at`) and the
+per-turn chat spend ledger (`ChatSpendEntry`)
 and does not change scheduling, grading, or job behavior.
+
+Run costs appear in the window and daily bucket in which the Run completed. Cost-bearing Runs without a
+completion timestamp are excluded until they finish. Chat costs are recorded per charged turn, so an old
+chat's new spend appears on the date that the turn completed. Historical cumulative chat cost from before the
+ledger existed is intentionally not assigned to a fabricated date.
 
 ## Metrics
 

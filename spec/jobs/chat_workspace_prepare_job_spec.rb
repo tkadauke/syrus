@@ -48,6 +48,20 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(described_class.new.queue_name).to eq("chat")
   end
 
+  it "shares the chat turn concurrency lock so cleanup waits for preparation to terminate" do
+    expect(described_class.concurrency_key.call(chat_session.id, repository.id)).to eq("chat:#{chat_session.id}")
+    expect(described_class.concurrency_group).to eq(ChatTurnJob::CONCURRENCY_GROUP)
+  end
+
+  it "does not inspect or mutate a soft-deleted chat workspace" do
+    chat_session.soft_delete_by!(user)
+    expect(RepoPrepPlan).not_to receive(:for)
+
+    described_class.perform_now(chat_session.id, repository.id)
+
+    expect(chat_session.reload.coding_checkout_prepare_status).to be_nil
+  end
+
   it "no-ops when the checkout directory does not exist" do
     expect(RepoPrepPlan).not_to receive(:for)
     expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error
@@ -176,6 +190,31 @@ RSpec.describe ChatWorkspacePrepareJob do
 
     described_class.perform_now(chat_session.id, repository.id)
     expect(chat_session.reload.coding_checkout_prepare_status).to eq("succeeded")
+  end
+
+  it "does not finish preparation or recreate relay state when deleted during a running command" do
+    chat_session.update!(repository: repository)
+    path = make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [ "bundle install" ], source: ".syrus.yml", note: nil)
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+    runner_double = double("ProcessRunner")
+    allow(runner_double).to receive(:run) do
+      chat_session.soft_delete_by!(user)
+      success_result
+    end
+    allow(ProcessRunner).to receive(:new).and_return(runner_double)
+    expect(ChatWorkspace).not_to receive(:refresh_relay_credentials!)
+    expect(ChatQueuedMessagePromoter).not_to receive(:deliver_one_if_idle!)
+
+    described_class.perform_now(chat_session.id, repository.id)
+
+    expect(chat_session.reload).to be_deleted
+    expect(chat_session).to have_attributes(
+      coding_checkout_prepare_status: "running",
+      coding_relay_address: nil,
+      coding_relay_token: nil
+    )
+    expect(path).to exist
   end
 
   it "forwards :step_environment plugin-contributed env keys into the prepare subprocess" do

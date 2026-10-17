@@ -5,6 +5,7 @@ class MainHealthChangedService
 
   FIX_MAIN_TITLE = Job::MAIN_BRANCH_REPAIR_TITLE
   MAX_RECOVERY_RETRIES = 10
+  MAX_RECOVERY_SCAN = 1_000
   MAX_OPEN_FAILED_FIX_JOBS = 3
   REPAIR_CANCELLATION_COOLDOWN = 30.minutes
   MAX_SUMMARY_ATTACHMENT_BYTES = 256.kilobytes
@@ -285,17 +286,36 @@ class MainHealthChangedService
     retried = 0
     attempted_job_ids = {}
 
-    Workflow
+    recent_failed_ids = Workflow
       .joins(:job)
       .where(jobs: { repository_id: @repository.id })
       .where.not(jobs: { state: "closed" })
       .where(state: "failed")
-      .includes(:job)
       .order(id: :desc)
-      .each do |workflow|
+      .limit(MAX_RECOVERY_SCAN)
+      .pluck(:id)
+
+    return retried if recent_failed_ids.empty?
+
+    candidates = Workflow
+      .where(id: recent_failed_ids)
+      .where("workflows.artifacts LIKE ?", '%"main_broken":true%')
+
+    candidate_ids_and_job_ids = candidates.pluck(:id, :job_id)
+    return retried if candidate_ids_and_job_ids.empty?
+
+    latest_workflow_ids = Workflow
+      .where(job_id: candidate_ids_and_job_ids.map(&:last).uniq)
+      .group(:job_id)
+      .maximum(:id)
+
+    Workflow
+      .where(id: candidate_ids_and_job_ids.map(&:first))
+      .includes(:job)
+      .find_each(order: :desc) do |workflow|
         break if retried >= MAX_RECOVERY_RETRIES
         next if attempted_job_ids[workflow.job_id]
-        next unless recoverable_main_broken_workflow?(workflow)
+        next unless recoverable_main_broken_workflow?(workflow, latest_workflow_ids: latest_workflow_ids)
 
         attempted_job_ids[workflow.job_id] = true
         result = RetryWorkflowEnqueuer.call(
@@ -308,20 +328,12 @@ class MainHealthChangedService
     retried
   end
 
-  def recoverable_main_broken_workflow?(workflow)
+  def recoverable_main_broken_workflow?(workflow, latest_workflow_ids:)
     return false unless workflow.artifact("main_broken")
     return false if workflow.job.implemented? || workflow.job.approved? || workflow.job.landing?
-    return false if newer_workflow_exists?(workflow)
+    return false unless latest_workflow_ids[workflow.job_id] == workflow.id
 
     true
-  end
-
-  def newer_workflow_exists?(workflow)
-    workflow
-      .job
-      .workflows
-      .where("id > ?", workflow.id)
-      .exists?
   end
 
   # PRs left with pr_checks_state == "failing" while main was broken never
@@ -347,8 +359,18 @@ class MainHealthChangedService
         job: job,
         artifacts: { "repair_reason" => "main branch recovered; PR checks were failing against the broken base" }
       )
-      WorkUnits::Launcher.start!(workflow)
-      rebased += 1
+      result = WorkUnits::Launcher.start!(workflow)
+      rebased += 1 if result.started?
+    rescue WorkUnits::Launcher::LockConflict => e
+      Rails.logger.info(
+        "[MainHealthChangedService] #{@repository.slug} skipped recovery rebase for #{job.slug}; " \
+        "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
+    rescue StandardError => e
+      Rails.logger.error(
+        "[MainHealthChangedService] #{@repository.slug} failed to dispatch recovery rebase for #{job.slug}: " \
+        "#{e.class}: #{e.message}"
+      )
     end
 
     rebased

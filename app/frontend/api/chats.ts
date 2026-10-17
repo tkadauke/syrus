@@ -1285,8 +1285,9 @@ export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
-// Hard-deletes the chat and all of its data (messages, attachments,
-// workspace). The server refuses with a 409 while a turn is running.
+// Soft-deletes the chat while retaining its durable conversation data for
+// audit. Any active agent or workspace preparation is stopped before the
+// worker removes local workspace and search-index artifacts.
 export function deleteChat(id: number | string) {
   return deleteJson<{ message: string }>(`/api/v1/app/chats/${id}`)
 }

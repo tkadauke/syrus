@@ -23,6 +23,9 @@ module Throughput
   # `jobs_landed_total` counts the Jobs those attempts actually landed.
   class MetricsSampler
     CACHE_KEY = "throughput:metrics:landing_sample".freeze
+    CHECKPOINT_VERSION = 1
+    # Kept only to migrate checkpoints written before cursor and totals were
+    # stored atomically.
     CURSOR_CACHE_KEY = "throughput:metrics:landing_sample:cursor".freeze
     TOTALS_CACHE_KEY = "throughput:metrics:landing_sample:totals".freeze
     CACHE_TTL = 5.minutes
@@ -33,19 +36,19 @@ module Throughput
 
     def sample!
       now = Time.current
-      cursor = read_cursor
-      totals = read_totals
+      checkpoint = read_checkpoint
+      cursor = checkpoint.fetch("cursor")
+      totals = checkpoint.fetch("totals")
 
       instrument_auto_merges!(cursor, totals, now)
       instrument_merge_trains!(cursor, totals, now)
 
-      write_cursor(cursor)
-      write_totals(totals)
+      write_checkpoint(checkpoint)
       true
     end
 
     def refresh_gauges!
-      totals = read_totals
+      totals = read_checkpoint.fetch("totals")
       return false if totals.blank?
 
       units = Syrus::Metrics.counter(:syrus_throughput_landing_units_total)
@@ -63,29 +66,27 @@ module Throughput
       after = cursor["auto_merge_through"]
       return cursor["auto_merge_through"] = now.iso8601(6) if after.nil?
 
-      count = guard("succeeded auto_merge workflows", 0) {
-        Workflow.where(trigger_kind: "auto_merge", state: "succeeded")
-                .where(finished_at: Time.iso8601(after)...now)
-                .count
-      }
-      increment_unit_totals!(totals, unit_type: "auto_merge", attempts: count, jobs: count)
+      sample_source("succeeded auto_merge workflows") do
+        count = Workflow.where(trigger_kind: "auto_merge", state: "succeeded")
+                        .where(finished_at: Time.iso8601(after)...now)
+                        .count
+        increment_unit_totals!(totals, unit_type: "auto_merge", attempts: count, jobs: count)
 
-      cursor["auto_merge_through"] = now.iso8601(6)
+        cursor["auto_merge_through"] = now.iso8601(6)
+      end
     end
 
     def instrument_merge_trains!(cursor, totals, now)
       after = cursor["merge_train_through"]
       return cursor["merge_train_through"] = now.iso8601(6) if after.nil?
 
-      trains = guard("succeeded merge trains", []) {
-        MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
-      }
-      jobs_landed = trains.empty? ? 0 : guard("merge train members", 0) {
-        MergeTrainMember.where(merge_train_id: trains).count
-      }
-      increment_unit_totals!(totals, unit_type: "merge_train", attempts: trains.size, jobs: jobs_landed)
+      sample_source("succeeded merge trains and members") do
+        trains = MergeTrain.where(state: "succeeded").where(finished_at: Time.iso8601(after)...now).pluck(:id)
+        jobs_landed = trains.empty? ? 0 : MergeTrainMember.where(merge_train_id: trains).count
+        increment_unit_totals!(totals, unit_type: "merge_train", attempts: trains.size, jobs: jobs_landed)
 
-      cursor["merge_train_through"] = now.iso8601(6)
+        cursor["merge_train_through"] = now.iso8601(6)
+      end
     end
 
     def increment_unit_totals!(totals, unit_type:, attempts:, jobs:)
@@ -98,29 +99,28 @@ module Throughput
       totals["jobs_landed_total"] = (totals["jobs_landed_total"] || 0) + jobs
     end
 
-    def read_cursor
-      Rails.cache.read(CURSOR_CACHE_KEY) || {}
+    def read_checkpoint
+      checkpoint = Rails.cache.read(CACHE_KEY)
+      return checkpoint if checkpoint.is_a?(Hash) && checkpoint["version"] == CHECKPOINT_VERSION
+
+      {
+        "version" => CHECKPOINT_VERSION,
+        "cursor" => Rails.cache.read(CURSOR_CACHE_KEY) || {},
+        "totals" => Rails.cache.read(TOTALS_CACHE_KEY) || {}
+      }
     end
 
-    def write_cursor(cursor)
-      Rails.cache.write(CURSOR_CACHE_KEY, cursor, expires_in: CURSOR_TTL)
+    def write_checkpoint(checkpoint)
+      Rails.cache.write(CACHE_KEY, checkpoint, expires_in: CURSOR_TTL)
     end
 
-    def read_totals
-      Rails.cache.read(TOTALS_CACHE_KEY) || {}
-    end
-
-    def write_totals(totals)
-      Rails.cache.write(TOTALS_CACHE_KEY, totals, expires_in: CURSOR_TTL)
-    end
-
-    # One unreachable source costs its own contribution to this tick, not the
-    # whole tick.
-    def guard(what, fallback)
+    # One unreachable source leaves its checkpoint untouched so the full
+    # interval can be retried on the next tick.
+    def sample_source(what)
       yield
     rescue StandardError => e
       Rails.logger.warn("[Throughput::MetricsSampler] could not sample #{what}: #{e.class}: #{e.message}")
-      fallback
+      false
     end
   end
 end

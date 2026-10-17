@@ -222,6 +222,12 @@ RSpec.describe ChatSession do
     expect(session.cumulative_cost).to eq(BigDecimal("0.014321"))
     expect(session.daily_cost).to eq(BigDecimal("0.004321"))
     expect(session.daily_cost_date).to eq(Date.current)
+    expect(session.chat_spend_entries.sole).to have_attributes(
+      user: repo.user,
+      cost_usd: BigDecimal("0.004321"),
+      incurred_at: be_within(1.second).of(Time.current),
+      agent_provider: session.effective_chat_provider
+    )
   end
 
   it "resets daily cost tracking when a charged turn lands on a new day" do
@@ -304,6 +310,7 @@ RSpec.describe ChatSession do
     expect(session.reload.cumulative_input_tokens).to eq(12)
     expect(session.cumulative_output_tokens).to eq(34)
     expect(session.cumulative_cost).to eq(BigDecimal("0.05"))
+    expect(session.chat_spend_entries).to be_empty
   end
 
   it "ignores nil usage fields" do
@@ -818,6 +825,7 @@ RSpec.describe ChatSession do
         expect(session).to be_deleted
         expect(session.deleted_at).to be_present
         expect(session.deleted_by_user).to eq(actor)
+        expect(session.stop_requested_at).to be_present
       end
 
       it "sets deleted_at without deleted_by_user for a non-User actor" do
@@ -850,14 +858,18 @@ RSpec.describe ChatSession do
         expect(fired.reload).to be_fired
       end
 
-      it "does not delete when a turn claim won the row lock" do
+      it "deletes and stops the turn when a turn claim won the row lock" do
         session = described_class.create!(repository: repo, user: repo.user)
         stale_delete_session = described_class.find(session.id)
         message = session.messages.create!(role: "user", content: { "text" => "Started" }, skip_turn_trigger: true)
         session.begin_turn_for!(message)
 
-        expect(stale_delete_session.soft_delete_by!(actor)).to be(false)
-        expect(session.reload).not_to be_deleted
+        stale_delete_session.soft_delete_by!(actor)
+
+        expect(session.reload).to be_deleted
+        expect(session).not_to be_turn_in_flight
+        expect(session.current_turn_message_id).to be_nil
+        expect(session.stop_requested_at).to be_present
       end
 
       it "enqueues the workspace/search cleanup job post-commit, same as a hard destroy" do

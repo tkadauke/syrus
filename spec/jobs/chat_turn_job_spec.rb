@@ -76,6 +76,33 @@ RSpec.describe ChatTurnJob, :ci_only do
     PluginRecord.find_or_create_by!(name: "video_walkthroughs").update!(enabled: enabled, disableable: true)
   end
 
+  it "does not start a queued turn after its chat was soft-deleted" do
+    message = user_message
+    chat.soft_delete_by!(user)
+    called = false
+    ChatTurnJob.agent_runner = ->(**_) { called = true; result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(called).to eq(false)
+    expect(chat.reload.turn_in_flight?).to eq(false)
+    expect(chat.messages.where.not(role: "user")).to be_empty
+  end
+
+  it "stops without writing agent output when the chat is deleted during invocation" do
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      chat.soft_delete_by!(user)
+      kwargs.fetch(:log_sink).call("late output", kind: "assistant_text")
+      result_fixture(session_id: "s1", final_text: "late output")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(chat.reload.turn_in_flight?).to eq(false)
+    expect(chat.messages.where.not(role: "user")).to be_empty
+    expect(chat.provider_session).to be_nil
+  end
+
   def enable_coding_mode!(enabled: true)
     feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
       record.category = "Labs"

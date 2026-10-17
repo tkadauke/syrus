@@ -138,6 +138,7 @@ class Repository < ApplicationRecord
   before_destroy :destroy_chat_sessions, prepend: true
 
   scope :active,   -> { where(archived_at: nil) }
+  scope :git,      -> { where(vcs: "git") }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :accessible_to, ->(user) {
     where(id: accessible_repository_ids_for(user))
@@ -405,14 +406,6 @@ class Repository < ApplicationRecord
 
   def slug
     "#{owner}/#{name}"
-  end
-
-  # The version control system the repository uses. Every repository is git
-  # today; this is the seam repository content providers key on
-  # (Syrus::Plugin::RepositoryContentProvider) so Mercurial and Subversion can
-  # become a column instead of a rewrite.
-  def vcs
-    "git"
   end
 
   def upstream_slug

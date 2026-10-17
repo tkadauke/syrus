@@ -540,9 +540,9 @@ existing walkthrough-video retention/budget settings documented above stay on
 An opt-in path where a table's PruneJob serializes and archives a pruned
 batch to Active Storage before deleting it, instead of hard-deleting it
 outright. `RetentionArchive` (`app/models/retention_archive.rb`,
-`retention_archives` table) records one archived sweep: `retention_key`
+`retention_archives` table) records one archived batch: `retention_key`
 (must match a `RetentionPolicyRegistry` key), `pruned_before` (the cutoff
-used for that sweep), `row_count`, `byte_size`, and a `has_one_attached
+used for that prune run), `row_count`, `byte_size`, and a `has_one_attached
 :archive_file` holding the serialized batch. v1 is download-only: archived
 blobs are kept forever and there is no automated restore path back into the
 live table.
@@ -558,29 +558,37 @@ Every one of these defaults to `false` — archiving is off for every table
 until an operator explicitly enables it — and a non-archivable entry has no
 such column at all.
 
-**`RetentionArchiver`** (`app/services/retention_archiver.rb`) is the shared
-service each archivable table's PruneJob calls immediately before its
-existing delete:
+**`RetentionPruner`** (`app/services/retention_pruner.rb`) is the shared
+bounded-delete service used by retention PruneJobs. It selects ordered
+primary-key batches (1,000 rows by default), processes at most 50 batches per
+run, and commits each batch separately. MySQL workers claim rows with
+`FOR UPDATE SKIP LOCKED`, allowing overlapping workers to process distinct
+batches without duplicate archives; SQLite development/test processes
+serialize batch selection in-process. Archivable jobs supply a retention key
+and cutoff:
 
 ```ruby
-scope = RunDiagnostic.prunable
-RetentionArchiver.call(retention_key: :run_diagnostic, scope: scope, cutoff: RunDiagnostic.retention_cutoff)
-n = scope.delete_all
+RetentionPruner.call(
+  scope: RunDiagnostic.prunable,
+  retention_key: :run_diagnostic,
+  cutoff: RunDiagnostic.retention_cutoff
+)
 ```
 
-`RetentionArchiver.call` no-ops (never touches `RetentionArchive` or Active
+For each selected batch, `RetentionPruner` passes an exact primary-key scope
+to `RetentionArchiver` and deletes exactly those IDs in the same transaction.
+Concurrent inserts cannot join a delete after its archive is created, and a
+row selected for the batch cannot be omitted from that archive if its cutoff
+column changes. `RetentionArchiver.call` no-ops (never touches `RetentionArchive` or Active
 Storage) when the table's `archive_before_delete` setting is off, the cutoff
-is `nil` (infinite retention), or the scope has no rows this sweep — so the
-flag-off path is byte-for-byte the original delete-only behavior. When
+is `nil` (infinite retention), or the batch has no rows — so the
+flag-off path remains delete-only. When
 archiving is on and there is something to archive, it serializes each row of
 `scope` via `#as_json` to gzip-compressed JSONL, streaming through
 `find_in_batches` (default batch size 1000) so the whole prunable set is
 never loaded into memory at once, then creates exactly one `RetentionArchive`
-row for the sweep (`row_count`, `byte_size`, `pruned_before: cutoff`) with the
-compressed file attached. The caller's `scope.delete_all` then runs
-unconditionally, whether or not archiving ran — the same `scope` object is
-reused for both, so the delete never picks up rows that weren't included in
-that archive. Passing a `retention_key` whose definition has
+row for the prune batch (`row_count`, `byte_size`, `pruned_before: cutoff`) with
+the compressed file attached. Passing a `retention_key` whose definition has
 `archivable: false` raises `ArgumentError`.
 
 Archiving tables as of this writing: `run_diagnostic`,

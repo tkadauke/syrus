@@ -159,9 +159,10 @@ type Blob struct {
 
 // Store holds every mirrored repository.
 type Store struct {
-	cfg   Config
-	mu    sync.Mutex
-	repos map[string]*repo
+	cfg     Config
+	mu      sync.Mutex
+	repos   map[string]*repo
+	repoIDs []string
 }
 
 type repo struct {
@@ -222,7 +223,9 @@ func Open(cfg Config) (*Store, error) {
 		}
 		r.sizeBytes = dirSize(r.dir)
 		s.repos[id] = r
+		s.repoIDs = append(s.repoIDs, id)
 	}
+	sort.Strings(s.repoIDs)
 	return s, nil
 }
 
@@ -246,6 +249,8 @@ func (s *Store) Register(ctx context.Context, id string, reg Registration) error
 	if !exists {
 		r = &repo{id: id, dir: filepath.Join(s.reposDir(), id+".git")}
 		s.repos[id] = r
+		s.repoIDs = append(s.repoIDs, id)
+		sort.Strings(s.repoIDs)
 	}
 	s.mu.Unlock()
 
@@ -272,6 +277,9 @@ func (s *Store) Remove(id string) error {
 	s.mu.Lock()
 	r, ok := s.repos[id]
 	delete(s.repos, id)
+	if index := sort.SearchStrings(s.repoIDs, id); index < len(s.repoIDs) && s.repoIDs[index] == id {
+		s.repoIDs = append(s.repoIDs[:index], s.repoIDs[index+1:]...)
+	}
 	s.mu.Unlock()
 	if !ok {
 		return ErrUnknownRepository
@@ -299,6 +307,33 @@ func (s *Store) List() []Status {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+// ListPage reports at most limit repositories after the opaque ID cursor.
+// repoIDs is maintained in sorted order so a reconciliation page is bounded
+// rather than rebuilding and sorting the full inventory for every request.
+func (s *Store) ListPage(after string, limit int) ([]Status, bool) {
+	s.mu.Lock()
+	start := sort.Search(len(s.repoIDs), func(i int) bool { return s.repoIDs[i] > after })
+	end := min(start+limit+1, len(s.repoIDs))
+	repos := make([]*repo, 0, end-start)
+	for _, id := range s.repoIDs[start:end] {
+		repos = append(repos, s.repos[id])
+	}
+	s.mu.Unlock()
+
+	hasMore := len(repos) > limit
+	if hasMore {
+		repos = repos[:limit]
+	}
+	out := make([]Status, 0, len(repos))
+	for _, r := range repos {
+		r.mu.Lock()
+		out = append(out, Status{ID: r.id, URL: r.url, LastFetchAt: r.lastFetchAt, LastError: r.lastError, HasCredential: r.cred != nil,
+			SizeBytes: r.sizeBytes, LastMaintenanceAt: r.lastMaintenanceAt})
+		r.mu.Unlock()
+	}
+	return out, hasMore
 }
 
 // SyncAll fetches every repository once. Failures are recorded per repository

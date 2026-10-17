@@ -662,7 +662,9 @@ conversation as deleted (recording who deleted it and when) and removes it
 from the sidebar, chat search, and the chat agent's own tools, while leaving
 the underlying conversation, messages, attachments, proposals, and whiteboard
 in place for audit. The chat's search-index entries and its workspace on disk
-are still cleaned up, and deletion is refused while a turn is still running. Major operational
+are still cleaned up. If an agent turn or workspace preparation is running,
+deletion requests that it stop and waits for termination before cleaning up
+local artifacts. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
 Scoped events can run through an isolated disposable evaluator before waking the
@@ -1648,6 +1650,11 @@ required central host for a repository.
 The spending dashboard at `/insights/spending` rolls up `runs.cost_usd`
 into operator-facing cost views. Syrus records provider-reported cost when
 available; runs whose providers omit dollar costs keep `cost_usd` unset. The
+cost is assigned to the Run's completion date; unfinished Runs are omitted even
+if they already carry a partial cost. Charged chat turns are recorded separately
+when they complete, so new spend in an older chat remains visible in the correct
+reporting window. Chat cost recorded before this ledger existed is not assigned
+to a guessed historical date. The
 dashboard shows week, month, lifetime, average Job, and average merged-PR
 totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
 chart, and the most expensive individual Runs. When spending exists across

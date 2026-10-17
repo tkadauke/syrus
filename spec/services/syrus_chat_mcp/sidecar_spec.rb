@@ -167,7 +167,6 @@ RSpec.describe Mcp::Sidecar do
         fire_scheduled_task_now
         pause_landing_queue
         resume_landing_queue
-        read_queue
         list_repositories
         list_open_issues
         list_open_prs
@@ -179,7 +178,6 @@ RSpec.describe Mcp::Sidecar do
         "read_workflow",
         "read_run_transcript",
         "list_job_workflows",
-        "read_queue",
         "read_pr",
         "rebase_job",
         "schedule_recurring",

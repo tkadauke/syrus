@@ -1,9 +1,9 @@
-# Opt-in path invoked by a PruneJob before it deletes a batch of prunable
+# Opt-in path invoked by RetentionPruner before it deletes a batch of prunable
 # rows. When the table's RetentionPolicyRegistry entry is `archivable` and
 # its `<key>_archive_before_delete` AppSetting is on, serializes the scope's
 # rows to a gzip-compressed JSONL Active Storage attachment and records
-# exactly one RetentionArchive row for the sweep before the caller proceeds
-# with its existing delete. No-ops (never touches RetentionArchive or Active
+# exactly one RetentionArchive row for the batch before the caller proceeds
+# with its matching delete. No-ops (never touches RetentionArchive or Active
 # Storage) when the setting is off, matching the previous delete-only behavior
 # exactly — see config/syrus_docs/app_settings.md's "Archive-before-delete
 # storage" section.
@@ -24,7 +24,7 @@ class RetentionArchiver
   end
 
   # Returns the created RetentionArchive, or nil when archiving didn't run
-  # (setting off, no cutoff, or nothing prunable this sweep).
+  # (setting off, no cutoff, or an empty batch).
   def call
     return nil unless AppSetting.current.public_send(@definition.archive_setting_key)
     return nil if @cutoff.nil?
