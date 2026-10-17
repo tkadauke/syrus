@@ -417,6 +417,30 @@ RSpec.describe SyrusYml do
     YAML
   end
 
+  it "parses grader execution backend selection" do
+    config = parse(<<~YAML)
+      execution:
+        grader_backend: container_execution
+      grade:
+        - name: backend
+          run: bin/rspec
+    YAML
+
+    expect(config.execution.grader_backend).to eq("container_execution")
+    expect(config.grade.execution_backend).to eq("container_execution")
+  end
+
+  it "rejects invalid grader execution backend names" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: backend
+            run: bin/rspec
+            execution_backend: container execution
+      YAML
+    }.to raise_error(described_class::ParseError, /grade\.steps\[0\]\.execution_backend/)
+  end
+
   it "parses an iOS project with Xcode execution details carried by commands" do
     config = parse(<<~YAML)
       project:

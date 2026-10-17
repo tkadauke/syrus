@@ -127,6 +127,20 @@ grade:
       os: linux
 ```
 
+Repositories can request a non-default execution backend for grader
+subprocesses without changing the instance-wide default:
+
+```yaml
+execution:
+  grader_backend: container_execution
+```
+
+That repository-level default applies to root and nested `.syrus.yml` grader
+targets unless an individual grader overrides it with `execution_backend`.
+When the requested backend is unavailable, the core execution router falls
+back to `Local` so disabling the plugin or removing its worker launch
+configuration restores ordinary host execution.
+
 Imported build-system providers may return capability metadata directly on
 `TargetGraph::Project` or `TargetGraph::Target` objects. A `.syrus.yml`
 overlay on an imported target may add Syrus execution metadata, including
@@ -258,6 +272,7 @@ Explicit target fields:
 | `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
 | `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
 | `capabilities` | no | — | Execution requirements for this target: `os`, `arch`, `toolchain`, and `runtime`. |
+| `execution_backend` | no | repository default | Optional grader execution backend name. `local` forces host execution; plugin names such as `container_execution` are tried only when their plugin is enabled and available. |
 | `ci_checks` | no | `[]` | String or array of external CI check-run names that prove this target's health when the check completes. |
 | `ci_check_names` | no | `[]` | Alias for `ci_checks`. |
 | `github_checks` | no | `[]` | Alias for `ci_checks`. |

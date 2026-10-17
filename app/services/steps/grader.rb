@@ -416,6 +416,7 @@ module Steps
         kind: "grader",
         run: run,
         workflow: workflow,
+        execution_backend: step.details.to_h["execution_backend"],
         display_command: display_command,
         on_spawned_process: ->(process) { span_recorder.spawned_process = process },
         on_output_chunk: ->(chunk) do

@@ -70,6 +70,48 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.target(TargetGraph::Label.parse("//:grade/no-display-name")).metadata).not_to have_key("display_name")
     end
 
+    it "applies the repository grader execution backend to root and nested grader targets" do
+      write(".syrus.yml", <<~YAML)
+        execution:
+          grader_backend: container_execution
+        targets:
+          - name: explicit-check
+            kind: grader
+            run: bin/check-explicit
+        grade:
+          - name: root-tests
+            run: bin/rspec
+      YAML
+      write("plugins/ruby/.syrus.yml", <<~YAML)
+        grade:
+          - name: plugin-tests
+            run: bin/rspec plugins/ruby/spec
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests")).metadata["execution_backend"]).to eq("container_execution")
+      expect(graph.target(TargetGraph::Label.parse("//:explicit-check")).metadata["execution_backend"]).to eq("container_execution")
+      expect(graph.target(TargetGraph::Label.parse("//plugins/ruby:grade/plugin-tests")).metadata["execution_backend"]).to eq("container_execution")
+    end
+
+    it "keeps parsed execution_backend precedence over arbitrary grader metadata" do
+      write(".syrus.yml", <<~YAML)
+        execution:
+          grader_backend: container_execution
+        grade:
+          - name: root-tests
+            run: bin/rspec
+            execution_backend: local
+            metadata:
+              execution_backend: container_execution
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests")).metadata["execution_backend"]).to eq("local")
+    end
+
     it "expands legacy ci: commands into a separate grader target scoped to the ci phase" do
       write(".syrus.yml", <<~YAML)
         grade:

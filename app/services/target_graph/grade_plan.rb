@@ -49,7 +49,8 @@ class TargetGraph
         deps: [],
         metadata: metadata,
         capabilities: target.capabilities,
-        resources: target.resources
+        resources: target.resources,
+        execution_backend: metadata["execution_backend"]
       )
     end
 
