@@ -36,7 +36,7 @@ RSpec.describe BotIdentity do
     end
 
     it "returns the original body when no handle can be derived" do
-      user = Factories.user(github_handle: nil, email_address: "@@@@")
+      user = Factories.user(github_handle: nil, email_address: "---@example.com")
 
       expect(described_class.prefix_comment("Ship it.", on_behalf_of: user)).to eq("Ship it.")
       expect(described_class.prefix_comment("Ship it.")).to eq("Ship it.")

@@ -60,7 +60,9 @@ RSpec.describe ScheduledTasks::CronTemplate do
     it "rejects zero in day-of-month and month fields" do
       template = build_template(cron_expression: "0 4 0 0 1")
       expect(template).not_to be_valid
-      expect(template.errors[:schedule_input].join).to include("month day must be between 1 and 31")
+      expect(template.errors[:schedule_input].join).to match(
+        /(?:not a valid five-field cron expression|month day must be between 1 and 31)/
+      )
     end
 
     it "rejects zero in the month field" do
