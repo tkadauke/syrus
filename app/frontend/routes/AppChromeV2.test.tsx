@@ -14,6 +14,7 @@ import { AppChromeV2 } from "./AppChromeV2"
 import { SIDEBAR_COLLAPSED_KEY, SIDEBAR_WIDTH_KEY, adminNavLinkClass, adminSubnavLinkClass, chatSectionsFromPayload, recentChatLinkClass, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, filterAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 import { useMobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
+import { useShortcut } from "../contexts/ShortcutsContext"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   toBlob(callback: (blob: Blob | null) => void) {
@@ -3025,14 +3026,19 @@ describe("AppChromeV2 signed-out chrome", () => {
   // ungated the pair spins: a logged-out tab held ~26 requests/second.
   it("does not request the maintenance sidebar when nobody is signed in", async () => {
     const sidebar = vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar")
+    const shortcut = vi.fn()
 
-    renderAppChrome(<div>Sign in</div>, {
+    renderAppChrome(<SignedOutShortcutProbe onShortcut={shortcut} />, {
       bootstrap: signedOutBootstrap(),
       initialEntries: [ "/session/new" ]
     })
 
     await waitFor(() => expect(screen.getByText("Sign in")).toBeInTheDocument())
     expect(sidebar).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("desktop-sidebar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "k" })
+    expect(shortcut).not.toHaveBeenCalled()
   })
 
   it("requests it once somebody is signed in", async () => {
@@ -3150,6 +3156,11 @@ function renderAppChrome(
 function LocationProbe() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function SignedOutShortcutProbe({ onShortcut }: { onShortcut: () => void }) {
+  useShortcut("k", onShortcut, { description: "Signed-out probe", group: "Test" })
+  return <div>Sign in</div>
 }
 
 function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
