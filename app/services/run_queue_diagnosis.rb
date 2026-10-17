@@ -15,7 +15,10 @@ class RunQueueDiagnosis
     return diagnosis("concurrency_blocked", queue_name: queue_job.queue_name) if execution_exists?(SolidQueue::BlockedExecution, queue_job)
 
     if (scheduled = execution_for(SolidQueue::ScheduledExecution, queue_job))
-      return diagnosis("scheduled", queue_name: queue_job.queue_name, scheduled_at: scheduled.scheduled_at&.iso8601)
+      scheduled_details = { queue_name: queue_job.queue_name, scheduled_at: scheduled.scheduled_at&.iso8601 }
+      return diagnosis("scheduled", scheduled_details) if scheduled.scheduled_at&.future?
+
+      return diagnosis("unknown", scheduled_details)
     end
 
     return diagnosis("claimed_not_started", queue_name: queue_job.queue_name) if execution_exists?(SolidQueue::ClaimedExecution, queue_job)

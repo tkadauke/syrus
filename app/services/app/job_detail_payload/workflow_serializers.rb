@@ -27,11 +27,14 @@ module App
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
       def workflows_etag
-        App::JobWorkflowsSnapshotCache.fingerprint(job: @job, page: workflows_page, admin: @user.admin?)
+        fingerprint = App::JobWorkflowsSnapshotCache.fingerprint(job: @job, page: workflows_page, admin: @user.admin?)
+        return fingerprint unless Run.where(job_id: @job.id, state: "queued").exists?
+
+        [ fingerprint, "queue-wait", Time.current.to_i ].join(":")
       end
 
       def workflows_json
-        serialize = lambda do
+        workflows = App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?) do
           PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
             paginated_workflows.map do |workflow|
               workflow_json(workflow, navigation_page: workflows_page)
@@ -39,12 +42,7 @@ module App
           end
         end
 
-        # Solid Queue execution rows and worker heartbeats change without
-        # touching the Run revision used by the snapshot cache key. Keep queue
-        # diagnoses live while any queued Run is visible.
-        return serialize.call if Run.where(job_id: @job.id, state: "queued").exists?
-
-        App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?, &serialize)
+        hydrate_queue_wait(workflows)
       end
 
       def work_units_json
@@ -726,7 +724,7 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: latest_health_snapshot_for(run).then { |snapshot| snapshot ? [ health_snapshot_json(snapshot) ] : [] },
           active_process: active_process_json(run),
-          queue_wait: run.queued? ? RunQueueDiagnosis.call(run) : nil,
+          queue_wait: nil,
           command_spans_total: command_span_counts_by_run_id.fetch(run.id, command_spans.size),
           command_spans_displayed: command_spans.size,
           command_spans_truncated: command_span_counts_by_run_id.fetch(run.id, command_spans.size) > command_spans.size,
@@ -760,6 +758,29 @@ module App
           wall_timeout_s: process.wall_timeout_s,
           silent_timeout_s: process.silent_timeout_s
         }
+      end
+
+      def hydrate_queue_wait(workflows)
+        queued_ids = workflows.flat_map do |workflow|
+          workflow.fetch(:steps).flat_map do |step|
+            step.fetch(:runs).filter_map { |run| run[:id] if run[:state] == "queued" }
+          end
+        end
+        return workflows if queued_ids.empty?
+
+        runs_by_id = Run.includes(step: :workflow).where(id: queued_ids).index_by(&:id)
+        hydrated = workflows.deep_dup
+        hydrated.each do |workflow|
+          workflow.fetch(:steps).each do |step|
+            step.fetch(:runs).each do |run|
+              next unless run[:state] == "queued"
+
+              queued_run = runs_by_id[run[:id]]
+              run[:queue_wait] = RunQueueDiagnosis.call(queued_run) if queued_run
+            end
+          end
+        end
+        hydrated
       end
 
       def command_span_json(span)

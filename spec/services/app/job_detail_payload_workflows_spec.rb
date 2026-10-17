@@ -32,6 +32,18 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(workflows_payload_for(job).fetch(:job_id)).to eq(job.id)
     end
+
+    it "refreshes the workflows ETag while a queued Run may change queue state" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "queued")
+
+      first = described_class.workflows_etag(job: job, user: user)
+      travel 1.second
+
+      expect(described_class.workflows_etag(job: job, user: user)).not_to eq(first)
+    end
   end
 
   # bypass_dedup: true simulates a legacy WorkUnit row that predates the
@@ -96,12 +108,22 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         { kind: "no_run_job", details: {} },
         { kind: "no_live_workers", details: { queue_name: "runs" } }
       )
+      cached_workflows = nil
+      serialization_count = 0
+      allow(App::JobWorkflowsSnapshotCache).to receive(:fetch) do |**_args, &block|
+        cached_workflows ||= begin
+          serialization_count += 1
+          block.call
+        end
+      end
 
       first = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :queue_wait)
       second = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :queue_wait)
 
       expect(first[:kind]).to eq("no_run_job")
       expect(second[:kind]).to eq("no_live_workers")
+      expect(serialization_count).to eq(1)
+      expect(cached_workflows.dig(0, :steps, 0, :runs, 0, :queue_wait)).to be_nil
     end
 
     it "includes the workflow/step/run revision so the frontend entity store can order/dedupe events against this snapshot" do
