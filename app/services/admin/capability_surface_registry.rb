@@ -35,7 +35,10 @@ module Admin
     MCP_PENDING_ACTION_REASON = "This PendingAction has no static McpToolRegistry exposure yet; any dynamic or future MCP exposure must be registered explicitly.".freeze
     WORKFLOW_MCP_REASON = "Workflow-agent capability only; no user API, admin API, or CLI invocation contract is registered.".freeze
     MCP_TOOL_CAPABILITY_ALIASES = {
-      "admin_maintenance_tasks" => "admin_maintenance_task"
+      "admin_maintenance_tasks" => "admin_maintenance_task",
+      "accept_insight" => "accept_insights",
+      "dismiss_insight" => "dismiss_insights",
+      "retire_insight" => "retire_insights"
     }.freeze
 
     STATIC_CAPABILITIES = {
@@ -72,6 +75,7 @@ module Admin
       admin_unpause_polling
       admin_unpause_runs
       admin_unpause_user_scheduling
+      accept_insights
       adopt_current_pr_head
       approve_job
       archive_epic
@@ -85,6 +89,7 @@ module Admin
       delegate_issue
       delete_design_doc
       delete_repo_document
+      dismiss_insights
       emergency_land
       fire_scheduled_task_now
       force_fail_job
@@ -105,6 +110,7 @@ module Admin
       reopen_job
       repair_provider_circuit_evidence
       replace_pr_branch_with_workflow_output
+      retire_insights
       retire_terminal_work_unit
       rerun_ci_repair
       restack_epic
