@@ -972,6 +972,7 @@
     "app_connected": "Syrus App verbunden — Aktionen auf {{owner}} kommen jetzt vom Syrus-Bot.",
     "install_optional": "Optional: Installieren Sie die Syrus GitHub App auf {{owner}}, damit Syrus dort unter seiner eigenen Bot-Identität agiert. Bis dahin arbeitet es über Ihren persönlichen Zugriffstoken.",
     "waiting_for_install": "Warten auf GitHub — dies aktualisiert sich automatisch, sobald die App installiert ist…",
+    "reconciling_installation": "Es wird geprüft, ob die GitHub App dieses Repository bereits abdeckt…",
     "install_all_prefix": "Empfohlen:",
     "install_all_button": "für alle Repositories installieren",
     "install_all_suffix": "stattdessen — jedes Repository, das Sie später hinzufügen, verbindet sich automatisch.",

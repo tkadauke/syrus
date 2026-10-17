@@ -23,6 +23,9 @@ class GithubAppInstallationSyncer
         installation = Installation.find_or_initialize_by(github_installation_id: attrs[:github_installation_id])
         installation.assign_attributes(attrs.merge(user: user_for(attrs[:account_login]), removed_at: nil))
         installation.save!
+        if installation.repository_selection == "selected"
+          installation.update!(selected_repository_ids: @client.installation_repository_ids(installation))
+        end
         InstallationLinker.link_repositories_for(installation)
         installation
       end
@@ -62,6 +65,7 @@ class GithubAppInstallationSyncer
       account_login: account[:login] || account["login"],
       account_id: account[:id] || account["id"],
       account_type: account[:type] || account["type"],
+      repository_selection: (hash[:repository_selection] || hash["repository_selection"] || "all").to_s,
       installed_at: installed_at(hash)
     }
   end

@@ -972,6 +972,7 @@
     "app_connected": "Applicatio Syri coniuncta — actiones apud {{owner}} nunc a bot Syri proveniunt.",
     "install_optional": "Optionale: applicationem Syri GitHub apud {{owner}} installa ut Syrus per identitatem propriam bot ibi agat. Interim per tesseram tuam personalem operatur.",
     "waiting_for_install": "GitHub exspectans — hoc per se renovabitur cum applicatio installata erit…",
+    "reconciling_installation": "Exploratur num applicatio GitHub hoc receptaculum iam complectatur…",
     "install_all_prefix": "Commendatum:",
     "install_all_button": "pro omnibus receptaculis installare",
     "install_all_suffix": "potius — omne receptaculum quod postea addis automatice coniungitur.",
