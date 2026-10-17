@@ -935,7 +935,12 @@ grade:
       run: npm run typecheck
 ```
 
-Opt-in boolean, defaults to `false`. Only available in the mapping form of `grade:` (the bare array shorthand always behaves as if this is `false`).
+Boolean, **defaults to `true`** (`SyrusYml::DEFAULT_RERUN_ONLY_FAILED`). Both
+forms of `grade:` get that default -- the bare array shorthand takes it too,
+and only the mapping form can override it, by setting
+`grade.rerun_only_failed: false` for the old always-rerun-everything
+behavior. A repository that wants carry-forward therefore has to configure
+nothing at all.
 
 Infrastructure-only retries are narrower regardless of this setting. Because
 no repair step changed the checkout, Syrus carries forward successful required
@@ -943,11 +948,37 @@ graders whose target fingerprints are unchanged and reruns only graders with
 failed or inconclusive infrastructure outcomes. This avoids turning one lost
 worker or database interruption into another full grader burst.
 
-When `true`, the **first** grading iteration always runs every active grader (the same as today), but from the **second** iteration onward a repair loop can carry forward a grader that passed on the *immediately preceding* iteration. Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
+When `true`, the **first** grading iteration always runs every active grader, but from the **second** iteration onward a repair loop can carry forward a grader that already passed within the current reuse window (see the lookback note below). Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
 
 Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
 
-The lookback is exactly one iteration: a grader that is itself carried forward (skipped, no Step of its own) on iteration N gets treated as needing a fresh run again on iteration N+1 rather than staying carried forward indefinitely. This is a self-correcting fallback, not a bug — it just means a long grade loop occasionally reruns a still-green grader instead of skipping it every single time.
+**The reuse window is bounded by the last repair that changed code**, not by a
+fixed number of iterations. `Steps::GraderFanout#reusable_passed_steps_by_name`
+considers every grader that succeeded at an iteration `>= last_code_changing_repair_iteration`,
+and "code changing" is measured per repair Run (`step_agent_diff` present, or
+`head_sha != base_sha`) rather than assumed. So a grader that passed on
+iteration 2 is still reusable on iteration 5 as long as no repair in between
+actually modified the tree -- the invariant is "a pass holds until the code
+changes", which is the only thing that can invalidate it.
+
+Two consequences follow, and both are deliberate:
+
+- **A code-changing repair empties the window.** Its own iteration becomes the
+  floor, so `iteration >= N AND iteration < N` matches nothing and every active
+  grader runs again. This is why a normal repair loop looks like it carries
+  nothing forward: the repair that caused the iteration is exactly the thing
+  that invalidates the previous passes. `skip_reusable_target_health!` is
+  disabled for the same iteration (`code_changing_repair_for_this_iteration?`),
+  so neither narrowing path applies after a real repair.
+- **A carry-forward cannot chain off another carry-forward.** A carried grader
+  is dropped from the fanout and gets no Step of its own, and the lookback
+  query requires `state: "succeeded"`, so reuse always traces back to a real
+  run. A long loop therefore reruns a still-green grader occasionally instead
+  of skipping it forever on the strength of an ever-older result.
+
+Where the setting does pay off is an iteration whose repair committed nothing
+and an infrastructure-only retry -- and those are carried forward
+unconditionally anyway (see above), independent of `rerun_only_failed`.
 
 Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
 
