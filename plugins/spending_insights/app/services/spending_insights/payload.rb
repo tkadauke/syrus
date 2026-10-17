@@ -103,14 +103,14 @@ module SpendingInsights
     end
 
     def scoped_runs
-      relation = Run.where.not(cost_usd: nil)
+      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply(relation)
     end
 
     def unwindowed_runs
-      relation = Run.where.not(cost_usd: nil)
+      relation = Run.where.not(cost_usd: nil).where.not(finished_at: nil)
       relation = relation.where(user_id: user.id) unless user.admin?
 
       filter.apply_without_date(relation)

@@ -375,7 +375,14 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       current = Factories.job(user: user, repository: repo, issue_number: 304)
       set_run_cost(initial_run(historical), 0.40, created_at: Time.zone.parse("2026-05-02 12:00:00"))
       set_run_cost(initial_run(current), 0.60, created_at: Time.zone.parse("2026-07-14 12:00:00"))
-      ChatSession.create!(user: user, cumulative_cost_usd: 0.25, created_at: Time.zone.parse("2026-01-01 12:00:00"))
+      chat = ChatSession.create!(user: user, cumulative_cost_usd: 0.25, created_at: Time.zone.parse("2026-01-01 12:00:00"))
+      ChatSpendEntry.create!(
+        chat_session: chat,
+        user: user,
+        incurred_at: Time.zone.parse("2026-01-01 12:00:00"),
+        cost_usd: 0.25,
+        agent_provider: chat.effective_chat_provider
+      )
 
       sign_in_as(user)
       get "/api/v1/app/insights/spending", params: { start_date: "2026-05-01", end_date: "2026-05-05" }

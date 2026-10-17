@@ -63,7 +63,14 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
       set_run_usage(older.initial_run, 8.00, input_tokens: 800, output_tokens: 80, created_at: Time.zone.parse("2026-05-01 12:00:00"))
       set_run_usage(other_repo_job.initial_run, 2.50, input_tokens: 200, output_tokens: 40, created_at: Time.zone.parse("2026-06-23 12:00:00"))
       set_run_usage(other_user_job.initial_run, 9.99, input_tokens: 900, output_tokens: 90, created_at: Time.zone.parse("2026-06-23 12:00:00"))
-      ChatSession.create!(user: user, cumulative_cost_usd: 0.75, created_at: Time.zone.parse("2026-01-01 12:00:00"))
+      chat = ChatSession.create!(user: user, cumulative_cost_usd: 0.75, created_at: Time.zone.parse("2026-01-01 12:00:00"))
+      ChatSpendEntry.create!(
+        chat_session: chat,
+        user: user,
+        incurred_at: Time.zone.parse("2026-01-01 12:00:00"),
+        cost_usd: 0.75,
+        agent_provider: chat.effective_chat_provider
+      )
 
       response = call_tool("get_spending", window: "7d", repository_id: repository.id)
       body = payload(response)
