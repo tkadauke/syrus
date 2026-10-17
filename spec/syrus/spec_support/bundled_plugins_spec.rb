@@ -2,8 +2,8 @@ require "rails_helper"
 
 RSpec.describe Syrus::SpecSupport::BundledPlugins do
   describe ".restore_test_provider_records" do
-    it "enables the test provider plugin records and clears the registry cache" do
-      described_class::TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+    it "enables the plugin records required by the test environment and clears the registry cache" do
+      described_class::TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
         record = PluginRecord.find_or_create_by!(name: plugin_name)
         updates = { enabled: false }
         updates[:disableable] = true if record.has_attribute?(:disableable)
@@ -14,7 +14,7 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
 
       described_class.restore_test_provider_records
 
-      described_class::TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+      described_class::TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
         expect(PluginRecord.find_by!(name: plugin_name)).to be_enabled
       end
     end

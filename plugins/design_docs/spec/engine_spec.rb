@@ -7,7 +7,6 @@ RSpec.describe DesignDocs::Engine do
     expect(manifest).to be_present
     expect(manifest.display_name).to eq("Design Docs")
     expect(manifest.default_enabled?).to be(false)
-    expect(manifest.enabled?).to be(false)
     expect(manifest.disableable?).to be(true)
   end
 
