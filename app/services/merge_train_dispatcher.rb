@@ -13,6 +13,8 @@ class MergeTrainDispatcher
   # churning.
   RETRY_COOLDOWN = 30.minutes
 
+  TRAIN_KIND = "merge_train".freeze
+
   def self.try_dispatch!(epic, bypass_cooldown: false) = new(epic, bypass_cooldown: bypass_cooldown).try_dispatch!
   def self.blocker_reason(epic, bypass_cooldown: false) = new(epic, bypass_cooldown: bypass_cooldown).blocker_reason
 
@@ -95,10 +97,31 @@ class MergeTrainDispatcher
     blockers = landing_unit_blockers_for(readiness.members)
     return "stack dependencies not ready: #{blockers.map(&:slug).join(", ")}" if blockers.any?
 
+    if (held = held_lock_reason(readiness.members))
+      return held
+    end
+
     nil
   end
 
   private
+
+  # Same blind spot JobBundleDispatcher had: the launcher refuses a train whose
+  # locks another WorkUnit holds, and blocker_reason -- the reason the landing
+  # queue shows an operator -- never asked who held them.
+  def held_lock_reason(members)
+    return nil if members.empty?
+
+    definition = WorkDefinitions.for(TRAIN_KIND)
+    keys = definition.lock_keys_for(job: members.last, member_jobs: members, artifacts: {})
+    key, owner = WorkUnits::Ownership.blocking_lock_owner(keys)
+    return nil unless owner
+
+    holder = owner.workflow&.slug.presence || "WU-#{owner.id}"
+    "#{owner.kind} #{holder} holds #{key}; the merge train starts once it releases"
+  rescue WorkDefinitions::UnknownKind
+    nil
+  end
 
   def landing_queue_paused?
     @epic.user.landing_paused? || @epic.owner_user&.landing_paused?

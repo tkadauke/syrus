@@ -15,6 +15,8 @@ class JobBundleDispatcher
   # Jobs surfaces for an operator instead of churning every tick.
   RETRY_COOLDOWN = MergeTrainDispatcher::RETRY_COOLDOWN
 
+  BUNDLE_KIND = "job_bundle".freeze
+
   def self.try_dispatch!(repository, bypass_cooldown: false) = new(repository, bypass_cooldown: bypass_cooldown).try_dispatch!
   def self.blocker_reason(repository, bypass_cooldown: false) = new(repository, bypass_cooldown: bypass_cooldown).blocker_reason
 
@@ -59,7 +61,7 @@ class JobBundleDispatcher
       end
 
       workflow = WorkUnits::Launcher.instantiate(
-        kind: "job_bundle",
+        kind: BUNDLE_KIND,
         job: members.last,
         artifacts: { "merge_train_id" => train.id }.merge(fix_replay_artifacts_for(members))
       )
@@ -69,7 +71,14 @@ class JobBundleDispatcher
 
     WorkUnits::Launcher.start!(workflow)
     workflow
-  rescue WorkUnits::Launcher::LockConflict
+  rescue WorkUnits::Launcher::LockConflict => e
+    # Recorded rather than silently dropped: this is the one bundle-dispatch
+    # outcome blocker_reason has to predict rather than observe, so a gap
+    # between the two shows up here instead of as an unexplained idle queue.
+    Rails.logger.info(
+      "[JobBundleDispatcher] #{@repository.slug} bundle deferred: lock #{e.lock_key} held by " \
+      "#{e.work_unit&.kind} WU-#{e.work_unit&.id}"
+    )
     nil
   end
 
@@ -129,10 +138,34 @@ class JobBundleDispatcher
       return "active rebase workflow must finish before the job bundle starts"
     end
 
+    if (held = held_lock_reason(readiness.members))
+      return held
+    end
+
     nil
   end
 
   private
+
+  # try_dispatch! gets as far as the launcher, which refuses a bundle whose
+  # locks another WorkUnit holds, and the LockConflict is rescued to nil -- so
+  # the queue reported `waiting_epicless_bundle` and nothing else while a
+  # main-branch grade held the repository key. Same shape as the
+  # candidate-exclusion bug above: the bundle could not form and no reason
+  # existed anywhere. Ask for the owner here, before the launcher does.
+  def held_lock_reason(members)
+    return nil if members.empty?
+
+    definition = WorkDefinitions.for(BUNDLE_KIND)
+    keys = definition.lock_keys_for(job: members.last, member_jobs: members, artifacts: {})
+    key, owner = WorkUnits::Ownership.blocking_lock_owner(keys)
+    return nil unless owner
+
+    holder = owner.workflow&.slug.presence || "WU-#{owner.id}"
+    "#{owner.kind} #{holder} holds #{key}; the job bundle starts once it releases"
+  rescue WorkDefinitions::UnknownKind
+    nil
+  end
 
   def cancel_obsolete_automatic_visual_diffs!
     VisualDiffSubmission.cancel_obsolete_automatic_work!(potential_member_candidates)

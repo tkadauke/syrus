@@ -190,6 +190,23 @@ module WorkUnits
       repository.present? && !repository.main_branch_repair_blocks_work?
     end
 
+    # The first lock key in `keys` that another active WorkUnit already holds,
+    # as [key, owner] -- the question WorkUnits::Launcher#create_lock! is about
+    # to ask, so a caller can report the answer instead of discovering it as a
+    # LockConflict it has nowhere to put. Skips the keys the launcher itself
+    # lets through.
+    def self.blocking_lock_owner(keys)
+      Array(keys).each do |key|
+        owner = active_unit_for_lock_key(key)
+        next unless owner
+        next if nonblocking_main_branch_repair_repository_lock?(owner, key)
+
+        return [ key, owner ]
+      end
+
+      nil
+    end
+
     def self.active_unit_for_dedup_key(dedup_key)
       key = dedup_key.to_s
       return nil if key.blank?

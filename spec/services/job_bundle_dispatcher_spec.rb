@@ -44,6 +44,41 @@ RSpec.describe JobBundleDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  # A main-branch grade starts after every landing and used to inherit the
+  # repository lock scope, holding it for the whole grade -- 41 to 253 minutes
+  # in production. The launcher then refused the next bundle, try_dispatch!
+  # rescued the LockConflict to nil, and the queue sat idle with 98 approved
+  # Jobs reporting only `waiting_epicless_bundle`.
+  it "dispatches a bundle while a main-branch grade is running" do
+    approved_job(1)
+    approved_job(2)
+    grader_job = Factories.job_record(
+      user: user, repository: repository, issue_number: nil,
+      kind: "main_grader", state: "running"
+    )
+    grader_workflow = Workflow.create!(job: grader_job, trigger_kind: "main_grader", state: "running")
+    attach_work_unit(grader_workflow, state: "running", kind: "main_grader")
+
+    expect(described_class.blocker_reason(repository)).to be_nil
+    expect(described_class.try_dispatch!(repository)).to be_present
+  end
+
+  it "names the work unit holding a lock the bundle needs" do
+    approved_job(1)
+    approved_job(2)
+    other_job = Factories.job_record(
+      user: user, repository: repository, issue_number: nil,
+      kind: "main_grader", state: "running"
+    )
+    other_workflow = Workflow.create!(job: other_job, trigger_kind: "main_grader", state: "running")
+    unit = attach_work_unit(other_workflow, state: "running", kind: "main_grader")
+    unit.work_unit_locks.create!(lock_key: "repository:#{repository.id}")
+
+    expect(described_class.blocker_reason(repository))
+      .to eq("main_grader #{other_workflow.slug} holds repository:#{repository.id}; the job bundle starts once it releases")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+  end
+
   it "does not dispatch when any member no longer satisfies delivery approval" do
     valid = approved_job(1)
     invalid = approved_job(2)

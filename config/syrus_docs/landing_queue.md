@@ -257,6 +257,26 @@ Every landing path -- `JobBundleDispatcher`, `MergeTrainDispatcher`,
 landing mutex, and `blocked` counts as an active ownership state, so a blocked
 unit still reads as "a landing is in progress".
 
+A landing unit also takes the plain `repository:<id>` lock, which is *not*
+landing-specific: any repository-scoped WorkUnit holds it, so work that has
+nothing to do with landing can stall the queue through it. `main_grader` did
+exactly that. It runs after every landing, graded for 40 minutes to several
+hours, and held the repository lock throughout, so `WorkUnits::Launcher`
+refused the next bundle for the whole grade. It now takes only its own
+`main_grader:repository:<id>` key: a main grade observes a commit that is
+already on the branch, and the landing unit it used to block is assembled on
+top of that same commit, so the two can run at once. One main grade at a time
+per repository is still enforced, by that narrower key.
+
+That stall was also invisible. `JobBundleDispatcher#try_dispatch!` rescues the
+launcher's `LockConflict` to `nil`, and `blocker_reason` -- the explanation the
+landing queue shows -- did not consult the lock table at all, so a queue frozen
+behind another unit's lock reported only that the bundle was "not ready to
+land yet". Both dispatchers now ask `WorkUnits::Ownership.blocking_lock_owner`
+for the keys they are about to take and name the holder ("`main_grader`
+WF-12345 holds `repository:7`; the job bundle starts once it releases"), and the
+rescued conflict is logged rather than dropped.
+
 That is correct for blocks that clear on their own (retry backoff, lock
 contention, a dependency finishing): those units really are about to run, and
 releasing the slot would let a later landing cut ahead of them.
