@@ -343,6 +343,9 @@ syrus job test-plan 456
 syrus job open 456
 ```
 
+`syrus job log` follows the current Run across workflow step boundaries and
+exits when the Job closes. Use `--json` for a single transcript snapshot.
+
 Job listing defaults to `--state open`, which is an alias for active
 work. Use a concrete state such as `queued`, `running`, `implemented`,
 `failed`, `approved`, `landing`, or `closed`, or use `--state all` to
@@ -399,8 +402,13 @@ remote Syrus branch was force-pushed, checkout refreshes the local branch to the
 new remote head; when that branch is already checked out, local changes must be
 committed or stashed first. After a successful checkout, the CLI runs any
 `.syrus.yml` `hooks.post_checkout` commands from the repository root and
-stops if one fails. Pass `--no-hooks` to skip those commands for one
-checkout.
+stops if one fails. It skips hooks for external-PR Jobs because their branches
+may contain contributor-controlled configuration. Pass `--no-hooks` to skip
+hooks for any other Job checkout.
+
+For `syrus checkout EPIC-N --complete`, hooks run only when every child Job is
+trusted. A merge train or linear stack containing an external-PR Job skips
+hooks even when the final branch belongs to another Job.
 
 If `<arg>` doesn't resolve to a Job or Epic (the API responds 404), `syrus
 checkout` falls back to treating it as a plain git branch name — e.g. `syrus
@@ -411,9 +419,9 @@ branch checkout uses (that machinery exists only because Syrus force-pushes
 agent commits onto Job branches). It fails with a clear error instead of
 silently discarding work if local changes would be overwritten or the local
 branch has diverged from `origin`, and it fails with a "not found" error if
-the branch doesn't exist locally or on `origin`. It still runs
-`.syrus.yml` `hooks.post_checkout` commands afterward (respecting
-`--no-hooks`), but has no Job to report a test-plan hint for. A non-404 API
+the branch doesn't exist locally or on `origin`. It runs no `.syrus.yml` hooks
+because an arbitrary branch is not a trusted source of local commands, and it
+has no Job to report a test-plan hint for. A non-404 API
 error (e.g. a network failure or server error) is surfaced as-is and does not
 trigger the branch fallback.
 

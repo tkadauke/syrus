@@ -6,6 +6,8 @@ module Steps
   # skipped, keeping "rebase succeeded" and "branch was pushed" as
   # separate workflow facts.
   class ForcePush < Base
+    LS_REMOTE_OBJECT_ID_PATTERN = /\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/.freeze
+
     def call
       if already_landed_auto_rebase?
         log("force_push: skipped — the branch's work is already on the base; pushing would empty the PR")
@@ -23,7 +25,7 @@ module Steps
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push", log: method(:log)) do |push_url|
-        git.run("push", force_with_lease_arg, push_url,
+        git.run("push", force_with_lease_arg(git, push_url), push_url,
                 "HEAD:refs/heads/#{workspace.branch_name}",
                 chdir: workspace.path.to_s)
       end
@@ -163,11 +165,26 @@ module Steps
       result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
     end
 
-    def force_with_lease_arg
-      expected_sha = expected_remote_sha
-      return "--force-with-lease=refs/heads/#{workspace.branch_name}:#{expected_sha}" if expected_sha
+    def force_with_lease_arg(git, push_url)
+      expected_sha = expected_remote_sha || current_remote_sha(git, push_url)
+      "--force-with-lease=refs/heads/#{workspace.branch_name}:#{expected_sha}"
+    end
 
-      "--force-with-lease"
+    def current_remote_sha(git, push_url)
+      ref = "refs/heads/#{workspace.branch_name}"
+      output = git.run(
+        "ls-remote", "--heads", push_url, ref,
+        chdir: workspace.path.to_s
+      )
+      output.to_s.each_line do |line|
+        fields = line.strip.split(/\s+/)
+        next unless fields.length == 2
+
+        sha, line_ref = fields
+        return sha if line_ref == ref && sha&.match?(LS_REMOTE_OBJECT_ID_PATTERN)
+      end
+
+      ""
     end
 
     def expected_remote_sha

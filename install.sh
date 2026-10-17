@@ -48,7 +48,7 @@
 # 30 image pull failed (network/other) ·
 # 31 image pull denied (private package / unpublished tag / not logged in) ·
 # 32 image tag not found in the registry · 40 compose up failed · 41 health
-# check timed out · 1 anything else
+# check timed out · 42 pre-migration backup failed · 1 anything else
 set -euo pipefail
 cd "$(dirname "$0")"   # the script lives at the repo root (or the app's Resources)
 ASSETS_DIR="$PWD"      # read-only home of docker-compose.yml + compose.env.example
@@ -312,17 +312,7 @@ run_docker() {
   if [ "$START_AFTER" = "1" ]; then
     info "(--start is ignored for --docker; the Compose stack always starts.)"
   fi
-  IMAGE="${IMAGE_OVERRIDE:-${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}"
-  export SYRUS_IMAGE="$IMAGE"
-  # The Plugin Runtime manager comes from the same release as the backend when
-  # the backend is a released image; anything else (a dev or fork image, a
-  # digest pin) tracks :latest. Plugin images carry the backend's tags (see
-  # bin/publish-plugin-images).
-  case "$IMAGE" in
-    ghcr.io/tkadauke/syrus-backend:*) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:${IMAGE##*:}" ;;
-    *) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:latest" ;;
-  esac
-  export SYRUS_PLUGIN_RUNTIME_IMAGE="${SYRUS_PLUGIN_RUNTIME_IMAGE:-$RUNTIME_IMAGE}"
+  PROCESS_IMAGE="${SYRUS_IMAGE:-}"
   # The Compose project name determines the volume prefix (<PROJECT>_syrus-data)
   # and overrides the compose file's `name: syrus` default. A side-by-side test
   # stack passes --project syrus-test for a fully isolated set of volumes and
@@ -337,6 +327,7 @@ run_docker() {
   # writing next to the bundled script would break the code signature.
   if [ -n "$TARGET_DIR" ]; then
     mkdir -p "$TARGET_DIR"
+    chmod 700 "$TARGET_DIR"
     # Keep the compose file in sync with this installer's version on every run,
     # and stamp the channel's project name into it so a plain `docker compose`
     # run from this state dir resolves to <PROJECT> — NOT the compose file's
@@ -345,6 +336,30 @@ run_docker() {
     sed "s|^name: syrus\$|name: $PROJECT|" "$ASSETS_DIR/docker-compose.yml" > "$TARGET_DIR/docker-compose.yml"
     cd "$TARGET_DIR"
   fi
+
+  # Compose loads .env from the state directory, so resolve its image pin only
+  # after changing into that directory. Do not source the file: it contains
+  # secrets and is Compose dotenv, not trusted shell code. Explicit CLI and
+  # process-environment overrides retain Compose's normal precedence.
+  ENV_IMAGE=""
+  if [ -f .env ]; then
+    ENV_IMAGE="$(sed -n 's/^SYRUS_IMAGE=//p' .env | tail -1)"
+    case "$ENV_IMAGE" in
+      \"*\") ENV_IMAGE="${ENV_IMAGE#\"}"; ENV_IMAGE="${ENV_IMAGE%\"}" ;;
+      \'*\') ENV_IMAGE="${ENV_IMAGE#\'}"; ENV_IMAGE="${ENV_IMAGE%\'}" ;;
+    esac
+  fi
+  IMAGE="${IMAGE_OVERRIDE:-${PROCESS_IMAGE:-${ENV_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}}"
+  export SYRUS_IMAGE="$IMAGE"
+  # The Plugin Runtime manager comes from the same release as the backend when
+  # the backend is a released image; anything else (a dev or fork image, a
+  # digest pin) tracks :latest. Plugin images carry the backend's tags (see
+  # bin/publish-plugin-images).
+  case "$IMAGE" in
+    ghcr.io/tkadauke/syrus-backend:*) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:${IMAGE##*:}" ;;
+    *) RUNTIME_IMAGE="ghcr.io/tkadauke/syrus-plugin-runtime:latest" ;;
+  esac
+  export SYRUS_PLUGIN_RUNTIME_IMAGE="${SYRUS_PLUGIN_RUNTIME_IMAGE:-$RUNTIME_IMAGE}"
 
   emit "{\"event\":\"start\",\"mode\":\"docker\",\"image\":\"$(json_escape "$IMAGE")\",\"target_dir\":\"$(json_escape "$PWD")\"}"
 
@@ -417,6 +432,12 @@ run_docker() {
   fi
   emit_step env_check ok
 
+  # Everything written from this point into .env contains instance secrets.
+  # Keep both first writes and atomic replacement files private regardless of
+  # the invoking user's default umask.
+  umask 077
+  if [ -f .env ]; then chmod 600 .env; fi
+
   if [ ! -f .env ]; then
     step "Generating .env with fresh secrets"
     emit_step env_generate start
@@ -428,11 +449,12 @@ run_docker() {
       -e "s|^ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=.*|ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(gen 32)|" \
       -e "s|^SYRUS_PLUGIN_RUNTIME_TOKEN=.*|SYRUS_PLUGIN_RUNTIME_TOKEN=$(gen 32)|" \
       "$ASSETS_DIR/compose.env.example" > .env
+    chmod 600 .env
     if [ -n "$PORT_OVERRIDE" ]; then
       sed \
         -e "s|^SYRUS_PORT=.*|SYRUS_PORT=$PORT_OVERRIDE|" \
         -e "s|^SYRUS_APP_HOST=.*|SYRUS_APP_HOST=localhost:$PORT_OVERRIDE|" \
-        .env > .env.tmp && mv .env.tmp .env
+        .env > .env.tmp && mv .env.tmp .env && chmod 600 .env
     fi
     # Seed repository polling paused on a test stack so it does not race
     # production to file Jobs. The backend reads this only when it first
@@ -463,7 +485,7 @@ run_docker() {
       if [ "$current_pin" != "$IMAGE_OVERRIDE" ]; then
         info "Updating the SYRUS_IMAGE pin: ${current_pin:-<empty>} -> $IMAGE_OVERRIDE"
         emit_log env "SYRUS_IMAGE pin updated: ${current_pin:-<empty>} -> $IMAGE_OVERRIDE"
-        sed -e "s|^SYRUS_IMAGE=.*|SYRUS_IMAGE=$IMAGE_OVERRIDE|" .env > .env.tmp && mv .env.tmp .env
+        sed -e "s|^SYRUS_IMAGE=.*|SYRUS_IMAGE=$IMAGE_OVERRIDE|" .env > .env.tmp && mv .env.tmp .env && chmod 600 .env
       fi
     else
       printf 'SYRUS_IMAGE=%s\n' "$IMAGE_OVERRIDE" >> .env
@@ -476,19 +498,30 @@ run_docker() {
   # image pin follows the backend pin whenever that moves.
   ensure_env_value() { # ensure_env_value KEY VALUE
     if grep -qE "^$1=." .env && ! grep -qE "^$1=generate-me\$" .env; then return 0; fi
-    { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env
+    { grep -vE "^$1=" .env || true; printf '%s=%s\n' "$1" "$2"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
   }
   ensure_env_value SYRUS_PLUGIN_RUNTIME_TOKEN "$(openssl rand -hex 32)"
   ensure_env_value SYRUS_PLUGIN_RUNTIME_URL "http://plugin-runtime:8080"
   if [ -n "$IMAGE_OVERRIDE" ]; then
-    { grep -vE '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env || true; printf 'SYRUS_PLUGIN_RUNTIME_IMAGE=%s\n' "$SYRUS_PLUGIN_RUNTIME_IMAGE"; } > .env.tmp && mv .env.tmp .env
+    { grep -vE '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env || true; printf 'SYRUS_PLUGIN_RUNTIME_IMAGE=%s\n' "$SYRUS_PLUGIN_RUNTIME_IMAGE"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
   else
     ensure_env_value SYRUS_PLUGIN_RUNTIME_IMAGE "$SYRUS_PLUGIN_RUNTIME_IMAGE"
   fi
+  chmod 600 .env
   # .env is now the source of truth; the export above would otherwise win
   # over an operator's own value in it.
   SYRUS_PLUGIN_RUNTIME_IMAGE="$(grep -E '^SYRUS_PLUGIN_RUNTIME_IMAGE=' .env | tail -1 | cut -d= -f2-)"
   export SYRUS_PLUGIN_RUNTIME_IMAGE
+
+  # Capture the installed container's immutable image identity BEFORE pulling.
+  # A mutable tag such as :latest may point at a different image afterwards,
+  # while Config.Image remains the same tag string and cannot reveal the
+  # upgrade. `compose ps -aq` also finds a stopped container.
+  prior_web_container="$(compose ps -aq web 2>/dev/null | head -1 || true)"
+  prior_image_id=""
+  if [ -n "$prior_web_container" ]; then
+    prior_image_id="$(docker inspect --format '{{.Image}}' "$prior_web_container" 2>/dev/null || true)"
+  fi
 
   # 4. Pull the prebuilt image. The daemon is already known reachable, so a
   #    failure here is about the image itself — surface the real error. The
@@ -698,6 +731,41 @@ run_docker() {
   # 5. Start the stack.
   step "Starting Syrus"
   emit_step stack_up start
+  # The setup service runs db:prepare before the app starts. Back up when the
+  # pulled image's immutable ID differs from the installed container's ID. If
+  # `docker compose down` removed all container metadata but retained the data
+  # volume, there is nothing reliable to compare, so take the safe path and
+  # back up unconditionally. Stopping first makes the SQLite archive consistent.
+  resolved_image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || true)"
+  backup_reason=""
+  if docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+    if [ -z "$prior_web_container" ]; then
+      backup_reason="existing data volume has no prior container metadata"
+    elif [ -z "$prior_image_id" ] || [ -z "$resolved_image_id" ]; then
+      backup_reason="image identity could not be verified"
+    elif [ "$prior_image_id" != "$resolved_image_id" ]; then
+      backup_reason="image changed: $prior_image_id -> $resolved_image_id"
+    fi
+  fi
+  if [ -n "$backup_reason" ]; then
+    backup_dir="$PWD/backups"
+    backup_path="$backup_dir/syrus-data-before-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+    mkdir -p "$backup_dir"
+    info "Pre-migration backup required: $backup_reason"
+    info "Stopping Syrus and backing up $DATA_VOLUME to $backup_path before migrations."
+    emit_log backup "$backup_reason; backing up $DATA_VOLUME to $backup_path before migrations"
+    run_logged up compose stop || die "couldn't stop the existing stack before backup" 42
+    backup_image="${prior_image_id:-$IMAGE}"
+    if ! docker run --rm --entrypoint tar \
+      --mount "type=volume,src=$DATA_VOLUME,dst=/source,readonly" \
+      "$backup_image" -czf - -C /source . > "$backup_path.tmp"; then
+      rm -f "$backup_path.tmp"
+      die "couldn't back up $DATA_VOLUME; the new image was not started" 42
+    fi
+    mv "$backup_path.tmp" "$backup_path"
+    info "Backup complete: $backup_path"
+    emit_log backup "backup complete: $backup_path"
+  fi
   # Plugin Runtime is optional. If its image cannot be pulled, start without
   # it: plugins that run their own service stay unavailable (and say so)
   # until a later update succeeds, but Syrus itself comes up.

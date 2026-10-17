@@ -521,6 +521,7 @@ module Api
 
           result = {
             id: job.id,
+            kind: job.kind,
             slug: job.slug,
             label: label,
             title: job.issue_title.to_s,

@@ -48,13 +48,21 @@ The installer:
 2. Generates `.env` from `compose.env.example` with fresh secrets
    (`SECRET_KEY_BASE` and the three Active Record encryption keys) on first
    run. `.env` is gitignored — keep it.
-3. Pulls `ghcr.io/tkadauke/syrus-backend`.
-4. Starts the stack: a one-shot **setup** task (prepares the SQLite
+3. Pulls `ghcr.io/tkadauke/syrus-backend`. On a rerun, an existing
+   `SYRUS_IMAGE` pin in `.env` is honored unless `--image` or the process
+   environment explicitly overrides it.
+4. When the pulled image ID differs from the existing web container's image ID,
+   stops the stack and archives the data volume under `backups/` before any
+   database migration can run. A retained data volume with no container to
+   compare (after `docker compose down`, for example) is always backed up.
+5. Starts the stack: a one-shot **setup** task (prepares the SQLite
    databases and fixes volume ownership), then **web** and **worker**.
 
-When it finishes, open **http://localhost:3000**. The first signup becomes
-the admin, and the first-run wizard walks you through GitHub credentials,
-the agent, a repository, and a guided chat to land your first Epic.
+When it finishes, open **http://localhost:3000**. The web port binds to
+`127.0.0.1` by default, so only this machine can reach the first-account flow.
+The first signup becomes the admin, and the first-run wizard walks you through
+GitHub credentials, the agent, a repository, and a guided chat to land your
+first Epic.
 
 ```bash
 docker compose logs -f web worker   # follow logs
@@ -105,7 +113,9 @@ are optional; without them the behavior above is unchanged.
 
 `step` events carry an `id` from this fixed sequence: `runtime_check`,
 `runtime_install`, `runtime_start`, `compose_resolve`, `env_check`,
-`env_generate`, `image_pull`, `stack_up`, `health`. The final `health` step
+`env_generate`, `image_pull`, `stack_up`, `health`. During `stack_up`, an image
+change may emit `backup` log events while the stopped data volume is archived.
+The final `health` step
 polls the app's `/up` endpoint, so `done` means the web UI actually answers,
 not just that containers were created.
 
@@ -126,6 +136,7 @@ parsing text:
 | `32` | The image tag does not exist in the registry and no local copy exists. |
 | `40` | `docker compose up` failed. |
 | `41` | The stack started but never became healthy. |
+| `42` | The existing stack could not be stopped or its data volume could not be backed up before an image change; the new image was not started. |
 
 The pull is retried twice before failing, and a failure that matches the
 stale-saved-credential patterns triggers one automatic
@@ -344,6 +355,9 @@ and fills the secrets. Notable values:
 - `SYRUS_TERMINAL_HOST=worker` — set by `docker-compose.yml` on the worker
   service so terminal relay sockets advertise an address reachable by the web
   container through Docker's internal DNS. The value stays blank in `.env`.
+- `SYRUS_BIND=127.0.0.1` — host interface for the web port. Keep the loopback
+  default for local use. Remote access requires an explicit bind override and
+  should be protected by HTTPS; see [TLS](#tls).
 - `SYRUS_PORT=3000` — host port mapped to the container.
 - `SYRUS_PLUGIN_RUNTIME_URL`, `SYRUS_PLUGIN_RUNTIME_TOKEN` — how web and
   worker reach the plugin-runtime container. The installer generates the
@@ -417,10 +431,13 @@ Syrus…** in the app menu drives the same teardown — see the
 
 Compose doesn't own TLS. For a local install you don't need it (plain HTTP on
 `localhost`). To expose it, put Caddy, Traefik, or nginx in front of the web
-service and terminate HTTPS there, and set `SYRUS_APP_HOST` /
-`SYRUS_ASSUME_SSL=true` accordingly. If the proxy serves additional hostnames,
-list them in `SYRUS_ALLOWED_HOSTS`; the canonical `SYRUS_APP_HOST` remains
-allowed even when extras are configured.
+service and terminate HTTPS there. Set `SYRUS_BIND=0.0.0.0` only when the proxy
+must connect through a non-loopback host interface, and do not open the port to
+an untrusted network: until setup is complete, the first visitor can create the
+admin account. Set `SYRUS_APP_HOST` and `SYRUS_ASSUME_SSL=true` for the public
+HTTPS origin. If the proxy serves additional hostnames, list them in
+`SYRUS_ALLOWED_HOSTS`; the canonical `SYRUS_APP_HOST` remains allowed even when
+extras are configured.
 
 ## Health Check
 

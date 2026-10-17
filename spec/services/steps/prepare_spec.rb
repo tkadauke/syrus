@@ -113,6 +113,20 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(workflow.reload.artifact("mise_install_failure")).to be_nil
   end
 
+  it "clears failures from the locked row without reverting concurrently written artifacts" do
+    stale_workflow = workflow
+    current_workflow = Workflow.find(workflow.id)
+    current_workflow.update!(artifacts: {
+      "prepare_failure" => { "command" => "bundle install" },
+      "concurrent_result" => "keep"
+    })
+
+    expect { handler.call }.not_to raise_error
+
+    expect(stale_workflow.reload.artifact("prepare_failure")).to be_nil
+    expect(stale_workflow.artifact("concurrent_result")).to eq("keep")
+  end
+
   it "runs each command from .syrus.yml in order" do
     File.write(@ws_path.join(".syrus.yml"), <<~YAML)
       prepare:

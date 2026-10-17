@@ -411,6 +411,13 @@ syrus checkout --no-hooks JOB-<id>
 syrus checkout --no-hooks EPIC-<number>
 ```
 
+The CLI does not run hooks for external-PR Jobs or plain branch-name
+checkouts. Those branches may be controlled by outside contributors, so their
+working-tree `.syrus.yml` is not treated as trusted local automation. A
+completed Epic checkout also skips hooks when any child Job is an external PR,
+including when the checked-out branch is a merge train or a trusted descendant
+of that PR.
+
 When a post-checkout hook fails, the CLI prints the failed command and
 exit code, then exits non-zero. The checkout itself is not rolled back:
 fix the local problem and rerun the command manually, or run checkout
@@ -418,8 +425,8 @@ again with `--no-hooks` if you only need the branch.
 
 In monorepos, nested `.syrus.yml` files can declare their own
 `hooks.post_checkout` commands. Root hooks always run for the whole
-repository. Nested project hooks run only when the checked-out Job or
-branch diff touches files under that project directory; if the CLI cannot
+repository. Nested project hooks run only when the checked-out Job diff
+touches files under that project directory; if the CLI cannot
 compute the diff, it runs all discovered project hooks and logs the
 fallback.
 

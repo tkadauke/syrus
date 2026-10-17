@@ -14,6 +14,7 @@ module Steps
         branch = entry.fetch("branch_name")
         entry.merge("pre_sha" => pre_shas[branch], "post_sha" => rev_parse(branch))
       end
+      verify_rebases_complete!(pushes)
       workflow.set_artifact!(StackRebasePlan::AGENT_PUSHES_ARTIFACT, pushes)
       run.update!(head_sha: pushes.last&.fetch("post_sha", nil))
     end
@@ -26,6 +27,29 @@ module Steps
 
     def compose_prompt
       Prompts::StackRebase.new(repo_slug: repository.slug, stack_entries: pending_entries).to_s
+    end
+
+    def verify_rebases_complete!(pushes)
+      git = GitRunner.new
+
+      if rebase_in_progress?(git)
+        raise StepFailed, "stack_agent_rebase: rebase is still in progress; run git rebase --continue until it completes"
+      end
+
+      status = git.run("status", "--porcelain", chdir: workspace.path.to_s).strip
+      raise StepFailed, "stack_agent_rebase: working tree is not clean after rebase" if status.present?
+
+      pushes.each do |entry|
+        branch = entry.fetch("branch_name")
+        if entry.fetch("pre_sha") == entry.fetch("post_sha")
+          raise StepFailed, "stack_agent_rebase: #{branch} did not move after rebase"
+        end
+
+        base = entry.fetch("base_branch")
+        git.run("merge-base", "--is-ancestor", base, branch, chdir: workspace.path.to_s)
+      rescue GitRunner::GitError => e
+        raise StepFailed, "stack_agent_rebase: #{branch} was not rebased onto #{base}: #{e.message}"
+      end
     end
 
     def fetch_pending_branches

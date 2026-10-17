@@ -170,6 +170,35 @@ func TestCheckoutCommandSkipsPostCheckoutHooksWithNoHooksFlag(t *testing.T) {
 	}
 }
 
+func TestCheckoutCommandSkipsPostCheckoutHooksForExternalPRJob(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"kind":"external_pr","state":"running","branch_name":"contributor/change"},"repository":{"slug":"acme/widgets"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "contributor/change", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("external PR hook command should not run")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "JOB-456"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !reflect.DeepEqual(calls, checkoutGitBranchCalls("contributor/change")) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
 func TestPostCheckoutHooksReportFailingCommandExitStatus(t *testing.T) {
 	repoRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repoRoot, ".syrus.yml"), []byte("hooks:\n  post_checkout:\n    - printf hook-output\n    - exit 7\n    - echo skipped\n"), 0600); err != nil {
@@ -614,7 +643,7 @@ func TestCheckoutCommandRejectsWrongRepository(t *testing.T) {
 	}
 }
 
-func TestCheckoutCommandFallsBackToPlainBranchOn404(t *testing.T) {
+func TestCheckoutCommandFallsBackToPlainBranchWithoutRunningHooks(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/app/jobs/main" {
 			t.Fatalf("path = %s", r.URL.Path)
@@ -671,7 +700,7 @@ func TestCheckoutCommandFallsBackToPlainBranchOn404(t *testing.T) {
 	if output.String() != "Checked out main.\n" {
 		t.Fatalf("output = %q", output.String())
 	}
-	if !reflect.DeepEqual(hookCalls, []string{"echo hook-ran"}) {
+	if len(hookCalls) != 0 {
 		t.Fatalf("hook calls = %#v", hookCalls)
 	}
 }
@@ -973,7 +1002,6 @@ func TestCheckoutCommandPlainBranchFastForwardsAlreadyCheckedOutBranch(t *testin
 		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
 		{"branch", "--show-current"},
 		{"merge", "--ff-only", "refs/remotes/origin/main"},
-		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -1036,7 +1064,6 @@ func TestCheckoutCommandPlainBranchSwitchesToExistingLocalBranch(t *testing.T) {
 		{"branch", "--show-current"},
 		{"checkout", "main"},
 		{"merge", "--ff-only", "refs/remotes/origin/main"},
-		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -1213,7 +1240,6 @@ func TestCheckoutCommandPlainBranchWarnsWhenFetchFailsButLocalBranchExists(t *te
 		{"fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"},
 		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
 		{"branch", "--show-current"},
-		{"rev-parse", "--show-toplevel"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -1260,6 +1286,35 @@ func TestCheckoutCommandChecksOutSingleSinkEpicJob(t *testing.T) {
 	}
 	wantCalls := checkoutGitCalls("syrus/issue-45")
 	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCommandSkipsPostCheckoutHooksForExternalPREpicJob(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"repository_slug":"acme/widgets"},"jobs":[{"id":45,"kind":"external_pr","state":"implemented","branch_name":"contributor/change","depends_on_job_ids":[]}]}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "contributor/change", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("external PR hook command should not run")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !reflect.DeepEqual(calls, checkoutGitBranchCalls("contributor/change")) {
 		t.Fatalf("git calls = %#v", calls)
 	}
 }
@@ -1453,6 +1508,35 @@ func TestCheckoutCompleteChecksOutMergeTrainBranch(t *testing.T) {
 	}
 }
 
+func TestCheckoutCompleteSkipsHooksWhenMergeTrainContainsExternalPR(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"repository_slug":"acme/widgets"},"jobs":[{"id":45,"kind":"external_pr","branch_name":"contributor/change","depends_on_job_ids":[]},{"id":47,"kind":"issue","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":"syrus/merge-train-epic-42-7"}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = checkoutGitStub(t, "syrus/merge-train-epic-42-7", &calls)
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("merge train containing an external PR must not run hooks")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !reflect.DeepEqual(calls, checkoutGitBranchCalls("syrus/merge-train-epic-42-7")) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
 func TestCheckoutCompleteChecksOutLinearStackTip(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1518,6 +1602,60 @@ func TestCheckoutCompleteChecksOutLinearStackTip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCompleteSkipsHooksWhenLinearStackContainsExternalPR(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"epic":{"id":42,"number":42,"repository_slug":"acme/widgets"},"jobs":[{"id":45,"kind":"external_pr","branch_name":"contributor/change","depends_on_job_ids":[]},{"id":47,"kind":"issue","branch_name":"syrus/issue-47","depends_on_job_ids":[45]}],"merge_train_branch":""}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "fetch origin +refs/heads/contributor/change:refs/remotes/origin/contributor/change",
+			"fetch origin +refs/heads/syrus/issue-47:refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "merge-base --is-ancestor refs/remotes/origin/syrus/issue-47 refs/remotes/origin/contributor/change":
+			return "", fmt.Errorf("exit status 1")
+		case "merge-base --is-ancestor refs/remotes/origin/contributor/change refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "remote get-url origin":
+			return "git@github.com:acme/widgets.git\n", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "show-ref --verify --quiet refs/heads/syrus/issue-47":
+			return "", fmt.Errorf("exit status 1")
+		case "checkout --track -b syrus/issue-47 refs/remotes/origin/syrus/issue-47":
+			return "", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("stack containing an external PR must not run hooks")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--complete", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	for _, call := range calls {
+		if reflect.DeepEqual(call, []string{"rev-parse", "--show-toplevel"}) {
+			t.Fatalf("hook discovery should not run: %#v", calls)
+		}
 	}
 }
 

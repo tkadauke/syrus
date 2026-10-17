@@ -297,14 +297,19 @@ permission) see [6.4](#64-build-backend-disk-and-cache).
 The `publish` job is a **near-atomic** go-live built on a draft-release
 pattern — it runs only after every build job succeeded, and it works in this
 order: snapshot where `:latest` points now, create an **invisible draft**
-release carrying the tag + every staged asset + generated notes, move the
-image `:latest` pointer, and finally
-flip the draft to published (`gh release edit --draft=false`) — the single
-tiny go-live. A `Roll back on failure` step (`if: failure()`) deletes the
-draft release + tag (`gh release delete --cleanup-tag`) and reverts `:latest`
-to the snapshotted digest, so a failed run leaves **no half-published state**
-(a *published* release is therefore never partial). Each step still has its
-own failure signature.
+release carrying the tag + every staged asset + generated notes, publish the
+release, then move the stable image `:latest` pointers. A `Roll back on
+failure` step (`if: failure()`) deletes the release + tag (`gh release delete
+--cleanup-tag`) and reverts `:latest` to the snapshotted digest. Prereleases
+never move `:latest`.
+
+When `review_notes` holds the release as a draft, the Release run deliberately
+does not move `:latest`. Publishing that draft in GitHub starts
+`promote-release-images.yml`, which snapshots and promotes the backend and
+plugin pointers, rolls them back if promotion fails, advances the `release`
+tag, and deploys the website. A failure there leaves the GitHub Release public
+but keeps or restores the prior `:latest`; fix the GHCR problem and re-run the
+failed **Promote published release images** workflow job.
 
 - **`no staged artifacts to publish`** ("Create the draft release" step) —
   `publish` downloads the `staged-*` upload-artifacts, `find`s every file,
@@ -325,10 +330,8 @@ own failure signature.
   ghcr.io/tkadauke/syrus-backend:latest ...:$VERSION` copies the already-pushed
   multi-arch manifest onto `:latest`. A failure here is auth/permissions on
   GHCR, not a build problem: the versioned image already exists (build-backend
-  pushed it). **The release is still a draft at this point** — the draft was
-  created just before, and the go-live "Publish the release" step hasn't run
-  yet, so the `Roll back on failure` step deletes the draft + tag and reverts
-  `:latest` to the snapshotted digest. Nothing ships. **Check:** the "Log in
+  pushed it). The rollback step deletes the just-published release + tag and
+  reverts `:latest` to the snapshotted digest. **Check:** the "Log in
   to GHCR" step succeeded (it uses `github.actor` + `GITHUB_TOKEN`);
   the top-level `permissions:` still grants `packages: write`; the
   `syrus-backend` package isn't locked to a different owner. **Fix:** restore the

@@ -71,7 +71,7 @@ func NewCheckoutCommand() *cobra.Command {
 			if err != nil {
 				var apiErr *api.Error
 				if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-					return runPlainBranchCheckout(cmd, args[0], noHooks)
+					return runPlainBranchCheckout(cmd, args[0])
 				}
 				return err
 			}
@@ -85,7 +85,7 @@ func NewCheckoutCommand() *cobra.Command {
 			if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, job.Repository.Slug, job.Job.BranchName); err != nil {
 				return err
 			}
-			if !noHooks {
+			if !noHooks && postCheckoutHooksAllowed(job.Job) {
 				hookOptions := postCheckoutHookOptions{
 					baseBranch:    job.Job.EffectiveBaseBranch,
 					defaultBranch: job.Repository.DefaultBranch,
@@ -147,7 +147,7 @@ func runEpicCheckout(cmd *cobra.Command, input string, noHooks bool) error {
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, selected.BranchName); err != nil {
 		return err
 	}
-	if !noHooks {
+	if !noHooks && postCheckoutHooksAllowed(*selected) {
 		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 			return err
 		}
@@ -179,7 +179,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 		if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, epic.MergeTrainBranch); err != nil {
 			return err
 		}
-		if !noHooks {
+		if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
 			if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 				return err
 			}
@@ -218,7 +218,7 @@ func runEpicCheckoutComplete(cmd *cobra.Command, input string, noHooks bool) err
 	if err := checkoutJobBranch(cmd.Context(), checkoutRunGit, epic.Epic.RepositorySlug, tip); err != nil {
 		return err
 	}
-	if !noHooks {
+	if !noHooks && postCheckoutHooksAllowedForEpic(epic.Jobs) {
 		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
 			return err
 		}
@@ -492,18 +492,29 @@ func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, b
 // against) and the force-reset/backup-branch machinery in checkoutJobBranch,
 // which exists only because Syrus force-pushes agent commits onto Job
 // branches.
-func runPlainBranchCheckout(cmd *cobra.Command, branchName string, noHooks bool) error {
+func runPlainBranchCheckout(cmd *cobra.Command, branchName string) error {
 	branchName = strings.TrimSpace(branchName)
 	if err := checkoutPlainBranch(cmd.Context(), checkoutRunGit, branchName, cmd.ErrOrStderr()); err != nil {
 		return err
 	}
-	if !noHooks {
-		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
-			return err
-		}
-	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s.\n", branchName)
 	return nil
+}
+
+// postCheckoutHooksAllowed prevents configuration from an outside contributor's
+// branch from becoming local code execution. Plain branch checkouts are handled
+// separately and never run hooks because they have no trusted Job metadata.
+func postCheckoutHooksAllowed(job api.JobItem) bool {
+	return job.Kind != "external_pr"
+}
+
+func postCheckoutHooksAllowedForEpic(jobs []api.JobItem) bool {
+	for _, job := range jobs {
+		if !postCheckoutHooksAllowed(job) {
+			return false
+		}
+	}
+	return true
 }
 
 func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName string, stderr io.Writer) error {

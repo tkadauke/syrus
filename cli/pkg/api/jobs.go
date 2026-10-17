@@ -16,6 +16,7 @@ type JobResponse json.RawMessage
 
 type JobItem struct {
 	ID                  int64          `json:"id"`
+	Kind                string         `json:"kind"`
 	State               string         `json:"state"`
 	SummaryState        string         `json:"summary_state"`
 	Title               string         `json:"title"`

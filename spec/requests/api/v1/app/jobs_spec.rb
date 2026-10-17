@@ -404,7 +404,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(parse_body.fetch("jobs").map { |payload| payload.fetch("id") }).to eq([ with_pr.id ])
   end
 
-  it "returns the latest run transcript for CLI clients" do
+  it "returns the latest run transcript without marking an open job complete" do
     user.update!(api_token: "syrus_cli_token")
     run = job.initial_run
     run.start!
@@ -420,8 +420,27 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "job_id" => job.id,
       "run_id" => run.id,
       "state" => "succeeded",
-      "complete" => true,
+      "complete" => false,
       "lines" => [ "digging trench", "water flows" ]
+    )
+  end
+
+  it "marks the latest run transcript complete when the job is closed" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.start!
+    run.succeed!
+    run.save!
+    job.update!(state: "closed")
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "job_id" => job.id,
+      "run_id" => run.id,
+      "state" => "succeeded",
+      "complete" => true
     )
   end
 

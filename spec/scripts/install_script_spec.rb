@@ -44,4 +44,30 @@ RSpec.describe "install.sh" do
       expect(script).to include('|| [ "$ALLOW_FRESH_DATA" = "1" ]; then')
     end
   end
+
+  describe "pinned-image update safety" do
+    it "resolves the state directory's image pin before exporting the Compose override" do
+      resolution = script.index('ENV_IMAGE="$(sed -n')
+      export = script.index('export SYRUS_IMAGE="$IMAGE"')
+
+      expect(resolution).not_to be_nil
+      expect(export).to be > resolution
+      expect(script).to include('IMAGE="${IMAGE_OVERRIDE:-${PROCESS_IMAGE:-${ENV_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}}"')
+    end
+
+    it "backs up a stopped data volume before a changed image can run db:prepare" do
+      backup = script.index('emit_log backup "$backup_reason; backing up')
+      stack_up = script.index('run_logged up compose up -d')
+
+      expect(backup).not_to be_nil
+      expect(stack_up).to be > backup
+      expect(script.index('prior_web_container="$(compose ps -aq web')).to be < script.index('emit_step image_pull start')
+      expect(script).to include("docker inspect --format '{{.Image}}'")
+      expect(script).to include("docker image inspect --format '{{.Id}}'")
+      expect(script).to include('backup_reason="existing data volume has no prior container metadata"')
+      expect(script).to include('run_logged up compose stop')
+      expect(script).to include('--mount "type=volume,src=$DATA_VOLUME,dst=/source,readonly"')
+      expect(script).to match(/die "couldn't back up \$DATA_VOLUME; the new image was not started" 42/)
+    end
+  end
 end

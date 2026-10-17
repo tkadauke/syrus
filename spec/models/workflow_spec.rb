@@ -1199,6 +1199,27 @@ RSpec.describe Workflow, :ci_only do
       expect(wf.reload.artifacts).to eq("a" => 1, "b" => 2)
     end
 
+    it "does not overwrite another instance's newer artifact values" do
+      wf.update!(artifacts: { "existing" => "old" })
+      stale = described_class.find(wf.id)
+      described_class.find(wf.id).set_artifact!("existing", "new")
+
+      stale.set_artifact!("added", true)
+
+      expect(wf.reload.artifacts).to eq("existing" => "new", "added" => true)
+    end
+
+    it "deletes selected keys without overwriting another instance's artifacts" do
+      wf.update!(artifacts: { "remove" => true, "existing" => "old" })
+      stale = described_class.find(wf.id)
+      described_class.find(wf.id).set_artifact!("existing", "new")
+      described_class.find(wf.id).set_artifact!("added", true)
+
+      stale.delete_artifacts!("remove")
+
+      expect(wf.reload.artifacts).to eq("existing" => "new", "added" => true)
+    end
+
     it "supports rich values (hashes, arrays — JSON serializes anything)" do
       wf.set_artifact!("test_plan", { steps: [ "rspec", "lint" ], note: "ok" })
       reloaded = described_class.find(wf.id)

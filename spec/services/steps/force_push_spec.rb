@@ -266,6 +266,81 @@ RSpec.describe Steps::ForcePush do
     )
   end
 
+  it "reads the remote tip and uses an explicit lease when auto-rebase did not record a SHA" do
+    remote_sha = "a" * 40
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "error",
+      "succeeded" => false,
+      "note" => "temporary clone failure"
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with(
+      "ls-remote",
+      "--heads",
+      "https://push.example/repo.git",
+      "refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    ).and_return(<<~OUTPUT)
+      warning: failed to save credentials to the store
+      #{remote_sha}\trefs/heads/syrus/issue-42
+      warning: credential helper could not persist credentials
+    OUTPUT
+
+    handler.call
+
+    expect(git).to have_received(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/syrus/issue-42:#{remote_sha}",
+      "https://push.example/repo.git",
+      "HEAD:refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    )
+  end
+
+  it "uses an explicit must-not-exist lease when the remote branch is absent" do
+    workflow.set_artifact!("auto_rebase_result", { "reason" => "error", "succeeded" => false })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with(
+      "ls-remote",
+      "--heads",
+      "https://push.example/repo.git",
+      "refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    ).and_return("")
+
+    handler.call
+
+    expect(git).to have_received(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/syrus/issue-42:",
+      "https://push.example/repo.git",
+      "HEAD:refs/heads/syrus/issue-42",
+      chdir: "/tmp/workspace"
+    )
+  end
+
   it "fails visibly when the lease-protected push is rejected" do
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "conflict",
