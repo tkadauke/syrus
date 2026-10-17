@@ -331,10 +331,19 @@ class RunJob < ApplicationJob
       kind: "system",
       chunk: "compute host admission deferred before #{@step.kind}: #{admission.reason}"
     ) unless admission_deferral_log_exists?("compute host admission deferred before #{@step.kind}: #{admission.reason}")
+    record_memory_binding_guidance!(admission)
     payload
   rescue StandardError => e
     Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
     admission.details.merge("reason" => admission.reason, "run_id" => @run.id, "deferral_count" => 1)
+  end
+
+  def record_memory_binding_guidance!(admission)
+    binding_terms = Array(admission.details["resource_guard_binding_terms"])
+    return unless binding_terms.intersect?(%w[memory_reservation measured_memory])
+
+    chunk = "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+    JobLog.append!(run: @run, kind: "system", chunk: chunk) unless admission_deferral_log_exists?(chunk)
   end
 
   def pinned_host_admission_budget_exhausted?(artifact)

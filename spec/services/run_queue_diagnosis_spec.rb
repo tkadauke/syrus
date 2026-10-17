@@ -99,6 +99,31 @@ RSpec.describe RunQueueDiagnosis do
     expect(described_class.call(run)).to include(kind: "start_blocked", details: include(reason: "no_capable_worker"))
   end
 
+  it "reports the current Run's host admission deferral with its binding terms" do
+    workflow.update!(artifacts: {
+      "run_host_admission" => {
+        "action" => "defer", "reason" => "host_resource_semaphore_busy", "run_id" => run.id,
+        "deferral_count" => 3, "first_deferred_at" => 2.minutes.ago.iso8601,
+        "resource_guard_binding_terms" => [ "memory_reservation" ],
+        "active_reserved_memory_bytes" => 4.gigabytes,
+        "candidate_reserved_memory_bytes" => 8.gigabytes,
+        "host_memory_budget_bytes" => 10.gigabytes
+      }
+    })
+
+    expect(described_class.call(run)).to include(
+      kind: "host_admission_deferred",
+      details: include(reason: "host_resource_semaphore_busy", deferral_count: 3,
+        resource_guard_binding_terms: [ "memory_reservation" ])
+    )
+  end
+
+  it "ignores a host admission artifact belonging to an earlier Run" do
+    workflow.update!(artifacts: { "run_host_admission" => { "action" => "defer", "run_id" => run.id + 1 } })
+
+    expect(described_class.call(run)[:kind]).to eq("no_run_job")
+  end
+
   it "falls back to unknown when Solid Queue tables are unavailable" do
     allow(SolidQueue::Job).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "missing table")
 

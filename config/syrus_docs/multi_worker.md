@@ -590,6 +590,25 @@ guard count/limit, resource guard kind, high-cost grader count when relevant,
 step kind, Run id, queue name, whether the queue was sticky resume,
 `deferred_at`, and `retry_at`. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
+
+For `host_resource_semaphore_busy`, the Job page's queued-Run banner and the
+artifact's `resource_guard_binding_terms` identify whether compute units,
+reserved memory, measured memory, or more than one term bound admission. Compare
+`active_compute_units + candidate_compute_units` with `host_compute_capacity`,
+and compare `active_reserved_memory_bytes + candidate_reserved_memory_bytes`
+and `current_memory_bytes + candidate_reserved_memory_bytes` with
+`host_memory_budget_bytes`. A host with no active guarded Run ignores these soft
+memory estimates; only critical sampled memory, disk, or CPU pressure can defer
+the lone candidate.
+
+Per-run fallback memory reservation is the effective memory limit divided by
+host compute capacity, then multiplied by the Run's capacity units.
+`SYRUS_WORKER_CPU_LIMIT` controls that compute-capacity calculation when the
+container CPU quota is not the desired value. On Docker Desktop, a small CPU
+allocation can therefore make one Run reserve most of the container's memory;
+increase the Docker Desktop memory setting for real headroom, and set
+`SYRUS_WORKER_CPU_LIMIT` to the worker's intended CPU budget rather than using
+it to claim capacity the Docker VM does not have.
 The Job detail payload uses that `run_id` to attach the admission block only to
 the Step that owns the queued Run. Worker-slot admission artifacts use their
 `step_id` the same way. This keeps one waiting distributed grader from making

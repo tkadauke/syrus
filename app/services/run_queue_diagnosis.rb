@@ -8,6 +8,7 @@ class RunQueueDiagnosis
   def call
     return unless run.queued?
     return diagnosis("start_blocked", start_blocked_details) if start_blocked_reason.present?
+    return diagnosis("host_admission_deferred", host_admission_details) if host_admission_details
 
     queue_job = matching_queue_job
     return diagnosis("no_run_job") unless queue_job
@@ -41,6 +42,19 @@ class RunQueueDiagnosis
       reason: start_blocked_reason,
       details: run.workflow&.artifact("start_blocked_details") || run.workflow&.artifact("run_queue_blocked")
     }.compact
+  end
+
+  def host_admission_details
+    artifact = run.workflow&.artifact("run_host_admission").to_h
+    return if artifact["run_id"].to_i != run.id
+    return unless artifact["action"] == "defer"
+
+    artifact.slice(
+      "reason", "deferral_count", "first_deferred_at", "deferred_at", "retry_at",
+      "resource_guard_binding_terms", "active_compute_units", "candidate_compute_units",
+      "host_compute_capacity", "current_memory_bytes", "active_reserved_memory_bytes",
+      "candidate_reserved_memory_bytes", "host_memory_budget_bytes"
+    ).symbolize_keys
   end
 
   def matching_queue_job

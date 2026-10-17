@@ -1100,6 +1100,25 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+
+    it "logs memory tuning guidance only once when memory binds host admission" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = RunHostAdmission::Decision.new(
+        action: "defer", reason: "host_resource_semaphore_busy", delay: 30.seconds,
+        details: { "hostname" => "worker-a", "resource_guard_binding_terms" => [ "memory_reservation" ] }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      2.times { RunJob.perform_now(run.id) }
+
+      guidance = JobLog.where(run: run).where("chunk LIKE ?", "host memory admission is binding;%")
+      expect(guidance.pluck(:chunk)).to eq([
+        "host memory admission is binding; tune SYRUS_WORKER_CPU_LIMIT to change per-run reservation or increase the Docker memory setting"
+      ])
+    end
+
     it "drops storage affinity after a pinned Run exhausts its host admission deferral budget" do
       job
       wf = job.workflows.last

@@ -66,6 +66,7 @@ const queueWaitPresentation: Record<NonNullable<JobRun["queue_wait"]>["kind"], {
   no_run_job: { tone: "warning", link: "pending" },
   no_live_workers: { tone: "warning", link: "workers" },
   start_blocked: { tone: "warning" },
+  host_admission_deferred: { tone: "warning", link: "workers" },
   unknown: { tone: "neutral", link: "pending" }
 }
 
@@ -90,13 +91,24 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
     const wait = run.queue_wait ?? { kind: "unknown" as const, details: {} }
     const presentation = queueWaitPresentation[wait.kind]
     const reason = wait.details.reason
+    const bindingTerms = wait.details.resource_guard_binding_terms ?? []
+    const binding = bindingTerms.map((term) => {
+      if (term === "compute_units") return t("run_queue_wait.binding_compute", { active: wait.details.active_compute_units, candidate: wait.details.candidate_compute_units, capacity: wait.details.host_compute_capacity })
+      if (term === "memory_reservation") return t("run_queue_wait.binding_reservation", { active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(wait.details.host_memory_budget_bytes ?? 0) })
+      if (term === "measured_memory") return t("run_queue_wait.binding_measured", { current: formatBytes(wait.details.current_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(wait.details.host_memory_budget_bytes ?? 0) })
+      return term
+    }).join("; ")
     const message = wait.kind === "start_blocked" && reason
       ? t("run_queue_wait.start_blocked", { reason: t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason }) })
       : t(`run_queue_wait.${wait.kind}`, {
           queue: wait.details.queue_name,
           count: wait.details.live_worker_count,
           queues: wait.details.live_worker_queues?.join(", "),
-          time: wait.details.scheduled_at ? formatRelativeDate(new Date(wait.details.scheduled_at)) : ""
+          time: wait.details.scheduled_at ? formatRelativeDate(new Date(wait.details.scheduled_at)) : "",
+          reason,
+          deferralCount: wait.details.deferral_count,
+          deferred: wait.details.first_deferred_at ? formatRelativeDate(new Date(wait.details.first_deferred_at)) : "",
+          binding
         })
     const linkPath = presentation.link === "workers" ? "/admin/queue/workers" : "/admin/queue/pending"
     return (
