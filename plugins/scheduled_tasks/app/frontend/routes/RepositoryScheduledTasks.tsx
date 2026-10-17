@@ -161,9 +161,11 @@ function repositoryTaskColumns({
       pin: "end",
       render: (task) => (
         <div className="flex justify-end gap-2">
-          <Button disabled={togglePending} onClick={() => onToggle(task)} variant="secondary">
-            {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
-          </Button>
+          {task.state !== "fired" ? (
+            <Button disabled={togglePending} onClick={() => onToggle(task)} variant="secondary">
+              {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
+            </Button>
+          ) : null}
           <button
             className="rounded border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:disabled:text-red-500"
             disabled={destroyPending}

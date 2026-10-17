@@ -6,7 +6,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 
-function taskDetail(overrides: { recent_jobs?: unknown[] } = {}) {
+function taskDetail(overrides: { recent_jobs?: unknown[]; task?: Record<string, unknown> } = {}) {
   return {
     task: {
       id: 7,
@@ -32,7 +32,8 @@ function taskDetail(overrides: { recent_jobs?: unknown[] } = {}) {
       fireable: true,
       pausable: true,
       resumable: false,
-      editable: true
+      editable: true,
+      ...overrides.task
     },
     recent_jobs: overrides.recent_jobs ?? [],
     options: {
@@ -308,6 +309,39 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
     act(() => client.setQueryData(["scheduled_tasks", "7"], taskDetail()))
 
     expect(name).toHaveValue("My unsaved schedule")
+  })
+
+  it("round-trips a one-shot time as the same instant outside UTC", async () => {
+    vi.stubEnv("TZ", "America/New_York")
+    const fireAt = "2027-01-15T15:30:00.000Z"
+    let submittedFireAt: string | undefined
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "PATCH") {
+        submittedFireAt = JSON.parse(String(init.body)).scheduled_task.fire_at
+      }
+      return Promise.resolve(jsonResponse(taskDetail({ task: { kind: "one_shot", fire_at: fireAt } })))
+    })
+
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/scheduled_tasks/7/edit"]}>
+            <Routes>
+              <Route element={<ScheduledTaskFormRoute mode="edit" />} path="/app-shell/scheduled_tasks/:id/edit" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const localInput = await screen.findByLabelText("Fire at")
+      expect(localInput).toHaveValue("2027-01-15T10:30")
+      fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+      await waitFor(() => expect(submittedFireAt).toBe(fireAt))
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it("keeps the repository-scoped form inside the standard mobile page gutter", async () => {

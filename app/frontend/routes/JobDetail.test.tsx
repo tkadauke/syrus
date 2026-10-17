@@ -3002,6 +3002,30 @@ describe("JobDetailRoute", () => {
     vi.restoreAllMocks()
   })
 
+  it("canonicalizes slug routes onto the numeric live-update cache key", async () => {
+    const payload = jobPayload({ job: { ...baseJob(), id: 5 } })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/JOB-5?tab=summary"]}>
+            <LocationProbe />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/5?tab=summary"))
+    expect(queryClient.getQueryData(["jobs", "5", "detail", ""])).toEqual(payload)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
     const payload = jobPayload({
       landing_queue_entry: {
@@ -3178,6 +3202,68 @@ describe("JobDetailRoute", () => {
 
     expect(await screen.findByRole("button", { name: "Rebuild merge train" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+  })
+
+  it("keeps command actions fresh after returning from the Workflows tab", async () => {
+    const detailPayload = jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" },
+      actions: { ...jobPayload().actions, can_approve: true, can_unapprove: false }
+    })
+    const workflowsPayload = {
+      job_id: 1,
+      current_intent: null,
+      work_units: [],
+      workflows: detailPayload.workflows,
+      workflows_pagination: detailPayload.workflows_pagination,
+      feature_flags: detailPayload.feature_flags,
+      actions: detailPayload.actions,
+      paths: detailPayload.paths
+    }
+    const approvedActions = { ...detailPayload.actions, can_approve: false, can_unapprove: true }
+    const approvedDetailPayload = {
+      ...detailPayload,
+      job: { ...detailPayload.job, state: "approved", summary_state: "approved" },
+      actions: approvedActions
+    }
+    let approved = false
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = requestUrl(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(approved ? approvedDetailPayload : detailPayload))
+      if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowsPayload))
+      if (path === "/api/v1/app/jobs/1/approve") {
+        approved = true
+        return Promise.resolve(jsonResponse({
+          message: "Job approved.",
+          job: { id: 1, state: "approved", summary_state: "approved" },
+          actions: approvedActions
+        }))
+      }
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: /Workflows/ }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/workflows", expect.anything()))
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument())
+    openOverflowMenu()
+    expect(screen.getByRole("menuitem", { name: "Unapprove" })).toBeInTheDocument()
   })
 
   // Regression test for a plugin registering a `.tab` ui_slot whose key isn't

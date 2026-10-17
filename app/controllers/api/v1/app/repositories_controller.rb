@@ -427,7 +427,14 @@ module Api
 
         def repositories_payload(message: nil)
           PerformanceLogging.phase("repositories_index_payload") do
-            repos = PerformanceLogging.phase("repositories_index.repositories_query") { policy_scope(Repository).includes(:user).order(:owner, :name).to_a }
+            repos = PerformanceLogging.phase("repositories_index.repositories_query") { Repository.accessible_to(Current.user).includes(:user).order(:owner, :name).to_a }
+            @repository_index_editable_ids = PerformanceLogging.phase("repositories_index.editable_ids", repository_count: repos.size) do
+              if Current.user.admin?
+                repos.map(&:id).to_set
+              else
+                RepositoryPolicy::Scope.new(Current.user, Repository.where(id: repos.map(&:id))).resolve.pluck(:id).to_set
+              end
+            end
             PerformanceLogging.phase("repositories_index.preload_job_state", repository_count: repos.size) { preload_repository_index_job_state(repos) }
             filtered_repos = PerformanceLogging.phase("repositories_index.apply_filters", repository_count: repos.size) { filter_repository_index_repositories(repos) }
 
@@ -471,6 +478,7 @@ module Api
             last_poll_started_at: repository.last_poll_started_at&.iso8601,
             last_poll_error: repository.last_poll_error,
             poll_issue_errors: repository.poll_issue_errors || [],
+            can_edit: repository_index_editable?(repository),
             repository_path: repository_path(repository),
             edit_repository_path: edit_repository_path(repository)
           }
@@ -491,6 +499,12 @@ module Api
               updated_at: last_job.updated_at&.iso8601
             }
           }
+        end
+
+        def repository_index_editable?(repository)
+          return @repository_index_editable_ids.include?(repository.id) if defined?(@repository_index_editable_ids)
+
+          RepositoryPolicy.new(Current.user, repository).admin?
         end
 
 

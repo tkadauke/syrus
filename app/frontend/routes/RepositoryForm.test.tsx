@@ -121,6 +121,7 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
       return Promise.resolve(jsonResponse({ teams: [{ id: "linear-team-1", name: "Engineering" }] }))
     }
     if (url === "/api/v1/app/repositories/1" && method === "PATCH") {
+      Object.assign(repositoryOverrides, JSON.parse(String(init?.body)).repository)
       return Promise.resolve(jsonResponse({
         message: "Saved.",
         redirect_to: "/repositories/1",
@@ -157,9 +158,8 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
   })
 }
 
-function renderRoute(initialEntry = "/repositories/1/edit") {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+function renderRoute(initialEntry = "/repositories/1/edit", client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -168,7 +168,7 @@ function renderRoute(initialEntry = "/repositories/1/edit") {
       </MemoryRouter>
     </QueryClientProvider>
   )
-  return client
+  return { client, ...view }
 }
 
 describe("RepositoryForm plugin input-source decoupling", () => {
@@ -179,13 +179,30 @@ describe("RepositoryForm plugin input-source decoupling", () => {
 
   it("preserves unsaved settings when the edit payload refetches", async () => {
     mockFetch()
-    const client = renderRoute()
+    const { client } = renderRoute()
 
     const trigger = await screen.findByLabelText("Trigger label")
     fireEvent.change(trigger, { target: { value: "unsaved-label" } })
     client.setQueryData(["repositories", "edit", "1"], editPayload({ trigger_label: "server-label" }))
 
     await waitFor(() => expect(screen.getByLabelText("Trigger label")).toHaveValue("unsaved-label"))
+  })
+
+  it("reopens with the settings from the latest save instead of the cached pre-save payload", async () => {
+    mockFetch()
+    const { client, unmount } = renderRoute()
+
+    fireEvent.change(await screen.findByLabelText("Trigger label"), { target: { value: "saved-label" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
+
+    await waitFor(() => {
+      expect(client.getQueryData<ReturnType<typeof editPayload>>(["repositories", "edit", "1"])?.repository.trigger_label).toBe("saved-label")
+    })
+
+    unmount()
+    renderRoute("/repositories/1/edit", client)
+
+    expect(await screen.findByLabelText("Trigger label")).toHaveValue("saved-label")
   })
 
   it("contains the edit page to the mobile viewport instead of widening the page", async () => {

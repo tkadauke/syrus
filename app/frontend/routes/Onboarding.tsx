@@ -35,6 +35,11 @@ type ChecklistStep = {
 export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | null | undefined }) {
   const { t } = useT("common")
   const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [openModal, setOpenModal] = useState<ChecklistStep["ctaModal"] | null>(null)
+  const [startingChat, setStartingChat] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const setup = bootstrap?.setup_status
   const user = bootstrap?.current_user
@@ -46,12 +51,6 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       </main>
     )
   }
-
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [openModal, setOpenModal] = useState<ChecklistStep["ctaModal"] | null>(null)
-  const [startingChat, setStartingChat] = useState(false)
-  const [chatError, setChatError] = useState<string | null>(null)
 
   async function launchChat() {
     setChatError(null)

@@ -62,4 +62,24 @@ describe("mergeJobWorkflowsPayload", () => {
       retry_failed_step_action: { label: "Rebuild merge train" }
     })
   })
+
+  it("keeps command actions and paths from a fresher detail payload", () => {
+    const payload = {
+      job: { id: 1, state: "approved", summary_state: "approved" },
+      actions: { can_approve: false, can_unapprove: true },
+      paths: { app_unapprove_path: "/current/unapprove" }
+    } as unknown as JobDetailPayload
+    const workflows = {
+      actions: { can_approve: true, can_unapprove: false },
+      workflows: [],
+      workflows_pagination: { page: 1 },
+      feature_flags: {},
+      paths: { app_unapprove_path: "/stale/unapprove" }
+    } as unknown as JobWorkflowsPayload
+
+    const merged = mergeJobWorkflowsPayload(payload, workflows, { workflowsCommandsAreFresher: false })
+
+    expect(merged.actions).toMatchObject({ can_approve: false, can_unapprove: true })
+    expect(merged.paths.app_unapprove_path).toBe("/current/unapprove")
+  })
 })

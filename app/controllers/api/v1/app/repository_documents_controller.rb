@@ -50,6 +50,7 @@ module Api
         def documents_payload(repository)
           {
             repository: repository_json(repository),
+            can_write: RepositoryPolicy.new(Current.user, repository).write?,
             tabs: repository_tabs_json(repository),
             documents: repository
               .repository_documents

@@ -160,6 +160,29 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       expect(created.tokens).to eq(legible_tokens)
     end
 
+    it "stores supplied extended token groups" do
+      user = Factories.user
+      tokens = legible_tokens.merge("shape" => { "radius-panel" => "1rem" })
+      sign_in_as(user)
+
+      post "/api/v1/app/themes", params: { theme: { name: "Rounded", tokens: tokens } }
+
+      expect(response).to have_http_status(:created)
+      expect(Theme.find(parse_body.dig("theme", "id")).tokens["shape"]).to eq("radius-panel" => "1rem")
+    end
+
+    it "creates a color-only theme from top-level mode tokens" do
+      user = Factories.user
+      sign_in_as(user)
+
+      post "/api/v1/app/themes", params: {
+        theme: { name: "Legacy Colors", light: legible_tokens["light"], dark: legible_tokens["dark"] }
+      }
+
+      expect(response).to have_http_status(:created)
+      expect(Theme.find(parse_body.dig("theme", "id")).tokens).to eq(legible_tokens)
+    end
+
     it "rejects a theme that fails the shared contrast check" do
       user = Factories.user
       tokens = legible_tokens.deep_dup
@@ -204,6 +227,51 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       expect(mine.tokens["light"]["surface"]).to eq(legible_tokens["light"]["surface"])
       expect(mine.tokens["dark"]).to eq(legible_tokens["dark"])
       expect(parse_body.dig("theme", "name")).to eq("New Name")
+    end
+
+    it "preserves extended token groups when editing colors" do
+      user = Factories.user
+      tokens = legible_tokens.merge("shape" => { "radius-panel" => "1rem" })
+      mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user, tokens: tokens)
+      sign_in_as(user)
+
+      patch "/api/v1/app/themes/#{mine.id}", params: {
+        theme: { tokens: { light: { brand: "#0f766e" } } }
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(mine.reload.tokens["shape"]).to eq("radius-panel" => "1rem")
+    end
+
+    it "accepts a top-level color update without adding absent extended groups" do
+      user = Factories.user
+      mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user, tokens: legible_tokens)
+      sign_in_as(user)
+
+      patch "/api/v1/app/themes/#{mine.id}", params: {
+        theme: { light: { brand: "#0f766e" } }
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(mine.reload.tokens["light"]["brand"]).to eq("#0f766e")
+      expect(mine.tokens.keys).to contain_exactly("light", "dark")
+    end
+
+    it "merges supplied extended token overrides" do
+      user = Factories.user
+      tokens = legible_tokens.merge("shape" => { "radius-panel" => "1rem", "radius-control" => "0.25rem" })
+      mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user, tokens: tokens)
+      sign_in_as(user)
+
+      patch "/api/v1/app/themes/#{mine.id}", params: {
+        theme: { tokens: { shape: { "radius-panel" => "2rem" } } }
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(mine.reload.tokens["shape"]).to eq(
+        "radius-panel" => "2rem",
+        "radius-control" => "0.25rem"
+      )
     end
 
     it "rejects token edits that fail the shared contrast check" do

@@ -46,6 +46,8 @@
   "empty_threads": "Keine aktiven Threads.",
   "empty_threads_for_version": "Zu dieser Version gab es keine Threads.",
   "error_load_doc": "Designdokument konnte nicht geladen werden.",
+  "error_create": "Designdokument konnte nicht erstellt werden.",
+  "error_write": "Aenderungen am Designdokument konnten nicht gespeichert werden.",
   "explicit_collaborators": "Explizite Mitwirkende",
   "index_description": "Gemeinsam bearbeitete Markdown-Designdokumente.",
   "index_aria": "Design-Docs-Index",

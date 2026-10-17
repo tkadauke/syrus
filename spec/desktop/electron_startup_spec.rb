@@ -7,6 +7,7 @@ RSpec.describe "desktop Electron startup" do
   let(:desktop_root) { File.expand_path("../../desktop", __dir__) }
   let(:package_json) { JSON.parse(File.read(File.join(desktop_root, "package.json"), encoding: "UTF-8")) }
   let(:main_process) { File.read(File.join(desktop_root, "electron/main.ts"), encoding: "UTF-8") }
+  let(:app_user_cable) { File.read(File.join(desktop_root, "electron/appUserCable.ts"), encoding: "UTF-8") }
   let(:vite_config) { File.read(File.join(desktop_root, "vite.config.ts"), encoding: "UTF-8") }
 
   it "uses the same loopback host for Vite and Electron in dev" do
@@ -18,9 +19,9 @@ RSpec.describe "desktop Electron startup" do
   end
 
   it "does not close the ActionCable websocket from its error handler" do
-    expect(main_process).to include("const finishSocket = () => {")
-    expect(main_process).to include("socket.onerror = () => {\n    finishSocket()\n  }")
-    expect(main_process).not_to match(/socket\.onerror = \(\) => \{\s*socket\.close\(\)/m)
+    expect(app_user_cable).to include("const finish = () => {")
+    expect(app_user_cable).to include("socket.onerror = finish")
+    expect(app_user_cable).not_to match(/socket\.onerror = \(\) => \{\s*socket\.close\(\)/m)
   end
 
   it "loads the preload bridge as CommonJS so Electron exposes syrusDesktop" do

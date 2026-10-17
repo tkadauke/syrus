@@ -189,12 +189,14 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
       origin_chat_session_id: chatId,
       repository_ids: repositoryId ? [Number(repositoryId)] : []
     }),
+    onMutate: () => setNotice(null),
     onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
       setNotice(t("notice_created"))
       if (mode === "chat") setSelectedId(payload.design_doc.id)
       else navigate(docPath(payload.design_doc.id))
-    }
+    },
+    onError: (error) => setNotice(errorMessage(error, t("error_create")))
   })
 
   const content = (
@@ -215,7 +217,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           </div>
         </header>
       ) : null}
-      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      <NoticeToast message={notice} onDismiss={() => setNotice(null)} persistent={createMutation.isError} tone={createMutation.isError ? "error" : "notice"} />
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">
           <details className="group rounded border border-border bg-surface">
@@ -646,6 +648,13 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   const railStackRef = useRef<HTMLDivElement | null>(null)
   const railContainerRef = useRef<HTMLDivElement | null>(null)
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
+  const autosaveAttemptFingerprintRef = useRef<string | null>(null)
+  const failedAutosaveFingerprintRef = useRef<string | null>(null)
+  const [autosaveError, setAutosaveError] = useState<string | null>(null)
+  const [writeError, setWriteError] = useState<string | null>(null)
+  const handleWriteError = useCallback((error: unknown) => {
+    setWriteError(errorMessage(error, t("error_write")))
+  }, [t])
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
@@ -676,16 +685,22 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         proposed_markdown: draft,
         change_summary: summary
       }),
+    onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
+      failedAutosaveFingerprintRef.current = null
+      setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
       onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? t("notice_saved_suggestion") : t("notice_saved"))
-    }
+    },
+    onError: handleWriteError
   })
   const autosaveMutation = useMutation({
-    mutationFn: () => effectiveChangeMode === "edit"
-      ? updateDesignDoc(doc.id, {
+    mutationFn: () => {
+      autosaveAttemptFingerprintRef.current = persistedDraftFingerprint(doc.id, title, draft)
+      return effectiveChangeMode === "edit"
+        ? updateDesignDoc(doc.id, {
         title,
         markdown: draft,
         visibility: doc.visibility,
@@ -693,43 +708,59 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         repository_ids: repoIds.map(Number),
         collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
       })
-      : createDesignDocSuggestion(doc.id, {
+        : createDesignDocSuggestion(doc.id, {
         start_offset: 0,
         end_offset: doc.rendered_markdown.length,
         original_markdown: doc.rendered_markdown,
         proposed_markdown: draft,
         autosave: true
-      }),
+        })
+    },
     onSuccess: (payload) => {
+      failedAutosaveFingerprintRef.current = null
+      setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       onDocChange(payload.design_doc)
+    },
+    onError: (error) => {
+      failedAutosaveFingerprintRef.current = autosaveAttemptFingerprintRef.current
+      setAutosaveError(errorMessage(error, t("error_write")))
     }
   })
   const metadataMutation = useMutation({
     mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
-    onSuccess: (payload) => onDocChange(payload.design_doc, t("notice_controls_updated"))
+    onMutate: () => setWriteError(null),
+    onSuccess: (payload) => onDocChange(payload.design_doc, t("notice_controls_updated")),
+    onError: handleWriteError
   })
   const commentMutation = useMutation({
     mutationFn: (body: string) => createDesignDocComment(doc.id, { body, ...anchorPayload(selection) }),
+    onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
       setSelection(emptySelection())
       onDocChange(payload.design_doc, t("notice_comment_added"))
-    }
+    },
+    onError: handleWriteError
   })
   const replyMutation = useMutation({
     mutationFn: ({ threadId, body }: { threadId: number; body: string }) => createDesignDocComment(doc.id, { thread_id: threadId, body }),
+    onMutate: () => setWriteError(null),
     onSuccess: (payload, variables) => {
       setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
       onDocChange(payload.design_doc, t("notice_reply_added"))
-    }
+    },
+    onError: handleWriteError
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onMutate: (): ReviewScrollSnapshot => ({
-      windowScrollX: window.scrollX,
-      windowScrollY: window.scrollY,
-      markdownScrollTop: textareaRef.current?.scrollTop ?? markdownScrollTop
-    }),
+    onMutate: (): ReviewScrollSnapshot => {
+      setWriteError(null)
+      return {
+        windowScrollX: window.scrollX,
+        windowScrollY: window.scrollY,
+        markdownScrollTop: textareaRef.current?.scrollTop ?? markdownScrollTop
+      }
+    },
     onSuccess: (payload, _variables, scrollSnapshot) => {
       const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
       setDraft(nextDraft)
@@ -744,11 +775,14 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
       }
       persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
       onDocChange(payload.design_doc, payload.message || t("notice_suggestion_reviewed"))
-    }
+    },
+    onError: handleWriteError
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
-    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, t("notice_thread_resolved"))
+    onMutate: () => setWriteError(null),
+    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, t("notice_thread_resolved")),
+    onError: handleWriteError
   })
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
   const activeHighlights = useMemo(
@@ -1058,15 +1092,24 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
+    if (!failedAutosaveFingerprintRef.current || fingerprint === failedAutosaveFingerprintRef.current) return
+
+    failedAutosaveFingerprintRef.current = null
+    setAutosaveError(null)
+  }, [doc.id, draft, title])
+
+  useEffect(() => {
     if (isArchived) return
 
     const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
     if (fingerprint === persistedDraftRef.current) return
+    if (fingerprint === failedAutosaveFingerprintRef.current) return
     if (autosaveMutation.isPending) return
 
     const timeout = window.setTimeout(() => autosaveMutation.mutate(), 800)
     return () => window.clearTimeout(timeout)
-  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, isArchived, title])
+  }, [autosaveMutation.isPending, autosaveMutation.mutate, doc.id, draft, effectiveChangeMode, isArchived, title])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
@@ -1200,6 +1243,16 @@ function DesignDocEditor({ compact, doc, mode, narrowView, repositories, onDocCh
         onVersionsOpen={() => setVersionsOpen(true)}
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
+      {writeError ? (
+        <Notice tone="danger">
+          <div role="alert">{writeError}</div>
+        </Notice>
+      ) : null}
+      {autosaveError ? (
+        <Notice tone="danger">
+          <div role="alert">{autosaveError}</div>
+        </Notice>
+      ) : null}
       {isArchived ? (
         <Notice>
           <div className="flex flex-wrap items-center gap-2">

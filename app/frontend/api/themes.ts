@@ -11,10 +11,8 @@ export type ColorTheme = {
   tokens: {
     light: ThemeTokens
     dark: ThemeTokens
-    // Non-color token groups (mirrors Theme::EXTENDED_TOKEN_GROUPS server-side).
-    // Optional here because older client-built drafts (see ThemesSettings.tsx's
-    // cloneTokens) only round-trip light/dark; live API responses always include
-    // every group, already merged with defaults by Theme#tokens_with_defaults.
+    // Live API responses contain these groups after defaults are applied, but
+    // keep them optional for partial theme values used by preview consumers.
     shape?: ThemeTokens
     shadow?: ThemeTokens
     spacing?: ThemeTokens

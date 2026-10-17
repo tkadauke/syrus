@@ -37,6 +37,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(body["can_write"]).to eq(true)
     expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_source.issues", "documents", "scheduled_tasks.repository")
     expect(body["tabs"].map { |t| t["key"] }).not_to include("context")
     expect(body["documents"]).to contain_exactly(
@@ -258,6 +259,18 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     }.to change(Document, :count).by(-1)
 
     expect(response).to have_http_status(:ok)
+  end
+
+  it "marks the documents payload read-only for read-tier members" do
+    repository
+    collaborator = Factories.user(email_address: "document-reader@example.com", admin: false)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/repositories/#{repository.id}/documents"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["can_write"]).to eq(false)
   end
 
   it "404s listing documents for a user who is neither the owner nor a member" do

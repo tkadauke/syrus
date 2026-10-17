@@ -36,6 +36,7 @@ function repositoryRow(overrides: Record<string, unknown> = {}) {
     last_poll_status: null,
     last_poll_started_at: null,
     last_poll_error: null,
+    can_edit: true,
     repository_path: "/repositories/1",
     edit_repository_path: "/repositories/1/edit",
     ...overrides
@@ -456,6 +457,17 @@ describe("RepositoriesIndex data table", () => {
 
     expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+  })
+
+  it("hides Unarchive from members without repository admin access", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
+      active_repositories: [],
+      archived_repositories: [repositoryRow({ archived: true, can_edit: false })]
+    })))
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories"]}><RepositoriesIndex /></MemoryRouter></QueryClientProvider>)
+
+    expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument()
   })
 })
 

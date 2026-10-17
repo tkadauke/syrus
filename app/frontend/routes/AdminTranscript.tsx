@@ -28,7 +28,7 @@ export function AdminTranscript() {
     queryKey: ["admin", "transcript", runId, { page, per }],
     queryFn: () => fetchAdminTranscript(runId, page, per),
     enabled: runId.length > 0,
-    refetchInterval: TRANSCRIPT_REFETCH_INTERVAL_MS,
+    refetchInterval: (query) => transcriptRefetchInterval(query.state.data),
     placeholderData: keepPreviousData
   })
 
@@ -39,6 +39,10 @@ export function AdminTranscript() {
       {transcript.isSuccess ? <TranscriptView payload={transcript.data} prefix={prefix} /> : null}
     </Page.Root>
   )
+}
+
+export function transcriptRefetchInterval(payload?: Pick<TranscriptPayload, "finished">) {
+  return payload?.finished ? false : TRANSCRIPT_REFETCH_INTERVAL_MS
 }
 
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {

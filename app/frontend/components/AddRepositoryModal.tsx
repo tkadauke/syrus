@@ -183,9 +183,13 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     queryKey: ["repositories", "install-watch", saved?.repository.id],
     queryFn: () => fetchRepositoryDetail(String(saved!.repository.id)),
     enabled: awaitingInstall && !!saved,
-    refetchInterval: awaitingInstall ? 3000 : false
+    refetchInterval: (query) => installWatchInterval(query.state.data?.credential_status.mode)
   })
   const installedNow = installWatch.data?.credential_status.mode === "app"
+
+  useEffect(() => {
+    if (installedNow) setAwaitingInstall(false)
+  }, [installedNow])
 
   // Syrus discovers installations by polling GitHub (no webhooks) — nudge
   // the server to sync while we wait so this takes seconds, not the
@@ -451,6 +455,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       )}
     </Modal>
   )
+}
+
+export function installWatchInterval(credentialMode?: string) {
+  return credentialMode === "app" ? false : 3000
 }
 
 function suggestBranch(branches: string[], defaultBranch: string | undefined) {

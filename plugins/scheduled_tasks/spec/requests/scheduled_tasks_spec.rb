@@ -281,6 +281,20 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["message"]).to eq("Scheduled task enabled.")
   end
 
+  it "rejects repository-scoped attempts to enable a fired one-shot" do
+    sign_in_as(user)
+    task = ScheduledTasks::Task.create!(repository: repository, user: user,
+      **valid_cron_attrs.merge(name: "One shot", kind: "one_shot", cron_expression: nil, fire_at: 1.hour.from_now)
+    )
+    task.update!(state: "fired")
+
+    patch "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/#{task.id}", params: { enabled: "true" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("not_resumable")
+    expect(task.reload.state).to eq("fired")
+  end
+
   it "does not allow repository-scoped pause or resume of another user's task" do
     repository.repository_memberships.create!(user: other_user, role: "read")
     task = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs)
@@ -456,6 +470,20 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.reload.state).to eq("scheduled")
     expect(task.consecutive_failure_count).to eq(0)
     expect(parse_body["message"]).to eq("Resumed.")
+  end
+
+  it "rejects attempts to resume a fired one-shot" do
+    sign_in_as(user)
+    task = ScheduledTasks::Task.create!(repository: repository, user: user,
+      **valid_cron_attrs.merge(name: "One shot", kind: "one_shot", cron_expression: nil, fire_at: 1.hour.from_now)
+    )
+    task.update!(state: "fired")
+
+    post "/api/v1/app/scheduled_tasks/#{task.id}/resume"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("not_resumable")
+    expect(task.reload.state).to eq("fired")
   end
 
   it "fires a task immediately through the service boundary" do

@@ -117,27 +117,37 @@ module Api
         end
 
         def normalized_tokens(attributes)
-          token_payload = attributes[:tokens].presence || {
-            "light" => attributes[:light],
-            "dark" => attributes[:dark]
-          }
+          token_payload = attributes[:tokens].presence || attributes.slice(*token_group_keys)
           raw_payload = plain_json(token_payload)
           payload = raw_payload.is_a?(Hash) ? raw_payload.with_indifferent_access : {}
-          payload.slice(:light, :dark).transform_values do |value|
+          payload.slice(:light, :dark, *Theme::EXTENDED_TOKEN_GROUPS.keys).transform_values do |value|
             value.is_a?(Hash) ? plain_json(value).stringify_keys : value
           end
         end
 
         def token_update?(attributes)
-          attributes.key?(:tokens) || attributes.key?(:light) || attributes.key?(:dark)
+          attributes.key?(:tokens) || token_group_keys.any? { |group| attributes.key?(group) }
+        end
+
+        def token_group_keys
+          [ "light", "dark", *Theme::EXTENDED_TOKEN_GROUPS.keys ]
         end
 
         def merged_tokens(theme, attributes)
           overrides = normalized_tokens(attributes)
-          {
-            "light" => merge_mode_tokens(theme.tokens["light"], overrides[:light]),
-            "dark" => merge_mode_tokens(theme.tokens["dark"], overrides[:dark])
-          }
+          merged = theme.tokens.deep_dup
+          merged["light"] = merge_mode_tokens(merged["light"], overrides[:light]) if overrides.key?(:light)
+          merged["dark"] = merge_mode_tokens(merged["dark"], overrides[:dark]) if overrides.key?(:dark)
+
+          Theme::EXTENDED_TOKEN_GROUPS.each_key do |group|
+            next unless overrides.key?(group)
+
+            existing = merged[group].is_a?(Hash) ? merged[group] : {}
+            supplied = overrides[group]
+            merged[group] = supplied.is_a?(Hash) ? existing.merge(supplied) : supplied
+          end
+
+          merged
         end
 
         def merge_mode_tokens(existing, overrides)
