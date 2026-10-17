@@ -556,15 +556,16 @@ use `mode: operator` copy instead of automatic-unavailability copy. Chat
 provider failover is out of scope: this policy does not rewrite
 `ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
-Syrus ships with a global concurrency cap for fresh instances:
-`AppSetting.max_concurrent_agent_runs` defaults to `3`, so autonomous agent
-work cannot scale linearly with worker pods. A second, separate limit paces how
-much work is started at all: `AppSetting.max_in_flight_workflows` (default `0`,
-unlimited) caps how many Job attempts may be admitted and unfinished at once,
-so some finish before more begin instead of a burst of Jobs each stopping
-half-way with a prepared workspace. It is checked only when an attempt is first
-admitted, never against work already in flight, and landing and main-branch
-health work is exempt. The per-user USD budget,
+Syrus provides opt-in soft capacity pacing for busy shared instances through
+`AppSetting.workflow_admission_control_enabled`, which is off by default. When
+enabled, `AppSetting.max_concurrent_agent_runs` defaults to `3`, preventing
+autonomous agent work from scaling linearly with worker pods. A second limit,
+`AppSetting.max_in_flight_workflows` (default `0`, unlimited), caps how many Job
+attempts may be admitted and unfinished at once. It is checked only when an
+attempt is first admitted, never against work already in flight, and landing
+and main-branch health work is exempt. Fresh single-host and Docker Compose
+installs need no capacity tuning unless an admin enables this pacing. The
+per-user USD budget,
 `AppSetting.user_daily_spend_budget_usd`, defaults to `20` dollars per user per
 day. Set it to `0` for unlimited provider-reported spend. The gate defers
 queued work until the next day instead of failing Jobs once provider-reported

@@ -83,7 +83,7 @@ class WorkflowAdmissionBudget
       return decision("requires_override", hard_reason, pressure, details: details_payload(candidate, active, decision_basis: "ambient_pressure"))
     end
 
-    unless AppSetting.workflow_admission_control_enabled?
+    unless AdmissionControl.enabled?
       return admission_control_disabled(candidate, active, pressure)
     end
 

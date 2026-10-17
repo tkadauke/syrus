@@ -38,7 +38,7 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `user_daily_spend_budget_usd` | instance | Admin Settings | setting | instance | Correct: deployment spend guardrail. |
 | `proactive_rebase_commit_threshold` | instance | Admin Settings | setting | instance default with repo override later | Correct for now; repos with unusual branch protection may want overrides. |
 | `show_work_unit_debug` | instance | Admin Settings | setting | instance | Correct: deployment diagnostic visibility. |
-| `workflow_admission_control_enabled` | instance | Admin Settings | setting | instance | Correct: global admission kill switch. |
+| `workflow_admission_control_enabled` | instance | Admin Settings | setting | instance | Correct: opt-in master switch for all soft capacity pacing. |
 | `workflow_admission_policy` | instance | Admin Settings | setting | instance | Correct: worker-capacity policy for the deployment. |
 | `workflow_admission_control_changed_at` | instance | Rails console | internal state | instance | Correct hidden state: audit stamp maintained by the settings controller. |
 | `workflow_admission_control_changed_by_user_id` | instance | Rails console | internal state | instance | Correct hidden state: audit actor maintained by the settings controller. |

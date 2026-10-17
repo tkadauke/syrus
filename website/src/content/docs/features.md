@@ -1041,14 +1041,14 @@ pressure, and IO pressure. Only fresh heartbeat rows appear in the primary
 current-worker tables; hosts that stopped heartbeating remain chartable while
 their samples are in the selected range and are labeled historical, and stale
 Solid Queue process rows are labeled stale in the process inventory.
-Admins can temporarily disable workflow admission control from Admin Settings
-during incidents where predicted capacity is blocking useful work. This is a
-resource-risk kill switch: it bypasses soft worker pressure and prediction
-throttles, but provider circuits, dependencies, landing pauses, archived
-repositories, missing PRs, and hard worker memory/disk exhaustion still block
-starts. Syrus audits the operator and timestamp, records which admission gates
-were bypassed on each admitted Workflow, and wakes delayed Workflows when the
-switch changes.
+Workflow admission control is off by default, so a fresh single-host install
+needs no capacity tuning. Admins of busy shared, multi-user instances can opt
+in from Admin Settings. The master switch covers workflow-level soft pressure
+and in-flight limits, host-local yielding, reservations and staggering, the
+global agent-run cap, and per-user fair share. Hard worker memory/disk and
+critical local-pressure protection remain active, as do provider availability,
+daily spend budgets, manual pauses, dependencies, and landing correctness
+gates. Syrus audits switch changes and wakes delayed Workflows when it changes.
 When the switch is enabled, admission control still keeps a minimum-progress
 floor of one controlled workflow per healthy worker while running agentic work
 is below that floor. Soft pressure and conservative predictions can slow the

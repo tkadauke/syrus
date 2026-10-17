@@ -373,11 +373,11 @@ class AppSettingRegistry
     Definition.new(
       key: :workflow_admission_control_enabled,
       type: :boolean,
-      default: true,
+      default: false,
       min: nil,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "When enabled, WorkflowAdmissionControl gates new Workflow runs against configured concurrency and resource policies.",
+      operational_meaning: "Opt-in soft capacity pacing for shared, multi-user instances, covering workflow admission, host-local reservations and staggering, global agent concurrency, and per-actor fair share. Hard worker safety and spend controls remain active when disabled.",
       zero_means: nil,
       admin_editable: true,
       secret: false,
