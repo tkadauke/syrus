@@ -415,7 +415,7 @@ describe("App", () => {
     )
 
     const welcome = await screen.findByRole("main", { name: "Syrus first-run welcome" })
-    expect(screen.getByRole("heading", { name: "Welcome to Syrus!" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Syrus" })).toBeInTheDocument()
     // Theme-aware mark: an inline SVG painted from semantic color tokens
     // rather than the static /icon.png artwork, so it follows the active
     // color theme instead of needing its own cache-busted asset URL.
@@ -466,8 +466,11 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-      expect(screen.getAllByRole("link", { name: "Create account from invitation" })[0]).toHaveAttribute("href", "/users/new?token=invite-123")
+      expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-123")
+      expect(screen.queryByTestId("desktop-sidebar")).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument()
       expect(fetchSpy).not.toHaveBeenCalledWith(
         "/api/v1/app/sidebar_pages",
         expect.objectContaining({ credentials: "same-origin" })
@@ -494,10 +497,12 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "Sign in" })[0]).toHaveAttribute("href", "/session/new")
-    expect(screen.getAllByText("This instance is invitation-only. Ask the operator for an invitation if you need access.").length).toBeGreaterThan(0)
-    expect(screen.getByText("Access to this Syrus instance is controlled by its operator. Use an invitation link, or sign in with an existing account.")).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("This instance is invitation-only. Ask the operator for an invitation if you need access.")).toBeInTheDocument()
+    expect(screen.queryByText("Live work path")).not.toBeInTheDocument()
+    expect(screen.queryByText("Why self-host")).not.toBeInTheDocument()
+    expect(screen.queryByText("Read the setup docs")).not.toBeInTheDocument()
   })
 
   it("renders account creation CTA when signups are open", async () => {
@@ -516,9 +521,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "Create account" })[0]).toHaveAttribute("href", "/users/new")
-    expect(screen.getAllByText("Open sign-ups are enabled for this instance.").length).toBeGreaterThan(0)
+    expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/users/new")
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("Open sign-ups are enabled for this instance.")).toBeInTheDocument()
   })
 
   it("renders account creation CTA when an invitation token is present", async () => {
@@ -537,9 +543,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "Create account from invitation" })[0]).toHaveAttribute("href", "/users/new?token=invite-123")
-    expect(screen.getByText("Detected")).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-123")
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("Use the invitation in this link to create your account.")).toBeInTheDocument()
   })
 
   it("skips the marketing landing inside the desktop shell and lands on sign-in", async () => {
@@ -563,7 +570,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Sign in" })).toBeInTheDocument()
-      expect(screen.queryByRole("main", { name: "Syrus public landing" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("main", { name: "Syrus instance access" })).not.toBeInTheDocument()
     } finally {
       restoreUserAgent()
     }
@@ -745,12 +752,11 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
-    expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
-    expect(screen.getByText("Invitation link")).toBeInTheDocument()
-    expect(screen.getByText("Detected")).toBeInTheDocument()
-    expect(screen.getByText("An invitation token is present in this link. Create your account to join this instance.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("Use the invitation in this link to create your account.")).toBeInTheDocument()
+    expect(screen.queryByText("Invitation-only")).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
@@ -12715,7 +12721,7 @@ describe("App", () => {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
-            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload() as unknown as BootstrapPayload}>
               <main>Dashboard content</main>
             </AppChromeV2>
           </MemoryRouter>
@@ -12752,7 +12758,7 @@ describe("App", () => {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
-            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload() as unknown as BootstrapPayload}>
               <main>Dashboard content</main>
             </AppChromeV2>
           </MemoryRouter>
