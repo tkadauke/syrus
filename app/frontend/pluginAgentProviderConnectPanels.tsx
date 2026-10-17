@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from "react"
 
 export type AgentProviderConnectPanelProps = {
   autoFocus?: boolean
+  deferBootstrapRefresh?: boolean
   onConnected: (result: { message?: string | null }) => void
   onPreflight?: (ready: boolean) => void
   secondaryAction?: ReactNode
