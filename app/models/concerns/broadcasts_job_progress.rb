@@ -80,14 +80,8 @@ module BroadcastsJobProgress
       payload: { fields: job_progress_patch_fields }
     )
 
-    chat_session_ids_for(owner_job).each do |session_id|
-      AppEvents.broadcast(
-        user: owner_job.user,
-        type: "chat.updated",
-        resource: "chat",
-        id: session_id,
-        payload: { action: "job_status_changed", job_id: owner_job.id }
-      )
+    ChatSession.where(id: chat_session_ids_for(owner_job)).find_each do |chat_session|
+      chat_session.broadcast_app_job_status_update(owner_job.id)
     end
   end
 
@@ -107,7 +101,8 @@ module BroadcastsJobProgress
   def chat_session_ids_for(job)
     session_ids = ChatProposal.confirmed.where(job: job).distinct.pluck(:chat_session_id)
     session_ids << job.linked_chat_id if job.linked_chat_id.present?
-    session_ids.uniq
+    session_ids << job.discussion_chat&.id
+    session_ids.compact.uniq
   end
 
   def saved_changes_for_job_progress?
