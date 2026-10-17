@@ -246,7 +246,6 @@ interface Window {
     markNotificationRead: (id: number) => Promise<SyrusNotificationPayload>
     markAllNotificationsRead: () => Promise<SyrusNotificationsPayload>
     createDirectJob: (request: SyrusCreateJobRequest) => Promise<SyrusCreateJobResponse>
-    confirmApproveJob: (jobID: number) => Promise<boolean>
     approveJob: (jobID: number) => Promise<void>
     retryJob: (jobID: number) => Promise<void>
     submitJobFeedback: (jobID: number, body: string) => Promise<void>
