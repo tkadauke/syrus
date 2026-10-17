@@ -18,6 +18,110 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_timed_out
   end
 
+  it "delegates the full execution request to the configured backend" do
+    backend = Class.new(Execution::Backend) do
+      attr_reader :request
+
+      def run(request)
+        @request = request
+        ProcessRunner::Result.new(
+          exit_status: 0,
+          timed_out: false,
+          stopped: false,
+          silent_timed_out: false,
+          operator_killed: false,
+          aliveness_failed: false,
+          duration_s: 0.0,
+          spawned_process_id: nil
+        )
+      end
+    end.new
+    stop_requested = -> { false }
+    on_output_chunk = ->(_chunk) { }
+    on_output_line = ->(_line) { }
+    on_spawned_process = ->(_process) { }
+    resource_limits = Execution::ResourceLimits.new(
+      memory_max: "268435456",
+      cpu_max: "100000 100000",
+      io_weight: 100
+    )
+
+    result = described_class.new(
+      env: { "VISIBLE" => "yes" },
+      command: [ ruby, "-e", "exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      resource_limits: resource_limits,
+      timeout: 5,
+      stdin_data: "input",
+      unsetenv_others: false,
+      pgroup: false,
+      stop_requested: stop_requested,
+      on_output_chunk: on_output_chunk,
+      on_output_line: on_output_line,
+      kill_grace_seconds: 0,
+      silent_timeout: 1,
+      kind: "agent",
+      display_command: "ruby -e exit",
+      on_spawned_process: on_spawned_process,
+      backend: backend
+    ).run
+
+    expect(result).to be_success
+    expect(backend.request).to have_attributes(
+      env: { "VISIBLE" => "yes" },
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: Pathname.new(@dir).expand_path.to_s,
+      network: "grader",
+      resource_limits: resource_limits,
+      timeout: 5,
+      stdin_data: "input",
+      unsetenv_others: false,
+      pgroup: false,
+      stop_requested: stop_requested,
+      on_output_chunk: on_output_chunk,
+      on_output_line: on_output_line,
+      kill_grace_seconds: 0,
+      silent_timeout: 1,
+      kind: "agent",
+      display_command: "ruby -e exit",
+      on_spawned_process: on_spawned_process
+    )
+    expect(backend.request.mounts).to be_writable(@dir)
+  end
+
+  it "requires execution backends to implement run" do
+    request = Execution::Request.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      resource_limits: nil,
+      timeout: 5,
+      stdin_data: nil,
+      unsetenv_others: true,
+      pgroup: true,
+      stop_requested: -> { false },
+      on_output_chunk: nil,
+      on_output_line: nil,
+      kill_grace_seconds: ProcessRunner::TERM_GRACE_SECONDS,
+      silent_timeout: nil,
+      activity_probe: nil,
+      kind: nil,
+      run: nil,
+      workflow: nil,
+      job: nil,
+      chat_session: nil,
+      agent: nil,
+      display_command: nil,
+      on_spawned_process: nil,
+      local_runner: nil
+    )
+
+    expect { Execution::Backend.new.run(request) }.to raise_error(NotImplementedError)
+  end
+
   it "returns a failed result for nonzero exit" do
     result = run_command(ruby, "-e", "exit 7")
 
