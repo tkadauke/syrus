@@ -1302,14 +1302,14 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Review artifacts")
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
 
-    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
-    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
-    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
-    const unversionedOption = within(selector).getByRole("option", { name: /No provenance at all/ }) as HTMLOptionElement
-    fireEvent.change(selector, { target: { value: unversionedOption.value } })
-
     expect(screen.getByText("No provenance at all")).toBeInTheDocument()
     expect(screen.getByText("Unversioned")).toBeInTheDocument()
+    expect(screen.queryByText("From a later round")).not.toBeInTheDocument()
+    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const matchingOption = within(selector).getByRole("option", { name: /Matches selected version/ }) as HTMLOptionElement
+    fireEvent.change(selector, { target: { value: matchingOption.value } })
+
+    expect(screen.getByText("Matches selected version")).toBeInTheDocument()
   })
 
   it("shows artifacts from every workflow and head for All changes", async () => {
@@ -1377,7 +1377,7 @@ describe("ReviewWorkspace", () => {
           type: "rails_schema_erd",
           title: "Unversioned artifact",
           payload: { tables: [] },
-          created_at: "2026-01-01T00:00:00Z",
+          created_at: "2026-01-05T00:00:00Z",
           renderer_type: "erd_diagram"
         }
       ]
@@ -1388,16 +1388,17 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
 
     expect(screen.getByText("Review the diff")).toBeInTheDocument()
-    expect(screen.getByText("Current head artifact")).toBeInTheDocument()
-    expect(screen.getByText("current-head-body")).toBeInTheDocument()
+    expect(screen.getByText("Unversioned")).toBeInTheDocument()
 
-    const artifactOptions = within(screen.getByLabelText("Artifact")).getAllByRole("option")
+    const artifactSelector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const artifactOptions = within(artifactSelector).getAllByRole("option")
     expect(artifactOptions.map((option) => option.textContent)).toEqual([
+      expect.stringContaining("Unversioned artifact"),
       expect.stringContaining("Current head artifact"),
       expect.stringContaining("Repair artifact"),
-      expect.stringContaining("Initial implementation artifact"),
-      expect.stringContaining("Unversioned artifact")
+      expect.stringContaining("Initial implementation artifact")
     ])
+    expect(artifactSelector.selectedIndex).toBe(0)
     expect(screen.queryByText("No artifacts for the selected version.")).not.toBeInTheDocument()
   })
 
