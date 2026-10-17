@@ -62,7 +62,7 @@ module Terminal
     def chat_candidates
       user.accessible_chat_sessions
         .active
-        .visible
+        .where(chat_participants: { hidden_at: nil })
         .where.not(workspace_path: [ nil, "" ])
         .includes(:attached_repositories)
         .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
