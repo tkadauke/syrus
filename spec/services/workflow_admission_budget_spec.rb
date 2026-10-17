@@ -4,6 +4,8 @@ RSpec.describe WorkflowAdmissionBudget do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
+
   def workflow_for(priority: "medium", state: "queued", trigger_kind: "initial", work_unit: true)
     job = Factories.job_record(user: user, repository: repository, priority: priority, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")

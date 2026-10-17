@@ -16,6 +16,10 @@ memory reservations, or measured memory reached the host budget. An idle worker
 always admits one Run unless its health sample reports critical memory, disk,
 or CPU pressure.
 
+Fresh installs leave soft admission control disabled, so Docker Compose needs
+no CPU, memory-reservation, or staggering tuning by default. The guidance below
+applies when an admin has enabled admission control for a shared instance.
+
 In Docker Compose, `SYRUS_WORKER_CPU_LIMIT` determines host compute capacity and
 therefore the fallback memory reserved per Run: effective memory divided by
 compute capacity, multiplied by the Run's capacity units. A low Docker Desktop

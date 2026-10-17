@@ -60,6 +60,7 @@ class RunHostAdmission
     # already returned above; they are the cheap orchestration path that can
     # unblock or terminate expensive work.
     return defer("local_worker_pressure_critical") if critical_local_pressure?
+    return admit("admission_control_disabled") unless AdmissionControl.enabled?
     return defer("landing_work_has_priority") if background_work_should_yield?
 
     # Beyond that, agentic and grader runs are rationed per host to bound how

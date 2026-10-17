@@ -923,16 +923,18 @@ rather than `within_budget`, that is the symptom to look for.
 
 ## Workflow Admission Control Kill Switch
 
-`AppSetting.workflow_admission_control_enabled` is the global operator kill
-switch for the soft workflow admission budget. It defaults to `true`. When an
-admin disables it from Admin Settings, `WorkflowAdmissionBudget` still blocks
-hard worker memory/disk exhaustion but bypasses soft worker pressure and
-landing-queue capacity reservation. Per-host `RunHostAdmission` is separate:
-it still prevents pickups on critically pressured workers and still applies
-host-local guarded-run limits once a queued Run is claimed. Other start
-blockers remain outside this switch: provider circuits, explicit landing
-pauses, dependency blockers, archived repositories, missing PRs, and Job
-readiness checks still apply.
+`AppSetting.workflow_admission_control_enabled` is the opt-in master switch for
+soft capacity pacing. It defaults to `false`, so fresh single-host and Docker
+Compose installs need no capacity tuning. Busy shared, multi-user instances can
+enable it to apply `WorkflowAdmissionBudget` soft pressure and in-flight
+limits, `RunHostAdmission` background yielding, host compute/memory reservations
+and staggering, the global agent-run concurrency cap, and per-actor fair share.
+
+Hard worker memory/disk exhaustion in `WorkflowAdmissionBudget` and critical
+local pressure in `RunHostAdmission` remain unconditional. Provider circuits,
+per-user daily spend budgets, manual pauses, explicit landing pauses,
+dependency blockers, landing-queue correctness gates, archived repositories,
+missing PRs, and Job readiness checks also remain outside this switch.
 
 Every disabled admission decision records `admission_control_disabled=true`,
 the last changed timestamp/user, and the `bypassed_gates` list in the Workflow

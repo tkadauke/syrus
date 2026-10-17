@@ -8,11 +8,39 @@ RSpec.describe RunHostAdmission do
   let(:run) { workflow.first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
 
   before do
+    AppSetting.current.update!(workflow_admission_control_enabled: true)
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
     allow(RunProcessParallelism).to receive(:host_capacity).and_return(6)
     allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(16.gigabytes)
     allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(2.gigabytes)
     workflow.update!(worker_hostname: "worker-a")
+  end
+
+  it "bypasses host-local soft pacing when admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    worker_sample(cpu_pressure_some: 10.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    admission = described_class.new(run: run)
+    allow(admission).to receive(:background_work_should_yield?).and_return(true)
+    expect(admission).not_to receive(:resource_guard_full?)
+    expect(admission).not_to receive(:admitted_within_stagger_window?)
+
+    decision = admission.call
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("admission_control_disabled")
+  end
+
+  it "keeps critical local pressure active when admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
   end
 
   it "defers compute runs on a worker with critical local pressure" do

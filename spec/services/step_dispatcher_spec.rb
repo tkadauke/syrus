@@ -31,6 +31,7 @@ module StepDispatcherSpecAttachWorkUnit
 end
 
 RSpec.describe StepDispatcher, :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
@@ -3611,6 +3612,7 @@ RSpec.describe StepDispatcher, :ci_only do
 end
 
 RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job_record(state: "queued") }
@@ -3857,6 +3859,7 @@ RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
 end
 
 RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
@@ -4030,6 +4033,7 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
 end
 
 RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
@@ -4176,6 +4180,7 @@ RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
 end
 
 RSpec.describe StepDispatcher, "landing queue pause gate", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
@@ -4235,6 +4240,7 @@ RSpec.describe StepDispatcher, "landing queue pause gate", :ci_only do
 end
 
 RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
@@ -4521,6 +4527,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
 end
 
 RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason", :ci_only do
+  before { AppSetting.current.update!(workflow_admission_control_enabled: true) }
   include ActiveJob::TestHelper
   include StepDispatcherSpecAttachWorkUnit
 
