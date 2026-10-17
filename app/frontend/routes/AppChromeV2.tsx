@@ -532,6 +532,18 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
 
   const sidebarPeekInertAttributes = sidebarPeekOpen ? {} : { inert: "" }
 
+  // While bootstrap is still loading, retain the provider shell route content
+  // may expect. A resolved public bootstrap can safely omit all signed-in
+  // chrome and shortcut infrastructure.
+  if (data && !user) {
+    return (
+      <ThemeProvider colorTheme={null} theme="system">
+        {pageContent}
+        <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ShortcutsProvider>
     <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>

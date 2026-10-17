@@ -3033,6 +3033,8 @@ describe("AppChromeV2 signed-out chrome", () => {
 
     await waitFor(() => expect(screen.getByText("Sign in")).toBeInTheDocument())
     expect(sidebar).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("desktop-sidebar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
   })
 
   it("requests it once somebody is signed in", async () => {
