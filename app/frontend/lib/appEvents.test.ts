@@ -1205,7 +1205,7 @@ describe("applyAppEvent", () => {
 
     expect(dispatched).toHaveLength(1)
     expect(dispatched[0].detail).toEqual({ job_id: 77, chat_session_id: 9 })
-    expect(invalidate).not.toHaveBeenCalled()
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
   })
 
   it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {
