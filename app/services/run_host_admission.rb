@@ -339,10 +339,29 @@ class RunHostAdmission
   def memory_capacity_full?
     return false unless host_memory_budget_bytes
 
-    budget = host_memory_budget_bytes - grader_memory_reserve_bytes
+    budget = host_memory_budget_bytes - applicable_grader_memory_reserve_bytes
     reservation_full = active_reserved_memory_bytes + candidate_reserved_memory_bytes > budget
     measured_full = current_memory_bytes && current_memory_bytes + candidate_reserved_memory_bytes > budget
     reservation_full || measured_full
+  end
+
+  # The reserve keeps graders from crowding out an agent turn. With nothing
+  # guarded running on the host there is nothing to crowd out, and subtracting
+  # it anyway can leave less room than one grader needs: on a three-unit,
+  # 39 GB host the reserve is two units -- 26 GB of a 31 GB budget -- so the
+  # 5 GB left could never admit a 13 GB grader, however idle the host was.
+  #
+  # The compute-unit dimension already floors at the candidate's own size for
+  # exactly this reason (see capacity_available_to_candidate, "keeps a lone
+  # grader admissible on a host too small to hold both"). Memory had no such
+  # floor, and its extra measured-usage term means a floor at the candidate's
+  # size would still not admit one, so the reserve applies only once there is
+  # active guarded work it could protect. A second grader still meets the full
+  # reserve, which is the behaviour the reserve was added for.
+  def applicable_grader_memory_reserve_bytes
+    return 0 if active_reserved_memory_bytes.to_i.zero?
+
+    grader_memory_reserve_bytes
   end
 
   def memory_reservation_for(candidate_step)

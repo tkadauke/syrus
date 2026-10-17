@@ -535,10 +535,15 @@ narrow high-IO grader guard.
   Graders also leave one agent turn's worth of each host alone -- in capacity
   units and in the memory budget alike -- so a wide fanout cannot occupy a host
   so completely that the agent turns being graded have nowhere to start. The
-  reserve defaults to `SYRUS_AGENTIC_CAPACITY_UNITS` and is floored so a lone
-  grader stays admissible on a host too small to hold both;
-  `SYRUS_AGENTIC_RESERVED_UNITS` sets it explicitly, including `0` to turn it
-  off.
+  reserve defaults to `SYRUS_AGENTIC_CAPACITY_UNITS` and never costs a host
+  its last grader: the capacity dimension floors the budget at the candidate's
+  own units, and the memory dimension applies the reserve only once guarded
+  work is actually running on the host, since with nothing running there is no
+  agent turn to protect. Without that second rule a three-unit host reserved
+  two units of memory -- 26 GB of a 31 GB budget -- and then refused a 13 GB
+  grader on a completely idle host, deferring it every 30 seconds forever.
+  `SYRUS_AGENTIC_RESERVED_UNITS` sets the reserve explicitly, including `0` to
+  turn it off.
 - A grader with command-attributed evidence of at least 1 GiB of IO also uses
   a narrower IO lane. Its automatic width scales slowly with host compute;
   `SYRUS_IO_INTENSIVE_RUNS_PER_HOST` can state the storage system's real

@@ -114,6 +114,39 @@ RSpec.describe RunHostAdmission do
     )
   end
 
+  # On a three-unit host the agentic reserve is two units of memory, which is
+  # more than the budget leaves: 26 GB reserved out of a 31 GB budget on the
+  # production host, against a grader needing one 13 GB unit. Subtracting the
+  # reserve with nothing running made a lone grader permanently inadmissible,
+  # deferred host_resource_semaphore_busy every 30 seconds, which stalled a
+  # merge train and the whole landing queue behind it.
+  it "admits a lone grader on an idle host too small to hold the agentic memory reserve" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
+    worker_sample(cpu_pressure_some: 1.0)
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 98, details: { "name" => "rspec" })
+    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+    decision = described_class.call(run: grader_run)
+
+    expect(decision).to be_admit
+  end
+
+  # The reserve still does its job once there is an agent turn to protect.
+  it "applies the agentic memory reserve to a grader while guarded work is active" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
+    worker_sample(cpu_pressure_some: 1.0)
+    saturate_guarded_slots!(count: 1)
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 99, details: { "name" => "rspec" })
+    grader_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+    decision = described_class.call(run: grader_run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("host_resource_semaphore_busy")
+  end
+
   it "keeps a further guarded run off a host whose slots are full" do
     worker_sample(cpu_pressure_some: 1.0)
     saturate_guarded_slots!
