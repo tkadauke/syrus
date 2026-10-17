@@ -18,6 +18,7 @@ RSpec.describe GithubAppInstallationSyncer do
 
     installation = Installation.find_by!(github_installation_id: 1001)
     expect(installation.account_login).to eq("acme")
+    expect(installation.repository_selection).to eq("all")
     expect(installation.removed_at).to be_nil
     expect(repo.reload.installation).to eq(installation)
     expect(AppSetting.current).to have_attributes(
@@ -26,6 +27,22 @@ RSpec.describe GithubAppInstallationSyncer do
       github_app_installation_sync_error_class: nil,
       github_app_installation_sync_error_message: nil
     )
+  end
+
+  it "records and links only repositories exposed by a selected installation" do
+    covered = Factories.repository(user: admin, owner: "acme", name: "covered", github_repository_id: 42)
+    uncovered = Factories.repository(user: admin, owner: "acme", name: "uncovered", github_repository_id: 43)
+    allow(client).to receive(:installations).and_return([
+      installation_payload(id: 1001, login: "acme", account_id: 2001).merge(repository_selection: "selected")
+    ])
+    allow(client).to receive(:installation_repository_ids).and_return([ 42 ])
+
+    described_class.new(client: client, default_user: admin).sync
+
+    installation = Installation.find_by!(github_installation_id: 1001)
+    expect(installation).to have_attributes(repository_selection: "selected", selected_repository_ids: [ 42 ])
+    expect(covered.reload.installation).to eq(installation)
+    expect(uncovered.reload.installation).to be_nil
   end
 
   it "records failed sync diagnostics before reraising" do

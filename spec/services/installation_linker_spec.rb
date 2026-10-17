@@ -27,6 +27,24 @@ RSpec.describe InstallationLinker do
     end
   end
 
+  describe ".find_for_repository" do
+    it "covers every repository for an all-repositories installation" do
+      installation = Factories.installation(user: user, account_login: "acme", repository_selection: "all")
+      repository = Factories.repository(user: user, owner: "acme", github_repository_id: 42)
+
+      expect(described_class.find_for_repository(repository)).to eq(installation)
+    end
+
+    it "only covers selected repository ids for a selected installation" do
+      installation = Factories.installation(user: user, account_login: "acme", repository_selection: "selected", selected_repository_ids: [ 42 ])
+      covered = Factories.repository(user: user, owner: "acme", name: "covered", github_repository_id: 42)
+      uncovered = Factories.repository(user: user, owner: "acme", name: "uncovered", github_repository_id: 43)
+
+      expect(described_class.find_for_repository(covered)).to eq(installation)
+      expect(described_class.find_for_repository(uncovered)).to be_nil
+    end
+  end
+
   describe ".link_repositories_for" do
     it "sets installation_id on all repositories matching the installation's account_login" do
       installation = Factories.installation(user: user, account_login: "acme")
@@ -59,6 +77,17 @@ RSpec.describe InstallationLinker do
       described_class.link_repositories_for(installation)
 
       expect(repo.reload.updated_at.to_i).to eq(updated_at.to_i)
+    end
+
+    it "links only repositories granted to a selected installation" do
+      installation = Factories.installation(user: user, account_login: "acme", repository_selection: "selected", selected_repository_ids: [ 42 ])
+      covered = Factories.repository(user: user, owner: "acme", name: "covered", github_repository_id: 42)
+      uncovered = Factories.repository(user: user, owner: "acme", name: "uncovered", github_repository_id: 43, installation: installation)
+
+      described_class.link_repositories_for(installation)
+
+      expect(covered.reload.installation).to eq(installation)
+      expect(uncovered.reload.installation).to be_nil
     end
   end
 

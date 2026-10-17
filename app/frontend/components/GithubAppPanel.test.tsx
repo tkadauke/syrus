@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { GithubAppPanel } from "./GithubAppPanel"
 
-function renderPanel(props: { onClose?: () => void; onSaved?: () => void; confirmRefetchIntervalMs?: number } = {}) {
+function renderPanel(props: { onClose?: () => void; onSaved?: () => void; confirmRefetchIntervalMs?: number; installationDiscoveryPolls?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <GithubAppPanel confirmRefetchIntervalMs={props.confirmRefetchIntervalMs} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      <GithubAppPanel confirmRefetchIntervalMs={props.confirmRefetchIntervalMs} installationDiscoveryPolls={props.installationDiscoveryPolls} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
     </QueryClientProvider>
   )
 }
@@ -89,6 +89,26 @@ describe("GithubAppPanel", () => {
 
     expect(await screen.findByText(/Installed on octocat/)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Install on GitHub/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps discovering after registration appears and finds an asynchronously synced installation", async () => {
+    let confirmations = 0
+    mockRoutes({
+      confirm: () => {
+        confirmations += 1
+        if (confirmations === 1) return jsonResponse({ github_app: notRegistered })
+        if (confirmations < 4) return jsonResponse({ github_app: registered })
+        return jsonResponse({ github_app: installed })
+      }
+    })
+    vi.spyOn(window, "open").mockReturnValue({ opener: null } as unknown as Window)
+    renderPanel({ confirmRefetchIntervalMs: 10, installationDiscoveryPolls: 10 })
+
+    fireEvent.click(await screen.findByRole("button", { name: /Register GitHub App/ }))
+
+    expect(await screen.findByText(/Waiting for GitHub/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Install on GitHub/ })).not.toBeInTheDocument()
+    expect(await screen.findByText(/Installed on octocat/)).toBeInTheDocument()
   })
 
   it("falls back to a note when the user is not an admin (403)", async () => {

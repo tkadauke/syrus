@@ -22,7 +22,17 @@ import { useT } from "../hooks/useT"
 
 type OwnerOption = { login: string; type: "user" | "org" }
 
-export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+export function AddRepositoryModal({
+  onClose,
+  onSaved,
+  reconciliationRefetchIntervalMs = 3000,
+  reconciliationPolls = 10
+}: {
+  onClose: () => void
+  onSaved?: () => void
+  reconciliationRefetchIntervalMs?: number
+  reconciliationPolls?: number
+}) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const form = useQuery({ queryKey: ["repositories", "new"], queryFn: fetchNewRepositoryForm })
@@ -163,6 +173,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       // already covered by an installation needs no extra step.
       if (payload.credential_status?.mode === "pat" && payload.credential_status.install_url) {
         setSaved(payload)
+        setReconciliationPollsRemaining(reconciliationPolls)
         return
       }
       onSaved?.()
@@ -175,6 +186,8 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
 
   const [saved, setSaved] = useState<RepositorySavedPayload | null>(null)
   const [awaitingInstall, setAwaitingInstall] = useState(false)
+  const [reconciliationPollsRemaining, setReconciliationPollsRemaining] = useState<number | null>(null)
+  const reconciling = reconciliationPollsRemaining !== null
 
   // While the user is on GitHub's install page, watch for the installation
   // to land (SyncInstallationsJob links it) and flip the panel to a green
@@ -182,8 +195,8 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   const installWatch = useQuery({
     queryKey: ["repositories", "install-watch", saved?.repository.id],
     queryFn: () => fetchRepositoryDetail(String(saved!.repository.id)),
-    enabled: awaitingInstall && !!saved,
-    refetchInterval: awaitingInstall ? 3000 : false
+    enabled: (awaitingInstall || reconciling) && !!saved,
+    refetchInterval: awaitingInstall || reconciling ? reconciliationRefetchIntervalMs : false
   })
   const installedNow = installWatch.data?.credential_status.mode === "app"
 
@@ -192,9 +205,26 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   // 5-minute recurring sweep. Server-side throttled; 403s for non-admins
   // are fine to ignore (the recurring sync still covers them).
   useEffect(() => {
-    if (!awaitingInstall || installedNow) return
+    if ((!awaitingInstall && !reconciling) || installedNow) return
     syncAdminGithubAppInstallations().catch(() => {})
-  }, [awaitingInstall, installedNow, installWatch.dataUpdatedAt])
+  }, [awaitingInstall, reconciling, installedNow, installWatch.dataUpdatedAt])
+
+  useEffect(() => {
+    if (!reconciling || installedNow) return
+    setReconciliationPollsRemaining((remaining) => remaining === null ? null : remaining - 1)
+  }, [installWatch.dataUpdatedAt])
+
+  useEffect(() => {
+    if (reconciliationPollsRemaining !== null && reconciliationPollsRemaining <= 0) {
+      setReconciliationPollsRemaining(null)
+    }
+  }, [reconciliationPollsRemaining])
+
+  useEffect(() => {
+    if (!reconciling || !installedNow) return
+    onSaved?.()
+    onClose()
+  }, [installedNow, onClose, onSaved, reconciling])
 
   function chooseOwner(owner: string) {
     setRepoOptions([])
@@ -278,6 +308,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
             <Box tone="ok">
               {t('add_repository.app_connected', { owner: saved.repository.owner })}
             </Box>
+          ) : reconciling ? (
+            <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
+              <Spinner /> {t('add_repository.reconciling_installation')}
+            </p>
           ) : (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -308,7 +342,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
           )}
 
           <div className="flex items-center justify-end gap-3">
-            {!installedNow && saved.credential_status.install_url ? (
+            {!installedNow && !reconciling && saved.credential_status.install_url ? (
               <button
                 className="inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                 type="button"
@@ -471,7 +505,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Loading({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
+    <p className="flex items-center gap-2 text-sm text-text-secondary" role="status">
       <Spinner /> {children}
     </p>
   )
@@ -482,14 +516,14 @@ function Box({ tone, children }: { tone: "muted" | "error" | "ok"; children: Rea
     ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
     : tone === "ok"
       ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
+      : "border-gray-200 bg-gray-50 text-text-secondary dark:border-gray-700 dark:bg-gray-800/50"
   const role = tone === "error" ? "alert" : tone === "ok" ? "status" : undefined
   return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={role}>{children}</p>
 }
 
 function Spinner({ light }: { light?: boolean }) {
   return (
-    <svg aria-hidden="true" className={`h-4 w-4 animate-spin ${light ? "text-white" : "text-gray-400"}`} fill="none" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className={`h-4 w-4 animate-spin ${light ? "text-white" : "text-text-secondary"}`} fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
     </svg>
