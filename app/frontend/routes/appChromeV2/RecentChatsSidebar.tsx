@@ -147,6 +147,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
+  const [hoveredChatId, setHoveredChatId] = useState<number | null>(null)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
@@ -458,6 +459,8 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                     <div
                       className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
                       key={chat.id}
+                      onMouseEnter={() => setHoveredChatId(chat.id)}
+                      onMouseLeave={() => setHoveredChatId((current) => current === chat.id ? null : current)}
                       onDragEnter={(e) => {
                         e.preventDefault()
                         if (draggingOverChatId === chat.id) return
@@ -497,7 +500,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
                         >
-                          <IndicatorPopover chat={chat} prefix={prefix}>
+                          <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
                             <span className="flex items-center gap-1">
                             <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
                             <JobStateMarkers summary={chat.job_summary} />
@@ -912,7 +915,7 @@ function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   return { active_count, outcome, jobs }
 }
 
-function IndicatorPopover({ chat, children, prefix }: { chat: ChatNavRecord; children: ReactNode; prefix: string }) {
+function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const { floatingStyles, refs } = useFloating({ middleware: [offset(6), flip({ fallbackPlacements: ["right", "left"] }), shift({ padding: 8 })], placement: "right-start", whileElementsMounted: autoUpdate })
@@ -934,6 +937,14 @@ function IndicatorPopover({ chat, children, prefix }: { chat: ChatNavRecord; chi
     return Boolean(node && (referenceRef.current?.contains(node) || floatingRef.current?.contains(node)))
   }
   useEffect(() => () => cancelClose(), [])
+  useEffect(() => {
+    if (rowHovered) {
+      cancelClose()
+      setOpen(true)
+    } else {
+      scheduleClose()
+    }
+  }, [rowHovered])
   const replying = Boolean(chat.turn_in_flight || chat.agent_busy)
   const jobs = chat.job_summary?.jobs.filter((job) => job.group) || []
   const goal = chat.active_goal && ["active", "paused"].includes(chat.active_goal.status) ? chat.active_goal : null
