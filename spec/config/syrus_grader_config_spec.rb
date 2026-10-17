@@ -241,17 +241,49 @@ RSpec.describe "Syrus grader configuration" do
     ])
   end
 
-  it "keeps work-engine scenario assertions in the dedicated simulation grader" do
+  it "expands work-engine simulations as one fixed full-path RSpec grader" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
-    grader = config.grade.steps.find { |step| step.name == "work-engine-simulations" }
+    matching_graders = config.grade.steps.select { |step| step.name.start_with?("work-engine-simulations") }
+    grader = matching_graders.sole
+    target = TargetGraph::Compiler.compile(Rails.root).target("//:grade/work-engine-simulations")
 
-    expect(grader.run).to include("bin/simulator")
-    expect(grader.run).to include('RSPEC_TAG_ARGS="--tag ~ci_only --tag work_engine_simulation_assertions"')
-    expect(grader.run).to include("bin/rspec-worker spec/services/work_engine/simulation/scenario_runner_spec.rb")
+    expect(grader).to have_attributes(
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 30,
+      failures: "allow_inherited",
+      base_retry: SyrusYml::BaseRetry.new(strategy: "plugin", command: nil),
+      junit_output: ".syrus/grade-output/work-engine-simulations-junit.xml"
+    )
+    expect(grader.run).to include("bundle exec rspec")
+    expect(grader.run).to include("spec/services/work_engine/simulation/scenario_runner_spec.rb")
+    expect(grader.run).not_to include("bin/simulator")
+    expect(grader.run).not_to include(".syrus/rspec-focused-files")
+    expect(grader.run).not_to include("RUN_CI_ONLY_SPECS=true")
+    expect(grader.metadata).to include(
+      "grader_type" => "rspec",
+      "grader_framework" => "rspec",
+      "grader_mode" => "full",
+      "result_outputs" => [
+        { "artifact" => ".syrus/grade-output/work-engine-simulations-junit.xml", "format" => "junit" }
+      ]
+    )
     expect(grader.when_files_changed).to include(
       "app/services/work_engine/**",
       "spec/services/work_engine/**",
       "spec/fixtures/work_engine_simulations/**"
+    )
+    expect(target).to have_attributes(
+      command: grader.run,
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 30
+    )
+    expect(target.metadata).to include(
+      "junit_output" => ".syrus/grade-output/work-engine-simulations-junit.xml",
+      "base_retry" => { strategy: "plugin", command: nil },
+      "grader_type" => "rspec",
+      "grader_mode" => "full"
     )
   end
 
