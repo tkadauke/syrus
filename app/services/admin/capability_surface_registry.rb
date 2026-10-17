@@ -35,7 +35,8 @@ module Admin
     MCP_PENDING_ACTION_REASON = "This PendingAction has no static McpToolRegistry exposure yet; any dynamic or future MCP exposure must be registered explicitly.".freeze
     WORKFLOW_MCP_REASON = "Workflow-agent capability only; no user API, admin API, or CLI invocation contract is registered.".freeze
     MCP_TOOL_CAPABILITY_ALIASES = {
-      "admin_maintenance_tasks" => "admin_maintenance_task"
+      "admin_maintenance_tasks" => "admin_maintenance_task",
+      "spawn_chats" => "spawn_chat"
     }.freeze
 
     STATIC_CAPABILITIES = {
@@ -113,6 +114,7 @@ module Admin
       retry_job
       run_visual_review
       schedule_recurring
+      spawn_chat
       submit_chat_feedback
       submit_coding_changes
       unapprove_job
