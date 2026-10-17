@@ -335,18 +335,6 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
-      key: :user_daily_spend_budget_usd,
-      type: :integer,
-      default: 20,
-      min: 0,
-      max: nil,
-      category: "Instance operations",
-      operational_meaning: "Per-user daily spend ceiling across provider-reported agent Run costs and chat turn costs. Work from a user over budget is deferred to the next day, never failed.",
-      zero_means: "No per-user USD spend budget. Subscription-based or token-only providers may need provider-side limits for reliable spend protection.",
-      admin_editable: true,
-      secret: false
-    ),
-    Definition.new(
       key: :proactive_rebase_commit_threshold,
       type: :integer,
       default: 20,
@@ -377,7 +365,7 @@ class AppSettingRegistry
       min: nil,
       max: nil,
       category: "Instance operations",
-      operational_meaning: "Opt-in soft capacity pacing for shared, multi-user instances, covering workflow admission, host-local reservations and staggering, global agent concurrency, and per-actor fair share. Hard worker safety and spend controls remain active when disabled.",
+      operational_meaning: "Opt-in soft capacity pacing for shared, multi-user instances, covering workflow admission, host-local reservations and staggering, global agent concurrency, and per-actor fair share. Hard worker safety remains active when disabled.",
       zero_means: nil,
       admin_editable: true,
       secret: false,

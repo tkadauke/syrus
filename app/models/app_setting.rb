@@ -117,10 +117,6 @@ class AppSetting < ApplicationRecord
     current.repository_full_poll_interval_hours
   end
 
-  def self.user_daily_spend_budget_usd
-    current.user_daily_spend_budget_usd
-  end
-
   def self.proactive_rebase_commit_threshold
     current.proactive_rebase_commit_threshold
   end

@@ -108,11 +108,10 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(AppSetting.signups_open?).to be true
   end
 
-  it "defaults concurrency protection on for fresh instances" do
+  it "defaults the agent concurrency cap on for fresh instances" do
     setting = AppSetting.current
 
     expect(setting.max_concurrent_agent_runs).to eq(3)
-    expect(setting.user_daily_spend_budget_usd).to eq(20)
   end
 
   it ".repository_full_poll_interval_hours defaults to 24 and reflects the setting" do
