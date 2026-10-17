@@ -30,7 +30,13 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
   // from Admin -> Plugins. Settings' credential cards never call this.
   const connectProvider = useMutation({
     mutationFn: (provider: string) => connectOnboardingProvider(provider),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["credentials"] })
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["credentials"] }),
+        queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      ])
+      onSaved?.()
+    }
   })
 
   function selectTab(nextTab: string) {
@@ -97,7 +103,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 onCancel={onClose}
                 onSaved={() => {
                   connectProvider.mutate(provider)
-                  onSaved?.()
                 }}
                 provider={provider}
                 secondaryAction={(ambientReady) => (

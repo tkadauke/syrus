@@ -816,6 +816,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
       claude_agent = PluginRecord.find_by!(name: "claude_agent")
       claude_agent.update!(enabled: true)
+      user.update!(agent_provider: "claude")
       sign_in_as(user)
 
       post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "muse" }
@@ -823,7 +824,17 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(response).to have_http_status(:ok)
       expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(true)
       expect(claude_agent.reload.enabled).to be(true)
+      expect(user.reload.agent_provider).to eq("muse")
+      expect(parse_body.dig("user", "agent_provider")).to eq("muse")
       expect(parse_body["message"]).to include("enabled")
+
+      get api_v1_app_bootstrap_path
+
+      expect(parse_body.dig("setup_status", "credential_status")).to include(
+        "agent" => true,
+        "active_agent_provider" => "muse",
+        "active_agent_provider_label" => "Muse Code"
+      )
     end
 
     it "enables the connected provider plugin's dependencies through the cascade-aware path" do
@@ -863,6 +874,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       provider = PluginRecord.find_by!(name: "onboarding-beta-blocked-provider")
       dependency = PluginRecord.find_by!(name: "onboarding-experimental-runtime")
       AppSetting.current.update!(beta_mode_enabled: false)
+      user.update!(agent_provider: "claude")
       sign_in_as(user)
 
       post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "beta_blocked" }
@@ -871,6 +883,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(parse_body.dig("error", "code")).to eq("beta_mode_not_enabled")
       expect(provider.reload.enabled?).to be(false)
       expect(dependency.reload.enabled?).to be(false)
+      expect(user.reload.agent_provider).to eq("claude")
     end
 
     it "is idempotent when the plugin is already enabled" do
@@ -885,6 +898,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     it "rejects a provider with no matching agent-provider plugin, enabling nothing" do
       PluginRecord.find_by!(name: "muse_agent").update!(enabled: false)
+      user.update!(agent_provider: "claude")
       sign_in_as(user)
 
       post "/api/v1/app/credentials/connect_onboarding_provider", params: { provider: "does-not-exist" }
@@ -892,6 +906,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "code")).to eq("unknown_provider")
       expect(PluginRecord.find_by!(name: "muse_agent").enabled).to be(false)
+      expect(user.reload.agent_provider).to eq("claude")
     end
 
     it "never flips an arbitrary plugin by client-supplied name outside the agent_provider mapping" do
