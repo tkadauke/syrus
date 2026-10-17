@@ -497,7 +497,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span
-                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
                         >
                           <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
@@ -1095,7 +1095,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
-        className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-focus-within/recent-chat:opacity-100 group-hover/recent-chat:opacity-100"}`}
+        className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-hover/recent-chat:opacity-100"}`}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
