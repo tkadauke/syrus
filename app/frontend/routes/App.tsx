@@ -122,19 +122,110 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
-  { path: "/settings", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
-  { path: "/profile", element: <SettingsSectionRoute><AccountProfileRoute /></SettingsSectionRoute> },
-  { path: "/credentials", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
-  { path: "/settings/hidden_chats", element: <SettingsSectionRoute><HiddenChatsRoute /></SettingsSectionRoute> },
-  { path: "/credentials/edit", element: <SettingsSectionRoute><CredentialsRoute /></SettingsSectionRoute> },
-  { path: "/settings/agent", element: <SettingsSectionRoute><AgentSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/preferences", element: <SettingsSectionRoute><PreferencesRoute /></SettingsSectionRoute> },
-  { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/themes", element: <SettingsSectionRoute><ThemesSettingsRoute /></SettingsSectionRoute> },
-  { path: "/settings/connected_platforms", element: <SettingsSectionRoute><ConnectedPlatformsRoute /></SettingsSectionRoute> },
-  { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
-  { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
-  { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
+  {
+    path: "/settings",
+    element: (
+      <SettingsSectionRoute>
+        <AccountProfileRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/profile",
+    element: (
+      <SettingsSectionRoute>
+        <AccountProfileRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/credentials",
+    element: (
+      <SettingsSectionRoute>
+        <CredentialsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/hidden_chats",
+    element: (
+      <SettingsSectionRoute>
+        <HiddenChatsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/credentials/edit",
+    element: (
+      <SettingsSectionRoute>
+        <CredentialsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/agent",
+    element: (
+      <SettingsSectionRoute>
+        <AgentSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/preferences",
+    element: (
+      <SettingsSectionRoute>
+        <PreferencesRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/notifications/settings",
+    element: (
+      <SettingsSectionRoute>
+        <NotificationsSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/themes",
+    element: (
+      <SettingsSectionRoute>
+        <ThemesSettingsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/settings/connected_platforms",
+    element: (
+      <SettingsSectionRoute>
+        <ConnectedPlatformsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/documents",
+    element: (
+      <SettingsSectionRoute>
+        <PersonalDocumentsRoute />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/tags",
+    element: (
+      <SettingsSectionRoute>
+        <Tags />
+      </SettingsSectionRoute>
+    )
+  },
+  {
+    path: "/design_system",
+    element: (
+      <SettingsSectionRoute>
+        <DesignSystemRoute />
+      </SettingsSectionRoute>
+    )
+  },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/health", element: <RepositoryHealthRoute /> },
   { path: "/repositories/:repositoryId/cognitive_debt", element: <RepositoryCognitiveDebtRoute /> },
@@ -166,9 +257,7 @@ export function App() {
   return (
     <ConnectionContext.Provider value={{ isDisconnected, status, reconnectAt, events }}>
       <AppShell initialBootstrap={initialBootstrap} />
-      {justReconnected ? (
-        <NoticeToast onDismiss={clearReconnected} message={t("connection_status.reconnected_toast")} />
-      ) : null}
+      {justReconnected ? <NoticeToast onDismiss={clearReconnected} message={t("connection_status.reconnected_toast")} /> : null}
     </ConnectionContext.Provider>
   )
 }
@@ -197,7 +286,11 @@ function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | 
   })
 
   if (bootstrap.isPending) {
-    return <main aria-label={t("app_name")} className="p-6 text-sm text-gray-600">{t("loading")}</main>
+    return (
+      <main aria-label={t("app_name")} className="p-6 text-sm text-gray-600">
+        {t("loading")}
+      </main>
+    )
   }
 
   if (bootstrap.isError) {
@@ -234,7 +327,8 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
   const showSignIn = cta.kind !== "locked" && cta.kind !== "first"
   const signInPath = withRoutePrefix(payload.public.sign_in_path, prefix)
   const accessPageClass = "flex min-h-[100dvh] items-center justify-center bg-gray-50 px-5 py-10 text-gray-950 dark:bg-gray-950 dark:text-white"
-  const accessCardClass = "w-full max-w-md rounded-lg border border-gray-200 bg-white px-6 py-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-10 sm:py-10"
+  const accessCardClass =
+    "w-full max-w-md rounded-lg border border-gray-200 bg-white px-6 py-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-10 sm:py-10"
 
   // Inside the desktop shell the app is already installed and pointed at an
   // instance, so a merely signed-out user should land on sign-in (or the
@@ -254,8 +348,14 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
         <h2 className="mt-7 text-xl font-semibold">{cta.label}</h2>
         <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">{cta.description}</p>
         <div className="mt-7 flex flex-col items-stretch gap-3">
-          <Link className={authPrimaryButtonClass} to={cta.href}>{cta.label}</Link>
-          {showSignIn ? <Link className={landingSecondaryButtonClass()} to={signInPath}>{t("sign_in")}</Link> : null}
+          <Link className={authPrimaryButtonClass} to={cta.href}>
+            {cta.label}
+          </Link>
+          {showSignIn ? (
+            <Link className={landingSecondaryButtonClass()} to={signInPath}>
+              {t("sign_in")}
+            </Link>
+          ) : null}
         </div>
       </section>
     </main>
@@ -299,13 +399,15 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 }
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
-  return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={path} path={path} />,
-    <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
-  ]).concat([
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
-    <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
-  ])
+  return appRouteDefinitions
+    .flatMap(({ path, element }) => [
+      <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={path} path={path} />,
+      <Route element={<LocationKeyedRouteErrorBoundary>{element}</LocationKeyedRouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    ])
+    .concat([
+      <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
+      <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
+    ])
 }
 
 // /setup is retired — it now just lands the operator on the onboarding page.
@@ -363,17 +465,19 @@ function renderPluginSidebarRoutes(initialBootstrap: BootstrapPayload | null) {
   const paths = usePluginSidebarPaths({ enabled: shouldLoadPluginRoutes })
 
   return paths.flatMap(({ path, section }) => {
-    const element = section === "settings"
-      ? <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute>
-      : <PluginSidebarPageRoute />
+    const element =
+      section === "settings" ? (
+        <SettingsSectionRoute>
+          <PluginSidebarPageRoute />
+        </SettingsSectionRoute>
+      ) : (
+        <PluginSidebarPageRoute />
+      )
 
     // Both variants, the same way renderAppRoutes registers core routes: the
     // shell serves every page under /app-shell as well, and a plugin page that
     // only registered the bare path is unreachable there.
-    return [
-      <Route element={element} key={path} path={path} />,
-      <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />
-    ]
+    return [<Route element={element} key={path} path={path} />, <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />]
   })
 }
 
@@ -406,12 +510,13 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
-        <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-4 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-4 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
+        <nav
+          aria-label={tCommon("shell.settings_nav_aria")}
+          className="scroll-fade-x flex gap-4 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-4 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]"
+        >
           {groups.map(({ group, items }) => (
             <div className="flex shrink-0 items-center gap-2 lg:block lg:shrink" key={group.id}>
-              <p className="hidden px-2.5 text-xs font-semibold uppercase tracking-wider text-text-muted lg:mb-1 lg:block">
-                {t(group.labelKey)}
-              </p>
+              <p className="hidden px-2.5 text-xs font-semibold uppercase tracking-wider text-text-muted lg:mb-1 lg:block">{t(group.labelKey)}</p>
               <div className="flex gap-2 lg:flex-col lg:gap-0.5">
                 {items.map((item) => (
                   <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
@@ -432,9 +537,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
           )}
         </nav>
       </aside>
-      <div className="min-w-0 flex-1">
-        {children}
-      </div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }
@@ -454,30 +557,51 @@ const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
   { id: "integrations", labelKey: "nav_groups.integrations" }
 ]
 
-function settingsNavigationItems(
-  t: (key: string) => string,
-  pluginItems: SettingsNavigationItem[] = []
-): SettingsNavigationItem[] {
+function settingsNavigationItems(t: (key: string) => string, pluginItems: SettingsNavigationItem[] = []): SettingsNavigationItem[] {
   const items: SettingsNavigationItem[] = [
     { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile", groupId: "account" },
-    { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit", groupId: "account" },
+    {
+      key: "credentials",
+      label: t("nav.credentials"),
+      path: "/credentials",
+      active: (path) => path === "/credentials" || path === "/credentials/edit",
+      groupId: "account"
+    },
     { key: "agent_settings", label: t("nav.agent_settings"), path: "/settings/agent", active: (path) => path === "/settings/agent", groupId: "account" },
     { key: "preferences", label: t("nav.preferences"), path: "/settings/preferences", active: (path) => path === "/settings/preferences", groupId: "account" },
-    { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings", groupId: "product" },
+    {
+      key: "notifications",
+      label: t("nav.notifications"),
+      path: "/notifications/settings",
+      active: (path) => path === "/notifications/settings",
+      groupId: "product"
+    },
     { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes", groupId: "product" },
-    { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats", groupId: "product" },
+    {
+      key: "hidden_chats",
+      label: t("nav.hidden_chats"),
+      path: "/settings/hidden_chats",
+      active: (path) => path === "/settings/hidden_chats",
+      groupId: "product"
+    },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents", groupId: "workspace" },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags", groupId: "workspace" },
-    { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms", groupId: "integrations" }
+    {
+      key: "connected_platforms",
+      label: t("nav.connected_platforms"),
+      path: "/settings/connected_platforms",
+      active: (path) => path === "/settings/connected_platforms",
+      groupId: "integrations"
+    }
   ]
 
-  return [ ...items, ...pluginItems ]
+  return [...items, ...pluginItems]
 }
 
 function groupSettingsNavItems(items: SettingsNavigationItem[]) {
-  const groups = SETTINGS_NAV_GROUPS
-    .map((group) => ({ group, items: items.filter((item) => item.groupId === group.id) }))
-    .filter(({ items }) => items.length > 0)
+  const groups = SETTINGS_NAV_GROUPS.map((group) => ({ group, items: items.filter((item) => item.groupId === group.id) })).filter(
+    ({ items }) => items.length > 0
+  )
   const ungrouped = items.filter((item) => item.groupId == null)
 
   return { groups, ungrouped }
@@ -497,7 +621,11 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
   })
 
   if (bootstrap.isPending) {
-    return <main aria-label={t("shell.spa_aria")} className="p-6 text-sm text-gray-600">{t("loading")}</main>
+    return (
+      <main aria-label={t("shell.spa_aria")} className="p-6 text-sm text-gray-600">
+        {t("loading")}
+      </main>
+    )
   }
 
   if (bootstrap.isError) {
