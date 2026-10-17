@@ -870,10 +870,7 @@ function VersionedArtifactsList({
       matching.push(artifact)
     }
   }
-  const displayed = [
-    ...matching.slice().sort(compareArtifactsNewestFirst),
-    ...unversioned.slice().sort(compareArtifactsNewestFirst)
-  ]
+  const displayed = [...matching, ...unversioned].sort(compareArtifactsNewestFirst)
 
   if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 
