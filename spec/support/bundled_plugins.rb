@@ -1,7 +1,16 @@
 module Syrus
   module SpecSupport
     module BundledPlugins
-      TEST_PROVIDER_PLUGIN_NAMES = %w[claude_agent codex_agent agy_agent].freeze
+      # Plugin specs exercise installed plugin behavior, independently of the
+      # fresh-install policy encoded by default_enabled. Keep capabilities
+      # whose suites rely on cross-plugin registration enabled in the shared
+      # test instance; default-policy examples recreate their records under
+      # :reset_plugin_registry instead.
+      TEST_ENABLED_PLUGIN_NAMES = %w[
+        claude_agent codex_agent agy_agent
+        android build_cache credential_store design_docs django java kotlin
+        operator_briefing spending_insights team_directory
+      ].freeze
       BETA_MODE_EXCLUDED_SPEC_PATHS = %r{
         \A\./spec/
         (?:
@@ -28,7 +37,7 @@ module Syrus
         return nil if manifests.empty?
 
         @required_enabled_plugin_names =
-          (manifests.select(&:default_enabled?).map(&:name) + TEST_PROVIDER_PLUGIN_NAMES).uniq.to_set
+          (manifests.select(&:default_enabled?).map(&:name) + TEST_ENABLED_PLUGIN_NAMES).uniq.to_set
       rescue ActiveRecord::ActiveRecordError
         nil
       end
@@ -83,7 +92,7 @@ module Syrus
           record.update!(enabled: true) unless record.enabled?
         end
 
-        TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+        TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
           record = PluginRecord.find_or_create_by!(name: plugin_name)
           record.update!(enabled: true) unless record.enabled?
         end
