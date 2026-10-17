@@ -113,15 +113,16 @@ Access Token (PAT) and a custom GitHub App. The **GitHub integration**
 step guides you through them one at a time:
 
 1. **Personal access token.** Syrus links straight to
-   [GitHub's fine-grained token form](https://github.com/settings/personal-access-tokens/new),
-   tells you to scope the token only to the repositories this instance will
-   manage, grant Contents read/write, Pull requests read/write, and Checks
-   read, then choose an expiration you can rotate. Syrus verifies the token the
-   moment you paste it. Classic tokens still work with `repo` for private
-   repositories or `public_repo` for public repositories; `workflow` is only
-   needed if agents must modify GitHub Actions workflow files through that
-   token. The PAT covers private clones, PR operations, CI-failure detection,
-   and fallback for repositories without an active App installation.
+   [GitHub's classic token form](https://github.com/settings/tokens/new).
+   Select `repo` for private-repository use, or `public_repo` instead when you
+   intentionally need public repositories only. The `workflow` scope is
+   optional: add it only when agents must edit GitHub Actions workflow files
+   through the PAT. Choose an expiration you can rotate. Syrus verifies the
+   token the moment you paste it, with no repository probe required for a
+   classic token. Fine-grained tokens remain supported; enter an `owner/repo`
+   in the secondary validation field so Syrus can verify their repository
+   access before saving. The PAT covers clones, PR operations, CI-failure
+   detection, and fallback for repositories without an active App installation.
 2. **GitHub App** (admin only). Click the button: your browser opens
    GitHub, GitHub creates the singleton Syrus App from a manifest and sends
    you straight back — Syrus picks up the registration automatically.

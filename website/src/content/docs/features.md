@@ -1567,13 +1567,12 @@ the human owner does not need one. Jobs persist the selected
 `credential_mode` as `app` or `pat` so operators can tell which identity
 actually authored that run's PR.
 
-For PAT setup, fine-grained tokens are recommended. Scope the token only to
-repositories this Syrus instance manages, grant repository Contents
-read/write, Pull requests read/write, and Checks read, then choose an
-expiration you can rotate. Classic PATs still work with `repo` for private
-repositories or `public_repo` for public repositories. The `workflow` scope
-is not required for normal Syrus operation; add it only if you expect agents
-to modify GitHub Actions workflow files through the PAT.
+For PAT setup, create a classic token with `repo` for private-repository use,
+or `public_repo` instead when you intentionally need public repositories only,
+then choose an expiration you can rotate. The `workflow` scope is optional;
+add it only if agents must modify GitHub Actions workflow files through the
+PAT. Classic tokens do not need a repository probe. Fine-grained tokens remain
+supported through the secondary `owner/repo` validation path in Credentials.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-

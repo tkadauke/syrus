@@ -201,10 +201,11 @@ bin/dev      # web + worker + tailwind + JS watch, on port 3000
 </details>
 
 Open **http://localhost:3000**. The **first account becomes the admin**, and
-the first-run wizard walks you through GitHub credentials (a fine-grained PAT
-scoped to your Syrus repositories with Contents, Pull requests, and Workflows
-read/write plus Checks read, or a classic PAT with `repo` + `workflow`) and the
-GitHub App, the agent, a repository, and a guided first Epic. The
+the first-run wizard walks you through GitHub credentials (a classic PAT with
+`repo` for private repositories or `public_repo` for public-only use, plus the
+optional `workflow` scope only when agents must edit GitHub Actions workflow
+files) and the GitHub App, the agent, a repository, and a guided first Epic.
+Fine-grained PATs remain supported through repository-specific validation. The
 **Configure agent** step handles installed agent-provider plugins such as
 Claude, Codex, Antigravity, and Muse.
 
