@@ -13,6 +13,7 @@ class Installation < ApplicationRecord
   validates :account_id, presence: true
   validates :account_type, presence: true, inclusion: { in: %w[User Organization] }
   validates :installed_at, presence: true
+  validates :repository_selection, presence: true, inclusion: { in: %w[all selected] }
 
   scope :active, -> { where(removed_at: nil) }
 
@@ -52,6 +53,13 @@ class Installation < ApplicationRecord
 
   def github_api_rate_limited?(now: Time.current)
     gh_rate_limit_remaining.to_i <= 0 && gh_rate_limit_reset_at.present? && gh_rate_limit_reset_at > now
+  end
+
+  def covers_repository?(repository)
+    return false unless account_login.casecmp?(repository.owner.to_s)
+    return true if repository_selection == "all"
+
+    repository.github_repository_id.present? && Array(selected_repository_ids).map(&:to_i).include?(repository.github_repository_id.to_i)
   end
 
   private

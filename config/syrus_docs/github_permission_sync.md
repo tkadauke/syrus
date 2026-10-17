@@ -14,6 +14,15 @@ invoked by `SyncGithubPermissionsJob`, scheduled in `config/recurring.yml`
 every 5 minutes on the `polling` queue. It no-ops when no GitHub App is
 registered (`AppSetting.github_app_registered?`).
 
+The sibling installation sync persists GitHub's `all` versus `selected`
+repository selection. All-repositories installations link every current and
+future Syrus repository for the installation account. Selected-repositories
+installations also persist the repository IDs GitHub exposes and link only
+those repositories. Registration and add-repository screens nudge the
+throttled installation sync and poll for a bounded period before offering an
+install link, because GitHub registration can become visible before its
+installation list does.
+
 For every non-archived `Repository` with an active GitHub App
 `Installation` (`Repository#app_credential_active?`), it fetches
 collaborator permissions via `GithubClient#collaborator_permissions` (GitHub's
