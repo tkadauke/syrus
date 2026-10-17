@@ -78,6 +78,21 @@ RSpec.describe Terminal::WorkspaceCandidates, type: :service do
     expect(payload).to be_empty
   end
 
+  it "does not emit group chats hidden by the current participant" do
+    owner = Factories.user
+    chat = ChatSession.create!(user: owner, mode: "coding", conversation_kind: "group", title: "Hidden shared chat")
+    chat.chat_participants.create!(user: user, role: "member", hidden_at: Time.current)
+    chat_workspace_path = Rails.root.join("tmp", "spec-chat-workspaces", chat.id.to_s)
+    FileUtils.mkdir_p(chat_workspace_path)
+    chat.update_columns(workspace_path: chat_workspace_path.to_s)
+
+    payload = described_class.for(user: user, query: "hidden shared")
+
+    expect(payload).to be_empty
+  ensure
+    FileUtils.rm_rf(chat_workspace_path) if chat_workspace_path
+  end
+
   it "batch-computes workflow routing without querying runs per workflow" do
     live_worker_queue!("resume-storage-alpha", hostname: "worker-alpha")
     3.times do |index|

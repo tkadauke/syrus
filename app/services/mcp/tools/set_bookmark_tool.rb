@@ -26,7 +26,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("label is required") if label.empty?
         return Mcp::Tools.invalid("kind must be topic or epic_origin") unless %w[topic epic_origin].include?(kind)
 
-        message = chat_session.messages.order(:created_at, :id).last
+        message = chat_session.active_messages.order(:created_at, :id).last
         return Mcp::Tools.invalid("cannot bookmark an empty chat") unless message
 
         bookmark = message.bookmarks.create!(label: label, kind: kind)

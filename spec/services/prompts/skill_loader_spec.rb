@@ -20,6 +20,14 @@ RSpec.describe Prompts::SkillLoader do
       expect(result).to eq("Hello beautiful world")
     end
 
+    it "preserves replacement-like sequences in arguments literally" do
+      arguments = "regex \\\\d+; literal $ARGUMENTS; match \\&; whole \\0; before \\`; after \\'"
+
+      result = described_class.render("/fake/skill.md", arguments)
+
+      expect(result).to eq("Hello #{arguments} world")
+    end
+
     it "strips leading and trailing whitespace from the rendered body" do
       allow(File).to receive(:read).and_return("---\nname: t\n---\n\n  $ARGUMENTS  ")
       expect(described_class.render("/fake/skill.md", "x")).to eq("x")

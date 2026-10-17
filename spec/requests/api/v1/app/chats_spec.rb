@@ -332,6 +332,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       .to eq([ "Plan the launch.", "Draft milestones." ])
   end
 
+  it "does not copy soft-deleted messages when branching a chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Cleared planning")
+    deleted_message = chat.messages.create!(role: "user", content: { "text" => "Discard this history." })
+    deleted_message.update!(deleted_at: Time.current, deleted_by_user: user)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/branch"
+    }.to change(ChatSession, :count).by(1)
+      .and change(ChatMessage, :count).by(0)
+
+    expect(response).to have_http_status(:created)
+    expect(ChatSession.find(parse_body["id"]).messages).to be_empty
+  end
+
   it "preserves a default provider setting when branching an empty chat" do
     sign_in_as(user)
     user.update!(chat_provider: "codex")
@@ -1267,13 +1282,43 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat hidden.")
-    expect(chat.reload.hidden_at).to be_present
+    expect(chat.chat_participants.find_by!(user: user).reload.hidden_at).to be_present
 
     patch "/api/v1/app/chats/#{chat.id}/unhide"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Chat restored.")
-    expect(chat.reload.hidden_at).to be_nil
+    expect(chat.chat_participants.find_by!(user: user).reload.hidden_at).to be_nil
+  end
+
+  it "hides a group chat only for the participant who hid it" do
+    chat = ChatSession.create!(user: user, conversation_kind: "group", title: "Shared")
+    member = Factories.user
+    chat.chat_participants.create!(user: member, role: "member")
+
+    sign_in_as(member)
+    patch "/api/v1/app/chats/#{chat.id}/hide"
+    expect(response).to have_http_status(:ok)
+
+    get "/api/v1/app/chats"
+    expect(parse_body["groups"].flat_map { |group| group["chats"] }.pluck("id")).not_to include(chat.id)
+
+    sign_in_as(user)
+    get "/api/v1/app/chats"
+    expect(parse_body["groups"].flat_map { |group| group["chats"] }.pluck("id")).to include(chat.id)
+  end
+
+  it "forbids a non-owner participant from clearing shared chat history" do
+    chat = ChatSession.create!(user: user, conversation_kind: "group")
+    member = Factories.user
+    chat.chat_participants.create!(user: member, role: "member")
+    message = chat.messages.create!(role: "user", content: { "text" => "Keep me" })
+    sign_in_as(member)
+
+    delete "/api/v1/app/chats/#{chat.id}/messages"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(message.reload.deleted_at).to be_nil
   end
 
   it "lists hidden chats for recovery in hidden order with shared sidebar context" do
@@ -1362,6 +1407,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   describe "DELETE /api/v1/app/chats/:id" do
+    it "forbids a non-owner participant from deleting the shared chat" do
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      member = Factories.user
+      chat.chat_participants.create!(user: member, role: "member")
+      sign_in_as(member)
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:forbidden)
+      expect(chat.reload.deleted_at).to be_nil
+    end
+
     it "soft-deletes the chat, keeps dependent rows for audit, cleans search index/workspace/agent homes via the worker job, and hides it from listing/show" do
       prepare_search_tables
       sign_in_as(user)
@@ -5083,6 +5140,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Arch plan", "chat_message_id" => latest.id, "anchor_message_id" => latest.id))
   end
 
+  it "rejects bookmarking a soft-deleted message through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Cleared context." }, deleted_at: Time.current)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/bookmarks", params: { message_id: message.id, chat_bookmark: { label: "Hidden" } }
+    }.not_to change(ChatBookmark, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "pins a message through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -5505,6 +5574,35 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(ChatContextCompactor.context_messages_for(chat.reload).to_a).to be_empty
+  end
+
+  it "removes materialized inline image documents when clearing chat history" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.messages.create!(
+      role: "user",
+      content: {
+        "text" => "Clear this screenshot.",
+        "attachments" => [
+          {
+            "name" => "cleared.png",
+            "mime_type" => "image/png",
+            "data" => Base64.strict_encode64("png-bytes")
+          }
+        ]
+      }
+    )
+    ChatMediaLibrary.materialize_inline_images!(chat)
+    document = chat.reload.attached_repository_documents.sole
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/messages"
+    }.to change(Document, :count).by(-1)
+      .and change(ChatAttachment.where(chat_session: chat, attachable_type: "Document"), :count).by(-1)
+
+    expect(response).to have_http_status(:ok)
+    expect(Document.exists?(document.id)).to eq(false)
+    expect(chat.reload.attached_repository_documents).to be_empty
   end
 
   it "excludes soft-deleted messages from the chat UI payload after clearing" do
@@ -7042,6 +7140,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(ChatTitleJob).to have_been_enqueued.with(chat.id, first.id)
+  end
+
+  it "uses the first active user message for a delayed title after history is cleared" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
+    chat.messages.create!(
+      role: "user",
+      content: { "text" => "Discarded title seed" },
+      created_at: 1.hour.ago,
+      deleted_at: Time.current,
+      deleted_by_user: user
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Current title seed" } }
+
+    expect(response).to have_http_status(:ok)
+    active_message = chat.active_messages.where(role: "user").sole
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, active_message.id)
   end
 
   it "retries title generation on the next message when the stored title is a failed-generation fallback" do

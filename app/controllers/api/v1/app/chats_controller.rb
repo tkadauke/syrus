@@ -202,7 +202,7 @@ module Api
             return
           end
 
-          chat_session = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).visible.active.find(params[:chat_session_id])
+          chat_session = visible_chat_scope.find(params[:chat_session_id])
           render json: {
             matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
           }
@@ -210,11 +210,11 @@ module Api
 
         def hidden
           page = [ Integer(params[:page], exception: false).to_i, 1 ].max
-          scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions).hidden.active
+          scope = hidden_chat_scope
           total = scope.count
           chats = scope
             .preload(repository_attachments: :attachable)
-            .order(hidden_at: :desc, id: :desc)
+            .order("chat_participants.hidden_at DESC", id: :desc)
             .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
             .limit(HIDDEN_CHATS_PAGE_SIZE)
           context = chat_index_context_for(chats)
@@ -496,6 +496,8 @@ module Api
         # turn is actively running.
         def destroy
           chat_session = find_chat_session
+          return unless require_chat_owner(chat_session, action: "delete")
+
           if chat_session.turn_in_flight? || chat_session.agent_busy?
             render_error(
               "turn_in_flight",
@@ -519,9 +521,12 @@ module Api
 
         def clear_messages
           chat_session = find_chat_session
+          return unless require_chat_owner(chat_session, action: "clear")
+
           ApplicationRecord.transaction do
             chat_session.messages.active.update_all(deleted_at: Time.current, deleted_by_user_id: Current.user.id)
             chat_session.context_checkpoints.delete_all
+            ChatMediaLibrary.remove_materialized_inline_images!(chat_session)
             chat_session.chat_queued_messages.destroy_all
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end
@@ -543,14 +548,14 @@ module Api
 
         def hide
           chat_session = find_chat_session
-          chat_session.update!(hidden_at: Time.current)
+          current_participant_for(chat_session).update!(hidden_at: Time.current)
 
           render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }
         end
 
         def unhide
           chat_session = find_chat_session
-          chat_session.update!(hidden_at: nil)
+          current_participant_for(chat_session).update!(hidden_at: nil)
 
           render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
         end
@@ -818,7 +823,7 @@ module Api
 
         def create_bookmark
           chat_session = find_chat_session
-          message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last
+          message = params[:message_id].present? ? chat_session.active_messages.find(params[:message_id]) : chat_session.active_messages.order(:created_at, :id).last
           unless message
             render_error("validation_failed", "Cannot bookmark an empty chat.", status: :unprocessable_content)
             return
@@ -1402,6 +1407,25 @@ module Api
         end
 
         private
+
+        def require_chat_owner(chat_session, action:)
+          return true if chat_session.user_id == Current.user.id
+
+          render_error("forbidden", "Only the chat owner can #{action} this chat.", status: :forbidden)
+          false
+        end
+
+        def visible_chat_scope
+          invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+            .where(chat_participants: { hidden_at: nil })
+            .active
+        end
+
+        def hidden_chat_scope
+          invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+            .where.not(chat_participants: { hidden_at: nil })
+            .active
+        end
 
         def scratchpad_draft_content(existing: nil)
           item_params = params[:scratchpad_item]

@@ -9,6 +9,7 @@ import { Compose } from "./chat/Compose"
 import { MobileChatHeaderContext, type MobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
+import { applyAppEvent } from "../lib/appEvents"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
@@ -6525,12 +6526,13 @@ describe("group chat participants and composer hint", () => {
   })
 
   it("renders the participant list in the chat header for a group chat", async () => {
-    mockChatRouteFetch(chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } }))
+    mockChatRouteFetch(chatPayload({ chat: { current_user_id: 1, conversation_kind: "group", participants: groupParticipants() } }))
     renderRoute()
 
     await screen.findByPlaceholderText("Ask about this repository...")
     expect(screen.getByText("Marcus Cato")).toBeInTheDocument()
     expect(screen.getByText("Livia Drusilla")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Leave chat" })).not.toBeInTheDocument()
   })
 
   it("adds a participant through the invite picker", async () => {
@@ -6574,7 +6576,7 @@ describe("group chat participants and composer hint", () => {
   })
 
   it("removes another participant from the group", async () => {
-    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    const payload = chatPayload({ chat: { current_user_id: 1, conversation_kind: "group", participants: groupParticipants() } })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -6601,7 +6603,7 @@ describe("group chat participants and composer hint", () => {
   })
 
   it("leaves the group chat when the current user removes themselves, navigating away", async () => {
-    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    const payload = chatPayload({ chat: { current_user_id: 2, conversation_kind: "group", participants: groupParticipants() } })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -6610,8 +6612,8 @@ describe("group chat participants and composer hint", () => {
       if (path === "/api/v1/app/bootstrap") {
         return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
       }
-      if (path === "/api/v1/app/chats/8/participants/1" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[1]] }))
+      if (path === "/api/v1/app/chats/8/participants/2" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[0]] }))
       }
 
       return Promise.resolve(jsonResponse(payload))
@@ -6621,6 +6623,33 @@ describe("group chat participants and composer hint", () => {
 
     await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.click(await screen.findByRole("button", { name: "Leave chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+    })
+  })
+
+  it("leaves the group chat when another participant removes the current user", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mockChatRouteFetch(chatPayload({
+      chat: { current_user_id: 1, conversation_kind: "group", participants: groupParticipants() }
+    }))
+    renderRouteWithLocation(queryClient)
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    act(() => {
+      applyAppEvent(queryClient, {
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        changed: ["participants"],
+        payload: {
+          action: "update_participants",
+          conversation_kind: "group",
+          participants: [groupParticipants()[1]]
+        }
+      })
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
@@ -6756,9 +6785,9 @@ function mockDynamicViewport(initialDesktop: boolean) {
   }
 }
 
-function renderRouteWithLocation() {
+function renderRouteWithLocation(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>

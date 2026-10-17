@@ -507,14 +507,14 @@ RSpec.describe Steps::VisualReview do
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
           delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [], target_graph: nil, scripts: {}, merge_train: nil,
           visual_review: SyrusYml::VisualReviewConfig.new(
-            enabled: true, rounds: 1, when_files_changed: [ "app/views/**/*" ],
+            enabled: true, rounds: 1, when_files_changed: [ "app/views/**/*.erb" ],
             seed_notes: nil, required: false
           )
         )
       )
       allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner).tap do |git|
         allow(git).to receive(:run).with("diff", "--name-only", anything, chdir: "/tmp/workspace")
-                                    .and_return("app/views/dashboard/show.html.erb\n")
+                                    .and_return("app/views/show.html.erb\n")
       end)
     end
 

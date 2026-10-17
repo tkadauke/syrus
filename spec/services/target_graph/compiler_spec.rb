@@ -446,6 +446,7 @@ RSpec.describe TargetGraph::Compiler do
 
         tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
         expect(tests.source_scope).to eq([ "cli/**/*" ])
+        expect(graph.affected(tests.label, changed_files: [ "cli/main.go" ]).affected).to be(true)
       end
 
       it "resolves a nested declaration's own narrower file selector relative to its directory" do

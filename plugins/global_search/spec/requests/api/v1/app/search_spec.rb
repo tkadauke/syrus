@@ -373,7 +373,9 @@ RSpec.describe "App API unified search", type: :request do
 
   it "excludes hidden chats from chat results" do
     visible_chat = ChatSession.create!(user: user, repository: repository, title: "Visible chat")
-    hidden_chat = ChatSession.create!(user: user, repository: repository, title: "Hidden chat", hidden_at: Time.current)
+    owner = Factories.user
+    hidden_chat = ChatSession.create!(user: owner, conversation_kind: "group", title: "Hidden chat")
+    hidden_chat.chat_participants.create!(user: user, role: "member", hidden_at: Time.current)
     visible_message = ChatMessage.create!(chat_session: visible_chat, role: "user", content: { "text" => "deploy visible" })
     hidden_message = ChatMessage.create!(chat_session: hidden_chat, role: "user", content: { "text" => "deploy hidden" })
     [ visible_message, hidden_message ].each { |message| ChatMessageSearchIndex.insert(message) }

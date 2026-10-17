@@ -100,4 +100,32 @@ RSpec.describe "native macOS worker release artifact" do
     )
     expect(checksum_status).to be_success, "expected checksum success, got stdout=#{checksum_stdout.inspect} stderr=#{checksum_stderr.inspect}"
   end
+
+  it "emits a detached signature when a release signing key is provided" do
+    Dir.mktmpdir do |dir|
+      private_key = File.join(dir, "private.pem")
+      public_key = File.join(dir, "public.pem")
+      system("openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", private_key,
+        out: File::NULL, err: File::NULL)
+      system("openssl", "pkey", "-in", private_key, "-pubout", "-out", public_key, out: File::NULL, err: File::NULL)
+
+      _stdout, stderr, status = Open3.capture3(
+        { "SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => private_key },
+        "bash", script, version, "--skip-clean-check", chdir: root
+      )
+
+      expect(status).to be_success, stderr
+      artifacts = Dir[File.join(output_dir, "*.tar.gz")]
+      expect(artifacts.length).to eq(1)
+      artifact = artifacts.first
+      encoded_signature = "#{artifact}.sig"
+      raw_signature = File.join(dir, "artifact.sig")
+      decode_ok = system("openssl", "base64", "-d", "-A", "-in", encoded_signature, "-out", raw_signature)
+      verify_ok = system("openssl", "dgst", "-sha256", "-verify", public_key, "-signature", raw_signature, artifact,
+        out: File::NULL, err: File::NULL)
+
+      expect(decode_ok).to be(true)
+      expect(verify_ok).to be(true)
+    end
+  end
 end

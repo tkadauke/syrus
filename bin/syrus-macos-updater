@@ -63,6 +63,10 @@ CURRENT_LINK="${SYRUS_MACOS_CURRENT_LINK:-$INSTALL_ROOT/current}"
 SHARED_DIR="${SYRUS_MACOS_SHARED_DIR:-$INSTALL_ROOT/shared}"
 SERVICE_LABEL="${SYRUS_MACOS_WORKER_SERVICE_LABEL:-system/com.syrus.worker}"
 RETENTION_COUNT="${SYRUS_MACOS_RELEASE_RETENTION_COUNT:-3}"
+SERVICE_USER="${SYRUS_MACOS_SERVICE_USER:-syrus-worker}"
+PUBLIC_KEY_FILE="${SYRUS_MACOS_UPDATE_PUBLIC_KEY_FILE:-/etc/syrus/macos-worker-update-public.pem}"
+ALLOW_FILE_URLS="${SYRUS_MACOS_UPDATE_ALLOW_FILE_URLS:-0}"
+PRIVILEGED_UPDATER_PATH="${SYRUS_MACOS_PRIVILEGED_UPDATER_PATH:-/usr/local/libexec/syrus/syrus-macos-updater}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -75,6 +79,22 @@ require_command curl
 require_command ruby
 require_command shasum
 require_command tar
+require_command openssl
+
+validate_fetch_url() {
+  local label="$1"
+  local url="$2"
+
+  if [[ "$url" == https://* ]]; then
+    return 0
+  fi
+  if [[ "$ALLOW_FILE_URLS" == "1" && "$url" == file://* ]]; then
+    return 0
+  fi
+
+  echo "syrus-macos-updater: $label must use https: $url" >&2
+  return 1
+}
 
 # Expanded as ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} at every callsite,
 # never as a bare "${CURL_AUTH_ARGS[@]}". macOS ships bash 3.2, where `set -u`
@@ -141,12 +161,13 @@ sanitize_worker_storage_key() {
 
 fetch_metadata() {
   local url="$1"
+  validate_fetch_url "metadata URL" "$url" || return 1
   if [[ "$url" == file://* ]]; then
     cat "${url#file://}"
     return
   fi
 
-  curl -fsSL "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"}
+  curl -fsSL --proto '=https' --proto-redir '=https' "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"}
 }
 
 extract_metadata() {
@@ -165,6 +186,7 @@ extract_metadata() {
       "TARGET_SHA" => desired["git_sha"].to_s,
       "ARTIFACT_URL" => desired["artifact_url"].to_s,
       "ARTIFACT_SHA256" => desired["artifact_sha256"].to_s,
+      "ARTIFACT_SIGNATURE" => desired["artifact_signature"].to_s,
       "ARTIFACT_NAME" => (desired["artifact_name"] || File.basename(desired["artifact_url"].to_s)).to_s,
       "POLL_INTERVAL_SECONDS" => (payload["poll_interval_seconds"] || ENV["SYRUS_MACOS_UPDATE_POLL_INTERVAL"] || 300).to_s,
       "RETENTION_COUNT" => (payload["retention_count"] || ENV["SYRUS_MACOS_RELEASE_RETENTION_COUNT"] || 3).to_s
@@ -195,12 +217,14 @@ report_state() {
   local url
   url="$(report_url)"
   [[ -n "$url" && ${#CURL_AUTH_ARGS[@]} -gt 0 ]] || return 0
+  validate_fetch_url "report URL" "$url" || return 0
 
   CURRENT_VERSION="$(current_sha)" \
     TARGET_VERSION="${TARGET_VERSION:-}" \
     TARGET_SHA="${TARGET_SHA:-}" \
     ARTIFACT_URL="${ARTIFACT_URL:-}" \
     ARTIFACT_SHA256="${ARTIFACT_SHA256:-}" \
+    ARTIFACT_SIGNATURE="${ARTIFACT_SIGNATURE:-}" \
     ARTIFACT_NAME="${ARTIFACT_NAME:-}" \
     RELEASE_PATH="${RELEASE_PATH:-}" \
     PREVIOUS_RELEASE_PATH="${PREVIOUS_RELEASE_PATH:-}" \
@@ -215,6 +239,7 @@ report_state() {
         git_sha: ENV["TARGET_SHA"],
         artifact_url: ENV["ARTIFACT_URL"],
         artifact_sha256: ENV["ARTIFACT_SHA256"],
+        artifact_signature: ENV["ARTIFACT_SIGNATURE"],
         artifact_name: ENV["ARTIFACT_NAME"]
       }.delete_if { |_k, v| v.to_s.empty? }
       status = {
@@ -231,7 +256,7 @@ report_state() {
       }.delete_if { |_k, v| v.respond_to?(:empty?) && v.empty? }
       print JSON.generate(status: status)
     ' |
-    curl -fsS -X POST "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -H "Content-Type: application/json" --data-binary @- >/dev/null || true
+    curl -fsS --proto '=https' --proto-redir '=https' -X POST "$url" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -H "Content-Type: application/json" --data-binary @- >/dev/null || true
 }
 
 verify_artifact() {
@@ -242,6 +267,25 @@ verify_artifact() {
   actual="$(shasum -a 256 "$artifact" | awk '{print $1}')"
   if [[ "$actual" != "$expected" ]]; then
     echo "syrus-macos-updater: checksum mismatch for $artifact: expected $expected, got $actual" >&2
+    return 1
+  fi
+}
+
+verify_artifact_signature() {
+  local artifact="$1"
+  local signature="$2"
+  local signature_file="$3"
+
+  if [[ ! -f "$PUBLIC_KEY_FILE" ]]; then
+    echo "syrus-macos-updater: pinned update public key not found: $PUBLIC_KEY_FILE" >&2
+    return 1
+  fi
+  if ! printf '%s' "$signature" | openssl base64 -d -A > "$signature_file"; then
+    echo "syrus-macos-updater: artifact signature is not valid base64" >&2
+    return 1
+  fi
+  if ! openssl dgst -sha256 -verify "$PUBLIC_KEY_FILE" -signature "$signature_file" "$artifact" >/dev/null 2>&1; then
+    echo "syrus-macos-updater: detached signature verification failed for $artifact" >&2
     return 1
   fi
 }
@@ -257,16 +301,35 @@ validate_target_sha() {
   return 1
 }
 
+running_as_root() {
+  [[ "$EUID" -eq 0 ]] ||
+    [[ "${SYRUS_MACOS_UPDATE_TEST_ROOT:-0}" == "1" && "$ALLOW_FILE_URLS" == "1" &&
+      "$PRIVILEGED_UPDATER_PATH" == "$INSTALL_ROOT/"* ]]
+}
+
 prepare_release() {
   local release_path="$1"
+  local command node_deps_path
+  node_deps_path="$SHARED_DIR/node/$TARGET_SHA"
+  command='cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
 
-  (
-    cd "$release_path"
-    BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" bundle config set --local path "$SHARED_DIR/bundle"
-    BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}"
-    npm ci
-    bin/macos-worker-check --env-file "$ENV_FILE"
-  )
+  if running_as_root; then
+    mkdir -p "$node_deps_path"
+    cp "$release_path/package.json" "$release_path/package-lock.json" "$node_deps_path/"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$node_deps_path"
+    sudo -H -u "$SERVICE_USER" env \
+      HOME="${SYRUS_DATA_ROOT:-/var/lib/syrus}" \
+      BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" \
+      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
+    chown -R root:wheel "$release_path"
+    chmod -R go-w "$release_path"
+    rm -rf "$release_path/node_modules"
+    ln -s "$node_deps_path/node_modules" "$release_path/node_modules"
+  else
+    node_deps_path="$release_path"
+    BUNDLE_APP_CONFIG="$SHARED_DIR/bundle-config" BUNDLE_PATH="$SHARED_DIR/bundle" \
+      bash -c "$command" bash "$release_path" "$node_deps_path" "$ENV_FILE"
+  fi
 }
 
 activate_release() {
@@ -284,6 +347,13 @@ restart_worker() {
   fi
 
   launchctl kickstart -k "$SERVICE_LABEL"
+}
+
+install_privileged_updater() {
+  local release_path="$1"
+  running_as_root || return 0
+
+  install -o root -g wheel -m 755 "$release_path/bin/syrus-macos-updater" "$PRIVILEGED_UPDATER_PATH"
 }
 
 prune_releases() {
@@ -317,7 +387,7 @@ prune_releases() {
 }
 
 run_once() {
-  local metadata_file tmp_dir artifact extracted_root
+  local metadata_file tmp_dir artifact extracted_root signature_file
 
   tmp_dir="$(mktemp -d)"
   metadata_file="$tmp_dir/metadata.json"
@@ -332,14 +402,18 @@ run_once() {
     return 0
   fi
 
-  if [[ -z "$TARGET_SHA" || -z "$ARTIFACT_URL" || -z "$ARTIFACT_SHA256" ]]; then
-    echo "syrus-macos-updater: desired metadata requires git_sha, artifact_url, and artifact_sha256" >&2
+  if [[ -z "$TARGET_SHA" || -z "$ARTIFACT_URL" || -z "$ARTIFACT_SHA256" || -z "$ARTIFACT_SIGNATURE" ]]; then
+    echo "syrus-macos-updater: desired metadata requires git_sha, artifact_url, artifact_sha256, and artifact_signature" >&2
     report_state "failed" "desired metadata is incomplete"
     return 1
   fi
 
   if ! validate_target_sha "$TARGET_SHA"; then
     report_state "failed" "desired git_sha is invalid"
+    return 1
+  fi
+  if ! validate_fetch_url "artifact URL" "$ARTIFACT_URL"; then
+    report_state "failed" "artifact URL must use https"
     return 1
   fi
 
@@ -366,27 +440,32 @@ run_once() {
   if [[ "$ARTIFACT_URL" == file://* ]]; then
     cp "${ARTIFACT_URL#file://}" "$artifact"
   else
-    curl -fL "$ARTIFACT_URL" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -o "$artifact"
+    curl -fL --proto '=https' --proto-redir '=https' "$ARTIFACT_URL" ${CURL_AUTH_ARGS[@]+"${CURL_AUTH_ARGS[@]}"} -o "$artifact"
   fi
   if ! verify_artifact "$artifact" "$ARTIFACT_SHA256"; then
     report_state "failed" "artifact checksum mismatch"
     return 1
   fi
-
-  if [[ ! -d "$RELEASE_PATH" ]]; then
-    mkdir -p "$tmp_dir/extract"
-    tar -xzf "$artifact" -C "$tmp_dir/extract"
-    extracted_root="$(find "$tmp_dir/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-    if [[ -z "$extracted_root" ]]; then
-      echo "syrus-macos-updater: artifact did not contain a release directory" >&2
-      report_state "failed" "artifact did not contain a release directory"
-      return 1
-    fi
-    mv "$extracted_root" "$RELEASE_PATH"
+  signature_file="$tmp_dir/artifact.sig"
+  if ! verify_artifact_signature "$artifact" "$ARTIFACT_SIGNATURE" "$signature_file"; then
+    report_state "failed" "artifact signature verification failed"
+    return 1
   fi
+
+  mkdir -p "$tmp_dir/extract"
+  tar -xzf "$artifact" -C "$tmp_dir/extract"
+  extracted_root="$(find "$tmp_dir/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "$extracted_root" ]]; then
+    echo "syrus-macos-updater: artifact did not contain a release directory" >&2
+    report_state "failed" "artifact did not contain a release directory"
+    return 1
+  fi
+  rm -rf "$RELEASE_PATH"
+  mv "$extracted_root" "$RELEASE_PATH"
 
   report_state "updating" "preparing release dependencies"
   prepare_release "$RELEASE_PATH"
+  install_privileged_updater "$RELEASE_PATH"
   report_state "updating" "activating release"
   activate_release "$RELEASE_PATH"
   restart_worker

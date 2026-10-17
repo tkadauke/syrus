@@ -24,6 +24,21 @@ RSpec.describe TargetGraph::Fingerprints do
     expect(fingerprints_for("//:grade/tests").input_fingerprint).not_to eq(first.input_fingerprint)
   end
 
+  it "invalidates input fingerprints when a source file is directly inside the pattern directory" do
+    write(".syrus.yml", <<~YAML)
+      grade:
+        - name: tests
+          run: npm test
+          when_files_changed: ["src/**/*.ts"]
+    YAML
+    write("src/index.ts", "export const value = 1\n")
+
+    first = fingerprints_for("//:grade/tests")
+    write("src/index.ts", "export const value = 2\n")
+
+    expect(fingerprints_for("//:grade/tests").input_fingerprint).not_to eq(first.input_fingerprint)
+  end
+
   it "invalidates input fingerprints when dependency target sources change" do
     write(".syrus.yml", <<~YAML)
       targets:

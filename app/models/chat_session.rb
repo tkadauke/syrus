@@ -52,6 +52,11 @@ class ChatSession < ApplicationRecord
            source: :attachable,
            source_type: "Document"
   has_many :messages, class_name: "ChatMessage", dependent: :destroy, inverse_of: :chat_session
+  has_many :active_messages,
+           -> { active },
+           class_name: "ChatMessage",
+           foreign_key: :chat_session_id,
+           inverse_of: :chat_session
   has_many :context_checkpoints, class_name: "ChatContextCheckpoint", dependent: :destroy
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
@@ -95,6 +100,7 @@ class ChatSession < ApplicationRecord
   before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
   after_create :add_owner_participant
+  after_create :copy_initial_hidden_at_to_owner_participant
   after_create :ensure_agent_record!
   # prepend: dependent-association callbacks (declared above) also run
   # as before_destroy; the pending JobDependency placeholders must be
@@ -623,6 +629,12 @@ class ChatSession < ApplicationRecord
 
   def add_owner_participant
     chat_participants.create!(user: user, role: "owner", joined_at: created_at)
+  end
+
+  # Compatibility for imports and older callers that still seed the legacy
+  # session-level value. Runtime hide/unhide writes only participant state.
+  def copy_initial_hidden_at_to_owner_participant
+    chat_participants.find_by!(role: "owner").update!(hidden_at: hidden_at) if hidden_at.present?
   end
 
   def default_artifacts

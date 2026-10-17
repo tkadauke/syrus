@@ -80,7 +80,7 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     shared = ChatSession.create!(user: owner, title: "Shared operator room", updated_at: 1.minute.ago)
     ChatParticipant.create!(chat_session: shared, user: user, role: "member")
     hidden_shared = ChatSession.create!(user: owner, title: "Hidden shared", hidden_at: Time.current, updated_at: Time.current)
-    ChatParticipant.create!(chat_session: hidden_shared, user: user, role: "member")
+    ChatParticipant.create!(chat_session: hidden_shared, user: user, role: "member", hidden_at: Time.current)
     deleted_shared = ChatSession.create!(user: owner, title: "Deleted shared", updated_at: Time.current)
     ChatParticipant.create!(chat_session: deleted_shared, user: user, role: "member")
     deleted_shared.soft_delete_by!(owner)

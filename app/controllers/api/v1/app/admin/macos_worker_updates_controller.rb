@@ -96,7 +96,8 @@ module Api
           end
 
           def desired_payload(release, drain:)
-            enabled = release["artifact_url"].present? && release["git_sha"].present? && !!drain&.update_permitted?
+            enabled = release.values_at("artifact_url", "artifact_sha256", "artifact_signature", "git_sha").all?(&:present?) &&
+              !!drain&.update_permitted?
             {
               enabled: enabled,
               component: "macos-worker",
@@ -106,6 +107,7 @@ module Api
                 "full_git_sha",
                 "artifact_url",
                 "artifact_sha256",
+                "artifact_signature",
                 "artifact_name",
                 "built_at",
                 "metadata_url"
@@ -164,6 +166,7 @@ module Api
                 :full_git_sha,
                 :artifact_url,
                 :artifact_sha256,
+                :artifact_signature,
                 :artifact_name,
                 :built_at,
                 :metadata_url

@@ -606,10 +606,11 @@ creation: the sidebar's **New group chat** picker starts a session with 2 or
 more humans from the outset, while an ordinary 1:1 chat can never gain a
 second participant later. In a group chat, the header lists every current
 participant and lets any of them add another (through the same picker,
-filtered to people not already in the chat) or remove one — removing someone
-else reads as "Remove", removing yourself reads as "Leave" and takes you back
-out of the chat. The message list labels each human message with its
-sender's name so a multi-person transcript stays readable, and because the
+filtered to people not already in the chat). The owner may remove members;
+members may only remove themselves, which reads as "Leave" and takes them back
+out of the chat. The owner cannot be removed. The message list labels each
+human message with its sender's name so a multi-person transcript stays
+readable, and because the
 agent only replies to a group chat message that explicitly mentions
 `@syrus`, the composer shows a lightweight reminder of that requirement
 whenever more than one human is currently in the chat. Platform-origin
@@ -649,11 +650,14 @@ with the repository name as the fallback. The app sidebar groups recent chats
 by repository by default, with sidebar settings for grouping by date, status,
 mode, chat type, or chat agent when those distinctions are available; each
 group can be collapsed when the operator wants to fold that section away.
-Individual chats can be pinned or unpinned
-from the sidebar actions menu, renamed through the same menu (or the
-`/rename` slash command), hidden from the sidebar and chat search, then
-restored from the Hidden chats section in user settings. The sidebar actions
-menu can also delete a chat after a confirmation dialog: deletion marks the
+Chat owners can pin or unpin a chat from the sidebar actions menu or through
+the chat agent, and rename it through the same menu (or the `/rename` slash
+command). Any participant can hide a chat from their sidebar and chat search,
+then restore it from the Hidden chats section in user settings. Hiding is personal:
+in a group chat it changes only the current participant's sidebar, search, and
+agent chat listings. The sidebar actions menu also lets the owner delete a chat
+after a confirmation dialog, and only the owner may clear its shared history:
+deletion marks the
 conversation as deleted (recording who deleted it and when) and removes it
 from the sidebar, chat search, and the chat agent's own tools, while leaving
 the underlying conversation, messages, attachments, proposals, and whiteboard
@@ -978,8 +982,8 @@ Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
-Chat agents can also pin or unpin visible chat sessions in the sidebar,
-separate from pinned-message previews and pinned context notes.
+Chat agents can also pin or unpin visible chat sessions the current operator
+owns, separate from pinned-message previews and pinned context notes.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.

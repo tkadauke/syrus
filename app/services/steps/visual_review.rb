@@ -146,9 +146,7 @@ module Steps
     end
 
     def changed_files_match?(patterns)
-      changed_files.any? do |file|
-        patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
-      end
+      changed_files.any? { |file| RepositoryContent::Glob.match?(patterns, file) }
     end
 
     def configured_when_files_changed

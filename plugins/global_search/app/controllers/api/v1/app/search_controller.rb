@@ -217,8 +217,8 @@ module Api
           ChatMessage
             .active
             .joins(chat_session: :chat_participants)
-            .merge(ChatSession.active.visible)
-            .where(chat_participants: { user_id: Current.user.id })
+            .merge(ChatSession.active)
+            .where(chat_participants: { user_id: Current.user.id, hidden_at: nil })
         end
 
         def apply_filter_to_rows(type, rows, id_key)
@@ -536,8 +536,8 @@ module Api
               scope: ChatMessage
                 .active
                 .joins(chat_session: :chat_participants)
-                .merge(ChatSession.active.visible)
-                .where(chat_participants: { user_id: user.id }, id: ids)
+                .merge(ChatSession.active)
+                .where(chat_participants: { user_id: user.id, hidden_at: nil }, id: ids)
                 .distinct,
               user: user,
               subject: :chat_message

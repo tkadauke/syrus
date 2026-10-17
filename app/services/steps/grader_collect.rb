@@ -94,16 +94,13 @@ module Steps
       end
 
       if real_failed_required.empty?
-        names = grader_names(infrastructure_failed_required)
-        classifications = infrastructure_failed_required.filter_map { |g| infrastructure_failure_classification_for(g) }.uniq
-        code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
-        log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
-        mark_transient_only_failure!
-        fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
-                   evidence: { grader_names: names, classifications: classifications })
+        fail_for_infrastructure!(infrastructure_failed_required)
       end
 
-      return if dismissed_by_rung_zero?(real_failed_required)
+      if dismissed_by_rung_zero?(real_failed_required)
+        fail_for_infrastructure!(infrastructure_failed_required) if infrastructure_failed_required.any?
+        return
+      end
 
       failed_names = grader_names(real_failed_required).join(", ")
       log("[grader_collect] required graders failed: #{failed_names}")
@@ -259,6 +256,16 @@ module Steps
 
     def mark_transient_only_failure!
       step.update!(details: step.details.to_h.merge(TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true))
+    end
+
+    def fail_for_infrastructure!(grader_steps)
+      names = grader_names(grader_steps)
+      classifications = grader_steps.filter_map { |grader| infrastructure_failure_classification_for(grader) }.uniq
+      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
+      log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
+      mark_transient_only_failure!
+      fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
+                 evidence: { grader_names: names, classifications: classifications })
     end
 
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }

@@ -40,15 +40,22 @@ function firstMatch(raw: string, pattern: RegExp): string | null {
   return match ? match[1].trim() : null;
 }
 
-function metadataFromRegistration(pluginPath: string) {
-  const rubyFiles = walk(pluginPath).filter((file) => file.endsWith(".rb"));
-  const raw = rubyFiles.map((file) => readIfPresent(file) || "").join("\n");
+export function metadataFromRegistration(pluginPath: string) {
+  const registrationPath = walk(path.join(pluginPath, "lib"))
+    .filter((file) => file.endsWith(".rb"))
+    .sort()
+    .find((file) => (readIfPresent(file) || "").includes("syrus_plugin"));
+  const raw = registrationPath ? readIfPresent(registrationPath) || "" : "";
 
   return {
-    displayName: firstMatch(raw, /display_name:\s*["']([^"']+)["']/),
-    category: firstMatch(raw, /category:\s*["']([^"']+)["']/),
-    iconUrl: firstMatch(raw, /icon_url:\s*["']([^"']+)["']/),
+    displayName: registrationValue(raw, "display_name"),
+    category: registrationValue(raw, "category"),
+    iconUrl: registrationValue(raw, "icon_url"),
   };
+}
+
+function registrationValue(raw: string, key: string): string | null {
+  return firstMatch(raw, new RegExp(`\\b${key}(?:\\s+|:\\s*)["']([^"']+)["']`));
 }
 
 function metadataFromGemspec(pluginPath: string) {
@@ -62,12 +69,17 @@ function metadataFromGemspec(pluginPath: string) {
 }
 
 function walk(dir: string): string[] {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) return walk(entryPath);
-    if (entry.isFile()) return [entryPath];
-    return [];
-  });
+  if (!fs.existsSync(dir)) return [];
+
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) return walk(entryPath);
+      if (entry.isFile()) return [entryPath];
+      return [];
+    })
+    .sort();
 }
 
 function titleize(value: string): string {

@@ -126,6 +126,30 @@ RSpec.describe "chat pinning MCP tools" do
     expect(other_chat.reload.pinned?).to be(false)
   end
 
+  it "does not let a group member pin the owner's chat" do
+    owner = Factories.user
+    target = ChatSession.create!(user: owner, conversation_kind: "group", title: "Shared chat")
+    target.chat_participants.create!(user: user, role: "member")
+
+    response = call_tool("pin_chat", chat_session_id: target.id)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("not_authorized")
+    expect(target.reload.pinned?).to be(false)
+  end
+
+  it "does not let a group member unpin the owner's chat" do
+    owner = Factories.user
+    target = ChatSession.create!(user: owner, conversation_kind: "group", title: "Shared chat", pinned: true)
+    target.chat_participants.create!(user: user, role: "member")
+
+    response = call_tool("unpin_chat", chat_session_id: target.id)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("not_authorized")
+    expect(target.reload.pinned?).to be(true)
+  end
+
   it "respects restricted chat-session MCP contexts" do
     target = ChatSession.create!(user: user, title: "Restricted target")
     restricted_context = McpToolContext.new(
