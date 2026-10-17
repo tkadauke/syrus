@@ -650,6 +650,12 @@ with the repository name as the fallback. The app sidebar groups recent chats
 by repository by default, with sidebar settings for grouping by date, status,
 mode, chat type, or chat agent when those distinctions are available; each
 group can be collapsed when the operator wants to fold that section away.
+Rows show spinners for associated Jobs doing implementation work and fresh
+failed or PR-ready outcomes; collapsed groups roll those states up. Opening a
+chat clears its outcome glyphs for that participant, while unread messages
+remain indicated by the bold title. Hover or keyboard-focus the indicator
+cluster for the per-Job and Epic breakdown plus goal, pending-action, and
+scratch-pad details.
 Chat owners can pin or unpin a chat from the sidebar actions menu or through
 the chat agent, and rename it through the same menu (or the `/rename` slash
 command). Any participant can hide a chat from their sidebar and chat search,

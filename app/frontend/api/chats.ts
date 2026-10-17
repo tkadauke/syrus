@@ -126,8 +126,27 @@ export type ChatNavRecord = ChatRecord & {
   unread: boolean
   pending_proposal_count: number
   scratchpad_items_count: number
+  job_summary?: ChatJobSummary
   created_at?: string
   updated_at?: string
+}
+
+export type ChatJobSummary = {
+  active_count: number
+  outcome: "failed" | "ready" | null
+  jobs: ChatJobSummaryRow[]
+}
+
+export type ChatJobSummaryRow = {
+  id: number
+  slug: string
+  state: string
+  step?: string
+  group?: "running" | "failed" | "ready"
+  started_at?: string
+  finished_at?: string
+  app_path: string
+  epic?: { id: number; slug: string; completed: number; total: number }
 }
 
 export type HiddenChatRecord = ChatNavRecord & {
