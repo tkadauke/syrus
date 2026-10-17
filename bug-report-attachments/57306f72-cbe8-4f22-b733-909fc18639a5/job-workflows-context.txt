@@ -1,0 +1,67 @@
+Job: JOB-2
+Title: Add .syrus.yml with prepare commands and graders
+State: running
+Repository: skadauke/redlines
+Current URL: http://localhost:3000/jobs/2?tab=workflows
+Included workflows: 1 of 1
+
+Workflow 1: WF-2
+  ID: 2
+  Trigger: initial
+  State: running
+  Provider: claude
+  Created: 2026-10-17T02:56:01Z
+  Started: 2026-10-17T02:56:01Z
+  Finished: unknown
+  Steps:
+    - Prepare workspace
+      Kind: prepare
+      Display status: succeeded
+      State: succeeded
+      Runs:
+        - Run 5
+          State: succeeded
+          Provider: claude
+          Outcome: unknown
+          Head SHA: unknown
+    - Implement
+      Kind: implement
+      Display status: queued
+      State: queued
+      Runs:
+        - Run 6
+          State: queued
+          Provider: claude
+          Outcome: unknown
+          Head SHA: unknown
+    - Visual review
+      Kind: visual_review
+      Display status: unknown
+      State: queued
+      Runs: none
+    - Analyze coverage
+      Kind: coverage_analyze
+      Display status: unknown
+      State: queued
+      Runs: none
+    - Dependency audit
+      Kind: dependency_audit
+      Display status: unknown
+      State: queued
+      Runs: none
+    - Summarize
+      Kind: summarize
+      Display status: unknown
+      State: queued
+      Runs: none
+    - Test plan
+      Kind: test_plan
+      Display status: unknown
+      State: queued
+      Runs: none
+    - Open PR
+      Kind: pr_open
+      Display status: unknown
+      State: queued
+      Runs: none
+
