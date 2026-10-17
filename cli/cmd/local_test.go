@@ -931,7 +931,7 @@ func TestLocalConnectAndServeCancelsToolCallWhenConnectionDrops(t *testing.T) {
 	defer cancel()
 
 	startedAt := time.Now()
-	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc")
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", root, "acme/widget", "main", 42, "tok-abc")
 	elapsed := time.Since(startedAt)
 
 	if err == nil {
