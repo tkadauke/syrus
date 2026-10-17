@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/pluginToolCards"
 import { Text } from "@app/components/ui"
+import { useT } from "@app/hooks/useT"
 import { CardShell, SectionLabel } from "@app/routes/chat/toolCardUi"
 
 function summary(context: ToolCardContext) {
@@ -10,14 +11,20 @@ function summary(context: ToolCardContext) {
   return ids.length ? `Dismiss ${ids.length} insight${ids.length === 1 ? "" : "s"}` : "Dismiss insights"
 }
 
-const card: ToolCardRenderer = {
-  toolName: "dismiss_insight",
-  collapsedSummary: summary,
-  renderExpanded: (context) => (
+function Expanded({ context }: { context: ToolCardContext }) {
+  const { t } = useT("agent_insights")
+
+  return (
     <CardShell>
-      <SectionLabel>Dismissal</SectionLabel>
+      <SectionLabel>{t("dismiss")}</SectionLabel>
       <Text>{summary(context)}</Text>
     </CardShell>
   )
+}
+
+const card: ToolCardRenderer = {
+  toolName: "dismiss_insight",
+  collapsedSummary: summary,
+  renderExpanded: (context) => <Expanded context={context} />
 }
 export default card
