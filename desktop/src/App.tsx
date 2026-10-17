@@ -905,14 +905,9 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   const approveJob = async (job: SyrusJobItem) => {
     clearToast()
+    setPendingApprovals((current) => new Set(current).add(job.id))
 
     try {
-      const confirmed = await window.syrusDesktop.confirmApproveJob(job.id)
-      if (!confirmed) {
-        return
-      }
-
-      setPendingApprovals((current) => new Set(current).add(job.id))
       await window.syrusDesktop.approveJob(job.id)
       queryClient.setQueryData<SyrusJobItem[]>(["inbox-jobs", instanceUrl], (currentJobs = []) =>
         currentJobs.map((currentJob) => currentJob.id === job.id ? { ...currentJob, state: "approved", summary_state: "approved" } : currentJob)
