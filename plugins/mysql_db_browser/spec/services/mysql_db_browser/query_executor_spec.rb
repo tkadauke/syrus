@@ -167,7 +167,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
     it "truncates each streamed value before retaining the row" do
       long_value = "x" * 60_000_000
       result = instance_double(Mysql2::Result, fields: [ "note" ])
-      allow(result).to receive(:each) { |&block| block.call({ "note" => long_value }) }
+      allow(result).to receive(:each) { |&block| block.call([ long_value ]) }
       client = instance_double(Mysql2::Client, close: nil)
       allow(client).to receive(:query).and_return(result)
       allow(client).to receive(:abandon_results!)
@@ -175,7 +175,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
       payload = described_class.new(connection).execute("SELECT note FROM notes", user: user)
 
-      expect(payload[:rows].first["note"].bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
+      expect(payload[:rows].first.first.bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
     end
 
     it "caps the aggregate retained result bytes" do
