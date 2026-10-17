@@ -10,7 +10,7 @@ module CredentialStore
     icon_url "/plugin-icons/credential_store.svg"
     author "Thomas Kadauke"
     category "agent_capability"
-    default_enabled true
+    default_enabled false
     disableable true
 
     credential_types [

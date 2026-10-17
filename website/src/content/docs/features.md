@@ -1603,7 +1603,8 @@ schedules, chats, Epics, Jobs, and admin/API permissions. Repository
 settings can override the user's provider default when a codebase needs a
 specific agent.
 
-When more than one user exists, the app shows a team directory with each
+When more than one user exists and the default-disabled Team Directory plugin
+has been enabled, the app shows a team directory with each
 member's role, profile link, and lightweight workload counts. Single-user
 instances keep the primary navigation focused on the solo operator's work.
 
@@ -1667,6 +1668,9 @@ This groundwork matters more once self-hosted git removes GitHub as a
 required central host for a repository.
 
 ## Spending Insights
+
+Spending Insights is installed but disabled by default on fresh installations;
+an admin can opt in from **Admin → Plugins**.
 
 The spending dashboard at `/insights/spending` rolls up `runs.cost_usd`
 into operator-facing cost views. Syrus records provider-reported cost when

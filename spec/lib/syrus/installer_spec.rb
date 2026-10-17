@@ -48,7 +48,8 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
 
   it "disposes experimental plugin effects when the instance opts out" do
     AppSetting.current.update!(beta_mode_enabled: true)
-    Syrus::PluginRegistry.register(name: "experimental_effect_plugin", version: "1.0.0", experimental: true)
+    Syrus::PluginRegistry.register(name: "experimental_effect_plugin", version: "1.0.0", experimental: true, default_enabled: false)
+    PluginRecord.find_by!(name: "experimental_effect_plugin").update!(enabled: true)
 
     log = []
     described_class.define("experimental effect", plugin: "experimental_effect_plugin") do |scope|

@@ -17,6 +17,7 @@ module Android
 
   syrus_plugin "android" do
     experimental true
+    default_enabled false
     display_name "Android"
     description "Android project intelligence: Android Gradle Plugin detection, SDK environment wiring, " \
                 "toolchain diagnostics, Android/JVM prompt guidance, and mobile review criteria"
