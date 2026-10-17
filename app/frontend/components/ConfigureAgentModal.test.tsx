@@ -1,11 +1,15 @@
 import { useEffect } from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import type { BootstrapPayload } from "../api/bootstrap"
+import { OnboardingRoute } from "../routes/Onboarding"
 import { ConfigureAgentModal } from "./ConfigureAgentModal"
 import { connectOnboardingProvider } from "../api/credentials"
 
 const mountSpy = vi.hoisted(() => vi.fn())
+const panelPropsSpy = vi.hoisted(() => vi.fn())
 
 // The four real plugin connect panels (ClaudeConnect, CodexConnect,
 // AgyConnect, MuseConnect) each have their own thorough test suite next to
@@ -18,14 +22,15 @@ const mountSpy = vi.hoisted(() => vi.fn())
 // panel instead of unmounting it, the same guarantee ClaudeConnect's OAuth
 // flow depends on to survive a Claude <-> Gemini (or Claude <-> Codex) switch.
 vi.mock("./AgentProviderConnectPanel", () => ({
-  AgentProviderConnectPanel: ({ provider, onSaved }: { provider: string; onSaved?: () => void }) => {
+  AgentProviderConnectPanel: ({ provider, onSaved, deferBootstrapRefresh }: { provider: string; onSaved?: () => Promise<void> | void; deferBootstrapRefresh?: boolean }) => {
     useEffect(() => {
       mountSpy(provider)
     }, [])
+    panelPropsSpy({ provider, deferBootstrapRefresh })
     return (
       <div>
         <p>connect-panel:{provider}</p>
-        <button onClick={() => onSaved?.()} type="button">
+        <button onClick={() => void Promise.resolve(onSaved?.()).catch(() => {})} type="button">
           Simulate connect ({provider})
         </button>
       </div>
@@ -52,10 +57,59 @@ function renderModal(props: { onClose?: () => void; onSaved?: () => void } = {})
   }
 }
 
+function renderOnboardingConnection(loadBootstrap: () => Promise<BootstrapPayload>, initialBootstrap: BootstrapPayload) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  function Harness() {
+    const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: loadBootstrap, initialData: initialBootstrap })
+    return (
+      <MemoryRouter>
+        <OnboardingRoute bootstrap={bootstrap.data} />
+        <ConfigureAgentModal onClose={() => {}} />
+      </MemoryRouter>
+    )
+  }
+
+  return render(
+    <QueryClientProvider client={client}>
+      <Harness />
+    </QueryClientProvider>
+  )
+}
+
+function onboardingBootstrap(provider: string, agentConfigured: boolean, providerLabel: string): BootstrapPayload {
+  return {
+    current_user: {
+      id: 1,
+      email_address: "operator@example.com",
+      display_name: "Operator",
+      admin: true,
+      agent_provider: provider
+    },
+    setup_status: {
+      first_epic_landed: false,
+      onboarding_chat_started: false,
+      credential_status: {
+        github: true,
+        github_pat: true,
+        github_app: true,
+        agent: agentConfigured,
+        active_agent_provider: provider,
+        active_agent_provider_label: providerLabel
+      },
+      repository_configured: false,
+      first_epic_created: false,
+      first_epic_started: false,
+      counts: { repositories: 0 }
+    }
+  } as BootstrapPayload
+}
+
 describe("ConfigureAgentModal", () => {
   afterEach(() => {
     vi.restoreAllMocks()
     mountSpy.mockClear()
+    panelPropsSpy.mockClear()
   })
 
   it("enumerates a tab for every plugin-registered agent-provider connect panel, ordered popular-to-less-popular", () => {
@@ -129,6 +183,7 @@ describe("ConfigureAgentModal", () => {
     const invalidateSpy = vi.spyOn(client, "invalidateQueries")
 
     fireEvent.click(screen.getByRole("tab", { name: "Antigravity" }))
+    expect(panelPropsSpy).toHaveBeenCalledWith({ provider: "agy", deferBootstrapRefresh: true })
     fireEvent.click(screen.getByRole("button", { name: "Simulate connect (agy)" }))
 
     await waitFor(() => expect(mockedConnectOnboardingProvider).toHaveBeenCalledWith("agy"))
@@ -141,6 +196,30 @@ describe("ConfigureAgentModal", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credentials"] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+  })
+
+  it("keeps the connected provider complete after bootstrap refetch and a fresh onboarding mount", async () => {
+    let serverBootstrap = onboardingBootstrap("claude", false, "Claude Code")
+    const loadBootstrap = vi.fn(() => Promise.resolve(serverBootstrap))
+    mockedConnectOnboardingProvider.mockImplementation(async (provider) => {
+      serverBootstrap = onboardingBootstrap(provider, true, "Muse Code")
+      return {} as never
+    })
+
+    const firstMount = renderOnboardingConnection(loadBootstrap, serverBootstrap)
+    expect(screen.getByRole("button", { name: "Configure agent" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("tab", { name: "Muse" }))
+    fireEvent.click(screen.getByRole("button", { name: "Simulate connect (muse)" }))
+
+    expect(await screen.findByText("Muse Code is ready for runs.")).toBeInTheDocument()
+    expect(loadBootstrap).toHaveBeenCalledTimes(2)
+
+    firstMount.unmount()
+    renderOnboardingConnection(loadBootstrap, serverBootstrap)
+
+    expect(await screen.findByText("Muse Code is ready for runs.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit agent settings" })).toBeInTheDocument()
+    expect(loadBootstrap).toHaveBeenCalledTimes(3)
   })
 
   it("scopes the auto-enable call to whichever provider tab was connected", async () => {
