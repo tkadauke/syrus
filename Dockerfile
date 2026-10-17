@@ -37,7 +37,7 @@ WORKDIR /rails
 #     (PreparedWorkspaceArchive); it falls back to plain `gzip -1` when
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
-ARG NODESOURCE_KEY_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
+ARG NODESOURCE_GPG_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
 ARG CLAUDE_CODE_VERSION=2.1.296
 ARG CODEX_CLI_VERSION=0.162.1
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips pigz && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.key && \
-    test "$(gpg --show-keys --with-colons /tmp/nodesource.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${NODESOURCE_KEY_FINGERPRINT}" && \
+    test "$(gpg --show-keys --with-colons /tmp/nodesource.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${NODESOURCE_GPG_FINGERPRINT}" && \
     gpg --dearmor -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.key && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
     rm -f /tmp/nodesource.key && \
@@ -356,7 +356,7 @@ ARG PNPM_VERSION=12.11.2
 ARG PIP_VERSION=26.2.1
 ARG MISE_GO_VERSION="1.26.5"
 ARG MULL_LLVM_VERSION=18
-ARG MULL_APT_KEY_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
+ARG MULL_APT_GPG_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F
 ARG ANDROID_CMDLINE_TOOLS_VERSION=15859902
 ARG ANDROID_CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
 ARG ANDROID_PLATFORM_VERSION=android-36
@@ -389,7 +389,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     set -eu; \
     . /etc/os-release; \
     curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key -o /tmp/mull.key; \
-    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${MULL_APT_KEY_FINGERPRINT}"; \
+    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${MULL_APT_GPG_FINGERPRINT}"; \
     gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg /tmp/mull.key; \
     rm -f /tmp/mull.key; \
     echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \

@@ -84,7 +84,7 @@ RSpec.describe "Dockerfile" do
     browser_dockerfile = Rails.root.join("plugins/browser/container/Dockerfile").read
 
     [ dockerfile, browser_dockerfile ].each do |contents|
-      expect(contents).to include("ARG NODESOURCE_KEY_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4")
+      expect(contents).to include("ARG NODESOURCE_GPG_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4")
       expect(contents).to include("gpg --show-keys --with-colons /tmp/nodesource.key")
       expect(contents).to include("signed-by=/usr/share/keyrings/nodesource.gpg")
       expect(contents).not_to include("deb.nodesource.com/setup_")
@@ -184,7 +184,7 @@ RSpec.describe "Dockerfile" do
 
     expect(stage).to include("ARG MULL_LLVM_VERSION=18")
     expect(stage).to include("mull-project-mull-stable-archive-keyring.gpg")
-    expect(stage).to include("ARG MULL_APT_KEY_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F")
+    expect(stage).to include("ARG MULL_APT_GPG_FINGERPRINT=6975C1E8A078A727081F4B7541DB35380DE6BD6F")
     expect(stage).to include("gpg --show-keys --with-colons /tmp/mull.key")
     expect(stage).to include("mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main")
     expect(stage).to include("clang-${MULL_LLVM_VERSION}")
