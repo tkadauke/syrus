@@ -99,6 +99,10 @@ export type AttachMediaToComposerDetail = {
 // already-updated store) once they switch back to the Chat tab.
 export const CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT = "syrus:chat-draft-attachments-changed"
 
+// Fired after a failed request restores its independent in-flight snapshot to
+// the editable stores. A replacement Compose may already be mounted by then.
+export const CHAT_COMPOSER_DRAFT_RESTORED_EVENT = "syrus:chat-composer-draft-restored"
+
 export type ChatDraftAttachmentsChangedDetail = {
   chatId: string
 }
