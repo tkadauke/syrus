@@ -27,7 +27,12 @@ RSpec.describe SystemAlerts do
       # with the surrounding prose.
       expect(alert.message).to include("<code>Resource not accessible by personal access token</code>")
       expect(alert.action_steps.size).to be >= 2
-      expect(alert.action_steps.join).to match(/scope|read/)
+      guidance = alert.action_steps.join(" ")
+      expect(guidance).to include("https://github.com/settings/tokens/new")
+      expect(guidance).to include("<code>repo</code>", "<code>public_repo</code>")
+      expect(guidance).to include("<code>workflow</code> scope is optional")
+      expect(guidance).to include("Fine-grained PATs remain supported")
+      expect(guidance).not_to include("personal-access-tokens/new")
       expect(alert.cta).to eq(text: "Update token", path: "/credentials")
     end
 
