@@ -24,24 +24,44 @@ function mockRoutes(routes: { test?: () => Response; save?: () => Response }) {
   })
 }
 
-const okResult = { credential: "github_token", ok: true, message: "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.", details: { login: "octocat", scopes: [], missing_scopes: [], fine_grained: true, probed_repository: "acme/widgets", workflow_file_write: true, checks_read: true, unverified_repository_permissions: ["pull_requests:write"] } }
+const okResult = {
+  credential: "github_token",
+  ok: true,
+  message:
+    "Fine-grained token can write workflow files and read Checks on acme/widgets as octocat. Also grant Pull requests write; Syrus cannot verify it without creating a probe PR.",
+  details: {
+    login: "octocat",
+    scopes: [],
+    missing_scopes: [],
+    fine_grained: true,
+    probed_repository: "acme/widgets",
+    workflow_file_write: true,
+    checks_read: true,
+    unverified_repository_permissions: ["pull_requests:write"]
+  }
+}
+const classicOkResult = {
+  credential: "github_token",
+  ok: true,
+  message: "GitHub token is valid for octocat.",
+  details: { login: "octocat", scopes: ["repo"], missing_scopes: [] }
+}
 
 describe("GithubTokenModal", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("links to GitHub settings and advises fine-grained repository permissions", () => {
+  it("links to classic token creation and advises classic scopes", () => {
     renderModal()
 
-    const link = screen.getByRole("link", { name: /Open fine-grained token settings/ })
-    expect(link).toHaveAttribute("href", "https://github.com/settings/personal-access-tokens/new")
+    const link = screen.getByRole("link", { name: /Create a classic token/ })
+    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens/new")
     expect(link).toHaveAttribute("target", "_blank")
-    expect(screen.getByText(/Set an expiration/)).toBeInTheDocument()
-    expect(screen.getByText("Contents")).toBeInTheDocument()
-    expect(screen.getByText("Pull requests")).toBeInTheDocument()
-    expect(screen.getByText("Workflows")).toBeInTheDocument()
-    expect(screen.getByText("Checks")).toBeInTheDocument()
+    expect(screen.getByText("repo")).toBeInTheDocument()
+    expect(screen.getByText("public_repo")).toBeInTheDocument()
+    expect(screen.getByText("workflow")).toBeInTheDocument()
+    expect(screen.getByText(/Leave this blank for a classic token/)).toBeInTheDocument()
     expect(screen.getByPlaceholderText("owner/repo")).toBeInTheDocument()
   })
 
@@ -61,7 +81,8 @@ describe("GithubTokenModal", () => {
     const underScoped = {
       credential: "github_token",
       ok: false,
-      message: "Token authenticated as octocat, but it is missing the repo scope. Use a classic token with repo for private repositories or public_repo for public repositories; add workflow only if agents must edit GitHub Actions workflow files through the PAT. Or use a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
+      message:
+        "Token authenticated as octocat, but it is missing the repo scope. Use a classic token with repo for private repositories or public_repo for public repositories; add workflow only if agents must edit GitHub Actions workflow files through the PAT. Or use a fine-grained token with repository Contents, Pull requests, and Workflows read/write plus Checks read.",
       details: { login: "octocat", scopes: [], missing_scopes: ["repo"] }
     }
     mockRoutes({ test: () => jsonResponse({ credential_test: underScoped }) })
@@ -86,14 +107,13 @@ describe("GithubTokenModal", () => {
 
   it("saves the token then advances to the GitHub App step (does not close)", async () => {
     const fetchSpy = mockRoutes({
-      test: () => jsonResponse({ credential_test: okResult }),
+      test: () => jsonResponse({ credential_test: classicOkResult }),
       save: () => jsonResponse({ message: "Credentials updated." })
     })
     const onClose = vi.fn()
     renderModal({ onClose })
 
     fireEvent.change(screen.getByPlaceholderText("ghp_…"), { target: { value: "ghp_good" } })
-    fireEvent.change(screen.getByPlaceholderText("owner/repo"), { target: { value: "acme/widgets" } })
     await waitFor(() => expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }))
 
@@ -103,6 +123,8 @@ describe("GithubTokenModal", () => {
     expect(screen.getByText(/ask an\s+admin to register it/)).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
 
+    const testCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/test_github_token"))
+    expect(JSON.parse(testCall?.[1]?.body as string)).toEqual({ github_token: "ghp_good", probe_repository: "" })
     const saveCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith("/credentials"))
     expect(JSON.parse(saveCall?.[1]?.body as string)).toEqual({ user: { github_token: "ghp_good" } })
   })
@@ -132,8 +154,10 @@ describe("GithubTokenModal", () => {
           submit_label: "Register GitHub App"
         })
       }
-      if (url.endsWith("/admin/github_app/confirm")) return jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null } })
-      if (url.endsWith("/api/v1/app/bootstrap")) return jsonResponse({ current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
+      if (url.endsWith("/admin/github_app/confirm"))
+        return jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null } })
+      if (url.endsWith("/api/v1/app/bootstrap"))
+        return jsonResponse({ current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
       return jsonResponse({})
     })
 
