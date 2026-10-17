@@ -27,6 +27,7 @@ RSpec.describe RunJob, :ci_only do
   end
 
   before do
+    AppSetting.current.update!(workflow_admission_control_enabled: true)
     FileUtils.rm_rf(bare_remote_dir)
     cloned = system(
       "git", "clone", "--local", "--bare",
@@ -1797,6 +1798,27 @@ RSpec.describe RunJob, :ci_only do
       running_agent_run!
 
       expect(RunJob.new.send(:defer_for_agent_concurrency?, queued_run.id)).to be(false)
+    end
+    it "skips the global cap when admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false, max_concurrent_agent_runs: 1)
+      running_agent_run!
+
+      expect {
+        expect(RunJob.new.send(:defer_for_agent_concurrency?, queued_run.id)).to be(false)
+      }.not_to have_enqueued_job(RunJob)
+    end
+
+    it "skips fair share but still evaluates the spend budget when admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false)
+      spend_budget = instance_double(Admission::SpendBudget::Result, over_budget?: true, to_h: {})
+      allow(Admission::FairShare).to receive(:for)
+      allow(Admission::SpendBudget).to receive(:for).and_return(spend_budget)
+
+      expect {
+        expect(RunJob.new.send(:defer_for_actor_share?, queued_run.id)).to be(true)
+      }.to have_enqueued_job(RunJob).with(queued_run.id)
+      expect(Admission::FairShare).not_to have_received(:for)
+      expect(Admission::SpendBudget).to have_received(:for).with(user: queued_run.user)
     end
 
     it "does not defer when running agent Runs are below the cap" do
