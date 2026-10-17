@@ -29,10 +29,11 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
-import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
+import { type ChatDraftAttachmentsChangedDetail, CHAT_COMPOSER_DRAFT_RESTORED_EVENT, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
+import { clearInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -225,10 +226,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   useEffect(() => {
     if (historyMode) return
 
-    const submittedDraft = submittedDraftRef.current || submittedGoalDraftRef.current
-    const draftText = text.length > 0 ? text : submittedDraft?.composerText || ""
-    if (draftText.length > 0) {
-      storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, draftText)
+    if (text.length > 0) {
+      storeWorkspacePreference(CHAT_DRAFT_KEY_PREFIX + chatId, text)
       return
     }
 
@@ -258,9 +257,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // Mirrors the text-draft effect above, but through the in-memory
   // attachmentDraftStore rather than localStorage — see that module for why.
   useEffect(() => {
-    const submittedDraft = submittedDraftRef.current || submittedGoalDraftRef.current
-    const draftAttachments = attachments.length > 0 ? attachments : submittedDraft?.attachments || []
-    setDraftAttachments(chatId, draftAttachments)
+    setDraftAttachments(chatId, attachments)
   }, [chatId, attachments])
 
   // Unblocks the composer once ChatShellCommandJob's completion message shows
@@ -279,19 +276,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (finished) setShellCommand(null)
   }, [payload.messages, shellCommand])
 
-  function clearComposerDraft({ preserveStoredDraft = false } = {}) {
+  function clearComposerDraft() {
     currentDraftRef.current = { composerText: "", attachments: [] }
     setText("")
     setAttachments([])
     setAttachmentError(null)
     setHistoryMode(null)
-    if (!preserveStoredDraft) {
-      try {
-        window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
-      } catch (_error) {
-        // Local storage can be unavailable in hardened browser modes.
-      }
+    try {
+      window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
+    } catch (_error) {
+      // Local storage can be unavailable in hardened browser modes.
     }
+    setDraftAttachments(chatId, [])
   }
 
   function composerDraftSnapshot(): ComposerDraftSnapshot {
@@ -310,29 +306,26 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setDraftAttachments(chatId, draft.attachments)
   }
 
-  function discardStoredComposerDraft() {
-    try {
-      window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
-    } catch (_error) {
-      // Local storage can be unavailable in hardened browser modes.
-    }
-    setDraftAttachments(chatId, [])
-  }
-
   function draftHasContent(draft: ComposerDraftSnapshot) {
     return draft.composerText.length > 0 || draft.attachments.length > 0
   }
 
   function finishSubmittedDraft(draft: ComposerDraftSnapshot, succeeded: boolean) {
-    const currentDraft = currentDraftRef.current
-    if (draftHasContent(currentDraft)) {
-      persistComposerDraft(currentDraft)
-    } else if (succeeded) {
-      discardStoredComposerDraft()
-    } else {
-      persistComposerDraft(draft)
-      restoreComposerDraft(draft)
+    if (!clearInFlightComposerDraft(chatId, draft)) return
+    if (succeeded) return
+
+    let storedText = ""
+    try {
+      storedText = window.localStorage.getItem(CHAT_DRAFT_KEY_PREFIX + chatId) || ""
+    } catch (_error) {
+      // Local storage can be unavailable in hardened browser modes.
     }
+    const storedDraft = { composerText: storedText, attachments: getDraftAttachments(chatId) }
+    if (draftHasContent(currentDraftRef.current) || draftHasContent(storedDraft)) return
+
+    persistComposerDraft(draft)
+    restoreComposerDraft(draft)
+    window.dispatchEvent(new CustomEvent(CHAT_COMPOSER_DRAFT_RESTORED_EVENT, { detail: { chatId } }))
   }
 
   function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
@@ -343,8 +336,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       chatProvider: newChatForm ? selectedChatProvider : null
     }
     submittedDraftRef.current = draft
-    persistComposerDraft(draft)
-    clearComposerDraft({ preserveStoredDraft: true })
+    setInFlightComposerDraft(chatId, draft)
+    clearComposerDraft()
     setHistoryMode(null)
     setPendingConfirmation(null)
     send.mutate(draft)
@@ -927,8 +920,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
       const draft = composerDraftSnapshot()
       submittedGoalDraftRef.current = draft
-      persistComposerDraft(draft)
-      clearComposerDraft({ preserveStoredDraft: true })
+      setInFlightComposerDraft(chatId, draft)
+      clearComposerDraft()
       systemCommandAction.mutate(parsed)
       return
     }
@@ -1166,6 +1159,24 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     window.addEventListener(CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, onDraftAttachmentsChanged)
     return () => window.removeEventListener(CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, onDraftAttachmentsChanged)
+  }, [chatId])
+
+  useEffect(() => {
+    function onComposerDraftRestored(event: Event) {
+      const detail = (event as CustomEvent<{ chatId: string }>).detail
+      if (!detail || detail.chatId !== chatId) return
+
+      let restoredText = ""
+      try {
+        restoredText = window.localStorage.getItem(CHAT_DRAFT_KEY_PREFIX + chatId) || ""
+      } catch (_error) {
+        // Local storage can be unavailable in hardened browser modes.
+      }
+      restoreComposerDraft({ composerText: restoredText, attachments: getDraftAttachments(chatId) })
+    }
+
+    window.addEventListener(CHAT_COMPOSER_DRAFT_RESTORED_EVENT, onComposerDraftRestored)
+    return () => window.removeEventListener(CHAT_COMPOSER_DRAFT_RESTORED_EVENT, onComposerDraftRestored)
   }, [chatId])
 
   async function uploadWalkthrough(note: string) {
