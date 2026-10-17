@@ -731,7 +731,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
     expect(screen.getByTestId("job-running-count")).toHaveTextContent("2")
     expect(screen.queryByTitle("Chat turn active")).not.toBeInTheDocument()
-    fireEvent.mouseEnter(screen.getByTestId("job-running-marker").parentElement!)
+    fireEvent.mouseEnter(screen.getByTitle("Chat").parentElement!)
     const popover = screen.getByTestId("recent-chat-indicator-popover")
     expect(within(popover).getByText("Agent replying")).toBeInTheDocument()
     expect(within(popover).getByText("JOB-41")).toBeInTheDocument()
