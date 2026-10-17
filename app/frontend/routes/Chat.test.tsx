@@ -17,6 +17,7 @@ import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobile
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 import { __resetDraftAttachmentsForTests, getDraftAttachments, setDraftAttachments } from "./chat/attachmentDraftStore"
+import { __resetInFlightComposerDraftsForTests } from "./chat/inFlightComposerDraftStore"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import type { ChatPayload } from "../api/chats"
 
@@ -66,6 +67,7 @@ afterEach(() => {
   setSlugReferenceRegistryForTests(null)
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
+  __resetInFlightComposerDraftsForTests()
 })
 
 // ChatRoute always opens a resource-scoped ChatChannel subscription (see
@@ -1204,7 +1206,7 @@ describe("chat compose drafts", () => {
     fireEvent.click(sendButton)
 
     await waitFor(() => expect(textarea).toHaveValue(""))
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Please investigate the slow turn start.")
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((call) =>
         String(call[0]) === "/api/v1/app/chats/8/message" &&
@@ -1232,6 +1234,63 @@ describe("chat compose drafts", () => {
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
   }, 30000)
 
+  it("does not hydrate the submitted first message into the composer mounted by replace_tail", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return messageRequest
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const landingTextarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(landingTextarea, { target: { value: "This is the first message." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "first.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove first.png" })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull())
+
+    const firstMessage = {
+      type: "message",
+      id: 10,
+      role: "user",
+      tool_name: null,
+      content: { text: "This is the first message." },
+      text: "This is the first message.",
+      bookmarkable: true
+    }
+    act(() => {
+      actionCableSubscriptions.find((subscription) => subscription.params.channel === "ChatChannel")?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: { action: "replace_tail", replace_from_id: 10, messages: [firstMessage] }
+      })
+    })
+
+    await screen.findByText("This is the first message.")
+    const replacementTextarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(replacementTextarea).not.toBe(landingTextarea)
+    expect(replacementTextarea).toHaveValue("")
+    expect(screen.queryByRole("button", { name: "Remove first.png" })).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse(chatPayload({ messages: [firstMessage] })))
+      await messageRequest
+    })
+
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("")
+    expect(screen.queryByRole("button", { name: "Remove first.png" })).not.toBeInTheDocument()
+  }, 30000)
+
   it("keeps a failed send draft for its chat after the composer unmounts", async () => {
     const attachment = { name: "failure.png", mimeType: "image/png", dataUrl: "data:image/png;base64,ZmFpbHVyZQ==", size: 7 }
     setDraftAttachments("8", [attachment])
@@ -1256,8 +1315,8 @@ describe("chat compose drafts", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some((call) =>
       String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST"
     )).toBe(true))
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this failed message with chat eight.")
-    expect(getDraftAttachments("8")).toEqual([attachment])
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    expect(getDraftAttachments("8")).toEqual([])
 
     cleanup()
     await act(async () => {
@@ -1355,8 +1414,8 @@ describe("chat compose drafts", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some((call) =>
       String(call[0]) === "/api/v1/app/chats/8/goal" && (call[1] as RequestInit)?.method === "PATCH"
     )).toBe(true))
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("/goal preserve this objective")
-    expect(getDraftAttachments("8")).toEqual([attachment])
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    expect(getDraftAttachments("8")).toEqual([])
 
     cleanup()
     await act(async () => {
