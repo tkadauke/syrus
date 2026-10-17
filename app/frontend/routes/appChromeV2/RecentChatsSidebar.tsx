@@ -901,7 +901,12 @@ function JobStateMarkers({ summary }: { summary?: ChatJobSummary }) {
 }
 
 function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
-  const jobs = chats.flatMap((chat) => chat.job_summary?.jobs || [])
+  const jobsById = new Map<number, ChatJobSummary["jobs"][number]>()
+  chats.flatMap((chat) => chat.job_summary?.jobs || []).forEach((job) => {
+    const existing = jobsById.get(job.id)
+    if (!existing || (!existing.group && job.group)) jobsById.set(job.id, job)
+  })
+  const jobs = Array.from(jobsById.values())
   const active_count = jobs.filter((job) => job.group === "running").length
   const outcome = jobs.some((job) => job.group === "failed") ? "failed" : jobs.some((job) => job.group === "ready") ? "ready" : null
   return { active_count, outcome, jobs }
@@ -911,6 +916,24 @@ function IndicatorPopover({ chat, children, prefix }: { chat: ChatNavRecord; chi
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
   const { floatingStyles, refs } = useFloating({ middleware: [offset(6), flip({ fallbackPlacements: ["right", "left"] }), shift({ padding: 8 })], placement: "right-start", whileElementsMounted: autoUpdate })
+  const referenceRef = useRef<HTMLSpanElement>(null)
+  const floatingRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mergedReferenceRef = useMergeRefs([referenceRef, refs.setReference])
+  const mergedFloatingRef = useMergeRefs([floatingRef, refs.setFloating])
+  const cancelClose = () => {
+    if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }
+  const scheduleClose = () => {
+    cancelClose()
+    closeTimerRef.current = setTimeout(() => setOpen(false), 100)
+  }
+  const focusRemainsInPopover = (nextTarget: EventTarget | null) => {
+    const node = nextTarget instanceof Node ? nextTarget : null
+    return Boolean(node && (referenceRef.current?.contains(node) || floatingRef.current?.contains(node)))
+  }
+  useEffect(() => () => cancelClose(), [])
   const replying = Boolean(chat.turn_in_flight || chat.agent_busy)
   const jobs = chat.job_summary?.jobs.filter((job) => job.group) || []
   const goal = chat.active_goal && ["active", "paused"].includes(chat.active_goal.status) ? chat.active_goal : null
@@ -927,7 +950,7 @@ function IndicatorPopover({ chat, children, prefix }: { chat: ChatNavRecord; chi
   if (goal) sections.push(<div key="goal"><span className="font-semibold">{t("popover_goal")}</span><div>{t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")} · {goal.prompt}</div></div>)
   if (chat.pending_proposal_count > 0 || chat.coding_checkout_uncommitted) sections.push(<div key="pending"><span className="font-semibold">{t("popover_pending_actions")}</span><div>{t("popover_pending_count", { count: chat.pending_proposal_count })}{chat.coding_checkout_uncommitted ? ` · ${t("title_uncommitted")}` : ""}</div></div>)
   if (chat.scratchpad_items_count > 0) sections.push(<div key="scratch"><span className="font-semibold">{t("popover_scratchpad")}</span><div>{t("popover_scratchpad_count", { count: chat.scratchpad_items_count })}</div></div>)
-  return <><span onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }} onFocus={() => setOpen(true)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} ref={refs.setReference} tabIndex={0}>{children}</span>{open ? createPortal(<div className="z-[100] w-64 rounded-lg border border-border bg-surface-raised p-3 text-xs text-text-primary shadow-xl" data-testid="recent-chat-indicator-popover" ref={refs.setFloating} style={floatingStyles}>{sections.map((section, index) => <div className={index ? "mt-2 border-t border-border pt-2" : ""} key={index}>{section}</div>)}</div>, document.body) : null}</>
+  return <><span onBlur={(event) => { if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose() }} onFocus={() => { cancelClose(); setOpen(true) }} onMouseEnter={() => { cancelClose(); setOpen(true) }} onMouseLeave={scheduleClose} ref={mergedReferenceRef} tabIndex={0}>{children}</span>{open ? <FloatingPortal><div className="z-[100] w-64 rounded-lg border border-border bg-surface-raised p-3 text-xs text-text-primary shadow-xl" data-testid="recent-chat-indicator-popover" onBlur={(event) => { if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose() }} onFocus={cancelClose} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} ref={mergedFloatingRef} style={floatingStyles}>{sections.map((section, index) => <div className={index ? "mt-2 border-t border-border pt-2" : ""} key={index}>{section}</div>)}</div></FloatingPortal> : null}</>
 }
 
 function elapsedLabel(startedAt: string, t: TFunction<"nav">) {
