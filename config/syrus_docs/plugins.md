@@ -32,6 +32,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `execution_backend`
 - `workspace_git_transport`
 - `purge_contributor`
 - `slug_type`
@@ -314,7 +315,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `agent_activity`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
 | `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
-| `tooling` | Tooling | `build_cache`, `mysql_db_browser`, `syrus_dev`, `terminal` |
+| `tooling` | Tooling | `build_cache`, `container_execution`, `mysql_db_browser`, `syrus_dev`, `terminal` |
 
 A category answers **what the plugin is for**, never which extension point it
 registers. `mcp_tool_set` was both a category and an extension point, which put
@@ -2901,6 +2902,23 @@ repositories it would leave with no provider at all.
 Core specs stub content with `stub_repository_content(repository, files: {...})`
 (`spec/support/repository_content.rb`), never through a provider plugin, so
 provider plugins stay removable.
+
+## `execution_backend`
+
+Plugins can provide alternate process execution backends without making core
+name a specific implementation. `ProcessRunner` builds an `Execution::Request`
+from the same command, environment, mounts, network profile, timeout, callbacks,
+and resource limits it uses for local subprocesses. Core asks enabled
+`:execution_backend` providers whether they are `available_for?(request)` and
+uses the first provider that accepts; if none do, it runs the request through
+`Execution::Local`.
+
+The bundled `container_execution` plugin is the first provider. It only accepts
+grader requests when the plugin is enabled, a container image is configured, a
+Docker CLI/transport is reachable from the worker, and every requested bind
+source has an explicit worker-path to Docker-host-path mapping. It maps the
+declared mounts/network/resource limits to Docker run flags, and otherwise lets
+the core fallback keep local execution working.
 
 ## `workspace_git_transport`
 
