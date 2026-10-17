@@ -741,14 +741,47 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
   })
 
+  it("keeps the portaled popover interactive across pointer and focus transitions", () => {
+    vi.useFakeTimers()
+    try {
+      renderSidebar([chatNav({ job_summary: { active_count: 1, outcome: null, jobs: [
+        { id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }
+      ] } })])
+      const reference = screen.getByTestId("job-running-marker").parentElement!
+      fireEvent.mouseEnter(reference)
+      const popover = screen.getByTestId("recent-chat-indicator-popover")
+      const jobLink = within(popover).getByRole("link", { name: "JOB-41" })
+
+      fireEvent.mouseLeave(reference)
+      fireEvent.mouseEnter(popover)
+      act(() => vi.advanceTimersByTime(150))
+      expect(popover).toBeInTheDocument()
+
+      fireEvent.focus(reference)
+      fireEvent.blur(reference, { relatedTarget: jobLink })
+      fireEvent.focus(jobLink)
+      act(() => vi.advanceTimersByTime(150))
+      expect(jobLink).toBeInTheDocument()
+      fireEvent.click(jobLink)
+      expect(screen.getByTestId("location")).toHaveTextContent("/jobs/41")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("rolls Job activity and worst outcome into a collapsed group", () => {
     renderSidebar([], { groups: [chatGroup({ key: "repository-7", label: "acme/widgets", chats: [
       chatNav({ id: 1, job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] } }),
-      chatNav({ id: 2, job_summary: { active_count: 0, outcome: "failed", jobs: [{ id: 2, slug: "JOB-2", state: "failed", group: "failed", app_path: "/jobs/2" }] } })
+      chatNav({ id: 2, job_summary: { active_count: 2, outcome: "failed", jobs: [
+        { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
+        { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },
+        { id: 3, slug: "JOB-3", state: "failed", group: "failed", app_path: "/jobs/3" }
+      ] } })
     ] })] })
     fireEvent.click(screen.getByRole("button", { name: /acme\/widgets/i }))
     expect(screen.getByTestId("job-running-marker")).toBeInTheDocument()
     expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
+    expect(screen.getByTestId("job-running-count")).toHaveTextContent("2")
     expect(screen.queryByTestId("job-ready-marker")).not.toBeInTheDocument()
   })
 
