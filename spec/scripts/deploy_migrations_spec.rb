@@ -1,6 +1,7 @@
 require "spec_helper"
 require "json"
 require "open3"
+require "shellwords"
 require "tmpdir"
 
 RSpec.describe "bin/deploy database migrations" do
@@ -19,6 +20,75 @@ RSpec.describe "bin/deploy database migrations" do
     expect(pin_at).not_to be_nil
     expect(migrate_at).to be < pin_at,
       "new workers must not consume work before the new image's migrations finish"
+  end
+
+  it "restores Flux's previous image overrides before resuming when migrations fail" do
+    Dir.mktmpdir do |dir|
+      log = File.join(dir, "kubectl.log")
+      functions = %w[
+        cleanup_rollout_controls rollout flux_kustomization_exists flux_resume_now
+        flux_pin_desired_images flux_desired_images_snapshot_patch
+        flux_restore_desired_images flux_desired_images_patch flux_request_reconcile
+      ].map { |name| deploy[/^#{name}\(\) \{.*?\n\}/m] }.join("\n")
+
+      _out, _err, status = bash(<<~SH)
+        set -euo pipefail
+        SHA=new-sha
+        REGISTRY=ghcr.io/example/syrus
+        WORKER_DEV_REGISTRY=ghcr.io/example/syrus-worker-dev
+        PLUGIN_REGISTRIES=()
+        FLUX_NAMESPACE=flux-system
+        FLUX_KUSTOMIZATION=apps
+        FLUX_IMAGE_FIELD_MANAGER=flux-client-side-apply
+        ACTIVE_FLUX_KUBECONFIG=""
+        ACTIVE_FLUX_LABEL=""
+        ACTIVE_FLUX_IMAGES_SNAPSHOT=""
+        ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=false
+        ACTIVE_BACKUP_KUBECONFIG=""
+        ACTIVE_PREPULL_KUBECONFIG=""
+        ACTIVE_DB_PREPARE_KUBECONFIG=""
+        DEPLOYMENTS=(deployment/syrus-web)
+        PINNED_PLUGIN_WORKLOADS=()
+        #{functions}
+        kubectl() {
+          printf '%s\n' "$*" >> #{Shellwords.escape(log)}
+          if [[ " $* " == *" -o json "* ]]; then
+            printf '%s\n' '{"spec":{"images":[{"name":"ghcr.io/example/syrus","newTag":"old-sha"}]}}'
+          fi
+        }
+        flux_suspend_with_watchdog() {
+          ACTIVE_FLUX_KUBECONFIG="$1"
+          ACTIVE_FLUX_LABEL="$2"
+          ACTIVE_FLUX_SUSPENDED_BY_DEPLOY=true
+        }
+        configure_flux_suspend_ttl() { :; }
+        suspend_mysql_backup() { :; }
+        ensure_mise_cache() { :; }
+        prepull_worker_image() { :; }
+        run_database_migrations() { return 1; }
+        pin_live_images() { :; }
+        wait_for_rollout_target() { :; }
+        verify_sha() { :; }
+        verify_worker_native_toolchain() { :; }
+        resume_mysql_backup() { :; }
+        delete_db_prepare_job() { :; }
+        delete_prepull_daemonset() { :; }
+        verify_flux_desired_images() { :; }
+        trap cleanup_rollout_controls EXIT
+        rollout staging kubeconfig syrus
+      SH
+
+      expect(status).not_to be_success
+      commands = File.readlines(log, chomp: true)
+      new_pin = commands.index { |command| command.include?('new-sha') }
+      restored_pin = commands.index { |command| command.include?('old-sha') }
+      resume = commands.index { |command| command.include?('{"spec":{"suspend":false}}') }
+
+      expect(new_pin).not_to be_nil
+      expect(restored_pin).to be > new_pin
+      expect(resume).to be > restored_pin
+      expect(commands.count { |command| command.include?('new-sha') }).to eq(1)
+    end
   end
 
   it "runs migrations from the newly built app image" do

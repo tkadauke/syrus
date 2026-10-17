@@ -2,8 +2,9 @@ require "base64"
 require "socket"
 
 class TerminalChannel < ApplicationCable::Channel
-  RELAY_ADDRESS_TIMEOUT = 10.seconds
+  RELAY_ADDRESS_TIMEOUT = 2.seconds
   RELAY_ADDRESS_POLL_INTERVAL = 0.2.seconds
+  RELAY_CONNECT_TIMEOUT = 1.second
   RELAY_READ_SIZE = 4096
   RELAY_SELECT_TIMEOUT = 0.05
 
@@ -49,7 +50,7 @@ class TerminalChannel < ApplicationCable::Channel
   def connect_to_relay
     host, port = @session.relay_address.split(":", 2)
 
-    @relay_socket = TCPSocket.new(host, port.to_i)
+    @relay_socket = Socket.tcp(host, port.to_i, connect_timeout: RELAY_CONNECT_TIMEOUT)
     @relay_socket.puts({ token: @session.auth_token }.to_json)
   end
 

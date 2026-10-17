@@ -342,6 +342,10 @@ jobs:
   build-mac:
     runs-on: macos-15
     timeout-minutes: 90
+    # Store the Apple credentials on this protected environment, with a main
+    # deployment-branch rule and required reviewers. Keeping the gate on the
+    # secret-consuming job protects both release and test-build callers.
+    environment: release-signing
     # Channel identity, resolved once for every step in this job: a test build
     # forks the product name / appId / icon so its Syrus Test.app installs
     # beside — never over — a release. PRODUCT also names the output files
@@ -361,7 +365,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           if [[ -z "$CSC_LINK" || -z "$APPLE_API_KEY_P8" ]]; then
-            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build is required — set them in repo secrets (dry runs sign too)."
+            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build is required — set them on the release-signing environment (dry runs sign too)."
             exit 1
           fi
 

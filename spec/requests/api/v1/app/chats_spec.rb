@@ -5319,6 +5319,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.headers["Content-Type"]).to eq("image/svg+xml")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+    expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+    expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body).to eq("<svg></svg>")
   end
 
@@ -7069,7 +7072,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }.not_to change(ChatMessage, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Attachment MIME type is not allowed.")
+    expect(parse_body.dig("error", "message")).to eq("script.js is not a supported type (images or PDF).")
   end
 
   it "returns a validation error for oversized chat message attachment data" do

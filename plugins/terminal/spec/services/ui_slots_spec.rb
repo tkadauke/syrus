@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Terminal::UiSlots do
-  let(:user) { Factories.user }
+  let(:user) { Factories.user(admin: true) }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job(user: user, repository: repo, issue_title: "Build terminal UI") }
   let(:workflow) { job.workflows.first }
@@ -17,5 +17,11 @@ RSpec.describe Terminal::UiSlots do
       reason: "This workflow workspace has been cleaned up.",
       working_directory: WorkflowWorkspace.path_for(workflow).to_s
     )
+  end
+
+  it "does not offer terminal creation to non-admin users" do
+    panels = described_class.ui_slots(slot: "job.workflow.actions", context: { job: job, user: Factories.user(admin: false) })
+
+    expect(panels).to be_empty
   end
 end

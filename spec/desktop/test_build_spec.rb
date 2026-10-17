@@ -64,6 +64,13 @@ RSpec.describe "desktop test-build pipeline" do
     expect(workflow.dig("concurrency", "cancel-in-progress")).to eq(true)
   end
 
+  it "only dispatches reviewed main source and gates signing on the protected environment" do
+    expect(workflow.dig("jobs", "prepare", "if")).to eq("github.ref == 'refs/heads/main'")
+    expect(workflow.dig("jobs", "build")).not_to have_key("secrets")
+    expect(build_yaml.dig("jobs", "build-mac", "environment")).to eq("release-signing")
+    expect(build_text).to include("set them on the release-signing environment")
+  end
+
   it "guards the image tag and app version so they can never collide with a release" do
     # test-<short-sha> for the image; the guard step re-asserts the shape and
     # explicitly rejects `latest` and semver-looking tags.

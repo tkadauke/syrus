@@ -1146,8 +1146,8 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Done")).toBeInTheDocument()
     // Single ownership: the summary lives only in the header's
-    // detail + summary subtitle; the registered card body doesn't repeat it.
-    expect(screen.getByText("390x844 · Resize 390x844 · success")).toBeInTheDocument()
+    // result + detail subtitle; the registered card body doesn't repeat it.
+    expect(screen.getByText("Resize 390x844 · success · 390x844")).toBeInTheDocument()
 
     expandToolGroup("Browser resize")
 
@@ -1186,7 +1186,38 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Done")).toBeInTheDocument()
     expect(screen.queryByText("Running")).not.toBeInTheDocument()
     // Single ownership: the summary lives only in the header subtitle.
-    expect(screen.getByText("Hero panel · Screenshot Hero panel · Browser screenshot · success")).toBeInTheDocument()
+    expect(screen.getByText("Screenshot Hero panel · Browser screenshot · success · Hero panel")).toBeInTheDocument()
+  })
+
+  it("prioritizes a typed result summary before long arguments in collapsed headers", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Approve job",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "approve_job",
+          raw_name: "approve_job",
+          detail: '{"job_ids":[53,54,55]}',
+          display_label: "Approve job",
+          progress_label: "Thinking",
+          raw_payload: { job_ids: [53, 54, 55] },
+          result_body: JSON.stringify({ pending_action_group_id: 5, pending_action_id: 18, state: "pending", member_count: 3 }),
+          result_json: { pending_action_group_id: 5, pending_action_id: 18, state: "pending", member_count: 3 },
+          result_settled: true,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Approve job",
+      outcome_label: "Done",
+      collapsed_by_default: true
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')).toBeInTheDocument()
   })
 
   it("renders typed success and record outputs instead of raw JSON", () => {
@@ -1228,7 +1259,7 @@ describe("tool result rendering", () => {
 
     // Single ownership: both calls have registered cards, so their summaries
     // live only in the joined header subtitle, not as separate per-call lines.
-    expect(screen.getByText("Launch notes · 1 bookmark, 4048 · 1 Job")).toBeInTheDocument()
+    expect(screen.getByText("1 bookmark · Launch notes, 1 Job · 4048")).toBeInTheDocument()
     expect(screen.queryByText("topic")).not.toBeInTheDocument()
     expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
 
@@ -1510,7 +1541,7 @@ describe("tool result rendering", () => {
 
     // The registered card owns the expanded view, so the summary lives only
     // in the header subtitle (joined with the redacted detail).
-    expect(screen.getByText(/\[redacted\] · 1 design doc/)).toBeInTheDocument()
+    expect(screen.getByText(/1 design doc · \[redacted\]/)).toBeInTheDocument()
     expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
     expect(screen.queryByText(/plugin-title-secret/)).not.toBeInTheDocument()
 
@@ -1598,8 +1629,8 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Failed")).toBeInTheDocument()
     // Single ownership: the registered card owns the expanded view, so the
-    // summary lives only in the header's detail + summary subtitle.
-    expect(screen.getByText("proposal-42 · ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed")).toBeInTheDocument()
+    // result summary stays visible before the lower-priority argument detail.
+    expect(screen.getByText("ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed · proposal-42")).toBeInTheDocument()
     expect(screen.queryByText("Affected entities")).not.toBeInTheDocument()
 
     expandToolGroup("Delete proposal")

@@ -42,7 +42,7 @@ Grep the failed run's log for the string in column one.
 | Grep for | Most likely cause | Go to |
 | --- | --- | --- |
 | `tag vX.Y.Z already exists` / `GitHub release vX.Y.Z already exists` | computed version collides with a prior release | [2](#2-guard-failures-the-deliberate-reds) |
-| `Signing secrets missing` | `CSC_LINK` / `APPLE_API_KEY_P8` repo secrets absent | [2](#2-guard-failures-the-deliberate-reds) |
+| `Signing secrets missing` | `CSC_LINK` / `APPLE_API_KEY_P8` missing from the `release-signing` environment | [2](#2-guard-failures-the-deliberate-reds) |
 | `no space left on device` (build-backend) | the multi-arch fat image overflowed the runner disk | [6.4](#64-build-backend-disk-and-cache) |
 | `403 Forbidden` / `denied` on the buildcache ref (build-backend) | GHCR token can't write the BuildKit cache package | [6.4](#64-build-backend-disk-and-cache) |
 | `Env CSC_LINK is not correct, cannot resolve` | base64 mangled (newlines, lost padding) | [3.2](#32-mangled-csc_link-or-wrong-p12-password) |
@@ -78,7 +78,8 @@ the workflow working as designed, not bugs:
    pass an explicit `version` override that isn't taken. (The guard is
    skipped on a dry run.)
 2. **`Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build
-   is required — set them in repo secrets (dry runs sign too).`**
+   is required — set them on the release-signing environment (dry runs sign
+   too).`**
    (`build-mac`, "Guard: signing secrets present") — the secrets were removed
    or the run happened in a context that can't see them. Restore them (see the
    [setup checklist](./releasing.md#one-time-setup-checklist)) and re-run. A
