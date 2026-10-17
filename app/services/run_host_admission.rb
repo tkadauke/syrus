@@ -97,6 +97,7 @@ class RunHostAdmission
       "grader_memory_reserve_bytes" => grader_guard? ? grader_memory_reserve_bytes : nil,
       "host_memory_limit_bytes" => host_memory_limit_bytes,
       "host_memory_budget_bytes" => host_memory_budget_bytes,
+      "host_memory_effective_budget_bytes" => host_memory_effective_budget_bytes,
       "current_memory_bytes" => current_memory_bytes,
       "active_reserved_memory_bytes" => active_reserved_memory_bytes,
       "candidate_reserved_memory_bytes" => candidate_reserved_memory_bytes,
@@ -345,7 +346,7 @@ class RunHostAdmission
     reservation = memory_reservation_for(step)
     return reservation unless idle_agentic_host? && host_memory_budget_bytes
 
-    [ reservation, host_memory_budget_bytes - grader_memory_reserve_bytes ].min
+    [ reservation, host_memory_effective_budget_bytes ].min
   end
 
   def active_reserved_memory_bytes
@@ -366,15 +367,19 @@ class RunHostAdmission
   def memory_reservation_full?
     return false unless host_memory_budget_bytes
 
-    budget = host_memory_budget_bytes - grader_memory_reserve_bytes
-    active_reserved_memory_bytes + candidate_reserved_memory_bytes > budget
+    active_reserved_memory_bytes + candidate_reserved_memory_bytes > host_memory_effective_budget_bytes
   end
 
   def measured_memory_full?
     return false unless host_memory_budget_bytes && current_memory_bytes
 
-    budget = host_memory_budget_bytes - grader_memory_reserve_bytes
-    current_memory_bytes + candidate_reserved_memory_bytes > budget
+    current_memory_bytes + candidate_reserved_memory_bytes > host_memory_effective_budget_bytes
+  end
+
+  def host_memory_effective_budget_bytes
+    return unless host_memory_budget_bytes
+
+    host_memory_budget_bytes - grader_memory_reserve_bytes
   end
 
   def idle_agentic_host?

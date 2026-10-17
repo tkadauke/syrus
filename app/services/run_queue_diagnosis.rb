@@ -53,7 +53,8 @@ class RunQueueDiagnosis
       "reason", "deferral_count", "first_deferred_at", "deferred_at", "retry_at",
       "resource_guard_binding_terms", "active_compute_units", "candidate_compute_units",
       "host_compute_capacity", "current_memory_bytes", "active_reserved_memory_bytes",
-      "candidate_reserved_memory_bytes", "host_memory_budget_bytes"
+      "candidate_reserved_memory_bytes", "host_memory_budget_bytes",
+      "host_memory_effective_budget_bytes", "grader_memory_reserve_bytes"
     ).symbolize_keys
   end
 

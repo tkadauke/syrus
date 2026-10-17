@@ -107,14 +107,18 @@ RSpec.describe RunQueueDiagnosis do
         "resource_guard_binding_terms" => [ "memory_reservation" ],
         "active_reserved_memory_bytes" => 4.gigabytes,
         "candidate_reserved_memory_bytes" => 8.gigabytes,
-        "host_memory_budget_bytes" => 10.gigabytes
+        "host_memory_budget_bytes" => 14.gigabytes,
+        "grader_memory_reserve_bytes" => 4.gigabytes,
+        "host_memory_effective_budget_bytes" => 10.gigabytes
       }
     })
 
     expect(described_class.call(run)).to include(
       kind: "host_admission_deferred",
       details: include(reason: "host_resource_semaphore_busy", deferral_count: 3,
-        resource_guard_binding_terms: [ "memory_reservation" ])
+        resource_guard_binding_terms: [ "memory_reservation" ],
+        grader_memory_reserve_bytes: 4.gigabytes,
+        host_memory_effective_budget_bytes: 10.gigabytes)
     )
   end
 
