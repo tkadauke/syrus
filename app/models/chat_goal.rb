@@ -91,12 +91,19 @@ class ChatGoal < ApplicationRecord
   end
 
   def record_no_op_iteration!(signature:)
-    count = last_iteration_signature == signature ? consecutive_no_op_iterations.to_i + 1 : 1
+    count = consecutive_no_op_iterations.to_i + 1
     update!(
       consecutive_no_op_iterations: count,
       last_iteration_signature: signature
     )
     count
+  end
+
+  def clear_blocked_events!
+    update!(
+      consecutive_blocked_events: 0,
+      last_blocked_signature: nil
+    )
   end
 
   def record_blocked_event!(signature:)

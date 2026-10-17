@@ -21,6 +21,15 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     )
   end
 
+  def review(commit_id: "abc")
+    OpenStruct.new(
+      state: "APPROVED",
+      commit_id: commit_id,
+      author_association: "MEMBER",
+      user: OpenStruct.new(login: "reviewer")
+    )
+  end
+
   before do
     job.mark_implemented! if job.may_mark_implemented?
     job.save!
@@ -34,7 +43,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:pull_request).and_return(pr)
-    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
+    allow(client).to receive(:pr_reviews).and_return([ review ])
     allow(client).to receive(:pr_issue_comments).and_return([])
     allow(client).to receive(:pr_commits).and_return([])
     allow(client).to receive(:branch_head_sha).and_return("base")

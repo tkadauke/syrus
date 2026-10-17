@@ -20,6 +20,8 @@ module AgentInsights
     CHAT_TOOL_CLASSES = [
       Tools::ListInsightsTool,
       Tools::ReadInsightTool,
+      Tools::AcceptInsightTool,
+      Tools::DismissInsightTool,
       Tools::RetireInsightTool
     ].freeze
 

@@ -1267,6 +1267,11 @@ either built in to Syrus or as a repository-local `.syrus/skills/<name>/SKILL.md
 file; a repository-local skill overrides a built-in one of the same name, and
 Syrus always shows which one actually ran.
 
+Repository-local skill files are limited to 256 KiB. YAML aliases and anchors
+are not supported in their frontmatter; quote dates, timestamps, and
+symbol-like values when you intend them to be strings. Invalid frontmatter is
+shown as a chat notice instead of aborting the turn.
+
 From a repository's overview page, **More → Launch skill** opens a picker
 listing every skill available to that repository, along with a form generated
 from the chosen skill's declared parameters. Submitting creates a Job that
@@ -1757,10 +1762,13 @@ require repository write access, while changing the repository-wide schedule
 requires repository admin access.
 
 While the plugin is enabled, regular chat agents can discover
-and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
+and call `list_insights`, `read_insight`, `accept_insight`, `dismiss_insight`,
+and `retire_insight` for suggestions
 in the chat's attached repositories. Admin chat agents can inspect all
 repositories and can narrow broad reads with repository, state, page, and limit
-filters. `retire_insight` is an audited user action for clearing stale,
+filters. Each mutation accepts one insight id or a bounded, deduplicated array;
+multi-insight changes are validated together and require one grouped operator
+confirmation before any record changes. `retire_insight` is an audited user action for clearing stale,
 duplicated, or superseded suggestions, can cite a superseding Job, and keeps the
 accepted-insight guard: accepted rows require an explicit
 `retire_accepted: true`. Suggestion creation and revision remain limited to

@@ -7,6 +7,11 @@ Monorepos can add nested `.syrus.yml` files in project directories when those
 directories need their own workflow metadata. For a staged adoption guide with
 examples, see `monorepo_adoption.md`.
 
+For safety, each file is limited to 1 MiB and YAML aliases/anchors are not
+supported. Repeat shared values explicitly. YAML values that would create Ruby
+objects, such as unquoted dates, timestamps, or symbols, are rejected as
+configuration errors; quote them when they are intended to be strings.
+
 ## Project-aware configuration model
 
 Syrus always reads the root `.syrus.yml` when one exists. It also automatically

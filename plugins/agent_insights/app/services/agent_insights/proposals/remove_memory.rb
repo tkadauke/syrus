@@ -1,6 +1,13 @@
 module AgentInsights
   module Proposals
     class RemoveMemory < Base
+      def validation_error(actor:, params: {})
+        return nil if target_memory_already_removed?
+        return nil if deletable_memory_for(actor)
+
+        "Target memory not found or not accessible."
+      end
+
       def accept!(actor:, params: {})
         memory = deletable_memory_for(actor)
         return accept_already_removed_memory if target_memory_already_removed?

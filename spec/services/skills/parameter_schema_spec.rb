@@ -80,6 +80,14 @@ RSpec.describe Skills::ParameterSchema do
       }.to raise_error(described_class::ValidationError, /question.*is required/)
     end
 
+    it "accepts false for a required boolean parameter" do
+      boolean_fields = described_class.normalize([
+        { "key" => "enabled", "type" => "boolean", "required" => true }
+      ])
+
+      expect(described_class.validate!(boolean_fields, { "enabled" => false })).to eq(true)
+    end
+
     it "raises when a select value is not one of the declared options" do
       expect {
         described_class.validate!(fields, { "question" => "why?", "mode" => "bogus" })

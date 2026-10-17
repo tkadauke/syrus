@@ -82,6 +82,40 @@ RSpec.describe Skills::SkillMarkdown do
     }.to raise_error(described_class::ParseError, /YAML parse error/)
   end
 
+  it "wraps disallowed YAML classes as parse errors" do
+    disallowed = <<~MARKDOWN
+      ---
+      name: x
+      description: 2024-01-01
+      ---
+      Body.
+    MARKDOWN
+
+    expect { described_class.parse(disallowed, name: "x") }
+      .to raise_error(described_class::ParseError, /YAML parse error.*Date/)
+  end
+
+  it "rejects YAML aliases" do
+    aliased = <<~MARKDOWN
+      ---
+      name: x
+      description: &description Does a thing.
+      copy: *description
+      ---
+      Body.
+    MARKDOWN
+
+    expect { described_class.parse(aliased, name: "x") }
+      .to raise_error(described_class::ParseError, /YAML parse error.*Alias/)
+  end
+
+  it "rejects oversized skill files before parsing" do
+    stub_const("#{described_class}::MAX_BYTES", 10)
+
+    expect { described_class.parse(contents, name: "audit-dependencies") }
+      .to raise_error(described_class::ParseError, /maximum size of 10 bytes/)
+  end
+
   it "propagates a ParameterSchema::ParseError for a malformed parameters block" do
     bad_params = <<~MARKDOWN
       ---

@@ -40,7 +40,7 @@ import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
-import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
+import { InactiveShortcutsProvider, ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
 import { LinkText, Surface } from "../components/ui"
@@ -532,6 +532,20 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   const sidebarPeekInertAttributes = sidebarPeekOpen ? {} : { inert: "" }
+
+  // A resolved public bootstrap omits signed-in chrome and keyboard handling.
+  // The inert context keeps route-local shortcut hooks composable without
+  // installing registrations or a global keydown listener.
+  if (data?.current_user === null) {
+    return (
+      <InactiveShortcutsProvider>
+        <ThemeProvider colorTheme={null} theme="system">
+          {pageContent}
+          <BuildBadge builtAt={data.app?.built_at} revision={data.app?.revision} version={data.app?.version} />
+        </ThemeProvider>
+      </InactiveShortcutsProvider>
+    )
+  }
 
   return (
     <ShortcutsProvider>

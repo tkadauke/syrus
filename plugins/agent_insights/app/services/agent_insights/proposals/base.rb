@@ -21,6 +21,18 @@ module AgentInsights
         raise NotImplementedError
       end
 
+      def validation_error(actor:, params: {})
+        nil
+      end
+
+      def automatic_accept_params
+        {}
+      end
+
+      def completed_acceptance_error = nil
+      def accepted_job = suggestion.created_job
+      def accepted_memory = nil
+
       def self.accept_suggestion!(suggestion, created_job: nil)
         unless suggestion.accept!(created_job: created_job)
           return Result.error("Suggestion cannot be accepted (already accepted or dismissed).")

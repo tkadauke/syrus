@@ -50,7 +50,7 @@ class PlatformPollingJob < ApplicationJob
     def start_one_with_status(klass)
       identity = { name: klass.name }.merge(platform_fields(klass))
       return identity.merge(status: :not_configured) unless klass.new.send(:configured?)
-      return identity.merge(status: :already_running) if SolidQueue::Job.where(class_name: klass.name, finished_at: nil).exists?
+      return identity.merge(status: :already_running) if viable_unfinished_jobs_for(klass).exists?
 
       klass.perform_later
       identity.merge(status: :started)
@@ -60,6 +60,16 @@ class PlatformPollingJob < ApplicationJob
     end
 
     private
+
+    # Failed jobs keep finished_at unset, and claimed executions can remain
+    # after their worker process is deregistered. Neither represents a live
+    # connector that should prevent the watchdog from starting a replacement.
+    def viable_unfinished_jobs_for(klass)
+      SolidQueue::Job
+        .where(class_name: klass.name, finished_at: nil)
+        .where.missing(:failed_execution)
+        .where.not(id: SolidQueue::ClaimedExecution.where.missing(:process).select(:job_id))
+    end
 
     def platform_fields(klass)
       klass.respond_to?(:platform_key) && klass.platform_key.present? ? { platform: klass.platform_key.to_s } : {}
@@ -108,10 +118,8 @@ class PlatformPollingJob < ApplicationJob
   end
 
   def duplicate_running?
-    SolidQueue::Job
-      .where(class_name: self.class.name, finished_at: nil)
-      .count > 1
-  rescue ActiveRecord::StatementInvalid
+    PlatformPollingJob.send(:viable_unfinished_jobs_for, self.class).count > 1
+  rescue ActiveRecord::StatementInvalid, ActiveRecord::NoDatabaseError
     false
   end
 end

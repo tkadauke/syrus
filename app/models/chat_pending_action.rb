@@ -67,6 +67,9 @@ class ChatPendingAction < ApplicationRecord
     wake_provider_admission
     local_tool_call
     spawn_chat
+    accept_insights
+    dismiss_insights
+    retire_insights
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   # Actions whose payload["job_id"] should resolve to a target Job resource
