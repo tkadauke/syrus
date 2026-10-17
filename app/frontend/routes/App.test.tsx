@@ -1876,7 +1876,7 @@ describe("App", () => {
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" }).className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
-      expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
+      expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTestId("agent-replying-marker")).toBeInTheDocument()
       // The dropdown itself renders through a FloatingPortal (outside `recentNav`'s
       // DOM subtree) so flip/shift can reposition it clear of the sidebar's clipping
       // ancestor; query its content on `screen`, not `within(recentNav)`.
