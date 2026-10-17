@@ -146,10 +146,10 @@ Selecting a row opens an in-popover Job detail view with back navigation,
 tabs for the generated summary, test plan, and submitted feedback. The test
 plan tab includes a copyable `syrus checkout JOB-<id>` command, and the
 same browser, pull request, approval, retry, and checkout actions as the
-inbox row stay visible below the tabs. Implemented rows
-can be approved for landing from the popover after a native confirmation
-prompt, and implemented or failed Jobs can send follow-up feedback from
-the detail view. Failed rows can be queued for retry directly from the row.
+inbox row stay visible below the tabs. Implemented rows can be approved for
+landing directly from the popover, and implemented or failed Jobs can send
+follow-up feedback from the detail view. Failed rows can be queued for retry
+directly from the row.
 Local checkout actions require the `syrus` CLI (the app finds a
 `~/.local/bin/syrus` install even though GUI apps get a minimal `PATH`);
 when it's missing, the popover shows a banner with a one-click Install

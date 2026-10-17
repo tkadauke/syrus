@@ -739,22 +739,6 @@ const fetchRepositories = async () => {
   return payload.active_repositories ?? payload.repositories ?? []
 }
 
-const confirmApproveJob = async (sender: Electron.WebContents, jobID: number) => {
-  const parentWindow = BrowserWindow.fromWebContents(sender)
-  const confirmationOptions: MessageBoxOptions = {
-    type: "question",
-    buttons: ["Approve", "Cancel"],
-    defaultId: 0,
-    cancelId: 1,
-    message: `Approve JOB-${jobID} for landing?`
-  }
-  const confirmation = parentWindow
-    ? await dialog.showMessageBox(parentWindow, confirmationOptions)
-    : await dialog.showMessageBox(confirmationOptions)
-
-  return confirmation.response === 0
-}
-
 const approveJob = async (jobID: number) => {
   const credentials = cachedCredentials ?? (await loadCredentials())
   if (!credentials) {
@@ -2904,7 +2888,6 @@ ipcMain.handle("fetch-notification-unread-count", async () => fetchNotificationU
 ipcMain.handle("fetch-notifications", async () => fetchNotifications())
 ipcMain.handle("mark-notification-read", async (_event, id: number) => markNotificationRead(id))
 ipcMain.handle("mark-all-notifications-read", async () => markAllNotificationsRead())
-ipcMain.handle("confirm-approve-job", async (event, jobID: number) => confirmApproveJob(event.sender, jobID))
 ipcMain.handle("approve-job", async (_event, jobID: number) => approveJob(jobID))
 ipcMain.handle("retry-job", async (_event, jobID: number) => retryJob(jobID))
 ipcMain.handle("submit-job-feedback", async (_event, jobID: number, body: string) => submitJobFeedback(jobID, body))

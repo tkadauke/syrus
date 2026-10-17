@@ -213,7 +213,6 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
     ipcRenderer.invoke("mark-all-notifications-read") as Promise<NotificationsPayload>,
   createDirectJob: (request: CreateJobRequest) =>
     ipcRenderer.invoke("create-direct-job", request) as Promise<CreateJobResponse>,
-  confirmApproveJob: (jobID: number) => ipcRenderer.invoke("confirm-approve-job", jobID) as Promise<boolean>,
   approveJob: (jobID: number) => ipcRenderer.invoke("approve-job", jobID) as Promise<void>,
   retryJob: (jobID: number) => ipcRenderer.invoke("retry-job", jobID) as Promise<void>,
   submitJobFeedback: (jobID: number, body: string) =>
