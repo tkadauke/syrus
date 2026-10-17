@@ -207,9 +207,10 @@ module Api
             return
           end
 
-          plugin = ::App::OnboardingAgentProviderPlugin.enable!(params[:provider].to_s)
+          provider = params[:provider].to_s
+          plugin = ::App::OnboardingAgentProviderPlugin.connect!(provider, user: Current.user)
           unless plugin
-            render_error("unknown_provider", "No agent-provider plugin found for #{params[:provider].to_s.inspect}.",
+            render_error("unknown_provider", "No agent-provider plugin found for #{provider.inspect}.",
                          status: :unprocessable_content)
             return
           end

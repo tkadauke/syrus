@@ -42,11 +42,14 @@ const mockedConnectOnboardingProvider = vi.mocked(connectOnboardingProvider)
 
 function renderModal(props: { onClose?: () => void; onSaved?: () => void } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <ConfigureAgentModal onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
-    </QueryClientProvider>
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <ConfigureAgentModal onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      </QueryClientProvider>
+    )
+  }
 }
 
 describe("ConfigureAgentModal", () => {
@@ -65,9 +68,7 @@ describe("ConfigureAgentModal", () => {
     // no gate hiding a tab until some other credential exists. Gemini isn't
     // an agent provider (it only powers walkthrough-video analysis) and has
     // no tab here.
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Claude", "Codex", "Antigravity", "Muse"
-    ])
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Claude", "Codex", "Antigravity", "Muse"])
     expect(screen.queryByText(/Soon/)).not.toBeInTheDocument()
     expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true)
   })
@@ -115,17 +116,31 @@ describe("ConfigureAgentModal", () => {
     expect(screen.getByText("connect-panel:codex")).not.toBeVisible()
   })
 
-  it("enables the connected provider's plugin when its connect panel reports success", async () => {
-    mockedConnectOnboardingProvider.mockResolvedValue({} as never)
+  it("completes connection and refreshes credentials and bootstrap only after onboarding connect succeeds", async () => {
+    let resolveConnect: (value: never) => void = () => {}
+    mockedConnectOnboardingProvider.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConnect = resolve
+        })
+    )
     const onSaved = vi.fn()
-    renderModal({ onSaved })
+    const { client } = renderModal({ onSaved })
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries")
 
     fireEvent.click(screen.getByRole("tab", { name: "Antigravity" }))
     fireEvent.click(screen.getByRole("button", { name: "Simulate connect (agy)" }))
 
     await waitFor(() => expect(mockedConnectOnboardingProvider).toHaveBeenCalledWith("agy"))
     expect(mockedConnectOnboardingProvider).toHaveBeenCalledTimes(1)
-    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(invalidateSpy).not.toHaveBeenCalled()
+
+    resolveConnect({} as never)
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credentials"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
   })
 
   it("scopes the auto-enable call to whichever provider tab was connected", async () => {
@@ -139,7 +154,7 @@ describe("ConfigureAgentModal", () => {
     expect(mockedConnectOnboardingProvider).not.toHaveBeenCalledWith("claude")
   })
 
-  it("surfaces a warning when the auto-enable call fails, without blocking the connected state", async () => {
+  it("surfaces a warning and does not complete onboarding when the onboarding connect call fails", async () => {
     mockedConnectOnboardingProvider.mockRejectedValue(new Error("boom"))
     const onSaved = vi.fn()
     renderModal({ onSaved })
@@ -148,9 +163,7 @@ describe("ConfigureAgentModal", () => {
 
     await waitFor(() => expect(mockedConnectOnboardingProvider).toHaveBeenCalledWith("claude"))
     await waitFor(() => expect(screen.getByText(/couldn't enable this provider automatically/)).toBeInTheDocument())
-    // The connect panel's own success handling (onSaved) already fired —
-    // the auto-enable failure is a secondary, non-blocking warning.
-    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it("clears a stale auto-enable warning when switching tabs", async () => {
