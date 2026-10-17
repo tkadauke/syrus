@@ -1548,11 +1548,11 @@ const saveCredentials = async (credentials: Credentials, expectedGeneration?: nu
     await writeCredentialsFile(normalizedCredentials)
 
     cachedCredentials = normalizedCredentials
+    suspectTokenKey = null
     if (explicitSave) {
       autoProvisioningAllowed = true
       store.set("autoProvisioningAllowed", true)
     }
-    suspectTokenKey = null
     startAppUserCable(normalizedCredentials)
 
     // In remote mode the tray URL and the app window must stay in lockstep:
