@@ -19,7 +19,7 @@ module AgentInsights
           },
           page: {
             type: "integer",
-            description: "Transcript page number. Defaults to 1."
+            description: "Transcript page number. Defaults to 1, capped at 10,000."
           },
           per: {
             type: "integer",
@@ -45,7 +45,7 @@ module AgentInsights
 
           return Mcp::Tools.invalid("run_id is outside this repository scope") unless target_run
 
-          page_num = normalized_page(page)
+          page_num = Mcp::Pagination.normalize_page(page)
           per_page = normalized_per(per)
           logs = target_run.job_logs.order(:sequence)
           total_chunks = logs.count
@@ -76,10 +76,6 @@ module AgentInsights
         end
 
         private
-
-        def normalized_page(value)
-          [ Integer(value.presence || 1, exception: false) || 1, 1 ].max
-        end
 
         def normalized_per(value)
           n = Integer(value.presence || DEFAULT_PER, exception: false)

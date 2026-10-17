@@ -10,7 +10,7 @@ RSpec.describe IsolatedReproRecorder do
   let!(:grader_step) do
     Step.create!(
       workflow: workflow, kind: "grader", position: 50, iteration: 1, state: "failed",
-      details: { "name" => "rspec", "required" => true }
+      details: { "name" => "rspec", "required" => true, "command" => "bundle exec rspec" }
     )
   end
   let!(:grader_run) { grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: 1) }
@@ -49,6 +49,14 @@ RSpec.describe IsolatedReproRecorder do
     allow(GitRunner).to receive(:new).and_return(git)
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_evidence).and_return([ provider ])
+    focused_provider = Module.new do
+      define_singleton_method(:isolated_command_for) do |grader_name:, grader_command:, test_case:|
+        "bundle exec rspec spec/foo_spec.rb -e 'does the thing'"
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ focused_provider ])
+    status = instance_double(Process::Status, exitstatus: 0)
+    allow(Open3).to receive(:capture2e).and_return([ "1 example, 0 failures", status ])
   end
 
   def call(**overrides)
@@ -119,11 +127,30 @@ RSpec.describe IsolatedReproRecorder do
     expect(result.error).to match(/no failed grader Step named "eslint"/)
   end
 
-  it "rejects a blank command" do
+  it "accepts a blank command because Syrus derives the trusted command" do
     result = call(command: "   ")
 
+    expect(result).to be_ok
+    expect(provider.recorded_args[:command]).to eq("bundle exec rspec spec/foo_spec.rb -e 'does the thing'")
+  end
+
+  it "rejects an unrelated successful command" do
+    result = call(command: "true", output: "", exit_status: 0)
+
     expect(result).not_to be_ok
-    expect(result.error).to match(/command is required/)
+    expect(result.error).to match(/does not match the Syrus-derived/)
+    expect(provider.recorded_args).to be_nil
+  end
+
+
+  it "rejects an agent result that disagrees with the independently observed exit status" do
+    status = instance_double(Process::Status, exitstatus: 1)
+    allow(Open3).to receive(:capture2e).and_return([ "1 failure", status ])
+
+    result = call
+
+    expect(result).not_to be_ok
+    expect(result.error).to match(/reproduced result does not match/)
     expect(provider.recorded_args).to be_nil
   end
 end

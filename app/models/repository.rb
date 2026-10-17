@@ -73,6 +73,7 @@ class Repository < ApplicationRecord
   attribute :external_pr_ingestion_enabled, :boolean, default: false
   attribute :distributed_workflow_dag_enabled, :boolean, default: false
   attribute :poll_issue_errors, :json, default: []
+  attribute :poll_external_pr_errors, :json, default: []
 
   attr_accessor :main_branch_repair_enabled_explicit
 
@@ -182,13 +183,13 @@ class Repository < ApplicationRecord
     Array(poll_issue_errors).filter_map do |entry|
       next unless poll_issue_retry_due?(entry, at: at)
 
-      entry["issue_number"].to_i
+      Integer(entry["issue_number"], exception: false)
     end.compact.uniq
   end
 
   def record_poll_issue_error!(issue_number:, issue_title:, error:)
     existing_errors = Array(poll_issue_errors)
-    previous_error = existing_errors.find { |entry| entry["issue_number"].to_i == issue_number.to_i }
+    previous_error = existing_errors.find { |entry| poll_issue_key(entry["issue_number"]) == poll_issue_key(issue_number) }
     failure_count = previous_error.to_h.fetch("failure_count", 0).to_i + 1
     retry_exhausted = failure_count >= POLL_ISSUE_RETRY_LIMIT
     entry = {
@@ -202,17 +203,38 @@ class Repository < ApplicationRecord
       "retry_exhausted" => retry_exhausted,
       "next_retry_at" => retry_exhausted ? nil : (Time.current + POLL_ISSUE_RETRY_BACKOFF).iso8601
     }
-    next_errors = [ entry, *existing_errors.reject { |existing| existing["issue_number"].to_i == issue_number.to_i } ].first(MAX_POLL_ISSUE_ERRORS)
+    next_errors = [ entry, *existing_errors.reject { |existing| poll_issue_key(existing["issue_number"]) == poll_issue_key(issue_number) } ].first(MAX_POLL_ISSUE_ERRORS)
     update_columns(poll_issue_errors: next_errors)
     assign_attributes(poll_issue_errors: next_errors)
   end
 
   def clear_poll_issue_error!(issue_number:)
-    next_errors = Array(poll_issue_errors).reject { |entry| entry["issue_number"].to_i == issue_number.to_i }
+    next_errors = Array(poll_issue_errors).reject { |entry| poll_issue_key(entry["issue_number"]) == poll_issue_key(issue_number) }
     return if next_errors == Array(poll_issue_errors)
 
     update_columns(poll_issue_errors: next_errors)
     assign_attributes(poll_issue_errors: next_errors)
+  end
+
+  def record_poll_external_pr_error!(pr_number:, error:)
+    existing_errors = Array(poll_external_pr_errors)
+    entry = {
+      "pr_number" => pr_number,
+      "error_class" => error.class.name,
+      "error_message" => error.message.to_s,
+      "recorded_at" => Time.current.iso8601
+    }
+    next_errors = [ entry, *existing_errors.reject { |existing| existing["pr_number"].to_i == pr_number.to_i } ].first(MAX_POLL_ISSUE_ERRORS)
+    update_columns(poll_external_pr_errors: next_errors)
+    assign_attributes(poll_external_pr_errors: next_errors)
+  end
+
+  def clear_poll_external_pr_error!(pr_number:)
+    next_errors = Array(poll_external_pr_errors).reject { |entry| entry["pr_number"].to_i == pr_number.to_i }
+    return if next_errors == Array(poll_external_pr_errors)
+
+    update_columns(poll_external_pr_errors: next_errors)
+    assign_attributes(poll_external_pr_errors: next_errors)
   end
 
   def poll_issue_retry_due?(entry, at:)
@@ -230,6 +252,10 @@ class Repository < ApplicationRecord
     Time.zone.parse(value.to_s)
   rescue ArgumentError
     nil
+  end
+
+  private def poll_issue_key(value)
+    value.to_s
   end
 
   # workflow-engine-v3 C0. The profile answers the posture questions that had

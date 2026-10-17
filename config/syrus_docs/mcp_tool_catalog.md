@@ -62,6 +62,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `search_syrus_docs` | chat | deferred | read | no | - | - | - | - |
 | `select_job_delivery_track` | chat | deferred | write | no | - | - | - | - |
 | `send_chat_message` | chat | deferred | write | no | - | - | - | - |
+| `spawn_chats` | chat | deferred | write | no | - | - | - | - |
 | `start_epic` | chat | deferred | write | no | - | - | - | - |
 | `submit_artifact` | chat | deferred | write | no | - | - | - | - |
 | `unapprove_job` | chat | deferred | write | no | - | - | - | - |

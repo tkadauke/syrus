@@ -17,11 +17,22 @@ module AlertmanagerInvestigations
         process(alert)
       rescue StandardError => e
         record_resolution_failure(alert, e) if defined?(alert) && alert
-        Rails.logger.warn("[AlertmanagerInvestigations] alert failed: #{e.class}: #{e.message}")
+        fingerprint = alert&.fingerprint || payload["fingerprint"].presence || "unknown"
+        Rails.logger.warn("[AlertmanagerInvestigations] alert #{fingerprint} failed: #{e.class}: #{e.message}")
       end
     end
 
     private
+
+    def process_alert(payload)
+      alert = Alert.new(payload: payload, host_label: @configuration.host_label)
+      ApplicationRecord.transaction(requires_new: true) { process(alert) }
+    rescue StandardError => e
+      fingerprint = alert&.fingerprint || payload["fingerprint"].presence || "unknown"
+      Rails.logger.warn(
+        "[AlertmanagerInvestigations] alert #{fingerprint} failed: #{e.class}: #{e.message}"
+      )
+    end
 
     def process(alert)
       return unless alert.actionable?

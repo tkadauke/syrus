@@ -226,6 +226,11 @@ message's `id`, `role`, `content`, and `created_at`; callers should treat
 `has_more` as a neutral "another page is available" signal because page
 direction is defined by the tool's ordering contract, not by the field name.
 
+For `list_chats`, `list_repositories`, `read_chat_messages`, and
+`read_run_transcript`, one-based page numbers are capped at 10,000 before SQL
+offset calculation. A normal page beyond the result set still returns an empty
+page; callers should not use the cap as a deep-pagination discovery mechanism.
+
 Sidebar pinning is exposed separately from pinned context. `pin_chat` and
 `unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
 sidebar uses for its pin control; `update_pinned_context` and
@@ -806,6 +811,16 @@ Epic. There is no UI to assign or change the target Epic to a different one
 from the edit modal — only remove it.
 
 ## Cross-chat messaging bridge
+
+Chat agents can ask to create a coordinated batch of new threads with the
+deferred `spawn_chats` tool. A request contains one to ten initial prompts,
+with optional titles, configured chat providers, and accessible repository
+slugs. Syrus validates the entire request first and shows one grouped
+confirmation; rejecting it creates nothing. Confirmation creates each chat
+independently, starts its first agent turn through the normal message path,
+and posts every resulting `CHAT-<id>` back into the originating chat. A
+failure in one member is reported alongside the successfully created chats
+instead of rolling the batch back.
 
 `ChatBridgeThread` tracks a bounded exchange between two of the same
 operator's chat sessions: `origin_chat_session`, `target_chat_session`,

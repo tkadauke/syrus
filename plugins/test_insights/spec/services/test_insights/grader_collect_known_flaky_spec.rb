@@ -58,7 +58,14 @@ RSpec.describe Steps::GraderCollect, "known-flaky test-case failures" do
         run: history_run, repository: job.repository, grader_name: "rspec",
         total_count: 1, passed_count: status == "passed" ? 1 : 0, failed_count: status == "passed" ? 0 : 1
       )
-      TestInsights::TestCase.create!(test_run: test_run, repository: job.repository, suite_name: suite_name, name: name, status: status)
+      TestInsights::TestCase.create!(
+        test_run: test_run,
+        repository: job.repository,
+        suite_name: suite_name,
+        name: name,
+        status: status,
+        failure_message: status == "failed" ? "expected fanout to settle" : nil
+      )
     end
   end
 
@@ -75,7 +82,8 @@ RSpec.describe Steps::GraderCollect, "known-flaky test-case failures" do
       test_run: candidate_test_run, repository: job.repository,
       suite_name: "spec/services/steps/preflight_grader_fanout_spec.rb",
       name: "makes every preflight grader ready as soon as the fanout settles",
-      status: "failed"
+      status: "failed",
+      failure_message: "expected fanout to settle"
     )
     grader_step.update!(
       state: "failed",

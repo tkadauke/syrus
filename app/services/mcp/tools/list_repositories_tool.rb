@@ -8,7 +8,7 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        page: { type: "integer", description: "1-based page number. Defaults to 1." },
+        page: { type: "integer", description: "1-based page number. Defaults to 1, capped at 10,000." },
         per_page: { type: "integer", description: "Repositories per page. Defaults to 20, capped at 100." }
       }
     )
@@ -16,7 +16,7 @@ module Mcp::Tools
     class << self
       def call(server_context:, page: 1, per_page: 20)
         chat_session = server_context.fetch(:chat_session)
-        page = normalize_page(page)
+        page = Mcp::Pagination.normalize_page(page)
         per_page = normalize_per_page(per_page)
         scope = if chat_session.user.admin?
           Repository.active
@@ -39,10 +39,6 @@ module Mcp::Tools
       end
 
       private
-
-      def normalize_page(value)
-        [ value.to_i, 1 ].max
-      end
 
       def normalize_per_page(value)
         value.to_i.clamp(1, 100)

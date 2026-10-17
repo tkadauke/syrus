@@ -19,6 +19,9 @@ module ExternalPrIngestions
     end
 
     def create!
+      branch_name = GitBranchName.normalize(pr.head&.ref)
+      raise ArgumentError, "external PR head is not a valid branch name" unless GitBranchName.valid?(branch_name)
+
       job = Job.create!(
         user: repository.user,
         repository: repository,
@@ -27,7 +30,7 @@ module ExternalPrIngestions
         external_pr_number: pr.number,
         external_pr_author: pr.user&.login,
         external_pr_fork: fork_pr,
-        branch_name: pr.head&.ref.to_s.presence,
+        branch_name: branch_name,
         issue_title: pr.title,
         epic_id: epic_id
       )

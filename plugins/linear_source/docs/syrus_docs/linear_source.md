@@ -41,6 +41,13 @@ Each returned issue then passes through `LinearIngestPolicy.evaluate`, a
 second cancelled/completed check — belt-and-suspenders against a state
 changing between the GraphQL filter and local processing.
 
+An ingestion failure for one returned issue is quarantined under its Linear
+identifier and does not prevent later issues in the same batch from being
+processed. The quarantine remains visible with the repository's poll-issue
+errors; because open Linear issues are fetched again on later polls, a later
+successful ingestion clears that issue's error. Fetch, authentication, and
+other poll-wide failures still fail the whole poll.
+
 For issues that pass the policy:
 
 - **Dedup** — `dedup_key` is the Linear issue's `id` (stored as `Job

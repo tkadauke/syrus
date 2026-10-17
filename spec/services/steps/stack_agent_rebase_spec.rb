@@ -85,6 +85,7 @@ RSpec.describe Steps::StackAgentRebase do
     expect(git).to have_received(:run).with(
       "branch",
       "-f",
+      "--",
       job.branch_name,
       "refs/remotes/origin/#{job.branch_name}",
       chdir: "/tmp/workspace"
@@ -92,10 +93,33 @@ RSpec.describe Steps::StackAgentRebase do
     expect(git).to have_received(:run).with(
       "branch",
       "-f",
+      "--",
       child.branch_name,
       "refs/remotes/origin/#{child.branch_name}",
       chdir: "/tmp/workspace"
     )
-    expect(git).to have_received(:run).with("checkout", job.branch_name, chdir: "/tmp/workspace")
+    expect(git).to have_received(:run).with("switch", "--", job.branch_name, chdir: "/tmp/workspace")
+  end
+
+  it "resolves a legacy leading-dash branch through its fully qualified ref" do
+    entry = {
+      "job_id" => job.id,
+      "pr_number" => job.pr_number,
+      "branch_name" => "-detach",
+      "base_branch" => "main",
+      "parent_job_id" => nil
+    }
+    workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, [ entry ])
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(GitRunner).to receive(:new).and_return(git)
+    expect(git).to receive(:run)
+      .with("rev-parse", "--verify", "refs/heads/-detach", chdir: "/tmp/workspace")
+      .and_return("abc123\n")
+
+    expect(handler.send(:rev_parse, "-detach")).to eq("abc123")
   end
 end

@@ -180,6 +180,10 @@ same retry loop cannot manufacture the history that dismisses their own
 failure. It reuses whatever `:test_evidence` plugin already answers "which
 tests failed in this run" and "what is this test's flakiness score" -- with
 no such plugin, or no scoring history yet, it declines rather than guessing.
+It also requires the current failure-message signature to match a historical
+failure for that test and declines if the candidate diff changed the failing
+test file. A flaky reputation alone therefore cannot excuse a new assertion
+or a newly introduced failure mode.
 
 Off by default, opted in per repository via
 `Repository#known_flaky_failure_dismissal_enabled` (same shape as
@@ -217,9 +221,9 @@ correlated with each Job's incentive to get its own PR unblocked, not
 independent) -- it's a verifiable *action*, with a command and its raw
 output, that speaks to this one occurrence immediately.
 
-The `record_isolated_repro` MCP tool lets an agent record that fact as
-structured evidence -- the exact command, its raw output, and whether it
-reproduced -- via a `:test_evidence` provider's `record_isolated_repro!`/
+The `record_isolated_repro` MCP tool lets an agent request that check as
+structured evidence -- the exact Syrus-derived command, its observed output,
+and whether it reproduced -- via a `:test_evidence` provider's `record_isolated_repro!`/
 `isolated_repro_evidence` capability (`TestInsights::IsolatedReproAttempt`,
 stored in its own table, never mixed into `TestCase`'s `scored` pool that
 `flakiness_score` reads). `IsolatedReproRecorder` validates the call before
@@ -229,7 +233,18 @@ the exact commit the last grading iteration failed at -- which rejects both
 a repro run against the wrong commit and one recorded after the agent's own
 fix commits exist (either moves HEAD away from the graded commit) -- and
 requires the named test to be among what the grader Step actually reported
-failing, not merely asserted by the agent.
+failing, not merely asserted by the agent. Syrus then asks the registered
+focused-test provider to derive an exact-example command, runs it in the
+workflow workspace, records the observed output and
+exit status, and rejects a claimed reproduced/non-reproduced result that does
+not agree with that exit status. The adjudicator also declines if the
+candidate diff changed the failing test file.
+
+Both dismissal paths also require complete structured test evidence: the
+persisted test-case rows must match the TestRun totals and its full
+failed/error set, and the grader must have a normal non-timeout test exit.
+Partial JUnit from a crash, load error, or mixed command failure therefore
+cannot be represented by one qualifying flaky test and accepted.
 
 `Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
 failing test in a required grader Step has a same-SHA, pre-fix "did not

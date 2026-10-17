@@ -72,6 +72,28 @@ RSpec.describe Mcp::Tools::ListRepositoriesTool do
     )
   end
 
+  it "returns an empty result for ordinary out-of-range pages" do
+    Factories.repository(user: user, owner: "acme", name: "only-repo")
+
+    payload = response_payload(call_tool(page: 2, per_page: 20))
+
+    expect(payload.fetch(:repositories)).to be_empty
+    expect(payload.fetch(:pagination)).to include(page: 2, total_count: 1, has_next_page: false)
+  end
+
+  it "caps huge page integers before building the SQL offset" do
+    Factories.repository(user: user, owner: "acme", name: "only-repo")
+
+    payload = response_payload(call_tool(page: 10**100, per_page: 100))
+
+    expect(payload.fetch(:repositories)).to be_empty
+    expect(payload.fetch(:pagination)).to include(
+      page: Mcp::Pagination::MAX_PAGE,
+      total_count: 1,
+      has_next_page: false
+    )
+  end
+
   it "clamps per_page to 100" do
     101.times do |i|
       Factories.repository(user: user, owner: "acme", name: format("repo-%03d", i))

@@ -17,10 +17,13 @@ module Syrus
     # Providers may also define:
     #
     #   prepare_command_for(grader_name:, grader_command:) -> String | nil
+    #   isolated_command_for(grader_name:, grader_command:, test_case:) -> String | nil
     #
     # The touched-test repeat gate runs this command once before its focused
     # repeats. Use it for deterministic environment setup that the owning full
     # grader normally performs, such as preparing a serial test database.
+    # Isolated repro recording uses `isolated_command_for` to derive a trusted
+    # exact-example command; it never executes caller-supplied shell text.
     module FocusedTestCommand
       def self.invoke(provider, project_path: nil, **arguments)
         parameters = provider.method(:command_for).parameters

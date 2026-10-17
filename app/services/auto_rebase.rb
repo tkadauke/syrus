@@ -174,7 +174,7 @@ class AutoRebase
         chdir: clone_path.to_s, env: @env
       )
     end
-    @git.run("checkout", branch_name, chdir: clone_path.to_s)
+    @git.run("switch", "--", branch_name, chdir: clone_path.to_s)
   end
 
   def cleanup_clone
