@@ -824,6 +824,18 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "includes a dedicated Cognitive Debt tab" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["tabs"]).to include(
+      { "key" => "cognitive_debt", "label" => "Cognitive Debt", "path" => "/repositories/#{repository.id}/cognitive_debt" }
+    )
+  end
+
   it "summarizes repository .syrus.yml configuration on the detail payload" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

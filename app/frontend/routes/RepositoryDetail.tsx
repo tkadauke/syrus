@@ -90,7 +90,6 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
           <div className="grid gap-6 lg:grid-cols-[62%_38%]">
             <div className="space-y-6">
               <RepositorySummary payload={payload} />
-              <CognitiveDebtSection payload={payload} prefix={prefix} />
               <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
               {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
@@ -148,7 +147,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   )
 }
 
-function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+export function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
   const { t } = useT("settings")
   // Loaded after the page renders rather than inside the detail payload: the
   // rollup walks every diff review version in the repository, which used to
