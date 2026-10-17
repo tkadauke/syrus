@@ -39,7 +39,7 @@ import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
-import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
+import { InactiveShortcutsProvider, ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { TaskActions, TaskDocumentationModal, TaskProgress } from "./AdminMaintenanceTasks"
 import { LinkText, Surface } from "../components/ui"
@@ -535,12 +535,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   // While bootstrap is still loading, retain the provider shell route content
   // may expect. A resolved public bootstrap can safely omit all signed-in
   // chrome and shortcut infrastructure.
-  if (data && !user) {
+  if (data?.current_user === null) {
     return (
-      <ThemeProvider colorTheme={null} theme="system">
-        {pageContent}
-        <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
-      </ThemeProvider>
+      <InactiveShortcutsProvider>
+        <ThemeProvider colorTheme={null} theme="system">
+          {pageContent}
+          <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+        </ThemeProvider>
+      </InactiveShortcutsProvider>
     )
   }
 

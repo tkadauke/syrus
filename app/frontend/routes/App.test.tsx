@@ -752,12 +752,11 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("main", { name: "Syrus public landing" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Syrus instance access" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "Create account from invitation" })).toHaveAttribute("href", "/users/new?token=invite-token")
-    expect(screen.getAllByText("Invitation-only").length).toBeGreaterThan(0)
-    expect(screen.getByText("Invitation link")).toBeInTheDocument()
-    expect(screen.getByText("Detected")).toBeInTheDocument()
-    expect(screen.getByText("An invitation token is present in this link. Create your account to join this instance.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/session/new")
+    expect(screen.getByText("Use the invitation in this link to create your account.")).toBeInTheDocument()
+    expect(screen.queryByText("Invitation-only")).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/bootstrap",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
@@ -12722,7 +12721,7 @@ describe("App", () => {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
-            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload() as unknown as BootstrapPayload}>
               <main>Dashboard content</main>
             </AppChromeV2>
           </MemoryRouter>
@@ -12759,7 +12758,7 @@ describe("App", () => {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
-            <AppChromeV2 initialBootstrap={bootstrapPayload({ current_user: null }) as unknown as BootstrapPayload}>
+            <AppChromeV2 initialBootstrap={bootstrapPayload() as unknown as BootstrapPayload}>
               <main>Dashboard content</main>
             </AppChromeV2>
           </MemoryRouter>

@@ -39,6 +39,13 @@ interface ShortcutsContextValue {
 const ShortcutsContext = createContext<ShortcutsContextValue | null>(null)
 const ShortcutLayerContext = createContext(0)
 
+const inactiveShortcutsContext: ShortcutsContextValue = {
+  register: () => () => {},
+  registerLayer: () => () => {},
+  subscribe: () => () => {},
+  getSnapshot: () => []
+}
+
 let nextRegistrationId = 0
 let nextLayerId = 1
 
@@ -223,6 +230,12 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return <ShortcutsContext.Provider value={valueRef.current}>{children}</ShortcutsContext.Provider>
+}
+
+// Keeps route components that declare local shortcuts composable while the
+// signed-out shell deliberately installs no keyboard listener or registrations.
+export function InactiveShortcutsProvider({ children }: { children: ReactNode }) {
+  return <ShortcutsContext.Provider value={inactiveShortcutsContext}>{children}</ShortcutsContext.Provider>
 }
 
 function useShortcutsContext(): ShortcutsContextValue {
