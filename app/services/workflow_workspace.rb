@@ -373,6 +373,7 @@ class WorkflowWorkspace
   # when it is present locally; inventing it is not.
   def verify_required_branch!
     return if @required_branch.blank?
+    return if git_operation_in_progress?
 
     head = current_branch_name
     if head == @required_branch
@@ -402,6 +403,23 @@ class WorkflowWorkspace
   def local_branch_exists?(branch)
     @git.run("rev-parse", "--verify", "--quiet", "refs/heads/#{branch}", chdir: path.to_s)
     true
+  rescue GitRunner::GitError
+    false
+  end
+
+  # A conflict-resolution step must inherit Git's index and operation metadata
+  # exactly as the preceding mechanical step left them. Mid-rebase HEAD is
+  # detached, and both checkout and restore reject an unmerged index; treating
+  # that state like an ordinary dirty retry prevents the resolving agent from
+  # ever starting.
+  def git_operation_in_progress?
+    %w[rebase-merge rebase-apply MERGE_HEAD].any? do |name|
+      git_path = @git.run("rev-parse", "--git-path", name, chdir: path.to_s).strip
+      next false if git_path.blank?
+
+      pathname = Pathname.new(git_path)
+      File.exist?(pathname.absolute? ? pathname : path.join(pathname))
+    end
   rescue GitRunner::GitError
     false
   end
@@ -1073,6 +1091,8 @@ class WorkflowWorkspace
   # and remove untracked ones so the new Run sees a known starting
   # point. Committed work survives.
   def ensure_clean_working_tree
+    return if git_operation_in_progress?
+
     status = @git.run("status", "--porcelain", chdir: path.to_s)
     return if status.strip.empty?
     # `git restore .` errors when there are no tracked-modified

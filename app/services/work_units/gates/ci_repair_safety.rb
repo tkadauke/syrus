@@ -4,6 +4,7 @@ module WorkUnits
       REASON = "ci_repair_safety"
       SUPERSEDED_BASE_REASON = "superseded_ci_repair_base"
       RETRY_DELAY = 5.minutes
+      RESERVING_STATES = %w[queued running].freeze
 
       def self.call(work_unit, **context) = new(work_unit, step: context[:step]).call
 
@@ -142,8 +143,13 @@ module WorkUnits
         workflow_ids = WorkUnit
           .where(
             repository_id: job.repository_id,
-            kind: "ci_failure",
-            state: WorkUnits::Ownership::ACTIVE_STATES
+            kind: "ci_failure"
+          )
+          .where(
+            "work_units.state = :running OR (work_units.state = :queued AND work_units.id < :id)",
+            running: "running",
+            queued: "queued",
+            id: work_unit.id
           )
           .where.not(id: work_unit.id)
           .where.not(workflow_id: nil)

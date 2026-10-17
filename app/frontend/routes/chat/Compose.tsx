@@ -953,7 +953,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     const [first, ...rest] = trimmed.split(/\s+/)
     const action = first.toLowerCase()
-    if (action === "pause" || action === "resume" || action === "stop") return { kind: "goal", action }
+    if (rest.length === 0 && (action === "pause" || action === "resume" || action === "stop")) return { kind: "goal", action }
     if (action === "edit") {
       const prompt = rest.join(" ").trim()
       return prompt ? { kind: "goal", action: "edit", prompt } : null

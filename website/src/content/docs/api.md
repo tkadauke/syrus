@@ -467,7 +467,10 @@ execution history, duration points, and related Run/Job references.
 `GET /api/v1/admin/jobs/:job_id/test_results` returns the ingested test
 results for a Job's most recent Workflow with test data — compact by
 default; pass `include_suites=true` or `include_slow_cases=true` for more
-detail, and `grader_name` to scope to one grader.
+detail, `grader_name` to scope to one grader, and `case_limit` to select up to
+100 detailed cases per test run. The default is 20; the response's
+`truncation` object reports omitted cases. Failure text fields are limited to
+2 KiB each.
 
 ```bash
 curl https://syrus.example.com/api/v1/admin/jobs/456/test_results \

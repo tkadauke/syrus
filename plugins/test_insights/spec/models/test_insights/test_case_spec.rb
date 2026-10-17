@@ -484,7 +484,7 @@ RSpec.describe TestInsights::TestCase do
       expect(data[:total_count]).to eq(2)
     end
 
-    it "builds identity-backed batch history through the scored-created index hint seam" do
+    it "loads identity-backed history with per-identity limits instead of a window query" do
       old_case = create_case(name: "hinted", suite_name: "S", status: "passed")
       identity = TestInsights::TestIdentity.ensure_for_cases!(repository: repo, cases: [ old_case ]).values.first
       TestInsights::TestCase.where(name: "hinted", suite_name: "S").update_all(test_identity_id: identity.id)
@@ -493,7 +493,7 @@ RSpec.describe TestInsights::TestCase do
       selects = []
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
         sql = payload[:sql].to_s
-        selects << sql if sql.include?("syrus_flakiness_rank")
+        selects << sql if sql.include?("test_identity_id") && sql.include?("LIMIT")
       end
 
       described_class.batch_flakiness(repo, [ build_case(name: "hinted", suite_name: "S", test_identity_id: identity.id) ])
@@ -501,6 +501,8 @@ RSpec.describe TestInsights::TestCase do
       ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
       expect(selects.join("\n")).to include("scored-created-index")
+      expect(selects.join("\n")).not_to include("ROW_NUMBER")
+      expect(selects.join("\n")).to include("LIMIT #{described_class::FLAKINESS_LOOKBACK}")
     end
 
     it "does not merge history from rows linked to an unrelated TestIdentity via the raw-name fallback" do

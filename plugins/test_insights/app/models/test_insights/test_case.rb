@@ -4,6 +4,7 @@ module TestInsights
 
     STATUSES = %w[passed failed skipped error].freeze
     FLAKINESS_LOOKBACK = 20
+    FLAKINESS_QUERY_BATCH_SIZE = 100
     CLASSIFICATION_SCORED = "scored".freeze
     CLASSIFICATION_WIP_REPAIR_FAILURE = "wip_repair_failure".freeze
     SCORED_CREATED_INDEX = "idx_test_cases_identity_scored_created_id".freeze
@@ -205,32 +206,17 @@ module TestInsights
       cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
       return {} if cases_by_identity_id.empty?
 
-      recent = PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
-        ranked_cases = from("#{quoted_table_name}#{scored_created_index_hint}")
-          .where(test_identity_id: cases_by_identity_id.keys)
-          .scored
-          .select(
-            "test_insight_cases.test_identity_id",
-            "test_insight_cases.suite_name",
-            "test_insight_cases.name",
-            "test_insight_cases.status",
-            "test_insight_cases.duration_ms",
-            "test_insight_cases.created_at",
-            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_flakiness_rank"
-          )
-
-        from(ranked_cases, :test_insight_cases)
-          .where("syrus_flakiness_rank <= ?", lookback)
-          .order(:test_identity_id, created_at: :desc)
-          .select(:test_identity_id, :suite_name, :name, :status, :duration_ms, :created_at)
+      recent_rows = PerformanceLogging.phase("test_insights.batch_flakiness_by_identity", identity_count: cases_by_identity_id.size) do
+        cases_by_identity_id.keys.each_slice(FLAKINESS_QUERY_BATCH_SIZE).flat_map do |identity_ids|
+          connection.select_rows(TestInsights::RecentStats.recent_cases_sql(identity_ids, lookback: lookback))
+        end
       end
 
       result = {}
-      grouped = recent.group_by(&:test_identity_id)
+      grouped = recent_rows.group_by { |identity_id, _status, _duration| identity_id.to_i }
       grouped.each do |identity_id, history|
-        window = history.first(lookback)
         test_case = cases_by_identity_id.fetch(identity_id)
-        result[[ test_case.suite_name, test_case.name ]] = flakiness_for_history(window)
+        result[[ test_case.suite_name, test_case.name ]] = flakiness_for_statuses(history.map { |_id, status, _duration| status }.reverse)
       end
 
       result
@@ -261,6 +247,20 @@ module TestInsights
         total_count:  total,
         flaky:        failed > 0 && passed > 0,
         run_statuses: history.reverse.map(&:status)
+      }
+    end
+
+    def self.flakiness_for_statuses(statuses)
+      total = statuses.size
+      failed = statuses.count { |status| status == "failed" || status == "error" }
+      passed = statuses.count { |status| status == "passed" }
+
+      {
+        score: failed.to_f / total,
+        failed_count: failed,
+        total_count: total,
+        flaky: failed > 0 && passed > 0,
+        run_statuses: statuses
       }
     end
 

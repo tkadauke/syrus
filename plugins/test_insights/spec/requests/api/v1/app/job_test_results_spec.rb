@@ -238,5 +238,24 @@ RSpec.describe "App API job test results", type: :request do
       tr = parse_body["test_runs"].first
       expect(tr["duration_ms"]).to eq(1234)
     end
+
+    it "bounds returned suite cases using the requested case limit" do
+      job = Factories.job(user: user, repository: repo)
+      test_run = build_test_run(run: job.initial_run, total_count: 3, passed_count: 2, failed_count: 1)
+      build_test_case(test_run: test_run, name: "failure", status: "failed")
+      build_test_case(test_run: test_run, name: "pass one", status: "passed")
+      build_test_case(test_run: test_run, name: "pass two", status: "passed")
+
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { case_limit: 1 }
+
+      body = parse_body
+      cases = body.dig("test_runs", 0, "suites").flat_map { |suite| suite.fetch("test_cases") }
+      expect(cases.map { |test_case| test_case.fetch("name") }).to eq([ "failure" ])
+      expect(body.fetch("truncation")).to include(
+        "case_limit" => 1,
+        "suite_cases_returned" => 1,
+        "suite_cases_omitted" => 2
+      )
+    end
   end
 end

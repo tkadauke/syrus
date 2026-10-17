@@ -120,8 +120,58 @@ RSpec.describe TestInsights::RunResults do
 
     expect(run_payload.fetch(:slow_cases).map { |test_case| test_case.fetch(:name) }).to eq([ "slow" ])
     expect(run_payload.fetch(:slow_cases_omitted)).to eq(1)
-    expect(run_payload.dig(:suites, 0, :test_cases).map { |test_case| test_case.fetch(:name) }).to eq(%w[fast slow])
+    expect(run_payload.dig(:suites, 0, :test_cases).map { |test_case| test_case.fetch(:name) }).to eq([ "fast" ])
     expect(payload.fetch(:truncation)).to include(slow_cases_returned: 1, slow_cases_omitted: 1, suites_included: true)
+  end
+
+  it "bounds suite cases and truncates legacy failure fields" do
+    job = Factories.job(user: user, repository: repository)
+    run = job.initial_run
+    test_run = build_test_run(run: run, total_count: 4, passed_count: 3, failed_count: 1)
+    failure = build_test_case(
+      test_run: test_run,
+      name: "failure",
+      status: "failed",
+      failure_message: "m" * 3.kilobytes,
+      failure_backtrace: "b" * 3.kilobytes,
+      output: "o" * 3.kilobytes
+    )
+    3.times { |index| build_test_case(test_run: test_run, name: "pass #{index}") }
+
+    payload = described_class.for_job(job: job, include_suites: true, case_limit: 2)
+    run_payload = payload.fetch(:test_runs).first
+    returned_cases = run_payload.fetch(:suites).flat_map { |suite| suite.fetch(:test_cases) }
+
+    expect(returned_cases.size).to eq(2)
+    expect(returned_cases.first.fetch(:id)).to eq(failure.id)
+    expect(returned_cases.first.fetch(:failure_message).bytesize).to be <= described_class::FAILURE_SNIPPET_BYTES
+    expect(returned_cases.first.fetch(:failure_backtrace).bytesize).to be <= described_class::FAILURE_SNIPPET_BYTES
+    expect(returned_cases.first.fetch(:output).bytesize).to be <= described_class::FAILURE_SNIPPET_BYTES
+    expect(run_payload.dig(:suites, 0, :total_count)).to eq(4)
+    expect(payload.fetch(:truncation)).to include(suite_cases_returned: 2, suite_cases_omitted: 2)
+  end
+
+  it "batch-loads cases and suite counts across test runs" do
+    job = Factories.job(user: user, repository: repository)
+    5.times do |index|
+      test_run = build_test_run(run: job.initial_run, grader_name: "grader #{index}", total_count: 2, passed_count: 1, failed_count: 1)
+      build_test_case(test_run: test_run, name: "failure #{index}", status: "failed")
+      build_test_case(test_run: test_run, name: "pass #{index}")
+    end
+
+    case_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, data|
+      sql = data[:sql].to_s
+      case_selects << sql if sql.start_with?("SELECT") && sql.include?("test_insight_cases")
+    end
+
+    payload = described_class.for_job(job: job, include_suites: true)
+
+    expect(payload.fetch(:test_runs).size).to eq(5)
+    expect(case_selects.count { |sql| sql.include?("syrus_run_case_rank") }).to eq(1)
+    expect(case_selects.count { |sql| sql.include?("GROUP BY") && sql.include?("suite_name") }).to eq(1)
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
   it "degrades a malformed test run instead of failing the whole payload" do

@@ -140,4 +140,75 @@ RSpec.describe MergeTrainMultisect, :ci_only do
     expect(result).not_to be_attributed
     expect(result.reason).to eq("empty_focused_selector")
   end
+
+  describe MergeTrainMultisect::FocusedEvaluator do
+    let(:workspace_path) { Pathname(Dir.mktmpdir("focused-evaluator")) }
+    let(:evaluator) do
+      described_class.new(
+        workflow: workflow,
+        train: train,
+        workspace_path: workspace_path
+      )
+    end
+    let(:context) do
+      described_class::GraderContext.new(
+        instance_double(Step, details: {}),
+        "focused grader",
+        []
+      )
+    end
+    let(:runner_result) do
+      ProcessRunner::Result.new(
+        exit_status: nil,
+        timed_out: true,
+        stopped: false,
+        silent_timed_out: false,
+        operator_killed: false,
+        aliveness_failed: false,
+        duration_s: 0.1,
+        spawned_process_id: nil
+      )
+    end
+
+    after { FileUtils.remove_entry(workspace_path) if workspace_path.exist? }
+
+    it "runs focused commands through the scrubbed grader process boundary" do
+      runner = instance_double(ProcessRunner, run: runner_result)
+      ENV["UNRELATED_WORKER_SECRET"] = "must-not-leak"
+      allow(ProcessRunner).to receive(:new).and_return(runner)
+
+      evaluation = evaluator.send(:run_focused_command, context, "sleep 30", [])
+
+      expect(ProcessRunner).to have_received(:new) do |attributes|
+        expect(attributes).to include(
+          command: [ "bash", "-c", "sleep 30" ],
+          network: "grader",
+          timeout: described_class::TIMEOUT_SECONDS,
+          kind: "grader",
+          workflow: workflow
+        )
+        expect(attributes.fetch(:env)).to include("RAILS_ENV" => "test", "GIT_TERMINAL_PROMPT" => "0")
+        expect(attributes.fetch(:env)).not_to have_key("UNRELATED_WORKER_SECRET")
+      end
+      expect(evaluation.reason).to eq("focused_timeout")
+    ensure
+      ENV.delete("UNRELATED_WORKER_SECRET")
+    end
+
+    it "kills a sleeping focused command at its timeout" do
+      stub_const("MergeTrainMultisect::FocusedEvaluator::TIMEOUT_SECONDS", 0.05)
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      evaluation = evaluator.send(:run_focused_command, context, "sleep 5", [])
+
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      expect(evaluation.reason).to eq("focused_timeout")
+      expect(elapsed).to be < 2
+      expect(SpawnedProcess.order(:id).last).to have_attributes(
+        kind: "grader",
+        outcome: "timed_out",
+        workflow: workflow
+      )
+    end
+  end
 end

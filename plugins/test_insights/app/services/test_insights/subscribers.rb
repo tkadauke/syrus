@@ -93,9 +93,9 @@ module TestInsights
     def self.junit_xml?(path, format_hint)
       return true if format_hint.to_s.downcase == "xml"
 
-      content = path.read(2048)
+      content = path.binread(2048).force_encoding(Encoding::UTF_8).scrub
       content.match?(/\A(?:\uFEFF)?\s*(?:<\?xml\b[^>]*>\s*)?<testsuites?\b/i)
-    rescue Errno::ENOENT, Errno::EACCES
+    rescue StandardError
       false
     end
   end
