@@ -499,8 +499,9 @@ run_docker() {
   if grep -qE '^SYRUS_WORKER_CPU_LIMIT=.' .env; then
     emit_log env "Keeping existing SYRUS_WORKER_CPU_LIMIT from .env"
   else
-    docker_vm_cpus="$(docker info --format '{{.NCPU}}' 2>/dev/null || true)"
-    if printf '%s' "$docker_vm_cpus" | grep -qE '^[1-9][0-9]*$'; then
+    docker_vm_cpu_status=0
+    docker_vm_cpus="$(docker info --format '{{.NCPU}}' 2>/dev/null)" || docker_vm_cpu_status=$?
+    if [ "$docker_vm_cpu_status" -eq 0 ] && printf '%s' "$docker_vm_cpus" | grep -qE '^[1-9][0-9]*$'; then
       { grep -vE '^SYRUS_WORKER_CPU_LIMIT=' .env || true; printf 'SYRUS_WORKER_CPU_LIMIT=%s\n' "$docker_vm_cpus"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
       info "Set SYRUS_WORKER_CPU_LIMIT=$docker_vm_cpus (Docker VM CPUs) so the worker can size parallelism."
       emit_log env "Set SYRUS_WORKER_CPU_LIMIT=$docker_vm_cpus (Docker VM CPUs) so the worker can size parallelism"
