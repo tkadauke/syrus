@@ -10,6 +10,39 @@ RSpec.describe ScheduledTasks::Schedules::RecurringSchedule do
     expect(result.next_fire_at).to eq("2026-08-10T09:00:00Z")
   end
 
+  describe "cron day-of-week expansion" do
+    {
+      "1-5" => "MO,TU,WE,TH,FR",
+      "*/2" => "SU,TU,TH,SA",
+      "1-5/2" => "MO,WE,FR",
+      "0,6" => "SU,SA",
+      "7" => "SU"
+    }.each do |field, days|
+      it "expands #{field.inspect} using Fugit's normalized weekdays" do
+        result = described_class.preview(input: "0 9 * * #{field}", from: Time.utc(2026, 8, 5, 8, 0, 0))
+
+        expect(result).to be_valid
+        expect(result.expression).to eq("FREQ=WEEKLY;BYDAY=#{days};BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+        expect(result.errors.join).not_to match(/invalid value for Integer/)
+      end
+    end
+  end
+
+  it "preserves cron OR semantics when day-of-month and day-of-week are both restricted" do
+    result = described_class.preview(input: "0 9 1 * 1", from: Time.utc(2026, 8, 2, 10, 0, 0))
+
+    expect(result).to be_valid
+    expect(result.expression).to eq(
+      "FREQ=MONTHLY;BYMONTHDAY=1;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0;X-SYRUS-CRON-DAY-OR=TRUE"
+    )
+    expect(result.explanation).to eq("Every month on day 1 or every Monday at 9:00 AM UTC")
+    # Monday the 3rd matches the weekday arm even though it is not the first.
+    expect(result.next_fire_at).to eq("2026-08-03T09:00:00Z")
+    # Tuesday the 1st matches the month-day arm even though it is not Monday.
+    expect(described_class.next_fire_at(result.expression, from: Time.utc(2026, 8, 31, 10, 0, 0)))
+      .to eq(Time.utc(2026, 9, 1, 9, 0, 0))
+  end
+
   it "preserves annual cron semantics as yearly recurrence" do
     result = described_class.preview(input: "0 9 14 8 *", from: Time.utc(2026, 8, 5, 0, 0, 0))
 

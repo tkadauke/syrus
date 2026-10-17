@@ -27,6 +27,10 @@ module ScheduledTasks
       @task.with_lock do
         @task.reload
         return Result.new(job: nil, skipped: true, reason: "not_fireable") if @task.archived? || @task.fired?
+        unless RepositoryPolicy.new(@task.user, @task.repository).write?
+          @task.pause!(reason: "auto") unless @task.auto_paused?
+          return Result.new(job: nil, skipped: true, reason: "repository_write_access_required")
+        end
         return Result.new(job: nil, skipped: true, reason: "not_due") if @require_due && !@task.due?(now: @now)
 
         manual = !@require_due

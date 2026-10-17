@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe ScheduledTasks::McpTools::ScheduleRecurringTool do
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -51,6 +52,20 @@ RSpec.describe ScheduledTasks::McpTools::ScheduleRecurringTool do
       "label" => "Daily review",
       "prompt" => "Review the repository."
     )
+  end
+
+  it "rejects a schedule proposal when the chat user has only read access" do
+    repository.repository_memberships.find_by!(user: user).update!(role: "read")
+
+    response = call_tool(
+      cron_expression: "0 9 * * *",
+      label: "Daily review",
+      prompt: "Review the repository."
+    )
+
+    expect(response[:result][:isError]).to be true
+    expect(response[:result][:content].first[:text]).to include("write access")
+    expect(ChatPendingAction.count).to eq(0)
   end
 
   it "describes the scheduled prompt as cron work rather than an ad hoc Job" do

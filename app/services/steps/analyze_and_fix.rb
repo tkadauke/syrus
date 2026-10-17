@@ -68,7 +68,8 @@ module Steps
         job: job,
         injected_context: collect_injected_context,
         grader_iterations: workflow.artifact("iterations"),
-        repair_attempts: previous_repair_attempts
+        repair_attempts: previous_repair_attempts,
+        spill: prompt_spill
       ).to_s
     end
 

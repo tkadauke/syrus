@@ -2,9 +2,14 @@ module PendingActions
   class FireScheduledTaskNow < Base
     action_key "fire_scheduled_task_now"
 
+    def authorize_execution!
+      task = scheduled_task
+      raise ArgumentError, "Repository write access is required to fire this scheduled task." unless RepositoryPolicy.new(user, task.repository).write?
+    end
+
     def execute
-      scope = user.admin? ? ScheduledTasks::Task.alive : ScheduledTasks::Task.alive.where(user: user)
-      task = scope.find(payload.fetch("scheduled_task_id"))
+      authorize_execution!
+      task = scheduled_task
       raise ArgumentError, "Task isn't fireable in its current state." if task.archived? || task.fired?
 
       progress!("Firing scheduled task #{task.id}...")
@@ -26,6 +31,13 @@ module PendingActions
 
     def presentation_label
       "Fire scheduled task ##{payload["scheduled_task_id"]}"
+    end
+
+    private
+
+    def scheduled_task
+      scope = user.admin? ? ScheduledTasks::Task.alive : ScheduledTasks::Task.alive.where(user: user)
+      scope.find(payload.fetch("scheduled_task_id"))
     end
   end
 end

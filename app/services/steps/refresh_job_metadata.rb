@@ -28,7 +28,8 @@ module Steps
         current_pr: current_pr,
         prior_summaries: prior_summaries,
         feedback: feedback_text,
-        diff: current_diff
+        diff: current_diff,
+        spill: prompt_spill
       )
     end
 

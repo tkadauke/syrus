@@ -348,6 +348,37 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["message"]).to eq("Scheduled task created.")
   end
 
+  it "forbids a read-tier repository member from creating a task" do
+    repository
+    collaborator = Factories.user(email_address: "reader@example.com", global_role: "user")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+        scheduled_task: valid_cron_attrs.merge(auto_approve_mode: "if_graders_pass")
+      }
+    }.not_to change { ScheduledTasks::Task.count }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+  end
+
+  it "allows a write-tier repository member to create a task" do
+    repository
+    collaborator = Factories.user(email_address: "writer@example.com", global_role: "user")
+    repository.repository_memberships.create!(user: collaborator, role: "write")
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+        scheduled_task: valid_cron_attrs
+      }
+    }.to change { ScheduledTasks::Task.where(user: collaborator, repository: repository).count }.by(1)
+
+    expect(response).to have_http_status(:created)
+  end
+
   it "creates a skill task for a repository, without requiring a prompt" do
     sign_in_as(user)
 
@@ -442,6 +473,23 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.reload.prompt).to eq("Updated standing instruction.")
     expect(task.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
     expect(parse_body["message"]).to eq("Scheduled task updated.")
+  end
+
+  it "forbids task mutations after the owner is demoted to read access" do
+    repository
+    collaborator = Factories.user(email_address: "demoted@example.com", global_role: "user")
+    membership = repository.repository_memberships.create!(user: collaborator, role: "write")
+    task = ScheduledTasks::Task.create!(repository: repository, user: collaborator, **valid_cron_attrs)
+    membership.update!(role: "read")
+    sign_in_as(collaborator)
+
+    patch "/api/v1/app/scheduled_tasks/#{task.id}", params: {
+      scheduled_task: { prompt: "Updated standing instruction." }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(task.reload.prompt).to eq("Write missing tests.")
   end
 
   it "archives a task" do

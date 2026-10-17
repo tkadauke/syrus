@@ -87,7 +87,8 @@ module Steps
         branch_name: job.branch_name || workflow.artifact("external_pr_head_ref"),
         recent_commits: recent_branch_commits,
         epic: job.epic,
-        job: job
+        job: job,
+        spill: prompt_spill
       ).to_s
 
       append_grade_failure_feedback(prompt)

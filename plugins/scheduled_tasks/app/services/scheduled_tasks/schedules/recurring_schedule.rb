@@ -121,10 +121,14 @@ module ScheduledTasks
         parts = [ "FREQ=#{frequency_for(hour, day_of_month, month, day_of_week)}" ]
         parts << "BYMONTH=#{cron_field_value(month, cron.months)}" unless month == "*"
         parts << "BYMONTHDAY=#{cron_field_value(day_of_month, cron.monthdays)}" unless day_of_month == "*"
-        parts << "BYDAY=#{rrule_days(day_of_week)}" unless day_of_week == "*"
+        parts << "BYDAY=#{rrule_days(cron.weekdays)}" unless day_of_week == "*"
         parts << "BYHOUR=#{cron_field_value(hour, cron.hours)}" unless hour == "*"
         parts << "BYMINUTE=#{minute}"
         parts << "BYSECOND=0"
+        # Cron treats restricted day-of-month and day-of-week fields as
+        # alternatives. RRULE intersects BYMONTHDAY and BYDAY, so retain the
+        # source semantics explicitly in the canonical internal expression.
+        parts << "X-SYRUS-CRON-DAY-OR=TRUE" if day_of_month != "*" && day_of_week != "*"
         Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: "UTC", input: value, cron_expression: value)
       rescue ArgumentError
         raise
@@ -234,9 +238,11 @@ module ScheduledTasks
         "DAILY"
       end
 
-      def rrule_days(value)
+      def rrule_days(expanded)
         names = %w[SU MO TU WE TH FR SA]
-        value.split(",").map { |day| names.fetch(Integer(day) % 7) }.join(",")
+        raise ArgumentError, "is not a valid five-field cron expression" unless expanded
+
+        expanded.map { |weekday, _ordinal| names.fetch(weekday % 7) }.uniq.join(",")
       end
 
       def self.parse_rrule(expression)
@@ -260,7 +266,7 @@ module ScheduledTasks
         attr_reader :timezone, :cron_expression
 
         def expression
-          ordered = %w[FREQ BYMONTH BYMONTHDAY BYDAY BYHOUR BYMINUTE BYSECOND]
+          ordered = %w[FREQ BYMONTH BYMONTHDAY BYDAY BYHOUR BYMINUTE BYSECOND X-SYRUS-CRON-DAY-OR]
           ordered.filter_map { |key| "#{key}=#{@attrs[key]}" if @attrs[key].present? }.join(";")
         end
 
@@ -353,8 +359,14 @@ module ScheduledTasks
           return false unless time.min == minute
           return false if hours && !hours.include?(time.hour)
           return false if months && !months.include?(time.month)
-          return false if month_days && !month_days.include?(time.day)
-          return false if days.any? && !days.include?(%w[SU MO TU WE TH FR SA][time.wday])
+          month_day_matches = month_days&.include?(time.day)
+          weekday_matches = days.include?(%w[SU MO TU WE TH FR SA][time.wday])
+          if cron_day_or?
+            return false unless month_day_matches || weekday_matches
+          else
+            return false if month_days && !month_day_matches
+            return false if days.any? && !weekday_matches
+          end
 
           true
         end
@@ -363,6 +375,11 @@ module ScheduledTasks
           return "Every hour" if freq == "HOURLY"
           return "Every day" if freq == "DAILY"
           return "Every #{days.map { |day| DAY_NAMES.fetch(day, day) }.to_sentence}" if freq == "WEEKLY"
+          if cron_day_or?
+            day_names = days.map { |day| DAY_NAMES.fetch(day, day) }.to_sentence
+            month_scope = months ? "In #{months.map { |month| Date::MONTHNAMES.fetch(month) }.to_sentence}, on" : "Every month on"
+            return "#{month_scope} day #{(month_days || []).to_sentence} or every #{day_names}"
+          end
           return "Every month on day #{(month_days || []).to_sentence}" if freq == "MONTHLY"
 
           "Every #{(months || []).map { |m| Date::MONTHNAMES.fetch(m) }.to_sentence} #{(month_days || []).to_sentence}"
@@ -380,6 +397,7 @@ module ScheduledTasks
         def months = parse_int_list("BYMONTH")
         def month_days = parse_int_list("BYMONTHDAY")
         def days = @attrs.fetch("BYDAY", "").split(",").compact_blank
+        def cron_day_or? = @attrs["X-SYRUS-CRON-DAY-OR"] == "TRUE"
       end
     end
   end

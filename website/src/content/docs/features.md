@@ -556,6 +556,9 @@ Admin -> Plugins stops schedules firing and hides the Schedules pages; the
 schedules you configured are kept and return when it is re-enabled.
 
 Scheduled tasks attach a recurring or one-shot prompt to a repository.
+Creating or changing one requires write access to that repository. Syrus also
+re-checks the task owner's write access before every fire and auto-pauses the
+task if that access has been removed.
 When a task fires, Syrus creates a normal `cron` Job and runs the standard
 issue-to-PR pipeline on a scheduled branch.
 
@@ -573,7 +576,10 @@ supported cadence, Syrus can optionally hand it to an AI model to produce
 structured intent (frequency, day, time), which is then validated and
 canonicalized the same deterministic way as any other cadence — the model
 never writes the schedule directly, and firing itself never calls an AI
-model.
+model. Lists, ranges, and steps are supported in cron fields, including
+weekday schedules such as `0 9 * * 1-5`; both `0` and `7` mean Sunday. If
+day-of-month and day-of-week are both restricted, the schedule fires when
+either field matches, following standard cron semantics.
 
 The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
@@ -1663,6 +1669,11 @@ chart, and the most expensive individual Runs. When spending exists across
 multiple agent providers, the dashboard can filter those views by model
 provider such as Claude Code or Codex.
 
+The date window controls the trend, breakdowns, and top Runs, while the week,
+month, and lifetime summaries keep their calendar meanings independently of
+that window. Lifetime combines workflow and chat costs. CLI date bounds can
+also be supplied independently to select everything since or until a date.
+
 Chat can query the same spending data for 7-, 30-, or 90-day windows,
 optionally narrowed to a repository or Epic, and returns the daily trend,
 token totals, and the most expensive Runs for the current operator.
@@ -1715,8 +1726,9 @@ filter bar. Selecting one opens it beside the list for a quick look, so a
 filtered list stays put while you browse.
 
 Republishing a mockup updates it in place, so the reference keeps working while
-an agent iterates. Mockups are visible to whoever can see the chat they came
-from.
+an agent iterates. Closing the preview tab only dismisses it from chat; the
+published mockup remains viewable from the Mockups page. Mockups are visible to
+whoever can see the chat they came from.
 
 Ships as a bundled plugin, enabled by default. Turning it off from
 Admin -> Plugins removes the page and the chat tools; mockups already published

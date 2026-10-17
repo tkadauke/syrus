@@ -25,7 +25,8 @@ returned with the results so the bar renders what is actually in effect.
 
 Visibility: a mockup is visible to whoever can see the preview panel behind it,
 which is the panel's own rule (you can see a panel if you can see its chat) —
-not a second, looser rule.
+not a second, looser rule. Closing its transient chat tab does not remove the
+published mockup: the saved panel remains viewable from the Mockups page.
 
 ## Relationship to preview panels
 
@@ -39,6 +40,9 @@ Two core seams make that work:
   does not know (`{ kind:, extensions: [], content_types: [] }`). Core's
   built-in kinds win, so a plugin extends the set rather than reinterpreting a
   file core already renders; an unrecognised kind falls back to source text.
+* **`preview_panel_retention`** — a plugin can identify durable records that
+  keep a closed panel servable after its chat tab is dismissed. The mockups
+  plugin retains panels referenced by published mockups.
 * **`/api/v1/app/preview_panels/:id`** (`show`, `update`, `files`, `export`, `token`) —
   panel content addressed independently of the chat it was opened in, so a page
   outside chat can render one without inventing its own file serving. Scoped by

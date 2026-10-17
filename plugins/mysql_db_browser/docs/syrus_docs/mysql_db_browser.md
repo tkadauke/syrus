@@ -130,7 +130,10 @@ invalid_spec`, on anything unrecognized) - identifiers are still quoted
 through `SqlIdentifier.quote` (shared with `FilterTreeSqlCompiler` and the
 Content tab's raw SELECT builder; now dot-aware, so `table.column` refs
 quote each segment independently) so nothing can break out of identifier
-position even if validation were somehow bypassed. Column references
+position even if validation were somehow bypassed. The selected database
+qualifies every table and column reference in the generated statement,
+including joins and FilterBar predicates, so execution never depends on the
+connection's default database. Column references
 throughout the spec (`columns`, `aggregations[].column`, `group_by`,
 `join.from_column`/`join.to_column`, `sort.column`) are always
 `"table.column"` qualified strings - the frontend always knows which table

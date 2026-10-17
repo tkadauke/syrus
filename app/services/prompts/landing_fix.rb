@@ -8,7 +8,7 @@ module Prompts
 
     MAX_ISSUE_BODY_BYTES = 20_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil)
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil, spill: nil)
       @issue = issue
       @pr_number = pr_number
       @repo_slug = repo_slug
@@ -16,6 +16,7 @@ module Prompts
       @recent_commits = recent_commits || []
       @epic = epic
       @job = job
+      @spill = spill
     end
 
     def to_s
@@ -45,7 +46,7 @@ module Prompts
       <<~SECTION.strip
         Original issue: #{@issue.title}
 
-        #{Truncate.text(@issue.body.to_s.strip.presence || "(empty)", max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body")}
+        #{Truncate.text(@issue.body.to_s.strip.presence || "(empty)", max_bytes: MAX_ISSUE_BODY_BYTES, label: "issue body", spill: @spill)}
       SECTION
     end
 

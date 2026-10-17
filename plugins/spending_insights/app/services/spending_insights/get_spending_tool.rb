@@ -63,7 +63,7 @@ module SpendingInsights
       end
 
       def total_cost(payload)
-        payload.fetch(:trend).sum { |point| point.fetch(:total_usd).to_d }.to_f
+        payload.fetch(:totals).fetch(:lifetime_usd)
       end
 
       def top_run_payload(run)

@@ -34,6 +34,13 @@ RSpec.describe ScheduledTasks::Task do
       expect(build_cron).to be_valid
     end
 
+    it "accepts a weekday range and stores its canonical expanded schedule" do
+      task = build_cron(cron_expression: "0 9 * * 1-5")
+
+      expect(task).to be_valid
+      expect(task.schedule_expression).to eq("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+    end
+
     it "canonicalizes typo-heavy natural text through the LLM fallback when structured_intent is supplied" do
       task = build_cron(
         cron_expression: nil,
@@ -106,13 +113,17 @@ RSpec.describe ScheduledTasks::Task do
     it "rejects zero in day-of-month and month fields" do
       task = build_cron(cron_expression: "0 4 0 0 1")
       expect(task).not_to be_valid
-      expect(task.errors[:schedule_input].join).to include("month day must be between 1 and 31")
+      expect(task.errors[:schedule_input].join).to match(
+        /(?:not a valid five-field cron expression|month day must be between 1 and 31)/
+      )
     end
 
     it "rejects zero in the month field" do
       task = build_cron(cron_expression: "0 4 * 0 *")
       expect(task).not_to be_valid
-      expect(task.errors.full_messages.join).to include("valid")
+      expect(task.errors[:schedule_input].join).to match(
+        /(?:not a valid five-field cron expression|month must be between 1 and 12)/
+      )
     end
 
     it "rejects zero in day-of-month lists and ranges" do
@@ -123,10 +134,12 @@ RSpec.describe ScheduledTasks::Task do
       end
     end
 
-    it "rejects the parser-invalid cron produced by replacing the minute with 49" do
+    it "rejects invalid calendar fields when the minute is nonzero" do
       task = build_cron(cron_expression: "49 4 0 0 1")
       expect(task).not_to be_valid
-      expect(task.errors.full_messages.join).to include("valid")
+      expect(task.errors[:schedule_input].join).to match(
+        /(?:not a valid five-field cron expression|month day must be between 1 and 31, month must be between 1 and 12)/
+      )
     end
 
     it "rejects a one_shot fire_at in the past" do

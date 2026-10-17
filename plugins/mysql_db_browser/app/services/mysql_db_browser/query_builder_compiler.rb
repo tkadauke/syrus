@@ -29,8 +29,9 @@ module MysqlDbBrowser
 
     class InvalidSpec < ArgumentError; end
 
-    def initialize(spec:, base_table:, base_columns:, join_table: nil, join_columns: [])
+    def initialize(spec:, database:, base_table:, base_columns:, join_table: nil, join_columns: [])
       @spec = spec.is_a?(Hash) ? spec : {}
+      @database = database.to_s
       @base_table = base_table.to_s
       @base_column_defs = Array(base_columns)
       @join_spec = @spec[:join]
@@ -178,7 +179,7 @@ module MysqlDbBrowser
     end
 
     def quote_table(name)
-      SqlIdentifier.quote(name)
+      "#{SqlIdentifier.quote(@database)}.#{SqlIdentifier.quote(name)}"
     end
 
     def quote_alias(name)
@@ -188,6 +189,7 @@ module MysqlDbBrowser
     end
 
     def validate!
+      raise InvalidSpec, "database is required" if @database.blank?
       raise InvalidSpec, "table is required" if @base_table.blank?
       raise InvalidSpec, "join.table is required" if joined? && @join_table.blank?
       raise InvalidSpec, "group_by requires at least one aggregation" if !aggregate_mode? && Array(@spec[:group_by]).any?

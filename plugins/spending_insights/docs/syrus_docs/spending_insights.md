@@ -10,6 +10,13 @@ completion timestamp are excluded until they finish. Chat costs are recorded per
 chat's new spend appears on the date that the turn completed. Historical cumulative chat cost from before the
 ledger existed is intentionally not assigned to a fabricated date.
 
+The selected date window controls the trend, breakdowns, and top Runs. The
+"This week", "This month", and "Lifetime" summaries use those calendar
+periods independently of the selected window while retaining applicable
+user, repository, Epic, provider, and trigger filters. Lifetime includes both
+workflow and chat costs. CLI `--since` and `--until` flags may be used together
+or independently; a lone flag creates an open-ended date filter.
+
 ## Metrics
 
 While enabled, exports one Prometheus counter to `/metrics` (see `config/syrus_docs/metrics.md`):

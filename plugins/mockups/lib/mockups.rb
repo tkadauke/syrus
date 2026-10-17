@@ -19,6 +19,7 @@ module Mockups
              chat_media_source: "Mockups::MediaSource",
              chat_payload_contributor: "Mockups::PayloadContributor",
              chat_prompt_injector: "Mockups::PromptSection",
+             preview_panel_retention: "Mockups::PreviewPanelRetention",
              sidebar_page: "Mockups::SidebarPages"
 
     # Mockups index core panels, so an entry outlives the plugin being disabled
