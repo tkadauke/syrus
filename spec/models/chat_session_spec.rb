@@ -259,6 +259,30 @@ RSpec.describe ChatSession do
     expect(session.daily_cost_date).to eq(Date.current)
   end
 
+  it "records another chat turn regardless of the user's existing daily cost" do
+    session = described_class.create!(
+      repository: repo,
+      user: repo.user,
+      cumulative_cost_usd: 1_000,
+      daily_cost_usd: 1_000,
+      daily_cost_date: Date.current
+    )
+    result = AgentInvocation::Result.new(
+      turns: 1,
+      exit_status: 0,
+      timed_out: false,
+      is_error: false,
+      outcome: "success",
+      final_text: "Done",
+      session_id: "claude-session",
+      cost_usd: 0.25
+    )
+
+    expect { session.record_turn_usage!(result) }.to change { session.reload.daily_cost }
+      .from(BigDecimal("1000")).to(BigDecimal("1000.25"))
+    expect(session.cumulative_cost).to eq(BigDecimal("1000.25"))
+  end
+
   it "records very large provider token counts" do
     session = described_class.create!(
       repository: repo,

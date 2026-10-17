@@ -51,16 +51,9 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
         "category" => "Instance operations",
         "min" => 0,
         "zero_means" => a_string_including("No global cap")
-      ),
-      include(
-        "key" => "user_daily_spend_budget_usd",
-        "type" => "integer",
-        "default" => 20,
-        "category" => "Instance operations",
-        "min" => 0,
-        "zero_means" => a_string_including("No per-user USD spend budget")
       )
     )
+    expect(body.dig("settings", "metadata").pluck("key")).not_to include("user_daily_spend_budget_usd")
   end
 
   it "clears telegram_bot_token via the clear_secret endpoint" do

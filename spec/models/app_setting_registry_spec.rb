@@ -28,8 +28,6 @@ RSpec.describe AppSettingRegistry do
     expect(described_class.fetch(:max_job_failures).min).to eq(1)
     expect(described_class.fetch(:max_job_failures).zero_means).to be_nil
     expect(described_class.fetch(:merge_train_max_size).min).to eq(1)
-    expect(described_class.fetch(:user_daily_spend_budget_usd).default).to eq(20)
-    expect(described_class.fetch(:user_daily_spend_budget_usd).zero_means).to include("No per-user USD spend budget")
   end
 
   it "declares the current admin settings payload metadata" do
@@ -51,7 +49,6 @@ RSpec.describe AppSettingRegistry do
       :prepared_layer_cache_gb,
       :max_in_flight_workflows,
       :repository_full_poll_interval_hours,
-      :user_daily_spend_budget_usd,
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
       :workflow_admission_control_enabled,
