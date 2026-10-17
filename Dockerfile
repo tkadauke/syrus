@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips pigz && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.key && \
-    test "$(gpg --show-keys --with-colons /tmp/nodesource.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${NODESOURCE_GPG_FINGERPRINT}" && \
+    test "$(gpg --show-keys --with-colons /tmp/nodesource.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "${NODESOURCE_GPG_FINGERPRINT}" && \
     gpg --dearmor -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.key && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
     rm -f /tmp/nodesource.key && \
@@ -389,7 +389,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     set -eu; \
     . /etc/os-release; \
     curl -fsSL https://dl.cloudsmith.io/public/mull-project/mull-stable/gpg.41DB35380DE6BD6F.key -o /tmp/mull.key; \
-    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == \"fpr\" { print $10; exit }')" = "${MULL_APT_GPG_FINGERPRINT}"; \
+    test "$(gpg --show-keys --with-colons /tmp/mull.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "${MULL_APT_GPG_FINGERPRINT}"; \
     gpg --dearmor -o /usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg /tmp/mull.key; \
     rm -f /tmp/mull.key; \
     echo "deb [signed-by=/usr/share/keyrings/mull-project-mull-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/mull-project/mull-stable/deb/${ID} ${VERSION_CODENAME} main" \
