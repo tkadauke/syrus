@@ -3,9 +3,9 @@
 The Git History tab (`plugins/git_history`) shows a repository's full commit
 history, newest first, with each commit attributed back to the Syrus
 Job/Epic/chat/issue/cron task that landed it (or marked as an external PR or
-raw push when Syrus didn't author it). It's an always-on plugin
-(`default_enabled: true`); operators can disable it per-instance like any
-other plugin.
+raw push when Syrus didn't author it). It is experimental and disabled by
+default; after enabling instance beta mode, operators can opt into it from
+**Admin → Plugins**.
 
 ## Data source
 

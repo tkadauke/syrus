@@ -9,7 +9,7 @@ module TeamDirectory
     icon_url "/plugin-icons/team_directory.svg"
     author "Thomas Kadauke"
     category "collaboration"
-    default_enabled true
+    default_enabled false
     disableable true
     provides sidebar_page: "TeamDirectory::SidebarPages"
     route :get, "/api/v1/app/profiles", to: "api/v1/app/profiles#index"

@@ -9,7 +9,7 @@ module SpendingInsights
     icon_url "/plugin-icons/spending_insights.svg"
     author "Thomas Kadauke"
     category "observability"
-    default_enabled true
+    default_enabled false
     disableable true
     optionally_depends_on [ "metrics_dashboard" ]
     provides sidebar_page: "SpendingInsights::SidebarPages",

@@ -1,7 +1,8 @@
 # Design Docs
 
-The `design_docs` plugin (`plugins/design_docs/`) is default-enabled first-party
-Syrus functionality for collaborative Markdown design documents.
+The `design_docs` plugin (`plugins/design_docs/`) is default-disabled first-party
+Syrus functionality for collaborative Markdown design documents. Operators can
+enable it from **Admin → Plugins**.
 
 Design docs are separate from attachment-oriented `Document` records. The
 plugin registers the operator-visible capability as `design_docs`, owns the

@@ -79,6 +79,13 @@ allows admins to explicitly enable beta or experimental capabilities. The
 shared server-side enable path enforces the same rule for API callers and
 blocks the whole request when a dependency cascade would enable an experimental
 plugin.
+
+Fresh installs also leave Build Cache, Design Docs, Spending Insights, and
+Team Directory disabled until an admin opts in. Credential Store and Git
+History are experimental as well as default-disabled, so beta mode must be
+enabled before either can be turned on. Registry synchronization updates this
+declared policy without overwriting an existing instance's `PluginRecord#enabled`
+choices.
 From the index, successful enablement navigates to the detail page so the
 operator lands on the surfaces, docs, and metadata for the plugin they just
 turned on; disabling reloads in place. From the detail page, both enabling and
@@ -3086,7 +3093,7 @@ below, not from `config/routes.rb`.
 The `team_directory` plugin owns the operator directory at `/profiles` and the
 per-person profile pages beneath it. Note the naming: it has nothing to do with
 `Team`/`TeamMembership` authorization, which is core and unaffected by whether
-this plugin is enabled. The plugin's sidebar entry hides itself on a
+this default-disabled plugin is enabled. The plugin's sidebar entry hides itself on a
 single-operator instance, the same condition the core nav item used.
 
 Built-in workflow MCP tools are core app functionality, not a plugin. Optional
@@ -3416,7 +3423,7 @@ Bundled plugins:
   `:dependency_audit_command` (`JavaScript::DependencyAuditCommand` — picks
   `yarn audit --json`/`pnpm audit --json`/`npm audit --json` matching
   whichever of `:prepare_detector`'s true lockfiles is present).
-- `java` — default-enabled. Provides `:prepare_detector` for generic Java/JVM
+- `java` — experimental and default-disabled. Provides `:prepare_detector` for generic Java/JVM
   repos, detecting Gradle files (`build.gradle`, `build.gradle.kts`,
   `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files
   (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and
@@ -3434,7 +3441,7 @@ Bundled plugins:
   (`Java::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging swallowed `InterruptedException` handling, gated on the
   same generic Java/JVM signal as `:prepare_detector`).
-- `kotlin` — default-enabled, depends on `java`. Provides `:prepare_detector`
+- `kotlin` — experimental and default-disabled, depends on `java`. Provides `:prepare_detector`
   for Kotlin/JVM repos, detecting `.kt`, `.kts`, Gradle Kotlin DSL files
   (`build.gradle.kts`, `settings.gradle.kts`), Kotlin JVM Gradle plugin
   declarations, and conventional Kotlin source/test paths
@@ -3450,7 +3457,7 @@ Bundled plugins:
   `:review_criteria_provider` (`Kotlin::ReviewCriteriaProvider` — seeds
   Kotlin/JVM criteria for swallowed coroutine cancellation and unsafe null
   assertions at external boundaries).
-- `android` — default-enabled, depends on `java` and `kotlin`. Provides
+- `android` — experimental and default-disabled, depends on `java` and `kotlin`. Provides
   `:prepare_detector` for Android repos, detecting Android Gradle Plugin
   declarations, Kotlin Android plugin declarations, Android Gradle Plugin
   buildscript classpath entries, conventional `AndroidManifest.xml` paths,
@@ -3586,7 +3593,7 @@ Bundled plugins:
   touching the attached repository checkout. Unavailable in Coding Mode and
   Local Mode, which already have real Write/Edit tools. See
   `config/syrus_docs/preview_panels.md`.
-- `spending_insights` — default-enabled; the first `sidebar_page` plugin.
+- `spending_insights` — default-disabled; the first `sidebar_page` plugin.
   Provides `spending.dashboard`: label "Spending", `path`/`paths`
   `/insights/spending`, `component: "spending_insights/SpendingInsights"`,
   `icon: "spending"` (maps to `SpendingIcon` via `sidebarNav.tsx`'s
@@ -3717,7 +3724,7 @@ Bundled plugins:
   `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
-- `design_docs` — default-enabled. Registers the first-party collaborative
+- `design_docs` — default-disabled. Registers the first-party collaborative
   design document plugin. The plugin owns discovery/enablement,
   `DesignDocs::` domain models, validations, model specs, migration, JSON API
   controller, policy, serializer, create/update services, anchor marker

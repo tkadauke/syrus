@@ -11,7 +11,7 @@ module BuildCache
     icon_url "/plugin-icons/build_cache.svg"
     author "Thomas Kadauke"
     category "tooling"
-    default_enabled true
+    default_enabled false
     disableable true
     config_schema [
         { key: "bucket", label: "Cache bucket", type: :secret_env, env_var: "SCCACHE_BUCKET",

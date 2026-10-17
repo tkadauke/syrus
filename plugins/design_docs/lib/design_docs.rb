@@ -11,7 +11,7 @@ module DesignDocs
     author "Thomas Kadauke"
     icon_url "/plugin-icons/design_docs.svg"
     category "collaboration"
-    default_enabled true
+    default_enabled false
     disableable true
     optionally_depends_on [ "global_search" ]
     events "design_doc.upserted" => :async,

@@ -55,6 +55,23 @@ RSpec.describe Features::SyncFromYaml do
     path&.delete if path&.exist?
   end
 
+
+  it "rejects experimental features declared default-enabled" do
+    path = write_features_yaml(<<~YAML)
+      features:
+        - slug: unsafe_default
+          category: Example
+          name: Unsafe Default
+          experimental: true
+          default: true
+    YAML
+
+    expect { described_class.declarations(config_path: path) }
+      .to raise_error(ArgumentError, /must be default-disabled/)
+  ensure
+    path&.delete if path&.exist?
+  end
+
   it "parses name_i18n_key and description_i18n_key from YAML into declarations" do
     path = write_features_yaml(<<~YAML)
       features:
