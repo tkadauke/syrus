@@ -1913,7 +1913,15 @@ class StepDispatcher
     barrier_dependencies_for(step).any? do |dependency|
       next false unless retry_until_barrier_step?(dependency)
 
-      latest_retry_until_barrier_for(step, dependency.loop_id)&.succeeded? != true
+      latest = latest_retry_until_barrier_for(step, dependency.loop_id)
+      # latest_retry_until_barrier_for ignores superseded barriers, so nil
+      # means every barrier in the loop was retired -- a carried-forward
+      # grade, a manual grade-loop restart. Nothing is left to clear, which
+      # is the opposite of "wait forever": that reading left a merge train's
+      # land step queued with no Run and no failure for two hours.
+      next false if latest.nil?
+
+      !latest.succeeded?
     end
   end
 

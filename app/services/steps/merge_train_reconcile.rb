@@ -111,6 +111,9 @@ module Steps
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor && cursor.kind != "merge_train_land"
+          # See the same loop in Steps::MergeTrainRebase: a skipped barrier
+          # keeps gating the land step unless the loop is retired explicitly.
+          mark_retry_until_barrier_superseded!(cursor) if retry_until_barrier_step?(cursor)
           cursor.skip_with_reason!("landing_validation_cached") if cursor.may_skip?
           cursor = cursor.next_step
         end

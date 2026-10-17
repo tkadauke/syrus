@@ -146,6 +146,13 @@ module Steps
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor && cursor.kind != "merge_train_land_after_rebase"
+          # A skipped retry_until barrier still gates everything after it:
+          # StepDispatcher asks whether the loop's latest barrier succeeded,
+          # and a skipped one never did. Carrying the grade forward retires
+          # the whole loop, so say so -- otherwise the land step this method
+          # deliberately leaves queued is never ready, gets no Run, and the
+          # train sits there with no failure to show for it.
+          mark_retry_until_barrier_superseded!(cursor) if retry_until_barrier_step?(cursor)
           cursor.skip_with_reason!("landing_validation_cached") if cursor.may_skip?
           cursor = cursor.next_step
         end

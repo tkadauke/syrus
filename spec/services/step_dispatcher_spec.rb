@@ -2434,6 +2434,35 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(rounds.last).to include("transient_only" => true, "failing_set" => [])
     end
 
+    # A merge train carried its green grade across a clean rebase, which skips
+    # the recovery branch's whole grade loop. The land step after it depends on
+    # the skipped grader_collect -- a retry_until barrier -- and a skipped
+    # barrier never succeeded, so the step was judged not ready, got no Run,
+    # and the train sat queued for two hours with nothing marked failed.
+    it "enqueues the step after a retry_until loop whose barriers were all superseded" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      fanout = retry_workflow.steps.find_by!(kind: "grader_fanout")
+      collect = retry_workflow.steps.find_by!(kind: "grader_collect")
+      push = retry_workflow.steps.find_by!(kind: "push")
+      push.update!(depends_on_ids: [ collect.id ])
+      [ fanout, collect ].each do |barrier|
+        barrier.update!(details: barrier.details.to_h.merge(Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true))
+        barrier.skip_with_reason!("landing_validation_cached")
+      end
+
+      expect { described_class.advance_from(collect) }.to change { push.reload.runs.count }.by(1)
+    end
+
+    it "still waits when the loop's barrier was skipped without retiring the loop" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      collect = retry_workflow.steps.find_by!(kind: "grader_collect")
+      push = retry_workflow.steps.find_by!(kind: "push")
+      push.update!(depends_on_ids: [ collect.id ])
+      collect.skip_with_reason!("landing_validation_cached")
+
+      expect { described_class.advance_from(collect) }.not_to change { push.reload.runs.count }
+    end
+
     it "continues a retry_until grader loop while the failing set shrinks" do
       retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
       first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)

@@ -943,6 +943,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         [ "merge_train_land", "queued" ]
       )
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: reusing cached grading validation (same_tree)")
+      # The skipped grader_collect is a retry_until barrier, and StepDispatcher
+      # gates everything after a loop on its latest barrier having succeeded.
+      # Carrying the grade forward retires the loop, so the barrier has to say
+      # it is superseded -- otherwise merge_train_land is never ready, never
+      # gets a Run, and the train stalls with nothing marked failed.
+      expect(workflow.steps.find_by!(kind: "grader_collect")).to be_retry_until_barrier_superseded
     end
 
     it "lets no-op reconciliation proceed to validation when the head is not already validated" do
@@ -1919,12 +1925,15 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       described_class.new(run)
     end
 
-    def append_recovery_steps(handler)
+    # `loop_id` mirrors StepDispatcher#materialize_branch_steps!, which gives the
+    # Try branch's grade loop its own id -- that is what makes the branch's
+    # grader_collect a retry_until barrier.
+    def append_recovery_steps(handler, loop_id: nil)
       rebase_step = handler.step
       agent_rebase = Step.create!(workflow: handler.workflow, kind: "merge_train_agent_rebase", position: 1)
       prepare = Step.create!(workflow: handler.workflow, kind: "prepare", position: 2)
-      fanout = Step.create!(workflow: handler.workflow, kind: "grader_fanout", position: 3)
-      collect = Step.create!(workflow: handler.workflow, kind: "grader_collect", position: 4)
+      fanout = Step.create!(workflow: handler.workflow, kind: "grader_fanout", position: 3, loop_id: loop_id, iteration: 1)
+      collect = Step.create!(workflow: handler.workflow, kind: "grader_collect", position: 4, loop_id: loop_id, iteration: 1)
       land = Step.create!(workflow: handler.workflow, kind: "merge_train_land_after_rebase", position: 5)
       rebase_step.update!(next_step: agent_rebase)
       agent_rebase.update!(next_step: prepare)
@@ -2004,7 +2013,10 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
 
       handler = rebase_step_handler(train)
-      append_recovery_steps(handler)
+      # Production shape: the Try branch materializes the recovery grade loop
+      # with its own loop_id, which makes the skipped grader_collect a
+      # retry_until barrier gating everything after it.
+      append_recovery_steps(handler, loop_id: "recovery-loop")
       allow(handler).to receive(:repository).and_return(repository)
       workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
       git = instance_double(GitRunner)
@@ -2044,6 +2056,14 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         "source_workflow_id" => prior.id
       )
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_rebase: carried green grade across clean rebase")
+      # Carrying the grade forward retires the recovery grade loop, so its
+      # barrier must say it is superseded and the land step it leaves queued
+      # must actually be dispatchable. Without both, the step is never ready,
+      # never gets a Run, and the train stalls with nothing marked failed.
+      collect = handler.workflow.steps.find_by!(kind: "grader_collect")
+      land = handler.workflow.steps.find_by!(kind: "merge_train_land_after_rebase")
+      expect(collect).to be_retry_until_barrier_superseded
+      expect { StepDispatcher.advance_from(collect) }.to change { land.reload.runs.count }.by(1)
     end
 
     it "does not carry forward merge-train validation when the required grader set changed" do
