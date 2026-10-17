@@ -855,7 +855,7 @@ export type JobRun = {
 }
 
 export type JobRunQueueWait = {
-  kind: "ready_waiting_for_slot" | "ready_no_consumer" | "concurrency_blocked" | "scheduled" | "claimed_not_started" | "no_run_job" | "no_live_workers" | "start_blocked" | "unknown"
+  kind: "ready_waiting_for_slot" | "ready_no_consumer" | "concurrency_blocked" | "scheduled" | "claimed_not_started" | "no_run_job" | "no_live_workers" | "start_blocked" | "host_admission_deferred" | "unknown"
   details: {
     queue_name?: string
     live_worker_count?: number
@@ -864,6 +864,18 @@ export type JobRunQueueWait = {
     reason?: string
     requirements?: Record<string, string[]>
     details?: Record<string, unknown>
+    deferral_count?: number
+    first_deferred_at?: string
+    deferred_at?: string
+    retry_at?: string
+    resource_guard_binding_terms?: string[]
+    active_compute_units?: number
+    candidate_compute_units?: number
+    host_compute_capacity?: number
+    current_memory_bytes?: number
+    active_reserved_memory_bytes?: number
+    candidate_reserved_memory_bytes?: number
+    host_memory_budget_bytes?: number
   }
 }
 

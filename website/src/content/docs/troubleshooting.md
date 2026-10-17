@@ -8,6 +8,21 @@ description: Common issues and how to debug them.
 Start from the Job page when you can. It shows the Workflow, each Step,
 each Run, the live transcript, and the diff Syrus captured.
 
+## A Run stays queued with host admission deferred
+
+The queued-Run banner reports the admission reason, deferral count and start
+time. For `host_resource_semaphore_busy`, it also shows whether compute units,
+memory reservations, or measured memory reached the host budget. An idle worker
+always admits one Run unless its health sample reports critical memory, disk,
+or CPU pressure.
+
+In Docker Compose, `SYRUS_WORKER_CPU_LIMIT` determines host compute capacity and
+therefore the fallback memory reserved per Run: effective memory divided by
+compute capacity, multiplied by the Run's capacity units. A low Docker Desktop
+CPU allocation can make that reservation large. Set the variable to the CPU
+budget actually available to the worker, and increase Docker Desktop's memory
+setting when the measured working set is genuinely close to the limit.
+
 ## The poller never picks up my issue
 
 Syrus polls GitHub issues about every five minutes, so first wait one poll

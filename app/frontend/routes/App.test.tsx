@@ -11146,6 +11146,7 @@ describe("App", () => {
     ["no_run_job", {}, "No RunJob exists", "bg-warning-surface", "pending"],
     ["no_live_workers", { queue_name: "runs" }, "No live worker heartbeat", "bg-warning-surface", "workers"],
     ["start_blocked", { reason: "no_capable_worker" }, "Waiting on worker capability", "bg-warning-surface", null],
+    ["host_admission_deferred", { reason: "host_resource_semaphore_busy", deferral_count: 3, first_deferred_at: "2026-05-30T11:58:00Z", resource_guard_binding_terms: ["memory_reservation"], active_reserved_memory_bytes: 4294967296, candidate_reserved_memory_bytes: 8589934592, host_memory_budget_bytes: 10737418240 }, "memory reservation 4096.0 MB", "bg-warning-surface", "workers"],
     ["unknown", {}, "could not determine", "bg-neutral-surface", "pending"]
   ])("explains queued run diagnosis %s with the appropriate tone", async (kind, details, copy, toneClass, link) => {
     const base = jobDetailPayload()

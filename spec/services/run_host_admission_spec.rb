@@ -197,6 +197,44 @@ RSpec.describe RunHostAdmission do
     expect(decision.reason).to eq("host_capacity_available")
   end
 
+  it "admits a lone agentic run when one capacity unit reserves more than the memory budget" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(1)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(1.gigabyte)
+    worker_sample(memory_used_percent: 25.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+  end
+
+  it "admits a lone agentic run at capacity three despite a measured working set above the old threshold" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(3)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
+    worker_sample(memory_used_percent: 25.0)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    expect(described_class.call(run: run)).to be_admit
+  end
+
+  it "still defers a second agentic run when memory reservation is full" do
+    allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
+    allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
+    worker_sample(memory_used_percent: 25.0)
+    saturate_guarded_slots!(count: 1)
+    workflow.update!(state: "running")
+    run.update!(step: workflow.steps.find_by!(kind: "implement"))
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect(decision.details["resource_guard_binding_terms"]).to include("memory_reservation")
+    expect(decision.details["resource_guard_binding_terms"]).not_to include("compute_units")
+  end
+
   # syrus_admission_decisions_total is the same per-process counter
   # WorkflowAdmissionBudget increments; RunHostAdmission's own admit/defer
   # decisions feed it too (see config/syrus_docs/metrics.md). Reads the count

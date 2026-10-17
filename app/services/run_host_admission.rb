@@ -100,6 +100,7 @@ class RunHostAdmission
       "current_memory_bytes" => current_memory_bytes,
       "active_reserved_memory_bytes" => active_reserved_memory_bytes,
       "candidate_reserved_memory_bytes" => candidate_reserved_memory_bytes,
+      "resource_guard_binding_terms" => resource_guard_binding_terms(reason),
       "resource_guard_kind" => resource_guard_kind,
       "active_grader_run_count" => grader_guard? ? active_grader_run_count : nil,
       "active_io_intensive_grader_run_count" => io_intensive_grader_guard? ? active_io_intensive_grader_run_count : nil,
@@ -225,12 +226,26 @@ class RunHostAdmission
   end
 
   def resource_guard_full?
-    return true if active_compute_units + candidate_compute_units > capacity_available_to_candidate
+    return true if compute_capacity_full?
     return true if memory_capacity_full?
     return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
     return active_visual_diff_preview_run_count >= io_intensive_runs_per_host if resource_guard_kind == "visual_diff_preview"
 
     false
+  end
+
+  def compute_capacity_full?
+    active_compute_units + candidate_compute_units > capacity_available_to_candidate
+  end
+
+  def resource_guard_binding_terms(reason)
+    return [] unless reason == "host_resource_semaphore_busy"
+
+    terms = []
+    terms << "compute_units" if compute_capacity_full?
+    terms << "memory_reservation" if memory_reservation_full?
+    terms << "measured_memory" if measured_memory_full?
+    terms
   end
 
   # Graders are exempt from the global agent-run cap -- deliberately, so a user
@@ -327,7 +342,10 @@ class RunHostAdmission
   end
 
   def candidate_reserved_memory_bytes
-    memory_reservation_for(step)
+    reservation = memory_reservation_for(step)
+    return reservation unless idle_agentic_host? && host_memory_budget_bytes
+
+    [ reservation, host_memory_budget_bytes - grader_memory_reserve_bytes ].min
   end
 
   def active_reserved_memory_bytes
@@ -338,11 +356,29 @@ class RunHostAdmission
 
   def memory_capacity_full?
     return false unless host_memory_budget_bytes
+    # Soft estimates must not deadlock an otherwise idle host. Hard measured
+    # pressure is handled earlier by critical_local_pressure?.
+    return false if idle_agentic_host?
+
+    memory_reservation_full? || measured_memory_full?
+  end
+
+  def memory_reservation_full?
+    return false unless host_memory_budget_bytes
 
     budget = host_memory_budget_bytes - applicable_grader_memory_reserve_bytes
-    reservation_full = active_reserved_memory_bytes + candidate_reserved_memory_bytes > budget
-    measured_full = current_memory_bytes && current_memory_bytes + candidate_reserved_memory_bytes > budget
-    reservation_full || measured_full
+    active_reserved_memory_bytes + candidate_reserved_memory_bytes > budget
+  end
+
+  def measured_memory_full?
+    return false unless host_memory_budget_bytes && current_memory_bytes
+
+    budget = host_memory_budget_bytes - applicable_grader_memory_reserve_bytes
+    current_memory_bytes + candidate_reserved_memory_bytes > budget
+  end
+
+  def idle_agentic_host?
+    resource_guard_kind.in?(%w[agentic visual_diff_preview]) && active_compute_units.zero?
   end
 
   # The reserve keeps graders from crowding out an agent turn. With nothing
