@@ -5,13 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { MuseConnect } from "./MuseConnect"
 import type { CredentialTestResult } from "@app/api/credentials"
 
-function renderConnect(props: { onConnected?: (result: CredentialTestResult) => void; secondaryAction?: React.ReactNode } = {}) {
+function renderConnect(props: { deferBootstrapRefresh?: boolean; onConnected?: (result: CredentialTestResult) => void; secondaryAction?: React.ReactNode } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <MuseConnect onConnected={props.onConnected ?? (() => {})} secondaryAction={props.secondaryAction} />
-    </QueryClientProvider>
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MuseConnect deferBootstrapRefresh={props.deferBootstrapRefresh} onConnected={props.onConnected ?? (() => {})} secondaryAction={props.secondaryAction} />
+      </QueryClientProvider>
+    )
+  }
 }
 
 const museValid: CredentialTestResult = { credential: "muse_api_key", ok: true, message: "Muse API key is valid.", details: {} }
@@ -55,6 +58,20 @@ describe("MuseConnect", () => {
     })
 
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith(museValid))
+  })
+
+  it("defers bootstrap refresh for onboarding while preserving the Settings credentials refresh", async () => {
+    mockRoutes()
+    const onConnected = vi.fn()
+    const { client } = renderConnect({ deferBootstrapRefresh: true, onConnected })
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries")
+
+    fireEvent.change(screen.getByLabelText("Muse API key"), { target: { value: "LLM|abc123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }))
+
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith(museValid))
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credentials"] })
   })
 
   it("surfaces a failed validation without calling onConnected", async () => {

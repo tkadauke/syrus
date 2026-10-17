@@ -15,13 +15,15 @@ export function AgentProviderConnectPanel({
   onCancel,
   onSaved,
   secondaryAction,
-  autoFocus = false
+  autoFocus = false,
+  deferBootstrapRefresh = false
 }: {
   provider: ConnectableAgentProvider
   onCancel: () => void
-  onSaved?: () => void
+  onSaved?: () => Promise<void> | void
   secondaryAction?: (ambientReady: boolean) => ReactNode
   autoFocus?: boolean
+  deferBootstrapRefresh?: boolean
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
@@ -49,12 +51,18 @@ export function AgentProviderConnectPanel({
   return (
     <ProviderConnectPanel
       autoFocus={autoFocus}
+      deferBootstrapRefresh={deferBootstrapRefresh}
       onConnected={async (result) => {
-        setConnected(result.message || t('configure_agent.connected_default'))
         await queryClient.invalidateQueries({ queryKey: ["dashboard"] })
         await queryClient.invalidateQueries({ queryKey: ["chats"] })
         await queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-        onSaved?.()
+        try {
+          await onSaved?.()
+          setConnected(result.message || t('configure_agent.connected_default'))
+        } catch {
+          // The host owns error presentation. In onboarding, keeping this
+          // panel open avoids claiming success when provider selection failed.
+        }
       }}
       onPreflight={setAmbientReady}
       secondaryAction={secondaryAction ? secondaryAction(ambientReady) : (

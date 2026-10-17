@@ -100,9 +100,10 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           {visitedProviderTabs.map((provider) => (
             <div hidden={tab !== provider} key={provider}>
               <AgentProviderConnectPanel
+                deferBootstrapRefresh
                 onCancel={onClose}
-                onSaved={() => {
-                  connectProvider.mutate(provider)
+                onSaved={async () => {
+                  await connectProvider.mutateAsync(provider)
                 }}
                 provider={provider}
                 secondaryAction={(ambientReady) => (

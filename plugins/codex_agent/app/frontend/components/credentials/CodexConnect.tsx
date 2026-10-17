@@ -32,10 +32,12 @@ type Mode = "api_key" | "chatgpt_login"
 // ClaudeConnect) rather than importing that generic, narrower-message type.
 export function CodexConnect({
   autoFocus = false,
+  deferBootstrapRefresh = false,
   onConnected,
   secondaryAction
 }: {
   autoFocus?: boolean
+  deferBootstrapRefresh?: boolean
   onConnected: (result: CredentialTestResult) => void
   secondaryAction?: ReactNode
 }) {
@@ -49,7 +51,7 @@ export function CodexConnect({
   }, [autoFocus])
 
   async function finishConnecting() {
-    await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+    if (!deferBootstrapRefresh) await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     await queryClient.invalidateQueries({ queryKey: ["credentials"] })
   }
 
