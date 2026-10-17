@@ -500,6 +500,15 @@ class ChatSession < ApplicationRecord
     )
   end
 
+  def broadcast_app_job_status_update(job_id)
+    broadcast_to_participants(
+      type: "chat.updated",
+      resource: "chat",
+      id: id,
+      payload: { action: "job_status_changed", job_id: job_id }
+    )
+  end
+
   def broadcast_app_chat_model_header_update
     broadcast_to_participants(
       type: "updated",
