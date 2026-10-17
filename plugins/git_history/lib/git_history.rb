@@ -10,7 +10,7 @@ module GitHistory
     icon_url "/plugin-icons/git_history.svg"
     author "Thomas Kadauke"
     category "observability"
-    default_enabled true
+    default_enabled false
     disableable true
     provides repo_page_tab: "GitHistory::RepoPageTabs"
     route :get, "/api/v1/app/repositories/:repository_id/git_history/commits", to: "api/v1/app/git_history#index"

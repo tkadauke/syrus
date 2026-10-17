@@ -41,7 +41,7 @@ class FeatureRegistry
 
   def declarations
     raw_features.map do |raw|
-      Declaration.new(
+      declaration = Declaration.new(
         slug: raw.fetch("slug").to_s,
         type: :boolean,
         default_enabled: ActiveModel::Type::Boolean.new.cast(raw.fetch("default", false)),
@@ -53,6 +53,11 @@ class FeatureRegistry
         name_i18n_key: raw["name_i18n_key"],
         description_i18n_key: raw["description_i18n_key"]
       )
+      if declaration.experimental && declaration.default_enabled
+        raise ArgumentError, "Experimental feature #{declaration.slug.inspect} must be default-disabled"
+      end
+
+      declaration
     end
   end
 

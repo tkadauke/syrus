@@ -31,7 +31,7 @@ RSpec.describe Admin::Plugins::Filter do
   it "filters by the experimental chip" do
     Syrus::PluginRegistry.reset!
     Syrus::PluginRegistry.register(name: "stable-plugin", version: "1.0.0")
-    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true)
+    Syrus::PluginRegistry.register(name: "experimental-plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
     tree = { "and" => [ { "field" => "experimental", "op" => "is", "value" => "experimental" } ] }
 

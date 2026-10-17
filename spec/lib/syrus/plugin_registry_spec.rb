@@ -750,20 +750,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "stores experimental status on the manifest and PluginRecord" do
       expect {
-        described_class.register(name: "experimental_plugin", version: "1.0.0", experimental: true)
+        described_class.register(name: "experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       }.not_to change(AppSetting, :count)
 
       manifest = described_class.all_plugins.first
       record = PluginRecord.find_by!(name: "experimental_plugin")
       expect(manifest).to be_experimental
       expect(record.experimental).to be(true)
-      expect(record.default_enabled).to be(true)
+      expect(record.default_enabled).to be(false)
       expect(record.enabled).to be(false)
       expect(manifest.enabled?).to be(false)
     end
 
-    it "enables a default-enabled plugin that is promoted from experimental before it ever ran" do
-      described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true)
+    it "rejects experimental plugins declared default-enabled" do
+      expect {
+        described_class.register(name: "unsafe_default", version: "1.0.0", experimental: true)
+      }.to raise_error(described_class::RegistrationError, /must be default-disabled/)
+    end
+
+    it "preserves a disabled plugin when it is promoted from experimental" do
+      described_class.register(name: "promoted_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       record = PluginRecord.find_by!(name: "promoted_plugin")
       expect(record.enabled).to be(false)
       expect(record.ever_enabled).to be(false)
@@ -772,19 +778,19 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       manifest = described_class.all_plugins.first
       expect(record.reload.experimental).to be(false)
-      expect(record.enabled).to be(true)
-      expect(manifest.enabled?).to be(true)
+      expect(record.enabled).to be(false)
+      expect(manifest.enabled?).to be(false)
     end
 
     it "treats experimental plugins as enabled after the instance opts in" do
       AppSetting.current.update!(beta_mode_enabled: true)
 
-      described_class.register(name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true)
+      described_class.register(name: "opted_in_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
       manifest = described_class.all_plugins.first
       record = PluginRecord.find_by!(name: "opted_in_experimental_plugin")
-      expect(record.enabled).to be(true)
-      expect(manifest.enabled?).to be(true)
+      expect(record.enabled).to be(false)
+      expect(manifest.enabled?).to be(false)
     end
 
     it "stores plugin-provided links on the manifest" do
@@ -916,6 +922,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         version: "1.0.0",
         credential_type_names: [ "ssh_private_key", "token", "credential_store.generic" ]
       )
+      PluginRecord.find_by!(name: "credential_store").update!(enabled: true)
 
       expect(described_class.credential_type_names).to include("ssh_private_key", "token", "credential_store.generic")
     end
@@ -1335,6 +1342,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       PluginRecord.create!(name: "existing_plugin", enabled: false, default_enabled: false)
       described_class.register(name: "existing_plugin", version: "1.0.0", default_enabled: true)
       expect(PluginRecord.find_by!(name: "existing_plugin").enabled).to be(false)
+    end
+
+    it "preserves enabled on an existing PluginRecord when the default changes to false" do
+      PluginRecord.create!(name: "existing_plugin", enabled: true, default_enabled: true)
+      described_class.register(name: "existing_plugin", version: "1.0.0", default_enabled: false)
+
+      expect(PluginRecord.find_by!(name: "existing_plugin")).to have_attributes(
+        enabled: true,
+        default_enabled: false
+      )
     end
 
     it "forces non-disableable plugin records enabled" do
@@ -1864,13 +1881,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "gates an experimental plugin on the current flag after the cache was warmed" do
       AppSetting.current.update!(beta_mode_enabled: false)
-      described_class.register(name: "cold_experimental_plugin", version: "1.0.0", experimental: true)
+      described_class.register(name: "cold_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
       expect(PluginRecord.find_by!(name: "cold_experimental_plugin").enabled).to be(false)
 
       AppSetting.current.update!(beta_mode_enabled: true)
-      described_class.register(name: "warm_experimental_plugin", version: "1.0.0", experimental: true)
+      described_class.register(name: "warm_experimental_plugin", version: "1.0.0", experimental: true, default_enabled: false)
 
-      expect(PluginRecord.find_by!(name: "warm_experimental_plugin").enabled).to be(true)
+      expect(PluginRecord.find_by!(name: "warm_experimental_plugin").enabled).to be(false)
     end
   end
 end

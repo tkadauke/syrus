@@ -1,5 +1,8 @@
 # Shared Compiler Cache (sccache)
 
+The Build Cache plugin is disabled by default on fresh installations. Enable it
+from **Admin → Plugins** to activate its workflow integration and admin surface.
+
 Syrus's worker image includes [sccache](https://github.com/mozilla/sccache) as a transparent compiler cache for C/C++ (and other sccache-supported) builds — repos like `tkadauke/raytracer` stop paying full cold-compile cost on every grader iteration. No `.syrus.yml` or `CMakeLists.txt` changes are required.
 
 ## How it's wired in
