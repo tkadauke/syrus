@@ -91,11 +91,13 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
     const wait = run.queue_wait ?? { kind: "unknown" as const, details: {} }
     const presentation = queueWaitPresentation[wait.kind]
     const reason = wait.details.reason
+    const grossMemoryBudget = wait.details.host_memory_budget_bytes ?? 0
+    const memoryBudget = wait.details.host_memory_effective_budget_bytes ?? Math.max(grossMemoryBudget - (wait.details.grader_memory_reserve_bytes ?? 0), 0)
     const bindingTerms = wait.details.resource_guard_binding_terms ?? []
     const binding = bindingTerms.map((term) => {
       if (term === "compute_units") return t("run_queue_wait.binding_compute", { active: wait.details.active_compute_units, candidate: wait.details.candidate_compute_units, capacity: wait.details.host_compute_capacity })
-      if (term === "memory_reservation") return t("run_queue_wait.binding_reservation", { active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(wait.details.host_memory_budget_bytes ?? 0) })
-      if (term === "measured_memory") return t("run_queue_wait.binding_measured", { current: formatBytes(wait.details.current_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(wait.details.host_memory_budget_bytes ?? 0) })
+      if (term === "memory_reservation") return t("run_queue_wait.binding_reservation", { active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
+      if (term === "measured_memory") return t("run_queue_wait.binding_measured", { current: formatBytes(wait.details.current_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
       return term
     }).join("; ")
     const message = wait.kind === "start_blocked" && reason

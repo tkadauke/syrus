@@ -439,9 +439,14 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      memory_budget = (16.gigabytes * described_class::MEMORY_UTILIZATION).floor
+      grader_reserve = (16.gigabytes / 6) * 2
       expect(decision.details).to include(
         "host_memory_limit_bytes" => 16.gigabytes,
-        "current_memory_bytes" => 13.gigabytes
+        "current_memory_bytes" => 13.gigabytes,
+        "host_memory_budget_bytes" => memory_budget,
+        "grader_memory_reserve_bytes" => grader_reserve,
+        "host_memory_effective_budget_bytes" => memory_budget
       )
     end
 

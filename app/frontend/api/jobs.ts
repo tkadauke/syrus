@@ -876,6 +876,8 @@ export type JobRunQueueWait = {
     active_reserved_memory_bytes?: number
     candidate_reserved_memory_bytes?: number
     host_memory_budget_bytes?: number
+    host_memory_effective_budget_bytes?: number
+    grader_memory_reserve_bytes?: number
   }
 }
 

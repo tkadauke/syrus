@@ -602,7 +602,9 @@ reserved memory, measured memory, or more than one term bound admission. Compare
 `active_compute_units + candidate_compute_units` with `host_compute_capacity`,
 and compare `active_reserved_memory_bytes + candidate_reserved_memory_bytes`
 and `current_memory_bytes + candidate_reserved_memory_bytes` with
-`host_memory_budget_bytes`. A host with no active guarded Run ignores these soft
+`host_memory_effective_budget_bytes`. The effective budget is
+`host_memory_budget_bytes - grader_memory_reserve_bytes`; the reserve is zero
+for non-grader candidates. A host with no active guarded Run ignores these soft
 memory estimates; only critical sampled memory, disk, or CPU pressure can defer
 the lone candidate.
 
