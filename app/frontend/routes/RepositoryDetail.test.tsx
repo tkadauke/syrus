@@ -174,6 +174,17 @@ async function openMoreMenu() {
   fireEvent.click(moreButton)
 }
 
+describe("RepositoryDetailRoute overview", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("does not render cognitive debt in the overview workspace", async () => {
+    renderRoute()
+
+    expect(await screen.findByRole("heading", { name: "Recent jobs" })).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Cognitive debt review queue" })).not.toBeInTheDocument()
+  })
+})
+
 const ISSUES_PATH = "/api/v1/app/repositories/1/issues?state=open"
 
 function repositoryIssuesPayload(overrides = {}) {
@@ -410,65 +421,6 @@ describe("RepositoryDetailRoute .syrus.yml merge-train ladder", () => {
 
     expect(screen.getByText("Using instance fallback")).toBeInTheDocument()
     expect(screen.getByText(/No merge_train.failure_policy/)).toBeInTheDocument()
-  })
-})
-
-describe("RepositoryDetailRoute cognitive debt", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("renders summary rollups, explanation chips, and source links", async () => {
-    renderRoute()
-
-    expect(await screen.findByRole("region", { name: "Cognitive debt review queue" })).toBeInTheDocument()
-    expect(screen.getByTestId("cognitive-debt-metrics")).toHaveClass("sm:grid-cols-2", "lg:w-[24rem]", "lg:shrink-0")
-    expect(screen.getAllByText("33.3%").length).toBeGreaterThan(0)
-    expect(screen.getByRole("link", { name: "app/risky.rb" })).toHaveAttribute("href", "https://github.com/acme/widgets/blob/abc123/app/risky.rb#L1")
-    expect(screen.getAllByText("blind").length).toBeGreaterThan(0)
-    expect(screen.getByText("high churn")).toBeInTheDocument()
-    expect(screen.getByText("untested")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open review" })).toHaveAttribute("href", "/app-shell/jobs/4?tab=review")
-  })
-
-  it("renders the empty state when there is no cognitive evidence", async () => {
-    renderRoute({
-      cognitive_debt: cognitiveDebtPayload({
-        empty: true,
-        summary: { key: "acme/widgets", line_count: 0, covered_count: 0, stale_count: 0, blind_count: 0, cognitive_coverage_pct: null },
-        subsystems: [],
-        files: [],
-        review_queue: []
-      })
-    })
-
-    expect(await screen.findByText("No cognitive coverage evidence is available yet. Coverage snapshots, review comments, approvals, or human-authored commits will populate this queue.")).toBeInTheDocument()
-  })
-
-  it("renders the projection notice and chip for unprojected review evidence", async () => {
-    renderRoute({
-      cognitive_debt: cognitiveDebtPayload({
-        projection_notice: "Some line-specific engagement evidence is from a different revision and cannot be projected without a checkout, so it is linked as context but not counted as covered.",
-        unsupported_projection_count: 1,
-        review_queue: [
-          {
-            kind: "file" as const,
-            path: "app/risky.rb",
-            risk_score: 120,
-            coverage_state: "blind",
-            explanations: ["blind", "unprojected review evidence"],
-            rollup: { key: "app/risky.rb", line_count: 2, covered_count: 0, stale_count: 0, blind_count: 2, cognitive_coverage_pct: 0.0 },
-            signals: { churn: 1, test_coverage_pct: 0, unhealthy_target: false, reliability: null, unsupported_engagements: 1 },
-            source: {
-              github_url: "https://github.com/acme/widgets/blob/abc123/app/risky.rb#L1",
-              review_path: "/jobs/4?tab=review",
-              latest_engagement: { source_type: "diff_review_comment", engagement_kind: "reviewed", occurred_at: "2026-09-28T12:00:00Z", start_line: 1, end_line: 1, projection_supported: false }
-            }
-          }
-        ]
-      })
-    })
-
-    expect(await screen.findByText(/cannot be projected without a checkout/)).toBeInTheDocument()
-    expect(screen.getByText("unprojected review evidence")).toBeInTheDocument()
   })
 })
 
