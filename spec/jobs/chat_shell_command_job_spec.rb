@@ -232,11 +232,8 @@ RSpec.describe ChatShellCommandJob do
     it "dispatches the command over the tunnel and records the daemon's result" do
       connected_daemon_session
       command = create_command(command: "echo hi")
-
-      Thread.new do
-        sleep 0.05
-        LocalToolCall.find_by(chat_session: chat_session).complete!(result: { "stdout" => "hi\n", "stderr" => "", "exit_code" => 0 })
-      end
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result)
+        .and_return({ "stdout" => "hi\n", "stderr" => "", "exit_code" => 0 })
 
       expect {
         described_class.perform_now(command.id)
@@ -252,11 +249,8 @@ RSpec.describe ChatShellCommandJob do
     it "records a killed outcome when the daemon reports the command was cancelled" do
       connected_daemon_session
       command = create_command(command: "sleep 100")
-
-      Thread.new do
-        sleep 0.05
-        LocalToolCall.find_by(chat_session: chat_session).complete!(result: { "stdout" => "", "stderr" => "", "exit_code" => -1, "killed" => true })
-      end
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result)
+        .and_return({ "stdout" => "", "stderr" => "", "exit_code" => -1, "killed" => true })
 
       described_class.perform_now(command.id)
 
