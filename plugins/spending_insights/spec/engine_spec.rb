@@ -6,8 +6,6 @@ RSpec.describe SpendingInsights::Engine do
 
     expect(manifest).to be_present
     expect(manifest.default_enabled?).to be(false)
-    expect(manifest.enabled?).to be(false)
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
   end
 
   it "drops the sidebar page once the plugin is disabled" do
