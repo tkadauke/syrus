@@ -19,6 +19,14 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       end
     end
 
+    it "keeps suite-scoped plugins disabled outside their own examples" do
+      PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+
+      described_class.restore_test_provider_records
+
+      expect(PluginRecord.find_by!(name: "operator_briefing")).not_to be_enabled
+    end
+
     # The fast path is the reason this method is not simply the restore loop.
     # It runs around every example in the suite, where the answer is almost
     # always "nothing to do"; confirming that costs one query, while
@@ -50,6 +58,22 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       expect {
         described_class.restore_test_provider_records
       }.not_to raise_error
+    end
+  end
+
+  describe ".restore_example_plugin_records" do
+    it "enables plugins only for examples in their own plugin suite" do
+      record = PluginRecord.find_or_create_by!(name: "operator_briefing")
+      record.update!(enabled: false, disableable: true)
+
+      plugin_example = Struct.new(:metadata).new({ file_path: "./plugins/operator_briefing/spec/services/generator_spec.rb" })
+      described_class.restore_example_plugin_records(plugin_example)
+      expect(record.reload).to be_enabled
+
+      record.update!(enabled: false)
+      core_example = Struct.new(:metadata).new({ file_path: "./spec/services/work_definitions/registry_spec.rb" })
+      described_class.restore_example_plugin_records(core_example)
+      expect(record.reload).not_to be_enabled
     end
   end
 end
