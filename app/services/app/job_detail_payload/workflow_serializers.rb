@@ -31,13 +31,20 @@ module App
       end
 
       def workflows_json
-        App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?) do
+        serialize = lambda do
           PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
             paginated_workflows.map do |workflow|
               workflow_json(workflow, navigation_page: workflows_page)
             end
           end
         end
+
+        # Solid Queue execution rows and worker heartbeats change without
+        # touching the Run revision used by the snapshot cache key. Keep queue
+        # diagnoses live while any queued Run is visible.
+        return serialize.call if Run.where(job_id: @job.id, state: "queued").exists?
+
+        App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?, &serialize)
       end
 
       def work_units_json
@@ -719,6 +726,7 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: latest_health_snapshot_for(run).then { |snapshot| snapshot ? [ health_snapshot_json(snapshot) ] : [] },
           active_process: active_process_json(run),
+          queue_wait: run.queued? ? RunQueueDiagnosis.call(run) : nil,
           command_spans_total: command_span_counts_by_run_id.fetch(run.id, command_spans.size),
           command_spans_displayed: command_spans.size,
           command_spans_truncated: command_span_counts_by_run_id.fetch(run.id, command_spans.size) > command_spans.size,

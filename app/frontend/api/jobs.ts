@@ -830,6 +830,7 @@ export type JobRun = {
     created_at: string | null
   }>
   active_process?: JobRunActiveProcess | null
+  queue_wait?: JobRunQueueWait | null
   command_spans_total?: number
   command_spans_displayed?: number
   command_spans_truncated?: boolean
@@ -851,6 +852,19 @@ export type JobRun = {
   app_resume_path: string
   app_grade_log_path: string | null
   test_failure_summary?: RunTestFailureSummary | null
+}
+
+export type JobRunQueueWait = {
+  kind: "ready_waiting_for_slot" | "ready_no_consumer" | "concurrency_blocked" | "scheduled" | "claimed_not_started" | "no_run_job" | "no_live_workers" | "start_blocked" | "unknown"
+  details: {
+    queue_name?: string
+    live_worker_count?: number
+    live_worker_queues?: string[]
+    scheduled_at?: string
+    reason?: string
+    requirements?: Record<string, string[]>
+    details?: Record<string, unknown>
+  }
 }
 
 export type RunTestFailureSummary = {
