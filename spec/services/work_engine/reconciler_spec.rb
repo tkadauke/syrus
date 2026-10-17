@@ -4502,6 +4502,42 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  # A resume creates a Run that immediately needs the workspace, so resuming
+  # into one this pass just reported missing can only fail. When a power cut
+  # took three compute nodes down, this plan fired every ~30 seconds for four
+  # hours at a machine that was switched off.
+  it "waits instead of resuming a queued step when the same pass reports the workspace missing" do
+    prepare = workflow.steps.order(:position).second
+    later = workflow.steps.order(:position).third
+    step.update!(next_step: prepare)
+    job.update_columns(state: "landing", started_at: 30.minutes.ago)
+    workflow.update_columns(
+      trigger_kind: "auto_merge", state: "running", started_at: 30.minutes.ago,
+      worker_hostname: nil, worker_storage_key: nil
+    )
+    step.update_columns(kind: "mergeability_preflight", state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    prepare.runs.delete_all
+    prepare.update_columns(state: "queued", started_at: nil, finished_at: nil, created_at: 30.minutes.ago)
+    # A queued Run elsewhere keeps the workflow live, which is what makes the
+    # reconciler judge the workspace missing rather than leave the workflow
+    # alone -- the shape the stuck merge train was in.
+    later.runs.create!(
+      job: job, user: job.user, trigger_kind: "auto_merge",
+      agent_provider: workflow.agent_provider, state: "queued"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :workspace_missing)).to be_present
+    expect(kind(result, :queued_step_without_run)).to be_present
+    expect(plan(result, :resume_queued_step)).to be_nil
+    expect(plan(result, :wait_for_workspace_to_return)).to have_attributes(auto_executable: false)
+    expect(prepare.reload.runs).to be_empty
+  end
+
   it "materializes a mandatory adversarial review repair when success propagation was interrupted" do
     review_job = Factories.job_record(
       user: job.user,

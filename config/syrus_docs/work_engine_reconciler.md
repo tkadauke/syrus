@@ -197,6 +197,17 @@ Planner examples:
   has no Run returns `resume_queued_step`; the executor calls
   `StepDispatcher.resume_deferred_phase`, so manual pause, provider availability,
   and phase-admission gates are rechecked before the missing Run is created.
+  Unless the same pass also reported `workspace_missing` for that Workflow:
+  the resumed Run needs the workspace immediately, so the plan becomes
+  `wait_for_workspace_to_return` and nothing is enqueued. This is the
+  narrower `workspace_missing` classification, not "can this process see the
+  directory" -- a workspace on another live worker is normal and still
+  resumes. A power cut that took three compute nodes down showed why it
+  matters: the automatic resume fired every ~30 seconds for four hours at a
+  machine that was switched off, re-enqueueing a Run that bailed instantly
+  each time, while the `workspace_missing` issue raised beside it waited for
+  an operator. The condition cleared by itself when the nodes came back and
+  the Run started normally, which is what a waiting plan expects.
 - A stale running Run first plans to mark the Run as `worker_died`, then
   prefers `ResumeWorkflowEnqueuer` when an agent session exists, otherwise
   `RetryFailedStepEnqueuer` when the workflow workspace exists, otherwise a

@@ -211,6 +211,23 @@ module WorkEngine
           File.directory?(WorkflowWorkspace.path_for(workflow))
         end
 
+        # Whether this same reconcile pass concluded the workflow's workspace is
+        # gone. Deliberately not `workspace_available?`, which only answers
+        # "can this process see the directory" -- false for every workspace
+        # that lives on another worker, which is the normal case. The
+        # `workspace_missing` classification is the careful version: it already
+        # excludes a live remote owner, a closed Job and a workflow with
+        # nothing left to run.
+        def workspace_missing_for_primary_workflow?
+          workflow = primary_workflow
+          return false unless workflow
+
+          result.issues.any? do |other|
+            other.kind.to_s == "workspace_missing" &&
+              Array(other.affected_ids[:workflow_ids] || other.affected_ids["workflow_ids"]).include?(workflow.id)
+          end
+        end
+
         def retry_budget_available?
           run = primary_run
           return false unless run
@@ -472,6 +489,25 @@ module WorkEngine
 
       class QueuedStepWithoutRun < Base
         def plan
+          # The resume immediately needs the workflow's workspace, so resuming
+          # into one the same pass just reported missing cannot do anything but
+          # fail. When a power cut took three compute nodes down, this plan
+          # fired every ~30 seconds for four hours at a machine that was
+          # switched off -- re-enqueueing a RunJob that bailed instantly each
+          # time -- while `workspace_missing`, raised in the same pass from the
+          # same evidence, waited for an operator.
+          #
+          # Waiting is the honest plan, and it is not a dead end: the condition
+          # cleared by itself when the nodes came back and the Run then started
+          # on its own.
+          if workspace_missing_for_primary_workflow?
+            return waiting_plan(
+              "wait_for_workspace_to_return",
+              "The queued Step has no Run, and this pass also reported this workflow's workspace missing, " \
+              "so resuming the phase would only fail until the workspace is back."
+            )
+          end
+
           automatic_plan(
             "resume_queued_step",
             primary_step,
