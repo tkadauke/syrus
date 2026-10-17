@@ -83,7 +83,7 @@ How long the hit-map blob (per-file line hit data) is retained. Default: 7 days.
 
 ## Cognitive debt queue
 
-Repository detail pages include a cognitive debt panel. It combines the latest
+Repository detail pages include a dedicated Cognitive Debt tab. It combines the latest
 default-branch coverage snapshot, normalized cognitive engagement events
 (review comments, PR comments, approvals, and known human-authored commits),
 recent diff-review churn, and current target health records to rank files that

@@ -10,6 +10,7 @@ module RepositoryTabsSerialization
     tabs = [
       { key: "overview", label: "Overview", path: repository_path(repository) },
       health_tab,
+      { key: "cognitive_debt", label: "Cognitive Debt", path: "/repositories/#{repository.id}/cognitive_debt" },
       { key: "target_graph", label: "Target Graph", path: "/repositories/#{repository.id}/target_graph" },
       { key: "documents", label: "Documents", path: repository_documents_path(repository) }
     ]
