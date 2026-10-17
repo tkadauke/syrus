@@ -22,7 +22,7 @@ type QueryOutcome =
       statement: string | null
       readOnly: boolean
       columns: string[]
-      rows: Record<string, unknown>[]
+      rows: unknown[][]
       rowCount: number
       truncated: boolean
       durationMs: number | null
@@ -46,7 +46,11 @@ function parseOutcome(context: ToolCardContext): QueryOutcome | null {
   if (!Array.isArray(parsed.rows)) return null
 
   const columns = Array.isArray(parsed.columns) ? parsed.columns.filter((c): c is string => typeof c === "string") : []
-  const rows = parsed.rows.filter(isPlainObject) as Record<string, unknown>[]
+  const rows = parsed.rows.flatMap((row) => {
+    if (Array.isArray(row)) return [row]
+    if (isPlainObject(row)) return [columns.map((column) => row[column])]
+    return []
+  })
 
   return {
     kind: "select",
@@ -117,8 +121,8 @@ function renderExpanded(context: ToolCardContext) {
         <table className="w-full text-left text-xs">
           <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
             <tr>
-              {outcome.columns.map((column) => (
-                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={column} scope="col">
+              {outcome.columns.map((column, columnIndex) => (
+                <th className="whitespace-nowrap px-2 py-1 font-semibold" key={columnIndex} scope="col">
                   {column}
                 </th>
               ))}
@@ -127,9 +131,9 @@ function renderExpanded(context: ToolCardContext) {
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
             {outcome.rows.map((row, index) => (
               <tr key={index}>
-                {outcome.columns.map((column) => (
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={column}>
-                    {cellText(row[column])}
+                {outcome.columns.map((_column, columnIndex) => (
+                  <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-700 dark:text-gray-300" key={columnIndex}>
+                    {cellText(row[columnIndex])}
                   </td>
                 ))}
               </tr>
@@ -169,9 +173,9 @@ export const examples = [
       statement: "SELECT id, state, priority FROM jobs WHERE state = 'running' LIMIT 3",
       columns: ["id", "state", "priority"],
       rows: [
-        { id: 71, state: "running", priority: "medium" },
-        { id: 68, state: "running", priority: "medium" },
-        { id: 64, state: "running", priority: "high" }
+        [71, "running", "medium"],
+        [68, "running", "medium"],
+        [64, "running", "high"]
       ],
       row_count: 3,
       truncated: false,
@@ -188,10 +192,26 @@ export const examples = [
       read_only: true,
       statement: "SELECT * FROM job_logs",
       columns: ["id", "chunk"],
-      rows: Array.from({ length: 100 }, (_, index) => ({ id: index + 1, chunk: `log line ${index + 1}` })),
+      rows: Array.from({ length: 100 }, (_, index) => [index + 1, `log line ${index + 1}`]),
       row_count: 241,
       truncated: true,
       duration_ms: 812.6
+    }
+  },
+  {
+    id: "legacy_select_rows",
+    label: "Legacy SELECT with object rows",
+    description: "Persisted tool results from before positional rows remain renderable.",
+    input: { sql: "SELECT id, state FROM jobs LIMIT 1" },
+    parsedResult: {
+      available: true,
+      read_only: true,
+      statement: "SELECT id, state FROM jobs LIMIT 1",
+      columns: ["id", "state"],
+      rows: [{ id: 71, state: "succeeded" }],
+      row_count: 1,
+      truncated: false,
+      duration_ms: 3.1
     }
   },
   {

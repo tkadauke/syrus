@@ -367,6 +367,8 @@ export function useDiffReviewFeedback({
         reviewAnnotationCounts={reviewAnnotationCounts}
         reviewAnnotationPanels={reviewAnnotationPanels}
         reviewFilePaths={reviewFilePaths}
+        resolveError={resolveComment.error}
+        resolveErrorCommentId={resolveComment.variables?.id ?? null}
         resolvePending={resolveComment.isPending}
         reviewCommentBody={reviewCommentBody}
         submitError={submitError}
@@ -392,6 +394,9 @@ export function useDiffReviewFeedback({
     discussComposingError: discussComment.error,
     discussComposingPending: discussComment.isPending,
     editingThreadBody,
+    editingThreadError: updateThreadComment.error && updateThreadComment.variables?.id === editingThreadId
+      ? errorMessage(updateThreadComment.error, t("review_update_error"))
+      : null,
     editingThreadId,
     onCancelComposing: cancelComposer,
     onCancelEditThread: cancelEditThread,
@@ -443,6 +448,8 @@ function DiffReviewFeedbackPanel({
   reviewAnnotationCounts,
   reviewAnnotationPanels,
   reviewFilePaths,
+  resolveError,
+  resolveErrorCommentId,
   resolvePending,
   reviewCommentBody,
   submitError,
@@ -486,6 +493,8 @@ function DiffReviewFeedbackPanel({
   reviewAnnotationCounts: DiffReviewAnnotationCount[]
   reviewAnnotationPanels: DiffReviewAnnotationPanel[]
   reviewFilePaths: string[]
+  resolveError: Error | null
+  resolveErrorCommentId: number | null
   resolvePending: boolean
   reviewCommentBody: string
   submitError: string | null
@@ -564,6 +573,7 @@ function DiffReviewFeedbackPanel({
                       replyError={replyError}
                       replyPending={replyPending}
                       replyingId={replyingId}
+                      resolveError={resolveErrorCommentId === item.comment.id ? resolveError : null}
                       resolvePending={resolvePending}
                       supportsGlobalComments={supportsGlobalComments}
                       t={t}
@@ -649,6 +659,7 @@ function CommentCard({
   replyError,
   replyPending,
   replyingId,
+  resolveError,
   resolvePending,
   supportsGlobalComments,
   t
@@ -667,6 +678,7 @@ function CommentCard({
   replyError: Error | null
   replyPending: boolean
   replyingId: number | null
+  resolveError: Error | null
   resolvePending: boolean
   supportsGlobalComments: boolean
   t: TFunction<"jobs">
@@ -694,6 +706,7 @@ function CommentCard({
         {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
         {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
       </div>
+      {resolveError ? <p className="mt-2 text-xs text-danger-text">{errorMessage(resolveError, t("review_resolve_error"))}</p> : null}
       {replyingId === comment.id ? (
         <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
           <textarea

@@ -16,6 +16,7 @@ import { requestRestart, type RestartComponent } from "../api/adminRestart"
 import { ApiError } from "../api/client"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { NoticeToast } from "../components/NoticeToast"
+import { MutationError } from "../components/MutationError"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
@@ -116,7 +117,8 @@ function TogglePanel({
     onSuccess: (payload) => {
       queryClient.setQueryData(["admin", "console"], payload)
       void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })
-    }
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: ["admin", "console"] })
   })
 
   return (
@@ -143,6 +145,7 @@ function TogglePanel({
           {mutation.isPending ? t("console.saving") : label}
         </button>
       </div>
+      {mutation.isError ? <MutationError error={mutation.error} fallback={t("console.mutation_error")} /> : null}
     </section>
   )
 }

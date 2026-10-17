@@ -234,6 +234,7 @@
     "timeline_empty": "Nulli errores navigatoris in hac fenestra temporis filtrata."
   },
   "users": {
+    "mutation_error": "Usor renovari non potuit.",
     "heading": "Utentes",
     "loading": "Utentes onerans...",
     "loading_user": "Utens onerans...",
@@ -710,6 +711,7 @@
     "popup_blocked_suffix": "manualiter."
   },
   "installations": {
+    "refresh_error": "Synchronizatio institutionum ordinari non potuit.",
     "heading": "Installationes Applicamenti GitHub",
     "description": "Syrus applicamento GitHub pro receptaculis cum installatione activa utitur. Sine tali receptacula tessera personali utuntur.",
     "loading": "Installationes onerans...",
@@ -805,6 +807,7 @@
     "page_of": "Pagina {{page}} ex {{total}}"
   },
   "console": {
+    "mutation_error": "Optio moderatoris renovari non potuit.",
     "heading": "Consola Operatoris",
     "loading": "Consola onerans...",
     "error_load": "Consola operatoris onerari non potuit.",
@@ -954,6 +957,9 @@
     "no_tool_calls": "nullae vocationes instrumenti"
   },
   "processes": {
+    "kill_error": "Processus interfici non potuit.",
+    "kill_confirm": "SIGKILL ad processum #{{id}} mittere?",
+    "keep_running": "Pergere sine interfectione",
     "heading": "Processus",
     "loading": "Processus onerans...",
     "error_load": "Processus onerari non potuerunt.",
@@ -1150,6 +1156,7 @@
   "nav_maintenance_tasks": "Opera Curae",
   "nav_backend_exceptions": "Exceptiones Backend",
   "maintenance_tasks": {
+    "error_action": "Actio sustentationis defecit.",
     "page_title": "Opera Curae — Administratio",
     "heading": "Opera curae",
     "aria": "Opera curae",
@@ -1219,6 +1226,7 @@
     "eta_hours": "{{hours}}h restant"
   },
   "work_units": {
+    "mutation_error": "Optio ostensionis renovari non potuit.",
     "heading": "Unitates Operis",
     "aria": "Unitates operis administrationis",
     "description": "Inspice opus desideratum a schedulatore possessum et conatus currendi per omnes utentes. Haec est facies diagnostica interna; paginae operum ordinariae has tabulas ostendunt solum cum optio debug activa est.",

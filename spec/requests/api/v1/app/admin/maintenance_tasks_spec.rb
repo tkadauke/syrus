@@ -128,4 +128,40 @@ RSpec.describe "API: /api/v1/app/admin/maintenance_tasks", type: :request do
     expect(body.fetch("sort")).to eq("column" => "title", "direction" => "desc")
     expect(new_task).to be_present
   end
+
+  it "returns a conflict when a stale start action is no longer runnable" do
+    admin = Factories.user
+    task = maintenance_task(state: "succeeded")
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/maintenance_tasks/#{task.id}/start"
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("maintenance_task_conflict")
+    expect(parse_body.dig("error", "message")).to eq("maintenance task is not runnable from succeeded")
+  end
+
+  it "does not append another event when an already-dismissed task is dismissed again" do
+    admin = Factories.user
+    task = maintenance_task(state: "dismissed", dismissed_at: 1.hour.ago, dismissed_by_user: admin)
+    task.events.create!(level: "info", message: "Dismissed previously.")
+    dismissed_at = task.dismissed_at
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/maintenance_tasks/#{task.id}/dismiss"
+
+    expect(response).to have_http_status(:ok)
+    expect(task.reload.dismissed_at).to eq(dismissed_at)
+    expect(task.events.pluck(:message)).to eq([ "Dismissed previously." ])
+  end
+
+  it "does not disguise unrelated discovery argument errors as action conflicts" do
+    admin = Factories.user
+    sign_in_as(admin)
+    allow(MaintenanceTasks::Discovery).to receive(:call).and_raise(ArgumentError, "invalid discovery definition")
+
+    expect {
+      post "/api/v1/app/admin/maintenance_tasks/discover"
+    }.to raise_error(ArgumentError, "invalid discovery definition")
+  end
 end

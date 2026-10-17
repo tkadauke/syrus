@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AdminConsole } from "./AdminConsole"
 
@@ -25,6 +25,8 @@ function consolePayload(overrides: Record<string, unknown> = {}) {
 }
 
 describe("AdminConsole maintenance section", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it("restarts web without warning when there are no active runs", async () => {
     let restartBody: unknown
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -61,6 +63,20 @@ describe("AdminConsole maintenance section", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Force restart" }))
 
     await waitFor(() => expect(restartBody).toEqual({ component: "worker", force: true }))
+  })
+
+  it("shows toggle failures and refreshes console state", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) =>
+      Promise.resolve(init?.method === "POST"
+        ? jsonResponse({ error: { message: "Polling setting could not be saved" } }, 422)
+        : jsonResponse(consolePayload()))
+    )
+
+    renderRoute(<AdminConsole />)
+    fireEvent.click(await screen.findByRole("button", { name: "Pause polling" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Polling setting could not be saved")
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method !== "POST").length).toBeGreaterThan(1))
   })
 })
 

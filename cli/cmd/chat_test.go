@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
 func TestChatCommandStreamsOneTurn(t *testing.T) {
@@ -32,6 +36,53 @@ func TestChatCommandStreamsOneTurn(t *testing.T) {
 	}
 }
 
+func TestHandleChatProposalRepromptsForUnrecognizedAnswer(t *testing.T) {
+	var rejected bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/reject" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		rejected = true
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"message":"Proposal rejected."}`))
+	}))
+	defer server.Close()
+	client, err := api.NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := &bytes.Buffer{}
+	proposal := api.ChatProposal{ID: 5, Title: "Add dark mode", RejectPath: "/reject"}
+	if err := handleChatProposal(context.Background(), client, bufio.NewReader(strings.NewReader("msg2\ns\n")), out, proposal); err != nil {
+		t.Fatalf("handleChatProposal returned error: %v", err)
+	}
+	if !rejected {
+		t.Fatal("expected explicit skip to reject the proposal")
+	}
+	if got := out.String(); !strings.Contains(got, "Choose c to confirm or s to skip.\n[c]onfirm") {
+		t.Fatalf("output = %q, expected an invalid answer to re-prompt", got)
+	}
+}
+
+func TestRenderProposalShowsJobAndEpicDetails(t *testing.T) {
+	jobOut := &bytes.Buffer{}
+	renderProposal(jobOut, api.ChatProposal{Title: "Add dark mode", ScopedRepository: "tkadauke/myapp"})
+	for _, want := range []string{"Proposed Job", "Add dark mode", "Repository: tkadauke/myapp"} {
+		if !strings.Contains(jobOut.String(), want) {
+			t.Fatalf("job output missing %q: %q", want, jobOut.String())
+		}
+	}
+
+	epicOut := &bytes.Buffer{}
+	renderProposal(epicOut, api.ChatProposal{Title: "Settings dignity", EpicBundle: true, ActiveChildrenCount: 2})
+	for _, want := range []string{"Proposed Epic", "Settings dignity", "2 child Jobs"} {
+		if !strings.Contains(epicOut.String(), want) {
+			t.Fatalf("epic output missing %q: %q", want, epicOut.String())
+		}
+	}
+}
+
 func TestChatCommandRendersToolActivityDuringLiveTurn(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -54,6 +105,42 @@ func TestChatCommandRendersToolActivityDuringLiveTurn(t *testing.T) {
 	}
 	if got := output.String(); !strings.Contains(got, "read_job") || !strings.Contains(got, "Job JOB-42 open") {
 		t.Fatalf("output = %q, expected live tool_use and tool_result activity", got)
+	}
+}
+
+func TestChatCommandLeavesProposalPendingWithoutInteractiveInput(t *testing.T) {
+	var rejected bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/chats/42/message":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Write([]byte("event: proposal\ndata: {\"proposal\":{\"id\":5,\"slug\":\"add-dark-mode\",\"title\":\"Add dark mode\",\"app_confirm_path\":\"/confirm\",\"app_reject_path\":\"/reject\"}}\n\n"))
+			w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+		case "/reject":
+			rejected = true
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"chat", "42", "file a job"})
+
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "proposal left pending") {
+		t.Fatalf("Execute error = %v, expected pending proposal error", err)
+	}
+	if rejected {
+		t.Fatal("proposal was rejected without an explicit skip decision")
+	}
+	if got := output.String(); !strings.Contains(got, "Left pending: add-dark-mode") {
+		t.Fatalf("output = %q, expected pending proposal reference", got)
 	}
 }
 

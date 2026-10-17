@@ -1,5 +1,7 @@
 module MaintenanceTasks
   class Actions
+    class TransitionConflict < StandardError; end
+
     def self.start!(task, user:) = new(task, user: user).start!
     def self.pause!(task, user:) = new(task, user: user).pause!
     def self.resume!(task, user:) = new(task, user: user).resume!
@@ -40,8 +42,13 @@ module MaintenanceTasks
     end
 
     def dismiss!
-      @task.update!(state: "dismissed", dismissed_at: Time.current, dismissed_by_user: @user)
-      @task.log!("Dismissed by #{@user.display_name}.")
+      @task.with_lock do
+        @task.reload
+        return @task if @task.state == "dismissed"
+
+        @task.update!(state: "dismissed", dismissed_at: Time.current, dismissed_by_user: @user)
+        @task.log!("Dismissed by #{@user.display_name}.")
+      end
       @task
     end
 
@@ -50,7 +57,7 @@ module MaintenanceTasks
     def transition_to_running!(verb)
       @task.with_lock do
         @task.reload
-        raise ArgumentError, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
+        raise TransitionConflict, "maintenance task is not runnable from #{@task.state}" unless @task.runnable? || @task.state == "dismissed"
 
         # Definitions may inspect worker-local storage. The web process handling
         # this action must not override discovery's result with its own view;

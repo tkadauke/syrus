@@ -6,7 +6,8 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
   def fake_client(rows: [], columns: nil, affected_rows: 0, escape: ->(value) { value.to_s.gsub("'", "\\\\'") })
     result = instance_double(Mysql2::Result, fields: columns || rows.first&.keys || [])
-    allow(result).to receive(:each) { |&block| rows.each(&block) }
+    positional_rows = rows.map { |row| row.is_a?(Hash) ? row.values : row }
+    allow(result).to receive(:each) { |&block| positional_rows.each(&block) }
 
     client = instance_double(Mysql2::Client, close: nil, affected_rows: affected_rows)
     allow(client).to receive(:escape, &escape)
@@ -35,7 +36,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       payload = described_class.new(connection).execute("SELECT * FROM users", user: user, limit: 10)
 
       expect(payload[:available]).to be(true)
-      expect(payload[:rows]).to eq(rows)
+      expect(payload[:rows]).to eq(rows.map(&:values))
       expect(payload[:row_count]).to eq(2)
       expect(payload[:truncated]).to be(false)
       expect(payload[:read_only]).to be(true)
@@ -46,6 +47,20 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(audit.statement).to eq("SELECT * FROM users")
       expect(audit.success).to be(true)
       expect(audit.row_count).to eq(2)
+    end
+
+    it "preserves values from duplicate column names as positional rows" do
+      client = fake_client(rows: [ [ 101, 202 ] ], columns: [ "id", "id" ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute(
+        "SELECT jobs.id, workflows.id FROM jobs JOIN workflows ON workflows.job_id = jobs.id",
+        user: user
+      )
+
+      expect(payload[:columns]).to eq([ "id", "id" ])
+      expect(payload[:rows]).to eq([ [ 101, 202 ] ])
+      expect(client).to have_received(:query).with(anything, hash_including(as: :array))
     end
 
     it "clamps to the requested limit and reports truncated when more rows exist" do
@@ -145,14 +160,14 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
       payload = described_class.new(connection).execute("SELECT note FROM notes", user: user)
 
-      expect(payload[:rows].first["note"].bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
-      expect(payload[:rows].first["note"]).to end_with("…")
+      expect(payload[:rows].first.first.bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
+      expect(payload[:rows].first.first).to end_with("…")
     end
 
     it "truncates each streamed value before retaining the row" do
       long_value = "x" * 60_000_000
       result = instance_double(Mysql2::Result, fields: [ "note" ])
-      allow(result).to receive(:each) { |&block| block.call({ "note" => long_value }) }
+      allow(result).to receive(:each) { |&block| block.call([ long_value ]) }
       client = instance_double(Mysql2::Client, close: nil)
       allow(client).to receive(:query).and_return(result)
       allow(client).to receive(:abandon_results!)
@@ -160,7 +175,7 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
       payload = described_class.new(connection).execute("SELECT note FROM notes", user: user)
 
-      expect(payload[:rows].first["note"].bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
+      expect(payload[:rows].first.first.bytesize).to be <= described_class::MAX_VALUE_BYTES + "…".bytesize
     end
 
     it "caps the aggregate retained result bytes" do

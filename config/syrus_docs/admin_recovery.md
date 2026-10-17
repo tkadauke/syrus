@@ -111,6 +111,19 @@ that case cancellation takes precedence over re-enqueueing any stale queued Run
 inside the retry Workflow, so old auto-retry debris does not re-open completed
 work.
 
+## Admin mutation feedback
+
+Admin pages surface mutation failures inline and refresh the affected data so
+an operator does not continue acting on a stale row. This applies to
+maintenance-task actions and discovery, user role and scheduling changes,
+operator-console toggles, and Work Unit debug visibility.
+
+The Processes list and detail page poll while a process is active. Sending
+`SIGKILL` requires confirmation; if the process finishes before the request,
+the returned conflict is shown and the process data is refreshed. The GitHub
+App installations page shows the queued-sync acknowledgement and polls briefly
+after a refresh request so the latest sync status replaces the pre-sync data.
+
 ## Queue Affinity Repair
 
 Chat agents can request `repair_queue_affinity(job_id, run_id, reason:)` when a

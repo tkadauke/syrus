@@ -1,6 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import {
   fetchAdminInstallations,
@@ -11,6 +11,8 @@ import {
 } from "../api/adminInstallations"
 import { ApiError } from "../api/client"
 import { Button } from "../components/Button"
+import { MutationError } from "../components/MutationError"
+import { NoticeToast } from "../components/NoticeToast"
 import { SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { DataTable, Page } from "../components/ui"
@@ -27,9 +29,11 @@ export function AdminInstallations() {
   const { t } = useT("admin")
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
+  const [pollUntil, setPollUntil] = useState(0)
   const installations = useQuery({
     queryKey: ["admin", "installations"],
-    queryFn: fetchAdminInstallations
+    queryFn: fetchAdminInstallations,
+    refetchInterval: pollUntil > Date.now() ? 2_000 : false
   })
 
   return (
@@ -44,12 +48,14 @@ export function AdminInstallations() {
 
       {installations.isPending ? <PanelMessage>{t("installations.loading")}</PanelMessage> : null}
       {installations.isError ? <InstallationsError error={installations.error} /> : null}
-      {installations.isSuccess ? <InstallationsView payload={installations.data} prefix={prefix} /> : null}
+      {installations.isSuccess ? (
+        <InstallationsView payload={installations.data} prefix={prefix} onRefreshQueued={() => setPollUntil(Date.now() + 10_000)} />
+      ) : null}
     </Page.Root>
   )
 }
 
-function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPayload; prefix: string }) {
+function InstallationsView({ payload, prefix, onRefreshQueued }: { payload: AdminInstallationsPayload; prefix: string; onRefreshQueued: () => void }) {
   const { t } = useT("admin")
 
   return (
@@ -70,7 +76,7 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeading>{t("installations.credential_modes")}</SectionHeading>
-          <RefreshButton />
+          <RefreshButton onQueued={onRefreshQueued} />
         </div>
         <SyncStatus payload={payload} />
         <CredentialModeComparison />
@@ -112,20 +118,25 @@ function SyncStatus({ payload }: { payload: AdminInstallationsPayload }) {
   )
 }
 
-function RefreshButton() {
+function RefreshButton({ onQueued }: { onQueued: () => void }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const refresh = useMutation({
     mutationFn: refreshInstallations,
     onSuccess: (payload) => {
-      queryClient.setQueryData(["admin", "installations"], payload)
+      onQueued()
+      void queryClient.invalidateQueries({ queryKey: ["admin", "installations"] })
     }
   })
 
   return (
-    <Button disabled={refresh.isPending} onClick={() => refresh.mutate()}>
-      {refresh.isPending ? t("installations.refreshing") : t("installations.refresh")}
-    </Button>
+    <div>
+      <Button disabled={refresh.isPending} onClick={() => refresh.mutate()}>
+        {refresh.isPending ? t("installations.refreshing") : t("installations.refresh")}
+      </Button>
+      <NoticeToast message={refresh.data?.message || null} onDismiss={() => refresh.reset()} />
+      {refresh.isError ? <MutationError error={refresh.error} fallback={t("installations.refresh_error")} /> : null}
+    </div>
   )
 }
 
