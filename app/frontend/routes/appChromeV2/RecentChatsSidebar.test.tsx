@@ -758,6 +758,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
       expect(popover).toBeInTheDocument()
 
       fireEvent.focus(reference)
+      expect(screen.getByTestId("recent-chat-marker-slot")).not.toHaveClass("group-focus-within/recent-chat:invisible")
       fireEvent.blur(reference, { relatedTarget: jobLink })
       fireEvent.focus(jobLink)
       act(() => vi.advanceTimersByTime(150))
