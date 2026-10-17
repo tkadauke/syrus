@@ -395,6 +395,27 @@ RSpec.describe WorkDefinitions do
     expect(first_keys & second_keys).to eq([ "main_grader:repository:#{repository.id}" ])
   end
 
+  # Landing regrades the full required suite after every repair iteration --
+  # 63 graders, about fifteen minutes of a serial lander, to re-prove results
+  # from fifteen minutes earlier. The landing definitions trust
+  # TargetHealthReuse's per-grader answer instead; everything else keeps the
+  # conservative "a repair touched the tree, rerun it all" behavior, because
+  # the fingerprints are only as complete as the target graph.
+  it "lets only the landing definitions narrow by target health after a code-changing repair" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train")
+
+    opted_in = %w[job_bundle merge_train].select do |kind|
+      WorkDefinitions.for(kind).target_health_narrows_after_code_changing_repair?(workflow)
+    end
+    others = %w[initial retry rebase auto_merge main_grader ci_failure].reject do |kind|
+      WorkDefinitions.for(kind).target_health_narrows_after_code_changing_repair?(workflow)
+    end
+
+    expect(opted_in).to contain_exactly("job_bundle", "merge_train")
+    expect(others).to contain_exactly("initial", "retry", "rebase", "auto_merge", "main_grader", "ci_failure")
+  end
+
   it "resolves merge train members from the train artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)

@@ -129,6 +129,13 @@ module WorkDefinitions
     def grader_fanout_baseline_selection_reason(_workflow) = nil
     def grader_fanout_reuse_enabled?(_workflow) = true
     def enforce_required_target_health_for_unaffected_graders?(_workflow) = false
+    # Whether target-health narrowing still applies on an iteration whose
+    # repair changed code. Off by default: "a repair touched the tree" is a
+    # conservative stand-in for "every previous pass is suspect", and it is
+    # right whenever a grader's real inputs are not fully described by the
+    # target graph. A definition opts in when re-validating known-green
+    # graders costs more than that risk is worth -- see Steps::GraderFanout.
+    def target_health_narrows_after_code_changing_repair?(_workflow) = false
     def record_grader_target_selection_inputs? = false
     def landing_lock? = kind.in?(LANDING_LOCK_KINDS)
     def requires_approval? = false

@@ -967,9 +967,11 @@ Two consequences follow, and both are deliberate:
   floor, so `iteration >= N AND iteration < N` matches nothing and every active
   grader runs again. This is why a normal repair loop looks like it carries
   nothing forward: the repair that caused the iteration is exactly the thing
-  that invalidates the previous passes. `skip_reusable_target_health!` is
-  disabled for the same iteration (`code_changing_repair_for_this_iteration?`),
-  so neither narrowing path applies after a real repair.
+  that invalidates the previous passes. `skip_reusable_target_health!` stands
+  down for the same iteration too, unless the work definition opts into
+  per-grader target-health narrowing
+  (`target_health_narrows_after_code_changing_repair?`, on for `job_bundle`
+  and `merge_train` -- see "Target health" in `workflow_steps.md`).
 - **A carry-forward cannot chain off another carry-forward.** A carried grader
   is dropped from the fanout and gets no Step of its own, and the lookback
   query requires `state: "succeeded"`, so reuse always traces back to a real

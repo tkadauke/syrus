@@ -95,7 +95,7 @@ module Steps
         end
       end
 
-      active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled? && !code_changing_repair_for_this_iteration?
+      active_graders = skip_reusable_target_health!(active_graders) if target_health_narrowing_applies?
 
       if active_graders.empty?
         record_fanout_outcome!("all_graders_skipped")
@@ -927,6 +927,19 @@ module Steps
     def enforce_required_target_health_for_unaffected_graders?
       grader_fanout_reuse_enabled? &&
         workflow.work_definition.enforce_required_target_health_for_unaffected_graders?(workflow)
+    end
+
+    # A code-changing repair normally stands this down: the repair is exactly
+    # what invalidates the previous iteration's passes. That is a coarse
+    # proxy, though, and skip_reusable_target_health! asks the precise
+    # question instead -- fingerprints recomputed from the post-repair
+    # workspace, dependency closure included -- so a definition may opt into
+    # trusting it (WorkDefinitions::Base#target_health_narrows_after_code_changing_repair?).
+    def target_health_narrowing_applies?
+      return false unless grader_fanout_reuse_enabled?
+      return true unless code_changing_repair_for_this_iteration?
+
+      workflow.work_definition.target_health_narrows_after_code_changing_repair?(workflow)
     end
 
     def target_label_for(grader)

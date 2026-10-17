@@ -105,6 +105,17 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  # Steps::GraderFanout treats an iteration as code-changing when a non-grader
+  # step at that iteration has a Run whose agent produced a diff.
+  def code_changing_repair!
+    repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 100, iteration: step.iteration, loop_id: loop_id)
+    repair.runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, state: "succeeded",
+      iteration: step.iteration, step_agent_diff: "diff --git a/app/models/job.rb b/app/models/job.rb\n+# repaired"
+    )
+    repair
+  end
+
   def record_target_health(label, status: "passed", checked_at: 1.minute.ago, overrides: {})
     graph = TargetGraph::Compiler.compile(@ws_path)
     target = graph.target(TargetGraph::Label.parse(label))
@@ -1544,6 +1555,42 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
+  end
+
+  # A repair that changed code normally stands target-health narrowing down,
+  # so every required grader reruns -- 63 of them on a landing train, to
+  # re-prove results from minutes earlier. The landing definitions trust the
+  # per-grader answer instead: fingerprints recomputed from the post-repair
+  # workspace, dependency closure included, so a grader the repair could not
+  # have affected keeps its pass.
+  it "narrows by target health after a code-changing repair for a landing definition" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    workflow.update!(trigger_kind: "merge_train")
+    record_target_health("//:grade/rspec", status: "passed")
+    code_changing_repair!
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("skipped rspec")
+  end
+
+  it "reruns everything after a code-changing repair for an ordinary workflow" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed")
+    code_changing_repair!
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").pluck(:state)).to eq([ "queued" ])
   end
 
   it "serializes reusable target health refs after executable dependencies without mixing hash and record shapes" do

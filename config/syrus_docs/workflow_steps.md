@@ -1011,6 +1011,26 @@ unaffected verdict when no reusable health row exists. Missing historical
 health is not evidence that an unrelated target became affected; broad health
 coverage belongs to the baseline main-branch sweep instead of each landing.
 
+Target-health narrowing normally stands down on any iteration whose repair
+changed code -- the repair is what invalidates the previous iteration's
+passes, and "something changed" is the conservative reading. The two landing
+definitions (`job_bundle`, `merge_train`) opt out of that coarse reading via
+`WorkDefinitions::Base#target_health_narrows_after_code_changing_repair?`,
+because `TargetHealthReuse` already answers the narrower question per grader:
+it recomputes input, command and environment fingerprints from the
+post-repair workspace and requires both a matching passing record and a
+reusable dependency closure, so a grader whose transitive inputs the repair
+did not touch keeps its pass while one the repair reached does not. Landing
+regraded its full required suite after every repair iteration before this --
+63 graders on one production repository, roughly fifteen minutes of a strictly
+serial lander, to re-prove results from fifteen minutes earlier.
+
+Scoped to landing deliberately: the fingerprints are only as complete as the
+target graph's declared inputs and dependencies, so an undeclared coupling
+would carry a grader forward that should have rerun. Landing is where the cost
+concentrates and where the train's own graders ran minutes earlier. Ordinary
+PR and repair workflows keep the conservative behavior.
+
 For PR-facing repair workflows, landing workflows, validation children, and
 `main_grader`, fanout also records `grader_target_selections`, one entry per
 configured grader target with its affected verdict and target fingerprints.

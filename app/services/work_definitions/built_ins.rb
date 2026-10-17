@@ -37,6 +37,24 @@ module WorkDefinitions
     def record_grader_target_selection_inputs? = true
   end
 
+  # Landing regrades the whole required suite on every repair iteration, and
+  # on this repository that is 63 graders -- about fifteen minutes of a
+  # strictly serial lander -- to re-prove results from fifteen minutes
+  # earlier. TargetHealthReuse already answers the narrower question per
+  # grader: it recomputes input, command and environment fingerprints from
+  # the post-repair workspace and requires a matching passing record plus a
+  # reusable dependency closure, so a grader the repair could not have
+  # affected keeps its pass and one the repair reached does not.
+  #
+  # Scoped to landing deliberately. The fingerprints are only as complete as
+  # the target graph's declared inputs, so an undeclared coupling would carry
+  # a grader forward that should have rerun. Landing is where the cost is
+  # concentrated and where a train's own graders ran minutes earlier; ordinary
+  # PR validation keeps the conservative behavior.
+  module TargetHealthNarrowsAfterCodeChangingRepair
+    def target_health_narrows_after_code_changing_repair?(_workflow) = true
+  end
+
   module CurrentLandingBaseTargetSelection
     def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
       current_landing_base_ref(workflow).presence || default_base_ref
@@ -278,6 +296,7 @@ module WorkDefinitions
     include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
     include RecordsGraderTargetSelectionInputs
+    include TargetHealthNarrowsAfterCodeChangingRepair
     include RequiresApproval
     include RequiresEpicReadiness
     include RebuildOnPreempt
@@ -313,6 +332,7 @@ module WorkDefinitions
     include CurrentLandingBaseTargetSelection
     include LandingValidationPrefetchSource
     include RecordsGraderTargetSelectionInputs
+    include TargetHealthNarrowsAfterCodeChangingRepair
     include RequiresApproval
     include RebuildOnPreempt
 
