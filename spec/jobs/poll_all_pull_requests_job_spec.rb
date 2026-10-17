@@ -26,11 +26,11 @@ RSpec.describe PollAllPullRequestsJob do
   it "stays within the PR feedback poll budget and keeps recent Jobs first" do
     ActiveJob::Base.queue_adapter.enqueued_jobs.clear
     Array.new(GithubPollingBudget::PR_FEEDBACK_LIMIT + 5) do |index|
-      Factories.job(repository: repo, issue_number: 100 + index).tap do |job|
+      Factories.job_record(repository: repo, issue_number: 100 + index).tap do |job|
         job.update_columns(pr_number: 100 + index, updated_at: Time.current)
       end
     end
-    recent = Factories.job(repository: repo, issue_number: 999)
+    recent = Factories.job_record(repository: repo, issue_number: 999)
     recent.update!(pr_number: 999)
 
     described_class.perform_now
