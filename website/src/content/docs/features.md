@@ -1066,6 +1066,11 @@ host pressure across Runs when filing suggestions about repeated grader or
 step behavior. Grader and preflight grader Runs include command spans for
 common phases such as dependency checks, installs, database preparation, test
 suites, and frontend builds, so slow setup can be separated from slow tests.
+External commands use one tracked process lifecycle whether Syrus captures a
+short command, streams a long-running command, connects a command pipeline,
+or manages a background service. Each child remains visible as a spawned
+process with its owning Job or Workflow, redacted command, heartbeat, timeout,
+operator-cancellation state, exit status, and final outcome.
 The same worker health data is visible
 from the Workers tab as a per-host chart dashboard with current status,
 quick/custom time ranges, and recent trends for CPU, load, memory, disk, CPU

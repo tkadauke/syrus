@@ -46,6 +46,129 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(chunks).to include("two")
   end
 
+  it "captures bounded, distinct stdout and stderr while writing stdin" do
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "input = STDIN.read; STDOUT.write(input * 3); STDERR.write('warning')" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      stdin_data: "abcd"
+    ).capture(limit: 10)
+
+    expect(capture).to be_success
+    expect(capture.stdout).to eq("abcdabcdab")
+    expect(capture.stderr).to eq("warning")
+    expect(capture.stdout_truncated).to be(true)
+    expect(capture.stderr_truncated).to be(false)
+  end
+
+  it "records a missing capture executable as a failed spawned process" do
+    runner = described_class.new(
+      env: {},
+      command: [ "process-runner-command-that-does-not-exist" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    capture = runner.capture
+
+    expect(capture).not_to be_success
+    expect(capture.result.exit_status).to eq(127)
+    expect(capture.stderr).to include("process-runner-command-that-does-not-exist")
+    expect(SpawnedProcess.find(capture.result.spawned_process_id)).to have_attributes(outcome: "failed", exit_status: 127)
+  end
+
+  it "runs pipelines with one tracked child per command" do
+    pipeline = described_class.pipeline(
+      commands: [
+        [ ruby, "-e", "print 'hello'" ],
+        [ ruby, "-e", "print STDIN.read.upcase" ]
+      ],
+      env: {},
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    expect(pipeline).to be_success
+    expect(pipeline.output).to eq("HELLO")
+    expect(pipeline.results.map(&:spawned_process_id)).to all(be_present)
+    expect(SpawnedProcess.where(id: pipeline.results.map(&:spawned_process_id)).pluck(:outcome)).to contain_exactly("succeeded", "succeeded")
+  end
+
+  it "finalizes every pipeline child after a partial spawn failure" do
+    pipeline = described_class.pipeline(
+      commands: [
+        [ "process-runner-command-that-does-not-exist" ],
+        [ ruby, "-e", "print STDIN.read" ]
+      ],
+      env: {},
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    expect(pipeline).not_to be_success
+    processes = SpawnedProcess.where(id: pipeline.results.map(&:spawned_process_id))
+    expect(processes.count).to eq(2)
+    expect(processes).to all(be_finished)
+    expect(processes.pluck(:outcome)).to contain_exactly("failed", "succeeded")
+  end
+
+  it "returns a durable background handle that can finalize later" do
+    handle = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 0.1; exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    ).start
+
+    expect(handle.spawned_process).to be_running
+    result = handle.finalize
+
+    expect(result).to be_success
+    expect(described_class::BackgroundHandle.find(handle.spawned_process_id).finalize).to be_success
+    expect(handle.spawned_process.reload).to have_attributes(outcome: "succeeded", exit_status: 0)
+  end
+
+  it "cancels a managed background process through its durable process row" do
+    stub_const("ProcessRunner::KILL_POLL_INTERVAL_SECONDS", 0)
+    handle = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kill_grace_seconds: 0,
+      kind: "grader"
+    ).start
+
+    handle.cancel!
+    result = handle.finalize
+
+    expect(result).to be_operator_killed
+    expect(handle.spawned_process.reload.outcome).to eq("operator_killed")
+  end
+
+  it "requires tracked attribution for managed background processes" do
+    runner = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5
+    )
+
+    expect { runner.start }.to raise_error(ArgumentError, /require kind/)
+  end
+
   it "times out and terminates the process group" do
     result = described_class.new(
       env: {},
