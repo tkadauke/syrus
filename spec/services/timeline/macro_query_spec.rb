@@ -176,4 +176,42 @@ RSpec.describe Timeline::MacroQuery do
     span_ids = result[:lanes].flat_map { |lane| lane[:spans].map { |span| span[:workflow_id] } }
     expect(span_ids).not_to include(outside.id)
   end
+
+  describe "#capped_count" do
+    it "stops expression evaluation at limit + 1 without building blocked payloads" do
+      5.times do |index|
+        Workflow.create!(
+          job: job, trigger_kind: "retry", state: "running",
+          started_at: (index + 1).minutes.ago, worker_hostname: "worker-a"
+        )
+      end
+      expression = double(
+        "TimelineExpression",
+        matches_workflow?: true,
+        matches_instance?: true
+      )
+      query = described_class.new(from: 1.hour.ago, to: Time.current, expression: expression)
+      allow(query).to receive(:blocked_payload).and_call_original
+
+      result = query.capped_count(limit: 2)
+
+      expect(result).to eq(count: 2, count_capped: true)
+      expect(expression).to have_received(:matches_workflow?).exactly(3).times
+      expect(query).not_to have_received(:blocked_payload)
+    end
+
+    it "counts one entry per idle hostname and includes pending workflows" do
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      2.times do |index|
+        InstanceVersion.create!(
+          hostname: "worker-idle-#{index}", role: "worker", version: "version-#{index}",
+          started_at: (index + 2).minutes.ago, last_heartbeat_at: 1.minute.ago
+        )
+      end
+
+      result = described_class.new(from: 1.hour.ago, to: Time.current).capped_count(limit: 10)
+
+      expect(result).to eq(count: 3, count_capped: false)
+    end
+  end
 end
