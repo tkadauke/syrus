@@ -117,7 +117,7 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
   it "probes, previews, and explicitly confirms SSH host keys without auditing key material" do
     credential = create_credential(credential_type: "ssh_private_key", safe_metadata: { "host" => "example.test", "username" => "deploy" })
-    key_data = Base64.strict_encode64("host-key")
+    key_data = "AAAAC3NzaC1lZDI1NTE5AAAAIGtra2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr"
     runner = class_double(CredentialStore::SshRunner, call: CredentialStore::SshRunner::Result.new(stdout: "example.test ssh-ed25519 #{key_data}\n", stderr: "", status: 0))
     CredentialStore::SshHostKeyEnrollment.runner = runner
     sign_in_as(operator)
@@ -138,7 +138,7 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
   end
 
   it "validates manual host keys and denies enrollment for an unmanaged scope" do
-    key_data = Base64.strict_encode64("host-key")
+    key_data = "AAAAC3NzaC1lZDI1NTE5AAAAIGtra2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr"
     sign_in_as(operator)
     post "/api/v1/app/credential_store/ssh_host_keys/inspect", params: { enrollment: { scope_type: "user", scope_id: operator.id, host: "example.test", port: 22, known_host: "example.test ssh-ed25519 #{key_data}" } }
     expect(response).to have_http_status(:ok)

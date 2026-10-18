@@ -442,6 +442,11 @@ function SshPrivateKeyFields({ draft, onChange }: SpecializedFieldsProps) {
     port: Number(draft.ssh_port || 22)
   }
 
+  function changeTarget(values: Pick<Draft, "ssh_host"> | Pick<Draft, "ssh_port">) {
+    setCandidate(null)
+    onChange({ ...draft, ...values, ssh_known_host: "", ssh_fingerprint: "" })
+  }
+
   async function loadCandidate(request: () => Promise<{ enrollment: SshHostKeyEnrollment }>, fallback: string) {
     setPending(true)
     setError(null)
@@ -497,13 +502,13 @@ function SshPrivateKeyFields({ draft, onChange }: SpecializedFieldsProps) {
           />
         </Field>
         <Field label={t("ssh_host")}>
-          <Input value={draft.ssh_host} onChange={(event) => onChange({ ...draft, ssh_host: event.target.value })} />
+          <Input value={draft.ssh_host} onChange={(event) => changeTarget({ ssh_host: event.target.value })} />
         </Field>
         <Field label={t("ssh_username")}>
           <Input value={draft.ssh_username} onChange={(event) => onChange({ ...draft, ssh_username: event.target.value })} />
         </Field>
         <Field label={t("ssh_port")}>
-          <Input min="1" max="65535" type="number" value={draft.ssh_port} onChange={(event) => onChange({ ...draft, ssh_port: event.target.value })} />
+          <Input min="1" max="65535" type="number" value={draft.ssh_port} onChange={(event) => changeTarget({ ssh_port: event.target.value })} />
         </Field>
       </div>
       <ListField
@@ -1113,7 +1118,7 @@ function inputFromDraft(
   const safeMetadata = ssh
     ? {
         value: {
-          ...parsedMetadata.value,
+          ...omitKeys(parsedMetadata.value, ["known_host", "fingerprint"]),
           host: draft.ssh_host,
           username: draft.ssh_username,
           port: Number(draft.ssh_port || 22),
@@ -1155,6 +1160,10 @@ function parseObject(value: string, label: string, t: ReturnType<typeof useT>["t
   } catch {
     return { value: {}, error: t("json_parse_error", { field: label }) }
   }
+}
+
+function omitKeys(value: Record<string, unknown>, keys: string[]) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)))
 }
 
 function splitList(value: string) {
