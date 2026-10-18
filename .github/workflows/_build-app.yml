@@ -530,20 +530,48 @@ jobs:
               -c.mac.icon="$MAC_ICON" \
               -c.dmg.title="$PRODUCT "'${version}' 2>&1 | tee "$RUNNER_TEMP/build.log"
           }
-          if build; then exit 0; fi
-          if grep -q '"status":"Invalid"\|status: Invalid' "$RUNNER_TEMP/build.log"; then
-            echo "::error::Notarization verdict was Invalid — deterministic, not retrying. See the developer log artifact."
-            exit 1
-          fi
-          # stage-cli.mjs hard-fails under SYRUS_RELEASE_BUILD=1 when the Go
-          # toolchain is missing — deterministic, a retry cannot fix it.
-          if grep -qF 'stage-cli: Go toolchain not found' "$RUNNER_TEMP/build.log"; then
-            echo "::error::stage-cli hard-failed: no Go toolchain on the runner — deterministic, not retrying. Fix the actions/setup-go step (go-version-file: cli/go.mod)."
-            exit 1
-          fi
-          echo "::warning::Build/notarization failed with a non-deterministic error — retrying once in 90s."
-          sleep 90
-          build
+          # Bail immediately on the failures a retry cannot fix, so a real
+          # problem fails in one build instead of three.
+          deterministic_failure() {
+            if grep -q '"status":"Invalid"\|status: Invalid' "$RUNNER_TEMP/build.log"; then
+              echo "::error::Notarization verdict was Invalid — deterministic, not retrying. See the developer log artifact."
+              return 0
+            fi
+            # stage-cli.mjs hard-fails under SYRUS_RELEASE_BUILD=1 when the Go
+            # toolchain is missing — deterministic, a retry cannot fix it.
+            if grep -qF 'stage-cli: Go toolchain not found' "$RUNNER_TEMP/build.log"; then
+              echo "::error::stage-cli hard-failed: no Go toolchain on the runner — deterministic, not retrying. Fix the actions/setup-go step (go-version-file: cli/go.mod)."
+              return 0
+            fi
+            return 1
+          }
+
+          # Three attempts, backing off 2min then 5min. It used to be one retry
+          # after 90s, and that was not enough for the failure that actually
+          # shows up: `stapler staple`, run by @electron/notarize at the end of
+          # a successful sign + notarize, looks the ticket up in Apple's
+          # CloudKit, and that lookup fails on its own schedule --
+          # "The network connection was lost." (NSURLErrorDomain -1005) then
+          # "Failed to staple your application with code: 68". A release has
+          # died with both 90-second-apart attempts hitting it, on an app that
+          # was signed and notarized both times. Apple's own advice for a ticket
+          # that has not propagated is to wait and retry, so wait longer.
+          # Stapling is inside electron-builder's afterSign, before the dmg and
+          # zip exist, so each attempt has to be a whole build -- roughly 4
+          # minutes, which the step's 60-minute budget absorbs easily.
+          attempt=1
+          attempts=3
+          until build; do
+            if deterministic_failure; then exit 1; fi
+            if [ "$attempt" -ge "$attempts" ]; then
+              echo "::error::Build/notarization still failing after ${attempts} attempts."
+              exit 1
+            fi
+            delay=$(( attempt == 1 ? 120 : 300 ))
+            echo "::warning::Build/notarization failed with a non-deterministic error (attempt ${attempt}/${attempts}) — retrying in ${delay}s."
+            sleep "$delay"
+            attempt=$(( attempt + 1 ))
+          done
 
       - name: Fetch notarytool developer log
         if: failure()

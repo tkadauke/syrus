@@ -265,6 +265,117 @@ RSpec.describe "desktop auto-update and release pipeline" do
     end
   end
 
+  # Regression: this step retried once after 90 seconds, and a release died
+  # with BOTH attempts failing in `stapler staple` -- the step that runs after
+  # a successful sign + notarize and looks the ticket up in Apple's CloudKit.
+  # The app was signed and notarized both times; only Apple's lookup failed
+  # ("The network connection was lost." / "Failed to staple your application
+  # with code: 68"). Ninety seconds is not a long enough wait for that, and a
+  # deterministic failure must still cost exactly one build.
+  describe "the macOS build's retry around sign + notarize" do
+    # The retry loop, lifted out of the workflow and driven with `build` and
+    # `sleep` stubbed, so the backoff costs the suite nothing.
+    def run_notarize_retry(script_body)
+      step = YAML.safe_load(build_workflow).dig("jobs", "build-mac", "steps")
+                 .find { |candidate| candidate["name"].to_s.start_with?("Build, sign") }
+      loop_source = step.fetch("run")[/^deterministic_failure\(\) \{.*\z/m]
+      raise "retry loop not found in the build step" if loop_source.nil?
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "retry.sh")
+        File.write(path, <<~SH)
+          set -o pipefail
+          export RUNNER_TEMP=#{dir}
+          : > "$RUNNER_TEMP/build.log"
+          sleep() { echo "slept $1"; }
+          #{script_body}
+          #{loop_source}
+        SH
+        out, status = Open3.capture2e("bash", path)
+        [ out, status.success? ]
+      end
+    end
+
+    it "builds once when the build succeeds" do
+      out, ok = run_notarize_retry(<<~SH)
+        builds=0
+        build() { builds=$((builds + 1)); echo "builds=$builds"; return 0; }
+      SH
+
+      expect(ok).to be(true), out
+      expect(out).to include("builds=1")
+      expect(out).not_to include("::warning::")
+      expect(out).not_to include("slept")
+    end
+
+    it "retries a flaky sign/notarize and backs off 2 then 5 minutes" do
+      out, ok = run_notarize_retry(<<~SH)
+        builds=0
+        build() {
+          builds=$((builds + 1))
+          echo "builds=$builds"
+          [ "$builds" -ge 3 ]
+        }
+      SH
+
+      expect(ok).to be(true), out
+      expect(out).to include("builds=3")
+      expect(out).to include("slept 120")
+      expect(out).to include("slept 300")
+      expect(out.scan("::warning::").length).to eq(2)
+    end
+
+    it "gives up after three attempts" do
+      out, ok = run_notarize_retry(<<~SH)
+        builds=0
+        build() { builds=$((builds + 1)); echo "builds=$builds"; return 1; }
+      SH
+
+      expect(ok).to be(false)
+      expect(out).to include("builds=3")
+      expect(out).not_to include("builds=4")
+      expect(out).to include("::error::Build/notarization still failing after 3 attempts")
+    end
+
+    # A rejected notarization and a missing Go toolchain are settled facts. Each
+    # retry is a whole build, so spending three on them wastes ~12 minutes and
+    # buries the real error under two warnings.
+    it "spends exactly one build on an Invalid notarization verdict" do
+      out, ok = run_notarize_retry(<<~SH)
+        builds=0
+        build() {
+          builds=$((builds + 1))
+          echo "builds=$builds"
+          echo '{"status":"Invalid"}' > "$RUNNER_TEMP/build.log"
+          return 1
+        }
+      SH
+
+      expect(ok).to be(false)
+      expect(out).to include("builds=1")
+      expect(out).not_to include("builds=2")
+      expect(out).to include("::error::Notarization verdict was Invalid")
+      expect(out).not_to include("slept")
+    end
+
+    it "spends exactly one build on a missing Go toolchain" do
+      out, ok = run_notarize_retry(<<~SH)
+        builds=0
+        build() {
+          builds=$((builds + 1))
+          echo "builds=$builds"
+          echo 'stage-cli: Go toolchain not found' > "$RUNNER_TEMP/build.log"
+          return 1
+        }
+      SH
+
+      expect(ok).to be(false)
+      expect(out).to include("builds=1")
+      expect(out).not_to include("builds=2")
+      expect(out).to include("::error::stage-cli hard-failed")
+    end
+  end
+
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do
     # Signing is a hard requirement — even a dry run signs (it's the fragile
     # part worth rehearsing). The macOS guard refuses to build without it, and

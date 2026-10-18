@@ -54,6 +54,7 @@ Grep the failed run's log for the string in column one.
 | No output for 30+ min at the notarize phase | Apple notary backlog, not your config | [4.3](#43-hangs-and-timeouts) |
 | `The staple and validate action failed! Error 65` | stapling a mutated artifact, or CDN lag | [4.4](#44-stapler-failures) |
 | `The validate action failed! Error 68` / `The network connection was lost.` | Apple's CloudKit ticket lookup flaked — not your artifact | [4.4](#44-stapler-failures) |
+| `Failed to staple your application with code: 68` | same CloudKit flake, but during the build's notarize step | [4.4](#44-stapler-failures) |
 | `skipped macOS application code signing` | silent skip — no usable identity | [6.1](#61-green-build-unsigned-artifact) |
 | `skipped macOS notarization` | silent skip — notarize creds absent | [6.1](#61-green-build-unsigned-artifact) |
 | `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
@@ -267,6 +268,20 @@ permission) see [6.4](#64-build-backend-disk-and-cache).
   build.log + the notary log for debugging — deliberately named OUTSIDE
   the `staged-*` namespace so publish's download glob can never attach it
   to the Release, even across re-run attempts.)
+
+- **`Error 68` during the BUILD, not the verify step:** `Failed to staple your
+  application with code: 68` / `The staple and validate action failed! Error
+  68.`, raised from `@electron/notarize`'s `staple.ts` inside "Build, sign, and
+  notarize". Signing and notarization both *succeeded* — notarytool's developer
+  log fetches fine — and only Apple's CloudKit ticket lookup
+  (`.../gk.ticket-delivery/.../records/lookup`, by the app's cdhash) failed.
+  The build step retries three times, backing off 2min then 5min; a release has
+  died with two 90-second-apart attempts both hitting it, which is why the wait
+  is longer now. Stapling happens in electron-builder's afterSign, before the
+  dmg and zip exist, so each attempt is a whole build (~4min). If all three
+  fail, Apple's lookup is down for you — check
+  [Apple's system status](https://www.apple.com/support/systemstatus/) and
+  re-run later rather than changing anything.
 
 - **Different symptom, same step — `Error 68`:** `The network connection was
   lost.` / `CloudKit's response is inconsistent with expections` /
