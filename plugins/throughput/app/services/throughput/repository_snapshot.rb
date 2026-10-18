@@ -1,8 +1,12 @@
+require "securerandom"
+require "timeout"
+
 module Throughput
   class RepositorySnapshot
     FRESH_FOR = 10.minutes
     RETAIN_FOR = 24.hours
-    REFRESH_LOCK_FOR = 10.minutes
+    COMPUTE_TIMEOUT = 4.minutes
+    REFRESH_LOCK_FOR = 5.minutes
 
     class Unavailable < StandardError; end
 
@@ -23,21 +27,22 @@ module Throughput
       return decorate(snapshot, fresh?(snapshot) ? "fresh" : "stale") if snapshot
 
       raise Unavailable, "repository throughput metrics are being prepared"
+    rescue Timeout::Error
+      raise Unavailable, "repository throughput metrics computation timed out"
     end
 
     def refresh!
       existing = cached_snapshot
       return existing if existing && fresh?(existing)
 
-      claimed = false
-      claimed = cache.write(lock_key, true, unless_exist: true, expires_in: REFRESH_LOCK_FOR)
+      claimed = cache.write(lock_key, SecureRandom.uuid, unless_exist: true, expires_in: REFRESH_LOCK_FOR)
       return unless claimed
 
-      payload = MetricContract.new(repository: repository, now: now).call
+      payload = Timeout.timeout(COMPUTE_TIMEOUT) do
+        MetricContract.new(repository: repository, now: now).call
+      end
       cache.write(snapshot_key, payload, expires_in: RETAIN_FOR)
       payload
-    ensure
-      cache.delete(lock_key) if claimed
     end
 
     def self.snapshot_key(repository_id)

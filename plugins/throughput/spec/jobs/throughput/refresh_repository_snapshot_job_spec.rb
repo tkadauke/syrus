@@ -5,17 +5,18 @@ RSpec.describe Throughput::RefreshRepositorySnapshotJob do
     expect(described_class.queue_name).to eq("polling")
   end
 
-  it "refreshes an active polled repository" do
+  it "refreshes an active repository" do
     repository = Factories.repository
     snapshot = instance_double(Throughput::RepositorySnapshot, refresh!: true)
     expect(Throughput::RepositorySnapshot).to receive(:new).with(repository: repository).and_return(snapshot)
     described_class.perform_now(repository.id)
   end
 
-  it "skips repositories excluded from polling" do
+  it "refreshes an active repository even when issue polling is disabled" do
     repository = Factories.repository
     repository.update!(polling_enabled: false)
-    expect(Throughput::RepositorySnapshot).not_to receive(:new)
+    snapshot = instance_double(Throughput::RepositorySnapshot, refresh!: true)
+    expect(Throughput::RepositorySnapshot).to receive(:new).with(repository: repository).and_return(snapshot)
     described_class.perform_now(repository.id)
   end
 end
