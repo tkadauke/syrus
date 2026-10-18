@@ -781,17 +781,26 @@ module Throughput
           {}
         else
           Run.where(id: ids)
-             .pluck(:id, :step_agent_diff, :agent_diff)
-             .each_with_object({}) do |(id, step_diff, run_diff), map|
-               diff = step_diff.presence || run_diff.presence
+             .where("OCTET_LENGTH(#{preferred_output_diff_sql}) <= ?", MAX_DIFF_SAMPLE_BYTES)
+             .limit(MAX_DIFF_SAMPLE_RUNS)
+             .pluck(:id, Arel.sql(preferred_output_diff_sql))
+             .each_with_object({}) do |(id, diff), map|
                next if diff.blank?
-               next if diff.bytesize > MAX_DIFF_SAMPLE_BYTES
                next if map.values.sum(&:bytesize) + diff.bytesize > MAX_TOTAL_DIFF_SAMPLE_BYTES
 
                map[id] = diff
              end
         end
       end
+    end
+
+    def preferred_output_diff_sql
+      <<~SQL.squish
+        COALESCE(
+          NULLIF(runs.step_agent_diff, ''),
+          NULLIF(runs.agent_diff, '')
+        )
+      SQL
     end
 
     def output_diff_sample_run_ids
