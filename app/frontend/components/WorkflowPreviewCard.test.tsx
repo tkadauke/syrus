@@ -7,7 +7,23 @@ import { WorkflowPreviewCard } from "./WorkflowPreviewCard"
 
 function renderCard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><MemoryRouter><Routes><Route path="*" element={<><WorkflowPreviewCard id={42} /><LocationProbe /></>} /></Routes></MemoryRouter></QueryClientProvider>)
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <WorkflowPreviewCard id={42} />
+                <LocationProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 function LocationProbe() {
@@ -18,15 +34,19 @@ describe("WorkflowPreviewCard", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders its header and ordered projected steps and opens from the card", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: {
-      id: 42, slug: "WF-42", path: "/jobs/7?tab=workflows#workflow-42",
-      trigger_kind: "initial", trigger_label: "Initial implementation", state: "running",
-      steps: [
-        { id: 1, display_name: "Prepare", status: "succeeded" },
-        { ellipsis: true },
-        { id: 3, display_name: "RSpec", status: "warning" }
-      ]
-    } }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        workflow: {
+          id: 42,
+          slug: "WF-42",
+          path: "/jobs/7?tab=workflows#workflow-42",
+          trigger_kind: "initial",
+          trigger_label: "Initial implementation",
+          state: "running",
+          steps: [{ id: 1, display_name: "Prepare", status: "succeeded" }, { ellipsis: true }, { id: 3, display_name: "RSpec", status: "warning" }]
+        }
+      })
+    )
     renderCard()
 
     await screen.findByText("Initial implementation")
@@ -37,10 +57,19 @@ describe("WorkflowPreviewCard", () => {
   })
 
   it("does not navigate when the copy action is activated by pointer or keyboard", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: {
-      id: 42, slug: "WF-42", path: "/jobs/7?tab=workflows#workflow-42",
-      trigger_kind: "initial", trigger_label: "Initial implementation", state: "running", steps: []
-    } }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        workflow: {
+          id: 42,
+          slug: "WF-42",
+          path: "/jobs/7?tab=workflows#workflow-42",
+          trigger_kind: "initial",
+          trigger_label: "Initial implementation",
+          state: "running",
+          steps: []
+        }
+      })
+    )
     renderCard()
     await screen.findByText("Initial implementation")
     const copy = screen.getByRole("button", { name: "Copy WF-42 to clipboard" })

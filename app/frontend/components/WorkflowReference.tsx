@@ -7,5 +7,9 @@ export function WorkflowReference({ slug, path, className = "" }: { slug: string
 
   if (!Number.isFinite(id)) return control
 
-  return <SlugHoverCard href={path} id={id} kind="workflow">{control}</SlugHoverCard>
+  return (
+    <SlugHoverCard href={path} id={id} kind="workflow">
+      {control}
+    </SlugHoverCard>
+  )
 }

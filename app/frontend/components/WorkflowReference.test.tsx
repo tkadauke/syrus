@@ -19,7 +19,11 @@ function mockPointer(fine: boolean) {
 }
 
 function renderReference() {
-  render(<MemoryRouter><WorkflowReference path="/app-shell/jobs/7?tab=workflows#workflow-42" slug="WF-42" /></MemoryRouter>)
+  render(
+    <MemoryRouter>
+      <WorkflowReference path="/app-shell/jobs/7?tab=workflows#workflow-42" slug="WF-42" />
+    </MemoryRouter>
+  )
 }
 
 describe("WorkflowReference", () => {

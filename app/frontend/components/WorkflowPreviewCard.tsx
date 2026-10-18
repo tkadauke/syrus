@@ -39,19 +39,31 @@ export function WorkflowPreviewCard({ id }: { id: number; slug?: string; compact
         <StatusPill state={workflow.state} />
       </div>
       <ol className="space-y-1.5">
-        {workflow.steps.map((step, index) => step.ellipsis ? (
-          <li aria-hidden="true" className="border-t border-dashed border-border text-center text-xs text-text-secondary" key={`ellipsis-${index}`}><span className="relative -top-2 bg-surface px-2">…</span></li>
-        ) : (
-          <li className="flex items-center justify-between gap-3 text-xs" key={step.id}>
-            <span className="min-w-0 truncate text-text-primary">{step.display_name}</span>
-            {step.status ? <StatusPill state={step.status} /> : null}
-          </li>
-        ))}
+        {workflow.steps.map((step, index) =>
+          step.ellipsis ? (
+            <li aria-hidden="true" className="border-t border-dashed border-border text-center text-xs text-text-secondary" key={`ellipsis-${index}`}>
+              <span className="relative -top-2 bg-surface px-2">…</span>
+            </li>
+          ) : (
+            <li className="flex items-center justify-between gap-3 text-xs" key={step.id}>
+              <span className="min-w-0 truncate text-text-primary">{step.display_name}</span>
+              {step.status ? <StatusPill state={step.status} /> : null}
+            </li>
+          )
+        )}
       </ol>
     </Card>
   )
 }
 
 function WorkflowPreviewSkeleton() {
-  return <Card variant="preview"><div className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-3/4" /></div></Card>
+  return (
+    <Card variant="preview">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-3/4" />
+      </div>
+    </Card>
+  )
 }

@@ -116,15 +116,7 @@ import { MetadataLine, OwnerBadge } from "./dashboard/components"
 import { UnderlineTabs } from "../components/Tabs"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 
-const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set([
-  "running",
-  "coding",
-  "implemented",
-  "approved",
-  "landing",
-  "closed",
-  "no_change_needed"
-])
+const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set(["running", "coding", "implemented", "approved", "landing", "closed", "no_change_needed"])
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -148,7 +140,7 @@ export function JobDetailRoute() {
 
     const subscription = subscribeToJobResourceEvents(id, queryClient)
     return () => subscription.unsubscribe()
-  }, [ id, queryClient ])
+  }, [id, queryClient])
 
   const detail = useQuery({
     queryKey,
@@ -168,11 +160,9 @@ export function JobDetailRoute() {
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload(
-        detail.data,
-        workflows.isPlaceholderData ? undefined : workflows.data,
-        { workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt }
-      )
+    ? mergeJobWorkflowsPayload(detail.data, workflows.isPlaceholderData ? undefined : workflows.data, {
+        workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
+      })
     : null
   const job = detail.data?.job
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
@@ -188,7 +178,7 @@ export function JobDetailRoute() {
     const canonicalId = String(detail.data.job.id)
     queryClient.setQueryData(jobDetailQueryKey(canonicalId, detailSearch), detail.data)
     navigate(`${location.pathname.replace(/\/jobs\/[^/]+/, `/jobs/${canonicalId}`)}${location.search}${location.hash}`, { replace: true })
-  }, [ detail.data, detailSearch, id, location.hash, location.pathname, location.search, navigate, queryClient ])
+  }, [detail.data, detailSearch, id, location.hash, location.pathname, location.search, navigate, queryClient])
 
   function selectTab(tab: JobTab) {
     const search = new URLSearchParams(location.search)
@@ -249,7 +239,9 @@ export function JobDetailView({
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [notice, setNotice] = useState<{ message: string; tone: NoticeToastTone } | null>(() => payload.message ? { message: payload.message, tone: "notice" } : null)
+  const [notice, setNotice] = useState<{ message: string; tone: NoticeToastTone } | null>(() =>
+    payload.message ? { message: payload.message, tone: "notice" } : null
+  )
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
   const showNotice = (message: string | null, tone: NoticeToastTone = "notice") => setNotice(message ? { message, tone } : null)
@@ -520,10 +512,7 @@ function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
   if (visibleItems.length === 0) return null
 
   return (
-    <div
-      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300"
-      data-testid="job-header-metadata"
-    >
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-300" data-testid="job-header-metadata">
       {visibleItems.map((item, index) => (
         <span key={index} className={[item.className ?? "inline-flex", "min-w-0 items-center gap-2"].join(" ")}>
           {index > 0 ? <span className={["shrink-0 text-gray-300 dark:text-gray-600", item.separatorClassName].filter(Boolean).join(" ")}>·</span> : null}
@@ -534,13 +523,7 @@ function HeaderMetadataList({ items }: { items: HeaderMetadataItem[] }) {
   )
 }
 
-function HeaderChatAffordance({
-  payload,
-  prefix
-}: {
-  payload: JobDetailPayload
-  prefix: string
-}) {
+function HeaderChatAffordance({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const { t } = useT("jobs")
   const navigate = useNavigate()
   const promptRef = useRef<HTMLTextAreaElement>(null)
@@ -597,7 +580,10 @@ function HeaderChatAffordance({
 
   if (payload.job.discussion_chat) {
     return (
-      <Link className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}>
+      <Link
+        className="inline-flex min-w-0 items-center gap-1 font-medium text-brand hover:underline"
+        to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}
+      >
         <ChatBubbleIcon />
         <span className="min-w-0 break-words">{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
       </Link>
@@ -615,8 +601,12 @@ function HeaderChatAffordance({
           type="button"
         >
           <ChatBubbleIcon />
-          <span aria-hidden="true" className="sm:hidden">{t("chat")}</span>
-          <span aria-hidden="true" className="hidden sm:inline">{t("chat_about_this")}</span>
+          <span aria-hidden="true" className="sm:hidden">
+            {t("chat")}
+          </span>
+          <span aria-hidden="true" className="hidden sm:inline">
+            {t("chat_about_this")}
+          </span>
         </button>
         <Modal
           className="w-full max-w-lg rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
@@ -642,7 +632,11 @@ function HeaderChatAffordance({
               ref={promptRef}
               value={prompt}
             />
-            {startChat.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(startChat.error, t("start_discussion_chat_error"))}</p> : null}
+            {startChat.isError ? (
+              <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+                {errorMessage(startChat.error, t("start_discussion_chat_error"))}
+              </p>
+            ) : null}
             <div className="flex justify-end gap-2">
               <Button disabled={startChat.isPending} onClick={closeDialog} type="button" variant="secondary">
                 {t("cancel")}
@@ -1092,11 +1086,11 @@ function ClassificationAttemptsPanel({ attempts, prefix }: { attempts: JobClassi
                   ) : null}
                 </DataTable.Cell>
                 <DataTable.Cell className="align-top">
-                  <SmallPill tone={classificationTone(attempt)}>{attempt.in_flight ? t("classification_in_flight") : (attempt.outcome || t("classification_unknown"))}</SmallPill>
+                  <SmallPill tone={classificationTone(attempt)}>
+                    {attempt.in_flight ? t("classification_in_flight") : attempt.outcome || t("classification_unknown")}
+                  </SmallPill>
                 </DataTable.Cell>
-                <DataTable.Cell className="max-w-lg align-top">
-                  {classificationResult(attempt, t)}
-                </DataTable.Cell>
+                <DataTable.Cell className="max-w-lg align-top">{classificationResult(attempt, t)}</DataTable.Cell>
                 <DataTable.Cell className="whitespace-nowrap align-top text-text-secondary">
                   {attempt.spawned_process_path && attempt.spawned_process_id ? (
                     <Link className="text-brand hover:underline" to={withRoutePrefix(attempt.spawned_process_path, prefix)}>
@@ -1286,7 +1280,9 @@ function routingResolutionSummary(payload: JobDetailPayload, t: ReturnType<typeo
   const resolvedProvider = resolution.final_action?.candidates?.[0]?.provider || payload.job.agent_provider
   const provider = resolvedProvider ? agentProviderLabel(payload, resolvedProvider) : t("provider_setting_default")
   const source = routingScopeLabel(resolution.source_scope, t)
-  const reason = resolution.reason ? t(`routing_reason_${resolution.reason}`, { defaultValue: resolution.reason.replace(/_/g, " ") }) : t("routing_reason_unknown")
+  const reason = resolution.reason
+    ? t(`routing_reason_${resolution.reason}`, { defaultValue: resolution.reason.replace(/_/g, " ") })
+    : t("routing_reason_unknown")
   return t("routing_resolution_summary", { provider, source, reason })
 }
 
@@ -1768,7 +1764,8 @@ function jobSummaryNotices({
   if (mergeTrainFailed) notices.push({ id: "merge-train", node: <JobMergeTrainPanel payload={payload} /> })
   if (payload.job.landing_failure_reason) notices.push({ id: "landing-failed", node: <LandingFailedPanel payload={payload} /> })
   if (prChecksFailing) notices.push({ id: "pr-checks", node: <PrChecksBanner command={command} payload={payload} /> })
-  if (payload.job.start_blocked_reason && !mainHealthBannerVisible(payload)) notices.push({ id: "start-blocked", node: <StartBlockedPanel payload={payload} /> })
+  if (payload.job.start_blocked_reason && !mainHealthBannerVisible(payload))
+    notices.push({ id: "start-blocked", node: <StartBlockedPanel payload={payload} /> })
   if (showUnsatisfiedDependencies) notices.push({ id: "dependencies", node: <UnsatisfiedDependencies command={command} payload={payload} /> })
   if (payload.merge_train_status && !mergeTrainFailed) notices.push({ id: "merge-train", node: <JobMergeTrainPanel payload={payload} /> })
   if (payload.landing_queue_entry) notices.push({ id: "landing-queue", node: <LandingQueuePanel payload={payload} prefix={prefix} /> })
@@ -1977,10 +1974,13 @@ function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttr
 // Workflow starts. A Job blocked mid-chain -- after an implement step, say --
 // is `running`, so the one banner that would have explained the wait was the
 // one surface guaranteed not to show it. The gate is now the block itself.
-const MAIN_HEALTH_REASONS = [ "main_branch_health", "main_branch_broken" ]
-const EPIC_DEPENDENCY_OPTION_CLASS = "block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
-const EPIC_DEPENDENCY_NO_MATCHES_CLASS = "absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
-const ATTACHMENT_REMOVE_BUTTON_CLASS = "absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
+const MAIN_HEALTH_REASONS = ["main_branch_health", "main_branch_broken"]
+const EPIC_DEPENDENCY_OPTION_CLASS =
+  "block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+const EPIC_DEPENDENCY_NO_MATCHES_CLASS =
+  "absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
+const ATTACHMENT_REMOVE_BUTTON_CLASS =
+  "absolute right-2 top-2 rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:text-red-300 dark:hover:bg-red-950/40"
 
 function mainHealthBannerVisible(payload: JobDetailPayload) {
   if (payload.job.state === "closed" || payload.job.state === "failed") return false
@@ -2021,27 +2021,25 @@ function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
           startBlockedAt={payload.job.start_blocked_at}
         />
       </div>
-      {showBreakdown ? null : (
-        <p className="mt-1">{t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: t("start_blocked_generic") })}</p>
-      )}
+      {showBreakdown ? null : <p className="mt-1">{t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: t("start_blocked_generic") })}</p>}
       {showBreakdown && breakdown ? (
-      <>
-      <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
-      {breakdown.telemetry_absent ? (
-        <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
-          {telemetryMessage}
-        </p>
-      ) : null}
-      {breakdown.dimensions.length > 0 ? (
-        <ul className="mt-2 space-y-1 text-xs">
-          {breakdown.dimensions.map((dimension) => (
-            <li className={dimension.over_threshold ? "font-semibold" : ""} key={dimension.metric}>
-              {t("admission_breakdown_dimension", { current: dimension.current, label: dimension.label, threshold: dimension.threshold })}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      </>
+        <>
+          <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
+          {breakdown.telemetry_absent ? (
+            <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
+              {telemetryMessage}
+            </p>
+          ) : null}
+          {breakdown.dimensions.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs">
+              {breakdown.dimensions.map((dimension) => (
+                <li className={dimension.over_threshold ? "font-semibold" : ""} key={dimension.metric}>
+                  {t("admission_breakdown_dimension", { current: dimension.current, label: dimension.label, threshold: dimension.threshold })}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       ) : null}
     </Notice>
   )
@@ -2149,9 +2147,7 @@ function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPaylo
               </span>
             ))}
           </span>
-          <span className="ml-1">
-            {dependencyBlockerMessage(t, { count, deploymentStageNames, deploymentStageTargets, hasSameEpicDependency })}
-          </span>
+          <span className="ml-1">{dependencyBlockerMessage(t, { count, deploymentStageNames, deploymentStageTargets, hasSameEpicDependency })}</span>
         </div>
         {payload.actions.can_override_dependencies ? (
           <CommandButton
@@ -2183,10 +2179,9 @@ function dependencyBlockerMessage(
 ) {
   if (deploymentStageNames.length > 0) {
     if (deploymentStageTargets.length > 0) {
-      return t(
-        deploymentStageTargets.length === 1 ? "blocked_auto_start_deployment_stage_target_one" : "blocked_auto_start_deployment_stage_target_other",
-        { targets: deploymentStageTargets.join(", ") }
-      )
+      return t(deploymentStageTargets.length === 1 ? "blocked_auto_start_deployment_stage_target_one" : "blocked_auto_start_deployment_stage_target_other", {
+        targets: deploymentStageTargets.join(", ")
+      })
     }
     return t(deploymentStageNames.length === 1 ? "blocked_auto_start_deployment_stage_one" : "blocked_auto_start_deployment_stage_other", {
       stages: deploymentStageNames.join(", ")
@@ -2442,7 +2437,10 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {t("dependency_waits_for_deployment_stage", {
                           stage: dependency.required_deployment_stage_name,
-                          latestStage: dependency.depends_on_job?.latest_deployment_stage?.label || dependency.depends_on_job?.latest_deployment_stage?.name || t("dependency_deployment_stage_none")
+                          latestStage:
+                            dependency.depends_on_job?.latest_deployment_stage?.label ||
+                            dependency.depends_on_job?.latest_deployment_stage?.name ||
+                            t("dependency_deployment_stage_none")
                         })}
                       </span>
                     ) : null}
@@ -2517,9 +2515,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedQuery.length > 0 ? (
-                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>
-                    {t("dependency_no_matches")}
-                  </div>
+                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>{t("dependency_no_matches")}</div>
                 ) : null}
               </div>
             </label>
@@ -2562,9 +2558,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
                     ))}
                   </div>
                 ) : trimmedEpicQuery.length > 0 ? (
-                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>
-                    {t("epic_dependency_no_matches")}
-                  </div>
+                  <div className={EPIC_DEPENDENCY_NO_MATCHES_CLASS}>{t("epic_dependency_no_matches")}</div>
                 ) : null}
               </div>
             </label>
