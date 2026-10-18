@@ -6,6 +6,12 @@ RSpec.describe RepoCoveragePlan do
   end
 
   describe ".from_config" do
+    it "accepts native Go coverage profiles" do
+      plan = from_config("artifact" => "coverage.out", "format" => "go-cover")
+
+      expect(plan.sources.first).to eq(described_class::Source.new(artifact: "coverage.out", format: "go-cover"))
+    end
+
     context "shorthand config (single artifact)" do
       it "parses to a single-source plan with lcov as the default format" do
         plan = from_config(
