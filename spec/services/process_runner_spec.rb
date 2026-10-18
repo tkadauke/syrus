@@ -62,6 +62,25 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(capture.stderr_truncated).to be(false)
   end
 
+  it "continuously drains large capture output without a file-backed payload" do
+    allow(File).to receive(:binread).and_call_original
+
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "STDOUT.write('o' * 2_000_000); STDERR.write('e' * 2_000_000)" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5
+    ).capture(limit: 1024)
+
+    expect(capture).to be_success
+    expect(capture.stdout).to eq("o" * 1024)
+    expect(capture.stderr).to eq("e" * 1024)
+    expect(capture.stdout_truncated).to be(true)
+    expect(capture.stderr_truncated).to be(true)
+    expect(File).not_to have_received(:binread)
+  end
+
   it "records a missing capture executable as a failed spawned process" do
     runner = described_class.new(
       env: {},
