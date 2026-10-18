@@ -72,7 +72,7 @@ RSpec.describe IndexOperationalLogEventsJob do
     expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to contain_exactly(event_one.id, event_two.id)
   end
 
-  it "clamps oversized id batches to the normal enqueue ceiling" do
+  it "slices oversized id batches without dropping work" do
     prepare_search_tables
     event = OperationalLogEvent.create!(
       occurred_at: Time.current,
@@ -87,7 +87,7 @@ RSpec.describe IndexOperationalLogEventsJob do
 
     described_class.perform_now(ids)
 
-    expect(OperationalLogIndex.search(query: "clamp", since: 1.hour.ago)).to be_empty
+    expect(OperationalLogIndex.search(query: "clamp", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to eq([ event.id ])
   end
 
   it "does not delete stale index rows for missing events in the hot indexing path" do

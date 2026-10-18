@@ -149,6 +149,7 @@ module DesignDocs
       end
 
       def insert(design_doc)
+        fields = index_fields(design_doc)
         connection.exec_insert(
           <<~SQL.squish,
             INSERT INTO design_doc_fts (
@@ -170,13 +171,13 @@ module DesignDocs
           SQL
           "DesignDocs::SearchIndex Insert",
           [
-            bind(design_doc.display_id),
-            bind(design_doc.title.to_s),
-            bind(index_text(DesignDocs::AnchorMarkers.strip(design_doc.markdown.to_s), design_doc, :body)),
-            bind(index_text(design_doc.preview_text, design_doc, :preview_text)),
-            bind(repository_text(design_doc)),
-            bind(user_text(design_doc.owner_user)),
-            bind(design_doc.collaborator_users.map { |user| user_text(user) }.join(" ")),
+            bind(fields.fetch(:display_id)),
+            bind(fields.fetch(:title)),
+            bind(fields.fetch(:body)),
+            bind(fields.fetch(:preview_text)),
+            bind(fields.fetch(:repository_text)),
+            bind(fields.fetch(:owner_text)),
+            bind(fields.fetch(:collaborator_text)),
             bind(design_doc.id),
             bind(design_doc.owner_user_id),
             bind(design_doc.visibility.to_s),
@@ -187,8 +188,20 @@ module DesignDocs
         )
       end
 
-      def index_text(value, design_doc, field)
-        SearchIndexWriteLimits.prefix(value, index: "design_doc", record_id: design_doc.id, field: field)
+      def index_fields(design_doc)
+        SearchIndexWriteLimits.row(
+          {
+            display_id: design_doc.display_id,
+            title: design_doc.title,
+            body: DesignDocs::AnchorMarkers.strip(design_doc.markdown.to_s),
+            preview_text: design_doc.preview_text,
+            repository_text: repository_text(design_doc),
+            owner_text: user_text(design_doc.owner_user),
+            collaborator_text: design_doc.collaborator_users.map { |user| user_text(user) }.join(" ")
+          },
+          index: "design_doc",
+          record_id: design_doc.id
+        )
       end
 
       def repository_text(design_doc)

@@ -29,6 +29,22 @@ RSpec.describe BrowserErrorIndex do
     expect(described_class.search(query: "JobWorkflowList", since: 1.hour.ago)).to eq([ event.id ])
   end
 
+  it "shares one row byte ceiling across all indexed text fields" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
+    event = BrowserErrorEvent.record!(
+      user: Factories.user,
+      payload: {
+        "fingerprint" => "bounded-row",
+        "message" => "message #{'m' * 30}",
+        "stack" => "stack #{'s' * 100}"
+      }
+    )
+
+    fields = described_class.send(:index_fields, event)
+
+    expect(fields.values.sum(&:bytesize)).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
+  end
+
   it "memoizes table availability instead of re-querying sqlite_master on every call" do
     described_class.reset_availability_cache!
     queries = []

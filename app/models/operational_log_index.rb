@@ -286,11 +286,20 @@ class OperationalLogIndex < SearchRecord
     end
 
     def insert_binds(event)
+      fields = SearchIndexWriteLimits.row(
+        {
+          message: event.message,
+          context_text: context_text(event.context),
+          context_json: event.context.to_json
+        },
+        index: "operational_log",
+        record_id: event.id
+      )
       [
         bind(event.id),
-        bind(index_text(event.message, event, :message)),
-        bind(index_text(context_text(event.context), event, :context_text)),
-        bind(index_text(event.context.to_json, event, :context_json)),
+        bind(fields.fetch(:message)),
+        bind(fields.fetch(:context_text)),
+        bind(fields.fetch(:context_json)),
         bind(event.id),
         bind(event.occurred_at&.iso8601(6)),
         bind(event.level),
@@ -308,16 +317,6 @@ class OperationalLogIndex < SearchRecord
 
     def operational_log_bytes(event)
       event.message.to_s.bytesize + context_text(event.context).bytesize + event.context.to_json.bytesize
-    end
-
-    def index_text(value, event, field)
-      SearchIndexWriteLimits.prefix(
-        value,
-        limit: SearchIndexWriteLimits::MAX_ROW_BYTES / 3,
-        index: "operational_log",
-        record_id: event.id,
-        field: field
-      )
     end
 
     def order_clause(sort:, direction:)
