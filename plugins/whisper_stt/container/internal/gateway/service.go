@@ -273,10 +273,7 @@ func (s *Service) reap(now time.Time) {
 	var expired []*session
 	s.mu.Lock()
 	for id, session := range s.sessions {
-		session.mu.Lock()
-		stale := now.Sub(session.updatedAt) >= s.config.SessionTimeout
-		session.mu.Unlock()
-		if stale {
+		if session.stale(now, s.config.SessionTimeout) {
 			delete(s.sessions, id)
 			expired = append(expired, session)
 		}

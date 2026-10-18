@@ -39,6 +39,10 @@ func newMediaDecoder(contentType string) (decoder, error) {
 	}
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", format, "-i", "pipe:0",
 		"-vn", "-ac", "1", "-ar", "16000", "-f", "s16le", "pipe:1")
+	return startMediaDecoder(cmd)
+}
+
+func startMediaDecoder(cmd *exec.Cmd) (*mediaDecoder, error) {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -76,10 +80,31 @@ func (d *mediaDecoder) Feed(ctx context.Context, audio []byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := d.stdin.Write(audio); err != nil {
-		return protocolError{Status: 422, Message: "audio decoder rejected the stream"}
+	writeDone := make(chan error, 1)
+	go func() {
+		written, err := d.stdin.Write(audio)
+		if err == nil && written != len(audio) {
+			err = io.ErrShortWrite
+		}
+		writeDone <- err
+	}()
+	select {
+	case err := <-writeDone:
+		if ctx.Err() != nil {
+			d.Close()
+			return ctx.Err()
+		}
+		if err != nil {
+			return protocolError{Status: 422, Message: "audio decoder rejected the stream"}
+		}
+		return nil
+	case <-ctx.Done():
+		// Closing stdin and terminating ffmpeg unblocks the pipe write. Join the
+		// writer before returning so cancellation never strands a goroutine.
+		d.Close()
+		<-writeDone
+		return ctx.Err()
 	}
-	return nil
 }
 
 func (d *mediaDecoder) WaitForGrowth(previous int, timeout time.Duration) int {
@@ -135,6 +160,7 @@ func (d *mediaDecoder) Close() {
 				_ = d.cmd.Process.Kill()
 				<-d.processDone
 			}
+			d.processExited = true
 		}
 		<-d.readerDone
 		_ = d.stdout.Close()

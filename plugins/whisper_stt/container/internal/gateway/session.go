@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,10 +27,12 @@ type session struct {
 	id, contentType, language, prompt string
 	nextSequence, inputBytes          int
 	committedText, lastText           string
-	updatedAt                         time.Time
+	updatedAt                         atomic.Int64
 	decoder                           decoder
 	transcriber                       transcriber
 	mu                                sync.Mutex
+	ctx                               context.Context
+	cancel                            context.CancelFunc
 }
 
 func newSession(id string, options createRequest, factory decoderFactory, transcriber transcriber) (*session, error) {
@@ -37,11 +40,16 @@ func newSession(id string, options createRequest, factory decoderFactory, transc
 	if err != nil {
 		return nil, err
 	}
-	return &session{id: id, contentType: options.ContentType, language: options.Language, prompt: options.Prompt,
-		nextSequence: 1, updatedAt: time.Now(), decoder: d, transcriber: transcriber}, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &session{id: id, contentType: options.ContentType, language: options.Language, prompt: options.Prompt,
+		nextSequence: 1, decoder: d, transcriber: transcriber, ctx: ctx, cancel: cancel}
+	s.touch(time.Now())
+	return s, nil
 }
 
 func (s *session) append(ctx context.Context, sequence int, audio []byte) (string, error) {
+	ctx, done := s.operationContext(ctx)
+	defer done()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if sequence != s.nextSequence {
@@ -56,14 +64,20 @@ func (s *session) append(ctx context.Context, sequence int, audio []byte) (strin
 	}
 	s.inputBytes += len(audio)
 	s.nextSequence++
-	s.updatedAt = time.Now()
-	if s.decoder.WaitForGrowth(previous, time.Second) == previous {
+	s.touch(time.Now())
+	size := s.decoder.WaitForGrowth(previous, time.Second)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if size == previous {
 		return s.lastText, nil
 	}
 	return s.hypothesis(ctx, false)
 }
 
 func (s *session) finish(ctx context.Context) (string, error) {
+	ctx, done := s.operationContext(ctx)
+	defer done()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.inputBytes == 0 {
@@ -102,7 +116,24 @@ func (s *session) hypothesis(ctx context.Context, final bool) (string, error) {
 	return s.lastText, nil
 }
 
-func (s *session) close() { s.mu.Lock(); defer s.mu.Unlock(); s.decoder.Close() }
+func (s *session) operationContext(parent context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(parent)
+	stop := context.AfterFunc(s.ctx, cancel)
+	return ctx, func() { stop(); cancel() }
+}
+
+func (s *session) touch(now time.Time) { s.updatedAt.Store(now.UnixNano()) }
+func (s *session) stale(now time.Time, timeout time.Duration) bool {
+	return now.Sub(time.Unix(0, s.updatedAt.Load())) >= timeout
+}
+func (s *session) close() {
+	// Cancel before taking the operation mutex: a blocked decoder feed owns
+	// that mutex and observes this context to terminate its process and pipe.
+	s.cancel()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.decoder.Close()
+}
 func joinText(parts ...string) string {
 	var clean []string
 	for _, part := range parts {
