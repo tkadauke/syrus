@@ -14,12 +14,12 @@ module Mcp::Tools
     @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
 
     class << self
-      def register(key:, pid:, port:)
-        MUTEX.synchronize { @previews[key] = { pid: pid, port: port } }
+      def register(key:, pid:, port:, cleanup: nil)
+        MUTEX.synchronize { @previews[key] = { pid: pid, port: port, cleanup: cleanup }.compact }
       end
 
       def get(key)
-        MUTEX.synchronize { @previews[key]&.dup }
+        MUTEX.synchronize { @previews[key]&.slice(:pid, :port) }
       end
 
       def synchronize_launch(key, &block)
@@ -29,7 +29,7 @@ module Mcp::Tools
 
       def kill(key)
         preview = MUTEX.synchronize { @previews.delete(key) }
-        kill_pgroup(preview[:pid]) if preview
+        stop_preview(preview) if preview
       end
 
       def kill_prefix(prefix)
@@ -38,14 +38,16 @@ module Mcp::Tools
           matches.each_key { |key| @previews.delete(key) }
           matches.values
         end
-        previews.each { |preview| kill_pgroup(preview[:pid]) }
+        previews.each { |preview| stop_preview(preview) }
       end
 
       def kill_all
-        MUTEX.synchronize do
-          @previews.each_value { |p| kill_pgroup(p[:pid]) }
+        previews = MUTEX.synchronize do
+          values = @previews.values
           @previews.clear
+          values
         end
+        previews.each { |preview| stop_preview(preview) }
       end
 
       def reset!
@@ -61,6 +63,11 @@ module Mcp::Tools
         Process.kill("-TERM", pid)
       rescue Errno::ESRCH, Errno::EPERM
         # Already gone.
+      end
+
+      def stop_preview(preview)
+        kill_pgroup(preview[:pid])
+        preview[:cleanup]&.call
       end
     end
   end

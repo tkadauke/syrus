@@ -1,6 +1,14 @@
 require "rails_helper"
 
 RSpec.describe CommandRedactor do
+  it "redacts passwords embedded in database URLs" do
+    text = "connection failed for postgresql://preview:very-secret@postgres:5432/example"
+
+    expect(described_class.redact(text)).to eq(
+      "connection failed for postgresql://preview:[REDACTED]@postgres:5432/example"
+    )
+  end
+
   describe ".redact" do
     it "redacts an x-access-token URL credential while preserving the surrounding URL" do
       text = "remote: https://x-access-token:ghs_abc123DEF456@github.com/owner/repo.git"

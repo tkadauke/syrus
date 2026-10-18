@@ -11,12 +11,13 @@ class PreviewPreparation
     end
   end
 
-  def initialize(workspace_path, project_id: nil, run: nil, workflow: nil, log: nil)
+  def initialize(workspace_path, project_id: nil, run: nil, workflow: nil, log: nil, preview_key: nil)
     @workspace_path = workspace_path.to_s
     @project_id = project_id.presence
     @run = run
     @workflow = workflow || run&.workflow
     @log = log || ->(_message, **) { }
+    @preview_key = preview_key
   end
 
   def call
@@ -30,6 +31,9 @@ class PreviewPreparation
       "commands" => commands.map(&:last),
       "prepared_at" => Time.current.iso8601
     }.compact
+  rescue Error
+    cleanup
+    raise
   end
 
   private
@@ -64,9 +68,10 @@ class PreviewPreparation
       workflow: @workflow,
       display_command: command,
       on_output_chunk: ->(chunk) {
-        tail << chunk.to_s
+        safe_chunk = CommandRedactor.redact(chunk.to_s)
+        tail << safe_chunk
         tail.replace(tail.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if tail.bytesize > OUTPUT_TAIL_BYTES
-        @log.call(chunk.to_s.chomp, kind: "system") if chunk.to_s.present?
+        @log.call(safe_chunk.chomp, kind: "system") if safe_chunk.present?
       }
     ).run
     return if result.success?
@@ -97,6 +102,24 @@ class PreviewPreparation
       extra: WorkspaceDependencyEnv.for(@workspace_path)
     )
     Array(source.unset_env).each { |name| env[name.to_s] = nil }
-    env.merge(source.env || {})
+    env.merge(source.environment(key: @preview_key))
+  end
+
+  def cleanup
+    return if source.cleanup_command.blank?
+
+    ProcessRunner.new(
+      env: process_env,
+      command: [ "bash", "-c", source.cleanup_command ],
+      mounts: ProcessRunner.mounts(preview_workdir, read_write: @workspace_path),
+      network: "prepare",
+      timeout: TIMEOUT_SECONDS,
+      kind: "preview",
+      run: @run,
+      workflow: @workflow,
+      display_command: source.cleanup_command
+    ).run
+  rescue StandardError => e
+    Rails.logger.warn("[PreviewPreparation] database cleanup failed: #{CommandRedactor.redact(e.message)}")
   end
 end
