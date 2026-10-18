@@ -2,6 +2,8 @@ class AppSetting < ApplicationRecord
   SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 
+  self.ignored_columns += %w[user_daily_spend_budget_usd]
+
   CLEARABLE_SECRETS = {
     "telegram_bot_token" => "Telegram bot token",
     "discord_bot_token" => "Discord bot token"

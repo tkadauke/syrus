@@ -12,21 +12,29 @@ RSpec.describe RemoveUserDailySpendBudgetFromAppSettings, :ci_only do
   it "removes the application-owned daily spend ceiling" do
     migration.down
     AppSetting.reset_column_information
-    expect(AppSetting.column_names).to include("user_daily_spend_budget_usd")
+    expect(app_setting_column_names).to include("user_daily_spend_budget_usd")
+    expect(AppSetting.ignored_columns).to include("user_daily_spend_budget_usd")
     expect(ActiveRecord::Base.connection.index_exists?(
       :runs,
       described_class::SPEND_WINDOW_COLUMNS,
       name: described_class::SPEND_WINDOW_INDEX
     )).to be(true)
+    AppSetting.columns
 
     migration.up
-    AppSetting.reset_column_information
+    AppSetting.delete_all
 
-    expect(AppSetting.column_names).not_to include("user_daily_spend_budget_usd")
+    expect { AppSetting.current }.not_to raise_error
+
+    expect(app_setting_column_names).not_to include("user_daily_spend_budget_usd")
     expect(ActiveRecord::Base.connection.index_exists?(
       :runs,
       described_class::SPEND_WINDOW_COLUMNS,
       name: described_class::SPEND_WINDOW_INDEX
     )).to be(false)
+  end
+
+  def app_setting_column_names
+    ActiveRecord::Base.connection.columns(:app_settings).map(&:name)
   end
 end
