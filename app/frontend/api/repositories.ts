@@ -199,6 +199,14 @@ export type RepositoryReadinessPayload = {
     prepare_commands: string[]
     grader_commands: string[]
     required_capabilities: Record<string, string[]>
+    execution_scopes: Array<{
+      key: string
+      label: string
+      command: string | null
+      capabilities: Record<string, string[]>
+      queue_name: string
+      worker_available: boolean
+    }>
   }
 }
 

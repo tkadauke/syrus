@@ -174,9 +174,19 @@ function RepositoryReadinessReport({ loading, report }: { loading: boolean; repo
       </ul>
       <CommandList commands={report.prepare_commands} label={t("onboarding.readiness_prepare")} />
       <CommandList commands={report.grader_commands} label={t("onboarding.readiness_graders")} />
+      <h3 className="mt-3 text-xs font-medium uppercase text-text-muted">{t("onboarding.readiness_workers")}</h3>
+      <ul className="mt-1 space-y-1 text-xs text-text-secondary">
+        {report.execution_scopes.map((scope) => (
+          <li key={scope.key}>{scope.worker_available ? "✓" : "×"} {scope.label}: {formatCapabilities(scope.capabilities)} · {scope.queue_name}{scope.command ? ` · $ ${scope.command}` : ""}</li>
+        ))}
+      </ul>
       <p className="mt-3 text-xs text-text-muted">{t("onboarding.readiness_advisory")}</p>
     </Surface>
   )
+}
+
+function formatCapabilities(capabilities: Record<string, string[]>) {
+  return Object.entries(capabilities).map(([dimension, values]) => `${dimension}=${values.join("/")}`).join(", ")
 }
 
 function CommandList({ commands, label }: { commands: string[]; label: string }) {

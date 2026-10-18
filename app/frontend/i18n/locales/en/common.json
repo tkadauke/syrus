@@ -46,6 +46,7 @@
     "readiness_loading": "Inspecting repository readiness…",
     "readiness_prepare": "Proposed prepare commands",
     "readiness_graders": "Proposed grader commands",
+    "readiness_workers": "Execution scopes and workers",
     "readiness_advisory": "Warnings are advisory. Syrus only blocks invalid configuration, inaccessible repository content, or missing worker capabilities."
   },
   "search": {

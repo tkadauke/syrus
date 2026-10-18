@@ -46,6 +46,7 @@
     "readiness_loading": "Repository-Bereitschaft wird geprüft…",
     "readiness_prepare": "Vorgeschlagene Vorbereitungsbefehle",
     "readiness_graders": "Vorgeschlagene Prüfungsbefehle",
+    "readiness_workers": "Ausführungsbereiche und Worker",
     "readiness_advisory": "Warnungen sind Hinweise. Syrus blockiert nur ungültige Konfiguration, nicht erreichbare Repository-Inhalte oder fehlende Worker-Fähigkeiten."
   },
   "search": {

@@ -175,6 +175,9 @@ language versions, manifests and lockfiles, and displays the exact prepare and
 grader commands it would run. Environment and dependency hints are advisory;
 only invalid configuration, inaccessible repository content, and the absence
 of a worker with the required capabilities block readiness.
+Worker compatibility is checked per workflow, target, and grader, so a mixed
+Linux/macOS repository can be ready when different workers satisfy its
+independently scheduled commands.
 
 After the repository is added, Syrus offers the one optional step that's
 now actionable: **installing the Syrus GitHub App on that owner**, via a
