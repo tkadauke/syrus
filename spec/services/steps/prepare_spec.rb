@@ -40,6 +40,14 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
   after { Syrus::PluginRegistry.reset! }
 
+  def stub_prepare_process_runner(fake_runner, &observer)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "prepare")) do |**kwargs|
+      observer&.call(kwargs)
+      fake_runner
+    end
+  end
+
   it "no-ops cleanly when there are no commands to run" do
     # Empty workspace → auto-detect finds nothing → empty plan
     expect { handler.call }.not_to raise_error
@@ -194,7 +202,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     it "succeeds when a failed command passes on the second attempt" do
       fake_runner = instance_double(ProcessRunner)
       allow(fake_runner).to receive(:run).and_return(result(exit_status: 5), result(exit_status: 0))
-      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+      stub_prepare_process_runner(fake_runner)
 
       expect { handler.call }.not_to raise_error
 
@@ -205,7 +213,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     it "still fails when both attempts fail" do
       fake_runner = instance_double(ProcessRunner)
       allow(fake_runner).to receive(:run).and_return(result(exit_status: 5))
-      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+      stub_prepare_process_runner(fake_runner)
 
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /prepare command failed/)
 
@@ -218,7 +226,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     it "does not retry a command that timed out" do
       fake_runner = instance_double(ProcessRunner)
       allow(fake_runner).to receive(:run).and_return(result(exit_status: nil, timed_out: true))
-      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+      stub_prepare_process_runner(fake_runner)
 
       expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
@@ -247,10 +255,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         spawned_process_id: nil
       )
     )
-    allow(ProcessRunner).to receive(:new) do |*_, **kwargs|
-      captured_env = kwargs.fetch(:env)
-      fake_runner
-    end
+    stub_prepare_process_runner(fake_runner) { |kwargs| captured_env = kwargs.fetch(:env) }
 
     handler.call
 
@@ -312,7 +317,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         spawned_process_id: nil
       )
     )
-    allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+    stub_prepare_process_runner(fake_runner)
 
     expect { handler.call }.not_to raise_error
 
@@ -527,7 +532,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
     def expect_mise_install_ran
       fake_runner = instance_double(ProcessRunner, run: success_result)
-      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+      stub_prepare_process_runner(fake_runner)
 
       handler.call
 
@@ -614,9 +619,8 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       it "runs mise install in the workspace directory with the scrubbed env" do
         captured_kwargs = nil
         fake_runner = instance_double(ProcessRunner, run: success_result)
-        allow(ProcessRunner).to receive(:new) do |**kwargs|
+        stub_prepare_process_runner(fake_runner) do |kwargs|
           captured_kwargs = kwargs if kwargs[:command] == [ "mise", "install" ]
-          fake_runner
         end
 
         handler.call
@@ -632,7 +636,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
 
       it "soft-fails when mise install exits non-zero, records artifact, and continues" do
         fake_runner = instance_double(ProcessRunner, run: failure_result)
-        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+        stub_prepare_process_runner(fake_runner)
 
         expect { handler.call }.not_to raise_error
 
@@ -656,7 +660,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
           spawned_process_id: nil
         )
         fake_runner = instance_double(ProcessRunner, run: timed_out_result)
-        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+        stub_prepare_process_runner(fake_runner)
 
         expect { handler.call }.not_to raise_error
 
