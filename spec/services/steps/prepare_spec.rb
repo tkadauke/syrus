@@ -24,6 +24,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     # handler's `workspace.path` returns our tmpdir.
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return({})
 
     # RepoPrepPlan's Gemfile auto-detect signal now comes entirely from the
     # `ruby` plugin's :prepare_detector (no more RepoPrepPlan::AUTO_DETECT
