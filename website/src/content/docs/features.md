@@ -1778,7 +1778,7 @@ database offsets are calculated; ordinary out-of-range pages remain empty.
 ## Repository Throughput Metrics
 
 Repository throughput metrics use a versioned contract derived from
-existing Syrus records before adding rollup persistence. Each repository
+existing Syrus records. Each repository
 window reports counts, per-hour rates, sample counts, and confidence labels
 for PR creation, committed output, landing throughput, landing waste, and
 the review funnel. Landing throughput treats a single auto-merge as one
@@ -1790,6 +1790,14 @@ The canonical windows are 1h, 4h, 24h, and 7d, plus a one-hour
 last-active fallback when recent activity is sparse. Low-sample windows are
 labelled instead of treated as stable averages, so operators can distinguish
 "nothing happened recently" from "the repository is slow."
+
+The Throughput plugin precomputes repository snapshots every five minutes on
+the polling queue. A snapshot is considered fresh for ten minutes and retained
+for up to 24 hours, so a failed refresh can serve clearly marked stale data
+instead of plausible empty metrics. A cold request may perform one computation;
+if another process already owns it, the API returns an explicit temporary
+unavailable response. Snapshot keys include the repository and contract version,
+and refreshes are serialized per repository.
 
 Landing windows also separate successful, failed, cancelled, and deferred
 attempts; report grader-phase time, mergeability/rebase wait, base-moved

@@ -9,6 +9,13 @@ RSpec.describe Throughput::Engine do
     expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).to include(Throughput::RepoPageTabs)
   end
 
+  it "schedules repository snapshot refreshes through plugin callbacks" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "throughput" }
+
+    expect(manifest.tick_interval).to eq(5.minutes)
+    expect(manifest.provides[:callbacks]).to eq(Throughput::Callbacks)
+  end
+
   # MetricsSampler registers via the manifest's `metrics do ... sampler
   # MetricsSampler end` DSL (Syrus::PluginApi::Definition#metrics), not a
   # plugin-owned tick_interval/on_tick -- it samples on the shared
