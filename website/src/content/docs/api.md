@@ -88,6 +88,13 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
 
 ## Throughput Metrics
 
+Authenticated app clients can read the versioned repository snapshot at
+`GET /api/v1/app/repositories/:id/throughput_metrics`. The payload's
+`cache_status` is `fresh`, `computed`, or `stale`; `generated_at` remains the
+time its metric windows were computed. If a cold snapshot is already being
+computed elsewhere, the endpoint returns `503` with
+`throughput_snapshot_unavailable` rather than an empty metric set.
+
 When the `throughput` plugin is enabled, admin API clients can pull
 instance-wide throughput without writing SQL against production:
 
