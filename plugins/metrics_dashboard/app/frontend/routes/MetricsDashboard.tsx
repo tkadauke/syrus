@@ -98,9 +98,7 @@ export function MetricsDashboardRoute() {
 
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
       {payload.cluster_counter_capture !== "available" ? (
-        <Notice tone="warning">
-          {t(`cluster_counter_${payload.cluster_counter_capture}_notice`)}
-        </Notice>
+        <Notice tone="warning">{t(`cluster_counter_${payload.cluster_counter_capture}_notice`)}</Notice>
       ) : null}
 
       <Page.Nav>
@@ -151,11 +149,7 @@ function RecordingNotice({ recording, lastRecordedAt }: { recording: boolean; la
   const { t } = useT("metrics_dashboard")
   if (recording) return null
 
-  return (
-    <Notice tone="warning">
-      {lastRecordedAt ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() }) : t("no_data_notice")}
-    </Notice>
-  )
+  return <Notice tone="warning">{lastRecordedAt ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() }) : t("no_data_notice")}</Notice>
 }
 
 export default MetricsDashboardRoute
