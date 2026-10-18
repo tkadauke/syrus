@@ -289,6 +289,11 @@ RSpec.describe "desktop auto-update and release pipeline" do
     workflow = YAML.safe_load(build_workflow)
     expect(workflow.dig("jobs", "build-mac", "timeout-minutes")).to be_a(Integer)
     expect(workflow.dig("jobs", "build-backend", "timeout-minutes")).to be_a(Integer)
+    # Regression: 45 minutes killed an amd64 leg that had already pushed its
+    # digest, skipping merge-backend and publish over an image that existed.
+    # The two legs measured 46min / 40min on that run, so the timeout has to
+    # stay clear of a working build; it is there to catch a hang.
+    expect(workflow.dig("jobs", "build-backend", "timeout-minutes")).to be >= 60
   end
 
   it "release workflow builds each arch natively (no QEMU) and merges by digest" do

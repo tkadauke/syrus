@@ -133,7 +133,17 @@ jobs:
             runner: ubuntu-24.04-arm
             platform: linux/arm64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    # A hang detector, not a budget. At 45 it stopped being the former: the
+    # release of 2026-10-16 took 36min (amd64) / 31min (arm64), two days of
+    # commits later the same legs took 46min / 40min, and the amd64 leg was
+    # killed by the timeout *after* its last step succeeded and its digest was
+    # pushed -- which skipped merge-backend and the whole publish, over an image
+    # that existed in the registry. Roughly 34min of that is the image build and
+    # 11min the integration gate (a test build with run_integration_tests=false
+    # finishes in 34min / 30min). 75 leaves room for a cold BuildKit cache and
+    # still catches a real hang inside a reasonable window; raise it again
+    # rather than let a working build die on the clock.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
 
