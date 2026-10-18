@@ -149,6 +149,7 @@ class ProcessRunner
   class WorkspaceAttributionError < StandardError; end
   class MountAssertionError < StandardError; end
   class NetworkAssertionError < StandardError; end
+  class OutputLineTooLongError < StandardError; end
 
   Result = Data.define(
     :exit_status, :timed_out, :stopped, :silent_timed_out, :operator_killed,
@@ -166,6 +167,7 @@ class ProcessRunner
 
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
+  MAX_OUTPUT_LINE_BYTES = 1.megabyte
   KILL_POLL_INTERVAL_SECONDS = 5
   SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 120
   SYNC_STDIN_BYTES = 32 * 1024
@@ -571,11 +573,15 @@ class ProcessRunner
   # agent invocations where continuous output is the norm.
   # `activity_probe` may return a changing marker for meaningful activity
   # that occurs outside stdout; probe failures are treated as no activity.
+  # `on_output_line` always receives complete newline-delimited records. A
+  # record over MAX_OUTPUT_LINE_BYTES raises unless the caller explicitly
+  # supplies `on_output_line_fragment` and can consume partial records safely.
   def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
                  stop_requested: -> { false },
                  on_output_chunk: nil,
                  on_output_line: nil,
+                 on_output_line_fragment: nil,
                  kill_grace_seconds: TERM_GRACE_SECONDS,
                  silent_timeout: nil,
                  kind: nil,
@@ -600,6 +606,7 @@ class ProcessRunner
     @stop_requested = stop_requested
     @on_output_chunk = on_output_chunk
     @on_output_line = on_output_line
+    @on_output_line_fragment = on_output_line_fragment
     @kill_grace_seconds = kill_grace_seconds
     @silent_timeout = silent_timeout
     @activity_probe = activity_probe
@@ -1288,8 +1295,20 @@ class ProcessRunner
     return unless @on_output_line
 
     line_buffer << chunk
-    while (newline = line_buffer.index("\n"))
-      @on_output_line.call(line_buffer.slice!(0..newline))
+    loop do
+      newline = line_buffer.index("\n")
+      if newline && newline < MAX_OUTPUT_LINE_BYTES
+        @on_output_line.call(line_buffer.slice!(0..newline))
+      elsif line_buffer.bytesize > MAX_OUTPUT_LINE_BYTES || newline
+        unless @on_output_line_fragment
+          raise OutputLineTooLongError,
+            "subprocess output line exceeds #{MAX_OUTPUT_LINE_BYTES} bytes"
+        end
+
+        @on_output_line_fragment.call(line_buffer.slice!(0, MAX_OUTPUT_LINE_BYTES))
+      else
+        break
+      end
     end
   end
 

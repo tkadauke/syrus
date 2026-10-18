@@ -31,6 +31,17 @@ RSpec.describe PreparedLayerCache do
     expect(entry.fingerprint).to eq("fp1")
   end
 
+  it "walks an entry incrementally instead of materializing its path list" do
+    path = described_class.path_for(storage_key: "storage-a", fingerprint: "streamed")
+    FileUtils.mkdir_p(path.join("nested"))
+    path.join("root.bin").write("a" * 7)
+    path.join("nested", "child.bin").write("b" * 11)
+    allow(Dir).to receive(:glob).and_raise("path lists must not be materialized")
+
+    expect(described_class.record_use!(path)).to eq(18)
+    expect(JSON.parse(path.join(described_class::METADATA_FILENAME).read)["bytes"]).to eq(18)
+  end
+
   describe "eviction" do
     it "evicts least recently used entries until the cache fits its budget" do
       old_entry = seed_entry("old", bytes: 3.megabytes, last_used_at: 5.days.ago)

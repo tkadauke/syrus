@@ -17,6 +17,7 @@ class GitRunner
   # the realistic upper end. ProcessRunner's aliveness probe still
   # catches the "git process died, child held the pipe" case faster.
   DEFAULT_TIMEOUT = 10.minutes
+  OUTPUT_TAIL_BYTES = 1.megabyte
   REMOTE_NETWORK_SUBCOMMANDS = %w[clone fetch pull push ls-remote].freeze
 
   def self.redact(text)
@@ -82,6 +83,15 @@ class GitRunner
     # SpawnedProcess registration, and heartbeat all apply to git ops
     # too — same coverage as agent and grader subprocesses. Without
     # this, a wedged `git fetch` would hold a worker thread silently.
+    output_handler = ->(raw_line) do
+      line = self.class.redact(raw_line)
+      next if self.class.ignorable_output_line?(line)
+
+      output << line
+      output.replace(output.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if output.bytesize > OUTPUT_TAIL_BYTES
+      log_sink.call(line)
+    end
+
     result = ProcessRunner.new(
       env: @env.merge(env),
       command: cmd,
@@ -92,13 +102,8 @@ class GitRunner
       kind: "git",
       run: current_run,
       workflow: process_workflow,
-      on_output_line: ->(raw_line) do
-        line = self.class.redact(raw_line)
-        next if self.class.ignorable_output_line?(line)
-
-        output << line
-        log_sink.call(line)
-      end
+      on_output_line: output_handler,
+      on_output_line_fragment: output_handler
     ).run
 
     unless result.success?
