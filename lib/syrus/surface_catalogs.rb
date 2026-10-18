@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "open3"
 require "fileutils"
 
 module Syrus
@@ -86,21 +85,35 @@ module Syrus
     end
 
     def self.render_cli(root:)
-      stdout, stderr, status = Open3.capture3({ "GOWORK" => "off" }, *go_command, "run", "./catalog", chdir: root.join("cli").to_s)
-      raise "CLI catalog generation failed:\n#{stderr}" unless status.success?
+      result = capture([ *go_command(root: root), "run", "./catalog" ], root: root, env: { "GOWORK" => "off" })
+      raise "CLI catalog generation failed:\n#{result.stderr}" unless result.success?
 
       with_frontmatter(
         title: "CLI Command Catalog",
         description: "Generated command and flag catalog for the Syrus CLI.",
-        body: stdout
+        body: result.stdout
       )
     end
 
-    def self.go_command
-      return [ "go" ] if system({ "GOWORK" => "off" }, "go", "version", out: File::NULL, err: File::NULL)
-      return [ "mise", "exec", "go@1.26.5", "--", "go" ] if system("mise", "--version", out: File::NULL, err: File::NULL)
+    def self.go_command(root: Rails.root)
+      return [ "go" ] if command_available?([ "go", "version" ], root: root, env: { "GOWORK" => "off" })
+      return [ "mise", "exec", "go@1.26.5", "--", "go" ] if command_available?([ "mise", "--version" ], root: root)
 
       [ "go" ]
+    end
+
+    private_class_method def self.command_available?(command, root:, env: {})
+      capture(command, root: root, env: env).success?
+    rescue Errno::ENOENT
+      false
+    end
+
+    private_class_method def self.capture(command, root:, env: {})
+      ProcessRunner.new(
+        env: ProcessRunner.forwarded_env(%w[PATH HOME GOPATH GOMODCACHE]).merge(env),
+        command: command, mounts: ProcessRunner.mounts(root.join("cli")),
+        network: "grader", timeout: 2.minutes, kind: "generate"
+      ).capture
     end
 
     def self.api_routes(prefix:, exclude_prefixes: [])
