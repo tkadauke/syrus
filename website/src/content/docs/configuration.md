@@ -751,8 +751,9 @@ Fresh installations cap both the prepared-workspace cache and retained Coding
 Mode checkouts at 10 GB. The prepared cache is an LRU per worker and still
 evicts under disk pressure; `SYRUS_PREPARED_LAYER_CACHE_GB` can override its
 instance setting for one worker. Coding Mode uses a separate instance-wide LRU
-budget. Admins can inspect both effective limits under **Admin → Retention &
-Storage** and change the stored values under **Admin → Settings**. Upgrades do
+budget. Admins can inspect the Coding Mode limit, the prepared-cache instance
+default, and each worker's latest reported effective cache limit under **Admin
+→ Retention & Storage**, and change stored values under **Admin → Settings**. Upgrades do
 not replace values already stored by an existing installation, and setting a
 budget to `0` explicitly keeps that budget unlimited.
 

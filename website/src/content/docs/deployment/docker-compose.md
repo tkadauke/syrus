@@ -376,9 +376,10 @@ and fills the secrets. Notable values:
 Application data lives in the `syrus-data` and `syrus-search` named volumes.
 Fresh installs bound the prepared-workspace cache and retained Coding Mode
 checkouts to 10 GB each so these volumes cannot grow without a local policy.
-Existing stored settings survive upgrades. Inspect the effective limits under
-**Admin → Retention & Storage**; change the instance values under **Admin →
-Settings**, or set `SYRUS_PREPARED_LAYER_CACHE_GB` on an individual worker.
+Existing stored settings survive upgrades. Inspect the instance defaults and
+each worker's latest reported effective cache limit under **Admin → Retention
+& Storage**; change the instance values under **Admin → Settings**, or set
+`SYRUS_PREPARED_LAYER_CACHE_GB` on an individual worker.
 Back it up by copying the SQLite files out:
 
 ```bash

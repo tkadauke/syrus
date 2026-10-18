@@ -92,12 +92,21 @@ function StorageLimitsCard({ payload }: { payload: RetentionSettingsPayload }) {
     <section className="rounded border border-border bg-surface p-6 space-y-3">
       <SectionHeading>{t("retention_settings.storage_limits_label")}</SectionHeading>
       <dl className="grid gap-4 sm:grid-cols-2">
-        <Stat label={t("retention_settings.prepared_cache_limit_label")} value={formatStorageLimit(limits.prepared_layer_cache_bytes, t)} />
+        <Stat label={t("retention_settings.prepared_cache_default_label")} value={formatStorageLimit(limits.prepared_layer_cache_default_bytes, t)} />
         <Stat label={t("retention_settings.coding_workspace_limit_label")} value={formatStorageLimit(limits.coding_workspace_bytes, t)} />
       </dl>
-      <p className="text-xs text-text-secondary">
-        {t(`retention_settings.prepared_cache_source_${limits.prepared_layer_cache_source}`)}
-      </p>
+      <div>
+        <p className="text-sm font-medium text-text-primary">{t("retention_settings.prepared_cache_workers_label")}</p>
+        {limits.prepared_layer_cache_workers.length > 0 ? (
+          <ul className="mt-2 space-y-1 text-xs text-text-secondary">
+            {limits.prepared_layer_cache_workers.map((worker) => (
+              <li key={worker.worker_storage_key || worker.hostname}>
+                {worker.hostname}: {formatStorageLimit(worker.budget_bytes, t)} ({t(`retention_settings.prepared_cache_source_${worker.source}`)})
+              </li>
+            ))}
+          </ul>
+        ) : <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.prepared_cache_workers_unknown")}</p>}
+      </div>
     </section>
   )
 }
