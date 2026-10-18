@@ -98,10 +98,18 @@ module Syrus
         @node_brotli_available = false
       end
 
+      # Deliberately no `kind:`. A `kind` makes ProcessRunner a *tracked*
+      # spawn: it writes a SpawnedProcess row and starts the supervisor
+      # thread. This runs inside `rake assets:precompile`, which happens
+      # during `docker build` -- there is no database to write that row to,
+      # and asking for one turned "is brotli on PATH?" into
+      # ActiveRecord::ConnectionNotEstablished and failed the image build.
+      # Compressing an asset is build plumbing, not agent work; nothing
+      # supervises or attributes it.
       def capture(command)
         ProcessRunner.new(
           env: {}, command: command, mounts: ProcessRunner.mounts(output_path),
-          network: "grader", timeout: 2.minutes, kind: "generate"
+          network: "grader", timeout: 2.minutes
         ).capture
       end
   end

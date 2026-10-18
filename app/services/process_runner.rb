@@ -1039,6 +1039,17 @@ class ProcessRunner
     @cgroup = SpawnedProcessCgroup.new(spawned_process: process)
     process.update_column(:resource_attribution, current_resource_attribution)
     process
+  rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError => error
+    # This row is observability: the supervisor reads it to reap strays, and
+    # the UI reads it to show what is running. It is not what makes the
+    # subprocess work, and a runner with no row already behaves correctly
+    # (that is the `kind:`-less path above) -- ProcessRunner still enforces
+    # its own wall and silent timeouts in-process. So when there is no
+    # database to write to, degrade instead of taking the spawn down with it.
+    # Letting this raise meant a missing database could stop a subprocess that
+    # had nothing to do with the database.
+    Rails.logger.warn("[ProcessRunner] spawn not registered (#{error.class}): #{command_string}")
+    nil
   end
 
   def update_pid!(pid)
