@@ -38,7 +38,8 @@ function domRect(overrides: Partial<DOMRect> = {}): DOMRect {
 beforeEach(() => {
   setSlugReferenceRegistryForTests([
     registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
-    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" })
+    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" }),
+    registryEntry({ prefix: "WF", type: "workflow", hrefTemplate: "/s/WF-:id" })
   ])
 })
 
@@ -316,6 +317,20 @@ describe("Markdown", () => {
 
     expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
     expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/EPIC-5")
+  })
+
+  it("turns a generated Workflow slug into a navigable, copyable preview reference without touching paths or code blocks", () => {
+    render(
+      <MemoryRouter>
+        <Markdown text={"Inspect WF-42 at /syrus-home/.syrus/workflows/42/repo.\n\n```sh\necho WF-43\n```"} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "WF-42" })).toHaveAttribute("href", "/s/WF-42")
+    expect(screen.getByRole("button", { name: "Copy WF-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WF-43" })).not.toBeInTheDocument()
+    expect(screen.getByText("echo WF-43")).toBeInTheDocument()
+    expect(screen.getByText(/\/syrus-home\/\.syrus\/workflows\/42\/repo/)).toBeInTheDocument()
   })
 
   it("links job and epic slugs inside inline code spans", () => {

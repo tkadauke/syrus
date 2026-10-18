@@ -714,7 +714,9 @@ relevance order intact and are
 encoded in the `q=` URL parameter; older plain-text `q=` search links still
 open as text searches when no `query=` parameter is present. Job and Epic
 results show a copyable `JOB-N` / `EPIC-N` slug that opens the same preview
-popup used elsewhere in the app on hover; plugin slugs such as `DOC-N` use
+popup used elsewhere in the app on hover; workflow references use the same
+interaction for `WF-N` and preview their type, state, and key ordered steps.
+Plugin slugs such as `DOC-N` use
 their plugin-provided preview cards. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
 Operators can also share a chat with teammates on the same Syrus instance:

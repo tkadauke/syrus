@@ -10,11 +10,13 @@ import { CopyIcon } from "./CopyableSlug"
 import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
+import { WorkflowPreviewCard } from "./WorkflowPreviewCard"
 
 const corePreviewCards: Record<string, ComponentType<{ id: number; compact?: boolean; slug?: string }>> = {
   chat: ChatPreviewCard,
   epic: EpicPreviewCard,
-  job: JobPreviewCard
+  job: JobPreviewCard,
+  workflow: WorkflowPreviewCard
 }
 const actionCloseButtonClassName =
   "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand"

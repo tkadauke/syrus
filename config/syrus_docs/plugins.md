@@ -2144,7 +2144,7 @@ stale server-side registration cannot blank the page around it.
 
 Slug type providers define canonical display refs that the backend can resolve
 without hardcoding every prefix at each call site. Core registers providers for
-`JOB-<id>`, `EPIC-<number>`, and `CHAT-<id>`.
+`JOB-<id>`, `EPIC-<number>`, `CHAT-<id>`, and `WF-<id>`.
 
 Providers include `Syrus::Plugin::SlugType` and implement:
 
@@ -2175,11 +2175,17 @@ a generic 404 for unknown, malformed, missing, or inaccessible refs.
 Core's `SlugReferenceCard` (`app/frontend/components/SlugHoverCard.tsx`, with
 `SlugHoverCard` kept as a compatibility export) renders a rich hover/click
 preview popup for registered references linkified by `linkifySlugs.tsx`.
-`JOB`/`EPIC`/`CHAT` are core slug types and render core preview components
+`JOB`/`EPIC`/`CHAT`/`WF` are core slug types and render core preview components
 directly; plugin-owned reference kinds become linkifiable by registering the
 `:slug_type` provider above. Frontend preview-card components still use file
 discovery so adding a visual card does not require duplicating React component
 registration data in Ruby.
+
+Workflow previews show the workflow type and state plus a compact ordered step
+list. They retain the active or literal final step, prioritize recent failures
+and warnings, show no more than seven actual steps, and mark omitted ranges
+with ellipses. Their step names and statuses use the same projection as the Job
+workflow detail, including `warning` for accepted grader failures.
 
 - The plugin drops its card component at
   `plugins/<name>/app/frontend/slugPreviewCards/<PREFIX>.<Component>.tsx` —

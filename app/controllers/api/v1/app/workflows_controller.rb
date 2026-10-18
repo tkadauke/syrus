@@ -2,6 +2,11 @@ module Api
   module V1
     module App
       class WorkflowsController < BaseController
+        def preview
+          workflow = find_workflow
+          render json: { workflow: ::App::JobDetailPayload.workflow_preview(workflow: workflow, user: Current.user) }
+        end
+
         def coverage_hit_map
           workflow = find_workflow
           file = params[:file].to_s.strip

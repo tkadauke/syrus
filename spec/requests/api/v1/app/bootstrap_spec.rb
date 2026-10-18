@@ -153,6 +153,12 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
         "copyable" => true,
         "linkable" => false,
         "href_template" => nil
+      ),
+      include(
+        "prefix" => "WF",
+        "type" => "workflow",
+        "preview_available" => true,
+        "href_template" => "/s/WF-:id"
       )
     )
   end

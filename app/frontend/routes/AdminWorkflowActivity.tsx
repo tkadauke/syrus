@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, durationLabel, severityPillClass } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
+import { WorkflowReference } from "../components/WorkflowReference"
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -166,7 +167,7 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
 function ContextLinks({ event, prefix }: { event: WorkflowActivityEvent; prefix: string }) {
   const links: ReactNode[] = []
   if (event.job) links.push(<Link className={linkClass()} key="job" to={withRoutePrefix(event.job.path, prefix)}>{event.job.slug}</Link>)
-  if (event.workflow) links.push(<Link className={linkClass()} key="workflow" to={withRoutePrefix(event.workflow.path, prefix)}>{event.workflow.slug}</Link>)
+  if (event.workflow) links.push(<WorkflowReference className={linkClass()} key="workflow" path={withRoutePrefix(event.workflow.path, prefix)} slug={event.workflow.slug} />)
   if (event.run) links.push(<Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>Run #{event.run.id}</Link>)
   if (links.length === 0) return <span>-</span>
   return <span className="flex flex-wrap gap-x-2 gap-y-1">{links}</span>
