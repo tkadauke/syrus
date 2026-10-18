@@ -7,3 +7,5 @@ grade:
   - type: rspec
     deps:
       - "//:plugin-api"
+  - type: go-test
+    path: container
