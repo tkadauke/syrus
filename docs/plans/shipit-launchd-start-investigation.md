@@ -2,27 +2,31 @@
 
 ## Conclusion
 
-The install location is not the cause. Electron 39.8.10 contains an older
-Squirrel.Mac launcher which submits ShipIt with a vestigial `MachServices`
-demand trigger. When macOS puts the user's launchd domain into
-`on-demand-only` mode, launchd suppresses the job's `RunAtLoad`/`KeepAlive`
-start and waits for a connection to that Mach service. Nothing in this
-Squirrel version ever makes that connection, so the job can remain submitted
-with zero runs indefinitely.
+The source establishes a specific failure class which fits every supplied
+observation, but the available incident evidence does not prove that this
+machine entered that class. Electron 39.8.10 contains an older Squirrel.Mac
+launcher which submits ShipIt with a vestigial `MachServices` demand trigger.
+When macOS puts the user's launchd domain into `on-demand-only` mode, launchd
+suppresses the job's `RunAtLoad`/`KeepAlive` start and waits for a connection
+to that Mach service. Nothing in this Squirrel version ever makes that
+connection, so the job can remain submitted with zero runs indefinitely.
 
 A downloaded but not yet installed macOS system update is a confirmed way for
 the GUI domain to enter this mode. A disabled override can lead to the same
-end state, although the observed job was reported as not disabled. The exact
+end state, although the observed job was reported as not disabled. The
 observations here—submitted, not running, never exited, no output files, and
-an immediate successful install after `launchctl kickstart`—are characteristic
-of this launch-demand deadlock. They are not characteristic of an invalid
-program path, signature failure, permissions failure, or a ShipIt process
-killed when its parent exits.
+an immediate successful install after `launchctl kickstart`—are consistent
+with this launch-demand deadlock and eliminate several competing causes. The
+missing incident-specific evidence is either `pended nondemand spawn =
+semaphore` in `launchctl print` or the corresponding `on-demand-only` launchd
+log entry.
 
-Electron fixed this upstream after the 39.x line. The eventual fix preserved
-the Mach service and explicitly sent it a lightweight XPC message after
-submission, giving launchd the on-demand event it requires. Upgrading to an
-Electron release containing that fix is the contained follow-up for Syrus.
+Electron fixed this vulnerable class upstream after the 39.x line. The
+eventual fix preserved the Mach service and explicitly sent it a lightweight
+XPC message after submission, giving launchd the on-demand event it requires.
+Upgrading to an Electron release containing that fix is a contained follow-up
+which removes this known failure mode; it should not be described as the
+confirmed repair for this incident unless the check below confirms the mode.
 
 ## Exact submission path
 
@@ -60,8 +64,9 @@ Thus the submitting app exiting is expected and safe. ShipIt is meant to have
 already been spawned by launchd and, if necessary, to wait for that exit.
 launchd owns the submitted job independently of the submitting process.
 
-## Why this job does not start
+## Leading diagnosis: an unsatisfied on-demand trigger
 
+The strongest source-backed diagnosis is the unsatisfied on-demand trigger.
 The `MachServices` entry is left over from a 2013 Squirrel design in which
 ShipIt was an XPC service. ShipIt is no longer an XPC service, and neither
 Squirrel nor Electron connects to the advertised port in the pinned version.
@@ -82,16 +87,21 @@ semaphores = {
 }
 ```
 
-The corresponding launchd log says that the spawn is pending because the
-domain is in on-demand-only mode. A pending macOS system update was confirmed
-upstream to put the GUI domain into this mode. Electron 40.9.3+, 41.4.0+, and
-42.0.0+ contain the fix; Electron 39.8.10 does not.
+In upstream reproductions, the corresponding launchd log says that the spawn
+is pending because the domain is in on-demand-only mode. A pending macOS
+system update was confirmed upstream to put the GUI domain into this mode.
+Electron 40.9.3+, 41.4.0+, and 42.0.0+ contain the fix; Electron 39.8.10 does
+not. The supplied incident record does not include either the semaphore field
+or that log entry, so source analysis can rank this diagnosis but cannot close
+that evidentiary gap.
 
 ### Candidate assessment
 
 - **Pending macOS system update / on-demand-only GUI domain:** strongly
-  consistent and the leading cause. It produces the exact zero-run state,
-  deterministic recurrence, absent ShipIt logs, and successful kickstart.
+  consistent and the leading diagnosis. It produces the observed zero-run
+  state, deterministic recurrence, absent ShipIt logs, and successful
+  kickstart. Confirmation requires the additional semaphore or launchd-log
+  evidence described below.
 - **Persisted launchd disabled override:** produces a closely related failure,
   but is ruled out for this observation by the reported `not disabled` state.
   Re-enabling a previously disabled job can also leave the demand semaphore
@@ -132,11 +142,12 @@ URL and its installer operates on that URL. There is no `/Applications`
 constant in this update path.
 
 The location can therefore change whether Squirrel chooses the user or system
-launchd domain, but it does not make user-local installs intrinsically
-unupdatable. In this incident the user-domain choice exposes the app to the
-GUI domain's on-demand-only state; the home-directory program path itself is
-not rejected. Prior successful creation of the same app's ShipIt cache is also
-consistent with the domain usually operating normally.
+launchd domain, but the source does not show a blanket inability to update
+user-local installs. The user-domain choice makes the app susceptible to the
+GUI domain's on-demand-only state; that is different from launchd rejecting a
+home-directory program path. The successful kickstart rules out such a path
+rejection for the observed job. Prior successful creation of the same app's
+ShipIt cache is also consistent with the domain usually operating normally.
 
 ## One confirming check
 
@@ -160,14 +171,17 @@ blocked.
 
 ## Follow-up scope
 
-Upgrade the desktop Electron dependency from 39.8.10 to a supported release
-which includes the upstream ShipIt XPC-trigger fix, rebuild the lockfile, and
-exercise the existing desktop packaging and auto-update checks. The important
-acceptance test is a signed packaged update on macOS while the GUI launchd
-domain is in on-demand-only mode: ShipIt must acquire a PID without manual
-kickstart, apply the staged update, and relaunch the app. This is preferable to
-a Syrus-only `launchctl` workaround because ShipIt and the submission logic
-are compiled into Electron's Squirrel framework.
+As a follow-up to eliminate the demonstrated vulnerable class, upgrade the
+desktop Electron dependency from 39.8.10 to a supported release which includes
+the upstream ShipIt XPC-trigger fix, rebuild the lockfile, and exercise the
+existing desktop packaging and auto-update checks. The important acceptance
+test is a signed packaged update on macOS while the GUI launchd domain is in
+on-demand-only mode: ShipIt must acquire a PID without manual kickstart, apply
+the staged update, and relaunch the app. This is preferable to a Syrus-only
+`launchctl` workaround because ShipIt and the submission logic are compiled
+into Electron's Squirrel framework. If the confirming check does not identify
+this launchd mode, that result should redirect the incident investigation
+rather than treating the upgrade as a proven cure for the observed machine.
 
 ## Sources
 
