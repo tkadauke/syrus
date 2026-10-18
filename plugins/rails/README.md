@@ -38,9 +38,9 @@ The Rails engine registers the plugin manifest at boot. After registration,
 `SyrusRails::PreviewProvider`. `Syrus::PreviewProviderResolver.for(repo_path)`
 returns that provider for any Rails repository and `nil` otherwise.
 
-## Preview hosting with SQLite
+## Preview databases
 
-The preview host runs the Rails server as a long-lived child process. Because no companion database container is available, the repository's `config/database.yml` must use `adapter: sqlite3` for the `development` environment:
+SQLite development databases continue to work without additional configuration:
 
 ```yaml
 default: &default
@@ -66,7 +66,28 @@ page.
 The provider exposes `log/development.log` and `log/vite.log` to the preview
 log API and the `read_preview_log` MCP tool.
 
-Postgres preview environments are not yet supported.
+For a development configuration whose adapter is `postgresql`, the preview
+runtime must receive `SYRUS_RAILS_PREVIEW_POSTGRES_URL`. This deployment-only
+value is a PostgreSQL URL whose user may create and drop databases. Syrus never
+adds it to agent environments or command text. It derives a stable, isolated
+database name from the preview workspace and preview identity, waits up to 30
+seconds for the server socket, then runs the normal `db:create db:migrate
+db:seed` lifecycle. Stopping an agent preview drops that preview's database.
+
+The configured URL should name a maintenance database (commonly `postgres`):
+
+```text
+postgresql://preview_user:secret@postgres.example.internal:5432/postgres
+```
+
+If the URL is missing, malformed, unreachable, or lacks create/drop rights,
+the preview fails before the Rails server starts with a phase-specific
+diagnostic. Database URLs are redacted from persisted command and error views.
+
+An explicit `.syrus.yml` `preview:` block still wins over Rails auto-detection.
+Repositories needing a managed database with different lifecycle semantics
+should declare their own setup, seed, environment, and cleanup outside the
+auto-detected provider rather than relying on these Rails defaults.
 
 ## Running tests
 

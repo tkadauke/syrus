@@ -40,12 +40,13 @@ class PreviewProcessLauncher
 
       raise LaunchError, "no preview command configured for #{@workspace_path} — add a preview: section to .syrus.yml" unless source
 
+      @preview_key = key
       prepare! unless prepared
 
       command = source.start_command_for.call(port: port)
       spawned_preview = spawn_app(command, port, process_env, preview_workdir, key)
       pid = spawned_preview.pid
-      Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port)
+      Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port, cleanup: -> { cleanup! })
 
       begin
         health_check_url = "http://127.0.0.1:#{port}#{source.health_check_path.presence || '/'}"
@@ -73,7 +74,8 @@ class PreviewProcessLauncher
       project_id: @project_id,
       run: @run,
       workflow: @workflow,
-      log: @log
+      log: @log,
+      preview_key: @preview_key
     ).call
   rescue PreviewPreparation::Error => e
     raise LaunchError, e.message
@@ -112,8 +114,26 @@ class PreviewProcessLauncher
       extra: WorkspaceDependencyEnv.for(@workspace_path)
     )
     Array(source.unset_env).each { |name| env[name.to_s] = nil }
-    env.merge!(source.env || {})
+    env.merge!(source.environment(key: @preview_key))
     env
+  end
+
+  def cleanup!
+    return if source.cleanup_command.blank?
+
+    ProcessRunner.new(
+      env: process_env,
+      command: [ "bash", "-c", source.cleanup_command ],
+      mounts: ProcessRunner.mounts(preview_workdir, read_write: @workspace_path),
+      network: "prepare",
+      timeout: PreviewPreparation::TIMEOUT_SECONDS,
+      kind: "preview",
+      run: @run,
+      workflow: @workflow,
+      display_command: source.cleanup_command
+    ).run
+  rescue StandardError => e
+    Rails.logger.warn("[PreviewProcessLauncher] preview cleanup failed: #{CommandRedactor.redact(e.message)}")
   end
 
   def await_health_check!(url)
@@ -177,7 +197,7 @@ class PreviewProcessLauncher
     return unless File.exist?(path)
 
     content = File.binread(path, 4096, [ File.size(path) - 4096, 0 ].max)
-    content.encode("UTF-8", invalid: :replace, undef: :replace).lines.last(40).join.strip
+    CommandRedactor.redact(content.encode("UTF-8", invalid: :replace, undef: :replace)).lines.last(40).join.strip
   rescue Errno::ENOENT
     nil
   end

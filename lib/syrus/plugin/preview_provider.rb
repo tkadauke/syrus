@@ -16,7 +16,9 @@ module Syrus
     #     def health_check_timeout_seconds = 120
     #     def log_paths = ["log/development.log"]
     #     def env = { "RAILS_ENV" => "development" }
+    #     def env_for(key:) = { "DATABASE_URL" => isolated_url(key) }
     #     def unset_env = ["DATABASE_URL"]
+    #     def cleanup_command = "bin/rails db:drop"
     #   end
     #
     #   Syrus::PluginRegistry.register(
@@ -115,8 +117,16 @@ module Syrus
         {}
       end
 
+      def env_for(key:)
+        {}
+      end
+
       def unset_env
         []
+      end
+
+      def cleanup_command
+        nil
       end
     end
   end
