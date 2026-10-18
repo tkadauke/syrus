@@ -582,8 +582,34 @@ jobs:
           APP="desktop/out/mac-universal/$PRODUCT.app"
           codesign --verify --deep --strict "$APP"
           codesign -dv --verbose=2 "$APP" 2>&1 | grep "Developer ID Application"
-          spctl -a -t exec -vv "$APP" 2>&1 | grep "Notarized Developer ID"
-          xcrun stapler validate "$APP"
+          # The two notarization assertions are the only ones here that leave
+          # the machine: spctl consults Gatekeeper and `stapler validate` looks
+          # the ticket up in Apple's CloudKit. Both therefore fail on a network
+          # hiccup with a perfectly good signed, notarized, stapled app sitting
+          # on disk -- "The network connection was lost." (NSURLErrorDomain
+          # -1005) then "The validate action failed! Error 68." Retry with
+          # backoff so one lost connection cannot red a release that is already
+          # built and notarized; the codesign checks above are local and need
+          # none. A persistent failure is still fatal.
+          apple_check() {
+            local what="$1"
+            shift
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "::error::$what still failing after $attempt attempts -- treating as a real verification failure."
+                return 1
+              fi
+              echo "::warning::$what failed (attempt $attempt/5); retrying in $((attempt * 15))s -- Apple's notarization lookups flake."
+              sleep $((attempt * 15))
+            done
+          }
+          spctl_notarized() { spctl -a -t exec -vv "$APP" 2>&1 | grep "Notarized Developer ID"; }
+          apple_check "spctl notarization assessment" spctl_notarized
+          apple_check "xcrun stapler validate" xcrun stapler validate "$APP"
           test -f desktop/out/latest-mac.yml
           # Match on the version+arch suffix, not the full product name:
           # electron-builder writes the .zip FILE with the product name's

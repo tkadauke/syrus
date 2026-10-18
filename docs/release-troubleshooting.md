@@ -53,6 +53,7 @@ Grep the failed run's log for the string in column one.
 | `get-task-allow` / `hardened runtime` / `secure timestamp` | entitlements / nested-binary signing | [4.2](#42-entitlements-and-hardened-runtime) |
 | No output for 30+ min at the notarize phase | Apple notary backlog, not your config | [4.3](#43-hangs-and-timeouts) |
 | `The staple and validate action failed! Error 65` | stapling a mutated artifact, or CDN lag | [4.4](#44-stapler-failures) |
+| `The validate action failed! Error 68` / `The network connection was lost.` | Apple's CloudKit ticket lookup flaked — not your artifact | [4.4](#44-stapler-failures) |
 | `skipped macOS application code signing` | silent skip — no usable identity | [6.1](#61-green-build-unsigned-artifact) |
 | `skipped macOS notarization` | silent skip — notarize creds absent | [6.1](#61-green-build-unsigned-artifact) |
 | `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
@@ -266,6 +267,16 @@ permission) see [6.4](#64-build-backend-disk-and-cache).
   build.log + the notary log for debugging — deliberately named OUTSIDE
   the `staged-*` namespace so publish's download glob can never attach it
   to the Release, even across re-run attempts.)
+
+- **Different symptom, same step — `Error 68`:** `The network connection was
+  lost.` / `CloudKit's response is inconsistent with expections` /
+  `The validate action failed! Error 68.` This is not your artifact.
+  `stapler validate` (and `spctl`) look the ticket up in Apple's CloudKit, so
+  they fail when that request does — with a signed, notarized, correctly
+  stapled app sitting on disk. The verify step now retries both with backoff
+  (5 attempts, 15s→60s), logging `::warning::` per retry, so a single hiccup no
+  longer reds a release; `::error::… still failing after 5 attempts` means the
+  outage lasted ~2.5 minutes and a re-run is the right move.
 
 ## 6. electron-builder generalities
 

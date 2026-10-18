@@ -195,6 +195,76 @@ RSpec.describe "desktop auto-update and release pipeline" do
     end
   end
 
+  # Regression: `xcrun stapler validate` and `spctl` are the only verification
+  # assertions that leave the machine -- they look the notarization ticket up in
+  # Apple's CloudKit -- so "The network connection was lost." reds a release
+  # whose app is already built, signed, notarized and stapled. Retry them.
+  describe "the macOS verification step's retry around Apple's notarization lookups" do
+    # The `apple_check` helper, lifted out of the workflow and driven directly.
+    # `sleep` is stubbed out so the backoff costs the suite nothing.
+    def run_apple_check(script_body)
+      step = YAML.safe_load(build_workflow).dig("jobs", "build-mac", "steps")
+                 .find { |candidate| candidate["name"].to_s.start_with?("Verify signature") }
+      helper = step.fetch("run")[/^apple_check\(\) \{\n.*?^\}\n/m]
+      raise "apple_check helper not found in the verify step" if helper.nil?
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, "check.sh")
+        File.write(path, "set -euo pipefail\nsleep() { :; }\n#{helper}\n#{script_body}\n")
+        out, status = Open3.capture2e("bash", path)
+        [out, status.success?]
+      end
+    end
+
+    it "passes a check that succeeds on the first try, without retrying" do
+      out, ok = run_apple_check(<<~SH)
+        attempts=0
+        flaky() { attempts=$((attempts + 1)); return 0; }
+        apple_check "stapler" flaky
+        echo "attempts=$attempts"
+      SH
+
+      expect(ok).to be(true), out
+      expect(out).to include("attempts=1")
+      expect(out).not_to include("::warning::")
+    end
+
+    it "retries a flaky check and succeeds once Apple answers" do
+      out, ok = run_apple_check(<<~SH)
+        attempts=0
+        flaky() { attempts=$((attempts + 1)); [ "$attempts" -ge 3 ]; }
+        apple_check "stapler" flaky
+        echo "attempts=$attempts"
+      SH
+
+      expect(ok).to be(true), out
+      expect(out).to include("attempts=3")
+      expect(out.scan("::warning::").length).to eq(2)
+    end
+
+    it "still fails the build when the check never passes" do
+      out, ok = run_apple_check(<<~SH)
+        attempts=0
+        broken() { attempts=$((attempts + 1)); return 1; }
+        apple_check "stapler" broken || echo "exited nonzero after $attempts"
+      SH
+
+      expect(ok).to be(true), out # the `|| echo` swallows it; the point is the message
+      expect(out).to include("exited nonzero after 5")
+      expect(out).to include("::error::stapler still failing after 5 attempts")
+    end
+
+    it "wraps both of the network-dependent assertions and no local one" do
+      run = YAML.safe_load(build_workflow).dig("jobs", "build-mac", "steps")
+                .find { |candidate| candidate["name"].to_s.start_with?("Verify signature") }.fetch("run")
+
+      expect(run).to include(%(apple_check "spctl notarization assessment" spctl_notarized))
+      expect(run).to include(%(apple_check "xcrun stapler validate" xcrun stapler validate "$APP"))
+      # codesign is local: no network, no retry, and a failure there is real.
+      expect(run).to match(/^codesign --verify --deep --strict/)
+    end
+  end
+
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do
     # Signing is a hard requirement — even a dry run signs (it's the fragile
     # part worth rehearsing). The macOS guard refuses to build without it, and
@@ -420,7 +490,8 @@ RSpec.describe "desktop auto-update and release pipeline" do
 
     # macOS: both darwin arches ride the universal app (ensureCliCurrent
     # installs the one matching the running arch), asserted executable.
-    mac_verify = build_workflow[/name: Verify signature, notarization, update feed, and backend pin[\s\S]{0,1800}/]
+    mac_verify = YAML.safe_load(build_workflow).dig("jobs", "build-mac", "steps")
+                     .find { |step| step["name"].to_s.start_with?("Verify signature") }.fetch("run")
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-arm64"')
     expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-x64"')
   end
