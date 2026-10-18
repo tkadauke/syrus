@@ -153,6 +153,8 @@ RSpec.describe Steps::ForcePush do
     allow(git).to receive(:run)
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("rebased-head\n")
     allow(git).to receive(:run).with("log", "--format=email", "--patch", "base123..HEAD", chdir: "/tmp/workspace").and_return(latest_patch)
+    allow(git).to receive(:run).with("patch-id", "--stable", stdin_data: latest_patch, workflow: workflow)
+      .and_return("#{patch_id_for(latest_patch)} commit\n")
     allow(handler).to receive(:diff_against_sha).with("base123").and_return(latest_patch)
 
     handler.call
@@ -194,6 +196,8 @@ RSpec.describe Steps::ForcePush do
     allow(git).to receive(:run)
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("rebased-head\n")
     allow(git).to receive(:run).with("log", "--format=email", "--patch", "base123..HEAD", chdir: "/tmp/workspace").and_return(rejected_patch)
+    allow(git).to receive(:run).with("patch-id", "--stable", stdin_data: rejected_patch, workflow: workflow)
+      .and_return("#{patch_id_for(rejected_patch)} commit\n")
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /missing the latest coding_handoff_fix/)
     expect(git).not_to have_received(:run).with(
