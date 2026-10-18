@@ -18,6 +18,7 @@ module CredentialStore
       known_host
       namespace
       port
+      refreshable
       username
     ].freeze
     TARGET_CONSTRAINT_KEYS = %w[

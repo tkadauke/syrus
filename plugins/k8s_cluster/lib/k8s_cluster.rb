@@ -19,7 +19,9 @@ module K8sCluster
     ]
     provides sidebar_page: "K8sCluster::SidebarPages",
              mcp_tool_set: "K8sCluster::WorkflowToolSet",
-             chat_mcp_tool_set: "K8sCluster::ChatToolSet"
+             chat_mcp_tool_set: "K8sCluster::ChatToolSet",
+             callbacks: "K8sCluster::Callbacks"
+    tick_interval 5.minutes
     route :get, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#index"
     route :post, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#create"
     route :patch, "/api/v1/app/admin/kubernetes_clusters/:id", to: "api/v1/app/admin/kubernetes_clusters#update"

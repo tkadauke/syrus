@@ -12,6 +12,10 @@ class KubernetesCluster < ApplicationRecord
   validates :label, presence: true
   validates :api_server_url, presence: true
 
+  def credential_degraded?
+    credential_refresh_status == "failed" || credential_refresh_status == "expired"
+  end
+
   def token
     credentials.to_h["token"]
   end

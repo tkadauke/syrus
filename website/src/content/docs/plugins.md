@@ -53,6 +53,14 @@ snapshot calls out the launch-relevant groups:
 | Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights |
 | Language and platform support | Android, Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
+
+The Kubernetes Cluster Viewer reports kubeconfig credential expiry in its
+admin cluster list. Operators rotate pasted tokens or client certificates by
+editing the existing connection and pasting a replacement kubeconfig, which
+keeps cluster identity and access settings intact. OIDC auth-provider
+kubeconfigs with refresh credentials renew automatically shortly before
+expiry; failures appear as a degraded credential state without exposing
+secret material.
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
