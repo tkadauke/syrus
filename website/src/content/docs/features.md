@@ -738,9 +738,12 @@ screenshot; further discussion or markup happens in chat once it's attached.
 When chat speech-to-text is enabled, the composer microphone uses the best
 available dictation mode reported by the backend: an enabled and healthy
 speech-to-text provider such as the bundled `whisper_stt` plugin receives
-recorded audio for backend batch transcription, while disabled or unavailable
-providers leave dictation on the browser's built-in speech recognition where
-the browser supports it.
+ordered chunks and revises the visible interim transcript while you speak.
+Final text is committed once without disturbing text already in the composer.
+The browser retains the complete recording and automatically retries backend
+batch transcription if streaming fails; disabled or unavailable providers use
+the browser's built-in speech recognition where supported, with the same
+interim replacement behavior.
 Once the current chat session has a pending or confirmed proposal, or a Job
 directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
 section at the top lists this chat's own pending Job and Epic proposals, each

@@ -48,6 +48,52 @@ RSpec.describe WhisperStt::Provider do
     end
   end
 
+  it "advertises streaming only when the gateway reports that capability" do
+    stub_request(:get, "#{endpoint}/health")
+      .to_return(status: 200, body: { capabilities: { streaming: true } }.to_json)
+    expect(described_class.new.streaming?).to be(true)
+
+    stub_request(:get, "#{endpoint}/health")
+      .to_return(status: 200, body: { capabilities: { streaming: false } }.to_json)
+    expect(described_class.new.streaming?).to be(false)
+  end
+
+  it "emits revised interim hypotheses and one final hypothesis" do
+    stub_request(:post, "#{endpoint}/stream/sessions").to_return(status: 201, body: { id: "stream-1" }.to_json)
+    stub_request(:put, "#{endpoint}/stream/sessions/stream-1/chunks/1").with(body: "first").to_return(status: 200, body: { text: "ship" }.to_json)
+    stub_request(:put, "#{endpoint}/stream/sessions/stream-1/chunks/2").with(body: "second").to_return(status: 200, body: { text: "ship it" }.to_json)
+    stub_request(:post, "#{endpoint}/stream/sessions/stream-1/finish").to_return(status: 200, body: { text: "ship it now" }.to_json)
+    deltas = []
+    completions = []
+    stream = described_class.new.stream_transcription(ChatSpeechToText::Providers::StreamingRequest.new(
+      content_type: "audio/webm", language: "en", prompt: nil,
+      on_delta: ->(delta) { deltas << [ delta.text, delta.final ] },
+      on_error: ->(error) { raise error }, on_complete: ->(payload) { completions << payload }
+    ))
+
+    stream.accept_audio("first")
+    stream.accept_audio("second")
+    stream.finish
+
+    expect(deltas).to eq([ [ "ship", false ], [ "ship it", false ], [ "ship it now", true ] ])
+    expect(completions).to eq([ { reason: "finalized" } ])
+  end
+
+  it "cancels the daemon session when streaming fails" do
+    stub_request(:post, "#{endpoint}/stream/sessions").to_return(status: 201, body: { id: "stream-1" }.to_json)
+    stub_request(:put, "#{endpoint}/stream/sessions/stream-1/chunks/1").to_return(status: 503, body: { error: "decode failed" }.to_json)
+    cancellation = stub_request(:delete, "#{endpoint}/stream/sessions/stream-1").to_return(status: 200, body: { cancelled: true }.to_json)
+    errors = []
+    stream = described_class.new.stream_transcription(ChatSpeechToText::Providers::StreamingRequest.new(
+      content_type: "audio/webm", language: nil, prompt: nil,
+      on_delta: ->(_) { }, on_error: ->(error) { errors << error }, on_complete: ->(*) { }
+    ))
+
+    expect { stream.accept_audio("audio") }.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "decode failed")
+    expect(errors.sole.message).to eq("decode failed")
+    expect(cancellation).to have_been_requested.once
+  end
+
   it "posts browser audio to whisper-server and returns a transcription result" do
     stub = stub_request(:post, "#{endpoint}/inference")
       .with do |http_request|
@@ -98,10 +144,11 @@ RSpec.describe WhisperStt::Provider do
       enable_speech_to_text!
       set_whisper_plugin_enabled!(true)
 
+      stub_request(:get, "#{endpoint}/health").to_return(status: 200, body: { capabilities: { streaming: true } }.to_json)
       capability = ChatSpeechToText::Capability.for(user: user)
 
       expect(capability.backend_batch_available?).to be(true)
-      expect(capability.backend_streaming_available?).to be(false)
+      expect(capability.backend_streaming_available?).to be(true)
       expect(capability.browser_fallback_available?).to be(true)
       expect(capability.backend_provider).to be_a(described_class)
       expect(capability.as_json.dig(:modes, :backend_batch, :available)).to be(true)
