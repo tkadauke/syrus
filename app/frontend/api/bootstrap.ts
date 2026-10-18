@@ -71,6 +71,7 @@ export type BootstrapPayload = {
     first_admin: boolean
     credentials_configured: boolean
     repository_configured: boolean
+    onboarding_repository_id?: number | null
     first_job_started: boolean
     first_successful_job_completed: boolean
     first_epic_created: boolean

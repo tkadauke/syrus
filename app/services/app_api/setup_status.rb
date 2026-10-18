@@ -18,6 +18,7 @@ module AppApi
         first_admin: first_admin?,
         credentials_configured: credentials_configured?,
         repository_configured: repository_configured?,
+        onboarding_repository_id: onboarding_repository&.id,
         first_job_started: first_job_started?,
         first_successful_job_completed: first_successful_job_completed?,
         first_epic_created: first_epic_created?,
@@ -88,6 +89,10 @@ module AppApi
 
     def repository_configured?
       active_repository_count.positive?
+    end
+
+    def onboarding_repository
+      @onboarding_repository ||= Repository.accessible_to(user).active.order(:created_at, :id).first
     end
 
     # Onboarding completes when the first Epic lands.

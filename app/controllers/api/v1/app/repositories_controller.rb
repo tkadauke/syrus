@@ -334,6 +334,11 @@ module Api
           render json: { "days" => days, "trend" => trend, "latest" => latest }
         end
 
+        def readiness
+          repository = find_repository
+          render json: { readiness: RepositoryReadiness.call(repository:, user: Current.user).to_h }
+        end
+
         private
 
         def form_payload(repository)

@@ -41,7 +41,12 @@
     "edit_label": "Muta",
     "ready_heading": "Parata ad Opera Ordinaria",
     "ready_description": "Primum Epicum terram tetigit — Syrus constitutus est. Tabella Constitutionis ex navigatione cadet.",
-    "open_dashboard": "Tabulam Aperire"
+    "open_dashboard": "Tabulam Aperire",
+    "readiness_label": "Promptitudo repositorii",
+    "readiness_loading": "Promptitudo repositorii examinatur…",
+    "readiness_prepare": "Mandata praeparationis proposita",
+    "readiness_graders": "Mandata probationis proposita",
+    "readiness_advisory": "Monita consultiva sunt. Syrus tantum configurationem invalidam, repositorium inaccessibile, aut facultates operarii absentes impedit."
   },
   "search": {
     "heading": "Quaesitio",
