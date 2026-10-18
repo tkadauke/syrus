@@ -1,7 +1,7 @@
-# WorkerCapabilities memoizes its probe results for the life of the process
+# WorkerCapabilities memoizes its capability and version probe results for the life of the process
 # (see app/services/worker_capabilities.rb): detection spawns a subprocess per
-# probe and runs on every instance heartbeat, so re-probing each tick would pay
-# for a dozen processes to learn an answer that cannot change without a
+# probe and fingerprints run for every immutable checkout, so re-probing would
+# pay for subprocesses to learn answers that cannot change without a
 # restart.
 #
 # That memo outlives an example. Any spec that stubs `command_available?` to
