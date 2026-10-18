@@ -1018,6 +1018,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const jobStatusChanged = chatJobStatusChangedPayload(event.payload)
   if (jobStatusChanged) {
+    invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
         detail: { job_id: jobStatusChanged.job_id, chat_session_id: event.id }

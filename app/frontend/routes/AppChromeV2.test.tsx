@@ -2627,7 +2627,7 @@ describe("chat row mode icons", () => {
     renderAppChrome(undefined, { queryClient })
 
     await screen.findByText("Active chat")
-    const activityMarker = screen.getByTitle("Chat turn active")
+    const activityMarker = screen.getByTestId("agent-replying-marker")
     const markerSlot = activityMarker.closest("[data-testid='recent-chat-marker-slot']")
     expect(markerSlot).toHaveClass("h-6", "min-w-6", "group-hover/recent-chat:invisible")
     expect(markerSlot).not.toHaveClass("hidden")

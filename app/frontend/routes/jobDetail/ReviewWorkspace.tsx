@@ -842,7 +842,7 @@ function artifactMatchesSelection(
 ) {
   if (selectedRange) return artifact.head_sha === selectedRange.headSha
   if (!selectedVersion) return true
-  if (isAllChangesVersion(selectedVersion) && artifact.head_sha) return artifact.head_sha === selectedVersion.head_sha
+  if (isAllChangesVersion(selectedVersion)) return true
   if (artifact.diff_review_version_id != null) return artifact.diff_review_version_id === selectedVersion.id
   return artifact.head_sha === selectedVersion.head_sha
 }
@@ -870,10 +870,7 @@ function VersionedArtifactsList({
       matching.push(artifact)
     }
   }
-  const displayed = [
-    ...matching.slice().sort(compareArtifactsNewestFirst),
-    ...unversioned.slice().sort(compareArtifactsNewestFirst)
-  ]
+  const displayed = [...matching, ...unversioned].sort(compareArtifactsNewestFirst)
 
   if (displayed.length === 0) return <p className="text-sm text-text-muted">{t("review_artifacts_no_version_match")}</p>
 

@@ -2,11 +2,12 @@ import { ChevronDownIcon, HideIcon, PlusIcon, TargetIcon, TeamIcon } from "./ico
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { TFunction } from "i18next"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarAgentOption, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
+import { DEFAULT_CHAT_SIDEBAR_SETTINGS, cancelCodingCheckout, deleteChat, fetchChat, fetchChatGroupsPage, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatJobSummary, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatSidebarAgentOption, type ChatSidebarGroupBy, type ChatSidebarPerGroup, type ChatSidebarSettings, type ChatSidebarSortBy, type ChatSidebarStatus, type ChatType, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -146,6 +147,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
   const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
+  const [hoveredChatId, setHoveredChatId] = useState<number | null>(null)
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
@@ -418,6 +420,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
           const canShowLess = !collapsed && Boolean(loaded)
           const quickStartRepositoryId = section.group_by === "repository" ? section.repository_id : undefined
           const showQuickStart = section.group_by === "repository" && Boolean(onStartChat)
+          const groupJobSummary = rollupJobSummaries(section.chats)
 
           return (
             <section className="space-y-1" key={section.key}>
@@ -430,6 +433,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                 >
                   <ChevronDownIcon className={collapsed ? "-rotate-90" : ""} />
                   <span className="min-w-0 flex-1 truncate">{section.label}</span>
+                  {collapsed && (groupJobSummary.active_count > 0 || groupJobSummary.outcome) ? <JobStateMarkers summary={groupJobSummary} /> : null}
                 </button>
                 <div className={RECENT_CHAT_ACTION_SLOT_CLASS} data-testid="recent-chat-header-action-slot">
                   {showQuickStart ? (
@@ -455,6 +459,8 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                     <div
                       className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
                       key={chat.id}
+                      onMouseEnter={() => setHoveredChatId(chat.id)}
+                      onMouseLeave={() => setHoveredChatId((current) => current === chat.id ? null : current)}
                       onDragEnter={(e) => {
                         e.preventDefault()
                         if (draggingOverChatId === chat.id) return
@@ -491,16 +497,17 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span
-                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-focus-within/recent-chat:invisible group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
                         >
-                          <span className="flex items-center gap-1">
-                            <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
+                          <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
+                            <span className="flex items-center gap-1">
+                            <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
+                            <JobStateMarkers summary={chat.job_summary} />
                             {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
                               <span
                                 className={`${RECENT_CHAT_MARKER_CELL_CLASS} ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
                                 data-testid="chat-goal-marker"
-                                title={chat.active_goal.status === "paused" ? t("nav:title_goal_paused") : t("nav:title_goal_active")}
                               >
                                 <TargetIcon className="h-3.5 w-3.5" />
                               </span>
@@ -511,16 +518,17 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, onSt
                               </span>
                             )}
                             {chat.coding_checkout_uncommitted && (
-                              <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_uncommitted")}>
+                              <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                 <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
                               </span>
                             )}
                             {chat.scratchpad_items_count > 0 && (
-                              <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_scratchpad")}>
+                              <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                 <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
                               </span>
                             )}
-                          </span>
+                            </span>
+                          </IndicatorPopover>
                         </span>
                       </Link>
                       <RecentChatActionsMenu
@@ -863,11 +871,10 @@ function CheckIcon({ visible }: { visible: boolean }) {
   )
 }
 
-function RecentChatActivityMarker({ active, unread }: { active: boolean; unread: boolean }) {
-  const { t } = useTranslation("nav")
+function RecentChatActivityMarker({ active }: { active: boolean }) {
   if (active) {
     return (
-      <span className={RECENT_CHAT_MARKER_CELL_CLASS} title={t("nav:title_turn_active")}>
+      <span className={RECENT_CHAT_MARKER_CELL_CLASS} data-testid="agent-replying-marker">
         <span aria-hidden="true" className="inline-flex h-2 w-3.5 items-center justify-between">
           {[0, 1, 2].map((index) => (
             <span
@@ -882,11 +889,84 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
     )
   }
 
-  return (
-    <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
-      <span className={`h-2 w-2 rounded-full ${unread ? "bg-brand" : "bg-transparent"}`} />
-    </span>
-  )
+  return null
+}
+
+function JobStateMarkers({ summary }: { summary?: ChatJobSummary }) {
+  if (!summary) return null
+  return <>
+    {summary.active_count > 0 ? <span className={RECENT_CHAT_MARKER_CELL_CLASS} data-testid="job-running-marker"><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /></span> : null}
+    {summary.outcome ? <svg aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 rounded-full ${summary.outcome === "failed" ? "bg-red-600" : "bg-emerald-600"}`} data-testid={`job-${summary.outcome}-marker`} viewBox="0 0 14 14">
+      {summary.outcome === "failed" ? <path d="m4.25 4.25 5.5 5.5m0-5.5-5.5 5.5" fill="none" stroke="white" strokeLinecap="round" strokeWidth="1.6" /> : <path d="m3.6 7.2 2.1 2.1 4.7-4.8" fill="none" stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />}
+    </svg> : null}
+    {summary.active_count > 1 ? <span className="rounded-full bg-brand/15 px-1.5 text-[10px] font-semibold leading-4 text-brand" data-testid="job-running-count">{summary.active_count}</span> : null}
+  </>
+}
+
+function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
+  const jobsById = new Map<number, ChatJobSummary["jobs"][number]>()
+  chats.flatMap((chat) => chat.job_summary?.jobs || []).forEach((job) => {
+    const existing = jobsById.get(job.id)
+    if (!existing || (!existing.group && job.group)) jobsById.set(job.id, job)
+  })
+  const jobs = Array.from(jobsById.values())
+  const active_count = jobs.filter((job) => job.group === "running").length
+  const outcome = jobs.some((job) => job.group === "failed") ? "failed" : jobs.some((job) => job.group === "ready") ? "ready" : null
+  return { active_count, outcome, jobs }
+}
+
+function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
+  const { t } = useTranslation("nav")
+  const [open, setOpen] = useState(false)
+  const { floatingStyles, refs } = useFloating({ middleware: [offset(6), flip({ fallbackPlacements: ["right", "left"] }), shift({ padding: 8 })], placement: "right-start", whileElementsMounted: autoUpdate })
+  const referenceRef = useRef<HTMLSpanElement>(null)
+  const floatingRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mergedReferenceRef = useMergeRefs([referenceRef, refs.setReference])
+  const mergedFloatingRef = useMergeRefs([floatingRef, refs.setFloating])
+  const cancelClose = () => {
+    if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }
+  const scheduleClose = () => {
+    cancelClose()
+    closeTimerRef.current = setTimeout(() => setOpen(false), 100)
+  }
+  const focusRemainsInPopover = (nextTarget: EventTarget | null) => {
+    const node = nextTarget instanceof Node ? nextTarget : null
+    return Boolean(node && (referenceRef.current?.contains(node) || floatingRef.current?.contains(node)))
+  }
+  useEffect(() => () => cancelClose(), [])
+  useEffect(() => {
+    if (rowHovered) {
+      cancelClose()
+      setOpen(true)
+    } else {
+      scheduleClose()
+    }
+  }, [rowHovered])
+  const replying = Boolean(chat.turn_in_flight || chat.agent_busy)
+  const jobs = chat.job_summary?.jobs.filter((job) => job.group) || []
+  const goal = chat.active_goal && ["active", "paused"].includes(chat.active_goal.status) ? chat.active_goal : null
+  const hasIndicator = replying || jobs.length > 0 || Boolean(goal) || chat.pending_proposal_count > 0 || Boolean(chat.coding_checkout_uncommitted) || chat.scratchpad_items_count > 0
+  if (!hasIndicator) return <>{children}</>
+  const groups = ["running", "failed", "ready"] as const
+  const sections: ReactNode[] = []
+  if (replying) sections.push(<div key="replying">{t("popover_agent_replying")}</div>)
+  if (jobs.length) sections.push(<div className="space-y-2" key="jobs"><div className="font-semibold">{t("popover_jobs")}</div>{groups.map((group) => {
+    const rows = jobs.filter((job) => job.group === group)
+    if (!rows.length) return null
+    return <div key={group}><div className="text-xs font-medium text-text-secondary">{t(`popover_job_${group}`)}</div>{rows.map((job) => <div key={job.id}><Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.app_path, prefix)}>{job.slug}</Link><span> · {job.step || job.state}{job.group === "running" && job.started_at ? ` · ${elapsedLabel(job.started_at, t)}` : ""}</span>{job.epic ? <div className="text-xs text-text-secondary">{t("popover_epic_progress", { slug: job.epic.slug, completed: job.epic.completed, total: job.epic.total })}</div> : null}</div>)}</div>
+  })}</div>)
+  if (goal) sections.push(<div key="goal"><span className="font-semibold">{t("popover_goal")}</span><div>{t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")} · {goal.prompt}</div></div>)
+  if (chat.pending_proposal_count > 0 || chat.coding_checkout_uncommitted) sections.push(<div key="pending"><span className="font-semibold">{t("popover_pending_actions")}</span><div>{t("popover_pending_count", { count: chat.pending_proposal_count })}{chat.coding_checkout_uncommitted ? ` · ${t("title_uncommitted")}` : ""}</div></div>)
+  if (chat.scratchpad_items_count > 0) sections.push(<div key="scratch"><span className="font-semibold">{t("popover_scratchpad")}</span><div>{t("popover_scratchpad_count", { count: chat.scratchpad_items_count })}</div></div>)
+  return <><span onBlur={(event) => { if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose() }} onFocus={() => { cancelClose(); setOpen(true) }} onMouseEnter={() => { cancelClose(); setOpen(true) }} onMouseLeave={scheduleClose} ref={mergedReferenceRef} tabIndex={0}>{children}</span>{open ? <FloatingPortal><div className="z-[100] w-64 rounded-lg border border-border bg-surface-raised p-3 text-xs text-text-primary shadow-xl" data-testid="recent-chat-indicator-popover" onBlur={(event) => { if (!focusRemainsInPopover(event.relatedTarget)) scheduleClose() }} onFocus={cancelClose} onMouseEnter={cancelClose} onMouseLeave={scheduleClose} ref={mergedFloatingRef} style={floatingStyles}>{sections.map((section, index) => <div className={index ? "mt-2 border-t border-border pt-2" : ""} key={index}>{section}</div>)}</div></FloatingPortal> : null}</>
+}
+
+function elapsedLabel(startedAt: string, t: TFunction<"nav">) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60_000))
+  return t("popover_elapsed", { count: minutes })
 }
 
 function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {
@@ -1015,7 +1095,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
-        className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-focus-within/recent-chat:opacity-100 group-hover/recent-chat:opacity-100"}`}
+        className={`inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 ${open ? "opacity-100" : "opacity-0 group-hover/recent-chat:opacity-100"}`}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >

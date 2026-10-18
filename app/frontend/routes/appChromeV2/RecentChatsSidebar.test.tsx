@@ -713,13 +713,79 @@ describe("RecentChatsSidebar goal marker", () => {
       chatNav({ id: 4, title: "No Goal Chat", active_goal: null })
     ])
 
-    expect(screen.getByTitle("Active goal")).toBeInTheDocument()
-    expect(screen.getByTitle("Paused goal")).toHaveClass("opacity-60")
-    expect(screen.getAllByTestId("chat-goal-marker")).toHaveLength(2)
+    const markers = screen.getAllByTestId("chat-goal-marker")
+    expect(markers).toHaveLength(2)
+    expect(markers[1]).toHaveClass("opacity-60")
+    expect(screen.queryByTitle("Active goal")).not.toBeInTheDocument()
   })
 })
 
 describe("RecentChatsSidebar action and marker slot", () => {
+  it("renders Job combinations without an unread dot and shows the indicator popover", () => {
+    renderSidebar([chatNav({ unread: true, turn_in_flight: true, active_goal: chatGoal({ prompt: "Ship the sidebar" }), pending_proposal_count: 2, scratchpad_items_count: 3, job_summary: { active_count: 2, outcome: "failed", jobs: [
+      { id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", started_at: new Date(Date.now() - 120_000).toISOString(), app_path: "/jobs/41", epic: { id: 9, slug: "EPIC-9", completed: 2, total: 5 } },
+      { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
+    ] } })])
+    expect(screen.getByText("Chat")).toHaveClass("font-semibold")
+    expect(screen.getByTestId("job-running-marker")).toBeInTheDocument()
+    expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
+    expect(screen.getByTestId("job-running-count")).toHaveTextContent("2")
+    expect(screen.queryByTitle("Chat turn active")).not.toBeInTheDocument()
+    fireEvent.mouseEnter(screen.getByTitle("Chat").parentElement!)
+    const popover = screen.getByTestId("recent-chat-indicator-popover")
+    expect(within(popover).getByText("Agent replying")).toBeInTheDocument()
+    expect(within(popover).getByText("JOB-41")).toBeInTheDocument()
+    expect(within(popover).getByText(/EPIC-9 · 2\/5/)).toBeInTheDocument()
+    expect(within(popover).getByText(/Ship the sidebar/)).toBeInTheDocument()
+    expect(within(popover).getByText("2 pending actions")).toBeInTheDocument()
+    expect(within(popover).getByText("3 entries")).toBeInTheDocument()
+  })
+
+  it("keeps the portaled popover interactive across pointer and focus transitions", () => {
+    vi.useFakeTimers()
+    try {
+      renderSidebar([chatNav({ job_summary: { active_count: 1, outcome: null, jobs: [
+        { id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }
+      ] } })])
+      const reference = screen.getByTestId("job-running-marker").parentElement!
+      fireEvent.mouseEnter(reference)
+      const popover = screen.getByTestId("recent-chat-indicator-popover")
+      const jobLink = within(popover).getByRole("link", { name: "JOB-41" })
+
+      fireEvent.mouseLeave(reference)
+      fireEvent.mouseEnter(popover)
+      act(() => vi.advanceTimersByTime(150))
+      expect(popover).toBeInTheDocument()
+
+      fireEvent.focus(reference)
+      expect(screen.getByTestId("recent-chat-marker-slot")).not.toHaveClass("group-focus-within/recent-chat:invisible")
+      fireEvent.blur(reference, { relatedTarget: jobLink })
+      fireEvent.focus(jobLink)
+      act(() => vi.advanceTimersByTime(150))
+      expect(jobLink).toBeInTheDocument()
+      fireEvent.click(jobLink)
+      expect(screen.getByTestId("location")).toHaveTextContent("/jobs/41")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("rolls Job activity and worst outcome into a collapsed group", () => {
+    renderSidebar([], { groups: [chatGroup({ key: "repository-7", label: "acme/widgets", chats: [
+      chatNav({ id: 1, job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] } }),
+      chatNav({ id: 2, job_summary: { active_count: 2, outcome: "failed", jobs: [
+        { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
+        { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },
+        { id: 3, slug: "JOB-3", state: "failed", group: "failed", app_path: "/jobs/3" }
+      ] } })
+    ] })] })
+    fireEvent.click(screen.getByRole("button", { name: /acme\/widgets/i }))
+    expect(screen.getByTestId("job-running-marker")).toBeInTheDocument()
+    expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
+    expect(screen.getByTestId("job-running-count")).toHaveTextContent("2")
+    expect(screen.queryByTestId("job-ready-marker")).not.toBeInTheDocument()
+  })
+
   it("hides owner-only actions from a group member", () => {
     renderSidebar([chatNav({ current_user_id: 2, user_id: 1, conversation_kind: "group" })])
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat" }))
@@ -765,9 +831,9 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(markerSlot).toHaveClass("h-6", "min-w-6", "items-center", "justify-end", "pr-[0.3125rem]")
     expect(actionSlot).toHaveClass("right-2", "top-1/2", "-translate-y-1/2")
     expect(actionSlot.querySelector("button")).toHaveClass("h-6", "w-6")
-    expect(screen.getByTitle("Chat turn active")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
-    expect(screen.getByTitle("Active goal")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
-    expect(markerSlot.firstElementChild).toHaveClass("flex", "items-center", "gap-1")
+    expect(screen.getByTestId("agent-replying-marker")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
+    expect(screen.getByTestId("chat-goal-marker")).toHaveClass("h-3.5", "w-3.5", "items-center", "justify-center")
+    expect(markerSlot.querySelector(".flex.items-center.gap-1")).toBeInTheDocument()
     expect(markerSlot.firstElementChild).not.toHaveClass("absolute")
   })
 
