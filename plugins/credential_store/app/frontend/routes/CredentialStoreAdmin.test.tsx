@@ -4,13 +4,24 @@ import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
-import { CredentialStoreAdmin } from "./CredentialStoreAdmin"
+import { CredentialStoreAdmin, normalizeSshPrivateKey, sshCredentialPayload } from "./CredentialStoreAdmin"
 import type { CredentialStorePayload } from "../api/credentialStore"
 
 describe("CredentialStoreAdmin", () => {
   afterEach(() => {
     vi.restoreAllMocks()
     window.localStorage.clear()
+  })
+
+  it("normalizes raw and JSON SSH private keys without changing their contents or passphrases", () => {
+    const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nline one  \nline two\n-----END OPENSSH PRIVATE KEY-----"
+    expect(normalizeSshPrivateKey(key)).toBe(`${key}\n`)
+    expect(normalizeSshPrivateKey(`${key}\n\n`)).toBe(`${key}\n`)
+    expect(JSON.parse(sshCredentialPayload(key, " passphrase \n"))).toEqual({ private_key: `${key}\n`, passphrase: " passphrase \n" })
+    expect(JSON.parse(sshCredentialPayload(JSON.stringify({ private_key: `${key}\n\n`, passphrase: "json passphrase\n" })))).toEqual({
+      private_key: `${key}\n`,
+      passphrase: "json passphrase\n"
+    })
   })
 
   it("frames the normal credential page without an admin eyebrow", async () => {
@@ -115,7 +126,7 @@ describe("CredentialStoreAdmin", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials", expect.objectContaining({ method: "POST" })))
     const body = requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST")
-    expect(JSON.parse(String(body.payload))).toEqual({ private_key: "PRIVATE KEY" })
+    expect(JSON.parse(String(body.payload))).toEqual({ private_key: "PRIVATE KEY\n" })
     expect(body.safe_metadata).toEqual(expect.objectContaining({ host: "host.example", username: "deploy", port: 22 }))
     expect(body.target_constraints).toEqual(expect.objectContaining({ allowed_hosts: ["host.example"] }))
   })
@@ -190,6 +201,7 @@ describe("CredentialStoreAdmin", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     const body = requestCredential(vi.mocked(window.fetch), "/api/v1/app/credential_store/credentials/1", "PATCH")
+    expect(body).not.toHaveProperty("payload")
     expect(body.safe_metadata).toEqual(expect.not.objectContaining({ known_host: expect.anything(), fingerprint: expect.anything() }))
   })
 

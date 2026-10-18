@@ -777,7 +777,10 @@ destination allowlists, and explicit host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted
 channel before confirming it. SSH execution requires that confirmed entry,
 uses a temporary `0600` known-hosts file with strict checking, and never relies
-on the worker's ambient known-hosts file. The encrypted values live in the primary database. The
+on the worker's ambient known-hosts file. Private keys pasted without their
+final newline are normalized when submitted through the SSH editor and again
+when runtime key files are created; internal key formatting and passphrases are
+left unchanged. The encrypted values live in the primary database. The
 encryption keys can come from Rails credentials via `RAILS_MASTER_KEY`, or
 directly from the `ACTIVE_RECORD_ENCRYPTION_*` environment variables. Any
 process that reads or writes encrypted credentials needs one complete, stable

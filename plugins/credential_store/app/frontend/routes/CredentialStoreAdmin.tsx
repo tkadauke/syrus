@@ -44,6 +44,26 @@ const CREDENTIAL_MODAL_CLASS =
   "flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-panel)] bg-surface shadow-[var(--shadow-panel)]"
 const ROTATION_MODAL_CLASS = "w-full max-w-lg rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
 
+export function normalizeSshPrivateKey(privateKey: string) {
+  return `${privateKey.replace(/(?:\r\n|\n)+$/, "")}\n`
+}
+
+export function sshCredentialPayload(value: string, passphrase = "") {
+  let privateKey = value
+  let payloadPassphrase = passphrase
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof (parsed as { private_key?: unknown }).private_key === "string") {
+      privateKey = (parsed as { private_key: string }).private_key
+      const parsedPassphrase = (parsed as { passphrase?: unknown }).passphrase
+      if (!payloadPassphrase && typeof parsedPassphrase === "string") payloadPassphrase = parsedPassphrase
+    }
+  } catch {
+    // Raw private keys are the normal input form.
+  }
+  return JSON.stringify({ private_key: normalizeSshPrivateKey(privateKey), ...(payloadPassphrase ? { passphrase: payloadPassphrase } : {}) })
+}
+
 type SortColumn =
   | "name"
   | "credential_type"
@@ -995,7 +1015,7 @@ function RotateCredentialModal({
     if (!payload.trim()) return
     onRotate(
       credential.credential_type === "ssh_private_key"
-        ? JSON.stringify({ private_key: payload, ...(sshPassphrase ? { passphrase: sshPassphrase } : {}) })
+        ? sshCredentialPayload(payload, sshPassphrase)
         : payload
     )
   }
@@ -1146,7 +1166,7 @@ function inputFromDraft(
     expires_at: draft.expires_at ? new Date(draft.expires_at).toISOString() : null
   }
   if (ssh && draft.ssh_private_key.trim())
-    input.payload = JSON.stringify({ private_key: draft.ssh_private_key, ...(draft.ssh_passphrase ? { passphrase: draft.ssh_passphrase } : {}) })
+    input.payload = sshCredentialPayload(draft.ssh_private_key, draft.ssh_passphrase)
   else if (draft.payload.trim()) input.payload = draft.payload
   return { input, errors: {} }
 }

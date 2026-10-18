@@ -93,6 +93,27 @@ RSpec.describe CredentialStore::SshExec do
     )
   end
 
+  it "repairs a missing final newline before the SSH runner reads the key file" do
+    credential = create_credential(payload: private_key.chomp)
+
+    allow(runner).to receive(:call) do |argv:, **|
+      key_path = argv[argv.index("-i") + 1]
+      expect(File.read(key_path)).to eq(private_key)
+      CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0)
+    end
+
+    described_class.call(
+      context: context,
+      credential: credential.id,
+      host: "app.example.com",
+      user: "deploy",
+      command: "uptime"
+    )
+
+    expect(credential.reload.payload).to eq(private_key.chomp)
+    expect(runner).to have_received(:call)
+  end
+
   it "rejects option-like, whitespace, and control characters in SSH users before invoking the runner" do
     credential = create_credential(safe_metadata: { "host" => "app.example.com" })
     allow(runner).to receive(:call)

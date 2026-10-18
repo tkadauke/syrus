@@ -302,7 +302,9 @@ chat tool when the plugin is enabled. It accepts a credential id or name,
 file only for the duration of the SSH process, and returns sanitized
 `stdout`, `stderr`, and exit status. Payloads may be a raw private key or JSON
 with `private_key` and optional `passphrase`; passphrases are passed through a
-temporary askpass helper and redacted from results.
+temporary askpass helper and redacted from results. SSH private-key material is
+written with exactly one final newline for OpenSSH compatibility; this runtime
+normalization does not rewrite the encrypted credential payload.
 
 SSH targets use a deliberately narrow syntax. `user` must begin with an ASCII
 letter, digit, or underscore and may then contain only ASCII letters, digits,
