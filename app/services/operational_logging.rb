@@ -6,6 +6,9 @@ module OperationalLogging
     Integer(ENV["SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS"], exception: false) || 1_000
   PRUNE_INTERVAL = 10.minutes
   MAX_BACKTRACE_FRAMES = 15
+  EXPECTED_JOB_EXCEPTION_CLASSES = [
+    "Steps::Base::StepFailed"
+  ].freeze
   INSTANCE_CONFIGURATION_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
   INSTANCE_CONFIGURATION_CACHE_MUTEX = Mutex.new
   NOTIFICATION_SUBSCRIPTION_MUTEX = Mutex.new
@@ -130,8 +133,9 @@ module OperationalLogging
     return if ignored_successful_fast_job?(payload, duration_ms, level)
 
     current_run = Thread.current[:syrus_current_run]
+    expected_failure = expected_job_failure(payload)
     ingest(
-      level: payload[:exception].present? ? "error" : level,
+      level: payload[:exception].present? && !expected_failure ? "error" : level,
       role: "worker",
       source: "active_job",
       message: "#{job&.class&.name || payload[:job_class]} #{duration_ms.to_f.round(1)}ms",
@@ -140,6 +144,7 @@ module OperationalLogging
         job_class: job&.class&.name || payload[:job_class],
         queue_name: job&.queue_name,
         executions: job&.executions,
+        expected_failure: expected_failure ? Array(payload[:exception]).first : nil,
         exception: Array(payload[:exception]).first,
         exception_message: Array(payload[:exception])[1],
         backtrace: formatted_backtrace(payload[:exception_object]),
@@ -228,6 +233,33 @@ module OperationalLogging
     return if payload[:exception].present?
 
     payload[:request]&.env&.fetch("syrus.expected_action_controller_failure", nil)
+  end
+
+  def expected_job_failure(payload)
+    exception = payload[:exception_object]
+    return true if expected_job_exception_object?(exception)
+
+    exception_class, = Array(payload[:exception])
+    expected_job_exception_class_name?(exception_class)
+  end
+
+  def expected_job_exception_object?(exception)
+    return false if exception.nil?
+
+    EXPECTED_JOB_EXCEPTION_CLASSES.any? do |class_name|
+      klass = class_name.safe_constantize
+      klass && exception.is_a?(klass)
+    end
+  end
+
+  def expected_job_exception_class_name?(exception_class)
+    return false if exception_class.blank?
+
+    klass = exception_class.to_s.safe_constantize
+    EXPECTED_JOB_EXCEPTION_CLASSES.any? do |class_name|
+      expected = class_name.safe_constantize
+      exception_class.to_s == class_name || (klass && expected && klass <= expected)
+    end
   end
 
   def ignored_job?(job, payload)
