@@ -25,6 +25,12 @@ RSpec.describe "GitHub issue ingestion parity" do
       Workflows::INVESTIGATION_LABEL,
       "syrus-track-hotfix"
     ])
+    creation_arguments = []
+    allow(Job).to receive(:create!).and_wrap_original do |method, *args, **keywords, &block|
+      attributes = keywords.presence || args.first
+      creation_arguments << attributes.dup
+      method.call(*args, **keywords, &block)
+    end
     allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
 
     PollRepositoryJob.new.send(
@@ -38,27 +44,23 @@ RSpec.describe "GitHub issue ingestion parity" do
     )
     plugin_repository.github_input_source.send(:ingest, github_issue)
 
-    expected_attributes = GithubIssueJobAttributes.for_creation(github_issue)
-    expect(expected_attributes).to eq(
+    expect(creation_arguments.size).to eq(2)
+    core_arguments, plugin_arguments = creation_arguments
+    path_specific_attributes = %i[
+      repository
+      input_source
+      external_ref
+      linked_open_pr_checked_at
+    ]
+
+    expect(plugin_arguments.except(*path_specific_attributes)).to eq(
+      core_arguments.except(*path_specific_attributes)
+    )
+    expect(core_arguments.slice(*GithubIssueJobAttributes::CREATION_ATTRIBUTE_NAMES.map(&:to_sym))).to eq(
       skip_prepare: true,
       prepare_skip_reason_override: "issue_label",
       delivery_track: "hotfix",
       investigation: true
-    )
-
-    # prepare_skip_reason_override is a creation-only virtual attribute, so
-    # compare the persisted outcomes after each ingestion path has consumed it.
-    attribute_names = GithubIssueJobAttributes::CREATION_ATTRIBUTE_NAMES - [ "prepare_skip_reason_override" ]
-    core_job = core_repository.jobs.sole
-    plugin_job = plugin_repository.jobs.sole
-    core_attributes = attribute_names.index_with { |name| core_job.public_send(name) }
-    plugin_attributes = attribute_names.index_with { |name| plugin_job.public_send(name) }
-
-    expect(plugin_attributes).to eq(core_attributes)
-    expect(plugin_attributes).to eq(
-      "skip_prepare" => true,
-      "delivery_track" => "hotfix",
-      "investigation" => true
     )
   end
 end
