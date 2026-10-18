@@ -212,7 +212,8 @@ module Steps
       prefix = workspace.path.to_s + "/"
       hit_map    = raw[:hit_map].transform_keys    { |k| normalize_coverage_path(k, prefix, plan) }
       file_stats = raw[:file_stats].transform_keys { |k| normalize_coverage_path(k, prefix, plan) }
-      raw.merge(hit_map: hit_map, file_stats: file_stats)
+      coverage_units = (raw[:coverage_units] || {}).transform_keys { |k| normalize_coverage_path(k, prefix, plan) }
+      raw.merge(hit_map: hit_map, file_stats: file_stats, coverage_units: coverage_units)
     end
 
     def attach_hit_map(hit_map, ttl_days)

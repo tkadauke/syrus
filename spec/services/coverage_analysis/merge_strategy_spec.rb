@@ -54,6 +54,39 @@ RSpec.describe CoverageAnalysis::MergeStrategy do
     expect(result[:lh]).to eq(2)
   end
 
+  it "preserves weighted coverage units while using their lines for the hit map" do
+    source = raw(
+      hit_map: { "pkg/a.go" => { "1" => 1, "3" => 0, "4" => 0, "5" => 0 } },
+      file_stats: { "pkg/a.go" => { lf: 5, lh: 4, brf: 0, brh: 0, fnf: 0, fnh: 0 } }
+    ).merge(
+      coverage_units: {
+        "pkg/a.go" => {
+          "1.1,1.20" => { statements: 4, hits: 1 },
+          "3.1,5.2" => { statements: 1, hits: 0 }
+        }
+      }
+    )
+
+    result = merge(source)
+
+    expect(result).to include(lf: 5, lh: 4)
+    expect(result[:file_stats]["pkg/a.go"]).to include(lf: 5, lh: 4)
+  end
+
+  it "deduplicates matching weighted coverage units across sources" do
+    unit = {
+      hit_map: { "pkg/a.go" => { "1" => 1 } },
+      lf: 3, lh: 3, brf: 0, brh: 0, fnf: 0, fnh: 0,
+      file_stats: { "pkg/a.go" => { lf: 3, lh: 3, brf: 0, brh: 0, fnf: 0, fnh: 0 } },
+      coverage_units: { "pkg/a.go" => { "1.1,1.20" => { statements: 3, hits: 1 } } }
+    }
+
+    result = merge(unit, unit)
+
+    expect(result).to include(lf: 3, lh: 3)
+    expect(result[:coverage_units]["pkg/a.go"]["1.1,1.20"][:hits]).to eq(2)
+  end
+
   it "accumulates branch and function totals across sources" do
     a = raw(brf: 4, brh: 2, fnf: 3, fnh: 1)
     b = raw(brf: 6, brh: 5, fnf: 2, fnh: 2)

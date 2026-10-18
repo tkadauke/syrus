@@ -25,7 +25,8 @@ RSpec.describe Go::Engine do
             review_criteria_provider: Go::ReviewCriteriaProvider,
             autofix_command:          Go::GofmtAutofix,
             dependency_audit_command: Go::DependencyAuditCommand,
-            grader_type:              Go::TestGraderType
+            grader_type:              Go::TestGraderType,
+            coverage_analyzer:        Go::CoverageAnalyzer
           }
         )
       end
@@ -46,7 +47,7 @@ RSpec.describe Go::Engine do
     end
 
     it "provides exactly the expected extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command, :grader_type)
+      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command, :grader_type, :coverage_analyzer)
     end
 
     it "registers GofmtAutofix as the :autofix_command" do
@@ -67,6 +68,10 @@ RSpec.describe Go::Engine do
 
     it "registers TestGraderType as the :grader_type" do
       expect(registration.provides[:grader_type]).to eq(Go::TestGraderType)
+    end
+
+    it "registers CoverageAnalyzer as the :coverage_analyzer" do
+      expect(registration.provides[:coverage_analyzer]).to eq(Go::CoverageAnalyzer)
     end
   end
 
