@@ -343,7 +343,9 @@ function CronTemplateForm({
   }
   const save = useMutation({
     mutationFn: (structuredIntent: Record<string, unknown> | null) =>
-      mode === "new" ? createCronTemplate(submitInput(values, structuredIntent)) : updateCronTemplate(id, submitInput(values, structuredIntent)),
+      mode === "new"
+        ? createCronTemplate(submitInput(values, structuredIntent, repositoryId))
+        : updateCronTemplate(id, submitInput(values, structuredIntent, repositoryId)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["cron_templates", String(payload.template.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["cron_templates"] })
@@ -618,8 +620,8 @@ function routeBase(pathname: string) {
   return `${routePrefix(pathname)}/cron_templates`
 }
 
-function submitInput(values: CronTemplateInput, structuredIntent: Record<string, unknown> | null): CronTemplateInput {
-  return { ...values, structured_intent: structuredIntent }
+function submitInput(values: CronTemplateInput, structuredIntent: Record<string, unknown> | null, repositoryId: string): CronTemplateInput {
+  return { ...values, structured_intent: structuredIntent, validation_repository_id: values.skill_name ? repositoryId : undefined }
 }
 
 function inputFromTemplate(template: CronTemplateDetail): CronTemplateInput {

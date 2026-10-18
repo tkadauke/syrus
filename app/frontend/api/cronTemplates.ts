@@ -69,6 +69,7 @@ export type CronTemplateInput = {
   prompt: string
   skill_name: string
   skill_args: Record<string, string | boolean>
+  validation_repository_id?: string
   enabled: boolean
   structured_intent?: Record<string, unknown> | null
 }
