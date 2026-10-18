@@ -189,14 +189,11 @@ class TargetGraph
 
     def repository_files
       @repository_files ||= begin
-        stdout, _stderr, status = Open3.capture3("git", "ls-files", chdir: workspace_path.to_s)
-        if status.success?
-          stdout.lines.map(&:strip).reject(&:empty?)
-        else
-          Dir.glob("**/*", File::FNM_DOTMATCH, base: workspace_path.to_s)
-            .reject { |path| path == "." || path.start_with?(".git/") || path.start_with?(".syrus/") }
-            .select { |path| workspace_path.join(path).file? }
-        end
+        GitRunner.new.run("ls-files", chdir: workspace_path.to_s).lines.map(&:strip).reject(&:empty?)
+      rescue GitRunner::GitError
+        Dir.glob("**/*", File::FNM_DOTMATCH, base: workspace_path.to_s)
+          .reject { |path| path == "." || path.start_with?(".git/") || path.start_with?(".syrus/") }
+          .select { |path| workspace_path.join(path).file? }
       end
     end
 

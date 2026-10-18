@@ -1,5 +1,3 @@
-require "open3"
-
 module CodeFacts
   class GitReader
     FileEntry = Data.define(:path, :size)
@@ -120,19 +118,14 @@ module CodeFacts
     end
 
     def cat_file_batch(specs)
-      output = +""
-      status = nil
-
-      Open3.popen3("git", "cat-file", "--batch", chdir: path) do |stdin, stdout, stderr, wait_thr|
-        stdin.write(specs.join("\n"))
-        stdin.write("\n")
-        stdin.close
-        output = stdout.read
-        output << stderr.read
-        status = wait_thr.value
-      end
-
-      raise GitRunner::GitError.new([ "cat-file", "--batch" ], status.exitstatus || -1, output) unless status.success?
+      capture = ProcessRunner.new(
+        env: {}, command: [ "git", "cat-file", "--batch" ],
+        mounts: ProcessRunner.mounts(path), network: "grader",
+        timeout: GitRunner::DEFAULT_TIMEOUT, stdin_data: "#{specs.join("\n")}\n",
+        kind: "git"
+      ).capture
+      output = capture.stdout + capture.stderr
+      raise GitRunner::GitError.new([ "cat-file", "--batch" ], capture.result.exit_status || -1, output) unless capture.success?
 
       output
     end

@@ -139,14 +139,15 @@ class IsolatedReproRecorder
   end
 
   def execute_repro(command)
-    output = nil
-    status = nil
-    Timeout.timeout(REPRO_TIMEOUT) do
-      output, status = Open3.capture2e({ "RAILS_ENV" => "test" }, "bash", "-c", command, chdir: WorkflowWorkspace.path_for(@workflow).to_s)
-    end
-    [ output.to_s, status.exitstatus ]
-  rescue Timeout::Error
-    [ "isolated repro timed out after #{REPRO_TIMEOUT.to_i}s", 124 ]
+    path = WorkflowWorkspace.path_for(@workflow).to_s
+    capture = ProcessRunner.new(
+      env: { "RAILS_ENV" => "test" }, command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(path), network: "grader", timeout: REPRO_TIMEOUT,
+      kind: "diagnostic", workflow: @workflow, job: @workflow.job
+    ).capture
+    return [ "isolated repro timed out after #{REPRO_TIMEOUT.to_i}s", 124 ] if capture.result.timed_out?
+
+    [ "#{capture.stdout}#{capture.stderr}", capture.result.exit_status ]
   rescue SystemCallError => e
     [ "isolated repro could not start: #{e.message}", 126 ]
   end

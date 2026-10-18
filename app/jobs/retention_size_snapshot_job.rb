@@ -143,10 +143,13 @@ class RetentionSizeSnapshotJob < ApplicationJob
     datadir = ActiveRecord::Base.connection.select_value("SELECT @@datadir")
     return nil if datadir.blank? || !File.directory?(datadir)
 
-    output, _err, status = Open3.capture3("df", "-Pk", datadir)
-    return nil unless status.success?
+    capture = ProcessRunner.new(
+      env: {}, command: [ "df", "-Pk", datadir ], mounts: ProcessRunner.mounts(datadir),
+      network: "grader", timeout: 30, kind: "filesystem"
+    ).capture
+    return nil unless capture.success?
 
-    DataRootDiskUsage.parse_df(output, path: datadir).available_bytes
+    DataRootDiskUsage.parse_df(capture.stdout, path: datadir).available_bytes
   rescue StandardError => e
     Rails.logger.warn("[RetentionSizeSnapshotJob] failed to measure MySQL datadir space: #{e.class}: #{e.message}")
     nil

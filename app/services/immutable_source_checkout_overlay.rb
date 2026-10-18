@@ -1,4 +1,3 @@
-require "open3"
 require "rbconfig"
 require "tmpdir"
 require "fileutils"
@@ -49,18 +48,18 @@ class ImmutableSourceCheckoutOverlay
       options = "lowerdir=#{probe.join('lower')},upperdir=#{probe.join('upper')},workdir=#{probe.join('work')}"
       mount_point = probe.join("mount").to_s
 
-      _out, direct_error, direct_status = Open3.capture3("mount", "-t", "overlay", "overlay", "-o", options, mount_point)
-      if direct_status.success?
+      direct = capture([ "mount", "-t", "overlay", "overlay", "-o", options, mount_point ], workdir: probe)
+      if direct.success?
         unmount(mount_point)
         next Capability.new(:direct, nil)
       end
 
-      _ns_out, _ns_error, ns_status = Open3.capture3(
+      namespace = capture([
         "unshare", "--user", "--map-root-user", "--mount", "--propagation", "unchanged",
         "sh", "-c", "mount -t overlay overlay -o #{options} #{mount_point}"
-      )
-      reason = "overlay mount failed: #{direct_error.to_s.strip.presence || "exit #{direct_status.exitstatus}"}"
-      next Capability.new(:user_namespace, reason) if ns_status.success?
+      ], workdir: probe)
+      reason = "overlay mount failed: #{direct.stderr.to_s.strip.presence || "exit #{direct.result.exit_status}"}"
+      next Capability.new(:user_namespace, reason) if namespace.success?
 
       Capability.new(:unavailable, reason)
     end
@@ -72,6 +71,13 @@ class ImmutableSourceCheckoutOverlay
     File.read("/proc/filesystems").lines.any? { |line| line.split.last == "overlay" }
   rescue Errno::ENOENT, Errno::EACCES
     false
+  end
+
+  def self.capture(command, workdir:)
+    ProcessRunner.new(
+      env: {}, command: command, mounts: ProcessRunner.mounts(workdir),
+      network: "grader", timeout: 2.minutes, kind: "filesystem"
+    ).capture
   end
 
   def self.mount(...)
@@ -105,13 +111,13 @@ class ImmutableSourceCheckoutOverlay
   end
 
   def self.unmount(path, log: nil)
-    stdout, stderr, status = Open3.capture3("umount", path.to_s)
-    message = stderr.presence || stdout.presence
-    if status.success?
+    capture = capture([ "umount", path.to_s ], workdir: Pathname.new(path).dirname)
+    message = capture.stderr.presence || capture.stdout.presence
+    if capture.success?
       log&.call("[immutable_source_checkout] unmounted overlay workspace #{path}")
       true
     else
-      log&.call("[immutable_source_checkout] overlay workspace unmount failed for #{path}: #{message || status.exitstatus}")
+      log&.call("[immutable_source_checkout] overlay workspace unmount failed for #{path}: #{message || capture.result.exit_status}")
       false
     end
   end
@@ -131,11 +137,14 @@ class ImmutableSourceCheckoutOverlay
     FileUtils.mkdir_p(work_path)
     FileUtils.mkdir_p(mount_path)
 
-    stdout, stderr, status = Open3.capture3("mount", "-t", "overlay", "overlay", "-o", mount_options, mount_path.to_s)
-    return mounted_result if status.success?
+    capture = self.class.capture(
+      [ "mount", "-t", "overlay", "overlay", "-o", mount_options, mount_path.to_s ],
+      workdir: mount_path.dirname
+    )
+    return mounted_result if capture.success?
 
     FileUtils.rm_rf(mount_path.to_s)
-    fallback("overlay mount failed: #{(stderr.presence || stdout.presence || status.exitstatus).to_s.strip}")
+    fallback("overlay mount failed: #{(capture.stderr.presence || capture.stdout.presence || capture.result.exit_status).to_s.strip}")
   rescue SystemCallError => e
     FileUtils.rm_rf(mount_path.to_s)
     fallback("overlay mount failed: #{e.class}: #{e.message}")

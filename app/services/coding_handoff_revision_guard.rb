@@ -1,5 +1,3 @@
-require "open3"
-
 class CodingHandoffRevisionGuard
   LATEST_FIX_ARTIFACT = "latest_coding_handoff_fix".freeze
   PUBLICATION_PROVENANCE_ARTIFACT = "coding_handoff_publication_provenance".freeze
@@ -93,8 +91,7 @@ class CodingHandoffRevisionGuard
   def patch_ids_for(diff)
     return [] if diff.blank?
 
-    output, status = Open3.capture2e("git", "patch-id", "--stable", stdin_data: diff.to_s)
-    raise GitRunner::GitError.new([ "patch-id", "--stable" ], status.exitstatus || -1, output) unless status.success?
+    output = git.run("patch-id", "--stable", stdin_data: diff.to_s, workflow: workflow)
 
     output.lines.filter_map { |line| line.split(/\s+/).first.presence }
   end
