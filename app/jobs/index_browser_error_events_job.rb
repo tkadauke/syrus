@@ -2,7 +2,7 @@ class IndexBrowserErrorEventsJob < ApplicationJob
   queue_as :indexing
 
   def perform(browser_error_event_ids)
-    ids = Array(browser_error_event_ids).filter_map { |id| Integer(id, exception: false) }.uniq
+    ids = Array(browser_error_event_ids).filter_map { |id| Integer(id, exception: false) }.uniq.first(SearchIndexWriteLimits::MAX_BATCH_ROWS)
     return if ids.empty?
 
     events_by_id = BrowserErrorEvent.where(id: ids).index_by(&:id)

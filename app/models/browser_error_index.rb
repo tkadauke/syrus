@@ -24,8 +24,8 @@ class BrowserErrorIndex < SearchRecord
           SQL
           "BrowserErrorIndex Upsert",
           [
-            bind(event.message),
-            bind(search_text(event)),
+            bind(index_text(event.message, event, :message)),
+            bind(index_text(search_text(event), event, :search_text)),
             bind(event.id),
             bind(event.occurred_at&.iso8601(6)),
             bind(event.app_revision),
@@ -128,6 +128,10 @@ class BrowserErrorIndex < SearchRecord
         event.recent_errors,
         event.metadata
       ].map { |value| value.respond_to?(:to_json) ? value.to_json : value.to_s }.join(" ")
+    end
+
+    def index_text(value, event, field)
+      SearchIndexWriteLimits.prefix(value, index: "browser_error", record_id: event.id, field: field)
     end
   end
 end

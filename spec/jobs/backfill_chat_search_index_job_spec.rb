@@ -50,6 +50,18 @@ RSpec.describe BackfillChatSearchIndexJob do
     }.not_to change { indexed_message_ids.count(message.id) }
   end
 
+  it "indexes an oversized message prefix without loading a batch of message bodies" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
+    message = ChatMessage.create!(chat_session: session, role: "user", content: { "text" => "searchable prefix #{'x' * 100} omitted" })
+
+    expect(Rails.logger).to receive(:warn).with(/Search index text truncated.*record_id=#{message.id}/)
+    described_class.perform_now
+
+    expect(indexed_message_ids).to include(message.id)
+    expect(ChatMessageSearchIndex.search("searchable", chat_session_id: session.id)).not_to be_empty
+    expect(ChatMessageSearchIndex.search("omitted", chat_session_id: session.id)).to be_empty
+  end
+
   it "retries transient SQLite busy errors" do
     job = described_class.new
     calls = 0

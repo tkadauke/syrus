@@ -40,7 +40,7 @@ class OperationalLogEvent < ApplicationRecord
   }
 
   def self.persist_observability_events!(rows, batch_size:)
-    rows.each_slice(batch_size) do |batch|
+    rows.each_slice(SearchIndexWriteLimits.clamp_rows(batch_size)) do |batch|
       ids = []
       previous = Current.suppress_operational_log_index_enqueue
       Current.suppress_operational_log_index_enqueue = true

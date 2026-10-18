@@ -26,8 +26,8 @@ module GlobalSearch
             SQL
             "GlobalSearch::JobIndex Upsert",
             [
-              bind(job.issue_title.to_s),
-              bind(body_for(job)),
+              bind(index_text(job.issue_title, job, :title)),
+              bind(index_text(body_for(job), job, :body)),
               bind(job.id),
               bind(job.user_id),
               bind(job.repository_id),
@@ -72,6 +72,10 @@ module GlobalSearch
       end
 
       private
+
+      def index_text(value, job, field)
+        SearchIndexWriteLimits.prefix(value, index: "job", record_id: job.id, field: field)
+      end
 
       def body_for(job)
         [

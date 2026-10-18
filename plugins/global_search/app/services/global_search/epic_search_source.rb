@@ -26,7 +26,7 @@ module GlobalSearch
       last_id = after_id.to_i
       processed = 0
 
-      Epic.order(:id).where("id > ?", last_id).limit(limit).find_each do |epic|
+      Epic.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |epic|
         EpicIndex.upsert(epic)
         last_id = epic.id
         processed += 1
