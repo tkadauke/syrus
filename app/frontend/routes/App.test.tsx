@@ -4459,12 +4459,14 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      const row = await screen.findByRole("link", { name: "WF-9 Repair aqueduct" })
-      expect(row).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-9")
+      const rowLink = await screen.findByRole("link", { name: "WF-9 Repair aqueduct" })
+      const row = rowLink.parentElement!
+      expect(rowLink).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-9")
       expect(row).toHaveClass("grid-cols-[7.25rem_minmax(0,1fr)]")
       expect(within(row).getByText("running")).toBeInTheDocument()
       expectRunningPill(within(row).getByText("running"))
       expect(within(row).getByText("WF-9")).toBeInTheDocument()
+      expect(within(row).getByRole("button", { name: "Copy WF-9 to clipboard" })).toBeInTheDocument()
       expect(within(row).getByText("Repair aqueduct")).toBeInTheDocument()
       expect(within(row).getByText("acme/widgets")).toBeInTheDocument()
       expect(within(row).getByText("manual")).toBeInTheDocument()
