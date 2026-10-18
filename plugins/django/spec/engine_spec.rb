@@ -50,6 +50,19 @@ RSpec.describe Django::Engine do
     it "registers PreviewProvider as the :preview_provider" do
       expect(registration.provides[:preview_provider]).to eq(Django::PreviewProvider)
     end
+
+    it "recommends the plugin when repository detection finds Django" do
+      Django.register!
+      PluginRecord.find_by!(name: "django").update!(enabled: false)
+      repository = Factories.repository(user: Factories.user, owner: "acme", name: "web")
+      repository.update!(plugin_signals: %w[django python])
+
+      expect(Syrus::PluginRecommendations.for_plugin("django")).to have_attributes(
+        plugin: "django",
+        reason: include("manage.py preview hosting"),
+        evidence: [ "acme/web" ]
+      )
+    end
   end
 
   describe Django::PreviewProvider do

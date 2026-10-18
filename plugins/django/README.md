@@ -14,6 +14,13 @@ them too.
 |---|---|
 | `:preview_provider` | Boots `python manage.py runserver 0.0.0.0:<port>`, migrates and optionally seeds the database, and detects Django repos via `manage.py` plus an importable settings module. |
 
+The same detection is a `suggests_enabling` signal. After a prepare step
+observes `manage.py` declaring `DJANGO_SETTINGS_MODULE` and resolves that
+module to either a `.py` file or package in the repository, Admin → Plugins
+can recommend enabling `django`. Enabling it continues to cascade to
+`python`; a bare `manage.py` or an unresolvable settings module produces no
+Django recommendation.
+
 ## Auto-detection
 
 `Django::PreviewProvider#detect?` requires:
