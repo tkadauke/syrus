@@ -1189,14 +1189,18 @@ function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["sourc
 }
 
 function InsightScheduleBadge({ config }: { config: InsightScheduleConfigRecord }) {
+  const { t } = useT("settings")
   if (config.enabled) {
     return (
       <TonePill tone="green">
-        Auto: on (min {config.min_jobs_since_last_run} / max {config.max_jobs_since_last_run})
+        {t("repository.insight_scheduling_badge_on", {
+          min: config.min_jobs_since_last_run,
+          max: config.max_jobs_since_last_run,
+        })}
       </TonePill>
     )
   }
-  return <TonePill tone="gray">Auto: off</TonePill>
+  return <TonePill tone="gray">{t("repository.insight_scheduling_badge_off")}</TonePill>
 }
 
 function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
