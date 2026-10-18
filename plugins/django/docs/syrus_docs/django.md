@@ -17,9 +17,12 @@ Python projects (Flask, FastAPI, plain scripts) can use them too.
 |---|---|
 | `:preview_provider` | Boots `python manage.py runserver 0.0.0.0:<port>`, migrates and optionally seeds the database, and detects Django repos via `manage.py` plus an importable settings module. |
 
-Unlike `python` and `go`, `django` does not declare a `suggests_enabling`
-nudge of its own — an admin only sees the `python` suggestion, and enabling
-`django` explicitly cascades to `python` regardless.
+The plugin declares a `suggests_enabling` signal backed by that same framework
+detection. After a prepare step observes a repository with `manage.py` plus a
+resolvable `DJANGO_SETTINGS_MODULE`, Admin → Plugins can recommend enabling
+`django` and name the matching repositories. A bare `manage.py` or an
+unresolvable settings module does not trigger the recommendation. Enabling
+`django` still cascades to `python` for the shared language support.
 
 ## Auto-detection
 
