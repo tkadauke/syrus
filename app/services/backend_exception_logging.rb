@@ -1,8 +1,4 @@
 module BackendExceptionLogging
-  EXPECTED_JOB_EXCEPTION_CLASSES = [
-    "Steps::Base::StepFailed"
-  ].freeze
-
   module_function
 
   def ingest_request(payload, duration_ms)
@@ -32,29 +28,6 @@ module BackendExceptionLogging
   end
 
   def expected_job_exception?(payload)
-    exception = payload[:exception_object]
-    return true if expected_exception_object?(exception)
-
-    exception_class, = Array(payload[:exception])
-    expected_exception_class_name?(exception_class)
-  end
-
-  def expected_exception_object?(exception)
-    return false if exception.nil?
-
-    EXPECTED_JOB_EXCEPTION_CLASSES.any? do |class_name|
-      klass = class_name.safe_constantize
-      klass && exception.is_a?(klass)
-    end
-  end
-
-  def expected_exception_class_name?(exception_class)
-    return false if exception_class.blank?
-
-    klass = exception_class.to_s.safe_constantize
-    EXPECTED_JOB_EXCEPTION_CLASSES.any? do |class_name|
-      expected = class_name.safe_constantize
-      exception_class.to_s == class_name || (klass && expected && klass <= expected)
-    end
+    OperationalLogging.expected_job_failure(payload)
   end
 end
