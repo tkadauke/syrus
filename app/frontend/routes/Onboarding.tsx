@@ -51,7 +51,11 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     queryKey: ["repository-readiness", repositoryId],
     queryFn: () => fetchRepositoryReadiness(repositoryId!),
     enabled: Boolean(repositoryId),
-    staleTime: 60_000
+    staleTime: 60_000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.readiness.execution_probe?.status
+      return status === "queued" || status === "running" ? 1_000 : false
+    }
   })
 
   if (!user || !setup) {

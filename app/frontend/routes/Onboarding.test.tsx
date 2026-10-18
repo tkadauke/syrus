@@ -104,7 +104,10 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     )
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it("renders after bootstrap becomes available without changing its hook order", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -214,6 +217,28 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(await screen.findByText(/first implementation run is blocked/)).toBeInTheDocument()
     expect(screen.getByText("Missing executables: missing-setup")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Override warning" })).toBeInTheDocument()
+  })
+
+  it("polls an active execution probe until its terminal result arrives", async () => {
+    let reads = 0
+    vi.mocked(window.fetch).mockImplementation(() => {
+      reads += 1
+      const active = reads === 1
+      return Promise.resolve(jsonResponse({ readiness: {
+        status: "ready", summary: "Ready", revision: "abc123", repository_size_bytes: 42, file_count: 2,
+        checks: [], prepare_commands: [], grader_commands: [], required_capabilities: { os: ["linux"] }, execution_scopes: [],
+        execution_probe: {
+          id: 9, status: active ? "queued" : "succeeded", revision: active ? null : "abc123", warning_override: false,
+          started_at: null, completed_at: active ? null : "2026-10-17T00:00:02Z",
+          result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
+        }
+      } }))
+    })
+
+    renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
+    expect(await screen.findByText("queued")).toBeInTheDocument()
+    expect(await screen.findByText(/Prepare and bounded grader probe succeeded/, {}, { timeout: 3_000 })).toBeInTheDocument()
+    expect(reads).toBe(2)
   })
 
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {

@@ -29,6 +29,10 @@ grader candidate). Each command is time-bounded. The result records durations,
 checkout and final byte counts, disk growth, bounded output tails, missing
 executables, and cleanup state. The checkout is removed in an `ensure` path on
 success and failure; retrying creates a new record and checkout.
+The onboarding report polls while a probe is queued or running and stops after
+the first terminal result. A database single-flight constraint permits only
+one queued/running probe per repository, so concurrent clicks or requests
+reuse the same probe instead of launching duplicate dependency installs.
 
 Toolchain failures are reported separately and prominently. If an explicitly
 required prepare or grader command exits because it cannot be started, the

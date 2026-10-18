@@ -1,8 +1,8 @@
 class CreateRepositoryExecutionProbes < ActiveRecord::Migration[8.1]
   def change
     create_table :repository_execution_probes, if_not_exists: true do |t|
-      t.references :repository, null: false, foreign_key: true
-      t.references :requested_by, null: false, foreign_key: { to_table: :users }
+      t.references :repository, null: false
+      t.references :requested_by, null: false
       t.string :status, null: false, default: "queued"
       t.string :revision
       t.json :result, null: false
