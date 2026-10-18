@@ -18,7 +18,7 @@ are computed at read time with `rate()`.
 | Metric | Type | Labels | Shared | Description |
 |---|---|---|---|---|
 | `syrus_active_agent_runs` | gauge | — | no | Currently running agentic Runs, subject to the global concurrency cap (GLOBAL -- aggregate with max by, never sum) |
-| `syrus_admission_decisions_total` | counter | `decision` | no | Workflow- and host-level admission decisions, tagged by the action taken (per-process -- aggregate normally with sum) |
+| `syrus_admission_decisions_total` | counter | `decision` | no | Workflow- and host-level admission decisions, tagged by the action taken (GLOBAL -- aggregate replicas with max, not sum) |
 | `syrus_app_events_delivered_total` | counter | `resource` | no | Application events broadcast to a user channel or a Job/Chat resource channel, by resource, from every process -- the event half of the event-to-request amplification signal (GLOBAL -- aggregate with max by, never sum). See Metrics::AmplificationSampler. |
 | `syrus_auto_retry_attempts_total` | counter | `skip_reason` | no | Auto-retry attempts by settled outcome -- "none" means the retry was performed, any other value is a bounded AutoRetryAttempt skip-reason category (see AutoRetryAttempt.skip_reason_category) |
 | `syrus_cable_connections` | gauge | — | no | Live Action Cable connections held by this process |
