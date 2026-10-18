@@ -43,6 +43,7 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     @git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(@git)
+    allow(@git).to receive(:run).and_return("")
     allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
     allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
   end
