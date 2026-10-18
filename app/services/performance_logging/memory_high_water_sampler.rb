@@ -5,13 +5,16 @@ module PerformanceLogging
     SAMPLE_INTERVAL = (Float(ENV.fetch("SYRUS_MEMORY_HIGH_WATER_INTERVAL_SECONDS", 1.0)) rescue 1.0)
     BUCKET_BYTES = 256.megabytes
     LIMIT_PERCENTAGES = [ 0.7, 0.8, 0.9 ].freeze
+    STARTED_JOB_LIMIT = 50
 
     class << self
       def register(context)
         token = SecureRandom.uuid
         mutex.synchronize do
-          active_jobs[token] = job_state(context)
-          started_since_bucket << token
+          state = job_state(context)
+          active_jobs[token] = state
+          started_since_bucket << { token: token, context: state[:context] }
+          started_since_bucket.shift(started_since_bucket.length - STARTED_JOB_LIMIT) if started_since_bucket.length > STARTED_JOB_LIMIT
           start_thread unless sampler_thread&.alive?
         end
         token
@@ -36,10 +39,10 @@ module PerformanceLogging
       end
 
       def sample!
-        jobs, newly_started = mutex.synchronize do
+        jobs, started_entries = mutex.synchronize do
           return if active_jobs.empty?
 
-          [ active_jobs.values, started_since_bucket.filter_map { |token| active_jobs[token] } ]
+          [ active_jobs.values, started_since_bucket.dup ]
         end
         sample = read_sample
         jobs.each { |state| update_peak(state, sample) }
@@ -50,9 +53,9 @@ module PerformanceLogging
           return unless bucket_crossed?(bucket)
 
           @high_water_bucket = high_water_bucket.zip(bucket).map(&:max)
-          @started_since_bucket = []
+          @started_since_bucket -= started_entries
         end
-        persist!(threshold_event(sample, jobs, newly_started, bucket))
+        persist!(threshold_event(sample, jobs, started_entries, bucket))
       rescue StandardError => e
         log_failure(e)
       end
@@ -84,10 +87,24 @@ module PerformanceLogging
           loop do
             sleep SAMPLE_INTERVAL
             sample!
-            break if mutex.synchronize { active_jobs.empty? }
+            break if retire_thread_if_idle(Thread.current)
           end
         ensure
-          mutex.synchronize { @sampler_thread = nil if Thread.current == @sampler_thread }
+          mutex.synchronize do
+            next unless Thread.current == @sampler_thread
+
+            @sampler_thread = nil
+            start_thread if active_jobs.any?
+          end
+        end
+      end
+
+      def retire_thread_if_idle(thread)
+        mutex.synchronize do
+          return false unless active_jobs.empty?
+
+          @sampler_thread = nil if sampler_thread == thread
+          true
         end
       end
 
@@ -138,12 +155,12 @@ module PerformanceLogging
         end
       end
 
-      def threshold_event(sample, jobs, newly_started, bucket)
+      def threshold_event(sample, jobs, started_entries, bucket)
         PerformanceLogging.base_event(MEMORY_HIGH_WATER_EVENT).merge(
           sample.transform_keys(&:to_s),
           "bucket" => bucket,
           "active_jobs" => jobs.map { |state| state[:context] },
-          "jobs_started_since_previous_bucket" => newly_started.map { |state| state[:context] }
+          "jobs_started_since_previous_bucket" => started_entries.map { |entry| entry[:context] }
         ).compact
       end
 
