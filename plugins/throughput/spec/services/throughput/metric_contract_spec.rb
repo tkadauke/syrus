@@ -181,15 +181,24 @@ RSpec.describe Throughput::MetricContract do
     )
   end
 
-  it "does not load over-budget run diffs for throughput LOC metrics" do
+  it "rejects over-budget preferred diffs in SQL before materializing them" do
     stub_const("#{described_class}::MAX_DIFF_SAMPLE_BYTES", 10)
     stub_const("#{described_class}::MAX_TOTAL_DIFF_SAMPLE_BYTES", 10)
     job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 40.minutes)
     workflow = workflow_for(job, trigger_kind: "initial")
     step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
-    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "+#{'x' * 20}\n")
+    run_for(
+      job,
+      step,
+      head_sha: "b" * 40,
+      step_agent_diff: "+#{'x' * 20}\n",
+      agent_diff: "+small\n"
+    )
 
-    output = call.fetch(:windows).fetch("1h").fetch(:output)
+    result = nil
+    queries = captured_sql { result = call }
+    output = result.fetch(:windows).fetch("1h").fetch(:output)
+    diff_query = queries.find { |sql| sql.include?("OCTET_LENGTH") }
 
     expect(output.fetch(:commits)).to include(count: 1, sample_count: 1)
     expect(output.fetch(:loc)).to include(count: 0, sample_count: 0, confidence: "none", unavailable_sample_count: 1)
@@ -205,6 +214,34 @@ RSpec.describe Throughput::MetricContract do
         net: 0
       )
     )
+    expect(diff_query).to match(/SELECT .*runs.*id.*, COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)/i)
+    expect(diff_query).to match(/OCTET_LENGTH\(COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)\) <= \?/i)
+  end
+
+  it "uses the run diff when the preferred step diff is empty" do
+    job = Factories.job_record(user: user, repository: repository, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "", agent_diff: "+fallback\n")
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:loc)).to include(count: 1, additions: 1, deletions: 0, unavailable_sample_count: 0)
+  end
+
+  it "keeps the aggregate diff sample limit in Ruby" do
+    stub_const("#{described_class}::MAX_DIFF_SAMPLE_BYTES", 20)
+    stub_const("#{described_class}::MAX_TOTAL_DIFF_SAMPLE_BYTES", 10)
+    job = Factories.job_record(user: user, repository: repository, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    2.times do |index|
+      step = step_for(workflow, kind: "implement", finished_at: now - (25 - index).minutes, position: index)
+      run_for(job, step, head_sha: index.to_s * 40, step_agent_diff: "+small\n")
+    end
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:loc)).to include(sample_count: 1, unavailable_sample_count: 1)
   end
 
   it "caps the number of run diffs sampled for throughput LOC metrics even when all diffs are small" do
@@ -217,13 +254,17 @@ RSpec.describe Throughput::MetricContract do
       job
     end
 
-    output = call.fetch(:windows).fetch("1h").fetch(:output)
+    result = nil
+    queries = captured_sql { result = call }
+    output = result.fetch(:windows).fetch("1h").fetch(:output)
+    diff_query = queries.find { |sql| sql.include?("OCTET_LENGTH") }
 
     expect(output.fetch(:commits)).to include(count: 3, sample_count: 3)
     expect(output.fetch(:loc)).to include(sample_count: 1, unavailable_sample_count: 2)
     expect(output.fetch(:by_job).sum { |entry| entry.fetch(:diff_sample_count) }).to eq(1)
     expect(output.fetch(:by_job).sum { |entry| entry.fetch(:unavailable_sample_count) }).to eq(2)
     expect(jobs.map(&:id)).to include(*output.fetch(:by_job).map { |entry| entry.fetch(:job_id) })
+    expect(diff_query).to match(/LIMIT \?\z/)
   end
 
   it "defines landing throughput, merge-train size, latency, and landing waste for clean auto-merge and trains" do
@@ -773,6 +814,63 @@ RSpec.describe Throughput::MetricContract do
       expect(select_clause).not_to include("\"runs\".\"agent_diff\"")
       expect(select_clause).not_to include("\"runs\".\"step_agent_diff\"")
       expect(select_clause).not_to include("\"runs\".*")
+    end
+
+    it "loads narrow workflow and job rows and aggregates landing steps in SQL" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 124)
+      workflow = workflow_for(job, trigger_kind: "auto_merge")
+      step_for(workflow, kind: "grader", started_at: now - 8.minutes, finished_at: now - 6.minutes)
+
+      queries = captured_sql { call }
+      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.include?("\"workflows\".\"artifacts\"") }
+      step_aggregate = queries.find do |sql|
+        sql.include?("MIN(CASE WHEN kind IN") && sql.include?('FROM "steps"')
+      end
+      job_select = queries.find do |sql|
+        sql.include?('SELECT "jobs"."id", "jobs"."state", "jobs"."approved_at"')
+      end
+
+      expect(workflow_select[/SELECT.*?FROM/m]).not_to include("\"workflows\".*")
+      expect(step_aggregate[/SELECT.*?FROM/m]).to include("MIN(CASE WHEN kind IN")
+      expect(step_aggregate[/SELECT.*?FROM/m]).not_to include("\"steps\".*")
+      expect(step_aggregate[/SELECT.*?FROM/m]).not_to include("\"steps\".\"details\"")
+      expect(job_select[/SELECT.*?FROM/m]).not_to include("\"jobs\".*")
+      expect(job_select[/SELECT.*?FROM/m]).not_to include("\"jobs\".\"issue_body\"")
+      expect(call.fetch(:windows).fetch("1h").dig(:landing, :grader_phase_duration_seconds, :average)).to eq(2.minutes.to_i)
+    end
+
+    it "keeps landing and rebase workflow metrics on their exact window boundaries" do
+      recent_job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 124)
+      recent_landing = workflow_for(
+        recent_job,
+        trigger_kind: "auto_merge",
+        started_at: now - 50.minutes,
+        finished_at: now - 45.minutes
+      )
+      step_for(recent_landing, kind: "grader", started_at: now - 49.minutes, finished_at: now - 46.minutes)
+
+      older_job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 125)
+      workflow_for(
+        older_job,
+        trigger_kind: "auto_merge",
+        started_at: now - 65.minutes,
+        finished_at: now - 61.minutes
+      )
+      workflow_for(
+        older_job,
+        trigger_kind: "rebase",
+        state: "failed",
+        started_at: now - 64.minutes,
+        finished_at: now - 61.minutes
+      )
+
+      windows = call.fetch(:windows)
+
+      expect(windows.fetch("1h").dig(:landing, :attempts, :total_count)).to eq(1)
+      expect(windows.fetch("1h").dig(:landing, :grader_phase_duration_seconds, :average)).to eq(3.minutes.to_i)
+      expect(windows.fetch("1h").dig(:landing_waste, :rebase_churn_workflow_count)).to eq(0)
+      expect(windows.fetch("4h").dig(:landing, :attempts, :total_count)).to eq(2)
+      expect(windows.fetch("4h").dig(:landing_waste, :rebase_churn_workflow_count)).to eq(1)
     end
 
     # The prefilter is deliberately a superset spanning every window, so the

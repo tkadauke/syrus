@@ -97,6 +97,16 @@ RSpec.describe PreparedWorkspaceArchive do
     end
   end
 
+  it "reads only the bounded tail of archive diagnostics" do
+    diagnostics = File.join(workspace_dir, "diagnostics.log")
+    File.binwrite(diagnostics, "x" * (described_class::ERROR_TAIL_BYTES * 2) + "fatal tail")
+
+    tail = archive.send(:read_error_tail, diagnostics)
+
+    expect(tail.bytesize).to eq(described_class::ERROR_TAIL_BYTES)
+    expect(tail).to end_with("fatal tail")
+  end
+
   describe ".prepare_fingerprint_for" do
     it "separates prepared workspaces by worker capability environment" do
       allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata)

@@ -47,6 +47,20 @@ RSpec.describe GlobalSearch::JobIndex do
     expect(described_class.search("new").map { |row| row[:job_id] }).to eq([ job.id ])
   end
 
+  it "shares one row byte ceiling across title and body" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
+    job = Factories.job_record(
+      user: user,
+      repository: repo,
+      issue_title: "title #{'t' * 30}",
+      issue_body: "body #{'b' * 100}"
+    )
+
+    fields = described_class.send(:index_fields, job)
+
+    expect(fields.values.sum(&:bytesize)).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
+  end
+
   it "returns matching rows for authorization by the caller" do
     own_job = Factories.job_record(user: user, repository: repo, issue_title: "wal search scope")
     other_job = Factories.job_record(user: other_user, repository: other_repo, issue_title: "wal search scope")

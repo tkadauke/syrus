@@ -5,6 +5,7 @@ class BrowserErrorIndex < SearchRecord
 
   class << self
     def upsert(event)
+      fields = index_fields(event)
       connection.transaction do
         delete(event.id)
         connection.exec_insert(
@@ -24,8 +25,8 @@ class BrowserErrorIndex < SearchRecord
           SQL
           "BrowserErrorIndex Upsert",
           [
-            bind(event.message),
-            bind(search_text(event)),
+            bind(fields.fetch(:message)),
+            bind(fields.fetch(:search_text)),
             bind(event.id),
             bind(event.occurred_at&.iso8601(6)),
             bind(event.app_revision),
@@ -113,7 +114,7 @@ class BrowserErrorIndex < SearchRecord
       end
     end
 
-    def search_text(event)
+    def search_values(event)
       [
         event.name,
         event.path,
@@ -127,7 +128,25 @@ class BrowserErrorIndex < SearchRecord
         event.recent_api_requests,
         event.recent_errors,
         event.metadata
-      ].map { |value| value.respond_to?(:to_json) ? value.to_json : value.to_s }.join(" ")
+      ]
+    end
+
+    def index_fields(event)
+      message = SearchIndexWriteLimits.prefix(
+        event.message,
+        index: "browser_error",
+        record_id: event.id,
+        field: :message
+      )
+      remaining = SearchIndexWriteLimits::MAX_ROW_BYTES - message.bytesize
+      search_text = SearchIndexWriteLimits.join_prefix(
+        search_values(event),
+        limit: remaining,
+        index: "browser_error",
+        record_id: event.id,
+        field: :search_text
+      )
+      { message: message, search_text: search_text }
     end
   end
 end

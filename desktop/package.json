@@ -27,13 +27,14 @@
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
+    "@electron-internal/extract-zip": "^1.0.5",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^25.9.9",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^9.2.4",
-    "electron": "^39.8.10",
+    "electron": "^44.9.0",
     "electron-builder": "^26.17.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
@@ -41,7 +42,7 @@
     "wait-on": "^9.5.1"
   },
   "allowScripts": {
-    "electron@39.8.10": true,
+    "electron@44.9.0": true,
     "electron-winstaller@5.4.0": true,
     "fsevents@2.3.3": true
   }

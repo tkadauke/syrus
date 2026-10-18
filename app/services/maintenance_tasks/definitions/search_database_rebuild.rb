@@ -72,7 +72,8 @@ module MaintenanceTasks
         task.current_step_title = "Index chat messages"
 
         processed = 0
-        ChatMessage.order(:id).where("id > ?", task.checkpoint["last_chat_message_id"].to_i).limit(task.batch_size).find_each do |message|
+        limit = SearchIndexWriteLimits.clamp_rows(task.batch_size)
+        ChatMessage.order(:id).where("id > ?", task.checkpoint["last_chat_message_id"].to_i).limit(limit).find_each do |message|
           task.checkpoint_will_change!
           task.checkpoint["last_chat_message_id"] = message.id
           processed += 1
@@ -100,7 +101,8 @@ module MaintenanceTasks
         task.current_step_title = "Index operational logs"
         return mark_plugin_step_done(task, "logs") unless OperationalLogging.configured_for_instance?
 
-        ids = OperationalLogEvent.order(:id).where("id > ?", task.checkpoint["last_operational_log_id"].to_i).limit(task.batch_size).pluck(:id)
+        limit = SearchIndexWriteLimits.clamp_rows(task.batch_size)
+        ids = OperationalLogEvent.order(:id).where("id > ?", task.checkpoint["last_operational_log_id"].to_i).limit(limit).pluck(:id)
         IndexOperationalLogEventsJob.perform_now(ids)
         task.checkpoint_will_change!
         task.checkpoint["last_operational_log_id"] = ids.last if ids.any?

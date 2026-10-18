@@ -8,11 +8,12 @@ class IndexOperationalLogEventsJob < ApplicationJob
     return if ids.empty?
 
     OperationalLogging.suppress do
-      events_by_id = OperationalLogEvent.where(id: ids).index_by(&:id)
-      OperationalLogIndex.upsert_many(
-        ids.filter_map { |id| events_by_id[id] },
-        delete_ids: ids
-      )
+      ids.each_slice(SearchIndexWriteLimits::MAX_BATCH_ROWS) do |slice|
+        OperationalLogIndex.upsert_many(
+          OperationalLogEvent.where(id: slice).find_each(batch_size: 1),
+          delete_ids: slice
+        )
+      end
     end
   end
 end

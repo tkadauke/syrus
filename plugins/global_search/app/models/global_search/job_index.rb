@@ -4,6 +4,7 @@ module GlobalSearch
 
     class << self
       def upsert(job)
+        fields = index_fields(job)
         connection.transaction do
           connection.exec_delete(
             "DELETE FROM job_fts WHERE job_id = ?",
@@ -26,8 +27,8 @@ module GlobalSearch
             SQL
             "GlobalSearch::JobIndex Upsert",
             [
-              bind(job.issue_title.to_s),
-              bind(body_for(job)),
+              bind(fields.fetch(:title)),
+              bind(fields.fetch(:body)),
               bind(job.id),
               bind(job.user_id),
               bind(job.repository_id),
@@ -72,6 +73,14 @@ module GlobalSearch
       end
 
       private
+
+      def index_fields(job)
+        SearchIndexWriteLimits.row(
+          { title: job.issue_title, body: body_for(job) },
+          index: "job",
+          record_id: job.id
+        )
+      end
 
       def body_for(job)
         [

@@ -63,14 +63,32 @@ RSpec.describe "Syrus grader configuration" do
     grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "whisper-gateway-tests" }
 
     expect(grader).to have_attributes(
-      command: "command -v ffmpeg >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s plugins/whisper_stt/container -p 'test_*.py'",
+      command: "command -v ffmpeg >/dev/null && cd plugins/whisper_stt/container && GOWORK=off mise exec go@1.26.5 -- go test ./...",
       phases: %w[review landing ci],
       required: true,
       timeout_minutes: 3,
       when_files_changed: [
-        "plugins/whisper_stt/container/**/*.py",
+        "plugins/whisper_stt/container/**/*.go",
+        "plugins/whisper_stt/container/go.mod",
         "plugins/whisper_stt/container/Dockerfile",
+        "go.work",
         "Dockerfile"
+      ]
+    )
+  end
+
+  it "runs the Whisper image smoke in every grading phase" do
+    grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "whisper-image-smoke" }
+
+    expect(grader).to have_attributes(
+      command: "bin/test-whisper-stt-image",
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 20,
+      when_files_changed: [
+        "plugins/whisper_stt/container/**",
+        "bin/test-whisper-stt-image",
+        "bin/publish-plugin-images"
       ]
     )
   end

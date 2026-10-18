@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { extractElectronZip } from "./extract-electron.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -40,7 +40,7 @@ const artifactPath = await downloadArtifact({
 fs.rmSync(distPath, { recursive: true, force: true });
 fs.mkdirSync(distPath, { recursive: true });
 
-await extractElectronZip(artifactPath);
+await extractElectronZip(artifactPath, distPath);
 
 const extractedTypeDefinitions = path.join(distPath, "electron.d.ts");
 if (fs.existsSync(extractedTypeDefinitions)) {
@@ -62,17 +62,6 @@ function isInstalled() {
   if (installedPath !== platformPath) return false;
 
   return fs.existsSync(path.join(distPath, installedPath));
-}
-
-async function extractElectronZip(artifactPath) {
-  const unzip = spawnSync("unzip", ["-q", artifactPath, "-d", distPath], {
-    stdio: "inherit",
-  });
-
-  if (unzip.status === 0) return;
-
-  const extractZip = require("extract-zip");
-  await extractZip(artifactPath, { dir: distPath });
 }
 
 function shouldUseRemoteChecksums() {

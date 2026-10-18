@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "SKIP: Whisper image smoke requires Docker; Docker-capable grading environments execute the full check."
+  exit 0
+fi
+
+image="syrus-whisper-stt-smoke:${GITHUB_RUN_ID:-local}-$$"
+container="syrus-whisper-stt-smoke-$$"
+cleanup() {
+  docker rm -f "$container" >/dev/null 2>&1 || true
+  docker image rm "$image" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker buildx build --load --provenance=false -t "$image" plugins/whisper_stt/container
+
+# Verify the shipped artifacts themselves before booting the real entrypoint.
+docker run --rm --entrypoint /bin/sh "$image" -c '
+  set -eu
+  test -x /usr/local/bin/whisper-gateway
+  test -x /usr/local/bin/whisper-server
+  test -x /usr/bin/ffmpeg
+  test -s /opt/whisper/models/ggml-base.en.bin
+  ! command -v python3 >/dev/null
+  ! find /opt/whisper -type f -name "*.py" | grep -q .
+  ! ldd /usr/local/bin/whisper-server | grep -q "not found"
+  ! ldd /usr/bin/ffmpeg | grep -q "not found"
+'
+
+docker run -d --name "$container" -p 127.0.0.1::8080 "$image" >/dev/null
+port="$(docker port "$container" 8080/tcp | sed -n 's/.*://p')"
+for _ in $(seq 1 120); do
+  if curl -fsS "http://127.0.0.1:${port}/health" |
+      grep -q '"streaming":true'; then
+    exit 0
+  fi
+  if ! docker inspect -f '{{.State.Running}}' "$container" | grep -q true; then
+    docker logs "$container"
+    exit 1
+  fi
+  sleep 2
+done
+
+docker logs "$container"
+echo "Whisper image did not become healthy" >&2
+exit 1

@@ -73,6 +73,19 @@ RSpec.describe DesignDocs::SearchIndex, type: :model do
     expect(ids).to eq([ doc.id ])
   end
 
+  it "indexes a visible prefix and warns for an oversized document" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
+    doc = create_design_doc(title: "Large doc", markdown: "searchable prefix #{'x' * 100} omitted")
+
+    expect(Rails.logger).to receive(:warn).at_least(:once).with(/Search index text truncated.*record_id=#{doc.id}/)
+    described_class.upsert(doc)
+
+    fields = described_class.send(:index_fields, doc)
+    expect(fields.values.sum(&:bytesize)).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
+    expect(search_titles("searchable", owner)).to eq([ "Large doc" ])
+    expect(search_titles("omitted", owner)).to be_empty
+  end
+
   it "is a no-op when the search table is absent" do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS design_doc_fts")
     doc = create_design_doc(title: "No table", markdown: "body")

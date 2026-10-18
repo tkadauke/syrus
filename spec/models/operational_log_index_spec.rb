@@ -123,6 +123,36 @@ RSpec.describe OperationalLogIndex do
     expect(results.map { |row| row[:operational_log_event_id] }).to match_array(events.map(&:id))
   end
 
+  it "splits inserts when individually valid rows exceed the byte ceiling together" do
+    stub_const("SearchIndexWriteLimits::MAX_BATCH_BYTES", 100)
+    events = 3.times.map { |index| event(message: "event-#{index}-#{'x' * 60}", context: {}) }
+
+    expect(upsert_query_count { described_class.upsert_many(events) }).to eq(3)
+    expect(indexed_event_ids).to match_array(events.map(&:id))
+  end
+
+  it "indexes a visible prefix and warns when one row exceeds the ceiling" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 90)
+    oversized = event(message: "searchable-prefix #{'x' * 200} omitted-suffix", context: {})
+
+    expect(Rails.logger).to receive(:warn).at_least(:once).with(/Search index text truncated.*record_id=#{oversized.id}/)
+    described_class.upsert_many([ oversized ])
+
+    text_binds = described_class.send(:insert_binds, oversized).values_at(1, 2, 3)
+    expect(text_binds.sum { |bind| bind.value_before_type_cast.bytesize }).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
+    expect(described_class.search(query: "searchable-prefix", since: 1.hour.ago)).not_to be_empty
+    expect(described_class.search(query: "omitted-suffix", since: 1.hour.ago)).to be_empty
+  end
+
+  it "clamps an oversized explicit rebuild batch size" do
+    expect(SearchIndexWriteLimits).to receive(:clamp_rows).with(10_000).at_least(:once).and_call_original
+    event(message: "clamped rebuild")
+
+    described_class.rebuild!(batch_size: 10_000)
+
+    expect(described_class.search(query: "clamped", since: 1.hour.ago)).not_to be_empty
+  end
+
   it "only re-checks freshness once per FRESHNESS_CHECK_INTERVAL" do
     described_class.reset_freshness_check!
     event(message: "seed", occurred_at: 1.minute.ago)

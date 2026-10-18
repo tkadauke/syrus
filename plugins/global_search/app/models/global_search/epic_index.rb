@@ -4,6 +4,7 @@ module GlobalSearch
 
     class << self
       def upsert(epic)
+        fields = index_fields(epic)
         connection.transaction do
           connection.exec_delete(
             "DELETE FROM epic_fts WHERE epic_id = ?",
@@ -26,8 +27,8 @@ module GlobalSearch
             SQL
             "GlobalSearch::EpicIndex Upsert",
             [
-              bind(epic.title.to_s),
-              bind(epic.description.to_s),
+              bind(fields.fetch(:title)),
+              bind(fields.fetch(:description)),
               bind(epic.id),
               bind(epic.user_id),
               bind(epic.repository_id),
@@ -69,6 +70,16 @@ module GlobalSearch
         )
 
         rows.map(&:symbolize_keys)
+      end
+
+      private
+
+      def index_fields(epic)
+        SearchIndexWriteLimits.row(
+          { title: epic.title, description: epic.description },
+          index: "epic",
+          record_id: epic.id
+        )
       end
     end
   end

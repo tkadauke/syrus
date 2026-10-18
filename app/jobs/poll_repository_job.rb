@@ -408,6 +408,8 @@ class PollRepositoryJob < ApplicationJob
     # Keep the issue-backed Job reviewable without scheduling an agent Run.
     if linked
       Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} implemented by external PR ##{linked[:number]}")
+      # This Job is terminal at creation and never gets an agent workflow, so
+      # workflow-selection labels deliberately do not become Job attributes.
       job = Job.create!(
         user: repository.user,
         repository: repository,
@@ -429,11 +431,8 @@ class PollRepositoryJob < ApplicationJob
       issue_title: issue_title(issue),
       issue_body: issue_body(issue),
       state: initial_state_for_issue(issue),
-      skip_prepare: skip_prepare_label_present?(issue),
-      prepare_skip_reason_override: prepare_skip_reason(issue),
-      delivery_track: delivery_track_label_value(issue),
-      investigation: investigation_label_present?(issue),
-      linked_open_pr_checked_at: looked_up_linked_pr ? Time.current : nil
+      linked_open_pr_checked_at: looked_up_linked_pr ? Time.current : nil,
+      **GithubIssueJobAttributes.for_creation(issue)
     )
     classify_if_available(job)
     enqueue_issue_image_ingest(job)
@@ -507,14 +506,11 @@ class PollRepositoryJob < ApplicationJob
         issue_number: issue.number,
         issue_title: issue_title(issue),
         issue_body: issue_body(issue),
-        skip_prepare: skip_prepare_label_present?(issue),
-        prepare_skip_reason_override: prepare_skip_reason(issue),
-        delivery_track: delivery_track_label_value(issue),
-        investigation: investigation_label_present?(issue),
         epic: epic,
         state: initial_state_for_issue(issue),
         triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
-        pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url)
+        pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url),
+        **GithubIssueJobAttributes.for_creation(issue)
       )
       validate_github_epic_child_chain!(job) if job.epic
       job.advance_after_triage! if job.may_advance_after_triage?
@@ -577,37 +573,13 @@ class PollRepositoryJob < ApplicationJob
   end
 
   def sync_issue_label_state!(job, issue)
-    skip = skip_prepare_label_present?(issue)
-    track = delivery_track_label_value(issue)
-
-    updates = {}
-    updates[:skip_prepare] = skip if job.skip_prepare? != skip
-    updates[:delivery_track] = track if job.delivery_track != track
+    derived = GithubIssueJobAttributes.for_sync(issue)
+    updates = derived.select { |attribute, value| job.public_send(attribute) != value }
     job.update!(updates) if updates.any?
-  end
-
-  def skip_prepare_label_present?(issue)
-    label_names(issue).include?(Workflows::SKIP_PREPARE_LABEL)
-  end
-
-  def delivery_track_label_value(issue)
-    Workflows.track_label_value(issue.labels)
-  end
-
-  # Read once at ingest. Adding the label to an already-ingested issue does
-  # not retro-convert the Job: its chain is chosen when the first workflow is
-  # instantiated, so flipping it later would leave the Job claiming to be an
-  # investigation while running the implementation chain.
-  def investigation_label_present?(issue)
-    label_names(issue).include?(Workflows::INVESTIGATION_LABEL)
   end
 
   def label_names(issue)
     Workflows.label_names(issue.labels)
-  end
-
-  def prepare_skip_reason(issue)
-    "issue_label" if label_names(issue).include?(Job::PREPARE_SKIP_LABEL)
   end
 
   def issue_title(issue)
