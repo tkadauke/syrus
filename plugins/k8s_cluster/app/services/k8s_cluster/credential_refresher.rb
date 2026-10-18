@@ -52,14 +52,16 @@ module K8sCluster
       oidc["refresh-token"] = tokens["refresh_token"] if tokens["refresh_token"].present?
       rotated = YAML.dump(config)
       parsed = KubeconfigParser.parse(rotated)
-      raise RefreshError, "refreshed credential did not include an expiry" unless parsed.expires_at
+      raise RefreshError, "refreshed credential did not include a future expiry" unless parsed.expires_at && parsed.expires_at > now
 
       credential.update!(payload: rotated, expires_at: parsed.expires_at, last_rotated_at: now)
+      audit!(credential, result: "allowed")
       cluster.update!(credential_refresh_status: "healthy", credential_refresh_error: nil, credential_refresh_attempted_at: now)
       :refreshed
     rescue RefreshError, JSON::ParserError, KeyError, Psych::Exception, URI::InvalidURIError,
       Net::OpenTimeout, Net::ReadTimeout, SocketError, SystemCallError, OpenSSL::SSL::SSLError => e
       cluster.update!(credential_refresh_status: "failed", credential_refresh_error: e.message, credential_refresh_attempted_at: now)
+      audit!(credential, result: "failed") if credential&.persisted?
       :failed
     end
 
@@ -91,6 +93,18 @@ module K8sCluster
         "client_secret" => oidc["client-secret"]
       )
       http.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") { |connection| connection.request(request) }
+    end
+
+    def audit!(credential, result:)
+      CredentialStore::CredentialAccessEvent.record!(
+        credential: credential,
+        surface: "api",
+        action: "rotate",
+        result: result,
+        tool_name: "k8s_cluster_admin",
+        purpose: "automatic Kubernetes credential refresh",
+        metadata: { source: "k8s_cluster", actor: "system", automatic: true }
+      )
     end
   end
 end

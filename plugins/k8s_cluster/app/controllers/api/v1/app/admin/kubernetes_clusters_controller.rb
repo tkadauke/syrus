@@ -28,15 +28,16 @@ module Api
             render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled,
+            K8sCluster::ClusterCredential::ExpiredCredential, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def update
             cluster = find_cluster
-            cluster.assign_attributes(cluster_params)
 
-            ActiveRecord::Base.transaction do
+            cluster.with_lock do
+              cluster.assign_attributes(cluster_params)
               apply_kubeconfig!(cluster, require_kubeconfig: false)
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
@@ -52,7 +53,8 @@ module Api
             render json: { kubernetes_cluster: cluster_json(cluster) }
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled,
+            K8sCluster::ClusterCredential::ExpiredCredential, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
