@@ -1,4 +1,3 @@
-require "open3"
 require "timeout"
 
 module Android
@@ -158,11 +157,15 @@ module Android
     end
 
     def run_command(argv, command_env)
-      stdout, stderr, status = Timeout.timeout(COMMAND_TIMEOUT_SECONDS) do
-        Open3.capture3(command_env, *argv)
-      end
-
-      CommandResult.new(stdout: stdout, stderr: stderr, status: status.exitstatus)
+      current_run = Thread.current[:syrus_current_run]
+      capture = ProcessRunner.new(
+        env: command_env, command: argv, mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+        timeout: COMMAND_TIMEOUT_SECONDS, kind: "runtime_probe", run: current_run,
+        workflow: current_run&.workflow
+      ).capture
+      stderr = capture.stderr
+      stderr = "#{stderr}timed out after #{COMMAND_TIMEOUT_SECONDS}s" if capture.result.timed_out?
+      CommandResult.new(stdout: capture.stdout, stderr: stderr, status: capture.result.exit_status || 124)
     end
 
     def first_output_line(result)

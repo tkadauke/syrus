@@ -11,7 +11,7 @@ class SpawnedProcess < ApplicationRecord
   # the strict list") rather than the silent AR coercion enum gives.
   KINDS = %w[
     agent grader git prepare format generate builder dependency_audit chat_prepare
-    preview chat_stt deploy chat_shell_command runtime_probe archive filesystem diagnostic
+    preview chat_stt deploy chat_shell_command runtime_probe runtime_session media archive filesystem diagnostic
   ].freeze
 
   # Terminal outcomes. Surfaced to the admin UI as colored pills.
