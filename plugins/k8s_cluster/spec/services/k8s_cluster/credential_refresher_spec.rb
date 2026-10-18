@@ -51,6 +51,7 @@ RSpec.describe K8sCluster::CredentialRefresher do
     expect(described_class.call(cluster, now: now, http: http)).to eq(:failed)
     expect(cluster.reload.credential_refresh_status).to eq("failed")
     expect(credential.reload.payload).to include("refresh-secret")
+    expect(credential.access_events.last).to have_attributes(action: "rotate", surface: "api", result: "failed")
   end
 
   it "atomically stores refreshed OIDC material and recovers health" do
@@ -68,6 +69,21 @@ RSpec.describe K8sCluster::CredentialRefresher do
     expect(credential.payload).to include("new-refresh")
     expect(credential.payload).not_to include("old-refresh")
     expect(cluster.reload).to have_attributes(credential_refresh_status: "healthy", credential_refresh_error: nil)
+    expect(credential.access_events.last).to have_attributes(action: "rotate", surface: "api", result: "allowed")
+  end
+
+  it "rejects an already-expired token returned by the identity provider" do
+    credential = attach(kubeconfig(id_token: jwt(now + 5.minutes), refresh_token: "old-refresh"), expires_at: now + 5.minutes)
+    discovery = successful_response(JSON.generate(token_endpoint: "https://idp.example.com/token"))
+    refresh = successful_response(JSON.generate(id_token: jwt(now - 1.minute)))
+    connection = instance_double(Net::HTTP, request: refresh)
+    http = class_double(Net::HTTP)
+    allow(http).to receive(:get_response).and_return(discovery)
+    allow(http).to receive(:start).and_yield(connection)
+
+    expect(described_class.call(cluster, now: now, http: http)).to eq(:failed)
+    expect(credential.reload.payload).to include("old-refresh")
+    expect(cluster.reload.credential_refresh_status).to eq("failed")
   end
 
   it "serializes refresh attempts with the cluster row lock" do
