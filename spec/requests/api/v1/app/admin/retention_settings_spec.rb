@@ -63,6 +63,24 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     )
     expect(row["description"]).to be_present
     expect(parse_body["retention_available_space_override_gb"]).to eq(0)
+    expect(parse_body["storage_limits"]).to eq(
+      "prepared_layer_cache_bytes" => 10.gigabytes,
+      "prepared_layer_cache_source" => "app_setting",
+      "coding_workspace_bytes" => 10.gigabytes
+    )
+  end
+
+  it "shows the effective per-worker prepared-cache override in storage diagnostics" do
+    sign_in_as(admin)
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_PREPARED_LAYER_CACHE_GB").and_return("3")
+
+    get "/api/v1/app/admin/retention_settings"
+
+    expect(parse_body["storage_limits"]).to include(
+      "prepared_layer_cache_bytes" => 3.gigabytes,
+      "prepared_layer_cache_source" => "worker_environment"
+    )
   end
 
   it "omits sizing fields for a table with no cached snapshot yet" do

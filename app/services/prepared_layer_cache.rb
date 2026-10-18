@@ -26,7 +26,7 @@ class PreparedLayerCache
   # tree can satisfy.
   READY_FILENAME = ".syrus-layer-ready".freeze
   BUDGET_ENV_VAR = "SYRUS_PREPARED_LAYER_CACHE_GB".freeze
-  DEFAULT_BUDGET_GIGABYTES = 100
+  DEFAULT_BUDGET_GIGABYTES = 10
 
   # An entry that a Run is using right now must not be evicted under it, and a
   # lock held for the life of a Run is awkward to reason about across process
@@ -88,6 +88,10 @@ class PreparedLayerCache
       return gigabytes_to_bytes(configured.to_f) if configured.present?
 
       gigabytes_to_bytes(AppSetting.prepared_layer_cache_gb)
+    end
+
+    def budget_source
+      ENV[BUDGET_ENV_VAR].present? ? "worker_environment" : "app_setting"
     end
 
     # Evicts least-recently-used entries until the cache fits its budget. Also

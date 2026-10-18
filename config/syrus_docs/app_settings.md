@@ -183,7 +183,7 @@ enabled.
 
 ### prepared_layer_cache_gb
 
-**Type:** integer · **Default:** 100 · `0` = no size budget
+**Type:** integer · **Default:** 10 · `0` = no size budget
 
 Disk budget, in GB, for each worker's cache of prepared workspace trees -- the
 trees grader checkouts are materialized from. `SYRUS_PREPARED_LAYER_CACHE_GB`
@@ -378,9 +378,9 @@ The bot token used by the `discord` plugin's Gateway connector (`Discord::Gatewa
 
 ### chat_coding_workspace_budget_mb
 
-**Type:** integer · **Default:** 0 (unlimited) · `0` = disabled
+**Type:** integer · **Default:** 10240 (10 GB) · `0` = disabled
 
-Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Set this on busy instances where coding chats would otherwise fill the worker's data volume. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
+Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). Fresh installations default to 10 GB. `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Existing installations retain their stored value. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
 
 ## Data retention
 

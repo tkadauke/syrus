@@ -300,7 +300,7 @@ class AppSettingRegistry
     Definition.new(
       key: :prepared_layer_cache_gb,
       type: :integer,
-      default: 100,
+      default: 10,
       min: 0,
       max: nil,
       category: "Instance operations",
@@ -567,7 +567,7 @@ class AppSettingRegistry
     Definition.new(
       key: :chat_coding_workspace_budget_mb,
       type: :integer,
-      default: 0,
+      default: 10_240,
       min: 0,
       max: nil,
       category: "Coding-Mode workspaces",
