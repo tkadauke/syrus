@@ -611,6 +611,25 @@ RSpec.describe PreviewService do
       expect(child.managed_handle).to be_a(ProcessRunner::BackgroundHandle)
     end
 
+    it "stops a live preview through a handle restored after service restart" do
+      env = create_env(state: "running", port: 28_009)
+      original_service = described_class.new
+      child = original_service.send(
+        :spawn_app, "#{RbConfig.ruby} -e 'sleep 10'", workspace_path, 28_009, env
+      )
+      restarted_service = described_class.new
+      restarted_service.send(:restore_managed_children!)
+      env.begin_stopping! && env.save!
+
+      restarted_service.send(:poll_stopping_environments)
+      result = child.handle.finalize
+      restarted_service.send(:reconcile_finished_children!)
+
+      expect(result).to be_operator_killed
+      expect(env.reload).to be_stopped
+      expect(ProcessRunner::BackgroundHandle.find(child.spawned_process_id)).not_to be_alive
+    end
+
     it "treats an operator kill as an explicit stop" do
       service = described_class.new
       env = create_env(state: "running", port: 28_009)
