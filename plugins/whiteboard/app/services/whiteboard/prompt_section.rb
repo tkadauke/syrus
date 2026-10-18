@@ -19,15 +19,11 @@ module Whiteboard
         `draw_embed`, `draw_image`) over raw Excalidraw JSON. Use
         `update_scene` only when you need a full-scene replacement or an
         Excalidraw feature the high-level tools cannot express. `draw_arrow`
-        creates a bound arrow that follows two existing elements, but its
-        endpoints are element centers, not shape edges, so it will visually
-        cut through shape interiors and their labels when connecting shapes
-        that have their own text. For diagrams connecting multiple labeled
-        shapes, prefer `draw_line` with `type: "arrow"` and
-        manually-computed edge-anchored `x`/`y`/`points`. `draw_arrow`'s
-        `label` parameter does not currently render visible text; use a
-        separate `draw_text` call positioned near the arrow's midpoint
-        instead. The scene
+        creates an edge-anchored connector bound to two existing shapes, so
+        it follows them when they move or resize. Its optional `label`
+        renders as movable text associated with the arrow. You do not need to
+        calculate ordinary connector endpoints or add a separate text
+        element. The scene
         can include Excalidraw `elements`, `appState`, and `files`.
         Reading the canvas via `read_scene` is cheap — do it when the
         operator references something they drew or moved. Use

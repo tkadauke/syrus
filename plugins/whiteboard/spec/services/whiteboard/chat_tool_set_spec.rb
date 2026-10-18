@@ -58,16 +58,15 @@ RSpec.describe Whiteboard::ChatToolSet do
       )
     end
 
-    it "warns that draw_arrow uses center-bound endpoints and non-rendering labels" do
+    it "describes draw_arrow edge anchoring and visible bound labels" do
       draw_arrow = described_class.tool_definitions(tier: :deferred).find { |tool| tool.fetch(:name) == "draw_arrow" }
       description = draw_arrow.fetch(:description)
       label_description = draw_arrow.fetch(:input_schema).fetch(:properties).fetch(:label).fetch(:description)
 
-      expect(description).to include("connect at element centers, not edges")
-      expect(description).to include("draw_line with type: \"arrow\"")
-      expect(description).to include("label parameter does not currently render as visible text")
-      expect(label_description).to include("not rendered as visible text")
-      expect(label_description).to include("draw_text")
+      expect(description).to include("placed on their visible edges")
+      expect(description).to include("follows them when they move or resize")
+      expect(description).to include("label renders as movable text")
+      expect(label_description).to include("visible text bound to the arrow")
     end
   end
 
@@ -223,18 +222,26 @@ RSpec.describe Whiteboard::ChatToolSet do
 
     response = call_tool("draw_arrow", from_id: from_id, to_id: to_id, label: "flows")
 
-    arrow_id = payload(response).fetch(:id)
+    result = payload(response)
+    arrow_id = result.fetch(:id)
+    label_id = result.fetch(:label_id)
     elements = Whiteboard::Board.for(chat_session.reload).elements
     arrow = elements.find { |element| element["id"] == arrow_id }
     from = elements.find { |element| element["id"] == from_id }
     to = elements.find { |element| element["id"] == to_id }
+    label = elements.find { |element| element["id"] == label_id }
     expect(response.error?).to be_falsey
     expect(arrow).to include(
       "type" => "arrow",
       "startBinding" => { "elementId" => from_id, "focus" => 0, "gap" => 1 },
       "endBinding" => { "elementId" => to_id, "focus" => 0, "gap" => 1 },
-      "label" => "flows"
+      "x" => 100.0
     )
+    expect(arrow.fetch("y")).to be_within(0.0001).of(41.3793)
+    expect(arrow.fetch("points").last.first).to be_within(0.001).of(206.542)
+    expect(arrow.fetch("points").last.last).to be_within(0.001).of(67.660)
+    expect(arrow.fetch("boundElements")).to include("id" => label_id, "type" => "text")
+    expect(label).to include("type" => "text", "text" => "flows", "containerId" => arrow_id)
     expect(from.fetch("boundElements")).to include("id" => arrow_id, "type" => "arrow")
     expect(to.fetch("boundElements")).to include("id" => arrow_id, "type" => "arrow")
   end
@@ -242,7 +249,8 @@ RSpec.describe Whiteboard::ChatToolSet do
   it "move_element updates position and recalibrates bound arrows so endpoints follow dragged shapes" do
     from_id = payload(draw_shape(x: 0, y: 0, width: 100, height: 50)).fetch(:id)
     to_id = payload(draw_shape(x: 300, y: 100, width: 100, height: 50)).fetch(:id)
-    arrow_id = payload(call_tool("draw_arrow", from_id: from_id, to_id: to_id)).fetch(:id)
+    arrow_result = payload(call_tool("draw_arrow", from_id: from_id, to_id: to_id, label: "moves"))
+    arrow_id = arrow_result.fetch(:id)
     expect_canvas_broadcast
 
     response = call_tool("move_element", id: from_id, x: 50, y: 60)
@@ -250,11 +258,13 @@ RSpec.describe Whiteboard::ChatToolSet do
     elements = Whiteboard::Board.for(chat_session.reload).elements
     from = elements.find { |element| element["id"] == from_id }
     arrow = elements.find { |element| element["id"] == arrow_id }
+    label = elements.find { |element| element["id"] == arrow_result.fetch(:label_id) }
     expect(response.error?).to be_falsey
     expect(from).to include("x" => 50.0, "y" => 60.0)
-    expect(arrow["x"]).to eq(100.0)
-    expect(arrow["y"]).to eq(85.0)
-    expect(arrow["points"].last).to eq([ 250.0, 40.0 ])
+    expect(arrow["x"]).to eq(150.0)
+    expect(arrow["y"]).to eq(93.0)
+    expect(arrow["points"].last).to eq([ 150.0, 24.0 ])
+    expect(label).to include("x" => 195.0, "y" => 92.5, "containerId" => arrow_id)
   end
 
   it "delete_element removes the element" do
@@ -265,6 +275,19 @@ RSpec.describe Whiteboard::ChatToolSet do
 
     expect(response.error?).to be_falsey
     expect(Whiteboard::Board.for(chat_session.reload).elements).to be_empty
+  end
+
+  it "delete_element removes an arrow's associated visible label" do
+    from_id = payload(draw_shape(x: 0, y: 0)).fetch(:id)
+    to_id = payload(draw_shape(x: 300, y: 0)).fetch(:id)
+    result = payload(call_tool("draw_arrow", from_id: from_id, to_id: to_id, label: "temporary"))
+    expect_canvas_broadcast
+
+    response = call_tool("delete_element", id: result.fetch(:id))
+
+    remaining_ids = Whiteboard::Board.for(chat_session.reload).elements.map { |element| element.fetch("id") }
+    expect(response.error?).to be_falsey
+    expect(remaining_ids).not_to include(result.fetch(:id), result.fetch(:label_id))
   end
 
   it "save_canvas returns an empty-canvas result without creating a snapshot" do
@@ -400,6 +423,40 @@ RSpec.describe Whiteboard::ChatToolSet do
     expect(loaded_box.fetch("boundElements")).to include("id" => loaded_label.fetch("id"), "type" => "text")
     expect(loaded_label.fetch("containerId")).to eq(loaded_box.fetch("id"))
     expect(whiteboard.files).to include("snapshot-file" => include("dataURL" => "data:image/png;base64,snapshot"))
+  end
+
+  it "load_canvas round-trips an arrow and its visible bound label with remapped references" do
+    snapshot = Whiteboard::Snapshot.create_from_scene!(
+      chat_session: chat_session,
+      kind: "manual",
+      scene: {
+        "elements" => [
+          {
+            "id" => "saved-arrow",
+            "type" => "arrow",
+            "boundElements" => [ { "id" => "saved-label", "type" => "text" } ],
+            "startBinding" => nil,
+            "endBinding" => nil
+          },
+          {
+            "id" => "saved-label",
+            "type" => "text",
+            "text" => "round trip",
+            "containerId" => "saved-arrow"
+          }
+        ]
+      }
+    )
+    expect_canvas_broadcast
+
+    response = call_tool("load_canvas", snapshot_id: snapshot.id)
+
+    arrow, label = Whiteboard::Board.for(chat_session.reload).elements
+    expect(response.error?).to be_falsey
+    expect(arrow.fetch("id")).not_to eq("saved-arrow")
+    expect(label.fetch("id")).not_to eq("saved-label")
+    expect(arrow.fetch("boundElements")).to eq([ { "id" => label.fetch("id"), "type" => "text" } ])
+    expect(label).to include("text" => "round trip", "containerId" => arrow.fetch("id"))
   end
 
   it "load_canvas replace mode auto-saves the current canvas and replaces scene and files" do

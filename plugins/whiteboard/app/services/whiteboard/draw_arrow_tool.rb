@@ -5,12 +5,10 @@ module Whiteboard
     tool_name "draw_arrow"
 
     description <<~TEXT.squish
-      Append an arrow bound to two existing elements so it follows them when they move.
-      Bound arrows connect at element centers, not edges, so they will visually cut through shape interiors
-      and their labels when connecting shapes that have their own text. For diagrams connecting multiple
-      labeled shapes, prefer draw_line with type: "arrow" and manually-computed edge-anchored x/y/points.
-      The label parameter does not currently render as visible text; use a separate draw_text call positioned
-      near the arrow's midpoint instead.
+      Append an arrow bound to two existing elements so it follows them when they move or resize.
+      Rectangle, sticky, ellipse, and diamond endpoints are placed on their visible edges. Rotated or
+      unsupported elements use their centers as a safe fallback. An optional label renders as movable text
+      bound to the arrow; no separate draw_text call or manual endpoint calculation is needed.
     TEXT
 
     input_schema(
@@ -19,8 +17,7 @@ module Whiteboard
         to_id: { type: "string" },
         label: {
           type: "string",
-          description: "Currently stored on the arrow JSON but not rendered as visible text. " \
-            "Use a separate draw_text call near the arrow midpoint instead."
+          description: "Optional visible text bound to the arrow and initially centered on it."
         }
       },
       required: %w[from_id to_id]
@@ -40,10 +37,19 @@ module Whiteboard
           from_element = Canvas.find_element(elements, from_id)
           to_element = Canvas.find_element(elements, to_id)
           arrow = Canvas.arrow_element(from_element, to_element)
-          arrow["label"] = label.to_s if label.present?
           elements << arrow
           Canvas.bind_arrow_to_shapes!(elements, arrow)
-          { id: arrow.fetch("id") }
+
+          label_text = label.to_s.strip
+          label_element = nil
+          if label_text.present?
+            Canvas.ensure_can_append_element!(elements)
+            label_element = Canvas.bound_label_element(container: arrow, text: label_text)
+            arrow["boundElements"] = Array(arrow["boundElements"]) + [ { "id" => label_element.fetch("id"), "type" => "text" } ]
+            elements << label_element
+          end
+
+          { id: arrow.fetch("id"), label_id: label_element&.fetch("id") }.compact
         end
 
         Mcp::Tools.success(result)
