@@ -149,11 +149,28 @@ RSpec.describe ProcessRunner, :ci_only do
     ).start
 
     expect(handle.spawned_process).to be_running
+    expect(handle.pid).to eq(handle.spawned_process.pid)
+    expect(handle.pgid).to eq(handle.spawned_process.pgid)
+    expect(handle).not_to be_finished
     result = handle.finalize
 
     expect(result).to be_success
+    expect(handle).to be_finished
     expect(described_class::BackgroundHandle.find(handle.spawned_process_id).finalize).to be_success
     expect(handle.spawned_process.reload).to have_attributes(outcome: "succeeded", exit_status: 0)
+  end
+
+  it "persists caller attribution before returning a background handle" do
+    handle = described_class.new(
+      env: {}, command: [ ruby, "-e", "sleep 0.1" ],
+      mounts: described_class.mounts(@dir), network: "grader", timeout: 5,
+      kind: "preview", resource_attribution: { preview_environment_id: 42, port: 3001 }
+    ).start
+
+    expect(handle.spawned_process.resource_attribution).to include(
+      "preview_environment_id" => 42, "port" => 3001
+    )
+    handle.finalize
   end
 
   it "cancels a managed background process through its durable process row" do

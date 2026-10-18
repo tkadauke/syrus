@@ -10,12 +10,14 @@ module Mcp::Tools
     MUTEX = Mutex.new
     private_constant :MUTEX
 
-    @previews = {}  # key → { pid: Integer, port: Integer }
+    @previews = {}  # key → { pid: Integer, port: Integer, spawned_process_id: Integer }
     @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
 
     class << self
-      def register(key:, pid:, port:)
-        MUTEX.synchronize { @previews[key] = { pid: pid, port: port } }
+      def register(key:, pid:, port:, spawned_process_id: nil)
+        MUTEX.synchronize do
+          @previews[key] = { pid: pid, port: port, spawned_process_id: spawned_process_id }.compact
+        end
       end
 
       def get(key)
@@ -29,7 +31,7 @@ module Mcp::Tools
 
       def kill(key)
         preview = MUTEX.synchronize { @previews.delete(key) }
-        kill_pgroup(preview[:pid]) if preview
+        cancel(preview) if preview
       end
 
       def kill_prefix(prefix)
@@ -38,14 +40,18 @@ module Mcp::Tools
           matches.each_key { |key| @previews.delete(key) }
           matches.values
         end
-        previews.each { |preview| kill_pgroup(preview[:pid]) }
+        previews.each { |preview| cancel(preview) }
       end
 
       def kill_all
-        MUTEX.synchronize do
-          @previews.each_value { |p| kill_pgroup(p[:pid]) }
+        previews = MUTEX.synchronize do
+          values = @previews.values
           @previews.clear
+          values
         end
+        handles = previews.filter_map { |preview| managed_handle(preview) }
+        handles.each(&:cancel!)
+        handles.each { |handle| await_cancellation(handle) }
       end
 
       def reset!
@@ -57,10 +63,24 @@ module Mcp::Tools
 
       private
 
-      def kill_pgroup(pid)
-        Process.kill("-TERM", pid)
-      rescue Errno::ESRCH, Errno::EPERM
-        # Already gone.
+      def cancel(preview)
+        handle = managed_handle(preview)
+        return unless handle
+
+        handle.cancel!
+        await_cancellation(handle)
+      rescue ActiveRecord::RecordNotFound
+        # The durable process record was already pruned.
+      end
+
+      def managed_handle(preview)
+        return unless preview[:spawned_process_id]
+
+        ProcessRunner::BackgroundHandle.find(preview[:spawned_process_id])
+      end
+
+      def await_cancellation(handle)
+        handle.finalize(timeout: ProcessRunner::KILL_POLL_INTERVAL_SECONDS + ProcessRunner::TERM_GRACE_SECONDS + 1)
       end
     end
   end

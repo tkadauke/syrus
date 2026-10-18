@@ -27,9 +27,11 @@ class PreviewService
   HEALTH_CHECK_RETRY_INTERVAL_SECONDS = 2
   PREVIEW_COMMAND_TIMEOUT_SECONDS = 10.minutes.to_i
   GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 10
-  CHILD_HEARTBEAT_INTERVAL_SECONDS = ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS
-
-  ChildProcess = Struct.new(:pid, :environment_id, :port, :spawned_process_id, keyword_init: true)
+  ChildProcess = Struct.new(:pid, :environment_id, :port, :spawned_process_id, :handle, keyword_init: true) do
+    def managed_handle
+      handle || ProcessRunner::BackgroundHandle.find(spawned_process_id)
+    end
+  end
 
   # Raised when the local health check passes but the internal proxy host
   # can't reach the app — the fixable "bind to 0.0.0.0" case. Tagged
@@ -47,6 +49,7 @@ class PreviewService
   def run
     trap_signals!
     Rails.logger.info("[PreviewService] starting")
+    with_connection { restore_managed_children! }
 
     loop do
       break if @shutting_down
@@ -55,10 +58,7 @@ class PreviewService
         poll_starting_environments
         poll_stopping_environments
         check_ttl_expirations if ttl_check_due?
-        heartbeat_children!
-        honor_kill_requests!
-        reconcile_finished_spawned_processes!
-        reap_exited_children
+        reconcile_finished_children!
       end
 
       sleep POLL_INTERVAL_SECONDS
@@ -230,18 +230,18 @@ class PreviewService
       env: env, command: [ "bash", "-c", command ],
       mounts: ProcessRunner.mounts(workspace_path), network: "prepare",
       timeout: 24.hours, kind: "preview", job: preview_environment.job,
-      display_command: command
+      display_command: command,
+      resource_attribution: {
+        preview_environment_id: preview_environment.id,
+        job_id: preview_environment.job_id,
+        repository_id: preview_environment.repository_id,
+        port: port
+      }
     ).start
     spawned_process = handle.spawned_process
-    spawned_process.update!(resource_attribution: spawned_process.resource_attribution.merge(
-      "preview_environment_id" => preview_environment.id,
-      "job_id" => preview_environment.job_id,
-      "repository_id" => preview_environment.repository_id,
-      "port" => port
-    ))
     Rails.logger.info("[PreviewService] spawned pid=#{spawned_process.pid} port=#{port} cmd=#{command.inspect}")
-    ChildProcess.new(pid: spawned_process.pid, environment_id: preview_environment.id, port: port,
-      spawned_process_id: spawned_process.id)
+    ChildProcess.new(pid: handle.pid, environment_id: preview_environment.id, port: port,
+      spawned_process_id: handle.spawned_process_id, handle: handle)
   end
 
   def preview_process_env(source, workspace_path)
@@ -327,31 +327,28 @@ class PreviewService
     Time.current - @last_ttl_check >= TTL_CHECK_INTERVAL_SECONDS
   end
 
-  def reap_exited_children
+  def reconcile_finished_children!
     @mutex.synchronize { @children.dup }.each do |env_id, child|
-      result = Process.waitpid2(child.pid, Process::WNOHANG)
-      next unless result
+      process = SpawnedProcess.find_by(id: child.spawned_process_id)
+      next if process && !process.finished?
 
-      exit_status = result[1]
       @mutex.synchronize { @children.delete(env_id) }
-      finalize_spawned_process(child, outcome: exit_status.success? ? "succeeded" : "failed", exit_status: exit_status.exitstatus)
+      env = PreviewEnvironment.find_by(id: env_id)
+      next unless env
 
-      with_connection do
-        env = PreviewEnvironment.find_by(id: env_id)
-        next unless env
-
-        if env.stopping?
-          env.mark_stopped! && env.save!
-          PreviewWorkspace.cleanup_for(env)
-          Rails.logger.info("[PreviewService] environment #{env_id} stopped (pid=#{child.pid})")
-        elsif exit_status.success?
-          env.begin_stopping! && env.save!
-          env.mark_stopped! && env.save!
-          PreviewWorkspace.cleanup_for(env)
-          Rails.logger.info("[PreviewService] environment #{env_id} exited cleanly")
-        else
-          mark_failed(env, "process exited unexpectedly with status #{exit_status.exitstatus}")
-        end
+      if env.stopping? || process&.outcome == "operator_killed"
+        env.begin_stopping! && env.save! if env.may_begin_stopping?
+        env.mark_stopped! && env.save!
+        PreviewWorkspace.cleanup_for(env)
+        Rails.logger.info("[PreviewService] environment #{env_id} stopped (pid=#{child.pid})")
+      elsif process&.outcome == "succeeded"
+        env.begin_stopping! && env.save!
+        env.mark_stopped! && env.save!
+        PreviewWorkspace.cleanup_for(env)
+        Rails.logger.info("[PreviewService] environment #{env_id} exited cleanly")
+      else
+        outcome = process&.outcome || "missing process record"
+        mark_failed(env, "preview process ended unexpectedly (#{outcome})")
       end
     end
   end
@@ -361,25 +358,16 @@ class PreviewService
     env.begin_stopping! && env.save! if env.may_begin_stopping?
 
     if child
-      kill_process_group(child.pid)
+      child.managed_handle.cancel!
     else
       env.mark_stopped! && env.save!
       PreviewWorkspace.cleanup_for(env)
     end
   end
 
-  def kill_process_group(pid)
-    Process.kill("-TERM", pid)
-  rescue Errno::ESRCH, Errno::EPERM
-    # Already gone.
-  end
-
   def mark_failed(env, message, reason: nil)
     child = @mutex.synchronize { @children.delete(env.id) }
-    if child
-      kill_process_group(child.pid)
-      finalize_spawned_process(child, outcome: "failed", exit_status: nil)
-    end
+    child&.managed_handle&.cancel!
 
     env.update_columns(error_message: message, error_reason: reason) if env.persisted?
     env.fail! && env.save! if env.may_fail?
@@ -388,87 +376,11 @@ class PreviewService
   end
 
   def child_exited?(child)
-    result = Process.waitpid2(child.pid, Process::WNOHANG)
-    return false unless result
+    return false unless child.spawned_process_id
 
-    status = result[1]
-    finalize_spawned_process(child, outcome: status.success? ? "succeeded" : "failed", exit_status: status.exitstatus)
+    child.managed_handle.finished?
+  rescue ActiveRecord::RecordNotFound
     true
-  rescue Errno::ECHILD
-    SpawnedProcess.where(id: child.spawned_process_id).where.not(finished_at: nil).exists?
-  end
-
-  def process_alive?(pid)
-    return false unless pid
-
-    Process.kill(0, pid)
-    true
-  rescue Errno::ESRCH
-    false
-  rescue Errno::EPERM
-    true
-  end
-
-  def heartbeat_children!
-    ids = @mutex.synchronize { @children.values.filter_map(&:spawned_process_id) }
-    return if ids.empty?
-
-    now = Time.current
-    SpawnedProcess
-      .where(id: ids, finished_at: nil)
-      .where("last_chunk_at IS NULL OR last_chunk_at < ?", now - CHILD_HEARTBEAT_INTERVAL_SECONDS.seconds)
-      .update_all(last_chunk_at: now, updated_at: now)
-  end
-
-  def honor_kill_requests!
-    children = @mutex.synchronize { @children.dup }
-    return if children.empty?
-
-    requested = SpawnedProcess.where(id: children.values.filter_map(&:spawned_process_id))
-                              .where.not(kill_requested_at: nil)
-                              .pluck(:id)
-                              .to_set
-    children.each do |env_id, child|
-      next unless requested.include?(child.spawned_process_id)
-
-      env = PreviewEnvironment.find_by(id: env_id)
-      stop_environment(env) if env&.active?
-    end
-  end
-
-  def reconcile_finished_spawned_processes!
-    children = @mutex.synchronize { @children.dup }
-    return if children.empty?
-
-    finished = SpawnedProcess.where(id: children.values.filter_map(&:spawned_process_id))
-                             .where.not(finished_at: nil)
-                             .pluck(:id, :outcome)
-                             .to_h
-    children.each do |env_id, child|
-      outcome = finished[child.spawned_process_id]
-      next unless outcome
-      if outcome == "orphaned" && process_alive?(child.pid)
-        Rails.logger.warn("[PreviewService] ignoring orphaned SpawnedProcess ##{child.spawned_process_id}; pid #{child.pid} is still alive")
-        next
-      end
-
-      @mutex.synchronize { @children.delete(env_id) }
-      env = PreviewEnvironment.find_by(id: env_id)
-      next unless env&.active?
-
-      mark_failed(env, "preview process ended unexpectedly (#{outcome})")
-    end
-  end
-
-  def finalize_spawned_process(child, outcome:, exit_status:)
-    return unless child.spawned_process_id
-
-    SpawnedProcess.where(id: child.spawned_process_id, finished_at: nil).update_all(
-      finished_at: Time.current,
-      outcome: outcome,
-      exit_status: exit_status,
-      updated_at: Time.current
-    )
   end
 
   def allocate_port
@@ -478,6 +390,29 @@ class PreviewService
                               .pluck(:port).to_set
     candidates = (PORT_MIN..PORT_MAX).to_a.shuffle
     candidates.find { |p| !used.include?(p) && !self.class.port_in_use?(p) }
+  end
+
+  # Reattach durable handles after the service process restarts. The runner
+  # (or the orphan reaper when its owning worker disappeared) remains the
+  # authority for the subprocess outcome; PreviewService only reconciles that
+  # outcome into the environment state machine.
+  def restore_managed_children!
+    active = PreviewEnvironment.where(state: PreviewEnvironment::ACTIVE_STATES).index_by(&:id)
+    return if active.empty?
+
+    SpawnedProcess.where(kind: "preview").find_each(order: :asc) do |process|
+      environment_id = process.resource_attribution["preview_environment_id"]
+      env = active[environment_id]
+      next unless env && process.pid
+
+      @children[env.id] = ChildProcess.new(
+        pid: process.pid,
+        environment_id: env.id,
+        port: env.port,
+        spawned_process_id: process.id,
+        handle: ProcessRunner::BackgroundHandle.find(process.id)
+      )
+    end
   end
 
   def shutdown_gracefully
@@ -490,7 +425,7 @@ class PreviewService
     end
 
     @mutex.synchronize { @children.dup }.each do |_env_id, child|
-      kill_process_group(child.pid)
+      child.managed_handle.cancel!
     end
 
     deadline = Time.current + GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS
@@ -498,16 +433,10 @@ class PreviewService
     stopped_children.each do |env_id, child|
       remaining = [ deadline - Time.current, 0 ].max
       begin
-        Timeout.timeout(remaining) { Process.waitpid(child.pid) }
-      rescue Timeout::Error
-        Rails.logger.warn("[PreviewService] pid #{child.pid} did not exit in time; force killing")
-        begin
-          Process.kill("-KILL", child.pid)
-        rescue Errno::ESRCH
-          # gone
-        end
+        child.managed_handle.finalize(timeout: remaining)
+      rescue ActiveRecord::RecordNotFound
+        # Already finalized and pruned.
       end
-      finalize_spawned_process(child, outcome: "stopped", exit_status: nil)
       @mutex.synchronize { @children.delete(env_id) }
     end
 

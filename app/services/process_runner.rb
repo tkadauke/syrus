@@ -63,8 +63,19 @@ class ProcessRunner
 
     def spawned_process = SpawnedProcess.find(spawned_process_id)
 
+    # Callers which need to publish a background process (for example a
+    # preview registry) should obtain its identifiers from the managed handle,
+    # never by reaching around ProcessRunner's spawn path.
+    def pid = spawned_process.pid
+    def pgid = spawned_process.pgid
+
+    def finished?
+      spawned_process.finished_at.present?
+    end
+
     def cancel!(user: nil)
-      spawned_process.request_kill!(user: user)
+      process = spawned_process
+      process.request_kill!(user: user) unless process.finished?
       self
     end
 
@@ -77,6 +88,12 @@ class ProcessRunner
       end
 
       process = spawned_process
+      if timeout && !process.finished_at
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+        until process.reload.finished_at || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          sleep 0.05
+        end
+      end
       return nil unless process.finished_at
 
       ProcessRunner.result_from_spawned_process(process)
@@ -499,7 +516,8 @@ class ProcessRunner
                  agent: nil,
                  display_command: nil,
                  on_spawned_process: nil,
-                 activity_probe: nil)
+                 activity_probe: nil,
+                 resource_attribution: {})
     @env = env
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
@@ -523,6 +541,7 @@ class ProcessRunner
     @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
+    @initial_resource_attribution = resource_attribution.deep_stringify_keys
 
     # Idempotent — only the first call in this process spawns the
     # supervisor thread. Web pods never reach this code path so they
@@ -1061,7 +1080,7 @@ class ProcessRunner
   end
 
   def current_resource_attribution
-    payload = @resource_sampler&.payload || {}
+    payload = @initial_resource_attribution.merge(@resource_sampler&.payload || {})
     return payload unless @cgroup
 
     payload.merge("cgroup" => @cgroup.payload)
