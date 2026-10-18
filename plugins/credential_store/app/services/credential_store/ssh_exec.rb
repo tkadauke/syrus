@@ -22,6 +22,7 @@ module CredentialStore
     class InvalidTarget < Error; end
     class RiskyCommand < Error; end
     class OperatorConfirmationRequired < Error; end
+    class HostKeyEnrollmentRequired < Error; end
 
     class << self
       attr_writer :runner
@@ -74,7 +75,7 @@ module CredentialStore
 
         with_temp_private_key(key_material.private_key) do |key_path|
           with_optional_askpass(key_material.passphrase) do |askpass_env|
-            with_optional_known_hosts(credential_metadata) do |known_hosts_path|
+            with_known_hosts(credential_metadata) do |known_hosts_path|
               run_ssh(
                 key_path: key_path,
                 known_hosts_path: known_hosts_path,
@@ -122,10 +123,14 @@ module CredentialStore
 
       return "credential host metadata does not match target" if expected_host && expected_host != host
       return "credential username metadata does not match target" if expected_user && expected_user != user
-      return "credential port metadata does not match target" if expected_port && expected_port != port.to_s
-      return "credential has no host or known-host constraint" if unconstrained?(metadata, target_constraints) && !allow_unconstrained_host
+      return "credential port metadata does not match target" if expected_port && expected_port != (port || 22).to_s
+      return "credential has no authorized host constraint" if unconstrained?(metadata, target_constraints) && !allow_unconstrained_host
+      return "SSH host-key enrollment is required before execution" if metadata["known_host"].blank?
+      SshHostKey.parse!(line: metadata["known_host"], host: host, port: port)
 
       nil
+    rescue InvalidTarget => e
+      e.message
     end
 
     def run_ssh(key_path:, known_hosts_path:, askpass_env:, metadata:, credential_metadata:, extra_secrets:)
@@ -224,9 +229,10 @@ module CredentialStore
       tempfile&.unlink
     end
 
-    def with_optional_known_hosts(metadata)
+    def with_known_hosts(metadata)
       known_host = metadata["known_host"].to_s.presence
-      return yield(nil) unless known_host
+      raise HostKeyEnrollmentRequired, "SSH host-key enrollment is required before execution" unless known_host
+      known_host = SshHostKey.parse!(line: known_host, host: host, port: port).known_host
 
       tempfile = Tempfile.new("syrus-ssh-known-hosts")
       tempfile.write("#{known_host}\n")
@@ -262,7 +268,7 @@ module CredentialStore
 
     def unconstrained?(metadata, target_constraints)
       allowed_hosts = Array(target_constraints["allowed_hosts"])
-      metadata["host"].blank? && metadata["known_host"].blank? && allowed_hosts.empty?
+      metadata["host"].blank? && allowed_hosts.empty?
     end
 
     def risky_command?

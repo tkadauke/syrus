@@ -23,14 +23,18 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("renders safe metadata and opens write-only edit fields without exposing secret payloads", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
-      credentials: [
-        credential({
-          name: "Deploy token",
-          safe_metadata: { host: "github.com", username: "deploy-bot" }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          credentials: [
+            credential({
+              name: "Deploy token",
+              safe_metadata: { host: "github.com", username: "deploy-bot" }
+            })
+          ]
         })
-      ]
-    })))
+      )
+    )
 
     renderRoute(<CredentialStoreAdmin />)
 
@@ -53,9 +57,13 @@ describe("CredentialStoreAdmin", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/credentials") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(payload({
-          credentials: [credential({ name: "CI token", safe_metadata: { host: "ci.example.com" } })]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            payload({
+              credentials: [credential({ name: "CI token", safe_metadata: { host: "ci.example.com" } })]
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(payload({ credentials: [] })))
     })
@@ -72,23 +80,93 @@ describe("CredentialStoreAdmin", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials", expect.objectContaining({ method: "POST" })))
-    expect(requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST")).toEqual(expect.objectContaining({
-      name: "CI token",
-      payload: "super-secret-token",
-      safe_metadata: { host: "ci.example.com" }
-    }))
+    expect(requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST")).toEqual(
+      expect.objectContaining({
+        name: "CI token",
+        payload: "super-secret-token",
+        safe_metadata: { host: "ci.example.com" }
+      })
+    )
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "New credential" })).not.toBeInTheDocument())
     expect(await screen.findByText("CI token")).toBeInTheDocument()
     expect(screen.queryByText("super-secret-token")).not.toBeInTheDocument()
+  })
+
+  it("creates an SSH credential through labeled fields and validates allowed hosts without JSON", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/credentials") && init?.method === "POST") return Promise.resolve(jsonResponse(payload({ credentials: [] })))
+      return Promise.resolve(jsonResponse(payload({ credentials: [], options: { credential_types: [{ name: "ssh_private_key", label: "SSH private key" }] } })))
+    })
+    renderRoute(<CredentialStoreAdmin />)
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const dialog = screen.getByRole("dialog", { name: "New credential" })
+    fireEvent.change(within(dialog).getByLabelText("Credential type"), { target: { value: "ssh_private_key" } })
+    expect(within(dialog).queryByLabelText("Safe metadata")).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Production SSH" } })
+    fireEvent.change(within(dialog).getByLabelText("Scope target"), { target: { value: "1" } })
+    fireEvent.change(within(dialog).getByLabelText("Private key"), { target: { value: "PRIVATE KEY" } })
+    fireEvent.change(within(dialog).getByLabelText("Primary host"), { target: { value: "host.example" } })
+    fireEvent.change(within(dialog).getByLabelText("SSH username"), { target: { value: "deploy" } })
+    const hostInput = within(dialog).getByLabelText("New Allowed SSH hosts value")
+    fireEvent.change(hostInput, { target: { value: "bad host" } })
+    expect(within(dialog).getByText("Enter a valid hostname or IP address.")).toBeInTheDocument()
+    fireEvent.change(hostInput, { target: { value: "host.example" } })
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Add" })[0])
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials", expect.objectContaining({ method: "POST" })))
+    const body = requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST")
+    expect(JSON.parse(String(body.payload))).toEqual({ private_key: "PRIVATE KEY" })
+    expect(body.safe_metadata).toEqual(expect.objectContaining({ host: "host.example", username: "deploy", port: 22 }))
+    expect(body.target_constraints).toEqual(expect.objectContaining({ allowed_hosts: ["host.example"] }))
+  })
+
+  it("previews a discovered fingerprint and requires explicit confirmation", async () => {
+    const knownHost = "host.example ssh-ed25519 AAAATEST"
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/probe") && init?.method === "POST")
+        return Promise.resolve(
+          jsonResponse({ enrollment: { host: "host.example", port: 22, key_type: "ssh-ed25519", fingerprint: "SHA256:new", known_host: knownHost } })
+        )
+      if (path.endsWith("/confirm") && init?.method === "POST")
+        return Promise.resolve(
+          jsonResponse({ enrollment: { host: "host.example", port: 22, key_type: "ssh-ed25519", fingerprint: "SHA256:new", known_host: knownHost } })
+        )
+      return Promise.resolve(
+        jsonResponse(
+          payload({
+            credentials: [
+              credential({
+                credential_type: "ssh_private_key",
+                safe_metadata: { host: "host.example", username: "deploy", fingerprint: "SHA256:old", known_host: "host.example ssh-ed25519 OLD" }
+              })
+            ],
+            options: { credential_types: [{ name: "ssh_private_key", label: "SSH private key" }] }
+          })
+        )
+      )
+    })
+    renderRoute(<CredentialStoreAdmin />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Discover host key" }))
+    expect((await screen.findAllByText(/SHA256:new/)).length).toBeGreaterThan(0)
+    expect(screen.getByText(/replaces SHA256:old/)).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith("/confirm"))).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm host-key replacement" }))
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith("/confirm"))).toBe(true))
   })
 
   it("submits edit metadata without sending a blank payload", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/credentials/1") && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(payload({
-          credentials: [credential({ safe_metadata: { host: "git.example.com" } })]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            payload({
+              credentials: [credential({ safe_metadata: { host: "git.example.com" } })]
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -126,14 +204,18 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("shows enabled plugin credential types and omits disabled plugin type names", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
-      options: {
-        credential_types: [
-          { name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" },
-          { name: "k8s_cluster.kubeconfig", label: "Kubernetes kubeconfig", plugin: "k8s_cluster" }
-        ]
-      }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          options: {
+            credential_types: [
+              { name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" },
+              { name: "k8s_cluster.kubeconfig", label: "Kubernetes kubeconfig", plugin: "k8s_cluster" }
+            ]
+          }
+        })
+      )
+    )
 
     renderRoute(<CredentialStoreAdmin />)
 
@@ -196,9 +278,14 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("surfaces disabled-plugin API errors", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      error: { code: "plugin_disabled", message: "Credential Store is disabled." }
-    }, 404))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        {
+          error: { code: "plugin_disabled", message: "Credential Store is disabled." }
+        },
+        404
+      )
+    )
 
     renderRoute(<CredentialStoreAdmin />)
 
@@ -209,9 +296,13 @@ describe("CredentialStoreAdmin", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/1/rotate") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(payload({
-          credentials: [ credential({ last_rotated_at: "2026-10-02T12:30:00Z" }) ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            payload({
+              credentials: [credential({ last_rotated_at: "2026-10-02T12:30:00Z" })]
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -267,9 +358,13 @@ describe("CredentialStoreAdmin", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/1/revoke") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(payload({
-          credentials: [ credential({ revoked_at: "2026-10-02T12:00:00Z", active: false }) ]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            payload({
+              credentials: [credential({ revoked_at: "2026-10-02T12:00:00Z", active: false })]
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -309,12 +404,16 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("filters credentials from the shared FilterBar q parameter", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
-      credentials: [
-        credential({ id: 1, name: "Deploy token", revoked_at: null, active: true }),
-        credential({ id: 2, name: "Legacy token", revoked_at: "2026-10-02T12:00:00Z", active: false })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          credentials: [
+            credential({ id: 1, name: "Deploy token", revoked_at: null, active: true }),
+            credential({ id: 2, name: "Legacy token", revoked_at: "2026-10-02T12:00:00Z", active: false })
+          ]
+        })
+      )
+    )
 
     renderRoute(<CredentialStoreAdmin />, `/admin/credential_store?q=${encodeFilter({ and: [{ field: "status", op: "is", value: "revoked" }] })}`)
 
@@ -323,12 +422,13 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("sorts the desktop table through sortable column headers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload({
-      credentials: [
-        credential({ id: 1, name: "Beta token" }),
-        credential({ id: 2, name: "Alpha token" })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          credentials: [credential({ id: 1, name: "Beta token" }), credential({ id: 2, name: "Alpha token" })]
+        })
+      )
+    )
 
     renderRoute(<CredentialStoreAdmin />)
 
@@ -352,21 +452,26 @@ describe("CredentialStoreAdmin", () => {
 
 async function credentialRowNames() {
   const table = await screen.findByRole("table")
-  return within(table).getAllByRole("row").slice(1).map((row) => within(row).getByText(/token$/).textContent)
+  return within(table)
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getByText(/token$/).textContent)
 }
 
 function renderRoute(children: ReactNode, initialEntry = "/admin/credential_store") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
 
 function encodeFilter(filter: Record<string, unknown>) {
-  return window.btoa(unescape(encodeURIComponent(JSON.stringify(filter)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return window
+    .btoa(unescape(encodeURIComponent(JSON.stringify(filter))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 function requestCredential(fetchSpy: { mock: { calls: Array<[unknown, RequestInit?]> } }, path: string, method: string) {
@@ -394,24 +499,24 @@ function mockViewport(viewport: "desktop" | "mobile") {
   })
 }
 
-function payload(overrides: Partial<Omit<CredentialStorePayload, "options">> & { options?: Partial<CredentialStorePayload["options"]> } = {}): CredentialStorePayload {
+function payload(
+  overrides: Partial<Omit<CredentialStorePayload, "options">> & { options?: Partial<CredentialStorePayload["options"]> } = {}
+): CredentialStorePayload {
   const base: CredentialStorePayload = {
-    credentials: [ credential() ],
+    credentials: [credential()],
     options: {
-      credential_types: [
-        { name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" }
-      ],
+      credential_types: [{ name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" }],
       scopes: [
         { value: "user", label: "User" },
         { value: "repository", label: "Repository" },
         { value: "team", label: "Team" },
         { value: "instance", label: "Instance" }
       ],
-      safe_metadata_keys: [ "host", "username", "fingerprint", "cluster", "context", "base_url" ],
-      target_constraint_keys: [ "allowed_hosts", "allowed_kube_contexts", "allowed_url_prefixes" ],
-      users: [ { id: 1, label: "Operator", detail: "operator@example.com" } ],
-      repositories: [ { id: 10, label: "acme/widgets" } ],
-      teams: [ { id: 20, label: "Deployers" } ]
+      safe_metadata_keys: ["host", "username", "fingerprint", "cluster", "context", "base_url"],
+      target_constraint_keys: ["allowed_hosts", "allowed_kube_contexts", "allowed_url_prefixes"],
+      users: [{ id: 1, label: "Operator", detail: "operator@example.com" }],
+      repositories: [{ id: 10, label: "acme/widgets" }],
+      teams: [{ id: 20, label: "Deployers" }]
     }
   }
   return {
@@ -431,9 +536,9 @@ function credential(overrides: Partial<CredentialStorePayload["credentials"][num
     scope_id: 1,
     scope_label: "Operator",
     safe_metadata: { host: "github.com" },
-    target_constraints: { allowed_hosts: [ "github.com" ] },
-    allowed_surfaces: [ "workflow" ],
-    allowed_tools: [ "git.push" ],
+    target_constraints: { allowed_hosts: ["github.com"] },
+    allowed_surfaces: ["workflow"],
+    allowed_tools: ["git.push"],
     expires_at: null,
     last_rotated_at: "2026-10-02T12:00:00Z",
     revoked_at: null,

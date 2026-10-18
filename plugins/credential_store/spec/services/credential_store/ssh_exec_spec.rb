@@ -23,7 +23,7 @@ RSpec.describe CredentialStore::SshExec do
       safe_metadata: {
         "host" => "app.example.com",
         "username" => "deploy",
-        "known_host" => "app.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicHostKey",
+        "known_host" => "app.example.com ssh-ed25519 dGVzdC1ob3N0LWtleQ==",
         "fingerprint" => "SHA256:host"
       },
       target_constraints: { "allowed_hosts" => [ "app.example.com" ] },
@@ -138,7 +138,7 @@ RSpec.describe CredentialStore::SshExec do
 
   it "accepts IPv6 literal hosts" do
     credential = create_credential(
-      safe_metadata: { "host" => "2001:db8::1", "username" => "deploy" },
+      safe_metadata: { "host" => "2001:db8::1", "username" => "deploy", "known_host" => "2001:db8::1 ssh-ed25519 dGVzdC1ob3N0LWtleQ==" },
       target_constraints: { "allowed_hosts" => [ "2001:db8::1" ] }
     )
     allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
@@ -149,6 +149,15 @@ RSpec.describe CredentialStore::SshExec do
       env: {},
       argv: include("--", "deploy@2001:db8::1", "uptime")
     )
+  end
+
+  it "fails before spawning ssh when host-key enrollment is missing" do
+    credential = create_credential(safe_metadata: { "host" => "app.example.com", "username" => "deploy" })
+    expect(runner).not_to receive(:call)
+
+    expect {
+      described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "uptime")
+    }.to raise_error(CredentialStore::Broker::Denied, /enrollment is required/)
   end
 
   it "rejects non-numeric and whitespace-bearing SSH option values before invoking the runner" do
@@ -264,11 +273,11 @@ RSpec.describe CredentialStore::SshExec do
   end
 
   it "refuses unconstrained credentials unless explicitly allowed" do
-    credential = create_credential(safe_metadata: { "username" => "deploy" }, target_constraints: {})
+    credential = create_credential(safe_metadata: { "username" => "deploy", "known_host" => "app.example.com ssh-ed25519 dGVzdC1ob3N0LWtleQ==" }, target_constraints: {})
 
     expect {
       described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "uptime")
-    }.to raise_error(CredentialStore::Broker::Denied, /no host or known-host constraint/)
+    }.to raise_error(CredentialStore::Broker::Denied, /no authorized host constraint/)
 
     allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
 
@@ -289,7 +298,7 @@ RSpec.describe CredentialStore::SshExec do
 
     expect {
       described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "uptime")
-    }.to raise_error(CredentialStore::Broker::Denied, /no host or known-host constraint/)
+    }.to raise_error(CredentialStore::Broker::Denied, /no authorized host constraint/)
   end
 
   it "does not let chat callers self-authorize risky commands or unconstrained hosts" do
