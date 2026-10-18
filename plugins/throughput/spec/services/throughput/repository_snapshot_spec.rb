@@ -57,4 +57,29 @@ RSpec.describe Throughput::RepositorySnapshot do
     expect(snapshot.refresh!).to be_nil
     expect { snapshot.read }.to raise_error(described_class::Unavailable)
   end
+
+  it "does not delete a replacement lease when an earlier computation finishes" do
+    lock_key = "#{described_class.snapshot_key(repository.id)}:refreshing"
+    contract = instance_double(Throughput::MetricContract)
+    allow(contract).to receive(:call) do
+      # Simulate the first lease expiring and another process acquiring it
+      # while the first computation is still returning.
+      cache.delete(lock_key)
+      cache.write(lock_key, "replacement-owner")
+      contract_payload
+    end
+    allow(Throughput::MetricContract).to receive(:new).and_return(contract)
+
+    snapshot.refresh!
+
+    expect(cache.read(lock_key)).to eq("replacement-owner")
+  end
+
+  it "bounds cold request computation below the cache lease duration" do
+    expect(described_class::COMPUTE_TIMEOUT).to be < described_class::REFRESH_LOCK_FOR
+    allow(Timeout).to receive(:timeout).and_raise(Timeout::Error)
+
+    expect { snapshot.read }
+      .to raise_error(described_class::Unavailable, "repository throughput metrics computation timed out")
+  end
 end
