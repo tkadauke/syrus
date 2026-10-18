@@ -113,7 +113,7 @@ Cron tasks should be written so the agent can succeed even if there's nothing to
 
 ## CronTemplate
 
-`CronTemplate` is a per-user reusable schedule + prompt configuration that multiple `ScheduledTask` rows can reference. Applying a template copies its canonical schedule, prompt, and `pr_pileup_policy` into the task at creation time. Later edits to the template do not retroactively update existing tasks.
+`CronTemplate` is a per-user reusable schedule plus either a prompt or skill configuration that multiple `ScheduledTask` rows can reference. Applying a template copies its canonical schedule, task source, and `pr_pileup_policy` into the task at creation time. Later edits to the template do not retroactively update existing tasks.
 
 Templates are managed from the user's settings page. Useful when the same survey or maintenance prompt runs across many repositories.
 
@@ -137,7 +137,7 @@ At save time, `skill_name` must resolve to a real skill (repo-local override or 
 
 `pr_pileup_policy` and auto-pause-on-failure behave identically for skill-based and freeform tasks — both are just `Job` outcomes tracked against the parent `ScheduledTask`. The New/Edit scheduled task form lets an operator toggle between "Freeform prompt" and "Skill", reusing the same skill picker + schema-driven parameter form used to launch a one-off skill Job from a repository.
 
-`CronTemplate` does not currently support skill-based tasks — templates remain freeform-prompt only.
+Templates support the same exactly-one-of prompt-or-skill choice. While authoring a skill template, the operator chooses a repository so the existing skill picker and schema-driven argument controls can resolve its current definition. The repository is only validation context and is not stored on the reusable template. Applying the template validates the copied skill and arguments against the target repository, so a removed skill or changed schema produces an actionable form-save error. If the definition drifts only after the task has been saved, the existing `run_skill` resolution path reports a normal Run failure.
 
 ## Variables in prompts
 

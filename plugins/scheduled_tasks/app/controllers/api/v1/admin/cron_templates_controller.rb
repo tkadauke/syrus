@@ -47,6 +47,7 @@ module Api
             schedule_timezone: template.schedule_timezone,
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
+            skill_name: template.skill_name,
             applied_tasks_count: template.scheduled_tasks.alive.count,
             next_fire_at: template.next_fire_at&.iso8601,
             created_at: template.created_at,
@@ -57,7 +58,7 @@ module Api
         end
 
         def template_detail_json(template)
-          template_json(template).merge(prompt: template.prompt)
+          template_json(template).merge(prompt: template.prompt, skill_args: template.skill_args || {})
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(template, e)
         end

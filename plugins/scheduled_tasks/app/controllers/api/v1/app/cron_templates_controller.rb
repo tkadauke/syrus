@@ -6,7 +6,8 @@ module Api
           templates = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).order(:name)
           render json: {
             templates: templates.map { |template| template_index_json(template) },
-            pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES
+            pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES,
+            repositories: template_repositories
           }
         end
 
@@ -17,6 +18,7 @@ module Api
 
         def create
           template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).build(cron_template_params)
+          template.skill_args = cron_template_skill_args
           template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
 
           if template.save
@@ -30,6 +32,7 @@ module Api
         def update
           template = find_template
           template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
+          template.skill_args = cron_template_skill_args unless params.dig(:cron_template, :skill_name).nil?
 
           if template.update(cron_template_params)
             render json: template_detail_payload(template).merge(message: "Template updated.")
@@ -71,7 +74,7 @@ module Api
           {
             template: template_detail_json(template),
             pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES,
-            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
+            repositories: template_repositories,
             applied_tasks: template.scheduled_tasks.alive.includes(:repository).order(created_at: :desc).map { |task| task_json(task) }
           }
         end
@@ -91,6 +94,7 @@ module Api
             legacy_cron_expression: template.legacy_cron_expression,
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
+            skill_name: template.skill_name,
             applied_tasks_count: template.scheduled_tasks.alive.count,
             created_at: template.created_at.iso8601,
             updated_at: template.updated_at.iso8601
@@ -99,7 +103,8 @@ module Api
 
         def template_detail_json(template)
           template_index_json(template).merge(
-            prompt: template.prompt
+            prompt: template.prompt,
+            skill_args: template.skill_args || {}
           )
         end
 
@@ -109,6 +114,11 @@ module Api
             slug: repository.slug,
             new_scheduled_task_path: "/repositories/#{repository.id}/scheduled_tasks/new?from_template=#{params[:id]}"
           }
+        end
+
+        def template_repositories
+          Repository.accessible_to(Current.user).merge(Repository.writable_by(Current.user)).active
+            .order(:owner, :name).map { |repository| repository_json(repository) }
         end
 
         def task_json(task)
@@ -125,7 +135,11 @@ module Api
         end
 
         def cron_template_params
-          params.expect(cron_template: %i[ name description prompt cron_expression schedule_input schedule_expression schedule_timezone pr_pileup_policy enabled ])
+          params.expect(cron_template: %i[ name description prompt cron_expression schedule_input schedule_expression schedule_timezone pr_pileup_policy enabled skill_name ])
+        end
+
+        def cron_template_skill_args
+          plain_json(params.dig(:cron_template, :skill_args).presence || {})
         end
 
         def schedule_preview_json(result)
