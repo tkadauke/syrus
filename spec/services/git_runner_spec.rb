@@ -29,6 +29,22 @@ RSpec.describe GitRunner do
     end
   end
 
+  it "passes stdin through ProcessRunner" do
+    output = described_class.new.run("hash-object", "--stdin", stdin_data: "hello\n")
+    expect(output.strip).to match(/\A[0-9a-f]{40}\z/)
+  end
+
+  it "captures separate output and preserves expected non-zero statuses" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "new.txt"), "new\n")
+      capture = described_class.new.capture("diff", "--no-index", "--", "/dev/null", "new.txt", chdir: dir)
+
+      expect(capture.result.exit_status).to eq(1)
+      expect(capture.stdout).to include("+new")
+      expect(capture.stderr).to eq("")
+    end
+  end
+
   it "passes an explicitly configured workflow through to ProcessRunner" do
     workflow = Workflow.create!(job: Factories.job_record, trigger_kind: "initial", state: "running")
     result = ProcessRunner::Result.new(

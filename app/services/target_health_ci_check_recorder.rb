@@ -1,4 +1,3 @@
-require "open3"
 require "tmpdir"
 
 class TargetHealthCiCheckRecorder
@@ -57,17 +56,24 @@ class TargetHealthCiCheckRecorder
     bare_clone = RepositoryBareClone.new(job.repository)
     bare_clone.sync!(user: job.user)
 
-    stdout, stderr, status = Open3.capture3(
-      "git", "--git-dir", bare_clone.path.to_s, "archive", head_sha
-    )
-    raise "git archive failed: #{stderr.presence || status.exitstatus}" unless status.success?
+    git_capture = ProcessRunner.new(
+      env: {}, command: [ "git", "--git-dir", bare_clone.path.to_s, "archive", head_sha ],
+      mounts: ProcessRunner.mounts(dir, read_only: [ bare_clone.path ]), network: "grader",
+      timeout: GitRunner::DEFAULT_TIMEOUT, kind: "git", job: job
+    ).capture(limit: 1.gigabyte)
+    raise "git archive failed: #{git_capture.stderr.presence || git_capture.result.exit_status}" unless git_capture.success?
 
-    extract_archive!(stdout, dir)
+    archive = git_capture.stdout
+    extract_archive!(archive, dir, job: job)
   end
 
-  def extract_archive!(archive, dir)
-    stdout, stderr, status = Open3.capture3("tar", "-x", "-C", dir, stdin_data: archive)
-    raise "tar extract failed: #{stderr.presence || status.exitstatus}" unless status.success?
+  def extract_archive!(archive, dir, job: nil)
+    capture = ProcessRunner.new(
+      env: {}, command: [ "tar", "-x", "-C", dir ],
+      mounts: ProcessRunner.mounts(dir), network: "grader", timeout: 10.minutes,
+      stdin_data: archive, kind: "archive", job: job
+    ).capture
+    raise "tar extract failed: #{capture.stderr.presence || capture.result.exit_status}" unless capture.success?
   end
 
   def record_checks!(job:, head_sha:, checks:, target:, graph:, workspace_path:, checked_at:)

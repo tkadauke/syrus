@@ -74,14 +74,11 @@ class TargetGraph
     # binary) degrades to "nothing is gitignored" rather than raising.
     def gitignored_dirs(relative_dirs)
       stdin_payload = relative_dirs.map { |dir| "#{dir}/\0" }.join
-      stdout, = Open3.capture3(
-        "git", "check-ignore", "--stdin", "-z",
-        chdir: workspace_path.to_s,
-        stdin_data: stdin_payload
-      )
+      stdout = GitRunner.new.run("check-ignore", "--stdin", "-z",
+        chdir: workspace_path.to_s, stdin_data: stdin_payload)
 
       stdout.split("\0").map { |dir| dir.delete_suffix("/") }.to_set
-    rescue Errno::ENOENT
+    rescue GitRunner::GitError, Errno::ENOENT
       Set.new
     end
   end

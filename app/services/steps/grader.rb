@@ -264,11 +264,12 @@ module Steps
     end
 
     def first_missing_tracked_file
-      output, stderr, status = Open3.capture3("git", "ls-files", "-s", "-z", chdir: workspace.path.to_s)
-      unless status.success?
+      output = begin
+        GitRunner.new(workflow: workflow).run("ls-files", "-s", "-z", chdir: workspace.path.to_s)
+      rescue GitRunner::GitError => e
         fail_with!(
           :workspace_checkout_invalid,
-          "grader checkout could not list tracked files: #{stderr.presence || "git ls-files exited #{status.exitstatus}"}",
+          "grader checkout could not list tracked files: #{e.output.presence || e.message}",
           evidence: { "workspace_path" => workspace.path.to_s }
         )
       end
@@ -437,19 +438,10 @@ module Steps
     # when one leaves uncommitted changes it usually means either the
     # generated output should be gitignored, or the command belongs in
     # .syrus.yml's formatters:/generated: section instead of grade:. See
-    # config/syrus_docs/workflow_warnings.md. Runs a plain synchronous
-    # subprocess rather than going through GitRunner/ProcessRunner — this is
-    # a fast, internal, non-interactive check, not a command whose spans,
-    # timeouts, or kill-switch matter the way a real grader command's does.
+    # config/syrus_docs/workflow_warnings.md.
     def capture_git_status(name:)
-      stdout, _stderr, status = Open3.capture3(
-        GIT_READ_ONLY_ENV,
-        "git", "status", "--porcelain",
-        chdir: workspace.path.to_s
-      )
-      return nil unless status.success?
-
-      stdout
+      GitRunner.new(env: GIT_READ_ONLY_ENV, workflow: workflow)
+        .run("status", "--porcelain", chdir: workspace.path.to_s)
     rescue StandardError => e
       log("[grader:#{name}] warning: git status check failed (skipping side-effect detection): #{e.class}: #{e.message}")
       nil

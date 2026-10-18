@@ -593,6 +593,12 @@ class ProcessRunner
     spawned_process_id = ready.pop
     raise thread[:process_runner_error] if spawned_process_id.nil?
 
+    process = SpawnedProcess.find(spawned_process_id)
+    until process.reload.pid || !thread.alive?
+      sleep 0.01
+    end
+    raise thread[:process_runner_error] if thread[:process_runner_error]
+
     BackgroundHandle.new(spawned_process_id: spawned_process_id, thread: thread)
   end
 

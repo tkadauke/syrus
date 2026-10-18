@@ -226,29 +226,22 @@ class PreviewService
 
   def spawn_app(command, workspace_path, port, preview_environment, process_env = {})
     env = process_env.merge("PORT" => port.to_s)
-    pid = Process.spawn(env, command, chdir: workspace_path, pgroup: true,
-                                      out: "/dev/null", err: "/dev/null",
-                                      unsetenv_others: true)
-    pgid = Process.getpgid(pid) rescue nil
-    spawned_process = SpawnedProcess.create!(
-      kind: "preview",
-      command: command,
-      workdir: workspace_path,
-      hostname: Socket.gethostname,
-      started_at: Time.current,
-      last_chunk_at: Time.current,
-      pid: pid,
-      pgid: pgid,
-      resource_attribution: {
-        "preview_environment_id" => preview_environment.id,
-        "job_id" => preview_environment.job_id,
-        "repository_id" => preview_environment.repository_id,
-        "port" => port
-      }
-    )
-    SpawnedProcessSupervisor.ensure_running
-    Rails.logger.info("[PreviewService] spawned pid=#{pid} port=#{port} cmd=#{command.inspect}")
-    ChildProcess.new(pid: pid, environment_id: preview_environment.id, port: port, spawned_process_id: spawned_process.id)
+    handle = ProcessRunner.new(
+      env: env, command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(workspace_path), network: "prepare",
+      timeout: 24.hours, kind: "preview", job: preview_environment.job,
+      display_command: command
+    ).start
+    spawned_process = handle.spawned_process
+    spawned_process.update!(resource_attribution: spawned_process.resource_attribution.merge(
+      "preview_environment_id" => preview_environment.id,
+      "job_id" => preview_environment.job_id,
+      "repository_id" => preview_environment.repository_id,
+      "port" => port
+    ))
+    Rails.logger.info("[PreviewService] spawned pid=#{spawned_process.pid} port=#{port} cmd=#{command.inspect}")
+    ChildProcess.new(pid: spawned_process.pid, environment_id: preview_environment.id, port: port,
+      spawned_process_id: spawned_process.id)
   end
 
   def preview_process_env(source, workspace_path)

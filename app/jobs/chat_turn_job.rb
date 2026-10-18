@@ -22,8 +22,11 @@ class ChatTurnJob < ApplicationJob
     def claude_file_flag_supported?
       return @claude_file_flag_supported unless @claude_file_flag_supported.nil?
 
-      output, status = Open3.capture2e("claude", "--help")
-      @claude_file_flag_supported = status.success? && output.match?(/--file\b/)
+      capture = ProcessRunner.new(
+        env: {}, command: [ "claude", "--help" ], mounts: ProcessRunner.mounts(Dir.pwd),
+        network: "grader", timeout: 10, kind: "runtime_probe"
+      ).capture
+      @claude_file_flag_supported = capture.success? && "#{capture.stdout}#{capture.stderr}".match?(/--file\b/)
     rescue Errno::ENOENT
       @claude_file_flag_supported = false
     end
