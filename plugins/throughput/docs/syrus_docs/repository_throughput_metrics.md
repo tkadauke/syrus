@@ -56,15 +56,18 @@ GET /api/v1/app/repositories/:id/throughput_metrics
 ```
 
 The endpoint is scoped through the signed-in user's repository workspace
-memberships. The plugin precomputes one versioned snapshot per active, polled
-repository every five minutes on the consumed `polling` queue. Snapshots are
+memberships. The plugin precomputes one versioned snapshot per active
+repository every five minutes on the consumed `polling` queue, including
+repositories whose issue polling is disabled. Snapshots are
 fresh for ten minutes and retained for up to 24 hours so a refresh failure does
 not erase the last known metrics. The response adds `cache_status`: `fresh`,
 `computed` for the single cold-cache fallback, or `stale`. `generated_at`
 continues to describe when the metric windows were computed, not request time.
 
-Refreshes are serialized per repository and also guarded by a shared-cache
-claim, preventing web and worker processes from duplicating the expensive
+Refreshes are serialized per repository and also guarded by a five-minute
+shared-cache lease. Computation is bounded to four minutes, and an old owner
+never deletes the lease, preventing an expired owner from removing a newer
+owner's claim and allowing duplicate expensive
 rollup. A cold request may compute the snapshot once. If another process owns
 that computation and no retained snapshot exists, the endpoint returns `503`
 with `throughput_snapshot_unavailable`; it never substitutes plausible empty

@@ -5,7 +5,7 @@ class Throughput::RefreshRepositorySnapshotJob < ApplicationJob
 
   def perform(repository_id)
     repository = Repository.active.find_by(id: repository_id)
-    return unless repository&.polling_enabled?
+    return unless repository
 
     Throughput::RepositorySnapshot.new(repository: repository).refresh!
   end
