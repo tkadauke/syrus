@@ -33,7 +33,12 @@ module Api
             {
               tables: RetentionPolicyRegistry.definitions.map { |definition| table_payload(definition, setting) },
               available_space: RetentionSizeSnapshotJob.available_space&.as_json,
-              retention_available_space_override_gb: setting.retention_available_space_override_gb
+              retention_available_space_override_gb: setting.retention_available_space_override_gb,
+              storage_limits: {
+                prepared_layer_cache_bytes: PreparedLayerCache.budget_bytes,
+                prepared_layer_cache_source: PreparedLayerCache.budget_source,
+                coding_workspace_bytes: AppSetting.chat_coding_workspace_budget_bytes
+              }
             }
           end
 

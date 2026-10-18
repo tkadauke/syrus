@@ -68,6 +68,7 @@ function RetentionSettingsView({ payload, onNotice }: { payload: RetentionSettin
   return (
     <>
       <AvailableSpaceCard onNotice={onNotice} payload={payload} />
+      <StorageLimitsCard payload={payload} />
 
       <section className="divide-y divide-border rounded border border-border bg-surface">
         {payload.tables.map((table) => (
@@ -81,6 +82,28 @@ function RetentionSettingsView({ payload, onNotice }: { payload: RetentionSettin
       </section>
     </>
   )
+}
+
+function StorageLimitsCard({ payload }: { payload: RetentionSettingsPayload }) {
+  const { t } = useT("admin")
+  const limits = payload.storage_limits
+
+  return (
+    <section className="rounded border border-border bg-surface p-6 space-y-3">
+      <SectionHeading>{t("retention_settings.storage_limits_label")}</SectionHeading>
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <Stat label={t("retention_settings.prepared_cache_limit_label")} value={formatStorageLimit(limits.prepared_layer_cache_bytes, t)} />
+        <Stat label={t("retention_settings.coding_workspace_limit_label")} value={formatStorageLimit(limits.coding_workspace_bytes, t)} />
+      </dl>
+      <p className="text-xs text-text-secondary">
+        {t(`retention_settings.prepared_cache_source_${limits.prepared_layer_cache_source}`)}
+      </p>
+    </section>
+  )
+}
+
+function formatStorageLimit(bytes: number, t: (key: string) => string): string {
+  return bytes > 0 ? formatBytes(bytes) : t("retention_settings.unlimited")
 }
 
 function AvailableSpaceCard({ payload, onNotice }: { payload: RetentionSettingsPayload; onNotice: (message: string | null) => void }) {

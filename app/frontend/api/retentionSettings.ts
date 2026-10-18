@@ -28,6 +28,11 @@ export type RetentionSettingsPayload = {
   tables: RetentionTableRow[]
   available_space: RetentionAvailableSpace | null
   retention_available_space_override_gb: number
+  storage_limits: {
+    prepared_layer_cache_bytes: number
+    prepared_layer_cache_source: "app_setting" | "worker_environment"
+    coding_workspace_bytes: number
+  }
   message?: string
 }
 

@@ -667,6 +667,12 @@
     "available_space_override_label": "Spatium disponibile manu insertum (GB)",
     "available_space_override_help": "Adhibetur ad comparationem spatii adhibiti infra, cum Syrus spatium disponibile per se mensurare non potest (exempli gratia MySQL datadir procul administratum). Pone 0 ut deleatur.",
     "available_space_override_placeholder": "exempli gratia 500",
+    "storage_limits_label": "Limites memoriae operum localium",
+    "prepared_cache_limit_label": "Cella operum praeparatorum",
+    "coding_workspace_limit_label": "Opera Modi Coding",
+    "prepared_cache_source_app_setting": "Limes cellae praeparatae ex praescripto instantiae venit.",
+    "prepared_cache_source_worker_environment": "Limes cellae praeparatae huic processui a SYRUS_PREPARED_LAYER_CACHE_GB mutatur.",
+    "unlimited": "Infinitum",
     "archives": {
       "archive_before_delete_label": "Ante deletionem archivare",
       "show": "Archiva monstra",

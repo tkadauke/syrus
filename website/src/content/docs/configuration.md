@@ -722,6 +722,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_APP_HOST` | Web yes | Canonical app hostname for URL generation, mailer links, and Host header authorization |
 | `SYRUS_ALLOWED_HOSTS` | No | Optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed, and a blank value falls back to only `SYRUS_APP_HOST` |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
+| `SYRUS_PREPARED_LAYER_CACHE_GB` | Worker optional | Overrides the instance prepared-workspace cache budget for a worker whose local disk differs from the fleet |
 | `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
 | `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement for `os`, `arch`, `toolchain`, and `runtime` |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
@@ -745,6 +746,15 @@ Web pods do not need clone storage. The mounted directory must be writable
 by the container's `rails` user (`1000:1000`); the published Docker images
 create `/home/rails/.syrus` with that ownership so a fresh named volume can
 inherit it on first mount.
+
+Fresh installations cap both the prepared-workspace cache and retained Coding
+Mode checkouts at 10 GB. The prepared cache is an LRU per worker and still
+evicts under disk pressure; `SYRUS_PREPARED_LAYER_CACHE_GB` can override its
+instance setting for one worker. Coding Mode uses a separate instance-wide LRU
+budget. Admins can inspect both effective limits under **Admin → Retention &
+Storage** and change the stored values under **Admin → Settings**. Upgrades do
+not replace values already stored by an existing installation, and setting a
+budget to `0` explicitly keeps that budget unlimited.
 
 ## Secret Management
 

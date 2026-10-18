@@ -667,6 +667,12 @@
     "available_space_override_label": "Manuelle Überschreibung des verfügbaren Speichers (GB)",
     "available_space_override_help": "Wird für den Vergleich des genutzten Speichers unten verwendet, wenn Syrus verfügbaren Speicher nicht automatisch messen kann (z. B. bei einem verwalteten/entfernten MySQL-Datenverzeichnis). Auf 0 setzen, um zurückzusetzen.",
     "available_space_override_placeholder": "z. B. 500",
+    "storage_limits_label": "Lokale Workspace-Speicherlimits",
+    "prepared_cache_limit_label": "Cache vorbereiteter Workspaces",
+    "coding_workspace_limit_label": "Coding-Mode-Workspaces",
+    "prepared_cache_source_app_setting": "Das Limit des vorbereiteten Caches stammt aus der Instanzeinstellung.",
+    "prepared_cache_source_worker_environment": "Das Limit des vorbereiteten Caches wird für diesen Prozess durch SYRUS_PREPARED_LAYER_CACHE_GB überschrieben.",
+    "unlimited": "Unbegrenzt",
     "archives": {
       "archive_before_delete_label": "Vor dem Löschen archivieren",
       "show": "Archive anzeigen",
