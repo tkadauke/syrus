@@ -618,11 +618,15 @@ provider = Syrus::PreviewProviderResolver.for(repo_path)
 # => SyrusRails::PreviewProvider instance, or nil if nothing matches
 ```
 
-**SQLite requirement:** the preview host launches the Rails server in a
-long-lived child process. For the preview database to work without a companion
-Postgres container, the repo's `config/database.yml` must use
-`adapter: sqlite3` for the `development` environment. Postgres preview
-environments are not yet supported.
+The Rails provider supports SQLite development databases without additional
+configuration. For `adapter: postgresql`, the preview runtime must be given a
+deployment-only `SYRUS_RAILS_PREVIEW_POSTGRES_URL` whose user can create and
+drop databases. The provider derives an isolated database name per preview,
+checks server readiness, runs `db:create db:migrate db:seed`, and drops the
+database when an agent preview stops. The credential is passed only through
+the child-process environment and database URLs are redacted from diagnostics.
+An explicit repository or nested-project `.syrus.yml preview:` block continues
+to take precedence over provider auto-detection.
 
 ## `:runtime_session_provider`
 

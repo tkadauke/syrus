@@ -3,7 +3,8 @@ class CommandRedactor
 
   AUTH_URL_PATTERNS = [
     %r{(https://x-access-token:)[^@\s]+(@)}i,
-    %r{(https://[^:/@\s]+:)[^@\s]+(@github\.com\b)}i
+    %r{(https://[^:/@\s]+:)[^@\s]+(@github\.com\b)}i,
+    %r{((?:postgres(?:ql)?|mysql2?)://[^:/@\s]+:)[^@\s]+(@)}i
   ].freeze
   GITHUB_TOKEN_PATTERN = /\b(?:ghp|github_pat|gho|ghu|ghs|ghr)_[A-Za-z0-9_]+\b/.freeze
   ASSIGNMENT_PATTERN = %r{

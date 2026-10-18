@@ -32,6 +32,19 @@ break once the preview is behind a proxy and HTTPS origin.
 Seed commands should be idempotent. A preview may be started repeatedly on the
 same branch while a user or reviewer investigates the change.
 
+When the bundled Rails plugin auto-detects a repository, SQLite development
+databases work without extra deployment configuration. A Rails repository
+whose development adapter is PostgreSQL requires the preview runtime to have
+`SYRUS_RAILS_PREVIEW_POSTGRES_URL`, pointing to a maintenance database with a
+user allowed to create and drop databases. Syrus creates a deterministic,
+isolated database for each preview, waits for PostgreSQL readiness, runs
+create/migrate/seed, and drops the database at cleanup. The URL is runtime-only
+secret material and is redacted from commands and diagnostics.
+
+An explicit `.syrus.yml` `preview` block always takes precedence over Rails
+auto-detection. Use it when the repository has custom database provisioning or
+cleanup requirements.
+
 For monorepos, each nested `.syrus.yml` can define a project-scoped `preview`
 block. Syrus runs that preview from the nested project directory. When a Job
 affects one previewable project, Start Preview launches that project directly.

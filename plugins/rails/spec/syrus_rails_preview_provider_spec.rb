@@ -194,6 +194,55 @@ RSpec.describe SyrusRails::PreviewProvider do
     end
   end
 
+  describe "PostgreSQL previews" do
+    it "detects the development adapter and builds isolated database URLs" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "database.yml"), <<~YAML)
+          default: &default
+            adapter: postgresql
+          development:
+            <<: *default
+        YAML
+        provider.detect?(dir)
+
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with("SYRUS_RAILS_PREVIEW_POSTGRES_URL").and_return("postgresql://preview:top-secret@postgres:5432/postgres")
+        first = provider.env_for(key: "preview-one").fetch("DATABASE_URL")
+        second = provider.env_for(key: "preview-two").fetch("DATABASE_URL")
+        expect(first).to start_with("postgresql://preview:top-secret@postgres:5432/syrus_preview_")
+        expect(second).not_to eq(first)
+        expect(provider.cleanup_command).to include("DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bin/rails db:drop")
+        expect(provider.setup_commands.last).to include("PostgreSQL preview infrastructure was not ready within 30 seconds")
+      end
+    end
+
+    it "fails precisely when PostgreSQL infrastructure is not configured" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "database.yml"), "development:\n  adapter: postgresql\n")
+        provider.detect?(dir)
+
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with("SYRUS_RAILS_PREVIEW_POSTGRES_URL").and_return(nil)
+        expect { provider.env_for(key: "preview") }
+          .to raise_error(RuntimeError, /SYRUS_RAILS_PREVIEW_POSTGRES_URL is not configured/)
+      end
+    end
+
+    it "keeps SQLite previews on the existing environment and command path" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "database.yml"), "development:\n  adapter: sqlite3\n")
+        provider.detect?(dir)
+
+        expect(provider.env_for(key: "preview")).to eq({})
+        expect(provider.cleanup_command).to be_nil
+        expect(provider.setup_commands.size).to eq(3)
+      end
+    end
+  end
+
   describe "#unset_env" do
     it "strips inherited production database settings" do
       expect(provider.unset_env).to include(
