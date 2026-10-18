@@ -157,9 +157,42 @@ RSpec.describe "desktop auto-update and release pipeline" do
     build = YAML.safe_load(build_workflow)
 
     expect(workflow.dig("jobs", "prepare", "if")).to eq("github.ref == 'refs/heads/main'")
-    expect(workflow.dig("jobs", "build")).not_to have_key("secrets")
     expect(build.dig("jobs", "build-mac", "environment")).to eq("release-signing")
     expect(workflow.dig("jobs", "publish", "environment")).to eq("release-signing")
+  end
+
+  # Regression: the module's signing credentials were once left to the
+  # release-signing environment alone, with no `secrets:` on the caller and no
+  # `workflow_call.secrets` on the module. A reusable workflow sees NO secret it
+  # has not declared -- entering an environment grants that environment's own
+  # secrets and its protection rules, it is not a channel across the
+  # workflow_call boundary -- so every signing secret resolved to the empty
+  # string and build-mac died on its own "signing secrets present" guard. Both
+  # halves have to line up, for both callers, or the first release run after a
+  # change like that is the thing that discovers it.
+  it "declares every secret the build module reads, and passes it from both callers" do
+    build = YAML.safe_load(build_workflow)
+    test_build = YAML.safe_load(read(repo_root, ".github/workflows/test-build.yml"))
+
+    # GITHUB_TOKEN is ambient in every workflow; everything else must be
+    # declared, or it is empty at runtime.
+    referenced = build_workflow.scan(/secrets\.([A-Z0-9_]+)/).flatten.uniq - ["GITHUB_TOKEN"]
+    declarations = build.dig(true, "workflow_call", "secrets")
+
+    expect(referenced).not_to be_empty
+    expect(declarations).to be_a(Hash), "the module must declare, under workflow_call.secrets, every secret it reads"
+    expect(declarations.keys).to match_array(referenced)
+    # Enumerated, never `secrets: inherit` -- the module reads these five and
+    # nothing else the callers hold.
+    declarations.each { |name, spec| expect(spec["required"]).to be(true), "#{name} must be required" }
+    declared = declarations.keys
+
+    [YAML.safe_load(release_workflow), test_build].each do |caller_workflow|
+      passed = caller_workflow.dig("jobs", "build", "secrets")
+      expect(passed).to be_a(Hash), "caller must pass the module's secrets explicitly"
+      expect(passed.keys).to match_array(declared)
+      declared.each { |name| expect(passed[name]).to eq("${{ secrets.#{name} }}") }
+    end
   end
 
   it "release workflow only ships signed builds and STAGES them (never publishes mid-build)" do

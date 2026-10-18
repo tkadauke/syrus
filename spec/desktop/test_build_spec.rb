@@ -66,9 +66,12 @@ RSpec.describe "desktop test-build pipeline" do
 
   it "only dispatches reviewed main source and gates signing on the protected environment" do
     expect(workflow.dig("jobs", "prepare", "if")).to eq("github.ref == 'refs/heads/main'")
-    expect(workflow.dig("jobs", "build")).not_to have_key("secrets")
     expect(build_yaml.dig("jobs", "build-mac", "environment")).to eq("release-signing")
-    expect(build_text).to include("set them on the release-signing environment")
+    expect(build_text).to include("A signed build is required")
+    # The environment is the approval gate; the credentials cross the
+    # workflow_call boundary only because this caller passes them. Leaving them
+    # to the environment alone resolves every one to the empty string.
+    expect(workflow.dig("jobs", "build", "secrets", "CSC_LINK")).to eq("${{ secrets.CSC_LINK }}")
   end
 
   it "guards the image tag and app version so they can never collide with a release" do

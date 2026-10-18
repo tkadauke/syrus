@@ -80,6 +80,29 @@ on:
         description: "Build channel: 'stable' (release) or 'test' (side-by-side test build). Drives the product name, appId, icon, and DMG/shortcut naming so a test build installs beside — never over — a release."
         type: string
         default: stable
+    # A reusable workflow sees NO secret it does not declare here — not the
+    # caller's repository secrets, and not the secrets of the environment one of
+    # its jobs enters. `environment:` grants a job that environment's own
+    # secrets and gates it on the environment's protection rules; it is not a
+    # channel across the workflow_call boundary. So the five Apple credentials
+    # build-mac needs are declared and passed explicitly: enumerated rather than
+    # `secrets: inherit`, so the module can only ever read these five.
+    secrets:
+      CSC_LINK:
+        description: "base64 of the Developer ID Application .p12."
+        required: true
+      CSC_KEY_PASSWORD:
+        description: "Export password for the .p12 in CSC_LINK."
+        required: true
+      APPLE_API_KEY_P8:
+        description: "Contents of the App Store Connect .p8 notarization key."
+        required: true
+      APPLE_API_KEY_ID:
+        description: "App Store Connect API key id."
+        required: true
+      APPLE_API_ISSUER:
+        description: "App Store Connect API issuer id."
+        required: true
 
 # A called workflow can never exceed the caller's granted permissions. Both
 # callers satisfy this (release adds contents: write on top, a superset).
@@ -342,9 +365,12 @@ jobs:
   build-mac:
     runs-on: macos-15
     timeout-minutes: 90
-    # Store the Apple credentials on this protected environment, with a main
-    # deployment-branch rule and required reviewers. Keeping the gate on the
-    # secret-consuming job protects both release and test-build callers.
+    # The gate, not the credential source: configure this environment with a
+    # main deployment-branch rule and required reviewers so approval happens
+    # before anything is signed, for the release and test-build callers alike.
+    # The credentials themselves arrive through `secrets:` above — a job in a
+    # called workflow cannot read a secret the workflow did not declare, whether
+    # it is stored on the environment or on the repository.
     environment: release-signing
     # Channel identity, resolved once for every step in this job: a test build
     # forks the product name / appId / icon so its Syrus Test.app installs
@@ -365,7 +391,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           if [[ -z "$CSC_LINK" || -z "$APPLE_API_KEY_P8" ]]; then
-            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build is required — set them on the release-signing environment (dry runs sign too)."
+            echo "::error::Signing secrets missing (CSC_LINK / APPLE_API_KEY_P8). A signed build is required — set them as repository secrets; the caller passes them into this module explicitly (dry runs sign too)."
             exit 1
           fi
 

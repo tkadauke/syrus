@@ -176,10 +176,12 @@ jobs:
   # integration tests always on. `push_image` is gated on
   # a real run (a dry run builds + integration-tests both arches but pushes
   # nothing). Its jobs run as part of THIS graph, so `publish: needs: build`
-  # waits for the whole spine. Signing credentials are intentionally NOT
-  # inherited from the caller: build-mac reads them only after entering the
-  # protected release-signing environment. The module declares only
-  # contents:read + packages:write, a subset of this workflow's grants.
+  # waits for the whole spine. The signing credentials are passed in one by one
+  # (the module declares them in `workflow_call.secrets`) because entering the
+  # release-signing environment does not hand a called workflow any secret it
+  # has not declared — the environment is the approval gate, not the channel.
+  # The module declares only contents:read + packages:write, a subset of this
+  # workflow's grants.
   # ---------------------------------------------------------------------------
   build:
     needs: prepare
@@ -196,6 +198,16 @@ jobs:
       artifact_retention_days: 7
       run_integration_tests: true
       channel: stable
+    # Enumerated, not `secrets: inherit`: the module declares exactly these five
+    # in its `workflow_call.secrets`, so it can read nothing else this workflow
+    # holds. build-mac still enters the protected release-signing environment
+    # for the branch rule and reviewer approval.
+    secrets:
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
   # ---------------------------------------------------------------------------
   # Plugin service images (plugins/*/container) -- what Plugin Runtime starts
