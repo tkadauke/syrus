@@ -41,7 +41,21 @@
     "edit_label": "Edit",
     "ready_heading": "Ready for normal operations",
     "ready_description": "Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.",
-    "open_dashboard": "Open dashboard"
+    "open_dashboard": "Open dashboard",
+    "readiness_label": "Repository readiness",
+    "readiness_loading": "Inspecting repository readiness…",
+    "readiness_prepare": "Proposed prepare commands",
+    "readiness_graders": "Proposed grader commands",
+    "readiness_workers": "Execution scopes and workers",
+    "readiness_advisory": "Warnings are advisory. Syrus only blocks invalid configuration, inaccessible repository content, or missing worker capabilities.",
+    "readiness_probe": "Disposable execution probe",
+    "readiness_probe_run": "Run probe",
+    "readiness_probe_retry": "Retry probe",
+    "readiness_probe_override": "Override warning",
+    "readiness_probe_description": "Clone into a disposable checkout, install declared toolchains, prepare dependencies, and run one bounded grader without starting an agent.",
+    "readiness_probe_metrics": "{{duration}}s · {{bytes}} bytes growth · cleanup {{cleanup}}",
+    "readiness_probe_missing_executables": "Missing executables: {{names}}",
+    "readiness_probe_missing_services": "Unavailable services: {{names}}"
   },
   "search": {
     "heading": "Search",

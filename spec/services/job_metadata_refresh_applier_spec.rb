@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe JobMetadataRefreshApplier do
   let(:user) { Factories.user(github_token: "ghp_test", github_handle: "octavia") }
-  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", pr_cost_footer_enabled: true) }
   let(:job) do
     Factories.job_record(
       user: user,

@@ -2,6 +2,8 @@ class AppSetting < ApplicationRecord
   SINGLETON_KEY = 1
   DEFAULT_REPORT_ISSUE_REPO_SLUG = "tkadauke/syrus".freeze
 
+  self.ignored_columns += %w[user_daily_spend_budget_usd]
+
   CLEARABLE_SECRETS = {
     "telegram_bot_token" => "Telegram bot token",
     "discord_bot_token" => "Discord bot token"
@@ -115,10 +117,6 @@ class AppSetting < ApplicationRecord
 
   def self.repository_full_poll_interval_hours
     current.repository_full_poll_interval_hours
-  end
-
-  def self.user_daily_spend_budget_usd
-    current.user_daily_spend_budget_usd
   end
 
   def self.proactive_rebase_commit_threshold

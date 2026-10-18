@@ -1,7 +1,21 @@
 module Syrus
   module SpecSupport
     module BundledPlugins
-      TEST_PROVIDER_PLUGIN_NAMES = %w[claude_agent codex_agent agy_agent].freeze
+      # Plugin specs exercise installed plugin behavior, independently of the
+      # fresh-install policy encoded by default_enabled. Keep capabilities
+      # whose suites rely on cross-plugin registration enabled in the shared
+      # test instance; default-policy examples recreate their records under
+      # :reset_plugin_registry instead.
+      TEST_ENABLED_PLUGIN_NAMES = %w[
+        claude_agent codex_agent agy_agent
+        android build_cache credential_store design_docs django java kotlin
+        spending_insights team_directory
+      ].freeze
+      EXAMPLE_ENABLED_PLUGIN_PATHS = {
+        "git_history" => %r{\A\./plugins/git_history/spec/},
+        "operator_briefing" => %r{\A\./plugins/operator_briefing/spec/}
+      }.freeze
+      TEST_DISABLED_PLUGIN_NAMES = EXAMPLE_ENABLED_PLUGIN_PATHS.keys.freeze
       BETA_MODE_EXCLUDED_SPEC_PATHS = %r{
         \A\./spec/
         (?:
@@ -28,7 +42,7 @@ module Syrus
         return nil if manifests.empty?
 
         @required_enabled_plugin_names =
-          (manifests.select(&:default_enabled?).map(&:name) + TEST_PROVIDER_PLUGIN_NAMES).uniq.to_set
+          (manifests.select(&:default_enabled?).map(&:name) + TEST_ENABLED_PLUGIN_NAMES).uniq.to_set
       rescue ActiveRecord::ActiveRecordError
         nil
       end
@@ -38,7 +52,8 @@ module Syrus
         required = required_enabled_plugin_names
         return false if required.nil?
 
-        required.subset?(PluginRecord.where(enabled: true).pluck(:name).to_set)
+        enabled_names = PluginRecord.where(enabled: true).pluck(:name).to_set
+        required.subset?(enabled_names) && TEST_DISABLED_PLUGIN_NAMES.none? { |name| enabled_names.include?(name) }
       rescue ActiveRecord::ActiveRecordError
         false
       end
@@ -83,15 +98,35 @@ module Syrus
           record.update!(enabled: true) unless record.enabled?
         end
 
-        TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+        TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
           record = PluginRecord.find_or_create_by!(name: plugin_name)
           record.update!(enabled: true) unless record.enabled?
+        end
+        TEST_DISABLED_PLUGIN_NAMES.each do |plugin_name|
+          record = PluginRecord.find_or_create_by!(name: plugin_name)
+          record.update!(enabled: false) if record.enabled?
         end
         Syrus::PluginRegistry.clear_plugin_record_cache!
       rescue ActiveRecord::ActiveRecordError
         # The registry itself fails open when plugin_records is unreadable.
         # Match that behavior here so database maintenance failures surface in
         # the example that needs the database, not in this global support hook.
+      end
+
+      def restore_example_plugin_records(example)
+        plugin_names = EXAMPLE_ENABLED_PLUGIN_PATHS.filter_map do |plugin_name, path_pattern|
+          plugin_name if path_pattern.match?(example.metadata[:file_path].to_s)
+        end
+        return if plugin_names.empty?
+
+        plugin_names.each do |plugin_name|
+          record = PluginRecord.find_or_create_by!(name: plugin_name)
+          record.update!(enabled: true) unless record.enabled?
+        end
+        Syrus::PluginRegistry.clear_plugin_record_cache!
+      rescue ActiveRecord::ActiveRecordError
+        # Match restore_test_provider_records: database maintenance failures
+        # should surface in the example that actually needs the database.
       end
 
       def beta_mode_excluded?(example)
@@ -152,6 +187,7 @@ RSpec.configure do |config|
     Syrus::SpecSupport::BundledPlugins.with_default_beta_mode(example) do
       unless example.metadata[:reset_plugin_registry]
         restore_test_provider_records.call
+        Syrus::SpecSupport::BundledPlugins.restore_example_plugin_records(example)
         Syrus::PluginRegistry.restore(snapshot) if snapshot
       end
       example.run

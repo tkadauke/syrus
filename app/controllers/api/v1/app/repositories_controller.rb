@@ -334,7 +334,39 @@ module Api
           render json: { "days" => days, "trend" => trend, "latest" => latest }
         end
 
+        def readiness
+          repository = find_repository
+          render json: { readiness: RepositoryReadiness.call(repository:, user: Current.user).to_h.merge(execution_probe: execution_probe_json(repository.repository_execution_probes.recent_first.first)) }
+        end
+
+        def readiness_probe
+          repository = find_repository
+          claim = RepositoryExecutionProbe.claim!(repository:, requested_by: Current.user)
+          RepositoryExecutionProbeJob.perform_later(claim.probe.id) if claim.created
+          render json: { execution_probe: execution_probe_json(claim.probe) }, status: claim.created ? :accepted : :ok
+        end
+
+        def override_readiness_probe
+          repository = find_repository
+          probe = repository.repository_execution_probes.recent_first.find(params.require(:probe_id))
+          probe.update!(warning_override: true)
+          repository.jobs.joins(:workflows).merge(Workflow.queued).find_each do |job|
+            job.workflows.queued.find_each { |workflow| WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: 1.second, priority: workflow.solid_queue_priority) }
+          end
+          render json: { execution_probe: execution_probe_json(probe) }
+        end
+
         private
+
+        def execution_probe_json(probe)
+          return nil unless probe
+
+          {
+            id: probe.id, status: probe.status, revision: probe.revision,
+            result: probe.result, warning_override: probe.warning_override,
+            started_at: probe.started_at, completed_at: probe.completed_at
+          }
+        end
 
         def form_payload(repository)
           payload = {

@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Steps::Push do
   let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", pr_cost_footer_enabled: true) }
   let(:job) { Factories.job(repository: repository, issue_number: 42, pr_number: 9) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "pr_comment", agent_provider: "claude") }
   let(:step) { Step.create!(workflow: workflow, kind: "push", position: 0) }

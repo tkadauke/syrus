@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -185,7 +185,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
 
   create_table "app_settings", force: :cascade do |t|
     t.integer "adversarial_review_rounds", default: 0, null: false
-    t.integer "chat_coding_workspace_budget_mb", default: 0, null: false
+    t.integer "chat_coding_workspace_budget_mb", default: 10240, null: false
     t.datetime "created_at", null: false
     t.text "discord_bot_token"
     t.bigint "github_app_id"
@@ -212,7 +212,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.integer "notification_retention_days", default: 30, null: false
     t.integer "operational_log_event_retention_hours", default: 6, null: false
     t.boolean "polling_paused", default: false, null: false
-    t.integer "prepared_layer_cache_gb", default: 100, null: false
+    t.integer "prepared_layer_cache_gb", default: 10, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
     t.boolean "provider_session_archive_before_delete", default: false, null: false
     t.integer "provider_session_retention_days", default: 14, null: false
@@ -233,7 +233,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
     t.datetime "updated_at", null: false
-    t.integer "user_daily_spend_budget_usd", default: 20, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
     t.boolean "work_engine_reconciler_activity_archive_before_delete", default: false, null: false
@@ -2746,10 +2745,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
     t.string "last_poll_status"
-    t.boolean "main_branch_health_enabled", default: true, null: false
+    t.boolean "main_branch_health_enabled", default: false, null: false
     t.boolean "main_branch_repair_auto_approve", default: false, null: false
-    t.boolean "main_branch_repair_blocks_work", default: true, null: false
-    t.boolean "main_branch_repair_enabled", default: true, null: false
+    t.boolean "main_branch_repair_blocks_work", default: false, null: false
+    t.boolean "main_branch_repair_enabled", default: false, null: false
     t.integer "main_health_poll_error_streak", default: 0, null: false
     t.string "name", null: false, collation: "NOCASE"
     t.boolean "new_test_flakiness_gate_enabled", default: false, null: false
@@ -2759,7 +2758,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.datetime "plugin_signals_observed_at"
     t.json "poll_issue_errors"
     t.boolean "polling_enabled", default: true, null: false
-    t.boolean "pr_cost_footer_enabled", default: true, null: false
+    t.boolean "pr_cost_footer_enabled", default: false, null: false
     t.boolean "prepare_enabled", default: true, null: false
     t.string "review_policy", default: "self", null: false
     t.string "risk_profile", default: "production", null: false
@@ -2787,6 +2786,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
     t.index ["vcs", "archived_at", "id"], name: "idx_repositories_vcs_active_scan"
+  end
+
+  create_table "repository_execution_probes", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.integer "requested_by_id", null: false
+    t.string "status", default: "queued", null: false
+    t.string "revision"
+    t.json "result", null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.boolean "warning_override", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "in_flight", default: true
+    t.index ["repository_id", "in_flight"], name: "idx_repository_execution_probes_single_flight", unique: true
+    t.index ["repository_id"], name: "index_repository_execution_probes_on_repository_id"
+    t.index ["requested_by_id"], name: "index_repository_execution_probes_on_requested_by_id"
   end
 
   create_table "repository_final_approvers", force: :cascade do |t|
@@ -3054,7 +3070,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.index ["user_id", "agent_provider", "state", "finished_at", "updated_at", "id"], name: "idx_runs_user_provider_state_recent"
     t.index ["user_id", "agent_provider", "state", "finished_at"], name: "idx_runs_user_provider_state_finished"
     t.index ["user_id", "created_at", "cost_usd"], name: "idx_runs_spending_user_window"
-    t.index ["user_id", "finished_at", "cost_usd"], name: "idx_runs_spending_user_finished_window"
     t.index ["user_id", "state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_user_state_provider_recent"
     t.index ["user_id"], name: "index_runs_on_user_id"
   end

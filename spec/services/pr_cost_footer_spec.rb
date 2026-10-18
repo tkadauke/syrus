@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe PrCostFooter do
-  let(:repository) { Factories.repository }
+  let(:repository) { Factories.repository(pr_cost_footer_enabled: true) }
   let(:job) { Factories.job(repository: repository, issue_number: 42) }
 
   def create_run(cost:)

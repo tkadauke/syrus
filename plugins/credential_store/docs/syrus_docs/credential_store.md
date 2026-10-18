@@ -1,9 +1,11 @@
 # Credential Store
 
 The `credential_store` plugin owns generic credential records that should not
-be added as one-off encrypted columns on `User`. It is installed and enabled
+be added as one-off encrypted columns on `User`. It is installed but disabled
 by default, and exposes broker-backed agent tools for generic credential
 operations such as SSH command execution.
+Because the plugin is experimental, an admin must enable instance beta mode
+before opting into it from **Admin → Plugins**.
 
 Operators manage records from **Credential Store** in the sidebar, or from
 **Admin > Credential Store** when they are global admins. The page and

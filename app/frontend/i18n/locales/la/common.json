@@ -41,7 +41,21 @@
     "edit_label": "Muta",
     "ready_heading": "Parata ad Opera Ordinaria",
     "ready_description": "Primum Epicum terram tetigit — Syrus constitutus est. Tabella Constitutionis ex navigatione cadet.",
-    "open_dashboard": "Tabulam Aperire"
+    "open_dashboard": "Tabulam Aperire",
+    "readiness_label": "Promptitudo repositorii",
+    "readiness_loading": "Promptitudo repositorii examinatur…",
+    "readiness_prepare": "Mandata praeparationis proposita",
+    "readiness_graders": "Mandata probationis proposita",
+    "readiness_workers": "Ambitus executionis et operarii",
+    "readiness_advisory": "Monita consultiva sunt. Syrus tantum configurationem invalidam, repositorium inaccessibile, aut facultates operarii absentes impedit.",
+    "readiness_probe": "Probatio executionis caduca",
+    "readiness_probe_run": "Probationem exsequi",
+    "readiness_probe_retry": "Iterum probare",
+    "readiness_probe_override": "Monitum praeterire",
+    "readiness_probe_description": "Repositorium ad locum caducum clone, instrumenta para, atque unum mandatum probationis sine agente exsequere.",
+    "readiness_probe_metrics": "{{duration}}s · incrementum {{bytes}} byte · purgatio {{cleanup}}",
+    "readiness_probe_missing_executables": "Programmata absentia: {{names}}",
+    "readiness_probe_missing_services": "Ministeria indisponibilia: {{names}}"
   },
   "search": {
     "heading": "Quaesitio",

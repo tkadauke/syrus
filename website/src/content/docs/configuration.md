@@ -568,18 +568,10 @@ autonomous agent work from scaling linearly with worker pods. A second limit,
 attempts may be admitted and unfinished at once. It is checked only when an
 attempt is first admitted, never against work already in flight, and landing
 and main-branch health work is exempt. Fresh single-host and Docker Compose
-installs need no capacity tuning unless an admin enables this pacing. The
-per-user USD budget,
-`AppSetting.user_daily_spend_budget_usd`, defaults to `20` dollars per user per
-day. Set it to `0` for unlimited provider-reported spend. The gate defers
-queued work until the next day instead of failing Jobs once provider-reported
-workflow Run costs and chat turn costs reach the ceiling. Run accounting uses
-provider-reported `Run#cost_usd` when available and leaves cost unset when a
-provider reports token usage without a dollar cost, so subscription-based or
-token-only providers may need provider-side limits for reliable spend
-protection. Repo-level and Epic-level dollar budgets are still roadmap work;
-use provider-side limits and the per-user max-turns setting as additional
-safety rails.
+installs need no capacity tuning unless an admin enables this pacing. Syrus
+records provider-reported workflow and chat costs for spending insights, but
+does not enforce a daily dollar ceiling. Use provider-side limits and the
+per-user max-turns setting when you need spending guardrails.
 
 ## Per-Repository Settings
 
@@ -592,7 +584,11 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Trigger label | `syrus` | Label that turns an issue into a Job |
 | Polling enabled | `true` | If disabled, scheduled pollers skip the repo |
 | Agent provider override | Blank | If set, new Jobs for the repo use this provider instead of the user's default |
-| PR cost footer | `true` | Adds or updates a cost footer on PRs when cost data exists |
+| PR cost footer | `false` | Adds or updates a cost footer on PRs when cost data exists |
+| Main branch health monitoring | `false` | Polls and records health for the default branch |
+| Automatic main branch repair | `false` | Creates repair Jobs when monitored main is broken |
+| Block work while main is broken | `false` | Pauses ordinary work and landing while monitored main is broken |
+| Auto-approve main branch repairs | `false` | Approves successful repair Jobs without operator review |
 | Review policy | `self` | Who must approve before a Job lands; see [Review Policies](#review-policies) below |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
 
@@ -603,6 +599,12 @@ repository. The instance setting `repository_full_poll_interval_hours`
 defaults to `24`; once a repository's last successful full issue poll is older
 than that, the next autonomous issue poll omits the cursor and reconciles open
 trigger-labeled issues without creating duplicate Jobs.
+
+Newly added repositories are enrolled only in explicitly requested work.
+Main-branch surveillance and repair are opt-in repository settings; enabling
+them does not change the checks run on Syrus-created pull requests or the
+validation performed before landing. Existing repositories retain their saved
+settings when these defaults change.
 
 ## Review Policies
 
@@ -720,6 +722,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_APP_HOST` | Web yes | Canonical app hostname for URL generation, mailer links, and Host header authorization |
 | `SYRUS_ALLOWED_HOSTS` | No | Optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed, and a blank value falls back to only `SYRUS_APP_HOST` |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
+| `SYRUS_PREPARED_LAYER_CACHE_GB` | Worker optional | Overrides the instance prepared-workspace cache budget for a worker whose local disk differs from the fleet |
 | `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
 | `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement for `os`, `arch`, `toolchain`, and `runtime` |
 | `SYRUS_GITHUB_REPO` | Yes | GitHub `owner/repo` slug for this Syrus installation's own repository; used for build revision links |
@@ -743,6 +746,16 @@ Web pods do not need clone storage. The mounted directory must be writable
 by the container's `rails` user (`1000:1000`); the published Docker images
 create `/home/rails/.syrus` with that ownership so a fresh named volume can
 inherit it on first mount.
+
+Fresh installations cap both the prepared-workspace cache and retained Coding
+Mode checkouts at 10 GB. The prepared cache is an LRU per worker and still
+evicts under disk pressure; `SYRUS_PREPARED_LAYER_CACHE_GB` can override its
+instance setting for one worker. Coding Mode uses a separate instance-wide LRU
+budget. Admins can inspect the Coding Mode limit, the prepared-cache instance
+default, and each worker's latest reported effective cache limit under **Admin
+→ Retention & Storage**, and change stored values under **Admin → Settings**. Upgrades do
+not replace values already stored by an existing installation, and setting a
+budget to `0` explicitly keeps that budget unlimited.
 
 ## Secret Management
 

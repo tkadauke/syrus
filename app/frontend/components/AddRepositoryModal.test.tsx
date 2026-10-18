@@ -8,7 +8,12 @@ function renderModal(props: { onClose?: () => void; onSaved?: () => void; reconc
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <AddRepositoryModal reconciliationRefetchIntervalMs={props.reconciliationRefetchIntervalMs} reconciliationPolls={props.reconciliationPolls} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      <AddRepositoryModal
+        reconciliationRefetchIntervalMs={props.reconciliationRefetchIntervalMs}
+        reconciliationPolls={props.reconciliationPolls}
+        onClose={props.onClose ?? (() => {})}
+        onSaved={props.onSaved}
+      />
     </QueryClientProvider>
   )
 }
@@ -26,9 +31,21 @@ const newFormPayload = {
     trigger_label: "syrus",
     polling_enabled: true,
     prepare_enabled: true,
-    pr_cost_footer_enabled: true,
+    pr_cost_footer_enabled: false,
     auto_merge_enabled: false,
     trust_clean_rebase_grade: false,
+    land_on_inherited_check_failure: false,
+    known_flaky_failure_dismissal_enabled: false,
+    known_flaky_failure_min_score: null,
+    isolated_repro_dismissal_enabled: false,
+    main_branch_health_enabled: false,
+    main_branch_repair_enabled: false,
+    main_branch_repair_blocks_work: false,
+    main_branch_repair_auto_approve: false,
+    treat_grader_timeouts_as_failures: false,
+    fork_auto_sync_enabled: false,
+    external_pr_ingestion_enabled: false,
+    distributed_workflow_dag_enabled: false,
     agent_provider: "",
     auto_approve_mode: "never",
     github_owner_id: null,
@@ -46,7 +63,8 @@ function mockRoutes(over: { owners?: () => Response; create?: () => Response; de
     const url = String(input)
     if (url.includes("/repositories/new")) return jsonResponse(newFormPayload)
     if (url.includes("/repositories/owners")) return over.owners?.() ?? jsonResponse({ user: "octocat", orgs: ["acme"] })
-    if (url.includes("/repositories/repos")) return over.repos?.() ?? jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
+    if (url.includes("/repositories/repos"))
+      return over.repos?.() ?? jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
     if (url.includes("/repositories/branches")) return jsonResponse({ branches: ["main", "dev"], default_branch: "main" })
     if (url.endsWith("/admin/github_app/sync_installations")) return jsonResponse({ enqueued: true })
     if (/\/api\/v1\/app\/repositories\/\d+$/.test(url) && init?.method !== "POST") {
@@ -104,6 +122,7 @@ describe("AddRepositoryModal", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
     expect(screen.getByText("syrus")).toBeInTheDocument()
     expect(screen.getByText(/add more later/i)).toBeInTheDocument()
+    expect(screen.getByText(/main-branch monitoring and repair stay off/i)).toBeInTheDocument()
   })
 
   it("reveals the Repository dropdown after a User/Org is selected, then a branch dropdown", async () => {
@@ -151,16 +170,24 @@ describe("AddRepositoryModal", () => {
       upstream_name: "",
       github_repository_id: "7"
     })
+    expect(repo).toMatchObject({
+      pr_cost_footer_enabled: false,
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: false,
+      main_branch_repair_blocks_work: false,
+      main_branch_repair_auto_approve: false
+    })
   })
 
   it("re-offers the account-wide install alongside the pre-scoped one", async () => {
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("pat")
-      })
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("pat")
+        })
     })
     const openSpy = vi.spyOn(window, "open").mockReturnValue({ opener: null } as unknown as Window)
     renderModal({ reconciliationRefetchIntervalMs: 10, reconciliationPolls: 1 })
@@ -176,12 +203,13 @@ describe("AddRepositoryModal", () => {
   it("offers the pre-scoped App install after adding a PAT-fallback repository, and detects the install", async () => {
     let installedAfterClick = false
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("pat")
-      }),
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("pat")
+        }),
       detail: () => jsonResponse({ credential_status: credentialStatus(installedAfterClick ? "app" : "pat") })
     })
     const opened = { opener: {} as unknown }
@@ -238,12 +266,13 @@ describe("AddRepositoryModal", () => {
 
   it("closes immediately when the owner's installation already covers the new repository", async () => {
     mockRoutes({
-      create: () => jsonResponse({
-        message: "Saved",
-        redirect_to: "/repositories/1",
-        repository: savedRepository,
-        credential_status: credentialStatus("app")
-      })
+      create: () =>
+        jsonResponse({
+          message: "Saved",
+          redirect_to: "/repositories/1",
+          repository: savedRepository,
+          credential_status: credentialStatus("app")
+        })
     })
     const onSaved = vi.fn()
     const onClose = vi.fn()
@@ -258,11 +287,12 @@ describe("AddRepositoryModal", () => {
 
   it("pre-fills and shows editable upstream fields when the selected repository is a fork", async () => {
     const fetchSpy = mockRoutes({
-      repos: () => jsonResponse({
-        repos: [
-          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
-        ]
-      })
+      repos: () =>
+        jsonResponse({
+          repos: [
+            { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+          ]
+        })
     })
     renderModal()
 
@@ -294,11 +324,12 @@ describe("AddRepositoryModal", () => {
 
   it("lets the user edit or clear detected upstream fields, and submits what they typed", async () => {
     const fetchSpy = mockRoutes({
-      repos: () => jsonResponse({
-        repos: [
-          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
-        ]
-      })
+      repos: () =>
+        jsonResponse({
+          repos: [
+            { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+          ]
+        })
     })
     renderModal()
 

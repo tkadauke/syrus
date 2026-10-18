@@ -2,8 +2,8 @@ require "rails_helper"
 
 RSpec.describe Syrus::SpecSupport::BundledPlugins do
   describe ".restore_test_provider_records" do
-    it "enables the test provider plugin records and clears the registry cache" do
-      described_class::TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+    it "enables the plugin records required by the test environment and clears the registry cache" do
+      described_class::TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
         record = PluginRecord.find_or_create_by!(name: plugin_name)
         updates = { enabled: false }
         updates[:disableable] = true if record.has_attribute?(:disableable)
@@ -14,9 +14,17 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
 
       described_class.restore_test_provider_records
 
-      described_class::TEST_PROVIDER_PLUGIN_NAMES.each do |plugin_name|
+      described_class::TEST_ENABLED_PLUGIN_NAMES.each do |plugin_name|
         expect(PluginRecord.find_by!(name: plugin_name)).to be_enabled
       end
+    end
+
+    it "keeps suite-scoped plugins disabled outside their own examples" do
+      PluginRecord.find_or_create_by!(name: "operator_briefing").update!(enabled: true, disableable: true)
+
+      described_class.restore_test_provider_records
+
+      expect(PluginRecord.find_by!(name: "operator_briefing")).not_to be_enabled
     end
 
     # The fast path is the reason this method is not simply the restore loop.
@@ -50,6 +58,22 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       expect {
         described_class.restore_test_provider_records
       }.not_to raise_error
+    end
+  end
+
+  describe ".restore_example_plugin_records" do
+    it "enables plugins only for examples in their own plugin suite" do
+      record = PluginRecord.find_or_create_by!(name: "operator_briefing")
+      record.update!(enabled: false, disableable: true)
+
+      plugin_example = Struct.new(:metadata).new({ file_path: "./plugins/operator_briefing/spec/services/generator_spec.rb" })
+      described_class.restore_example_plugin_records(plugin_example)
+      expect(record.reload).to be_enabled
+
+      record.update!(enabled: false)
+      core_example = Struct.new(:metadata).new({ file_path: "./spec/services/work_definitions/registry_spec.rb" })
+      described_class.restore_example_plugin_records(core_example)
+      expect(record.reload).not_to be_enabled
     end
   end
 end

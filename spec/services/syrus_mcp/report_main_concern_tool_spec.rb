@@ -3,7 +3,11 @@ require "rails_helper"
 RSpec.describe Mcp::Tools::ReportMainConcernTool do
   include ActiveJob::TestHelper
 
-  let(:run) { Factories.job.initial_run }
+  let(:run) do
+    Factories.job.tap do |job|
+      job.repository.update!(main_branch_health_enabled: true, main_branch_repair_enabled: true, main_branch_repair_blocks_work: true)
+    end.initial_run
+  end
   let(:repository) { run.job.repository }
   let(:sha) { "abc123" }
 

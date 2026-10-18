@@ -2,12 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { fetchRetentionArchives, type RetentionArchiveRow } from "../api/retentionArchives"
-import {
-  fetchRetentionSettings,
-  updateRetentionSettings,
-  type RetentionSettingsPayload,
-  type RetentionTableRow
-} from "../api/retentionSettings"
+import { fetchRetentionSettings, updateRetentionSettings, type RetentionSettingsPayload, type RetentionTableRow } from "../api/retentionSettings"
 import { disabledPaginationClass, paginationLinkClass } from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
@@ -68,19 +63,48 @@ function RetentionSettingsView({ payload, onNotice }: { payload: RetentionSettin
   return (
     <>
       <AvailableSpaceCard onNotice={onNotice} payload={payload} />
+      <StorageLimitsCard payload={payload} />
 
       <section className="divide-y divide-border rounded border border-border bg-surface">
         {payload.tables.map((table) => (
-          <TableRow
-            availableBytes={payload.available_space?.available_bytes ?? null}
-            key={table.key}
-            onNotice={onNotice}
-            table={table}
-          />
+          <TableRow availableBytes={payload.available_space?.available_bytes ?? null} key={table.key} onNotice={onNotice} table={table} />
         ))}
       </section>
     </>
   )
+}
+
+function StorageLimitsCard({ payload }: { payload: RetentionSettingsPayload }) {
+  const { t } = useT("admin")
+  const limits = payload.storage_limits
+
+  return (
+    <section className="rounded border border-border bg-surface p-6 space-y-3">
+      <SectionHeading>{t("retention_settings.storage_limits_label")}</SectionHeading>
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <Stat label={t("retention_settings.prepared_cache_default_label")} value={formatStorageLimit(limits.prepared_layer_cache_default_bytes, t)} />
+        <Stat label={t("retention_settings.coding_workspace_limit_label")} value={formatStorageLimit(limits.coding_workspace_bytes, t)} />
+      </dl>
+      <div>
+        <p className="text-sm font-medium text-text-primary">{t("retention_settings.prepared_cache_workers_label")}</p>
+        {limits.prepared_layer_cache_workers.length > 0 ? (
+          <ul className="mt-2 space-y-1 text-xs text-text-secondary">
+            {limits.prepared_layer_cache_workers.map((worker) => (
+              <li key={worker.worker_storage_key || worker.hostname}>
+                {worker.hostname}: {formatStorageLimit(worker.budget_bytes, t)} ({t(`retention_settings.prepared_cache_source_${worker.source}`)})
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-xs text-text-secondary">{t("retention_settings.prepared_cache_workers_unknown")}</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function formatStorageLimit(bytes: number, t: (key: string) => string): string {
+  return bytes > 0 ? formatBytes(bytes) : t("retention_settings.unlimited")
 }
 
 function AvailableSpaceCard({ payload, onNotice }: { payload: RetentionSettingsPayload; onNotice: (message: string | null) => void }) {
@@ -135,19 +159,34 @@ function AvailableSpaceCard({ payload, onNotice }: { payload: RetentionSettingsP
           />
           <Button
             disabled={save.isPending || !hasNumericValue(overrideGb)}
-            onClick={() => { onNotice(null); save.mutate() }}
+            onClick={() => {
+              onNotice(null)
+              save.mutate()
+            }}
             type="button"
           >
             {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
           </Button>
         </div>
-        {save.isError ? <p className="mt-1 text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
+        {save.isError ? (
+          <p className="mt-1 text-xs text-danger" role="alert">
+            {errorMessage(save.error, t("retention_settings.error_update"))}
+          </p>
+        ) : null}
       </div>
     </section>
   )
 }
 
-function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRow; availableBytes: number | null; onNotice: (message: string | null) => void }) {
+function TableRow({
+  table,
+  availableBytes,
+  onNotice
+}: {
+  table: RetentionTableRow
+  availableBytes: number | null
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const isInfinite = table.retention_value === 0
@@ -164,11 +203,12 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
   }, [table.retention_value, table.default_value, table.archive_before_delete])
 
   const save = useMutation({
-    mutationFn: (retentionValue: number) => updateRetentionSettings({
-      [table.setting_key]: retentionValue,
-      [`${table.setting_key}_infinite`]: infinite,
-      ...(table.archive_setting_key ? { [table.archive_setting_key]: archiveBeforeDelete } : {})
-    }),
+    mutationFn: (retentionValue: number) =>
+      updateRetentionSettings({
+        [table.setting_key]: retentionValue,
+        [`${table.setting_key}_infinite`]: infinite,
+        ...(table.archive_setting_key ? { [table.archive_setting_key]: archiveBeforeDelete } : {})
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("retention_settings.settings_updated"))
@@ -188,9 +228,8 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
     save.mutate(retentionValue)
   }
 
-  const percentOfAvailable = availableBytes && table.estimated_max_byte_size != null && availableBytes > 0
-    ? Math.min(100, (table.estimated_max_byte_size / availableBytes) * 100)
-    : null
+  const percentOfAvailable =
+    availableBytes && table.estimated_max_byte_size != null && availableBytes > 0 ? Math.min(100, (table.estimated_max_byte_size / availableBytes) * 100) : null
 
   return (
     <div>
@@ -215,7 +254,10 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
               fullWidth={false}
               id={`retention-value-${table.key}`}
               min={1}
-              onChange={(event) => { setValue(event.target.value); setValidationError(null) }}
+              onChange={(event) => {
+                setValue(event.target.value)
+                setValidationError(null)
+              }}
               required={!infinite}
               type="number"
               value={infinite ? "" : value}
@@ -225,7 +267,10 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
           <Checkbox
             checked={infinite}
             label={<span className="text-xs text-text-primary">{t("retention_settings.infinite_label")}</span>}
-            onChange={(event) => { setInfinite(event.target.checked); setValidationError(null) }}
+            onChange={(event) => {
+              setInfinite(event.target.checked)
+              setValidationError(null)
+            }}
           />
           {table.archivable ? (
             <Checkbox
@@ -237,14 +282,18 @@ function TableRow({ table, availableBytes, onNotice }: { table: RetentionTableRo
           <Button disabled={save.isPending || (!infinite && !hasNumericValue(value))} size="sm" type="submit">
             {save.isPending ? t("retention_settings.saving") : t("retention_settings.save")}
           </Button>
-          {validationError ? <p className="text-xs text-danger" role="alert">{validationError}</p> : null}
-          {save.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(save.error, t("retention_settings.error_update"))}</p> : null}
+          {validationError ? (
+            <p className="text-xs text-danger" role="alert">
+              {validationError}
+            </p>
+          ) : null}
+          {save.isError ? (
+            <p className="text-xs text-danger" role="alert">
+              {errorMessage(save.error, t("retention_settings.error_update"))}
+            </p>
+          ) : null}
           {table.archivable ? (
-            <button
-              className="text-left text-xs text-brand hover:underline"
-              onClick={() => setShowArchives((shown) => !shown)}
-              type="button"
-            >
+            <button className="text-left text-xs text-brand hover:underline" onClick={() => setShowArchives((shown) => !shown)} type="button">
               {showArchives ? t("retention_settings.archives.hide") : t("retention_settings.archives.show")}
             </button>
           ) : null}
@@ -285,7 +334,11 @@ function ArchiveHistory({ tableKey }: { tableKey: string }) {
 
   if (archives.isPending) return <p className="text-xs text-text-secondary">{t("retention_settings.archives.loading")}</p>
   if (archives.isError) {
-    return <p className="text-xs text-danger" role="alert">{errorMessage(archives.error, t("retention_settings.archives.error_load"))}</p>
+    return (
+      <p className="text-xs text-danger" role="alert">
+        {errorMessage(archives.error, t("retention_settings.archives.error_load"))}
+      </p>
+    )
   }
 
   const { archives: rows, pagination } = archives.data
@@ -307,7 +360,9 @@ function ArchiveHistory({ tableKey }: { tableKey: string }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => <ArchiveRow key={row.id} row={row} />)}
+          {rows.map((row) => (
+            <ArchiveRow key={row.id} row={row} />
+          ))}
         </tbody>
       </table>
 
@@ -377,11 +432,21 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 
 function SpaceStat({ availableBytes, percent, t }: { availableBytes: number | null; percent: number | null; t: ReturnType<typeof useT<"admin">>["t"] }) {
   if (availableBytes == null) {
-    return <Stat label={t("retention_settings.space_used_label")} value={<span className="text-text-secondary">{t("retention_settings.available_space_unknown")}</span>} />
+    return (
+      <Stat
+        label={t("retention_settings.space_used_label")}
+        value={<span className="text-text-secondary">{t("retention_settings.available_space_unknown")}</span>}
+      />
+    )
   }
 
   if (percent == null) {
-    return <Stat label={t("retention_settings.space_used_label")} value={<span className="text-text-secondary">{t("retention_settings.space_used_not_applicable")}</span>} />
+    return (
+      <Stat
+        label={t("retention_settings.space_used_label")}
+        value={<span className="text-text-secondary">{t("retention_settings.space_used_not_applicable")}</span>}
+      />
+    )
   }
 
   return (
@@ -389,7 +454,14 @@ function SpaceStat({ availableBytes, percent, t }: { availableBytes: number | nu
       label={t("retention_settings.space_used_label")}
       value={
         <div className="flex items-center gap-2">
-          <div aria-label={t("retention_settings.space_used_label")} aria-valuemax={100} aria-valuemin={0} aria-valuenow={Math.round(percent)} className="h-2 w-20 overflow-hidden rounded-full bg-surface-subtle" role="progressbar">
+          <div
+            aria-label={t("retention_settings.space_used_label")}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(percent)}
+            className="h-2 w-20 overflow-hidden rounded-full bg-surface-subtle"
+            role="progressbar"
+          >
             <div className="h-full rounded-full bg-brand" style={{ width: `${percent}%` }} />
           </div>
           <span>{percent < 1 ? "<1" : Math.round(percent)}%</span>

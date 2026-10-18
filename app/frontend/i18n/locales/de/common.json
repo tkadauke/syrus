@@ -41,7 +41,21 @@
     "edit_label": "Bearbeiten",
     "ready_heading": "Bereit für den Normalbetrieb",
     "ready_description": "Ihr erstes Epic ist gelandet — Syrus ist eingerichtet. Der Einrichtungs-Tab wird aus der Navigation verschwinden.",
-    "open_dashboard": "Übersicht öffnen"
+    "open_dashboard": "Übersicht öffnen",
+    "readiness_label": "Repository-Bereitschaft",
+    "readiness_loading": "Repository-Bereitschaft wird geprüft…",
+    "readiness_prepare": "Vorgeschlagene Vorbereitungsbefehle",
+    "readiness_graders": "Vorgeschlagene Prüfungsbefehle",
+    "readiness_workers": "Ausführungsbereiche und Worker",
+    "readiness_advisory": "Warnungen sind Hinweise. Syrus blockiert nur ungültige Konfiguration, nicht erreichbare Repository-Inhalte oder fehlende Worker-Fähigkeiten.",
+    "readiness_probe": "Temporäre Ausführungsprüfung",
+    "readiness_probe_run": "Prüfung starten",
+    "readiness_probe_retry": "Erneut prüfen",
+    "readiness_probe_override": "Warnung übergehen",
+    "readiness_probe_description": "Klonen, Toolchains und Abhängigkeiten vorbereiten und einen begrenzten Prüfbefehl ohne Agent ausführen.",
+    "readiness_probe_metrics": "{{duration}}s · {{bytes}} Bytes Wachstum · Bereinigung {{cleanup}}",
+    "readiness_probe_missing_executables": "Fehlende Programme: {{names}}",
+    "readiness_probe_missing_services": "Nicht verfügbare Dienste: {{names}}"
   },
   "search": {
     "heading": "Suche",

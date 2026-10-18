@@ -188,6 +188,59 @@ export type RepositorySavedPayload = {
   credential_status: RepositoryCredentialStatus
 }
 
+export type RepositoryReadinessPayload = {
+  readiness: {
+    status: "ready" | "ready_with_warnings" | "needs_configuration" | "incompatible"
+    summary: string
+    revision: string | null
+    repository_size_bytes: number | null
+    file_count: number | null
+    checks: Array<{ key: string; level: "pass" | "warning" | "block"; message: string }>
+    prepare_commands: string[]
+    grader_commands: string[]
+    required_capabilities: Record<string, string[]>
+    execution_scopes: Array<{
+      key: string
+      label: string
+      command: string | null
+      capabilities: Record<string, string[]>
+      queue_name: string
+      worker_available: boolean
+    }>
+    execution_probe?: RepositoryExecutionProbe | null
+  }
+}
+
+export type RepositoryExecutionProbe = {
+  id: number
+  status: "queued" | "running" | "succeeded" | "warning" | "failed" | "blocked"
+  revision: string | null
+  warning_override: boolean
+  started_at: string | null
+  completed_at: string | null
+  result: {
+    summary?: string
+    duration_s?: number
+    disk_growth_bytes?: number
+    cleanup?: string
+    missing_executables?: string[]
+    missing_services?: string[]
+    commands?: Array<{ kind: string; command: string; success: boolean; required: boolean; output_tail?: string; could_not_start?: boolean }>
+  }
+}
+
+export function fetchRepositoryReadiness(id: number | string) {
+  return getJson<RepositoryReadinessPayload>(`/api/v1/app/repositories/${id}/readiness`)
+}
+
+export function startRepositoryReadinessProbe(id: number | string) {
+  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
+}
+
+export function overrideRepositoryReadinessProbe(id: number | string, probeId: number) {
+  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
+}
+
 export type GitHubOwnersPayload = {
   user?: string
   orgs?: string[]
@@ -620,8 +673,6 @@ export type RepositoryNeedsTriageJob = {
   created_at: string
 }
 
-
-
 export type CoverageTrendPoint = {
   date: string
   lines_pct: number | null
@@ -654,11 +705,6 @@ export function fetchRepositoryDetail(id: string, search = "") {
 export function fetchRepositoryCognitiveDebt(id: string) {
   return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt`)
 }
-
-
-
-
-
 
 export function pollRepositoryDetail(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
@@ -709,20 +755,23 @@ export function fetchEditRepositoryForm(id: string) {
 }
 
 export function fetchRepositoryOwners() {
-  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners")
-    .catch((error) => githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"]))
+  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners").catch((error) =>
+    githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"])
+  )
 }
 
 export function fetchRepositoryOptions(owner: string, ownerType: string) {
   const params = new URLSearchParams({ owner, owner_type: ownerType })
-  return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`)
-    .catch((error) => githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"]))
+  return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`).catch((error) =>
+    githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"])
+  )
 }
 
 export function fetchRepositoryBranches(owner: string, name: string) {
   const params = new URLSearchParams({ owner, name })
-  return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`)
-    .catch((error) => githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"]))
+  return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`).catch((error) =>
+    githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"])
+  )
 }
 
 function githubSelectorFallback<T extends { error?: string }>(error: unknown, handledCodes: string[]): T {
@@ -756,14 +805,6 @@ export type RepositoryFlakyTestsPayload = {
 export function fetchRepositoryFlakyTests(path: string) {
   return getJson<RepositoryFlakyTestsPayload>(path)
 }
-
-
-
-
-
-
-
-
 
 export function updateRepository(id: number, values: RepositoryInput) {
   return patchJson<RepositorySavedPayload>(`/api/v1/app/repositories/${id}`, { repository: values })
@@ -846,8 +887,5 @@ export function fetchInsightScheduleConfig(id: number | string) {
 }
 
 export function updateInsightScheduleConfig(id: number | string, values: InsightScheduleConfigInput) {
-  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(
-    `/api/v1/app/repositories/${id}/insight_schedule_config`,
-    values
-  )
+  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(`/api/v1/app/repositories/${id}/insight_schedule_config`, values)
 }

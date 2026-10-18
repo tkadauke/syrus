@@ -2,7 +2,9 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Steps::GraderCollect do
-  let(:job) { Factories.job }
+  let(:job) do
+    Factories.job(repository: Factories.repository(main_branch_health_enabled: true))
+  end
   let(:workflow) { job.workflows.last }
   let(:loop_id) { SecureRandom.uuid }
   let(:step) do

@@ -95,12 +95,19 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     // preflight probe); stub a generic response shape broad enough to
     // satisfy all of them so opening the modals doesn't blow up on
     // unrelated code paths.
-    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({
-      credential_test: { credential: "claude", ok: false, message: "", details: {} }
-    })))
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          credential_test: { credential: "claude", ok: false, message: "", details: {} }
+        })
+      )
+    )
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
 
   it("renders after bootstrap becomes available without changing its hook order", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -114,14 +121,164 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     expect(screen.getByText("Loading setup status...")).toBeInTheDocument()
 
-    expect(() => view.rerender(
-      <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <OnboardingRoute bootstrap={bootstrap()} />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )).not.toThrow()
+    expect(() =>
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <OnboardingRoute bootstrap={bootstrap()} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    ).not.toThrow()
     expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
+  })
+
+  it("shows the static readiness result and exact proposed commands after repository selection", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(
+      jsonResponse({
+        readiness: {
+          status: "ready_with_warnings",
+          summary: "Ready with warnings",
+          revision: "abc123",
+          repository_size_bytes: 42,
+          file_count: 2,
+          checks: [{ key: "configuration", level: "warning", message: ".syrus.yml is absent; commands are inferred." }],
+          prepare_commands: ["bundle install"],
+          grader_commands: ["bin/rspec"],
+          required_capabilities: { os: ["linux"] },
+          execution_scopes: [
+            {
+              key: "workflow",
+              label: "Workflow workspace",
+              command: "bundle install",
+              capabilities: { os: ["linux"] },
+              queue_name: "runs",
+              worker_available: true
+            }
+          ]
+        }
+      })
+    )
+
+    renderOnboarding(
+      bootstrap({
+        setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 }
+      })
+    )
+
+    expect(await screen.findByText("Ready with warnings")).toBeInTheDocument()
+    expect(screen.getByText("$ bundle install")).toBeInTheDocument()
+    expect(screen.getByText("$ bin/rspec")).toBeInTheDocument()
+    expect(screen.getByText(/Workflow workspace: os=linux · runs/)).toBeInTheDocument()
+    expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/repositories/7/readiness", expect.anything())
+  })
+
+  it("does not show an orphaned worker heading when readiness fails before scopes are computed", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(
+      jsonResponse({
+        readiness: {
+          status: "needs_configuration",
+          summary: "Needs configuration",
+          revision: null,
+          repository_size_bytes: null,
+          file_count: null,
+          checks: [{ key: "access", level: "block", message: "Repository content is unavailable." }],
+          prepare_commands: [],
+          grader_commands: [],
+          required_capabilities: { os: ["linux"] },
+          execution_scopes: []
+        }
+      })
+    )
+
+    renderOnboarding(
+      bootstrap({
+        setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 }
+      })
+    )
+
+    expect(await screen.findByText("Needs configuration")).toBeInTheDocument()
+    expect(screen.getByText(/Repository content is unavailable\./)).toBeInTheDocument()
+    expect(screen.queryByText("Execution scopes and workers")).not.toBeInTheDocument()
+  })
+
+  it("shows actionable disposable probe failures and cleanup evidence", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(
+      jsonResponse({
+        readiness: {
+          status: "ready",
+          summary: "Ready",
+          revision: "abc123",
+          repository_size_bytes: 42,
+          file_count: 2,
+          checks: [],
+          prepare_commands: ["missing-setup"],
+          grader_commands: ["bin/specs"],
+          required_capabilities: { os: ["linux"] },
+          execution_scopes: [],
+          execution_probe: {
+            id: 9,
+            status: "blocked",
+            revision: "abc123",
+            warning_override: false,
+            started_at: "2026-10-17T00:00:00Z",
+            completed_at: "2026-10-17T00:00:02Z",
+            result: {
+              summary: "A required command could not start; the first implementation run is blocked.",
+              duration_s: 2,
+              disk_growth_bytes: 512,
+              cleanup: "completed",
+              missing_executables: ["missing-setup"],
+              commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }]
+            }
+          }
+        }
+      })
+    )
+
+    renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
+
+    expect(await screen.findByText(/first implementation run is blocked/)).toBeInTheDocument()
+    expect(screen.getByText("Missing executables: missing-setup")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Override warning" })).toBeInTheDocument()
+  })
+
+  it("polls an active execution probe until its terminal result arrives", async () => {
+    let reads = 0
+    vi.mocked(window.fetch).mockImplementation(() => {
+      reads += 1
+      const active = reads === 1
+      return Promise.resolve(
+        jsonResponse({
+          readiness: {
+            status: "ready",
+            summary: "Ready",
+            revision: "abc123",
+            repository_size_bytes: 42,
+            file_count: 2,
+            checks: [],
+            prepare_commands: [],
+            grader_commands: [],
+            required_capabilities: { os: ["linux"] },
+            execution_scopes: [],
+            execution_probe: {
+              id: 9,
+              status: active ? "queued" : "succeeded",
+              revision: active ? null : "abc123",
+              warning_override: false,
+              started_at: null,
+              completed_at: active ? null : "2026-10-17T00:00:02Z",
+              result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
+            }
+          }
+        })
+      )
+    })
+
+    renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
+    expect(await screen.findByText("queued")).toBeInTheDocument()
+    expect(await screen.findByText(/Prepare and bounded grader probe succeeded/, {}, { timeout: 3_000 })).toBeInTheDocument()
+    expect(reads).toBe(2)
   })
 
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {
@@ -158,54 +315,60 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("still shows the primary CTA (not an edit link) for an incomplete step", () => {
-    renderOnboarding(bootstrap({
-      setup_status: {
-        ...bootstrap().setup_status!,
-        credential_status: {
-          github: false,
-          github_pat: false,
-          github_app: false,
-          agent: true,
-          active_agent_provider: "claude"
+    renderOnboarding(
+      bootstrap({
+        setup_status: {
+          ...bootstrap().setup_status!,
+          credential_status: {
+            github: false,
+            github_pat: false,
+            github_app: false,
+            agent: true,
+            active_agent_provider: "claude"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByRole("button", { name: "Configure GitHub" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Edit GitHub connection" })).not.toBeInTheDocument()
   })
 
   it("labels Antigravity readiness with the selected provider instead of Claude", () => {
-    renderOnboarding(bootstrap({
-      setup_status: {
-        ...bootstrap().setup_status!,
-        credential_status: {
-          github: true,
-          github_pat: true,
-          github_app: true,
-          agent: true,
-          active_agent_provider: "agy"
+    renderOnboarding(
+      bootstrap({
+        setup_status: {
+          ...bootstrap().setup_status!,
+          credential_status: {
+            github: true,
+            github_pat: true,
+            github_app: true,
+            agent: true,
+            active_agent_provider: "agy"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText("Antigravity is ready for runs.")).toBeInTheDocument()
     expect(screen.queryByText("Claude is ready for runs.")).not.toBeInTheDocument()
   })
 
   it("uses semantic brand tokens for the current marker and onboarding actions", () => {
-    const { unmount } = renderOnboarding(bootstrap({
-      setup_status: {
-        ...bootstrap().setup_status!,
-        credential_status: {
-          github: false,
-          github_pat: false,
-          github_app: false,
-          agent: true,
-          active_agent_provider: "claude"
+    const { unmount } = renderOnboarding(
+      bootstrap({
+        setup_status: {
+          ...bootstrap().setup_status!,
+          credential_status: {
+            github: false,
+            github_pat: false,
+            github_app: false,
+            agent: true,
+            active_agent_provider: "claude"
+          }
         }
-      }
-    }))
+      })
+    )
 
     expect(screen.getByText(">")).toHaveClass("bg-brand", "text-on-brand")
 

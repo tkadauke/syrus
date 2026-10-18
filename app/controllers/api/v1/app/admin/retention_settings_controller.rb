@@ -33,8 +33,35 @@ module Api
             {
               tables: RetentionPolicyRegistry.definitions.map { |definition| table_payload(definition, setting) },
               available_space: RetentionSizeSnapshotJob.available_space&.as_json,
-              retention_available_space_override_gb: setting.retention_available_space_override_gb
+              retention_available_space_override_gb: setting.retention_available_space_override_gb,
+              storage_limits: {
+                prepared_layer_cache_default_bytes: setting.prepared_layer_cache_gb.gigabytes,
+                coding_workspace_bytes: AppSetting.chat_coding_workspace_budget_bytes,
+                prepared_layer_cache_workers: prepared_layer_cache_workers
+              }
             }
+          end
+
+          def prepared_layer_cache_workers
+            WorkerHostHealthSample.worker_role
+              .where("observed_at >= ?", ::Admin::WorkerHealthPayload::CURRENT_SAMPLE_WINDOW.ago)
+              .recent
+              .limit(500)
+              .to_a
+              .uniq { |sample| sample.worker_storage_key.presence || sample.hostname }
+              .filter_map do |sample|
+                bytes = sample.raw_metrics&.fetch("prepared_layer_cache_budget_bytes", nil)
+                source = sample.raw_metrics&.fetch("prepared_layer_cache_budget_source", nil)
+                next if bytes.nil? || !source.in?(%w[app_setting worker_environment])
+
+                {
+                  hostname: sample.hostname,
+                  worker_storage_key: sample.worker_storage_key,
+                  budget_bytes: bytes,
+                  source: source,
+                  observed_at: sample.observed_at&.iso8601
+                }
+              end
           end
 
           def table_payload(definition, setting)

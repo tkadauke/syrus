@@ -231,6 +231,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     job = Factories.job(user: admin)
     job.repository.update!(
       main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: true,
       ci_health: "broken",
       grader_health: "broken",
       landing_paused: true

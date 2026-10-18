@@ -394,7 +394,7 @@ RSpec.describe "Work engine resilience regression matrix" do
       auto_executable: false,
       setup: lambda {
         job, workflow, step, run = matrix_graph
-        job.repository.update!(ci_health: "broken", landing_paused: true)
+        job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", landing_paused: true)
         fail_run!(workflow, step, run, classification: "timeout", retryable: true)
         workflow.update!(artifacts: { "main_broken" => true })
         { workflow_id: workflow.id }

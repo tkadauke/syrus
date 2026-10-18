@@ -1,6 +1,6 @@
 # Spending Insights
 
-Spending Insights adds a sidebar page rolling up agent spend by epic, repository, user, provider, and
+Spending Insights is disabled by default. When enabled from **Admin → Plugins**, it adds a sidebar page rolling up agent spend by epic, repository, user, provider, and
 workflow trigger kind. It reads completed Run accounting (`Run#cost_usd` at `Run#finished_at`) and the
 per-turn chat spend ledger (`ChatSpendEntry`)
 and does not change scheduling, grading, or job behavior.

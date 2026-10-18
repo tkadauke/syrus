@@ -179,16 +179,19 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
 
 This soft cap is enforced only when `workflow_admission_control_enabled` is
-enabled. Per-user daily spend protection remains active independently.
+enabled.
 
 ### prepared_layer_cache_gb
 
-**Type:** integer · **Default:** 100 · `0` = no size budget
+**Type:** integer · **Default:** 10 · `0` = no size budget
 
 Disk budget, in GB, for each worker's cache of prepared workspace trees -- the
 trees grader checkouts are materialized from. `SYRUS_PREPARED_LAYER_CACHE_GB`
 overrides it on an individual worker, which is the point of having both: a
 256 GB laptop worker and a 1 TB server should not be told the same number.
+Each worker records its effective value and source with host-health telemetry;
+Admin → Retention & Storage shows those worker-attributed reports separately
+from the instance default.
 
 Entries live in `$SYRUS_DATA_ROOT/prepared-layers/<worker storage key>/<prepare
 fingerprint>/`, outside any workflow workspace. The fingerprint already covers
@@ -252,12 +255,6 @@ reasonable starting point is a small multiple of the fleet's concurrent agent
 capacity — enough to keep every host fed and pipelined, not enough to leave
 dozens of half-finished attempts parked.
 
-### user_daily_spend_budget_usd
-
-**Type:** integer · **Default:** 20 · `0` = unlimited
-
-Per-user daily spend ceiling across workflow Runs and chat turns, measured in USD. Fresh instances default to a $20/day cap per user; set it to `0` to allow unlimited provider-reported spend. `RunJob` checks the budget before starting agentic work and defers queued work until the next day once the user has reached the ceiling; it does not fail the Job. Run spend uses provider-reported `Run#cost_usd` when available, and chat spend uses each chat session's daily cost counter. Runs whose provider omits a dollar cost keep `cost_usd` unset rather than deriving USD from token usage, so subscription-based or token-only providers may not produce reliable USD budget enforcement unless they report dollar costs directly.
-
 ## GitHub App
 
 ### github_app_id
@@ -301,7 +298,7 @@ staggering, the global agent-run cap, and per-actor fair share. A fresh
 single-host or Docker Compose install needs no admission tuning by default.
 
 The switch does not disable hard worker memory/disk or critical local-pressure
-protection. Provider-availability pauses, per-user daily spend budgets, manual
+protection. Provider-availability pauses, manual
 pauses, dependencies, and landing-queue correctness gates also remain active.
 Changing the switch does not rewrite any other setting or existing record.
 
@@ -384,9 +381,9 @@ The bot token used by the `discord` plugin's Gateway connector (`Discord::Gatewa
 
 ### chat_coding_workspace_budget_mb
 
-**Type:** integer · **Default:** 0 (unlimited) · `0` = disabled
+**Type:** integer · **Default:** 10240 (10 GB) · `0` = disabled
 
-Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Set this on busy instances where coding chats would otherwise fill the worker's data volume. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
+Instance-wide byte budget for retained Coding-Mode chat checkouts (each is a writable full clone plus installed dependencies, commonly 1–2 GB), measured in megabytes. When retained checkouts exceed the budget, `WorkflowWorkspacePruneJob` calls `ChatWorkspace.reclaim_coding_over_budget!` to LRU-evict the least-recently-active ones until total on-disk size is under budget — after safely backing up any un-pushed / uncommitted work to the remote (see the Coding Mode docs). Fresh installations default to 10 GB. `0` disables the size cap; the idle-reclaim window (`ChatWorkspace::RECLAIM_IDLE_CODING_AFTER`, 48 h) and reclaim-on-handoff still apply. Existing installations retain their stored value. `AppSetting.chat_coding_workspace_budget_bytes` converts it to bytes.
 
 ## Data retention
 

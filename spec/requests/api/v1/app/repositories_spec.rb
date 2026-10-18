@@ -91,6 +91,55 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "returns a static readiness report for an accessible repository" do
+    user.update!(github_token: "github-token")
+    repository = Factories.repository(user: user)
+    stub_repository_content(repository, files: { ".syrus.yml" => "prepare: []\n" })
+    decision = RunQueueResolver::Decision.new(
+      queue_name: "runs", requirements: { "os" => [ "linux" ] }, sticky_resume: false, blocked_reason: nil,
+      details: { "live_workers" => [ { "eligible" => true } ] }
+    )
+    allow(RunQueueResolver).to receive(:resolve_candidate).and_return(decision)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("readiness", "summary")).to eq("Ready with warnings")
+    expect(parse_body.dig("readiness", "prepare_commands")).to eq([])
+  end
+
+  it "starts one disposable probe and reuses it while it is active" do
+    repository = Factories.repository(user: user)
+    sign_in_as(user)
+
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
+    probe_id = parse_body.dig("execution_probe", "id")
+
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.not_to change(RepositoryExecutionProbe, :count)
+    expect(parse_body.dig("execution_probe", "id")).to eq(probe_id)
+
+    RepositoryExecutionProbe.find(probe_id).update!(status: "succeeded")
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
+  end
+
+  it "allows an operator to override a required-command probe block" do
+    repository = Factories.repository(user: user)
+    probe = RepositoryExecutionProbe.create!(repository:, requested_by: user, status: "blocked", result: { "summary" => "missing executable" })
+    sign_in_as(user)
+
+    post "/api/v1/app/repositories/#{repository.id}/override_readiness_probe", params: { probe_id: probe.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(probe.reload).to be_warning_override
+  end
+
   it "401s throughput metrics when signed out" do
     repository = Factories.repository(user: user)
 
@@ -550,9 +599,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.dig("repository", "trigger_label")).to eq("syrus")
     expect(body.dig("repository", "polling_enabled")).to eq(true)
     expect(body.dig("repository", "epic_dependency_policy")).to eq("linear")
-    expect(body.dig("repository", "main_branch_health_enabled")).to eq(true)
-    expect(body.dig("repository", "main_branch_repair_enabled")).to eq(true)
-    expect(body.dig("repository", "main_branch_repair_blocks_work")).to eq(true)
+    expect(body.dig("repository", "pr_cost_footer_enabled")).to eq(false)
+    expect(body.dig("repository", "main_branch_health_enabled")).to eq(false)
+    expect(body.dig("repository", "main_branch_repair_enabled")).to eq(false)
+    expect(body.dig("repository", "main_branch_repair_blocks_work")).to eq(false)
     expect(body.dig("repository", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("repository", "treat_grader_timeouts_as_failures")).to eq(false)
     expect(body.dig("repository", "external_pr_ingestion_enabled")).to eq(false)

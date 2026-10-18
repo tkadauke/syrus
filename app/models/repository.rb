@@ -23,7 +23,7 @@ class Repository < ApplicationRecord
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
-  attribute :pr_cost_footer_enabled, :boolean, default: true
+  attribute :pr_cost_footer_enabled, :boolean, default: false
   attribute :auto_merge_enabled, :boolean, default: false
   attribute :approval_propagates_to_github, :boolean, default: true
   # Opt-in: reuse a PR's green grade across a clean (conflict-free)
@@ -60,9 +60,9 @@ class Repository < ApplicationRecord
   attribute :grader_health, :string, default: "unknown"
   attribute :main_health_poll_error_streak, :integer, default: 0
   attribute :landing_paused, :boolean, default: false
-  attribute :main_branch_health_enabled, :boolean, default: true
-  attribute :main_branch_repair_enabled, :boolean, default: true
-  attribute :main_branch_repair_blocks_work, :boolean, default: true
+  attribute :main_branch_health_enabled, :boolean, default: false
+  attribute :main_branch_repair_enabled, :boolean, default: false
+  attribute :main_branch_repair_blocks_work, :boolean, default: false
   attribute :main_branch_repair_auto_approve, :boolean, default: false
   # When on, a scheduled job keeps this fork's default branch in sync with
   # its in-instance upstream (via GitHub's merge-upstream API) so main-branch
@@ -106,6 +106,7 @@ class Repository < ApplicationRecord
   has_many :chat_pending_actions, dependent: :destroy
   has_many :main_branch_health_checks, dependent: :destroy
   has_many :preview_environments, dependent: :destroy
+  has_many :repository_execution_probes, dependent: :destroy
   has_many :cognitive_engagement_events, dependent: :destroy
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }

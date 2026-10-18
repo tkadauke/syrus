@@ -1,17 +1,15 @@
 require "rails_helper"
 
 RSpec.describe SpendingInsights::Engine do
-  it "is registered enabled by default for the standard bundled-plugin test setup" do
+  it "is registered disabled by default" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "spending_insights" }
 
     expect(manifest).to be_present
-    expect(manifest.default_enabled?).to be(true)
-    expect(manifest.enabled?).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(SpendingInsights::SidebarPages)
+    expect(manifest.default_enabled?).to be(false)
   end
 
   it "drops the sidebar page once the plugin is disabled" do
-    PluginRecord.find_or_create_by!(name: "spending_insights") { |record| record.enabled = true }
+    PluginRecord.find_or_create_by!(name: "spending_insights").update!(enabled: true)
     PluginRecord.find_by!(name: "spending_insights").update!(enabled: false)
 
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
@@ -23,7 +21,7 @@ RSpec.describe SpendingInsights::Engine do
   # is sync-on-read (see MetricsController#sync_plugin_declarations) rather
   # than reapplied on a timer, so the test drives that same sync explicitly.
   it "declares its run cost metric only while enabled" do
-    PluginRecord.find_or_create_by!(name: "spending_insights") { |record| record.enabled = true }
+    PluginRecord.find_or_create_by!(name: "spending_insights").update!(enabled: true)
     Syrus::Installer.sync!
     expect(Syrus::Metrics.registry.declared?(:syrus_spending_insights_run_cost_usd_total)).to be(true)
 
@@ -41,7 +39,7 @@ RSpec.describe SpendingInsights::Engine do
   # plugin-owned tick_interval/on_tick -- it samples on the shared
   # control-plane tick (SampleGlobalMetricsJob) like every other sampler.
   it "registers its cost sampler only while enabled" do
-    PluginRecord.find_or_create_by!(name: "spending_insights") { |record| record.enabled = true }
+    PluginRecord.find_or_create_by!(name: "spending_insights").update!(enabled: true)
     Syrus::Installer.sync!
     expect(Syrus::Metrics.samplers).to include(SpendingInsights::MetricsSampler)
 
@@ -54,7 +52,7 @@ RSpec.describe SpendingInsights::Engine do
     expect(Syrus::Metrics.samplers).to include(SpendingInsights::MetricsSampler)
   end
 
-  it "is treated as enabled on a fresh install with no prior PluginRecord row", :reset_plugin_registry do
+  it "is treated as disabled on a fresh install with no prior PluginRecord row", :reset_plugin_registry do
     Syrus::PluginRegistry.reset!
     # The real engine already registered once at Rails boot, outside any
     # per-example transaction, so a row from that boot commit persists here.
@@ -65,8 +63,8 @@ RSpec.describe SpendingInsights::Engine do
 
     SpendingInsights.register!
 
-    expect(PluginRecord.find_by!(name: "spending_insights").enabled?).to be(true)
-    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(SpendingInsights::SidebarPages)
+    expect(PluginRecord.find_by!(name: "spending_insights").enabled?).to be(false)
+    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(SpendingInsights::SidebarPages)
 
     Syrus::PluginRegistry.reset!
   end

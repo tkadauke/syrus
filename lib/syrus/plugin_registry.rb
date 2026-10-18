@@ -146,6 +146,7 @@ module Syrus
         validate_core_event_name_uniqueness!(events)
         validate_author!(metadata[:author])
         validate_category!(category)
+        validate_experimental_default!(name, experimental, default_enabled)
         links = normalize_links!(links)
         credential_types = normalize_credential_types!(
           plugin_name: name,
@@ -610,7 +611,6 @@ module Syrus
       def upsert_plugin_record!(name:, default_enabled:, disableable:, experimental:, metadata:)
         record = PluginRecord.find_or_initialize_by(name: name)
         record.enabled = default_enabled && (!experimental || beta_mode_enabled?) if record.new_record?
-        record.enabled = true if stable_promotion_enables_record?(record, default_enabled, experimental)
         record.default_enabled = default_enabled if record.has_attribute?(:default_enabled)
         record.disableable = disableable if record.has_attribute?(:disableable)
         record.experimental = experimental if record.has_attribute?(:experimental)
@@ -624,13 +624,10 @@ module Syrus
         record.save!
       end
 
-      def stable_promotion_enables_record?(record, default_enabled, experimental)
-        !record.new_record? &&
-          default_enabled &&
-          !experimental &&
-          record.has_attribute?(:experimental) &&
-          record.experimental? &&
-          !record.ever_enabled?
+      def validate_experimental_default!(name, experimental, default_enabled)
+        return unless experimental && default_enabled
+
+        raise RegistrationError, "Experimental plugin #{name.inspect} must be default-disabled"
       end
 
       def extension_points_token_list(points)

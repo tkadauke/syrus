@@ -63,6 +63,40 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     )
     expect(row["description"]).to be_present
     expect(parse_body["retention_available_space_override_gb"]).to eq(0)
+    expect(parse_body["storage_limits"]).to eq(
+      "prepared_layer_cache_default_bytes" => 10.gigabytes,
+      "coding_workspace_bytes" => 10.gigabytes,
+      "prepared_layer_cache_workers" => []
+    )
+  end
+
+  it "shows worker-attributed effective prepared-cache limits in storage diagnostics" do
+    sign_in_as(admin)
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_PREPARED_LAYER_CACHE_GB").and_return("99")
+    WorkerHostHealthSample.create!(
+      hostname: "worker-a",
+      worker_storage_key: "storage-a",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
+      raw_metrics: {
+        prepared_layer_cache_budget_bytes: 3.gigabytes,
+        prepared_layer_cache_budget_source: "worker_environment"
+      }
+    )
+
+    get "/api/v1/app/admin/retention_settings"
+
+    expect(parse_body.dig("storage_limits", "prepared_layer_cache_default_bytes")).to eq(10.gigabytes)
+    expect(parse_body.dig("storage_limits", "prepared_layer_cache_workers")).to contain_exactly(
+      include(
+        "hostname" => "worker-a",
+        "worker_storage_key" => "storage-a",
+        "budget_bytes" => 3.gigabytes,
+        "source" => "worker_environment"
+      )
+    )
   end
 
   it "omits sizing fields for a table with no cached snapshot yet" do
