@@ -80,6 +80,64 @@ describe("parseUnifiedDiff", () => {
     expect(warnSpy).not.toHaveBeenCalled()
   })
 
+  it("merges adjacent hunks instead of rendering a divider for zero hidden lines", () => {
+    const patch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,2 +1,2 @@ first section",
+      " one",
+      "-old",
+      "+new",
+      "@@ -3,2 +3,3 @@ second section",
+      " two",
+      "+added",
+      " three",
+      "@@ -8,1 +9,1 @@ separated section",
+      " later"
+    ].join("\n")
+
+    const lines = parseUnifiedDiff(patch)
+    const hunkLines = lines.filter((line) => line.kind === "hunk")
+
+    expect(hunkLines).toHaveLength(2)
+    expect(hunkLines[0]).toMatchObject({ hunkId: 0, hunkOldStart: 1, hunkOldLines: 4, hunkNewStart: 1, hunkNewLines: 5 })
+    expect(hunkLines[0].code).toBe("@@ -1,4 +1,5 @@ first section")
+    expect(lines.find((line) => line.code === "added")?.hunkId).toBe(0)
+    expect(hunkLines[1]).toMatchObject({ hunkId: 1, hunkOldStart: 8, hunkNewStart: 9 })
+  })
+
+  it("merges overlapping hunks without repeating shared context rows", () => {
+    const patch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,4 +1,4 @@ first section",
+      " one",
+      " two",
+      " three",
+      " four",
+      "@@ -3,4 +3,5 @@ overlapping section",
+      " three",
+      " four",
+      "+added",
+      " five",
+      " six",
+      "@@ -10,1 +11,1 @@ separated section",
+      " later"
+    ].join("\n")
+
+    const lines = parseUnifiedDiff(patch)
+    const hunkLines = lines.filter((line) => line.kind === "hunk")
+
+    expect(hunkLines).toHaveLength(2)
+    expect(hunkLines[0]).toMatchObject({ hunkId: 0, hunkOldStart: 1, hunkOldLines: 6, hunkNewStart: 1, hunkNewLines: 7 })
+    expect(hunkLines[0].code).toBe("@@ -1,6 +1,7 @@ first section")
+    expect(lines.filter((line) => line.kind === "context" && line.code === "three")).toHaveLength(1)
+    expect(lines.filter((line) => line.kind === "context" && line.code === "four")).toHaveLength(1)
+    expect(lines.find((line) => line.code === "added")?.hunkId).toBe(0)
+  })
+
   it("falls back to meta and warns for a genuinely unexpected in-hunk line", () => {
     const patch = [
       "diff --git a/f b/f",
