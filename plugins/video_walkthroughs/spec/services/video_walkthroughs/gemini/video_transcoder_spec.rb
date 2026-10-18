@@ -47,6 +47,29 @@ RSpec.describe VideoWalkthroughs::Gemini::VideoTranscoder do
 
       expect(described_class.available?).to be false
     end
+
+    it "returns false and finalizes a timed-out production transcode" do
+      stub_const("VideoWalkthroughs::Gemini::VideoTranscoder::COMMAND_TIMEOUT_SECONDS", 0.05)
+      Dir.mktmpdir do |dir|
+        ffmpeg = File.join(dir, "ffmpeg")
+        File.write(ffmpeg, <<~SH)
+          #!/bin/sh
+          [ "$1" = "-version" ] && exit 0
+          /bin/sleep 30
+        SH
+        FileUtils.chmod(0o755, ffmpeg)
+        previous_path = ENV["PATH"]
+        ENV["PATH"] = "#{dir}:#{previous_path}"
+        described_class.runner = nil
+
+        output = File.join(dir, "compact.mp4")
+        expect(described_class.to_compact_mp4(input_path: "/tmp/video.webm", output_path: output)).to be false
+      ensure
+        ENV["PATH"] = previous_path
+      end
+
+      expect(SpawnedProcess.where(kind: "media").order(:id).last).to have_attributes(outcome: "timed_out")
+    end
   end
 
   describe ".to_compact_mp4" do

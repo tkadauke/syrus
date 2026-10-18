@@ -27,6 +27,7 @@ module VideoWalkthroughs
       # which is usually ≥1080p, so 1920 is a genuine higher-fidelity capture there.
       HIGH_SCALE_WIDTH = 1920
       HIGH_JPEG_QUALITY = 2
+      COMMAND_TIMEOUT_SECONDS = 2.minutes
 
       class << self
         # Test seam: injectable command runner returning [stdout+stderr, status].
@@ -36,8 +37,9 @@ module VideoWalkthroughs
           @runner ||= lambda do |cmd|
             current_run = Thread.current[:syrus_current_run]
             capture = ProcessRunner.new(
-              env: {}, command: cmd, mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
-              timeout: 2.minutes, kind: "media", run: current_run, workflow: current_run&.workflow,
+              env: ProcessRunner.forwarded_env(%w[PATH HOME]), command: cmd,
+              mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+              timeout: COMMAND_TIMEOUT_SECONDS, kind: "media", run: current_run, workflow: current_run&.workflow,
               chat_session: Thread.current[:syrus_current_chat_session]
             ).capture
             [ "#{capture.stdout}#{capture.stderr}", capture ]
