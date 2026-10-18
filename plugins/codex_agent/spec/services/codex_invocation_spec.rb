@@ -91,6 +91,28 @@ RSpec.describe CodexInvocation do
       [ captured, result ]
     end
 
+    it "parses a JSONL event larger than the subprocess read chunk as one complete record" do
+      text = "x" * 128.kilobytes
+      jsonl = { type: "item.completed", item: { type: "agent_message", text: text } }.to_json + "\n"
+      events = []
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: "/tmp/codex-home")
+      runner = ProcessRunner.new(
+        env: {}, command: [ "true" ], mounts: ProcessRunner.mounts("/tmp"),
+        network: "agent", timeout: 5,
+        on_output_line: ->(line) do
+          invocation.send(:process_event, line, ->(message, **kwargs) { events << [ message, kwargs ] })
+        end
+      )
+      line_buffer = +""
+
+      jsonl.bytes.each_slice(ProcessRunner::READ_CHUNK_BYTES) do |bytes|
+        runner.send(:stream_lines, bytes.pack("C*"), line_buffer)
+      end
+
+      expect(events).to eq([ [ text, { kind: "assistant_text" } ] ])
+      expect(line_buffer).to be_empty
+    end
+
     it "runs codex exec with permission checks disabled" do
       Dir.mktmpdir do |home|
         invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: Pathname.new(home))
