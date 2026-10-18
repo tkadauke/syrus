@@ -269,6 +269,7 @@ admin-only:
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_schema_controller.rb
   - plugins/syrus_dev/app/controllers/api/v1/app/admin/tool_card_jobs_controller.rb
+  - plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb
 ```
 
 ## Teams
@@ -412,6 +413,7 @@ instead of broader model scopes.
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb` | per-user/private | Agent insight suggestions are listed and acted on through `Current.user.repositories`, so only the repository owner sees or resolves a repository's backlog. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
+| `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private and repository-write affordance | Job-less repository preview show/logs resolve through the readable repository helper; create/destroy then require repository write access. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
