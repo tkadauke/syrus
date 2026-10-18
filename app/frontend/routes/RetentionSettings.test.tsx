@@ -36,13 +36,15 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
     storage_limits: {
       prepared_layer_cache_default_bytes: 10 * 1024 ** 3,
       coding_workspace_bytes: 10 * 1024 ** 3,
-      prepared_layer_cache_workers: [{
-        hostname: "worker-a",
-        worker_storage_key: "storage-a",
-        budget_bytes: 3 * 1024 ** 3,
-        source: "worker_environment",
-        observed_at: "2026-09-16T00:00:00Z"
-      }]
+      prepared_layer_cache_workers: [
+        {
+          hostname: "worker-a",
+          worker_storage_key: "storage-a",
+          budget_bytes: 3 * 1024 ** 3,
+          source: "worker_environment",
+          observed_at: "2026-09-16T00:00:00Z"
+        }
+      ]
     },
     ...overrides
   }
@@ -110,10 +112,14 @@ describe("RetentionSettings", () => {
   it("sets a table to infinite retention and saves 0", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/admin/retention_settings" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(retentionPayload({
-          message: "Retention settings updated.",
-          tables: [{ ...retentionPayload().tables[0], retention_value: 0, estimated_max_byte_size: null }]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            retentionPayload({
+              message: "Retention settings updated.",
+              tables: [{ ...retentionPayload().tables[0], retention_value: 0, estimated_max_byte_size: null }]
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(retentionPayload()))
     })
@@ -125,10 +131,13 @@ describe("RetentionSettings", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[1])
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ retention_settings: { notification_retention_days: 0, notification_retention_days_infinite: true } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ retention_settings: { notification_retention_days: 0, notification_retention_days_infinite: true } })
+        })
+      )
     })
     expect(await screen.findByText("Unbounded")).toBeInTheDocument()
   })
@@ -136,14 +145,22 @@ describe("RetentionSettings", () => {
   it("sets a previously-infinite table back to a finite value", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/admin/retention_settings" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(retentionPayload({
-          message: "Retention settings updated.",
-          tables: [{ ...retentionPayload().tables[0], retention_value: 45, estimated_max_byte_size: 300000 }]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            retentionPayload({
+              message: "Retention settings updated.",
+              tables: [{ ...retentionPayload().tables[0], retention_value: 45, estimated_max_byte_size: 300000 }]
+            })
+          )
+        )
       }
-      return Promise.resolve(jsonResponse(retentionPayload({
-        tables: [{ ...retentionPayload().tables[0], retention_value: 0, estimated_max_byte_size: null }]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          retentionPayload({
+            tables: [{ ...retentionPayload().tables[0], retention_value: 0, estimated_max_byte_size: null }]
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -158,10 +175,13 @@ describe("RetentionSettings", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[1])
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ retention_settings: { notification_retention_days: 45, notification_retention_days_infinite: false } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ retention_settings: { notification_retention_days: 45, notification_retention_days_infinite: false } })
+        })
+      )
     })
   })
 
@@ -176,9 +196,12 @@ describe("RetentionSettings", () => {
     fireEvent.submit(numberInput.closest("form")!)
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Enter a retention window of at least 1.")
-    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
-      method: "PATCH"
-    }))
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      "/api/v1/app/admin/retention_settings",
+      expect.objectContaining({
+        method: "PATCH"
+      })
+    )
   })
 
   it("does not save a blank finite retention value as infinite", async () => {
@@ -195,20 +218,21 @@ describe("RetentionSettings", () => {
     const form = input.closest("form")
     if (!form) throw new Error("Retention settings form not found")
     fireEvent.submit(form)
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/admin/retention_settings",
-      expect.objectContaining({ method: "PATCH" })
-    )
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({ method: "PATCH" }))
   })
 
   it("saves the manual available-space override", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/admin/retention_settings" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(retentionPayload({
-          message: "Retention settings updated.",
-          retention_available_space_override_gb: 500,
-          available_space: { available_bytes: 500 * 1024 ** 3, source: "manual", computed_at: "2026-09-16T00:00:00Z" }
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            retentionPayload({
+              message: "Retention settings updated.",
+              retention_available_space_override_gb: 500,
+              available_space: { available_bytes: 500 * 1024 ** 3, source: "manual", computed_at: "2026-09-16T00:00:00Z" }
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(retentionPayload()))
     })
@@ -221,10 +245,13 @@ describe("RetentionSettings", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0])
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ retention_settings: { retention_available_space_override_gb: 500 } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ retention_settings: { retention_available_space_override_gb: 500 } })
+        })
+      )
     })
   })
 
@@ -233,26 +260,34 @@ describe("RetentionSettings", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/admin/retention_settings" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(retentionPayload({
-          message: "Retention settings updated.",
-          tables: [{ ...table, archive_before_delete: true }]
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            retentionPayload({
+              message: "Retention settings updated.",
+              tables: [{ ...table, archive_before_delete: true }]
+            })
+          )
+        )
       }
       if (url.startsWith("/api/v1/app/admin/retention_archives")) {
-        return Promise.resolve(jsonResponse(retentionArchivesPayload({
-          archives: [
-            {
-              id: 1,
-              pruned_before: "2026-08-01T00:00:00Z",
-              row_count: 42,
-              byte_size: 2048,
-              created_at: "2026-08-02T00:00:00Z",
-              filename: "run_diagnostic-20260802000000.jsonl.gz",
-              download_path: "/api/v1/app/admin/retention_archives/1/download"
-            }
-          ],
-          pagination: { page: 1, per_page: 20, total: 1, total_pages: 1, first_item: 1, last_item: 1 }
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            retentionArchivesPayload({
+              archives: [
+                {
+                  id: 1,
+                  pruned_before: "2026-08-01T00:00:00Z",
+                  row_count: 42,
+                  byte_size: 2048,
+                  created_at: "2026-08-02T00:00:00Z",
+                  filename: "run_diagnostic-20260802000000.jsonl.gz",
+                  download_path: "/api/v1/app/admin/retention_archives/1/download"
+                }
+              ],
+              pagination: { page: 1, per_page: 20, total: 1, total_pages: 1, first_item: 1, last_item: 1 }
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(retentionPayload({ tables: [table] })))
     })
@@ -264,16 +299,19 @@ describe("RetentionSettings", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[1])
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/retention_settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({
-          retention_settings: {
-            run_diagnostic_retention_days: 30,
-            run_diagnostic_retention_days_infinite: false,
-            run_diagnostic_archive_before_delete: true
-          }
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/retention_settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            retention_settings: {
+              run_diagnostic_retention_days: 30,
+              run_diagnostic_retention_days_infinite: false,
+              run_diagnostic_archive_before_delete: true
+            }
+          })
         })
-      }))
+      )
     })
 
     fireEvent.click(screen.getByRole("button", { name: "View archives" }))
