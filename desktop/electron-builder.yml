@@ -33,6 +33,9 @@ asarUnpack:
   - "**/node_modules/uiohook-napi/**"
 mac:
   category: public.app-category.developer-tools
+  # Electron 44 requires Ventura or later. Keep this explicit so the app
+  # bundle and generated update metadata reject incompatible Macs cleanly.
+  minimumSystemVersion: "13.0"
   # 512px master; a 1024px design asset would sharpen the Retina dock icon.
   icon: build/icon.png
   hardenedRuntime: true
