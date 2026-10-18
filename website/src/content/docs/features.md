@@ -1804,13 +1804,15 @@ last-active fallback when recent activity is sparse. Low-sample windows are
 labelled instead of treated as stable averages, so operators can distinguish
 "nothing happened recently" from "the repository is slow."
 
-The Throughput plugin precomputes repository snapshots every five minutes on
-the polling queue. A snapshot is considered fresh for ten minutes and retained
+The Throughput plugin precomputes every active repository's snapshot every five
+minutes on the polling queue, including repositories whose issue polling is
+disabled. A snapshot is considered fresh for ten minutes and retained
 for up to 24 hours, so a failed refresh can serve clearly marked stale data
 instead of plausible empty metrics. A cold request may perform one computation;
 if another process already owns it, the API returns an explicit temporary
 unavailable response. Snapshot keys include the repository and contract version,
-and refreshes are serialized per repository.
+and refreshes are serialized per repository with a five-minute lease around a
+four-minute computation bound.
 
 Landing windows also separate successful, failed, cancelled, and deferred
 attempts; report grader-phase time, mergeability/rebase wait, base-moved
