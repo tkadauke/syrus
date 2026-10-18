@@ -916,6 +916,8 @@
     "insight_scheduling_saved": "Insight scheduling settings saved.",
     "insight_scheduling_save_error": "Failed to save insight scheduling settings.",
     "insight_scheduling_min_max_error": "Minimum jobs must be less than maximum jobs.",
+    "insight_schedule_enabled": "Auto: on (min {{min}} / max {{max}})",
+    "insight_schedule_disabled": "Auto: off",
     "check_land_inherited_failure": "Land when failing checks are already failing on the base branch",
     "check_known_flaky_dismissal": "Dismiss required-grader failures that are already confirmed flaky",
     "label_known_flaky_min_score": "Minimum flakiness score to treat as confirmed",
