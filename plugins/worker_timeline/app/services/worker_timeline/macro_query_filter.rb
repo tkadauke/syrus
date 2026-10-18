@@ -1,132 +1,149 @@
 module WorkerTimeline
-  # Parses the worker-timeline macro view's shared FilterBar query-tree
-  # (`?q=` base64-JSON, same wire format as the dashboard/admin filter
-  # bars -- see Filters::QueryParam) into the discrete
-  # repository_id/epic_id/hostname/status/job_type/from/to arguments MacroQuery
-  # already accepts, and builds the `filter_schema` payload the shared
-  # FilterBar component (app/frontend/components/FilterBar.tsx) renders
-  # against.
-  #
-  # Timeline::MacroQuery isn't a single AR relation a Filters::Compiler chip can
-  # `.where` against (spans come from Workflow, pending from a second
-  # Workflow scope, idle lanes from InstanceVersion, and the "window"
-  # is an overlap test applied across all three). So execution still only
-  # understands a flat top-level AND of chips (the shape FilterBar
-  # produces for this small, fixed field set); chips nested in an OR
-  # group or wrapped in NOT are ignored. The registry subject exists for
-  # shared FilterBar schema and suggestion search metadata.
+  # Compiles the shared filter AST into predicates for each of the macro
+  # timeline's three sources. This is intentionally not Filters::Compiler:
+  # workflow spans, not-yet-started workflows, and idle InstanceVersions do
+  # not share an ActiveRecord relation or even the same set of attributes.
   class MacroQueryFilter
-    # No "window" chip applied -> every worker lane and every workflow
-    # from the last 3 hours (issue default; independent of
-    # MacroQuery::DEFAULT_WINDOW, which stays the documented 1-hour
-    # default for the separate bearer-token /api/v1/admin/worker_timeline/macro API).
+    include Filters::BaseFilter
+
     DEFAULT_WINDOW = 3.hours
+    OPERATORS = {
+      "repository_id" => %w[is], "epic_id" => %w[is], "hostname" => %w[is],
+      "status" => %w[is_one_of], "job_type" => %w[is_one_of],
+      "window" => %w[within_last between]
+    }.freeze
 
-    def self.schema
-      Filters::Schema.for(subject: :worker_timeline)
+    def self.schema = Filters::Schema.for(subject: :worker_timeline)
+
+    def self.from_params(params, smart_folder: nil, user: nil)
+      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      tree = [ smart_folder&.filter.presence, q_tree ].compact.reduce { |left, right| merge_and(left, right) }
+      new(tree || Filters::Ast.serialize(Filters::Ast::EMPTY), user: user)
     end
 
-    def self.from_params(params)
-      new(Filters::QueryParam.decode(params[:q]))
+    def initialize(tree, user: nil)
+      super
+      validate!(@ast)
     end
 
-    def initialize(tree)
-      @chips = top_level_chips(Filters::Ast.parse(tree))
+    def from = window_bounds.first
+    def to = window_bounds.last
+
+    def matches_workflow?(workflow, source:, attribution: {})
+      evaluate(@ast, source:, workflow:, attribution:)
     end
 
-    def to_h
-      Filters::Ast.serialize(Filters::Ast::AndNode.new(children: @chips))
-    end
-
-    def repository_id
-      chip_value("repository_id")
-    end
-
-    def epic_id
-      chip_value("epic_id")
-    end
-
-    def hostname
-      chip_value("hostname")
-    end
-
-    def status
-      Array(chip_value("status"))
-    end
-
-    def job_type
-      Array(chip_value("job_type"))
-    end
-
-    # Never returns nil, even for a malformed chip (unparsable "between"
-    # bound, unsupported within_last unit): MacroQuery's own DEFAULT_WINDOW
-    # is 1 hour (the documented default for the separate bearer-token
-    # API), so leaking a nil from/to through would silently reintroduce
-    # the 1-hour window this default was written to replace.
-    def from
-      return now - DEFAULT_WINDOW unless window_chip
-
-      if window_chip.op == "between"
-        parse_time(Array(window_chip.value).first) || now - DEFAULT_WINDOW
-      else
-        duration_for(window_chip.value)&.ago || now - DEFAULT_WINDOW
-      end
-    end
-
-    # Clamps a future end bound to now: a "between" chip persisted in a
-    # bookmark/URL can name an end time that has since fallen in the
-    # future relative to whichever moment this query actually runs, and
-    # there is never any data past "now" to show.
-    def to
-      return now unless window_chip
-      return now unless window_chip.op == "between"
-
-      parsed = parse_time(Array(window_chip.value).last) || now
-      [ parsed, now ].min
+    def matches_instance?(instance)
+      evaluate(@ast, source: :idle, instance: instance)
     end
 
     private
 
-    def now
-      @now ||= Time.current
-    end
-
-    def top_level_chips(node)
-      case node
-      when Filters::Ast::Chip then [ node ]
-      when Filters::Ast::AndNode then node.children.select { |child| child.is_a?(Filters::Ast::Chip) }
-      else []
+    def window_bounds
+      @window_bounds ||= begin
+        bounds = positive_window_chips.map { |chip| bounds_for(chip) }
+        bounds.empty? ? [ now - DEFAULT_WINDOW, now ] : [ bounds.map(&:first).min, bounds.map(&:last).max ]
       end
     end
 
-    def chip_value(field)
-      @chips.find { |chip| chip.field == field }&.value
+    # A negated window is an exclusion inside the normal display range; it
+    # must not also shrink that range to the interval being excluded.
+    def positive_window_chips(node = @ast, negated: false)
+      case node
+      when Filters::Ast::Chip
+        node.field == "window" && !negated ? [ node ] : []
+      when Filters::Ast::AndNode, Filters::Ast::OrNode
+        node.children.flat_map { |child| positive_window_chips(child, negated:) }
+      when Filters::Ast::NotNode
+        positive_window_chips(node.child, negated: !negated)
+      else
+        []
+      end
     end
 
-    def window_chip
-      @chips.find { |chip| chip.field == "window" }
+    def evaluate(node, **context)
+      case node
+      when Filters::Ast::AndNode then node.children.all? { |child| evaluate(child, **context) }
+      when Filters::Ast::OrNode then node.children.any? { |child| evaluate(child, **context) }
+      when Filters::Ast::NotNode then !evaluate(node.child, **context)
+      when Filters::Ast::Chip then evaluate_chip(node, **context)
+      else raise ArgumentError, "unsupported worker timeline filter node: #{node.class}"
+      end
     end
+
+    def evaluate_chip(chip, source:, workflow: nil, attribution: {}, instance: nil)
+      case chip.field
+      when "repository_id" then workflow && workflow.job.repository_id.to_s == chip.value.to_s
+      when "epic_id" then workflow && workflow.job.epic_id.to_s == chip.value.to_s
+      when "hostname" then (source == :idle ? instance.hostname : attribution[:hostname]).to_s == chip.value.to_s
+      when "status" then workflow && Array(chip.value).map(&:to_s).include?(workflow.state)
+      when "job_type" then workflow && job_types(chip.value).include?(workflow.job.kind)
+      when "window" then overlaps_window?(chip, source:, workflow:, instance:)
+      else raise Filters::UnknownFilterField, chip.field
+      end
+    end
+
+    def overlaps_window?(chip, source:, workflow:, instance:)
+      lower, upper = bounds_for(chip)
+      started_at, finished_at = case source
+      when :span then [ workflow.started_at, workflow.finished_at ]
+      when :pending then [ workflow.created_at, workflow.created_at ]
+      when :idle then [ instance.started_at, instance.finished_at ]
+      end
+      started_at && started_at < upper && (finished_at.nil? || finished_at >= lower)
+    end
+
+    def bounds_for(chip)
+      if chip.op == "between"
+        values = Array(chip.value)
+        lower = parse_time(values.first)
+        upper = [ parse_time(values.last), now ].compact.min
+        return [ lower, upper ] if lower && upper && lower <= upper
+      else
+        duration = duration_for(chip.value)
+        return [ now - duration, now ] if duration&.positive?
+      end
+      raise ArgumentError, "invalid value for worker timeline #{chip.field}:#{chip.op}"
+    end
+
+    def job_types(values)
+      groups = Array(values).map(&:to_s)
+      kinds = []
+      kinds.concat(Job::Kind.user_facing_values) if groups.include?("user")
+      kinds.concat(Job::Kind.infrastructure_values) if groups.include?("system")
+      kinds.uniq
+    end
+
+    def validate!(node)
+      case node
+      when Filters::Ast::AndNode, Filters::Ast::OrNode
+        node.children.each { |child| validate!(child) }
+      when Filters::Ast::NotNode then validate!(node.child)
+      when Filters::Ast::Chip
+        supported = OPERATORS[node.field] or raise Filters::UnknownFilterField, node.field
+        raise ArgumentError, "unsupported operator #{node.op.inspect} for worker timeline field #{node.field.inspect}" unless supported.include?(node.op)
+        bounds_for(node) if node.field == "window"
+      else
+        raise ArgumentError, "unsupported worker timeline filter node: #{node.class}"
+      end
+    end
+
+    def now = @now ||= Time.current
 
     def parse_time(value)
+      return value if value.respond_to?(:iso8601)
       return nil if value.blank?
-
-      case value
-      when Time, DateTime, ActiveSupport::TimeWithZone then value
-      when Date then value.in_time_zone
-      else Time.zone.parse(value.to_s)
-      end
+      Time.zone.parse(value.to_s)
     rescue ArgumentError
       nil
     end
 
     def duration_for(value)
       return nil unless value.is_a?(Hash)
-
       spec = value.transform_keys(&:to_s)
-      per = Filters::Chips::DateColumn::UNITS[spec["unit"].to_s]
-      return nil unless per
-
-      per * (Integer(spec["n"], exception: false) || 0)
+      unit = Filters::Chips::DateColumn::UNITS[spec["unit"].to_s]
+      amount = Integer(spec["n"], exception: false)
+      unit * amount if unit && amount
     end
   end
 end

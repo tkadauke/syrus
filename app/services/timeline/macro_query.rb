@@ -26,7 +26,7 @@ module Timeline
 
     def self.call(**kwargs) = new(**kwargs).call
 
-    def initialize(from: nil, to: nil, repository_id: nil, epic_id: nil, job_id: nil, hostname: nil, status: nil, job_type: nil)
+    def initialize(from: nil, to: nil, repository_id: nil, epic_id: nil, job_id: nil, hostname: nil, status: nil, job_type: nil, expression: nil, allowed_job_ids: nil)
       @to = parse_time(to) || Time.current
       @from = parse_time(from) || (@to - DEFAULT_WINDOW)
       @repository_id = repository_id.presence
@@ -39,6 +39,8 @@ module Timeline
         .filter_map { |value| JOB_TYPE_ALIASES[value.to_s] }
         .uniq
       @job_type_filter = @job_type_filter.presence
+      @expression = expression
+      @allowed_job_ids = allowed_job_ids
     end
 
     def call
@@ -54,7 +56,7 @@ module Timeline
 
     private
 
-    attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter, :job_type_filter
+    attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter, :job_type_filter, :expression, :allowed_job_ids
 
     def lanes_payload
       spans.group_by { |span| span[:lane_key] }.map do |_lane_key, lane_spans|
@@ -94,6 +96,7 @@ module Timeline
     def span_for(workflow)
       attribution = attribution_for(workflow)
       return nil if hostname_filter && attribution[:hostname] != hostname_filter
+      return nil if expression && !expression.matches_workflow?(workflow, source: :span, attribution: attribution)
 
       {
         lane_key: lane_key_for(attribution),
@@ -113,7 +116,8 @@ module Timeline
     end
 
     def pending_payload
-      pending_workflows.map do |workflow|
+      pending_workflows.filter_map do |workflow|
+        next if expression && !expression.matches_workflow?(workflow, source: :pending)
         {
           workflow_id: workflow.id,
           job_id: workflow.job_id,
@@ -142,6 +146,7 @@ module Timeline
           .includes(:job, :work_unit)
           .order(:started_at)
         scope = apply_filters(scope)
+        scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
         scope = scope.where(state: status_filter) if status_filter
         scope.to_a
       end
@@ -152,7 +157,9 @@ module Timeline
         scope = Workflow.where(started_at: nil, state: "queued")
           .where("workflows.created_at > ?", STALE_PENDING_THRESHOLD.ago)
           .includes(:job, :work_unit).order(:created_at)
-        apply_filters(scope).to_a
+        scope = apply_filters(scope)
+        scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
+        scope.to_a
       end
     end
 
@@ -217,7 +224,7 @@ module Timeline
           .where("started_at < ?", to)
           .where("finished_at IS NULL OR finished_at > ?", from)
         scope = scope.where(hostname: hostname_filter) if hostname_filter
-        scope.to_a
+        scope.to_a.select { |instance| expression.nil? || expression.matches_instance?(instance) }
       end
     end
 

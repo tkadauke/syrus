@@ -104,7 +104,7 @@ surface, sharing the same query services and payload shape:
   (`app/frontend/components/FilterBar.tsx`) uses everywhere else
   (`Filters::QueryParam`/`Filters::Ast`). `Timeline::MacroQueryFilter`
   decodes `q` into the `repository_id`/`epic_id`/`hostname`/`status`/
-  `job_type`/`from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes a
+  source-aware predicate evaluated by `Timeline::MacroQuery`, and exposes a
   registry-backed `filter_schema` for the `worker_timeline` subject:
   `repository_id`/`epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
   `/api/v1/app/filters/fk_options` resolver (`Filters::FkOptionsResolver`
@@ -148,19 +148,33 @@ surface, sharing the same query services and payload shape:
   those as links and applies the active SPA route prefix (for example
   `/app-shell`) at the edge.
 
-`worker_timeline` is a `Filters::Registry` subject so shared FilterBar
-schema serialization, top-level suggestion search, and filter-usage
-recording can use the same infrastructure as Dashboard/Search. The macro
-query still does not compile arbitrary registry chips into one relation:
-`Timeline::MacroQuery` isn't a single AR relation a `Filters::Compiler`
-chip can `.where` against (spans come from `Workflow`, pending from a
-second `Workflow` scope, idle lanes from `InstanceVersion`, and the time
-window is an overlap test applied across all three, not a plain column
-comparison), so `Timeline::MacroQueryFilter` only understands a flat
-top-level AND of chips — the shape the FilterBar produces for this small,
-fixed field set. Worker timeline does not currently expose SmartFolders;
-its registry subject exists for filter metadata and suggestions, not
-saved-folder navigation.
+`worker_timeline` is a `Filters::Registry` and SmartFolder subject, so the
+shared FilterBar, suggestion search, usage recording, and saved-folder
+create/update/delete/navigation controls use the same infrastructure as the
+other filtered admin surfaces. A saved folder stores the complete AST and an
+explicit `q=` edit replaces the folder expression, including an explicitly
+empty expression.
+
+The macro query deliberately does not pretend its data is one ActiveRecord
+relation. `WorkerTimeline::MacroQueryFilter` evaluates `and`, `or`, and `not`
+recursively against each source. Workflow fields (`repository_id`, `epic_id`,
+`status`, and `job_type`) can match running/completed spans and pending
+workflows; they do not match idle worker lanes. `hostname` can match attributed
+spans and idle lanes, but not an unattributed pending workflow. `window` uses
+interval overlap for spans and idle instances and the workflow creation time
+for pending entries. Boolean negation follows those source semantics (for
+example, an idle lane satisfies `NOT status:failed`). Unsupported fields,
+operators, and malformed window values return `invalid_filter` rather than
+being ignored. Positive window chips establish the displayed range envelope;
+a negated window is an exclusion inside the default three-hour range and does
+not shrink that range to the interval being excluded. With no positive window
+chip, the view remains bounded to the last three hours.
+
+Before evaluating the expression, the session-authenticated endpoint scopes
+both started and pending workflows through `Job.accessible_to(Current.user)`.
+This ordering prevents predicates from probing workflows in repositories the
+operator cannot access. Idle `InstanceVersion` lanes have no repository
+ownership and are evaluated only against the source-appropriate predicates.
 The separate bearer-token `GET /api/v1/admin/worker_timeline/macro` endpoint
 (see `config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
 `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/`status=`/`job_type=`/

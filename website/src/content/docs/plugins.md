@@ -54,6 +54,10 @@ snapshot calls out the launch-relevant groups:
 | Language and platform support | Android, Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
 
+Worker Timeline uses the shared composable filter bar and Smart Folders. Saved
+timeline expressions can combine supported fields with nested AND, OR, and NOT
+groups across workflow spans, pending workflows, and idle worker lanes.
+
 The Kubernetes Cluster Viewer reports kubeconfig credential expiry in its
 admin cluster list. Operators rotate pasted tokens or client certificates by
 editing the existing connection and pasting a replacement kubeconfig, which
