@@ -11,6 +11,141 @@ require "tempfile"
 # SpawnedProcess registration + heartbeats + the operator kill switch, and
 # a common result shape.
 class ProcessRunner
+  # Output collected by #capture. Buffers are capped independently so a noisy
+  # child cannot grow the worker heap without bound; callers can distinguish a
+  # complete value from its retained prefix through the truncation flags.
+  CaptureResult = Data.define(:result, :stdout, :stderr, :stdout_truncated, :stderr_truncated) do
+    def success? = result.success?
+  end
+
+  PipelineResult = Data.define(:results, :output) do
+    def success? = results.all?(&:success?)
+    def exit_status = results.last&.exit_status
+  end
+
+  class BoundedBuffer
+    attr_reader :value
+
+    def initialize(limit)
+      @limit = Integer(limit)
+      raise ArgumentError, "capture limit must be positive" unless @limit.positive?
+
+      @value = +""
+      @truncated = false
+    end
+
+    def <<(chunk)
+      remaining = @limit - @value.bytesize
+      @value << chunk.byteslice(0, remaining) if remaining.positive?
+      @truncated ||= chunk.bytesize > remaining
+      self
+    end
+
+    def truncated? = @truncated
+  end
+
+  # A background process remains a normal ProcessRunner invocation: it gets
+  # the same DB registration, attribution, heartbeat, cancellation, cleanup,
+  # and final outcome. The handle is durable because its identity is the
+  # SpawnedProcess row, while an in-process handle can additionally join the
+  # owner thread and return the precise Result.
+  class BackgroundHandle
+    attr_reader :spawned_process_id
+
+    def initialize(spawned_process_id:, thread: nil)
+      @spawned_process_id = spawned_process_id
+      @thread = thread
+    end
+
+    def self.find(spawned_process_id)
+      new(spawned_process_id: spawned_process_id)
+    end
+
+    def spawned_process = SpawnedProcess.find(spawned_process_id)
+
+    # Callers which need to publish a background process (for example a
+    # preview registry) should obtain its identifiers from the managed handle,
+    # never by reaching around ProcessRunner's spawn path.
+    def pid = spawned_process.pid
+    def pgid = spawned_process.pgid
+
+    def finished?
+      spawned_process.finished_at.present?
+    end
+
+    def cancel!(user: nil)
+      process = spawned_process
+      process.request_kill!(user: user) unless process.finished?
+      ProcessRunner.terminate_durable_process(process) unless @thread
+      self
+    end
+
+    def alive?
+      ProcessRunner.durable_process_alive?(spawned_process)
+    end
+
+    def finalize(timeout: nil)
+      if @thread
+        joined = timeout ? @thread.join(timeout) : @thread.join
+        return nil unless joined
+        raise @thread[:process_runner_error] if @thread[:process_runner_error]
+        return @thread[:process_runner_result]
+      end
+
+      process = spawned_process
+      if timeout && !process.finished_at
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+        until process.reload.finished_at || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          sleep 0.05
+        end
+      end
+      return nil unless process.finished_at
+
+      ProcessRunner.result_from_spawned_process(process)
+    end
+  end
+
+  # Durable handles may be reconstructed after their original runner thread
+  # disappeared. A PID alone is not enough to signal safely because the OS can
+  # reuse it. Persist and verify the Linux boot id plus /proc start time and
+  # process group before an ownerless handle sends a local signal.
+  class ProcessIdentity
+    BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+    def self.capture(pid, pgid: nil)
+      stat = read_stat(pid)
+      return unless stat
+
+      {
+        "boot_id" => File.read(BOOT_ID_PATH).strip,
+        "start_time_ticks" => stat.fetch(:start_time_ticks),
+        "pgid" => pgid || stat.fetch(:pgid)
+      }
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
+    end
+
+    def self.matches?(pid, identity)
+      return false if pid.blank? || identity.blank?
+      return false unless File.read(BOOT_ID_PATH).strip == identity["boot_id"]
+
+      stat = read_stat(pid)
+      stat && stat.fetch(:start_time_ticks) == identity["start_time_ticks"].to_i &&
+        stat.fetch(:pgid) == identity["pgid"].to_i
+    rescue Errno::ENOENT, Errno::EACCES
+      false
+    end
+
+    def self.read_stat(pid)
+      raw = File.read("/proc/#{Integer(pid)}/stat")
+      fields = raw[(raw.rindex(")") + 2)..].split
+      { pgid: Integer(fields[2]), start_time_ticks: Integer(fields[19]) }
+    rescue ArgumentError, TypeError
+      nil
+    end
+    private_class_method :read_stat
+  end
+
   class WorkspaceAttributionError < StandardError; end
   class MountAssertionError < StandardError; end
   class NetworkAssertionError < StandardError; end
@@ -38,6 +173,30 @@ class ProcessRunner
   # update is a hot write on long-running agent/grader processes. Persist
   # sparingly while running; finalization always writes the final attribution.
   RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 5 * 60
+
+  class << self
+    def durable_process_alive?(process)
+      return false unless process.hostname == Socket.gethostname
+
+      ProcessIdentity.matches?(process.pid, process.resource_attribution["process_identity"])
+    end
+
+    def terminate_durable_process(process, grace_seconds: TERM_GRACE_SECONDS)
+      return false unless durable_process_alive?(process)
+      pgid = process.pgid || process.resource_attribution.dig("process_identity", "pgid")
+      return false unless pgid.present? && pgid.to_i == process.pid.to_i
+
+      Process.kill("TERM", -pgid.to_i)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + grace_seconds
+      while durable_process_alive?(process) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        sleep 0.05
+      end
+      Process.kill("KILL", -pgid.to_i) if durable_process_alive?(process)
+      true
+    rescue Errno::ESRCH, Errno::EPERM
+      false
+    end
+  end
 
   Mount = Data.define(:host_path, :mount_path) do
     def initialize(host_path:, mount_path: nil)
@@ -337,6 +496,62 @@ class ProcessRunner
     Mount.new(host_path: value)
   end
 
+  def self.result_from_spawned_process(process)
+    outcome = process.outcome
+    Result.new(
+      exit_status: process.exit_status,
+      timed_out: outcome == "timed_out",
+      stopped: outcome == "stopped",
+      silent_timed_out: outcome == "silent_timed_out",
+      operator_killed: outcome == "operator_killed",
+      aliveness_failed: outcome == "aliveness_failed",
+      duration_s: process.duration_s,
+      spawned_process_id: process.id
+    )
+  end
+
+  # Build a real OS pipeline out of ordinary ProcessRunner children. Named
+  # pipes let every command keep its own lifecycle record and process group;
+  # starting consumers first also makes partial producer-spawn failures close
+  # cleanly instead of leaving an unaccounted child behind.
+  def self.pipeline(commands:, output_limit: 1.megabyte, **options)
+    raise ArgumentError, "pipeline requires at least one command" if commands.empty?
+
+    mounts = normalize_mounts(options.fetch(:mounts))
+    options = options.merge(mounts: mounts)
+    Dir.mktmpdir("process-runner-pipeline", mounts.workdir) do |dir|
+      pipes = Array.new(commands.length - 1) { |index| File.join(dir, "pipe-#{index}") }
+      pipes.each { |path| File.mkfifo(path) }
+      output = BoundedBuffer.new(output_limit)
+      results = Array.new(commands.length)
+      threads = []
+
+      (commands.length - 1).downto(0) do |index|
+        input = index.positive? ? pipes[index - 1] : nil
+        destination = index < pipes.length ? pipes[index] : nil
+        script = +"exec \"$@\""
+        script << " < \"$PROCESS_RUNNER_PIPE_IN\"" if input
+        script << " > \"$PROCESS_RUNNER_PIPE_OUT\"" if destination
+        env = options.fetch(:env).merge(
+          "PROCESS_RUNNER_PIPE_IN" => input,
+          "PROCESS_RUNNER_PIPE_OUT" => destination
+        ).compact
+        callback = index == commands.length - 1 ? ->(chunk) { output << chunk } : nil
+        runner_options = options.merge(
+          env: env,
+          command: [ "bash", "-c", script, "process-runner", *commands[index] ],
+          display_command: Array(commands[index]).join(" "),
+          on_output_chunk: callback
+        )
+        threads << Thread.new(index, new(**runner_options)) do |child_index, runner|
+          results[child_index] = runner.run
+        end
+      end
+      threads.each(&:value)
+      PipelineResult.new(results: results, output: output.value)
+    end
+  end
+
   # `kind:` is the SpawnedProcess kind (one of SpawnedProcess::KINDS) —
   # production callers always pass this so the spawned-process admin
   # surface sees them. Test callers can omit it; nil means we skip
@@ -371,7 +586,8 @@ class ProcessRunner
                  agent: nil,
                  display_command: nil,
                  on_spawned_process: nil,
-                 activity_probe: nil)
+                 activity_probe: nil,
+                 resource_attribution: {})
     @env = env
     @command = command
     @mounts = self.class.normalize_mounts(mounts)
@@ -395,6 +611,7 @@ class ProcessRunner
     @agent = agent
     @display_command = display_command
     @on_spawned_process = on_spawned_process
+    @initial_resource_attribution = resource_attribution.deep_stringify_keys
 
     # Idempotent — only the first call in this process spawns the
     # supervisor thread. Web pods never reach this code path so they
@@ -406,7 +623,87 @@ class ProcessRunner
     with_workspace_lock { run_process }
   end
 
+  # Capture is implemented as a ProcessRunner invocation rather than an
+  # Open3 shortcut. The child writes each stream to a named pipe that a reader
+  # drains continuously. BoundedBuffer retains only the configured prefix but
+  # the readers keep consuming discarded bytes, so neither worker memory nor
+  # workspace disk grows with untrusted child output. The runner still owns
+  # spawning, stdin delivery, timeouts, cancellation and outcome.
+  def capture(limit: 1.megabyte)
+    stdout = BoundedBuffer.new(limit)
+    stderr = BoundedBuffer.new(limit)
+    Dir.mktmpdir("process-runner-capture", @chdir) do |dir|
+      stdout_path = File.join(dir, "stdout")
+      stderr_path = File.join(dir, "stderr")
+      File.mkfifo(stdout_path)
+      File.mkfifo(stderr_path)
+      readers = [
+        Thread.new { drain_capture_pipe(stdout_path, stdout) },
+        Thread.new { drain_capture_pipe(stderr_path, stderr) }
+      ]
+      original_command = @command
+      original_env = @env
+      original_display_command = @display_command
+      @env = @env.merge("PROCESS_RUNNER_STDOUT" => stdout_path, "PROCESS_RUNNER_STDERR" => stderr_path)
+      # Keep the wrapper's original output descriptors open while it waits for
+      # the redirected child. ProcessRunner monitors those descriptors for
+      # timeout/cancellation; `exec` would close them immediately and make the
+      # monitor block later in WaitThread#value without enforcing a deadline.
+      @command = [ "/bin/bash", "-c", '"$@" > "$PROCESS_RUNNER_STDOUT" 2> "$PROCESS_RUNNER_STDERR"', "process-runner", *@command ]
+      @display_command ||= original_command.compact.map(&:to_s).join(" ")
+      result = run
+      readers.each(&:value)
+      CaptureResult.new(
+        result: result,
+        stdout: stdout.value,
+        stderr: stderr.value,
+        stdout_truncated: stdout.truncated?,
+        stderr_truncated: stderr.truncated?
+      )
+    ensure
+      readers&.each { |reader| reader.kill if reader.alive? }
+      @command = original_command
+      @env = original_env
+      @display_command = original_display_command
+    end
+  end
+
+  def start
+    raise ArgumentError, "managed background processes require kind:" unless @kind
+
+    ready = Queue.new
+    previous_callback = @on_spawned_process
+    @on_spawned_process = ->(process) do
+      previous_callback&.call(process)
+      ready << process.id
+    end
+    thread = Thread.new do
+      Thread.current[:process_runner_result] = run
+    rescue StandardError => e
+      Thread.current[:process_runner_error] = e
+      ready << nil if ready.empty?
+    end
+    spawned_process_id = ready.pop
+    raise thread[:process_runner_error] if spawned_process_id.nil?
+
+    process = SpawnedProcess.find(spawned_process_id)
+    until process.reload.pid || !thread.alive?
+      sleep 0.01
+    end
+    raise thread[:process_runner_error] if thread[:process_runner_error]
+
+    BackgroundHandle.new(spawned_process_id: spawned_process_id, thread: thread)
+  end
+
   private
+
+  def drain_capture_pipe(path, buffer)
+    File.open(path, "rb") do |pipe|
+      while (chunk = pipe.read(READ_CHUNK_BYTES))
+        buffer << chunk
+      end
+    end
+  end
 
   # Held for the lifetime of the spawned subprocess so
   # WorkflowWorkspace.cleanup_for's non-blocking exclusive flock on the
@@ -482,11 +779,7 @@ class ProcessRunner
         update_pid!(wait_thread.pid)
         write_stdin(stdin)
 
-        killer = Thread.new do
-          sleep @timeout
-          timed_out = true
-          terminate(wait_thread.pid)
-        end
+        timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @timeout
 
         last_kill_check = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         # Tracks the first time we observed the pid missing. The
@@ -551,7 +844,11 @@ class ProcessRunner
 
         stream_output(output, wait_thread, silent_check) do
           heartbeat!
-          next if timed_out
+          if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= timeout_at
+            timed_out = true
+            terminate(wait_thread.pid)
+            next
+          end
 
           if @stop_requested.call
             stopped = true
@@ -578,11 +875,11 @@ class ProcessRunner
         end
 
         @stdin_writer&.join
-        killer.kill
         sample_resource_attribution!
         status = wait_thread.value
         sample_cgroup_exit!
         process_exit_status = status.exitstatus || 1
+        operator_killed ||= @spawned_process&.reload&.kill_requested?
         clean_exit_after_aliveness =
           aliveness_failed &&
           process_exit_status.zero? &&
@@ -756,6 +1053,7 @@ class ProcessRunner
     end
     attach_cgroup!(pid)
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
+    @process_identity = ProcessIdentity.capture(pid, pgid: pgid)
     sample_resource_attribution!
     @spawned_process.update!(
       pid: pid,
@@ -858,7 +1156,8 @@ class ProcessRunner
   end
 
   def current_resource_attribution
-    payload = @resource_sampler&.payload || {}
+    payload = @initial_resource_attribution.merge(@resource_sampler&.payload || {})
+    payload["process_identity"] = @process_identity if @process_identity
     return payload unless @cgroup
 
     payload.merge("cgroup" => @cgroup.payload)

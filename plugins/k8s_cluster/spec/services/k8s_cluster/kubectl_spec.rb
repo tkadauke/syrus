@@ -483,6 +483,7 @@ RSpec.describe K8sCluster::KubectlRunner do
 
     expect(result).not_to be_success
     expect(result.stderr).to include("timed out")
+    expect(SpawnedProcess.order(:id).last).to have_attributes(kind: "chat_shell_command", outcome: "timed_out")
   end
 
   it "replaces the inherited environment with the explicit kubectl environment" do

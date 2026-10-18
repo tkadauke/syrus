@@ -17,7 +17,7 @@ class PreviewProcessLauncher
   HEALTH_CHECK_TIMEOUT_SECONDS = 60
   HEALTH_CHECK_INTERVAL_SECONDS = 2
   Result = Struct.new(:pid, :port, :url, :reused, :project_id, keyword_init: true)
-  SpawnedPreview = Struct.new(:pid, :startup_log_path, keyword_init: true)
+  SpawnedPreview = Struct.new(:pid, :spawned_process_id, :startup_log_path, keyword_init: true)
 
   def initialize(workspace_path, project_id: nil, run: nil, workflow: nil, log: nil)
     @workspace_path = workspace_path
@@ -47,7 +47,10 @@ class PreviewProcessLauncher
         command = source.start_command_for.call(port: port)
         spawned_preview = spawn_app(command, port, process_env, preview_workdir, key)
         pid = spawned_preview.pid
-        Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port, cleanup: -> { cleanup! })
+        Mcp::Tools::AgentPreviewRegistry.register(
+          key: key, pid: pid, port: port, spawned_process_id: spawned_preview.spawned_process_id,
+          cleanup: -> { cleanup! }
+        )
       rescue StandardError => e
         terminate_unregistered_preview(spawned_preview)
         cleanup!
@@ -92,8 +95,10 @@ class PreviewProcessLauncher
   def terminate_unregistered_preview(spawned_preview)
     return unless spawned_preview
 
-    Process.kill("-TERM", spawned_preview.pid)
-  rescue Errno::ESRCH, Errno::EPERM
+    handle = ProcessRunner::BackgroundHandle.find(spawned_preview.spawned_process_id)
+    handle.cancel!
+    handle.finalize(timeout: ProcessRunner::KILL_POLL_INTERVAL_SECONDS + ProcessRunner::TERM_GRACE_SECONDS + 1)
+  rescue ActiveRecord::RecordNotFound
     nil
   end
 
@@ -101,13 +106,19 @@ class PreviewProcessLauncher
     spawn_env = env.merge("PORT" => port.to_s)
     startup_log_path = startup_log_path_for(key)
     FileUtils.mkdir_p(File.dirname(startup_log_path))
-    File.open(startup_log_path, "w") do |startup_log|
-      startup_log.sync = true
-      pid = Process.spawn(spawn_env, command, chdir: workdir, pgroup: true,
-                                              out: startup_log, err: startup_log,
-                                              unsetenv_others: true)
-      SpawnedPreview.new(pid: pid, startup_log_path: startup_log_path)
-    end
+    File.write(startup_log_path, "")
+    handle = ProcessRunner.new(
+      env: spawn_env, command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(workdir, read_write: @workspace_path),
+      network: "prepare", timeout: 24.hours, kind: "preview",
+      run: @run, workflow: @workflow, display_command: command,
+      on_output_chunk: ->(chunk) { File.open(startup_log_path, "ab") { |file| file.write(chunk) } }
+    ).start
+    SpawnedPreview.new(
+      pid: handle.pid,
+      spawned_process_id: handle.spawned_process_id,
+      startup_log_path: startup_log_path
+    )
   end
 
   def preview_workdir

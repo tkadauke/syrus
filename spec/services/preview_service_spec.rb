@@ -119,19 +119,24 @@ RSpec.describe PreviewService do
     it "passes preview env to the spawned app" do
       service = described_class.new
       env = create_env
-      allow(Process).to receive(:spawn).and_return(12_345)
-      allow(Process).to receive(:getpgid).with(12_345).and_return(12_345)
+      spawned = SpawnedProcess.create!(
+        kind: "preview", command: "bin/server", workdir: workspace_path,
+        hostname: "worker", started_at: Time.current, pid: 12_345
+      )
+      handle = instance_double(ProcessRunner::BackgroundHandle,
+        spawned_process: spawned, pid: 12_345, spawned_process_id: spawned.id)
+      runner = instance_double(ProcessRunner, start: handle)
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: { "DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "28000" },
+        command: [ "bash", "-c", "bin/server" ],
+        kind: "preview",
+        resource_attribution: hash_including(preview_environment_id: env.id, port: 28_000)
+      )).and_return(runner)
 
       service.send(:spawn_app, "bin/server", workspace_path, 28_000, env, {
         "DATABASE_URL" => nil,
         "RAILS_ENV" => "development"
       })
-
-      expect(Process).to have_received(:spawn).with(
-        { "DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "28000" },
-        "bin/server",
-        hash_including(chdir: workspace_path, pgroup: true, unsetenv_others: true)
-      )
     end
   end
 
@@ -496,16 +501,16 @@ RSpec.describe PreviewService do
   end
 
   describe "external stop requests" do
-    it "kills tracked children for environments already marked stopping" do
+    it "cancels tracked children through their managed handles" do
       service = described_class.new
       env = create_env(state: "stopping", port: 28_011)
+      handle = instance_double(ProcessRunner::BackgroundHandle, cancel!: nil)
       service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28_011)
-
-      expect(service).to receive(:kill_process_group).with(99_999)
+        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28_011, handle: handle)
 
       service.send(:poll_stopping_environments)
 
+      expect(handle).to have_received(:cancel!)
       expect(env.reload.state).to eq("stopping")
     end
 
@@ -544,139 +549,6 @@ RSpec.describe PreviewService do
     end
   end
 
-  describe "reaping exited children" do
-    it "marks the environment failed when the child exits unexpectedly" do
-      service = described_class.new
-      env = create_env(state: "running", port: 28005)
-
-      pid = Process.spawn("false")
-      Process.waitpid(pid)
-
-      # Inject the dead pid as a tracked child.
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: pid, environment_id: env.id, port: 28005)
-
-      # waitpid2 for a reaped pid will raise ECHILD; stub it to simulate the check.
-      allow(Process).to receive(:waitpid2).with(pid, Process::WNOHANG) do
-        status = instance_double(Process::Status, success?: false, exitstatus: 1)
-        [ pid, status ]
-      end
-
-      service.send(:reap_exited_children)
-
-      expect(env.reload.state).to eq("failed")
-      expect(env.error_message).to match(/exited unexpectedly/)
-    end
-
-    it "finalizes the SpawnedProcess row when a preview child exits" do
-      service = described_class.new
-      env = create_env(state: "running", port: 28005)
-      process = SpawnedProcess.create!(
-        kind: "preview",
-        command: "sleep 1",
-        hostname: "preview-host",
-        started_at: Time.current
-      )
-      pid = Process.spawn("false")
-      Process.waitpid(pid)
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: pid, environment_id: env.id, port: 28005, spawned_process_id: process.id)
-
-      allow(Process).to receive(:waitpid2).with(pid, Process::WNOHANG) do
-        status = instance_double(Process::Status, success?: false, exitstatus: 1)
-        [ pid, status ]
-      end
-
-      service.send(:reap_exited_children)
-
-      expect(process.reload).to be_finished
-      expect(process.outcome).to eq("failed")
-      expect(process.exit_status).to eq(1)
-    end
-
-    it "marks the environment stopped when a stopping child exits cleanly" do
-      service = described_class.new
-      env = create_env(state: "stopping", port: 28006)
-
-      pid = Process.spawn("true")
-      Process.waitpid(pid)
-
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: pid, environment_id: env.id, port: 28006)
-
-      allow(Process).to receive(:waitpid2).with(pid, Process::WNOHANG) do
-        status = instance_double(Process::Status, success?: true, exitstatus: 0)
-        [ pid, status ]
-      end
-
-      service.send(:reap_exited_children)
-
-      expect(env.reload.state).to eq("stopped")
-    end
-  end
-
-  describe "kill requests" do
-    it "stops the preview when its SpawnedProcess kill flag is set" do
-      service = described_class.new
-      env = create_env(state: "running", port: 28009)
-      process = SpawnedProcess.create!(
-        kind: "preview",
-        command: "bin/rails server",
-        hostname: "preview-host",
-        started_at: Time.current,
-        kill_requested_at: Time.current
-      )
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28009, spawned_process_id: process.id)
-
-      expect(service).to receive(:kill_process_group).with(99_999)
-
-      service.send(:honor_kill_requests!)
-
-      expect(env.reload.state).to eq("stopping")
-    end
-  end
-
-  describe "child heartbeats" do
-    it "only writes liveness heartbeats for stale preview process rows" do
-      service = described_class.new
-      env = create_env(state: "running", port: 28009)
-      now = Time.zone.parse("2026-08-20T12:00:00Z")
-      process = SpawnedProcess.create!(
-        kind: "preview",
-        command: "bin/rails server",
-        hostname: "preview-host",
-        started_at: 2.minutes.ago,
-        last_chunk_at: now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS - 1).seconds
-      )
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28009, spawned_process_id: process.id)
-
-      travel_to(now) { service.send(:heartbeat_children!) }
-
-      expect(process.reload.last_chunk_at).to eq(now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS - 1).seconds)
-    end
-
-    it "refreshes stale preview process rows" do
-      service = described_class.new
-      env = create_env(state: "running", port: 28009)
-      now = Time.zone.parse("2026-08-20T12:00:00Z")
-      process = SpawnedProcess.create!(
-        kind: "preview",
-        command: "bin/rails server",
-        hostname: "preview-host",
-        started_at: 2.minutes.ago,
-        last_chunk_at: now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS + 1).seconds
-      )
-      service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28009, spawned_process_id: process.id)
-
-      travel_to(now) { service.send(:heartbeat_children!) }
-
-      expect(process.reload.last_chunk_at).to eq(now)
-    end
-  end
-
   describe "spawned process reconciliation" do
     it "fails startup immediately when the child exits before health check passes" do
       service = described_class.new
@@ -685,20 +557,18 @@ RSpec.describe PreviewService do
         kind: "preview",
         command: "bin/server",
         hostname: "preview-host",
-        started_at: Time.current
+        started_at: Time.current,
+        finished_at: Time.current,
+        outcome: "failed",
+        exit_status: 1
       )
       child = PreviewService::ChildProcess.new(pid: 12_345, environment_id: env.id, port: 28_009, spawned_process_id: process.id)
       service.instance_variable_get(:@children)[env.id] = child
-      status = instance_double(Process::Status, success?: false, exitstatus: 1)
-
-      allow(Process).to receive(:waitpid2).with(12_345, Process::WNOHANG).and_return([ 12_345, status ])
-
       expect {
         service.send(:await_health_check, env, 28_009, "/up")
       }.to raise_error(RuntimeError, /exited before health check/)
 
       expect(process.reload.outcome).to eq("failed")
-      expect(service.instance_variable_get(:@children)).not_to have_key(env.id)
     end
 
     it "fails an active preview when its SpawnedProcess is finalized elsewhere" do
@@ -715,14 +585,14 @@ RSpec.describe PreviewService do
       service.instance_variable_get(:@children)[env.id] =
         PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28_009, spawned_process_id: process.id)
 
-      service.send(:reconcile_finished_spawned_processes!)
+      service.send(:reconcile_finished_children!)
 
       expect(env.reload.state).to eq("failed")
       expect(env.error_message).to include("preview process ended unexpectedly", "orphaned")
       expect(service.instance_variable_get(:@children)).not_to have_key(env.id)
     end
 
-    it "does not fail a preview from an orphaned row when the child pid is still alive" do
+    it "reattaches a durable handle after a service restart" do
       service = described_class.new
       env = create_env(state: "running", port: 28_009)
       process = SpawnedProcess.create!(
@@ -730,47 +600,73 @@ RSpec.describe PreviewService do
         command: "bin/server",
         hostname: "preview-host",
         started_at: 1.minute.ago,
-        finished_at: Time.current,
-        outcome: "orphaned"
+        pid: 99_999,
+        resource_attribution: { "preview_environment_id" => env.id }
       )
+
+      service.send(:restore_managed_children!)
+
+      child = service.instance_variable_get(:@children).fetch(env.id)
+      expect(child).to have_attributes(pid: 99_999, spawned_process_id: process.id)
+      expect(child.managed_handle).to be_a(ProcessRunner::BackgroundHandle)
+    end
+
+    it "stops a live preview through a handle restored after service restart" do
+      env = create_env(state: "running", port: 28_009)
+      original_service = described_class.new
+      child = original_service.send(
+        :spawn_app, "#{RbConfig.ruby} -e 'sleep 10'", workspace_path, 28_009, env
+      )
+      restarted_service = described_class.new
+      restarted_service.send(:restore_managed_children!)
+      env.begin_stopping! && env.save!
+
+      restarted_service.send(:poll_stopping_environments)
+      result = child.handle.finalize
+      restarted_service.send(:reconcile_finished_children!)
+
+      expect(result).to be_operator_killed
+      expect(env.reload).to be_stopped
+      expect(ProcessRunner::BackgroundHandle.find(child.spawned_process_id)).not_to be_alive
+    end
+
+    it "treats an operator kill as an explicit stop" do
+      service = described_class.new
+      env = create_env(state: "running", port: 28_009)
+      process = SpawnedProcess.create!(kind: "preview", command: "bin/server", hostname: "preview-host",
+        started_at: 1.minute.ago, finished_at: Time.current, outcome: "operator_killed")
       service.instance_variable_get(:@children)[env.id] =
         PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28_009, spawned_process_id: process.id)
-      allow(service).to receive(:process_alive?).with(99_999).and_return(true)
 
-      service.send(:reconcile_finished_spawned_processes!)
+      service.send(:reconcile_finished_children!)
 
-      expect(env.reload).to be_running
-      expect(service.instance_variable_get(:@children)).to have_key(env.id)
+      expect(env.reload).to be_stopped
     end
   end
 
   describe "graceful shutdown" do
-    it "sends SIGTERM to all child process groups on shutdown" do
+    it "cancels all children through ProcessRunner handles on shutdown" do
       service = described_class.new
       env = create_env(state: "running", port: 28007)
       env.begin_stopping! && env.save!
 
-      fake_pid = 99999
+      handle = instance_double(ProcessRunner::BackgroundHandle, cancel!: nil, finalize: nil)
       service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28007)
-
-      kill_calls = []
-      allow(Process).to receive(:kill) { |sig, pid| kill_calls << [ sig, pid ] }
-      allow(Process).to receive(:waitpid).and_return(nil)
+        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28007, handle: handle)
 
       service.send(:shutdown_gracefully)
 
-      expect(kill_calls).to include([ "-TERM", fake_pid ])
+      expect(handle).to have_received(:cancel!)
+      expect(handle).to have_received(:finalize)
     end
 
     it "cleans up the preview database before deleting its workspace" do
       service = described_class.new
       env = create_env(state: "stopping", port: 28_007)
       fake_pid = 99_998
+      handle = instance_double(ProcessRunner::BackgroundHandle, cancel!: nil, finalize: nil)
       service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28_007)
-      allow(Process).to receive(:waitpid).with(fake_pid).and_return(nil)
-      allow(service).to receive(:kill_process_group).with(fake_pid)
+        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28_007, handle: handle)
 
       expect(service).to receive(:cleanup_preview_database).with(have_attributes(id: env.id)).ordered
       expect(PreviewWorkspace).to receive(:cleanup_for).with(have_attributes(id: env.id)).ordered

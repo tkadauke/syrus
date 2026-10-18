@@ -9,7 +9,10 @@ class SpawnedProcess < ApplicationRecord
   # `kind:` to ProcessRunner. We use a CONSTANT instead of an AR enum
   # so the validation error is explicit ("kind 'mcp_sidecar' is not in
   # the strict list") rather than the silent AR coercion enum gives.
-  KINDS = %w[ agent grader git prepare format generate builder dependency_audit chat_prepare preview chat_stt deploy chat_shell_command ].freeze
+  KINDS = %w[
+    agent grader git prepare format generate builder dependency_audit chat_prepare
+    preview chat_stt deploy chat_shell_command runtime_probe runtime_session media archive filesystem diagnostic
+  ].freeze
 
   # Terminal outcomes. Surfaced to the admin UI as colored pills.
   OUTCOMES = %w[
@@ -134,12 +137,9 @@ class SpawnedProcess < ApplicationRecord
   private
 
   def hz
-    @hz ||= begin
-      out = `getconf CLK_TCK 2>/dev/null`.strip
-      Integer(out)
-    rescue StandardError
-      100
-    end
+    @hz ||= Etc.sysconf(Etc::SC_CLK_TCK)
+  rescue StandardError
+    100
   end
 
   def cpu_percent(cpu_seconds, starttime_jiffies)

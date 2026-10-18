@@ -180,19 +180,15 @@ class ProcessResourceSampler
   end
 
   def clock_ticks
-    @clock_ticks ||= begin
-      Integer(`getconf CLK_TCK 2>/dev/null`.strip)
-    rescue StandardError
-      100
-    end
+    @clock_ticks ||= Etc.sysconf(Etc::SC_CLK_TCK)
+  rescue StandardError
+    100
   end
 
   def page_size
-    @page_size ||= begin
-      Integer(`getconf PAGESIZE 2>/dev/null`.strip)
-    rescue StandardError
-      4096
-    end
+    @page_size ||= Etc.sysconf(Etc::SC_PAGESIZE)
+  rescue StandardError
+    4096
   end
 
   def linux?

@@ -10,16 +10,20 @@ module Mcp::Tools
     MUTEX = Mutex.new
     private_constant :MUTEX
 
-    @previews = {}  # key → { pid: Integer, port: Integer }
+    @previews = {}  # key → { pid: Integer, port: Integer, spawned_process_id: Integer }
     @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
 
     class << self
-      def register(key:, pid:, port:, cleanup: nil)
-        MUTEX.synchronize { @previews[key] = { pid: pid, port: port, cleanup: cleanup }.compact }
+      def register(key:, pid:, port:, spawned_process_id: nil, cleanup: nil)
+        MUTEX.synchronize do
+          @previews[key] = {
+            pid: pid, port: port, spawned_process_id: spawned_process_id, cleanup: cleanup
+          }.compact
+        end
       end
 
       def get(key)
-        MUTEX.synchronize { @previews[key]&.slice(:pid, :port) }
+        MUTEX.synchronize { @previews[key]&.slice(:pid, :port, :spawned_process_id) }
       end
 
       def synchronize_launch(key, &block)
@@ -59,14 +63,29 @@ module Mcp::Tools
 
       private
 
-      def kill_pgroup(pid)
-        Process.kill("-TERM", pid)
-      rescue Errno::ESRCH, Errno::EPERM
-        # Already gone.
+      def cancel(preview)
+        handle = managed_handle(preview)
+        return unless handle
+
+        handle.cancel!
+        await_cancellation(handle)
+      rescue ActiveRecord::RecordNotFound
+        # The durable process record was already pruned.
+      end
+
+      def managed_handle(preview)
+        return unless preview[:spawned_process_id]
+
+        ProcessRunner::BackgroundHandle.find(preview[:spawned_process_id])
+      end
+
+      def await_cancellation(handle)
+        handle.finalize(timeout: ProcessRunner::KILL_POLL_INTERVAL_SECONDS + ProcessRunner::TERM_GRACE_SECONDS + 1)
       end
 
       def stop_preview(preview)
-        kill_pgroup(preview[:pid])
+        cancel(preview)
+      ensure
         preview[:cleanup]&.call
       end
     end

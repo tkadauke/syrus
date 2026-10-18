@@ -46,6 +46,194 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(chunks).to include("two")
   end
 
+  it "captures bounded, distinct stdout and stderr while writing stdin" do
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "input = STDIN.read; STDOUT.write(input * 3); STDERR.write('warning')" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      stdin_data: "abcd"
+    ).capture(limit: 10)
+
+    expect(capture).to be_success
+    expect(capture.stdout).to eq("abcdabcdab")
+    expect(capture.stderr).to eq("warning")
+    expect(capture.stdout_truncated).to be(true)
+    expect(capture.stderr_truncated).to be(false)
+  end
+
+  it "continuously drains large capture output without a file-backed payload" do
+    allow(File).to receive(:binread).and_call_original
+
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "STDOUT.write('o' * 2_000_000); STDERR.write('e' * 2_000_000)" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5
+    ).capture(limit: 1024)
+
+    expect(capture).to be_success
+    expect(capture.stdout).to eq("o" * 1024)
+    expect(capture.stderr).to eq("e" * 1024)
+    expect(capture.stdout_truncated).to be(true)
+    expect(capture.stderr_truncated).to be(true)
+    expect(File).not_to have_received(:binread)
+  end
+
+  it "records a missing capture executable as a failed spawned process" do
+    runner = described_class.new(
+      env: {},
+      command: [ "process-runner-command-that-does-not-exist" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    capture = runner.capture
+
+    expect(capture).not_to be_success
+    expect(capture.result.exit_status).to eq(127)
+    expect(capture.stderr).to include("process-runner-command-that-does-not-exist")
+    expect(SpawnedProcess.find(capture.result.spawned_process_id)).to have_attributes(outcome: "failed", exit_status: 127)
+  end
+
+  it "runs pipelines with one tracked child per command" do
+    pipeline = described_class.pipeline(
+      commands: [
+        [ ruby, "-e", "print 'hello'" ],
+        [ ruby, "-e", "print STDIN.read.upcase" ]
+      ],
+      env: {},
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    expect(pipeline).to be_success
+    expect(pipeline.output).to eq("HELLO")
+    expect(pipeline.results.map(&:spawned_process_id)).to all(be_present)
+    expect(SpawnedProcess.where(id: pipeline.results.map(&:spawned_process_id)).pluck(:outcome)).to contain_exactly("succeeded", "succeeded")
+  end
+
+  it "finalizes every pipeline child after a partial spawn failure" do
+    pipeline = described_class.pipeline(
+      commands: [
+        [ "process-runner-command-that-does-not-exist" ],
+        [ ruby, "-e", "print STDIN.read" ]
+      ],
+      env: {},
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    )
+
+    expect(pipeline).not_to be_success
+    processes = SpawnedProcess.where(id: pipeline.results.map(&:spawned_process_id))
+    expect(processes.count).to eq(2)
+    expect(processes).to all(be_finished)
+    expect(processes.pluck(:outcome)).to contain_exactly("failed", "succeeded")
+  end
+
+  it "returns a durable background handle that can finalize later" do
+    handle = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 0.1; exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kind: "grader"
+    ).start
+
+    expect(handle.spawned_process).to be_running
+    expect(handle.pid).to eq(handle.spawned_process.pid)
+    expect(handle.pgid).to eq(handle.spawned_process.pgid)
+    expect(handle).not_to be_finished
+    result = handle.finalize
+
+    expect(result).to be_success
+    expect(handle).to be_finished
+    expect(described_class::BackgroundHandle.find(handle.spawned_process_id).finalize).to be_success
+    expect(handle.spawned_process.reload).to have_attributes(outcome: "succeeded", exit_status: 0)
+  end
+
+  it "persists caller attribution before returning a background handle" do
+    handle = described_class.new(
+      env: {}, command: [ ruby, "-e", "sleep 0.1" ],
+      mounts: described_class.mounts(@dir), network: "grader", timeout: 5,
+      kind: "preview", resource_attribution: { preview_environment_id: 42, port: 3001 }
+    ).start
+
+    expect(handle.spawned_process.resource_attribution).to include(
+      "preview_environment_id" => 42, "port" => 3001
+    )
+    handle.finalize
+  end
+
+  it "cancels a managed background process through its durable process row" do
+    stub_const("ProcessRunner::KILL_POLL_INTERVAL_SECONDS", 0)
+    handle = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      kill_grace_seconds: 0,
+      kind: "grader"
+    ).start
+
+    handle.cancel!
+    result = handle.finalize
+
+    expect(result).to be_operator_killed
+    expect(handle.spawned_process.reload.outcome).to eq("operator_killed")
+  end
+
+  it "safely cancels a live process through a reconstructed durable handle" do
+    handle = described_class.new(
+      env: {}, command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir), network: "grader", timeout: 15,
+      kill_grace_seconds: 0, kind: "preview"
+    ).start
+    durable = described_class::BackgroundHandle.find(handle.spawned_process_id)
+
+    durable.cancel!
+    result = handle.finalize
+
+    expect(result).to be_operator_killed
+    expect(durable).not_to be_alive
+  end
+
+  it "refuses to signal a durable process when its persisted identity does not match" do
+    process = SpawnedProcess.create!(
+      kind: "preview", command: "bin/server", hostname: Socket.gethostname,
+      started_at: Time.current, pid: Process.pid, pgid: Process.getpgid(Process.pid),
+      resource_attribution: {
+        "process_identity" => { "boot_id" => "not-this-boot", "start_time_ticks" => 1, "pgid" => Process.getpgid(Process.pid) }
+      }
+    )
+    allow(Process).to receive(:kill).and_call_original
+
+    expect(described_class.terminate_durable_process(process)).to be(false)
+    expect(Process).not_to have_received(:kill)
+  end
+
+  it "requires tracked attribution for managed background processes" do
+    runner = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5
+    )
+
+    expect { runner.start }.to raise_error(ArgumentError, /require kind/)
+  end
+
   it "times out and terminates the process group" do
     result = described_class.new(
       env: {},
@@ -130,6 +318,20 @@ RSpec.describe ProcessRunner, :ci_only do
     end
 
     expect(alive).to be(false), "escaped process #{escaped_pid} outlived its grader"
+  end
+
+  it "times out capture commands that remain silent" do
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 0.05,
+      kill_grace_seconds: 0
+    ).capture
+
+    expect(capture.result).to be_timed_out
+    expect(capture).not_to be_success
   end
 
   it "stops when the stop callback becomes true" do

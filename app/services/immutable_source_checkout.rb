@@ -1,7 +1,6 @@
 require "fileutils"
 require "digest"
 require "json"
-require "open3"
 require "rbconfig"
 require "securerandom"
 
@@ -675,8 +674,12 @@ class ImmutableSourceCheckout
   end
 
   def run_tar!(*args)
-    _stdout, stderr, status = Open3.capture3(*args)
-    raise "tar failed: #{stderr.presence || status.exitstatus}" unless status.success?
+    capture = ProcessRunner.new(
+      env: {}, command: args, mounts: ProcessRunner.mounts(WorkflowWorkspace.data_root),
+      network: "grader", timeout: 10.minutes, kind: "archive",
+      run: @run, workflow: @workflow, job: @job
+    ).capture
+    raise "tar failed: #{capture.stderr.presence || capture.result.exit_status}" unless capture.success?
   end
 
   def copy_tree!(source, destination)

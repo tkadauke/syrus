@@ -293,8 +293,7 @@ module Admin
       return @tracked_paths if defined?(@tracked_paths)
 
       @tracked_paths = begin
-        out, status = Open3.capture2("git", "-C", root.to_s, "ls-files", "-z")
-        status.success? ? out.split("\0").to_set : nil
+        GitRunner.new.run("ls-files", "-z", chdir: root.to_s).split("\0").to_set
       rescue StandardError
         nil
       end

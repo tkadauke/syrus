@@ -21,13 +21,13 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     described_class.call(port: port, server_context: { run: run })
   end
 
-  def process_result(exit_status: 0, timed_out: false)
+  def process_result(exit_status: 0, timed_out: false, operator_killed: false)
     ProcessRunner::Result.new(
       exit_status: exit_status,
       timed_out: timed_out,
       stopped: false,
       silent_timed_out: false,
-      operator_killed: false,
+      operator_killed: operator_killed,
       aliveness_failed: false,
       duration_s: 0.1,
       spawned_process_id: nil
@@ -39,6 +39,28 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
     allow(PreviewProcessLauncher).to receive(:new).and_call_original
     allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: nil, run: run).and_return(launcher)
+    allow(ProcessRunner).to receive(:new).and_wrap_original do |original, **args|
+      next original.call(**args) unless args[:timeout] == 24.hours
+
+      port = args.fetch(:env).fetch("PORT").to_i
+      pid = if args.fetch(:mounts).workdir.end_with?("apps/web")
+        2222
+      elsif port == 4000
+        9999
+      else
+        12_345
+      end
+      args[:on_output_chunk]&.call("Vite failed to bind fixed port 5173")
+      process = SpawnedProcess.create!(
+        kind: "preview", command: args[:display_command], workdir: args.fetch(:mounts).workdir,
+        hostname: "test-worker", started_at: Time.current, pid: pid
+      )
+      handle = instance_double(ProcessRunner::BackgroundHandle,
+        pid: pid, spawned_process_id: process.id, spawned_process: process,
+        cancel!: nil, finalize: process_result(operator_killed: true))
+      allow(ProcessRunner::BackgroundHandle).to receive(:find).with(process.id).and_return(handle)
+      instance_double(ProcessRunner, start: handle)
+    end
   end
 
   after { Mcp::Tools::AgentPreviewRegistry.reset! }
@@ -58,7 +80,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
     it "registers the process in the registry" do
       call
-      expect(Mcp::Tools::AgentPreviewRegistry.get(run.id)).to eq(pid: 12345, port: 3001)
+      expect(Mcp::Tools::AgentPreviewRegistry.get(run.id)).to include(pid: 12345, port: 3001, spawned_process_id: be_present)
     end
 
     it "writes a JobLog audit line" do
@@ -74,20 +96,22 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "builds the start command with the requested port" do
-      expect(Process).to receive(:spawn).with(anything, "bin/rails server -p 3001", anything).and_return(12345)
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        command: [ "bash", "-c", "bin/rails server -p 3001" ],
+        display_command: "bin/rails server -p 3001"
+      ))
       call
     end
 
     it "passes PORT env var and pgroup: true to spawn" do
-      expect(Process).to receive(:spawn).with(
-        hash_including(
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: hash_including(
           "PORT" => "3001",
           "BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle"),
           "BUNDLE_APP_CONFIG" => File.join(workspace_path, ".syrus/deps/bundle-config")
         ),
-        anything,
-        hash_including(chdir: workspace_path, pgroup: true, unsetenv_others: true)
-      ).and_return(12345)
+        mounts: ProcessRunner.mounts(workspace_path, read_write: workspace_path)
+      ))
       call
     end
 
@@ -103,11 +127,9 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       )
       allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
 
-      expect(Process).to receive(:spawn).with(
-        hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "3001"),
-        anything,
-        hash_including(chdir: workspace_path, pgroup: true, unsetenv_others: true)
-      ).and_return(12345)
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "3001")
+      ))
       call
     end
   end
@@ -172,7 +194,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       run.step.workflow.set_artifact!("visual_review_preview_preparations", [
         { "run_id" => run.id, "project_id" => nil, "prepared_at" => Time.current.iso8601 }
       ])
-      allow(Process).to receive(:spawn).and_raise(Errno::ENOENT, "missing executable")
+      allow(launcher).to receive(:spawn_app).and_raise(Errno::ENOENT, "missing executable")
     end
 
     it "cleans up the provisioned database and returns a launch error" do
@@ -385,8 +407,8 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
       expect(response).not_to be_error
       payload = JSON.parse(response.content.first[:text])
-      expect(payload).to include("project_id" => "web", "pid" => 2222)
-      expect(Mcp::Tools::AgentPreviewRegistry.get("#{run.id}:web")).to eq(pid: 2222, port: 3001)
+      expect(payload).to include("project_id" => "web", "pid" => 12_345)
+      expect(Mcp::Tools::AgentPreviewRegistry.get("#{run.id}:web")).to include(pid: 12_345, port: 3001, spawned_process_id: be_present)
     end
 
     it "requires explicit project_id when multiple projects are affected" do

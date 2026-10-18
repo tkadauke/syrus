@@ -291,10 +291,10 @@ class DeliveryPolicy
     clone_path = RepositoryBareClone.path_for(repository)
     return blank_config unless clone_path.directory?
 
-    yml_content = `git --git-dir #{clone_path.to_s.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-    return blank_config unless $?.success? && yml_content.present?
+    result = GitRunner.new.capture("--git-dir", clone_path.to_s, "show", "HEAD:.syrus.yml", chdir: clone_path.dirname)
+    return blank_config unless result.success? && result.stdout.present?
 
-    SyrusYml.new(yml_content).parse
+    SyrusYml.new(result.stdout).parse
   rescue StandardError
     blank_config
   end

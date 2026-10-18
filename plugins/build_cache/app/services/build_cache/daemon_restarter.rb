@@ -1,6 +1,3 @@
-require "open3"
-require "timeout"
-
 # Best-effort self-heal for BuildCache::CacheMismatchDetector.
 #
 # sccache's server only reads its backend config (SCCACHE_BUCKET and
@@ -30,14 +27,20 @@ module BuildCache
       # e.g. no server was listening to stop in the first place). Never
       # raises; the caller (CacheMismatchDetector) is already best-effort.
       def restart!(env:)
-        _out, status = Timeout.timeout(TIMEOUT_SECONDS) do
-          Open3.capture2e(env, "sccache", "--stop-server")
+        current_run = Thread.current[:syrus_current_run]
+        capture = ProcessRunner.new(
+          env: env, command: [ "sccache", "--stop-server" ], mounts: ProcessRunner.mounts(Dir.pwd),
+          network: "grader", timeout: TIMEOUT_SECONDS, kind: "runtime_probe", run: current_run,
+          workflow: current_run&.workflow
+        ).capture
+        if capture.result.timed_out?
+          Rails.logger.warn("[BuildCache::DaemonRestarter] timed out after #{TIMEOUT_SECONDS} seconds")
         end
-        status.success?
+        capture.success?
       rescue Errno::ENOENT
         false # sccache not on PATH -- not every worker image build has it
-      rescue Timeout::Error => e
-        Rails.logger.warn("[BuildCache::DaemonRestarter] #{e.class}: #{e.message}")
+      rescue StandardError => e
+        Rails.logger.warn("[BuildCache::DaemonRestarter] #{e.class}: #{e.message}") unless e.is_a?(Errno::ENOENT)
         false
       end
     end

@@ -24,6 +24,17 @@ RSpec.describe ChatWorkspace, :ci_only do
     FileUtils.rm_rf(@data_root) if @data_root
   end
 
+  def git_capture(stdout:, exit_status: 0, stdout_truncated: false, stderr_truncated: false)
+    result = ProcessRunner::Result.new(
+      exit_status: exit_status, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    ProcessRunner::CaptureResult.new(
+      result: result, stdout: stdout, stderr: "",
+      stdout_truncated: stdout_truncated, stderr_truncated: stderr_truncated
+    )
+  end
+
   describe ".path_for" do
     it "is keyed on chat session id under chat-workspaces/" do
       expect(described_class.path_for(chat_session))
@@ -608,6 +619,35 @@ RSpec.describe ChatWorkspace, :ci_only do
   end
 
   describe ".file_tree" do
+    it "returns complete file lists larger than GitRunner's default capture limit" do
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(checkout_path.join(".git"))
+      paths = Array.new(20_000) { |index| "directory/#{index.to_s.rjust(6, '0')}-#{'x' * 48}.rb" }
+      output = "#{paths.join("\0")}\0"
+      expect(output.bytesize).to be > 1.megabyte
+      git = instance_double(GitRunner)
+      expect(git).to receive(:capture).with(
+        "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+        chdir: checkout_path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" },
+        limit: described_class::MAX_GIT_FILE_LIST_BYTES
+      ).and_return(git_capture(stdout: output))
+
+      result = described_class.new(chat_session, git: git).file_tree(repository)
+
+      expect(result[:files]).to eq(paths)
+    end
+
+    it "raises instead of returning a partial file list when the explicit limit is exceeded" do
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(checkout_path.join(".git"))
+      git = instance_double(GitRunner)
+      allow(git).to receive(:capture).and_return(git_capture(stdout: "partial", stdout_truncated: true))
+
+      expect {
+        described_class.new(chat_session, git: git).file_tree(repository)
+      }.to raise_error(ChatWorkspace::GitOutputTooLarge, /file tree exceeded/)
+    end
+
     it "returns a sorted flat file list from the coding checkout" do
       described_class.ensure_coding_checkout!(chat_session, repository)
 
@@ -759,6 +799,37 @@ RSpec.describe ChatWorkspace, :ci_only do
   end
 
   describe ".coding_diff" do
+    it "returns complete diffs larger than GitRunner's default capture limit" do
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(checkout_path.join(".git"))
+      diff = "diff --git a/large b/large\n" + ("+changed line\n" * 90_000)
+      expect(diff.bytesize).to be > 1.megabyte
+      git = instance_double(GitRunner)
+      expect(git).to receive(:capture).with(
+        "diff", "HEAD", chdir: checkout_path.to_s,
+        env: { "GIT_TERMINAL_PROMPT" => "0" }, limit: described_class::MAX_GIT_DIFF_BYTES
+      ).and_return(git_capture(stdout: diff))
+      expect(git).to receive(:capture).with(
+        "ls-files", "--others", "--exclude-standard", "-z", chdir: checkout_path.to_s,
+        env: { "GIT_TERMINAL_PROMPT" => "0" }, limit: described_class::MAX_GIT_FILE_LIST_BYTES
+      ).and_return(git_capture(stdout: ""))
+
+      result = described_class.new(chat_session, git: git).coding_diff(repository, mode: :turn)
+
+      expect(result).to eq(diff)
+    end
+
+    it "raises instead of returning a partial coding diff when the explicit limit is exceeded" do
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(checkout_path.join(".git"))
+      git = instance_double(GitRunner)
+      allow(git).to receive(:capture).and_return(git_capture(stdout: "partial", stdout_truncated: true))
+
+      expect {
+        described_class.new(chat_session, git: git).coding_diff(repository, mode: :turn)
+      }.to raise_error(ChatWorkspace::GitOutputTooLarge, /coding diff exceeded/)
+    end
+
     it "returns cumulative diff (origin vs working tree) for modified tracked files" do
       described_class.ensure_coding_checkout!(chat_session, repository)
       checkout_path = described_class.repo_path_for(chat_session, repository)
@@ -1001,9 +1072,10 @@ RSpec.describe ChatWorkspace, :ci_only do
       dir = Dir.mktmpdir("syrus-chatws-du")
       File.write(File.join(dir, "f.txt"), "x" * 2048)
 
-      expect(Open3).to receive(:capture2e)
-        .with(*Syrus::LowPriorityIo.wrap([ "du", "-sk", dir ]))
-        .and_call_original
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        command: Syrus::LowPriorityIo.wrap([ "du", "-sk", dir ]),
+        kind: "filesystem"
+      )).and_call_original
 
       expect(described_class.du_bytes(dir)).to be > 0
     ensure
@@ -1016,9 +1088,10 @@ RSpec.describe ChatWorkspace, :ci_only do
       dir = Dir.mktmpdir("syrus-chatws-rm")
       File.write(File.join(dir, "f.txt"), "x")
 
-      expect(Open3).to receive(:capture2e)
-        .with(*Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", dir ]))
-        .and_call_original
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        command: Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", dir ]),
+        kind: "filesystem"
+      )).and_call_original
 
       described_class.low_priority_rm_rf!(dir)
 
@@ -1027,8 +1100,8 @@ RSpec.describe ChatWorkspace, :ci_only do
 
     it "falls back to FileUtils.rm_rf when the subprocess fails" do
       dir = Dir.mktmpdir("syrus-chatws-rm-fallback")
-      failed_status = instance_double(Process::Status, success?: false)
-      allow(Open3).to receive(:capture2e).and_return([ "boom", failed_status ])
+      runner = instance_double(ProcessRunner, capture: git_capture(stdout: "", exit_status: 1))
+      allow(ProcessRunner).to receive(:new).and_return(runner)
 
       described_class.low_priority_rm_rf!(dir)
 

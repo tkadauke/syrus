@@ -132,10 +132,10 @@ module Skills
     end
 
     def conflicted_files
-      stdout, _stderr, status = Open3.capture3("git", "-C", @workspace_path.to_s, "diff", "--name-only", "--diff-filter=U")
-      return [] unless status.success?
-
-      stdout.split("\n").map(&:strip).reject(&:empty?)
+      GitRunner.new.run("diff", "--name-only", "--diff-filter=U", chdir: @workspace_path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+    rescue GitRunner::GitError
+      []
     end
 
     def step_by_step_instructions

@@ -16,6 +16,8 @@ class ChatWorkspace
     end
   end
 
+  class GitOutputTooLarge < StandardError; end
+
   CLONE_DEPTH = 50
   EXCLUDE_ENTRY = ".syrus/".freeze
   # Remote tag ref that safely backs up a reclaimed coding checkout's
@@ -29,6 +31,8 @@ class ChatWorkspace
   RECLAIM_IDLE_CODING_AFTER = 48.hours
   EXCLUDED_DIR_NAMES = %w[.git .syrus node_modules].to_set.freeze
   MAX_FILE_BYTES = 500.kilobytes
+  MAX_GIT_FILE_LIST_BYTES = 16.megabytes
+  MAX_GIT_DIFF_BYTES = 64.megabytes
   MAX_COMMIT_MESSAGE_BYTES = 300
   COMMIT_SHA_PATTERN = /\A[0-9a-fA-F]{7,40}\z/
 
@@ -100,8 +104,7 @@ class ChatWorkspace
   def self.uncommitted_changes?(path)
     return false unless Pathname.new(path.to_s).join(".git").directory?
 
-    output, status = Open3.capture2e("git", "status", "--porcelain", chdir: path.to_s)
-    status.success? && output.strip.present?
+    GitRunner.new.run("status", "--porcelain", chdir: path.to_s).strip.present?
   rescue StandardError
     false
   end
@@ -130,8 +133,7 @@ class ChatWorkspace
   def self.git_value(path, *args)
     return nil unless path.join(".git").directory?
 
-    output, status = Open3.capture2e("git", *args, chdir: path.to_s)
-    status.success? ? output.strip.presence : nil
+    GitRunner.new.run(*args, chdir: path.to_s).strip.presence
   rescue StandardError
     nil
   end
@@ -361,10 +363,14 @@ class ChatWorkspace
   def self.du_bytes(path)
     return 0 unless File.exist?(path.to_s)
 
-    out, status = Open3.capture2e(*Syrus::LowPriorityIo.wrap([ "du", "-sk", path.to_s ]))
-    return 0 unless status.success?
+    capture = ProcessRunner.new(
+      env: {}, command: Syrus::LowPriorityIo.wrap([ "du", "-sk", path.to_s ]),
+      mounts: ProcessRunner.mounts(Pathname.new(path).dirname), network: "grader",
+      timeout: 5.minutes, kind: "filesystem"
+    ).capture
+    return 0 unless capture.success?
 
-    out.to_i * 1024
+    capture.stdout.to_i * 1024
   rescue StandardError
     0
   end
@@ -376,10 +382,14 @@ class ChatWorkspace
   # correct so the user isn't kept waiting for a deprioritized delete.
   def self.low_priority_rm_rf!(path)
     str = path.to_s
-    out, status = Open3.capture2e(*Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", str ]))
-    return if status.success?
+    capture = ProcessRunner.new(
+      env: {}, command: Syrus::LowPriorityIo.wrap([ "rm", "-rf", "--", str ]),
+      mounts: ProcessRunner.mounts(Pathname.new(str).dirname), network: "grader",
+      timeout: 30.minutes, kind: "filesystem"
+    ).capture
+    return if capture.success?
 
-    Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! falling back to FileUtils for #{str}: #{out.strip}")
+    Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! falling back to FileUtils for #{str}: #{capture.stderr.strip}")
     FileUtils.rm_rf(str)
   rescue StandardError => e
     Rails.logger.warn("[ChatWorkspace] low_priority_rm_rf! error for #{str}, falling back: #{e.class}: #{e.message}")
@@ -714,14 +724,11 @@ class ChatWorkspace
 
     return file_tree_at_ref(path, ref) if ref.present?
 
-    out, status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
-      chdir: path.to_s
-    )
-    return nil unless status.success?
+    capture = checked_git_capture("file tree", "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+      chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_FILE_LIST_BYTES)
+    return nil unless capture.success?
 
-    files = out.split("\0").reject do |relative_path|
+    files = capture.stdout.split("\0").reject do |relative_path|
       relative_path.blank? || relative_path.split("/").any? { |part| self.class::EXCLUDED_DIR_NAMES.include?(part) }
     end
 
@@ -767,8 +774,9 @@ class ChatWorkspace
     if ref.present?
       return "" unless valid_commit_ref?(ref)
 
-      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "#{ref}^..#{ref}", chdir: path.to_s)
-      return status.success? ? out : ""
+      capture = checked_git_capture("coding diff", "diff", "#{ref}^..#{ref}",
+        chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_DIFF_BYTES)
+      return capture.success? ? capture.stdout : ""
     end
 
     default_branch = repository.default_branch
@@ -776,15 +784,19 @@ class ChatWorkspace
     tracked_diff =
       if mode.to_sym == :turn
         # Uncommitted changes vs last commit
-        out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "HEAD", chdir: path.to_s)
-        status.success? ? out : ""
+        capture = checked_git_capture("coding diff", "diff", "HEAD",
+          chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_DIFF_BYTES)
+        capture.success? ? capture.stdout : ""
       else
         # All changes from remote base to current working tree
-        out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "origin/#{default_branch}", chdir: path.to_s)
-        status.success? ? out : ""
+        capture = checked_git_capture("coding diff", "diff", "origin/#{default_branch}",
+          chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_DIFF_BYTES)
+        capture.success? ? capture.stdout : ""
       end
 
-    tracked_diff + untracked_files_diff(path)
+    tracked_diff + untracked_files_diff(path, max_bytes: self.class::MAX_GIT_DIFF_BYTES - tracked_diff.bytesize)
+  rescue GitOutputTooLarge
+    raise
   rescue StandardError
     ""
   end
@@ -793,14 +805,11 @@ class ChatWorkspace
     path = self.class.repo_path_for(@chat_session, repository)
     return nil unless path.join(".git").directory?
 
-    out, status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "log", "--format=%H %ai %s", "-n", "50",
-      chdir: path.to_s
-    )
-    return { commits: [] } unless status.success?
+    capture = checked_git_capture("coding commit list", "log", "--format=%H %ai %s", "-n", "50",
+      chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_FILE_LIST_BYTES)
+    return { commits: [] } unless capture.success?
 
-    commits = out.lines.filter_map do |raw_line|
+    commits = capture.stdout.lines.filter_map do |raw_line|
       line = raw_line.chomp
       next unless line =~ /\A([0-9a-f]{40}) (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}) (.*)\z/
 
@@ -1113,31 +1122,23 @@ class ChatWorkspace
     return nil unless valid_commit_ref?(ref)
 
     spec = "#{ref}:#{relative_path}"
-    type_out, type_status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "cat-file", "-t", spec,
-      chdir: checkout_dir.to_s
-    )
-    return nil unless type_status.success? && type_out.strip == "blob"
+    type_capture = checked_git_capture("file type", "cat-file", "-t", spec,
+      chdir: checkout_dir.to_s, env: @env, limit: 1.kilobyte)
+    return nil unless type_capture.success? && type_capture.stdout.strip == "blob"
 
-    size_out, size_status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "cat-file", "-s", spec,
-      chdir: checkout_dir.to_s
-    )
-    return nil unless size_status.success?
+    size_capture = checked_git_capture("file size", "cat-file", "-s", spec,
+      chdir: checkout_dir.to_s, env: @env, limit: 1.kilobyte)
+    return nil unless size_capture.success?
 
-    size = size_out.to_i
+    size = size_capture.stdout.to_i
     if size > self.class::MAX_FILE_BYTES
       return { content: nil, binary: false, too_large: true, size: size }
     end
 
-    raw, show_status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "show", spec,
-      chdir: checkout_dir.to_s
-    )
-    return nil unless show_status.success?
+    show_capture = checked_git_capture("file content", "show", spec, chdir: checkout_dir.to_s, env: @env,
+      limit: self.class::MAX_FILE_BYTES + 1)
+    return nil unless show_capture.success?
+    raw = show_capture.stdout
 
     if raw.include?("\x00")
       return { content: nil, binary: true, too_large: false }
@@ -1157,14 +1158,11 @@ class ChatWorkspace
   def file_tree_at_ref(checkout_dir, ref)
     return nil unless valid_commit_ref?(ref)
 
-    out, status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "ls-tree", "-r", "-z", "--name-only", ref,
-      chdir: checkout_dir.to_s
-    )
-    return nil unless status.success?
+    capture = checked_git_capture("file tree", "ls-tree", "-r", "-z", "--name-only", ref,
+      chdir: checkout_dir.to_s, env: @env, limit: self.class::MAX_GIT_FILE_LIST_BYTES)
+    return nil unless capture.success?
 
-    files = out.split("\0").reject do |relative_path|
+    files = capture.stdout.split("\0").reject do |relative_path|
       relative_path.blank? || relative_path.split("/").any? { |part| self.class::EXCLUDED_DIR_NAMES.include?(part) }
     end
 
@@ -1182,23 +1180,34 @@ class ChatWorkspace
   # compared against -- they aren't in the index or any tree yet. Synthesize
   # a "new file" diff section per untracked path via `--no-index` so newly
   # created files show up in the Coding Mode diff the same as modified ones.
-  def untracked_files_diff(path)
-    files_out, files_status = Open3.capture2e(
-      { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "ls-files", "--others", "--exclude-standard", "-z",
-      chdir: path.to_s
-    )
-    return "" unless files_status.success?
+  def untracked_files_diff(path, max_bytes: self.class::MAX_GIT_DIFF_BYTES)
+    files_capture = checked_git_capture("untracked file list", "ls-files", "--others", "--exclude-standard", "-z",
+      chdir: path.to_s, env: @env, limit: self.class::MAX_GIT_FILE_LIST_BYTES)
+    return "" unless files_capture.success?
 
-    files_out.split("\x00").filter_map do |relative|
+    output = +""
+    files_capture.stdout.split("\x00").each do |relative|
       next if relative.blank?
 
-      diff_out, _status = Open3.capture2e(
-        { "GIT_TERMINAL_PROMPT" => "0" },
-        "git", "diff", "--no-index", "--", "/dev/null", relative,
-        chdir: path.to_s
-      )
-      diff_out.presence
-    end.join
+      remaining = max_bytes - output.bytesize
+      raise GitOutputTooLarge, "coding diff exceeded #{self.class::MAX_GIT_DIFF_BYTES} bytes" unless remaining.positive?
+
+      diff_capture = checked_git_capture("untracked file diff", "diff", "--no-index", "--", "/dev/null", relative,
+        chdir: path.to_s, env: @env, limit: remaining)
+      chunk = diff_capture.stdout
+      raise GitOutputTooLarge, "coding diff exceeded #{self.class::MAX_GIT_DIFF_BYTES} bytes" if chunk.bytesize > remaining
+
+      output << chunk
+    end
+    output
+  end
+
+  def checked_git_capture(label, *args, **options)
+    capture = @git.capture(*args, **options)
+    if capture.stdout_truncated || capture.stderr_truncated
+      raise GitOutputTooLarge, "#{label} exceeded the #{options.fetch(:limit)}-byte capture limit"
+    end
+
+    capture
   end
 end

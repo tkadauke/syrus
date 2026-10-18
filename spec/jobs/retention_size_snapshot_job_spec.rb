@@ -148,13 +148,17 @@ RSpec.describe RetentionSizeSnapshotJob do
       allow(connection).to receive(:adapter_name).and_return("Mysql2")
       allow(connection).to receive(:select_value).with("SELECT @@datadir").and_return("/var/lib/mysql")
       allow(File).to receive(:directory?).with("/var/lib/mysql").and_return(true)
-      allow(Open3).to receive(:capture3).with("df", "-Pk", "/var/lib/mysql").and_return(
-        [
-          "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda 50000000 40000000 10000000 80% /var/lib/mysql\n",
-          "",
-          instance_double(Process::Status, success?: true)
-        ]
+      result = ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+        operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
       )
+      capture = ProcessRunner::CaptureResult.new(
+        result: result,
+        stdout: "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda 50000000 40000000 10000000 80% /var/lib/mysql\n",
+        stderr: "", stdout_truncated: false, stderr_truncated: false
+      )
+      runner = instance_double(ProcessRunner, capture: capture)
+      allow(ProcessRunner).to receive(:new).and_return(runner)
 
       described_class.perform_now
 

@@ -1,5 +1,3 @@
-require "open3"
-
 module VideoWalkthroughs
   module Gemini
     # Transcodes a walkthrough video to a compact H.264 mp4 for STORAGE. Empirical
@@ -17,12 +15,22 @@ module VideoWalkthroughs
       # sources are scaled down, smaller ones are left alone (never upscale).
       TARGET_HEIGHT = 720
       CRF = 30
+      COMMAND_TIMEOUT_SECONDS = 30.minutes
 
       class << self
         attr_writer :runner
 
         def runner
-          @runner ||= ->(cmd) { o, s = Open3.capture2e(*cmd); [o, s] }
+          @runner ||= lambda do |cmd|
+            current_run = Thread.current[:syrus_current_run]
+            capture = ProcessRunner.new(
+              env: ProcessRunner.forwarded_env(%w[PATH HOME]), command: cmd,
+              mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+              timeout: COMMAND_TIMEOUT_SECONDS, kind: "media", run: current_run, workflow: current_run&.workflow,
+              chat_session: Thread.current[:syrus_current_chat_session]
+            ).capture
+            [ "#{capture.stdout}#{capture.stderr}", capture ]
+          end
         end
 
         def available?

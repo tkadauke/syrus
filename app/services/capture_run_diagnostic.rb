@@ -143,9 +143,11 @@ class CaptureRunDiagnostic
   end
 
   def safe_command(argv)
-    require "open3"
-    out, _err, status = Open3.capture3(*argv)
-    status.success? ? out.strip : "(exit #{status.exitstatus})"
+    capture = ProcessRunner.new(
+      env: {}, command: argv, mounts: ProcessRunner.mounts(Dir.pwd),
+      network: "grader", timeout: 30, kind: "diagnostic", run: @run
+    ).capture
+    capture.success? ? capture.stdout.strip : "(exit #{capture.result.exit_status})"
   rescue StandardError => e
     "(#{e.class}: #{e.message})"
   end

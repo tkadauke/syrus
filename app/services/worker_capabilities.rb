@@ -240,8 +240,8 @@ class WorkerCapabilities
     end
 
     def command_result(command)
-      output, status = Timeout.timeout(PROBE_TIMEOUT_SECONDS) { Open3.capture2e(*command) }
-      CommandResult.new(success: status.success?, output: output.to_s)
+      capture = capability_probe(command)
+      CommandResult.new(success: capture.success?, output: "#{capture.stdout}#{capture.stderr}")
     rescue Errno::ENOENT
       CommandResult.new(success: false, output: "")
     rescue Timeout::Error
@@ -385,10 +385,10 @@ class WorkerCapabilities
 
     def detect_tool_versions
       VERSION_PROBES.filter_map do |name, command|
-        output, status = Timeout.timeout(PROBE_TIMEOUT_SECONDS) { Open3.capture2e(*command) }
-        next unless status.success?
+        capture = capability_probe(command)
+        next unless capture.success?
 
-        version = output.to_s.lines.first.to_s.strip
+        version = "#{capture.stdout}#{capture.stderr}".lines.first.to_s.strip
         next if blank_value?(version)
 
         [ name, version ]
@@ -410,6 +410,15 @@ class WorkerCapabilities
 
     def presence(value)
       present_value?(value) ? value : nil
+    end
+
+    def capability_probe(command)
+      capture = ProcessRunner.new(
+        env: {}, command: command, mounts: ProcessRunner.mounts(Dir.pwd),
+        network: "grader", timeout: PROBE_TIMEOUT_SECONDS, kind: "runtime_probe"
+      ).capture
+      debug_log { "[WorkerCapabilities] probe timed out #{command.first}" } if capture.result.timed_out?
+      capture
     end
 
     def debug_log(&block)

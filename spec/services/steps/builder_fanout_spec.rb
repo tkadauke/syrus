@@ -41,11 +41,13 @@ RSpec.describe Steps::BuilderFanout do
   end
 
   before do
+    allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return({})
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
 
     git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).and_return("")
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: @ws_path.to_s).and_return("abc123\n")
     allow(git).to receive(:run).with("diff", "--name-only", "old123...HEAD", chdir: @ws_path.to_s).and_return(changed_files.join("\n"))
   end
@@ -61,18 +63,24 @@ RSpec.describe Steps::BuilderFanout do
   end
 
   def stub_runner(result = success_result)
-    allow(ProcessRunner).to receive(:new) do |**args|
-      args[:on_output_chunk].call("builder output\n")
-      instance_double(ProcessRunner, run: result)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    %w[prepare builder].each do |kind|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: kind)) do |**args|
+        args[:on_output_chunk].call("builder output\n")
+        instance_double(ProcessRunner, run: result)
+      end
     end
   end
 
   def stub_runner_with_calls(result = success_result)
     calls = []
-    allow(ProcessRunner).to receive(:new) do |**args|
-      calls << args
-      args[:on_output_chunk].call("builder output\n")
-      instance_double(ProcessRunner, run: result)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    %w[prepare builder].each do |kind|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: kind)) do |**args|
+        calls << args
+        args[:on_output_chunk].call("builder output\n")
+        instance_double(ProcessRunner, run: result)
+      end
     end
     calls
   end
