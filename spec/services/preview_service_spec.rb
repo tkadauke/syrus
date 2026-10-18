@@ -611,6 +611,25 @@ RSpec.describe PreviewService do
       expect(child.managed_handle).to be_a(ProcessRunner::BackgroundHandle)
     end
 
+    it "stops a live preview through a handle restored after service restart" do
+      env = create_env(state: "running", port: 28_009)
+      original_service = described_class.new
+      child = original_service.send(
+        :spawn_app, "#{RbConfig.ruby} -e 'sleep 10'", workspace_path, 28_009, env
+      )
+      restarted_service = described_class.new
+      restarted_service.send(:restore_managed_children!)
+      env.begin_stopping! && env.save!
+
+      restarted_service.send(:poll_stopping_environments)
+      result = child.handle.finalize
+      restarted_service.send(:reconcile_finished_children!)
+
+      expect(result).to be_operator_killed
+      expect(env.reload).to be_stopped
+      expect(ProcessRunner::BackgroundHandle.find(child.spawned_process_id)).not_to be_alive
+    end
+
     it "treats an operator kill as an explicit stop" do
       service = described_class.new
       env = create_env(state: "running", port: 28_009)
@@ -645,10 +664,9 @@ RSpec.describe PreviewService do
       service = described_class.new
       env = create_env(state: "stopping", port: 28_007)
       fake_pid = 99_998
+      handle = instance_double(ProcessRunner::BackgroundHandle, cancel!: nil, finalize: nil)
       service.instance_variable_get(:@children)[env.id] =
-        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28_007)
-      allow(Process).to receive(:waitpid).with(fake_pid).and_return(nil)
-      allow(service).to receive(:kill_process_group).with(fake_pid)
+        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28_007, handle: handle)
 
       expect(service).to receive(:cleanup_preview_database).with(have_attributes(id: env.id)).ordered
       expect(PreviewWorkspace).to receive(:cleanup_for).with(have_attributes(id: env.id)).ordered

@@ -193,6 +193,35 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(handle.spawned_process.reload.outcome).to eq("operator_killed")
   end
 
+  it "safely cancels a live process through a reconstructed durable handle" do
+    handle = described_class.new(
+      env: {}, command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir), network: "grader", timeout: 15,
+      kill_grace_seconds: 0, kind: "preview"
+    ).start
+    durable = described_class::BackgroundHandle.find(handle.spawned_process_id)
+
+    durable.cancel!
+    result = handle.finalize
+
+    expect(result).to be_operator_killed
+    expect(durable).not_to be_alive
+  end
+
+  it "refuses to signal a durable process when its persisted identity does not match" do
+    process = SpawnedProcess.create!(
+      kind: "preview", command: "bin/server", hostname: Socket.gethostname,
+      started_at: Time.current, pid: Process.pid, pgid: Process.getpgid(Process.pid),
+      resource_attribution: {
+        "process_identity" => { "boot_id" => "not-this-boot", "start_time_ticks" => 1, "pgid" => Process.getpgid(Process.pid) }
+      }
+    )
+    allow(Process).to receive(:kill).and_call_original
+
+    expect(described_class.terminate_durable_process(process)).to be(false)
+    expect(Process).not_to have_received(:kill)
+  end
+
   it "requires tracked attribution for managed background processes" do
     runner = described_class.new(
       env: {},
