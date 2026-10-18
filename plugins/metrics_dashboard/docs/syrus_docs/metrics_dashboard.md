@@ -75,14 +75,20 @@ the same number, and the recorder's copy is the truth.
 `syrus_admission_decisions_total` buffer increments in each web or worker
 process and periodically add them to a shared, monotonic total. The recorder
 reconciles its in-memory counter up to that total, never down, so restarts and
-repeated refreshes cannot double-count or decrease a series.
+repeated refreshes cannot double-count or decrease a series. Flush batches have
+a durable per-process sequence watermark committed atomically with the totals,
+so retrying a batch after an ambiguous connection failure applies it exactly
+once.
 
 The hot path only updates an in-memory buffer; it does not wait for the
 recorder or database. Flushes normally happen within ten seconds, and an
 orderly process exit flushes once more. An abrupt kill can lose only the final
 unflushed interval. If the shared snapshot is missing, expired, or cannot be
 read, the recorder omits these counter samples and the page displays a warning
-instead of charting the recorder process's plausible-but-wrong local zero.
+instead of charting the recorder process's plausible-but-wrong local zero. A
+fresh shared snapshot can still be partial when one contributor's flush is
+failing or stale; contributor heartbeats make that state a separate dashboard
+warning until the process recovers or ages out of the active contributor set.
 
 ## Tabs
 

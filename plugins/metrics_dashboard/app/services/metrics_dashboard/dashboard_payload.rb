@@ -179,7 +179,7 @@ module MetricsDashboard
         buckets: buckets.map(&:iso8601),
         recording: recording?,
         last_recorded_at: last_recorded_at&.iso8601,
-        cluster_counter_capture: Metrics::ClusterCounterSampler.available? ? "available" : "unavailable",
+        cluster_counter_capture: Metrics::ClusterCounterSampler.capture_status,
         # Canonical tab order, plus "other" appended only if some panel
         # actually fell back to it -- so the frontend never has to guess at
         # ordering or invent a tab nobody needs.
