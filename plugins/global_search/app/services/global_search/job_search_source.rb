@@ -26,7 +26,7 @@ module GlobalSearch
       last_id = after_id.to_i
       processed = 0
 
-      Job.order(:id).where("id > ?", last_id).limit(limit).find_each do |job|
+      Job.order(:id).where("id > ?", last_id).limit(SearchIndexWriteLimits.clamp_rows(limit)).find_each do |job|
         JobIndex.upsert(job)
         last_id = job.id
         processed += 1

@@ -17,12 +17,10 @@ module DesignDocs
       def rebuild!
         return unless table_available?
 
-        connection.transaction do
-          connection.execute("DELETE FROM design_doc_fts")
-          DesignDocs::DesignDoc
-            .includes(:owner_user, :repositories, :collaborator_users)
-            .find_each { |design_doc| insert(design_doc) }
-        end
+        connection.execute("DELETE FROM design_doc_fts")
+        DesignDocs::DesignDoc
+          .includes(:owner_user, :repositories, :collaborator_users)
+          .find_each(batch_size: 1) { |design_doc| upsert(design_doc) }
       end
 
       def delete(design_doc_id)
@@ -174,8 +172,8 @@ module DesignDocs
           [
             bind(design_doc.display_id),
             bind(design_doc.title.to_s),
-            bind(DesignDocs::AnchorMarkers.strip(design_doc.markdown.to_s)),
-            bind(design_doc.preview_text.to_s),
+            bind(index_text(DesignDocs::AnchorMarkers.strip(design_doc.markdown.to_s), design_doc, :body)),
+            bind(index_text(design_doc.preview_text, design_doc, :preview_text)),
             bind(repository_text(design_doc)),
             bind(user_text(design_doc.owner_user)),
             bind(design_doc.collaborator_users.map { |user| user_text(user) }.join(" ")),
@@ -187,6 +185,10 @@ module DesignDocs
             bind(design_doc.updated_at&.iso8601)
           ]
         )
+      end
+
+      def index_text(value, design_doc, field)
+        SearchIndexWriteLimits.prefix(value, index: "design_doc", record_id: design_doc.id, field: field)
       end
 
       def repository_text(design_doc)

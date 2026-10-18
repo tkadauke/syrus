@@ -5,7 +5,7 @@ class OperationalLogIndex < SearchRecord
   FALLBACK_SEARCH_SCAN_LIMIT = 1_000
   STALE_AFTER = 5.minutes
   FRESHNESS_CHECK_INTERVAL = 2.minutes
-  REBUILD_BATCH_SIZE = 1_000
+  REBUILD_BATCH_SIZE = SearchIndexWriteLimits::MAX_BATCH_ROWS
   SORTS = {
     "time" => [ "occurred_at", "operational_log_event_id" ],
     "level" => [ "level", "occurred_at", "operational_log_event_id" ],
@@ -22,14 +22,15 @@ class OperationalLogIndex < SearchRecord
     end
 
     def upsert_many(events, delete_ids: [], cleanup_missing: false)
-      events = events.to_a
-      indexed_ids = events.map(&:id)
-      missing_ids = Array(delete_ids) - indexed_ids
+      indexed_ids = []
 
-      connection.transaction do
-        delete_many(missing_ids) if cleanup_missing
-        insert_many(events)
+      SearchIndexWriteLimits.batches(events) { |event| operational_log_bytes(event) }.each do |batch|
+        connection.transaction do
+          indexed_ids.concat(batch.map(&:id))
+          insert_many(batch)
+        end
       end
+      delete_many(Array(delete_ids) - indexed_ids) if cleanup_missing
     end
 
     def delete(event_id)
@@ -191,11 +192,14 @@ class OperationalLogIndex < SearchRecord
     # upsert_many (one transaction per batch) instead of looping upsert
     # (one transaction, and one fsync, per row) — the difference between a
     # sub-second rebuild and one that blocks a search for minutes.
-    def rebuild!
-      OperationalLogEvent.where(occurred_at: OperationalLogEvent.retention_floor..)
-        .find_in_batches(batch_size: REBUILD_BATCH_SIZE) do |batch|
-          upsert_many(batch, delete_ids: batch.map(&:id))
-        end
+    def rebuild!(batch_size: REBUILD_BATCH_SIZE)
+      scope = OperationalLogEvent.where(occurred_at: OperationalLogEvent.retention_floor..)
+      events = scope.find_each(batch_size: SearchIndexWriteLimits.clamp_rows(batch_size))
+      SearchIndexWriteLimits.batches(events, max_rows: SearchIndexWriteLimits.clamp_rows(batch_size)) do |event|
+        operational_log_bytes(event)
+      end.each do |batch|
+        upsert_many(batch, delete_ids: batch.map(&:id))
+      end
     end
 
     private
@@ -221,7 +225,7 @@ class OperationalLogIndex < SearchRecord
     end
 
     def insert_many(events)
-      events.each_slice(50) do |batch|
+      SearchIndexWriteLimits.batches(events, max_rows: 50) { |event| operational_log_bytes(event) }.each do |batch|
         next if batch.empty?
 
         placeholders = batch.map { "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" }.join(", ")
@@ -284,9 +288,9 @@ class OperationalLogIndex < SearchRecord
     def insert_binds(event)
       [
         bind(event.id),
-        bind(event.message),
-        bind(context_text(event.context)),
-        bind(event.context.to_json),
+        bind(index_text(event.message, event, :message)),
+        bind(index_text(context_text(event.context), event, :context_text)),
+        bind(index_text(event.context.to_json, event, :context_json)),
         bind(event.id),
         bind(event.occurred_at&.iso8601(6)),
         bind(event.level),
@@ -300,6 +304,20 @@ class OperationalLogIndex < SearchRecord
         bind(event.run_id),
         bind(event.request_id)
       ]
+    end
+
+    def operational_log_bytes(event)
+      event.message.to_s.bytesize + context_text(event.context).bytesize + event.context.to_json.bytesize
+    end
+
+    def index_text(value, event, field)
+      SearchIndexWriteLimits.prefix(
+        value,
+        limit: SearchIndexWriteLimits::MAX_ROW_BYTES / 3,
+        index: "operational_log",
+        record_id: event.id,
+        field: field
+      )
     end
 
     def order_clause(sort:, direction:)

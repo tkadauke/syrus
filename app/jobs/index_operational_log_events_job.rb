@@ -4,13 +4,12 @@ class IndexOperationalLogEventsJob < ApplicationJob
   def perform(operational_log_event_ids)
     return unless OperationalLogging.configured_for_instance?
 
-    ids = Array(operational_log_event_ids).filter_map { |id| Integer(id, exception: false) }.uniq
+    ids = Array(operational_log_event_ids).filter_map { |id| Integer(id, exception: false) }.uniq.first(SearchIndexWriteLimits::MAX_BATCH_ROWS)
     return if ids.empty?
 
     OperationalLogging.suppress do
-      events_by_id = OperationalLogEvent.where(id: ids).index_by(&:id)
       OperationalLogIndex.upsert_many(
-        ids.filter_map { |id| events_by_id[id] },
+        OperationalLogEvent.where(id: ids).find_each(batch_size: 1),
         delete_ids: ids
       )
     end

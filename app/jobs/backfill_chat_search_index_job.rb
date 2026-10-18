@@ -8,29 +8,30 @@ class BackfillChatSearchIndexJob < ApplicationJob
 
   def perform
     loop do
-      messages = next_batch
-      break if messages.empty?
+      message_ids = next_batch_ids
+      break if message_ids.empty?
 
-      messages.each do |message|
+      message_ids.each do |message_id|
+        message = ChatMessage.find_by(id: message_id)
+        next unless message
         next unless ChatMessageSearchIndex.indexable?(message)
         next if ChatMessageSearchIndex.indexed?(message.id)
 
         with_sqlite_busy_retries { ChatMessageSearchIndex.insert(message) }
       end
 
-      with_sqlite_busy_retries { update_last_backfilled_id(messages.last.id) }
+      with_sqlite_busy_retries { update_last_backfilled_id(message_ids.last) }
     end
   end
 
   private
 
-  def next_batch
+  def next_batch_ids
     ChatMessage
-      .includes(:chat_session)
-      .where("id > ?", last_backfilled_id)
+      .where("chat_messages.id > ?", last_backfilled_id)
       .order(:id)
       .limit(BATCH_SIZE)
-      .to_a
+      .pluck(:id)
   end
 
   def last_backfilled_id

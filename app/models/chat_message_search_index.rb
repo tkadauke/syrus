@@ -31,7 +31,7 @@ class ChatMessageSearchIndex < SearchRecord
           SQL
           "ChatMessageSearchIndex Insert",
           [
-            bind(content_for(message)),
+            bind(indexed_content(message)),
             bind(chat_session.user_id),
             bind(message.chat_session_id),
             bind(message.id),
@@ -266,6 +266,10 @@ class ChatMessageSearchIndex < SearchRecord
       return content["text"].to_s if content.is_a?(Hash) && content.key?("text")
 
       JSON.generate(content)
+    end
+
+    def indexed_content(message)
+      SearchIndexWriteLimits.prefix(content_for(message), index: "chat_message", record_id: message.id, field: :content)
     end
   end
 end

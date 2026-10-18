@@ -26,8 +26,8 @@ module GlobalSearch
             SQL
             "GlobalSearch::EpicIndex Upsert",
             [
-              bind(epic.title.to_s),
-              bind(epic.description.to_s),
+              bind(index_text(epic.title, epic, :title)),
+              bind(index_text(epic.description, epic, :description)),
               bind(epic.id),
               bind(epic.user_id),
               bind(epic.repository_id),
@@ -69,6 +69,12 @@ module GlobalSearch
         )
 
         rows.map(&:symbolize_keys)
+      end
+
+      private
+
+      def index_text(value, epic, field)
+        SearchIndexWriteLimits.prefix(value, index: "epic", record_id: epic.id, field: field)
       end
     end
   end
