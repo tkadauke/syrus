@@ -151,6 +151,31 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/repositories/7/readiness", expect.anything())
   })
 
+  it("does not show an orphaned worker heading when readiness fails before scopes are computed", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(jsonResponse({
+      readiness: {
+        status: "needs_configuration",
+        summary: "Needs configuration",
+        revision: null,
+        repository_size_bytes: null,
+        file_count: null,
+        checks: [{ key: "access", level: "block", message: "Repository content is unavailable." }],
+        prepare_commands: [],
+        grader_commands: [],
+        required_capabilities: { os: ["linux"] },
+        execution_scopes: []
+      }
+    }))
+
+    renderOnboarding(bootstrap({
+      setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 }
+    }))
+
+    expect(await screen.findByText("Needs configuration")).toBeInTheDocument()
+    expect(screen.getByText(/Repository content is unavailable\./)).toBeInTheDocument()
+    expect(screen.queryByText("Execution scopes and workers")).not.toBeInTheDocument()
+  })
+
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {
     renderOnboarding(bootstrap())
 
