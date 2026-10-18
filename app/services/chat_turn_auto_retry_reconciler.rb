@@ -6,6 +6,7 @@ class ChatTurnAutoRetryReconciler
   Result = Struct.new(:performed, :code, :message, keyword_init: true) do
     def performed? = performed
   end
+  UNRESOLVED_FAILED_JOB_ERROR = Object.new.freeze
 
   def self.sweep!(stale_before: GRACE_PERIOD.ago, now: Time.current)
     new(stale_before: stale_before, now: now).sweep!
@@ -63,8 +64,15 @@ class ChatTurnAutoRetryReconciler
   def schedule_or_exhaust_crashed_turns!
     count = 0
 
-    candidate_sessions.find_each do |chat|
-      count += 1 if reconcile_crashed_turn!(chat)
+    candidate_sessions.find_in_batches do |chats|
+      turn_identities = chats.to_h do |chat|
+        [ chat.id, ChatTurnLiveness.new(chat).latest_user_message&.id ]
+      end
+      failed_job_errors = ChatTurnLiveness.failed_chat_turn_job_errors_for(turn_identities)
+
+      chats.each do |chat|
+        count += 1 if reconcile_crashed_turn!(chat, failed_job_error: failed_job_errors[chat.id])
+      end
     end
 
     count
@@ -91,14 +99,22 @@ class ChatTurnAutoRetryReconciler
     true
   end
 
-  def reconcile_crashed_turn!(chat_session, require_stale: true)
+  def reconcile_crashed_turn!(chat_session, require_stale: true, failed_job_error: UNRESOLVED_FAILED_JOB_ERROR)
     changed = false
 
     ApplicationRecord.transaction do
       chat = ChatSession.lock.find(chat_session.id)
-      next false unless confirmed_dead_turn?(chat, require_stale: require_stale)
+      liveness = confirmed_dead_turn(chat, require_stale: require_stale)
+      next false unless liveness
 
-      latest_user_message = ChatTurnLiveness.new(chat).latest_user_message
+      error = failed_job_error.equal?(UNRESOLVED_FAILED_JOB_ERROR) ? liveness.failed_chat_turn_job_error : failed_job_error
+      unless retryable_failure?(error)
+        fail_turn!(chat)
+        changed = true
+        next
+      end
+
+      latest_user_message = liveness.latest_user_message
       next false unless latest_user_message
 
       root_message = root_user_message_for(latest_user_message)
@@ -118,7 +134,7 @@ class ChatTurnAutoRetryReconciler
     changed
   end
 
-  def confirmed_dead_turn?(chat, require_stale:)
+  def confirmed_dead_turn(chat, require_stale:)
     return false unless chat.turn_in_flight?
 
     liveness = ChatTurnLiveness.new(chat)
@@ -128,7 +144,13 @@ class ChatTurnAutoRetryReconciler
     return false if liveness.live_agent_process?
     return false if liveness.pending_chat_turn_job?
 
-    true
+    liveness
+  end
+
+  def retryable_failure?(error)
+    return true unless error
+
+    error["exception_class"].to_s == "SolidQueue::Processes::ProcessPrunedError"
   end
 
   def stop_request_should_use_terminal_path?(chat, spawned_process, finished_at)
@@ -231,6 +253,10 @@ class ChatTurnAutoRetryReconciler
         turn_in_flight: true
       )
       chat.pin_chat_provider!
+      # Re-run the same logical turn instead of replaying the user message.
+      # ChatTurnJob resumes a persisted provider session when one exists; if
+      # the worker died before persisting it, the provider starts fresh while
+      # the already-streamed ChatMessage rows remain visible as context.
       ChatTurnJob.perform_later(chat.id, locked_attempt.user_message_id)
       locked_attempt.update!(performed_at: now, retry_message: status_message)
       result(:performed, "Chat turn retry started.")
@@ -246,6 +272,13 @@ class ChatTurnAutoRetryReconciler
 
   def close_dangling_tool_calls!(chat)
     ChatDanglingToolCallCloser.close!(chat_session: chat, reason: "turn_failed")
+  end
+
+  def fail_turn!(chat)
+    close_dangling_tool_calls!(chat)
+    chat.fail_current_turn!
+    chat.messages.create!(role: "system", content: { "text" => FAILED_MESSAGE }) unless chat.deleted?
+    chat.update!(stop_requested_at: nil, last_message_at: now)
   end
 
   def broadcast(chat)

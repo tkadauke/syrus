@@ -79,6 +79,23 @@ class RunProcessParallelism
     cgroup_v2_memory_working_set || cgroup_v1_memory_working_set
   end
 
+  def self.cgroup_memory_current_bytes
+    positive_bytes(File.read("/sys/fs/cgroup/memory.current").strip)
+  rescue Errno::ENOENT, Errno::EACCES
+    nil
+  end
+
+  def self.cgroup_memory_events
+    File.readlines("/sys/fs/cgroup/memory.events").each_with_object({}) do |line, events|
+      key, value = line.split
+      events[key] = Integer(value, 10) if key.present? && value.present?
+    rescue ArgumentError
+      next
+    end
+  rescue Errno::ENOENT, Errno::EACCES
+    {}
+  end
+
   def initialize(run:, hostname: SyrusVersion.hostname)
     @run = run
     @hostname = hostname

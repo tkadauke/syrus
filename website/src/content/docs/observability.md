@@ -28,6 +28,15 @@ Use it when:
 - a SQL statement appears repeatedly,
 - a frontend interaction feels slow.
 
+While at least one background job is active, each worker process also samples
+process RSS and container memory once per second. Crossing a new 256 MiB bucket
+or 70%, 80%, or 90% of the container limit writes a compact event directly to
+durable storage, including Ruby heap live slots and the complete set of active
+job contexts. Normal completion adds start, end, and peak memory readings for
+the job. The events deliberately show shared container memory alongside
+per-process RSS: concurrent jobs share a Ruby process, and separate queue-pool
+processes contribute independently to the same container total.
+
 For SQL rows, the admin API can run `EXPLAIN` and safe `EXPLAIN ANALYZE`
 against captured statements when the query is safe to analyze. The UI presents
 the plan in a visual modal for easier index and join diagnosis.

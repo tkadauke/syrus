@@ -27,6 +27,19 @@ CPU allocation can make that reservation large. Set the variable to the CPU
 budget actually available to the worker, and increase Docker Desktop's memory
 setting when the measured working set is genuinely close to the limit.
 
+## A chat turn remains active after a worker dies
+
+Syrus reconciles chat turns whose worker process disappears. A turn lost when
+Solid Queue prunes a dead worker is retried with bounded backoff; a turn whose
+job failed normally is marked failed instead, clearing the active-turn state.
+The retry re-runs the same logical turn without adding a duplicate user
+message and resumes provider state when it was persisted before the crash.
+
+While a turn remains active, the chat page also reduces its fallback polling
+rate from every 3 seconds to every 10 seconds and eventually every 30 seconds.
+This limits browser and server load if worker-death detection itself is
+delayed.
+
 ## The poller never picks up my issue
 
 Syrus polls GitHub issues about every five minutes, so first wait one poll

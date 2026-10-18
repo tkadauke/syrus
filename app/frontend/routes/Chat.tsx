@@ -1,7 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
-import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, TouchEvent as ReactTouchEvent, UIEvent, WheelEvent as ReactWheelEvent } from "react"
+import type {
+  CSSProperties,
+  FormEvent,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  MutableRefObject,
+  ReactNode,
+  TouchEvent as ReactTouchEvent,
+  UIEvent,
+  WheelEvent as ReactWheelEvent
+} from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -12,7 +22,18 @@ import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { Button } from "../components/Button"
-import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../components/WalkthroughRecorder"
+import {
+  AnalyzingHint,
+  annotationHoldLabel,
+  annotationIdleHintKind,
+  annotationShortcutLabel,
+  formatClock,
+  RECORDER_WARNING_SECONDS,
+  shouldShowAnnotationSurfaceNote,
+  useNativeRecorderHud,
+  useWalkthroughRecorder,
+  WalkthroughRecorderHUD
+} from "../components/WalkthroughRecorder"
 import {
   isWalkthroughVideoFile,
   MAX_WALKTHROUGH_BYTES,
@@ -94,7 +115,7 @@ import {
   type ChatSystemMessage,
   type ChatToolGroupItem,
   type ShareChatPayload,
-  type SharedChatPayload,
+  type SharedChatPayload
 } from "../api/chats"
 import { CloseIcon } from "../components/CloseIcon"
 import { UnderlineTabs } from "../components/Tabs"
@@ -107,8 +128,25 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { errorMessage } from "../lib/errorMessage"
-import { type ChatQueryKey, CHAT_PROGRAMMATIC_SCROLL_SUPPRESSION_MS, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
-import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, mobileHeaderScrollDeltaForMessageStream, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
+import {
+  type ChatQueryKey,
+  CHAT_PROGRAMMATIC_SCROLL_SUPPRESSION_MS,
+  CHAT_WORKSPACE_COLLAPSED_KEY,
+  CHAT_WORKSPACE_MIN_WIDTH,
+  CHAT_WORKSPACE_SPLIT_MIN_WIDTH,
+  CHAT_WORKSPACE_TAB_KEY,
+  CHAT_WORKSPACE_WIDTH_KEY
+} from "./chat/constants"
+import {
+  findChatMessageAnchor,
+  isMessageStreamAtBottom,
+  isMessageStreamNearTop,
+  messageIdFromHash,
+  messageStreamNeedsOlderMessages,
+  mobileHeaderScrollDeltaForMessageStream,
+  scrollChatMessageIntoView,
+  scrollMessageStreamToBottom
+} from "./chat/messageStream"
 import { appendSearch, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
 import { keyboardVisualViewport } from "../lib/visualViewport"
 import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
@@ -121,12 +159,29 @@ import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
 import { useConnectionContext } from "../lib/connectionContext"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
-import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey, replaceProposalInMessages } from "./chat/messageStreamItems"
+import {
+  chatStreamItemsSignature,
+  maxMessageId,
+  mergeChatMessages,
+  mergeMessageTail,
+  oldestMessageId,
+  renderItemKey,
+  replaceProposalInMessages
+} from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
-import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth } from "./chat/workspaceTabs"
+import {
+  availableWorkspaceTabs,
+  clampWorkspaceWidth,
+  defaultWorkspaceTab,
+  mobileChatTabLabel,
+  storeWorkspacePreference,
+  storedWorkspaceCollapsed,
+  storedWorkspaceTab,
+  storedWorkspaceWidth
+} from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { normalizeChatPayload } from "../lib/entityStore"
@@ -154,11 +209,29 @@ const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
 ].join(",")
 const USER_SCROLL_INTENT_WINDOW_MS = 700
 const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
+const ACTIVE_CHAT_FAST_POLL_WINDOW_MS = 2 * 60_000
+const ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS = 10 * 60_000
+
+export function activeChatRefetchInterval(activeForMs: number) {
+  if (activeForMs < ACTIVE_CHAT_FAST_POLL_WINDOW_MS) return 3_000
+  if (activeForMs < ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS) return 10_000
+  return 30_000
+}
+
+export type ActiveChatPollingState = { chatId: string; startedAt: number }
+
+export function nextActiveChatPollingState(current: ActiveChatPollingState | null, chatId: string, now: number) {
+  const state = current?.chatId === chatId ? current : { chatId, startedAt: now }
+  return { state, interval: activeChatRefetchInterval(now - state.startedAt) }
+}
 
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
-    <p className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400`}>
-      Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out · {formatCurrency(payload.chat.cumulative_cost_usd)}
+    <p
+      className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400`}
+    >
+      Tokens: {formatTokenCount(payload.chat.cumulative_input_tokens)} in / {formatTokenCount(payload.chat.cumulative_output_tokens)} out ·{" "}
+      {formatCurrency(payload.chat.cumulative_cost_usd)}
     </p>
   )
 }
@@ -183,6 +256,7 @@ export function ChatRoute() {
   const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
+  const activePollingStateRef = useRef<ActiveChatPollingState | null>(null)
   const chat = useQuery({
     queryKey,
     queryFn: async () => {
@@ -199,12 +273,15 @@ export function ChatRoute() {
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
       const data = query.state.data as ChatPayload | undefined
-      if (data && isAgentActive(data)) return 3_000
+      if (data && isAgentActive(data)) {
+        const polling = nextActiveChatPollingState(activePollingStateRef.current, id, Date.now())
+        activePollingStateRef.current = polling.state
+        return polling.interval
+      }
+      activePollingStateRef.current = null
       return isDisconnected ? 30_000 : false
     },
-    placeholderData: (previousData, previousQuery) => (
-      previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
-    )
+    placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
@@ -221,9 +298,11 @@ export function ChatRoute() {
   useEffect(() => {
     if (!id) return
 
-    void markChatRead(id).then(() => {
-      refreshRecentChats(queryClient)
-    }).catch(() => undefined)
+    void markChatRead(id)
+      .then(() => {
+        refreshRecentChats(queryClient)
+      })
+      .catch(() => undefined)
   }, [id, queryClient])
 
   // Chat-scoped Action Cable subscription: message content and other
@@ -259,7 +338,7 @@ export function SharedChatRoute() {
     queryFn: () => fetchSharedChat(token),
     enabled: token.length > 0
   })
-  usePageTitle(chat.isSuccess ? (chat.data.chat.title || undefined) : undefined)
+  usePageTitle(chat.isSuccess ? chat.data.chat.title || undefined : undefined)
 
   return (
     <main
@@ -279,7 +358,9 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
-        <PageHeading className="max-w-full truncate" title={payload.chat.title || t("shared_chat_fallback_title")}>{payload.chat.title || t("shared_chat_fallback_title")}</PageHeading>
+        <PageHeading className="max-w-full truncate" title={payload.chat.title || t("shared_chat_fallback_title")}>
+          {payload.chat.title || t("shared_chat_fallback_title")}
+        </PageHeading>
         <span className="rounded border border-brand/30 bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
@@ -297,7 +378,10 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
 
   if (items.length === 0) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
+      <div
+        className="flex h-full min-h-0 items-center justify-center overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400"
+        data-testid="chat-message-stream"
+      >
         {t("no_shared_chat_messages")}
       </div>
     )
@@ -305,13 +389,24 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
 
   return (
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
-      {items.map((item) => item.type === "tool_group" ? (
-        <SharedMessageRenderer key={renderItemKey(item)} readOnly>
-          <ToolGroup item={item} />
-        </SharedMessageRenderer>
-      ) : (
-        <ChatMessage item={item} key={renderItemKey(item)} payload={placeholderPayload} pendingActionIds={pendingActionIds} prefix="" queryKey={chatQueryKey(payload.chat.id, "")} readOnly onNotice={() => undefined} />
-      ))}
+      {items.map((item) =>
+        item.type === "tool_group" ? (
+          <SharedMessageRenderer key={renderItemKey(item)} readOnly>
+            <ToolGroup item={item} />
+          </SharedMessageRenderer>
+        ) : (
+          <ChatMessage
+            item={item}
+            key={renderItemKey(item)}
+            payload={placeholderPayload}
+            pendingActionIds={pendingActionIds}
+            prefix=""
+            queryKey={chatQueryKey(payload.chat.id, "")}
+            readOnly
+            onNotice={() => undefined}
+          />
+        )
+      )}
     </div>
   )
 }
@@ -445,7 +540,7 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
   const isDesktopChrome = useMediaQuery("(min-width: 1024px)", true)
   const { revealHeader, topInset } = useMobileChatHeaderControls()
   const mobileStyle = !isDesktopChrome
-    ? { paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${topInset}px + 0.75rem)` } as CSSProperties
+    ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${topInset}px + 0.75rem)` } as CSSProperties)
     : undefined
 
   useLayoutEffect(() => {
@@ -457,7 +552,11 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
       <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
         <div className="font-semibold">{t("credentials_required_title")}</div>
         <p className="mt-1">
-          {t("credentials_required_body_prefix")} <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>{t("credentials_required_link")}</Link> {t("credentials_required_body_suffix")}
+          {t("credentials_required_body_prefix")}{" "}
+          <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
+            {t("credentials_required_link")}
+          </Link>{" "}
+          {t("credentials_required_body_suffix")}
         </p>
       </section>
     </div>
@@ -493,15 +592,18 @@ function localChatFindMatches(messages: ChatMessageItem[], query: string, { incl
   const needle = query.trim().toLowerCase()
   if (!needle) return []
 
-  return messages.filter((message) => {
-    if (message.role === "user" || message.role === "assistant") return true
-    return includeSystem && message.role === "system"
-  }).filter((message) => message.text.toLowerCase().includes(needle)).map((message) => ({
-    message_id: message.id,
-    role: message.role,
-    snippet: message.text,
-    created_at: message.created_at ?? null
-  }))
+  return messages
+    .filter((message) => {
+      if (message.role === "user" || message.role === "assistant") return true
+      return includeSystem && message.role === "system"
+    })
+    .filter((message) => message.text.toLowerCase().includes(needle))
+    .map((message) => ({
+      message_id: message.id,
+      role: message.role,
+      snippet: message.text,
+      created_at: message.created_at ?? null
+    }))
 }
 
 function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: ChatSearchMatch[]) {
@@ -517,7 +619,29 @@ function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: Ch
   return merged
 }
 
-function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageRequesterRef, onCanLoadOlderChange, onFindOpenChange, payload, prefix, queryKey, onNotice, onSelectWorkspaceTab }: { bookmarkTarget: BookmarkTarget | null; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; onFindOpenChange?: (open: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectWorkspaceTab?: () => void }) {
+function MessageStream({
+  bookmarkTarget,
+  contextFindOpenerRef,
+  olderMessageRequesterRef,
+  onCanLoadOlderChange,
+  onFindOpenChange,
+  payload,
+  prefix,
+  queryKey,
+  onNotice,
+  onSelectWorkspaceTab
+}: {
+  bookmarkTarget: BookmarkTarget | null
+  contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>
+  olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>
+  onCanLoadOlderChange?: (canLoad: boolean) => void
+  onFindOpenChange?: (open: boolean) => void
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+  onSelectWorkspaceTab?: () => void
+}) {
   const location = useLocation()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -548,10 +672,16 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   const displayedItems = useMemo(() => renderChatMessages(displayedMessages), [displayedMessages])
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = useMemo(() => displayedItems.filter(isLowPrioritySystemMessage).length, [displayedItems])
-  const visibleItems = useMemo(() => showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item)), [displayedItems, showSystemMessages])
+  const visibleItems = useMemo(
+    () => (showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))),
+    [displayedItems, showSystemMessages]
+  )
   const pendingActionIds = useMemo(() => new Set(payload.pending_actions.map((action) => action.id)), [payload.pending_actions])
   const pendingActionGroups = payload.pending_action_groups || []
-  const streamItems = useMemo(() => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)), [visibleItems, payload.pending_actions, pendingActionGroups])
+  const streamItems = useMemo(
+    () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)),
+    [visibleItems, payload.pending_actions, pendingActionGroups]
+  )
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
@@ -575,20 +705,24 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     queryFn: ({ signal }) => fetchChatSearchMessages(findSearch, { signal }),
     enabled: findOpen && findQuery.trim().length > 0
   })
-  const localFindMatches = useMemo(() => localChatFindMatches(displayedMessages, findQuery, { includeSystem: showSystemMessages }), [displayedMessages, findQuery, showSystemMessages])
+  const localFindMatches = useMemo(
+    () => localChatFindMatches(displayedMessages, findQuery, { includeSystem: showSystemMessages }),
+    [displayedMessages, findQuery, showSystemMessages]
+  )
   const findMatches = useMemo(() => mergeChatFindMatches(localFindMatches, findResults.data?.matches ?? []), [findResults.data?.matches, localFindMatches])
   const normalizedFindQuery = findQuery.trim()
   const findSelectionSignature = useMemo(() => {
     if (!normalizedFindQuery) return ""
     return `${normalizedFindQuery}\n${findMatches.map((match) => match.message_id).join("|")}`
   }, [findMatches, normalizedFindQuery])
-  const findCountLabel = findQuery.trim().length === 0
-    ? t("context_find_ready")
-    : findResults.isPending && findMatches.length === 0
-      ? t("context_find_searching")
-      : findMatches.length === 0
-        ? t("context_find_count_zero")
-        : t("context_find_count", { current: activeFindIndex + 1, total: findMatches.length })
+  const findCountLabel =
+    findQuery.trim().length === 0
+      ? t("context_find_ready")
+      : findResults.isPending && findMatches.length === 0
+        ? t("context_find_searching")
+        : findMatches.length === 0
+          ? t("context_find_count_zero")
+          : t("context_find_count", { current: activeFindIndex + 1, total: findMatches.length })
 
   useEffect(() => {
     // A confirmed/rejected/edited proposal only patches the React Query cache
@@ -607,9 +741,10 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
   }, [payload.chat.id])
 
   const retryTurn = useMutation({
-    mutationFn: (messageText: string) => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
+    mutationFn: (messageText: string) =>
+      agentActive
+        ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
+        : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
     onSuccess: (updated) => {
       mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
@@ -640,17 +775,23 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     setNewMessageCount(0)
   }, [])
 
-  const requestOlderMessages = useCallback((options: { preserveScroll: boolean }) => {
-    if (!hasMoreOlder || oldestId == null || loadOlder.isPending) return false
+  const requestOlderMessages = useCallback(
+    (options: { preserveScroll: boolean }) => {
+      if (!hasMoreOlder || oldestId == null || loadOlder.isPending) return false
 
-    const stream = streamRef.current
-    preserveScrollAfterOlderLoadRef.current = options.preserveScroll && stream ? {
-      scrollHeight: stream.scrollHeight,
-      scrollTop: stream.scrollTop
-    } : null
-    loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
-    return true
-  }, [hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path])
+      const stream = streamRef.current
+      preserveScrollAfterOlderLoadRef.current =
+        options.preserveScroll && stream
+          ? {
+              scrollHeight: stream.scrollHeight,
+              scrollTop: stream.scrollTop
+            }
+          : null
+      loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
+      return true
+    },
+    [hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path]
+  )
 
   useEffect(() => {
     if (!olderMessageRequesterRef) return
@@ -694,13 +835,16 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     setActiveBookmarkTarget({ messageId: match.message_id, requestId: Date.now() })
   }, [])
 
-  const goToFindIndex = useCallback((index: number) => {
-    if (findMatches.length === 0) return
+  const goToFindIndex = useCallback(
+    (index: number) => {
+      if (findMatches.length === 0) return
 
-    const nextIndex = (index + findMatches.length) % findMatches.length
-    setActiveFindIndex(nextIndex)
-    selectFindMatch(findMatches[nextIndex])
-  }, [findMatches, selectFindMatch])
+      const nextIndex = (index + findMatches.length) % findMatches.length
+      setActiveFindIndex(nextIndex)
+      selectFindMatch(findMatches[nextIndex])
+    },
+    [findMatches, selectFindMatch]
+  )
 
   useEffect(() => {
     if (!findOpen || !normalizedFindQuery) {
@@ -722,56 +866,71 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
     lastUserScrollIntentAtRef.current = Date.now()
   }, [])
 
-  const requestOlderMessagesIfNearTop = useCallback((stream: HTMLElement | null) => {
-    if (stream && isMessageStreamNearTop(stream)) {
-      requestOlderMessages({ preserveScroll: true })
-    }
-  }, [requestOlderMessages])
+  const requestOlderMessagesIfNearTop = useCallback(
+    (stream: HTMLElement | null) => {
+      if (stream && isMessageStreamNearTop(stream)) {
+        requestOlderMessages({ preserveScroll: true })
+      }
+    },
+    [requestOlderMessages]
+  )
 
-  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    if (event.deltaY === 0) return
+  const handleWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      if (event.deltaY === 0) return
 
-    markUserScrollIntent()
-    if (event.deltaY < 0) requestOlderMessagesIfNearTop(event.currentTarget)
-  }, [markUserScrollIntent, requestOlderMessagesIfNearTop])
+      markUserScrollIntent()
+      if (event.deltaY < 0) requestOlderMessagesIfNearTop(event.currentTarget)
+    },
+    [markUserScrollIntent, requestOlderMessagesIfNearTop]
+  )
 
-  const handleTouchMove = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
-    markUserScrollIntent()
-    requestOlderMessagesIfNearTop(event.currentTarget)
-  }, [markUserScrollIntent, requestOlderMessagesIfNearTop])
+  const handleTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      markUserScrollIntent()
+      requestOlderMessagesIfNearTop(event.currentTarget)
+    },
+    [markUserScrollIntent, requestOlderMessagesIfNearTop]
+  )
 
-  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    const stream = event.currentTarget
-    const previousScrollTop = lastScrollTopRef.current
-    const mobileHeaderDelta = mobileHeaderScrollDeltaForMessageStream(stream, previousScrollTop)
-    lastScrollTopRef.current = stream.scrollTop
-    const now = Date.now()
-    if (
-      mobileHeaderDelta != null &&
-      now >= suppressMobileHeaderScrollUntilRef.current &&
-      now - lastUserScrollIntentAtRef.current <= USER_SCROLL_INTENT_WINDOW_MS
-    ) {
-      mobileHeader.reportScrollDelta(mobileHeaderDelta)
-    }
-    const atBottom = isMessageStreamAtBottom(stream)
-    atBottomRef.current = atBottom
-    if (atBottom) setNewMessageCount(0)
-    if (isMessageStreamNearTop(stream)) {
-      requestOlderMessages({ preserveScroll: true })
-    }
-  }, [mobileHeader, requestOlderMessages])
+  const handleScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const stream = event.currentTarget
+      const previousScrollTop = lastScrollTopRef.current
+      const mobileHeaderDelta = mobileHeaderScrollDeltaForMessageStream(stream, previousScrollTop)
+      lastScrollTopRef.current = stream.scrollTop
+      const now = Date.now()
+      if (
+        mobileHeaderDelta != null &&
+        now >= suppressMobileHeaderScrollUntilRef.current &&
+        now - lastUserScrollIntentAtRef.current <= USER_SCROLL_INTENT_WINDOW_MS
+      ) {
+        mobileHeader.reportScrollDelta(mobileHeaderDelta)
+      }
+      const atBottom = isMessageStreamAtBottom(stream)
+      atBottomRef.current = atBottom
+      if (atBottom) setNewMessageCount(0)
+      if (isMessageStreamNearTop(stream)) {
+        requestOlderMessages({ preserveScroll: true })
+      }
+    },
+    [mobileHeader, requestOlderMessages]
+  )
 
-  const handleStreamClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    if (!mobileHeader.autoHideEnabled) return
-    if (event.defaultPrevented) return
-    if (event.target instanceof Element && event.target.closest(NON_INTERACTIVE_CHAT_TAP_SELECTOR)) return
+  const handleStreamClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!mobileHeader.autoHideEnabled) return
+      if (event.defaultPrevented) return
+      if (event.target instanceof Element && event.target.closest(NON_INTERACTIVE_CHAT_TAP_SELECTOR)) return
 
-    if (mobileHeader.hidden) {
-      mobileHeader.revealHeader()
-    } else {
-      mobileHeader.hideHeader()
-    }
-  }, [mobileHeader])
+      if (mobileHeader.hidden) {
+        mobileHeader.revealHeader()
+      } else {
+        mobileHeader.hideHeader()
+      }
+    },
+    [mobileHeader]
+  )
 
   useEffect(() => {
     setOlderMessages([])
@@ -891,7 +1050,12 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
       >
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <div>{payload.chat.repository ? t("empty_with_repo") : t("empty_without_repo")}</div>
-          <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
+          <ChatTurnIndicator
+            payload={payload}
+            agentActive={agentActive}
+            retryNowPending={retryScheduledTurn.isPending}
+            onRetryNow={() => retryScheduledTurn.mutate()}
+          />
         </div>
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
       </div>
@@ -948,40 +1112,49 @@ function MessageStream({ bookmarkTarget, contextFindOpenerRef, olderMessageReque
           style={!isDesktop && mobileHeader.hidden ? { transform: "translateY(-2rem)" } : undefined}
         >
           {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
-          {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
+          {loadOlder.isError ? (
+            <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div>
+          ) : null}
           {hiddenSystemMessageCount > 0 ? (
             <SystemMessagesToggle count={hiddenSystemMessageCount} expanded={showSystemMessages} onToggle={() => setShowSystemMessages((value) => !value)} />
           ) : null}
-          {streamItems.map((item) => item.type === "timestamp" ? (
-            <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
-          ) : item.type === "day_divider" ? (
-            <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
-          ) : item.type === "pending_action" ? (
-            <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
-          ) : item.type === "pending_action_group" ? (
-            <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
-          ) : item.type === "tool_group" ? (
-            <SharedMessageRenderer key={renderItemKey(item)}>
-              <ToolGroup item={item} />
-            </SharedMessageRenderer>
-          ) : (
-            <ChatMessage
-              animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
-              item={item}
-              key={renderItemKey(item)}
-              payload={payload}
-              pendingActionIds={pendingActionIds}
-              prefix={prefix}
-              queryKey={queryKey}
-              retryText={retryTextMap.get(item.id) ?? null}
-              retrying={retryTurn.isPending}
-              onNotice={onNotice}
-              onRetry={(text) => retryTurn.mutate(text)}
-              onSelectWorkspaceTab={onSelectWorkspaceTab}
-            />
-          ))}
+          {streamItems.map((item) =>
+            item.type === "timestamp" ? (
+              <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
+            ) : item.type === "day_divider" ? (
+              <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
+            ) : item.type === "pending_action" ? (
+              <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
+            ) : item.type === "pending_action_group" ? (
+              <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
+            ) : item.type === "tool_group" ? (
+              <SharedMessageRenderer key={renderItemKey(item)}>
+                <ToolGroup item={item} />
+              </SharedMessageRenderer>
+            ) : (
+              <ChatMessage
+                animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
+                item={item}
+                key={renderItemKey(item)}
+                payload={payload}
+                pendingActionIds={pendingActionIds}
+                prefix={prefix}
+                queryKey={queryKey}
+                retryText={retryTextMap.get(item.id) ?? null}
+                retrying={retryTurn.isPending}
+                onNotice={onNotice}
+                onRetry={(text) => retryTurn.mutate(text)}
+                onSelectWorkspaceTab={onSelectWorkspaceTab}
+              />
+            )
+          )}
           {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
-          <ChatTurnIndicator payload={payload} agentActive={agentActive} retryNowPending={retryScheduledTurn.isPending} onRetryNow={() => retryScheduledTurn.mutate()} />
+          <ChatTurnIndicator
+            payload={payload}
+            agentActive={agentActive}
+            retryNowPending={retryScheduledTurn.isPending}
+            onRetryNow={() => retryScheduledTurn.mutate()}
+          />
         </div>
       </div>
       {newMessageCount > 0 ? (
@@ -1025,13 +1198,12 @@ function ChatTurnIndicator({
 }) {
   const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
   if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
-  if (payload.switching_provider) return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
+  if (payload.switching_provider)
+    return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
   if (agentActive) return <AgentActivityIndicator activity={payload.agent_activity ?? payload.chat.agent_activity ?? null} running={payload.agent_busy} />
 
   return null
 }
-
-
 
 function useMediaQuery(query: string, defaultMatches: boolean) {
   const [matches, setMatches] = useState(() => {
@@ -1060,10 +1232,7 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function mobileWorkspaceTabsVisible(payload: ChatPayload) {
-  return payload.messages.length > 0 ||
-    payload.has_more_older ||
-    payload.turn_in_flight ||
-    payload.agent_busy
+  return payload.messages.length > 0 || payload.has_more_older || payload.turn_in_flight || payload.agent_busy
 }
 
 function initialWorkspacePanelState(payload: ChatPayload) {
@@ -1118,9 +1287,10 @@ function ChatWorkspace({
   const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
-  const mobileWorkspacePanelStyle = !isDesktop && !showMobileChatColumn
-    ? { paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties
-    : undefined
+  const mobileWorkspacePanelStyle =
+    !isDesktop && !showMobileChatColumn
+      ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties)
+      : undefined
 
   useLayoutEffect(() => {
     const nextPanelState = initialWorkspacePanelState(payload)
@@ -1274,9 +1444,11 @@ function ChatWorkspace({
       <div
         className="relative flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950"
         data-testid="mobile-chat-route-shell"
-        style={{
-          "--mobile-chat-stream-top-breathing-room": `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px + 0.75rem)`
-        } as CSSProperties}
+        style={
+          {
+            "--mobile-chat-stream-top-breathing-room": `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px + 0.75rem)`
+          } as CSSProperties
+        }
       >
         <MobileChatTopChrome
           activeMobileTab={activeMobileTab}
@@ -1289,7 +1461,23 @@ function ChatWorkspace({
         />
         <div className="flex min-h-0 w-full flex-1" data-testid="mobile-chat-surface">
           {showMobileChatColumn ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay={false} onComposerMessageSent={handleComposerMessageSent} onFindOpenChange={setChatFindOpen} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+            <ChatColumn
+              bookmarkTarget={bookmarkTarget}
+              chatId={chatId}
+              commandHandlers={commandHandlers}
+              contextFindOpenerRef={chatFindOpenerRef}
+              payload={payload}
+              prefix={prefix}
+              queryKey={queryKey}
+              showUsageOverlay={false}
+              onComposerMessageSent={handleComposerMessageSent}
+              onFindOpenChange={setChatFindOpen}
+              onNotice={onNotice}
+              onOpenPinnedMessages={openPinnedMessages}
+              onSelectMessage={selectBookmark}
+              onSelectWorkspaceTab={requestJobsTab}
+              onSurfaceActive={() => setActiveFindSurface("chat")}
+            />
           ) : (
             <div className="min-h-0 flex-1 overflow-hidden" data-testid="mobile-workspace-panel-shell" style={mobileWorkspacePanelStyle}>
               <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
@@ -1313,7 +1501,9 @@ function ChatWorkspace({
             <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => onSettingsOpenChange(false)} />
           </Suspense>
         ) : null}
-        {bookmarkPickerOpen ? <BookmarkPickerModal payload={payload} queryKey={queryKey} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
+        {bookmarkPickerOpen ? (
+          <BookmarkPickerModal payload={payload} queryKey={queryKey} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} />
+        ) : null}
       </div>
     )
   }
@@ -1322,13 +1512,27 @@ function ChatWorkspace({
     <div
       className="relative flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"
       style={{
-        gridTemplateColumns: panelCollapsed
-          ? "minmax(0,1fr) 0 2.5rem"
-          : `minmax(0,1fr) 0.25rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
+        gridTemplateColumns: panelCollapsed ? "minmax(0,1fr) 0 2.5rem" : `minmax(0,1fr) 0.25rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
         transition: "grid-template-columns 150ms ease"
       }}
     >
-      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} contextFindOpenerRef={chatFindOpenerRef} payload={payload} prefix={prefix} queryKey={queryKey} showUsageOverlay onComposerMessageSent={handleComposerMessageSent} onFindOpenChange={setChatFindOpen} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} onSelectWorkspaceTab={requestJobsTab} onSurfaceActive={() => setActiveFindSurface("chat")} />
+      <ChatColumn
+        bookmarkTarget={bookmarkTarget}
+        chatId={chatId}
+        commandHandlers={commandHandlers}
+        contextFindOpenerRef={chatFindOpenerRef}
+        payload={payload}
+        prefix={prefix}
+        queryKey={queryKey}
+        showUsageOverlay
+        onComposerMessageSent={handleComposerMessageSent}
+        onFindOpenChange={setChatFindOpen}
+        onNotice={onNotice}
+        onOpenPinnedMessages={openPinnedMessages}
+        onSelectMessage={selectBookmark}
+        onSelectWorkspaceTab={requestJobsTab}
+        onSurfaceActive={() => setActiveFindSurface("chat")}
+      />
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1346,7 +1550,17 @@ function ChatWorkspace({
             title={t("open_panel")}
             type="button"
           >
-            <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg
+              aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
               <rect height="18" rx="2" ry="2" width="18" x="3" y="3" />
               <line x1="15" x2="15" y1="3" y2="21" />
               <polyline points="12 9 15 12 12 15" />
@@ -1374,16 +1588,20 @@ function ChatWorkspace({
           <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => onSettingsOpenChange(false)} />
         </Suspense>
       ) : null}
-      {bookmarkPickerOpen ? <BookmarkPickerModal payload={payload} queryKey={queryKey} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} /> : null}
+      {bookmarkPickerOpen ? (
+        <BookmarkPickerModal payload={payload} queryKey={queryKey} onClose={() => setBookmarkPickerOpen(false)} onSelect={selectBookmark} />
+      ) : null}
     </div>
   )
 }
 
 function mediaItemCount(payload: ChatPayload) {
-  return (payload.chat.chat_image_count ?? (payload.chat.has_chat_images ? 1 : 0)) +
+  return (
+    (payload.chat.chat_image_count ?? (payload.chat.has_chat_images ? 1 : 0)) +
     (payload.video_walkthroughs?.length ?? 0) +
     (payload.chat.whiteboard_snapshot_count ?? 0) +
     (payload.chat.typed_artifact_count ?? 0)
+  )
 }
 
 function MobileChatTopChrome({
@@ -1435,10 +1653,14 @@ function MobileChatTopChrome({
       className={`absolute inset-x-0 top-[var(--mobile-chat-app-header-height,0px)] z-10 border-b border-gray-200 dark:border-gray-700 ${MOBILE_CHROME_SURFACE_CLASS} ${MOBILE_CHROME_TOP_OVERLAP_CLASS} ${autoHideActive ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
       data-testid="mobile-chat-tabs-shell"
       ref={topChromeRef}
-      style={autoHideActive ? {
-        opacity: hidden ? 0 : 1,
-        transform: `translateY(-${offset}px)`
-      } : undefined}
+      style={
+        autoHideActive
+          ? {
+              opacity: hidden ? 0 : 1,
+              transform: `translateY(-${offset}px)`
+            }
+          : undefined
+      }
     >
       <UnderlineTabs
         activeKey={activeMobileTab}
@@ -1456,7 +1678,17 @@ function MobileChatTopChrome({
   )
 }
 
-function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload: ChatPayload; queryKey: ChatQueryKey; onClose: () => void; onSelect: (messageId: number) => void }) {
+function BookmarkPickerModal({
+  payload,
+  queryKey,
+  onClose,
+  onSelect
+}: {
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onClose: () => void
+  onSelect: (messageId: number) => void
+}) {
   const { t } = useT("chat")
   const bookmarksPath = payload.paths.app_bookmarks_index_path || payload.paths.app_bookmarks_path
   const bookmarksQuery = useQuery({
@@ -1473,7 +1705,13 @@ function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-labelledby="bookmark-picker-title" aria-modal="true" className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
+      <section
+        aria-labelledby="bookmark-picker-title"
+        aria-modal="true"
+        className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <SectionHeading id="bookmark-picker-title">{t("bookmarks")}</SectionHeading>
           <button
@@ -1544,7 +1782,10 @@ function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: Chat
   const cancelDisabled = !attachedJob.can_cancel || !cancelPath || submit.isPending || cancel.isPending
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" data-testid="attached-coding-job-strip">
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+      data-testid="attached-coding-job-strip"
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span aria-hidden="true" className={`h-2 w-2 rounded-full ${attachedJob.checkout_uncommitted ? "bg-amber-500" : "bg-emerald-500"}`} />
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("attached_job_label")}</span>
@@ -1552,7 +1793,9 @@ function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: Chat
           <CopyableSlug className="text-xs normal-case" slug={attachedJob.slug} />
         </SlugHoverCard>
         <span className="min-w-0 max-w-[28rem] truncate text-gray-600 dark:text-gray-300">{attachedJob.title}</span>
-        {attachedJob.checkout_uncommitted ? <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("attached_job_uncommitted")}</span> : null}
+        {attachedJob.checkout_uncommitted ? (
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{t("attached_job_uncommitted")}</span>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Button
@@ -1565,13 +1808,7 @@ function AttachedCodingJobStrip({ payload, queryKey, onNotice }: { payload: Chat
         >
           {submit.isPending ? t("attached_job_submitting") : t("attached_job_submit")}
         </Button>
-        <Button
-          disabled={cancelDisabled}
-          onClick={() => cancel.mutate()}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
+        <Button disabled={cancelDisabled} onClick={() => cancel.mutate()} size="sm" type="button" variant="secondary">
           {cancel.isPending ? t("attached_job_detaching") : t("attached_job_detach")}
         </Button>
       </div>
@@ -1588,26 +1825,58 @@ export function ChatTour() {
       target: '[data-tour="chat-compose"]',
       title: t("chat.step_compose_title"),
       content: t("chat.step_compose_content"),
-      placement: "top",
+      placement: "top"
     },
     {
       target: '[data-tour="chat-message-list-top"]',
       title: t("chat.step_messages_title"),
       content: t("chat.step_messages_content"),
-      placement: "bottom",
+      placement: "bottom"
     },
     {
       target: '[data-tour="chat-compose"]',
       title: t("chat.step_slash_title"),
       content: t("chat.step_slash_content"),
-      placement: "top",
-    },
+      placement: "top"
+    }
   ]
 
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpenerRef, payload, prefix, queryKey, showUsageOverlay, onComposerMessageSent, onFindOpenChange, onNotice, onOpenPinnedMessages, onSelectMessage, onSelectWorkspaceTab, onSurfaceActive }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showUsageOverlay: boolean; onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void; onFindOpenChange?: (open: boolean) => void; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void; onSelectWorkspaceTab: () => void; onSurfaceActive: () => void }) {
+function ChatColumn({
+  bookmarkTarget,
+  chatId,
+  commandHandlers,
+  contextFindOpenerRef,
+  payload,
+  prefix,
+  queryKey,
+  showUsageOverlay,
+  onComposerMessageSent,
+  onFindOpenChange,
+  onNotice,
+  onOpenPinnedMessages,
+  onSelectMessage,
+  onSelectWorkspaceTab,
+  onSurfaceActive
+}: {
+  bookmarkTarget: BookmarkTarget | null
+  chatId: string
+  commandHandlers: ChatSystemCommandHandlers
+  contextFindOpenerRef?: MutableRefObject<ContextFindOpener | null>
+  payload: ChatPayload
+  prefix: string
+  queryKey: ChatQueryKey
+  showUsageOverlay: boolean
+  onComposerMessageSent: (details: { hadImageAttachments: boolean }) => void
+  onFindOpenChange?: (open: boolean) => void
+  onNotice: (message: string | null) => void
+  onOpenPinnedMessages: () => void
+  onSelectMessage: (messageId: number) => void
+  onSelectWorkspaceTab: () => void
+  onSurfaceActive: () => void
+}) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
@@ -1634,10 +1903,13 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
     setContextFindOpen(false)
   }, [payload.chat.id])
 
-  const handleFindOpenChange = useCallback((open: boolean) => {
-    setContextFindOpen(open)
-    onFindOpenChange?.(open)
-  }, [onFindOpenChange])
+  const handleFindOpenChange = useCallback(
+    (open: boolean) => {
+      setContextFindOpen(open)
+      onFindOpenChange?.(open)
+    },
+    [onFindOpenChange]
+  )
 
   // Deliberately scoped to chat.id alone (not has_more_older, which this
   // same effect above tracks too): has_more_older can flip mid-session
@@ -1657,7 +1929,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
       className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : alignPlainPlanningHeader ? "gap-1 sm:gap-4" : "gap-1 sm:gap-2"}`}
       onFocusCapture={onSurfaceActive}
       onPointerDownCapture={onSurfaceActive}
-      style={composerHeight != null ? { "--chat-composer-height": `${composerHeight}px` } as CSSProperties : undefined}
+      style={composerHeight != null ? ({ "--chat-composer-height": `${composerHeight}px` } as CSSProperties) : undefined}
     >
       <ChatTour />
       {!landing && isDesktop ? (
@@ -1672,8 +1944,12 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
             <GearIcon className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className={`flex min-w-0 items-center gap-2 text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
-              <span className="min-w-0 flex-1 truncate" title={title}>{title}</span>
+            <h1
+              className={`flex min-w-0 items-center gap-2 text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
+            >
+              <span className="min-w-0 flex-1 truncate" title={title}>
+                {title}
+              </span>
               <ProviderAvailabilityWarning availability={payload.chat.provider_availability} className="mt-1" />
             </h1>
             {showsLocalConnection ? (
@@ -1692,20 +1968,67 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, contextFindOpener
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
       {activeGoal ? <ActiveGoalStrip goal={activeGoal} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      {payload.local_mode_enabled && payload.chat.mode === "local" ? (
-        <LocalDaemonBanner payload={payload} />
-      ) : null}
+      {payload.local_mode_enabled && payload.chat.mode === "local" ? <LocalDaemonBanner payload={payload} /> : null}
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
       {!landing ? <AttachedCodingJobStrip payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      <div className={`relative min-h-0 overflow-hidden rounded-none border-0 border-gray-200 bg-white transition-all duration-500 ease-out xl:rounded-t xl:border xl:border-b-0 dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
+      <div
+        className={`relative min-h-0 overflow-hidden rounded-none border-0 border-gray-200 bg-white transition-all duration-500 ease-out xl:rounded-t xl:border xl:border-b-0 dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}
+        data-tour="chat-message-list"
+      >
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
-        <MessageStream bookmarkTarget={bookmarkTarget} contextFindOpenerRef={contextFindOpenerRef} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onFindOpenChange={handleFindOpenChange} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
+        <MessageStream
+          bookmarkTarget={bookmarkTarget}
+          contextFindOpenerRef={contextFindOpenerRef}
+          olderMessageRequesterRef={olderMessageRequesterRef}
+          payload={payload}
+          prefix={prefix}
+          queryKey={queryKey}
+          onCanLoadOlderChange={setCanLoadEarlierMessages}
+          onFindOpenChange={handleFindOpenChange}
+          onNotice={onNotice}
+          onSelectWorkspaceTab={onSelectWorkspaceTab}
+        />
         {showUsageOverlay && !contextFindOpen ? <UsageOverlay payload={payload} /> : null}
-        {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} /> : null}
+        {!landing ? (
+          <Compose
+            key={chatId}
+            canLoadEarlierMessages={canLoadEarlierMessages}
+            chatId={chatId}
+            commandHandlers={commandHandlers}
+            onComposerHeightChange={setComposerHeight}
+            onLoadEarlierMessages={loadEarlierMessagesFromCompose}
+            payload={payload}
+            prefix={prefix}
+            queryKey={queryKey}
+            onNotice={onNotice}
+            onMessageSent={(details) => {
+              setHasSentFirstMessage(true)
+              onComposerMessageSent(details)
+            }}
+          />
+        ) : null}
       </div>
       {landing ? (
         <div className="w-full max-w-sm sm:max-w-2xl">
-          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} hideScratchpadControls onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={(details) => { setHasSentFirstMessage(true); onComposerMessageSent(details) }} />
+          <Compose
+            key={chatId}
+            autoFocus
+            canLoadEarlierMessages={canLoadEarlierMessages}
+            chatId={chatId}
+            commandHandlers={commandHandlers}
+            floating={false}
+            hideScratchpadControls
+            onComposerHeightChange={setComposerHeight}
+            onLoadEarlierMessages={loadEarlierMessagesFromCompose}
+            payload={payload}
+            prefix={prefix}
+            queryKey={queryKey}
+            onNotice={onNotice}
+            onMessageSent={(details) => {
+              setHasSentFirstMessage(true)
+              onComposerMessageSent(details)
+            }}
+          />
         </div>
       ) : null}
     </section>
@@ -1716,7 +2039,17 @@ function currentChatGoal(payload: ChatPayload) {
   return payload.active_goal ?? payload.chat.active_goal ?? null
 }
 
-function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function ActiveGoalStrip({
+  goal,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  goal: ChatGoal
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
@@ -1744,47 +2077,106 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
   const goalTextId = `active-goal-text-${goal.id}`
 
   return (
-    <section className="flex w-full flex-col gap-3 rounded border border-info/30 bg-info/5 px-3 py-2.5 text-sm text-gray-800 dark:border-info/40 dark:bg-gray-900 dark:text-gray-100" data-testid="active-goal-strip">
+    <section
+      className="flex w-full flex-col gap-3 rounded border border-info/30 bg-info/5 px-3 py-2.5 text-sm text-gray-800 dark:border-info/40 dark:bg-gray-900 dark:text-gray-100"
+      data-testid="active-goal-strip"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${goal.status === "active" ? "bg-emerald-500" : goal.status === "paused" ? "bg-amber-500" : goal.status === "blocked" ? "bg-red-500" : "bg-gray-400"}`} aria-hidden="true" />
+            <span
+              className={`h-2 w-2 rounded-full ${goal.status === "active" ? "bg-emerald-500" : goal.status === "paused" ? "bg-amber-500" : goal.status === "blocked" ? "bg-red-500" : "bg-gray-400"}`}
+              aria-hidden="true"
+            />
             <span className="font-semibold">{t("goal_heading")}</span>
-            <span className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">{statusLabel}</span>
+            <span className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">
+              {statusLabel}
+            </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">{policyLabel}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <GoalIconButton ariaControls={goalTextId} ariaExpanded={goalTextExpanded} disabled={false} label={goalTextExpanded ? t("goal_collapse") : t("goal_expand")} title={goalTextExpanded ? t("goal_collapse") : t("goal_expand")} onClick={() => setGoalTextExpanded((value) => !value)}>
+          <GoalIconButton
+            ariaControls={goalTextId}
+            ariaExpanded={goalTextExpanded}
+            disabled={false}
+            label={goalTextExpanded ? t("goal_collapse") : t("goal_expand")}
+            title={goalTextExpanded ? t("goal_collapse") : t("goal_expand")}
+            onClick={() => setGoalTextExpanded((value) => !value)}
+          >
             <ChevronIcon className={`h-4 w-4 transition-transform ${goalTextExpanded ? "rotate-90" : ""}`} />
           </GoalIconButton>
-          <GoalIconButton disabled={disabled || mutateGoal.isPending || !canMutateGoal} label={t("goal_edit")} title={busyTitle || t("goal_edit")} onClick={() => setEditOpen(true)}>
+          <GoalIconButton
+            disabled={disabled || mutateGoal.isPending || !canMutateGoal}
+            label={t("goal_edit")}
+            title={busyTitle || t("goal_edit")}
+            onClick={() => setEditOpen(true)}
+          >
             <PencilIcon className="h-4 w-4" />
           </GoalIconButton>
           {goal.status === "paused" ? (
-            <GoalIconButton disabled={disabled || mutateGoal.isPending} label={t("goal_resume")} title={busyTitle || t("goal_resume")} onClick={() => mutateGoal.mutate("resume")}>
+            <GoalIconButton
+              disabled={disabled || mutateGoal.isPending}
+              label={t("goal_resume")}
+              title={busyTitle || t("goal_resume")}
+              onClick={() => mutateGoal.mutate("resume")}
+            >
               <PlayIcon />
             </GoalIconButton>
           ) : (
-            <GoalIconButton disabled={disabled || mutateGoal.isPending || goal.status !== "active"} label={t("goal_pause")} title={busyTitle || t("goal_pause")} onClick={() => mutateGoal.mutate("pause")}>
+            <GoalIconButton
+              disabled={disabled || mutateGoal.isPending || goal.status !== "active"}
+              label={t("goal_pause")}
+              title={busyTitle || t("goal_pause")}
+              onClick={() => mutateGoal.mutate("pause")}
+            >
               <PauseIcon />
             </GoalIconButton>
           )}
-          <GoalIconButton disabled={disabled || mutateGoal.isPending || !canMutateGoal} label={t("goal_stop")} title={busyTitle || t("goal_stop")} onClick={() => mutateGoal.mutate("stop")}>
+          <GoalIconButton
+            disabled={disabled || mutateGoal.isPending || !canMutateGoal}
+            label={t("goal_stop")}
+            title={busyTitle || t("goal_stop")}
+            onClick={() => mutateGoal.mutate("stop")}
+          >
             <StopIcon />
           </GoalIconButton>
         </div>
       </div>
-      <div id={goalTextId} className={`min-w-0 break-words text-gray-900 dark:text-gray-100 ${goalTextExpanded ? "max-h-[25vh] overflow-y-auto pr-1" : "line-clamp-1 overflow-hidden"}`} data-testid="active-goal-text">
+      <div
+        id={goalTextId}
+        className={`min-w-0 break-words text-gray-900 dark:text-gray-100 ${goalTextExpanded ? "max-h-[25vh] overflow-y-auto pr-1" : "line-clamp-1 overflow-hidden"}`}
+        data-testid="active-goal-text"
+      >
         <p className="whitespace-pre-wrap">{goal.prompt}</p>
-        {goal.completion_condition ? <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-400">{t("goal_completion_prefix", { condition: goal.completion_condition })}</p> : null}
+        {goal.completion_condition ? (
+          <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-400">
+            {t("goal_completion_prefix", { condition: goal.completion_condition })}
+          </p>
+        ) : null}
       </div>
       {editOpen ? <GoalEditModal goal={goal} payload={payload} queryKey={queryKey} onClose={() => setEditOpen(false)} onNotice={onNotice} /> : null}
     </section>
   )
 }
 
-function GoalIconButton({ ariaControls, ariaExpanded, children, disabled, label, title, onClick }: { ariaControls?: string; ariaExpanded?: boolean; children: ReactNode; disabled: boolean; label: string; title: string; onClick: () => void }) {
+function GoalIconButton({
+  ariaControls,
+  ariaExpanded,
+  children,
+  disabled,
+  label,
+  title,
+  onClick
+}: {
+  ariaControls?: string
+  ariaExpanded?: boolean
+  children: ReactNode
+  disabled: boolean
+  label: string
+  title: string
+  onClick: () => void
+}) {
   return (
     <button
       aria-controls={ariaControls}
@@ -1801,7 +2193,19 @@ function GoalIconButton({ ariaControls, ariaExpanded, children, disabled, label,
   )
 }
 
-function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: ChatGoal; payload: ChatPayload; queryKey: ChatQueryKey; onClose: () => void; onNotice: (message: string | null) => void }) {
+function GoalEditModal({
+  goal,
+  payload,
+  queryKey,
+  onClose,
+  onNotice
+}: {
+  goal: ChatGoal
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onClose: () => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [prompt, setPrompt] = useState(goal.prompt)
@@ -1812,13 +2216,14 @@ function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: C
   const mode = goalMode(goal, payload)
   const agentActive = isAgentActive(payload)
   const updateGoal = useMutation({
-    mutationFn: () => patchChatGoal(payload.chat.id, {
-      prompt,
-      completion_condition: completionCondition.trim() || null,
-      approval_policy: approvalPolicy,
-      auto_file_proposals: mode === "planning" ? autoFileProposals : false,
-      auto_submit_jobs: mode === "coding" || mode === "local" ? autoSubmitJobs : false
-    }),
+    mutationFn: () =>
+      patchChatGoal(payload.chat.id, {
+        prompt,
+        completion_condition: completionCondition.trim() || null,
+        approval_policy: approvalPolicy,
+        auto_file_proposals: mode === "planning" ? autoFileProposals : false,
+        auto_submit_jobs: mode === "coding" || mode === "local" ? autoSubmitJobs : false
+      }),
     onSuccess: (updated) => {
       mergeChatPayloadUpdate(queryClient, queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
@@ -1837,45 +2242,119 @@ function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: C
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <form aria-labelledby="goal-edit-title" aria-modal="true" className="w-full max-w-xl rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} onSubmit={submit} role="dialog">
+      <form
+        aria-labelledby="goal-edit-title"
+        aria-modal="true"
+        className="w-full max-w-xl rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={submit}
+        role="dialog"
+      >
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <SectionHeading id="goal-edit-title">{t("goal_edit_title")}</SectionHeading>
-          <button aria-label={t("goal_edit_close")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+          <button
+            aria-label={t("goal_edit_close")}
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            onClick={onClose}
+            type="button"
+          >
             <CloseIcon className="h-4 w-4" />
           </button>
         </header>
         <div className="space-y-4 px-4 py-4">
-          {agentActive ? <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("goal_controls_disabled_agent_active")}</p> : null}
+          {agentActive ? (
+            <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+              {t("goal_controls_disabled_agent_active")}
+            </p>
+          ) : null}
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             {t("goal_prompt_label")}
-            <textarea className="mt-1 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" disabled={agentActive || updateGoal.isPending} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+            <textarea
+              className="mt-1 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              disabled={agentActive || updateGoal.isPending}
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
           </label>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             {t("goal_completion_label")}
-            <textarea className="mt-1 min-h-20 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" disabled={agentActive || updateGoal.isPending} value={completionCondition} onChange={(event) => setCompletionCondition(event.target.value)} />
+            <textarea
+              className="mt-1 min-h-20 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              disabled={agentActive || updateGoal.isPending}
+              value={completionCondition}
+              onChange={(event) => setCompletionCondition(event.target.value)}
+            />
           </label>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_approval_policy_label")}</legend>
-            <GoalRadio label={t("goal_policy_manual")} checked={approvalPolicy === "manual"} disabled={agentActive || updateGoal.isPending} name="goal-approval-policy" onChange={() => setApprovalPolicy("manual")} />
-            <GoalRadio label={t("goal_policy_auto")} checked={approvalPolicy === "auto"} disabled={agentActive || updateGoal.isPending} name="goal-approval-policy" onChange={() => setApprovalPolicy("auto")} />
+            <GoalRadio
+              label={t("goal_policy_manual")}
+              checked={approvalPolicy === "manual"}
+              disabled={agentActive || updateGoal.isPending}
+              name="goal-approval-policy"
+              onChange={() => setApprovalPolicy("manual")}
+            />
+            <GoalRadio
+              label={t("goal_policy_auto")}
+              checked={approvalPolicy === "auto"}
+              disabled={agentActive || updateGoal.isPending}
+              name="goal-approval-policy"
+              onChange={() => setApprovalPolicy("auto")}
+            />
           </fieldset>
           {mode === "planning" ? (
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_planning_policy_label")}</legend>
-              <GoalRadio label={t("goal_proposals_draft_only")} checked={!autoFileProposals} disabled={agentActive || updateGoal.isPending} name="goal-planning-policy" onChange={() => setAutoFileProposals(false)} />
-              <GoalRadio label={t("goal_proposals_auto_file")} checked={autoFileProposals} disabled={agentActive || updateGoal.isPending} name="goal-planning-policy" onChange={() => setAutoFileProposals(true)} />
+              <GoalRadio
+                label={t("goal_proposals_draft_only")}
+                checked={!autoFileProposals}
+                disabled={agentActive || updateGoal.isPending}
+                name="goal-planning-policy"
+                onChange={() => setAutoFileProposals(false)}
+              />
+              <GoalRadio
+                label={t("goal_proposals_auto_file")}
+                checked={autoFileProposals}
+                disabled={agentActive || updateGoal.isPending}
+                name="goal-planning-policy"
+                onChange={() => setAutoFileProposals(true)}
+              />
             </fieldset>
           ) : (
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_coding_policy_label")}</legend>
-              <GoalRadio label={t("goal_jobs_draft_only")} checked={!autoSubmitJobs} disabled={agentActive || updateGoal.isPending} name="goal-coding-policy" onChange={() => setAutoSubmitJobs(false)} />
-              <GoalRadio label={t("goal_jobs_auto_submit")} checked={autoSubmitJobs} disabled={agentActive || updateGoal.isPending} name="goal-coding-policy" onChange={() => setAutoSubmitJobs(true)} />
+              <GoalRadio
+                label={t("goal_jobs_draft_only")}
+                checked={!autoSubmitJobs}
+                disabled={agentActive || updateGoal.isPending}
+                name="goal-coding-policy"
+                onChange={() => setAutoSubmitJobs(false)}
+              />
+              <GoalRadio
+                label={t("goal_jobs_auto_submit")}
+                checked={autoSubmitJobs}
+                disabled={agentActive || updateGoal.isPending}
+                name="goal-coding-policy"
+                onChange={() => setAutoSubmitJobs(true)}
+              />
             </fieldset>
           )}
         </div>
         <footer className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
-          <button className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onClose} type="button">{t("cancel")}</button>
-          <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitDisabled} type="submit">{t("save")}</button>
+          <button
+            className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            onClick={onClose}
+            type="button"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={submitDisabled}
+            type="submit"
+          >
+            {t("save")}
+          </button>
         </footer>
       </form>
     </div>
@@ -1942,7 +2421,17 @@ function StopIcon({ className = "h-4 w-4" }: { className?: string }) {
 // handler (selectBookmark) since navigating to a message is identical for
 // bookmarks and pins. "View all" (rendered only when there are more than 3
 // pins) opens the full Pinned tab in the workspace panel.
-function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { payload: ChatPayload; queryKey: ChatQueryKey; onSelectMessage: (messageId: number) => void; onViewAll: () => void }) {
+function PinnedMessagesBar({
+  payload,
+  queryKey,
+  onSelectMessage,
+  onViewAll
+}: {
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onSelectMessage: (messageId: number) => void
+  onViewAll: () => void
+}) {
   const { t } = useT("chat")
   const search = queryKey[2]
   const pinsQuery = useChatPins(payload.chat.id, search)
@@ -1954,7 +2443,11 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { 
   const remaining = pins.length - visible.length
 
   return (
-    <div aria-label={t("aria_pinned_messages")} className="flex flex-col gap-0.5 rounded border border-gray-200 bg-gray-50 p-1.5 dark:border-gray-700 dark:bg-gray-900" data-testid="pinned-messages-bar">
+    <div
+      aria-label={t("aria_pinned_messages")}
+      className="flex flex-col gap-0.5 rounded border border-gray-200 bg-gray-50 p-1.5 dark:border-gray-700 dark:bg-gray-900"
+      data-testid="pinned-messages-bar"
+    >
       {visible.map((pin) => (
         <button
           className="flex min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left text-xs text-gray-700 hover:bg-white hover:shadow-sm dark:text-gray-300 dark:hover:bg-gray-800"
@@ -1967,11 +2460,7 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { 
         </button>
       ))}
       {remaining > 0 ? (
-        <button
-          className="rounded px-1.5 py-0.5 text-left text-xs font-medium text-brand hover:underline"
-          onClick={onViewAll}
-          type="button"
-        >
+        <button className="rounded px-1.5 py-0.5 text-left text-xs font-medium text-brand hover:underline" onClick={onViewAll} type="button">
           {t("pinned_messages_more", { count: remaining })}
         </button>
       ) : null}
@@ -1994,9 +2483,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
     staleTime: Infinity
   })
   const session = sessionQuery.data?.daemon_session
-  const command = session?.auth_token
-    ? t("local_daemon_command", { chatSessionId: session.chat_session_id, authToken: session.auth_token })
-    : null
+  const command = session?.auth_token ? t("local_daemon_command", { chatSessionId: session.chat_session_id, authToken: session.auth_token }) : null
 
   function copyCommand() {
     if (!command) return
@@ -2013,7 +2500,9 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
         {isDesktop ? (
           <>
             <div className="mt-3 flex items-center gap-2">
-              <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">{command ?? t("local_daemon_command_loading")}</code>
+              <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">
+                {command ?? t("local_daemon_command_loading")}
+              </code>
               <button
                 className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!command}
@@ -2037,7 +2526,9 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
       {isDesktop ? (
         <>
           <div className="mt-3 flex items-center gap-2">
-            <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{command ?? t("local_daemon_command_loading")}</code>
+            <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+              {command ?? t("local_daemon_command_loading")}
+            </code>
             <button
               className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!command}

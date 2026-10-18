@@ -90,6 +90,15 @@ startup with `required MCP servers failed to initialize`. Tokens from a
 genuinely superseded turn are still rejected, because a newer turn overwrites
 the recorded id.
 
+If a chat worker disappears, the orphan reaper distinguishes infrastructure
+loss from an ordinary job failure. A Solid Queue `ProcessPrunedError` and a
+turn whose owning agent process vanished enter the bounded chat-turn retry
+path; other failed executions post the terminal failure message and clear the
+turn state. Retrying re-runs the same logical turn without duplicating its user
+message, resuming persisted provider state when available. The browser polls
+active turns every 3 seconds initially, then backs off to 10 and 30 seconds so
+a delayed worker-pruning decision cannot cause full-rate polling indefinitely.
+
 ## Grouped pending actions
 
 A `PendingActionGroup` links several `ChatPendingAction` rows created
