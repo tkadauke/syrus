@@ -15,6 +15,7 @@ module VideoWalkthroughs
       # sources are scaled down, smaller ones are left alone (never upscale).
       TARGET_HEIGHT = 720
       CRF = 30
+      COMMAND_TIMEOUT_SECONDS = 30.minutes
 
       class << self
         attr_writer :runner
@@ -23,8 +24,9 @@ module VideoWalkthroughs
           @runner ||= lambda do |cmd|
             current_run = Thread.current[:syrus_current_run]
             capture = ProcessRunner.new(
-              env: {}, command: cmd, mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
-              timeout: 30.minutes, kind: "media", run: current_run, workflow: current_run&.workflow,
+              env: ProcessRunner.forwarded_env(%w[PATH HOME]), command: cmd,
+              mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+              timeout: COMMAND_TIMEOUT_SECONDS, kind: "media", run: current_run, workflow: current_run&.workflow,
               chat_session: Thread.current[:syrus_current_chat_session]
             ).capture
             [ "#{capture.stdout}#{capture.stderr}", capture ]

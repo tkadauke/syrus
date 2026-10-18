@@ -67,6 +67,31 @@ RSpec.describe VideoWalkthroughs::Gemini::FrameExtractor do
 
       expect(described_class.available?).to be false
     end
+    it "skips a timed-out frame and finalizes the production command" do
+      stub_const("VideoWalkthroughs::Gemini::FrameExtractor::COMMAND_TIMEOUT_SECONDS", 0.05)
+      Dir.mktmpdir do |dir|
+        ffmpeg = File.join(dir, "ffmpeg")
+        File.write(ffmpeg, <<~SH)
+          #!/bin/sh
+          [ "$1" = "-version" ] && exit 0
+          /bin/sleep 30
+        SH
+        FileUtils.chmod(0o755, ffmpeg)
+        previous_path = ENV["PATH"]
+        ENV["PATH"] = "#{dir}:#{previous_path}"
+        described_class.runner = nil
+
+        frames = described_class.extract(
+          video_path: "/tmp/video.webm",
+          timestamps: [ { seconds: 5, label: "Issue" } ]
+        )
+        expect(frames).to eq([])
+      ensure
+        ENV["PATH"] = previous_path
+      end
+
+      expect(SpawnedProcess.where(kind: "media").order(:id).last).to have_attributes(outcome: "timed_out")
+    end
   end
 
   describe ".extract" do

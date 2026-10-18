@@ -33,6 +33,9 @@ module BuildCache
           network: "grader", timeout: TIMEOUT_SECONDS, kind: "runtime_probe", run: current_run,
           workflow: current_run&.workflow
         ).capture
+        if capture.result.timed_out?
+          Rails.logger.warn("[BuildCache::DaemonRestarter] timed out after #{TIMEOUT_SECONDS} seconds")
+        end
         capture.success?
       rescue Errno::ENOENT
         false # sccache not on PATH -- not every worker image build has it

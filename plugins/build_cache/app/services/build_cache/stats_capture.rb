@@ -18,6 +18,9 @@ module BuildCache
           mounts: ProcessRunner.mounts(chdir), network: "grader", timeout: TIMEOUT_SECONDS,
           kind: "runtime_probe", run: current_run, workflow: current_run&.workflow
         ).capture
+        if result.result.timed_out?
+          Rails.logger.warn("[BuildCache::StatsCapture] timed out after #{TIMEOUT_SECONDS} seconds")
+        end
         return nil unless result.success?
 
         JSON.parse(result.stdout)
