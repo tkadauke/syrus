@@ -1,5 +1,6 @@
 require "rails_helper"
 require_relative "../../../plugins/rails/lib/syrus_rails"
+require "open3"
 
 RSpec.describe SyrusRails::PreviewProvider do
   subject(:provider) { described_class.new }
@@ -241,6 +242,24 @@ RSpec.describe SyrusRails::PreviewProvider do
         expect(provider.setup_commands.size).to eq(3)
       end
     end
+
+    it "fails the readiness command with a precise diagnostic when PostgreSQL stays unavailable" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "database.yml"), "development:\n  adapter: postgresql\n")
+        stub_const("SyrusRails::PreviewProvider::POSTGRESQL_READINESS_TIMEOUT_SECONDS", 0)
+        provider.detect?(dir)
+
+        _stdout, stderr, status = Open3.capture3(
+          { "DATABASE_URL" => "postgresql://preview:secret-value@127.0.0.1:1/postgres" },
+          "bash", "-c", provider.setup_commands.last
+        )
+
+        expect(status).not_to be_success
+        expect(stderr).to include("PostgreSQL preview infrastructure was not ready within 0 seconds")
+        expect(stderr).not_to include("secret-value")
+      end
+    end
   end
 
   describe "#unset_env" do
@@ -298,6 +317,32 @@ RSpec.describe "SyrusRails plugin registration" do
       Dir.mktmpdir do |dir|
         provider = Syrus::PluginRegistry.providers_for(:preview_provider).first
         expect(provider.detect?(dir)).to be false
+      end
+    end
+
+    it "re-detects the development adapter when one registered provider serves different repositories" do
+      SyrusRails.register!
+      registered_provider = Syrus::PluginRegistry.providers_for(:preview_provider).first
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("SYRUS_RAILS_PREVIEW_POSTGRES_URL").and_return("postgresql://preview:secret@postgres/postgres")
+
+      Dir.mktmpdir do |postgres_dir|
+        Dir.mktmpdir do |sqlite_dir|
+          [ postgres_dir, sqlite_dir ].each do |dir|
+            FileUtils.touch(File.join(dir, "Gemfile"))
+            FileUtils.mkdir_p(File.join(dir, "config"))
+            FileUtils.touch(File.join(dir, "config", "application.rb"))
+            FileUtils.mkdir_p(File.join(dir, "bin"))
+            FileUtils.touch(File.join(dir, "bin", "rails"))
+          end
+          File.write(File.join(postgres_dir, "config", "database.yml"), "development:\n  adapter: postgresql\n")
+          File.write(File.join(sqlite_dir, "config", "database.yml"), "development:\n  adapter: sqlite3\n")
+
+          expect(registered_provider.detect?(postgres_dir)).to be(true)
+          expect(registered_provider.env_for(key: "postgres-preview")).to include("DATABASE_URL")
+          expect(registered_provider.detect?(sqlite_dir)).to be(true)
+          expect(registered_provider.env_for(key: "sqlite-preview")).to eq({})
+        end
       end
     end
   end
