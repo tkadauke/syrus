@@ -318,6 +318,8 @@ RSpec.describe ProcessRunner, :ci_only do
     end
 
     expect(alive).to be(false), "escaped process #{escaped_pid} outlived its grader"
+  end
+
   it "times out capture commands that remain silent" do
     capture = described_class.new(
       env: {},
