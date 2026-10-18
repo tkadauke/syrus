@@ -41,10 +41,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 COPY --from=build /src/build/bin/whisper-server /usr/local/bin/whisper-server
 COPY --from=build /src/models/ggml-base.en.bin /opt/whisper/models/ggml-base.en.bin
+COPY --chown=whisper:whisper gateway.py /opt/whisper/gateway.py
 
 USER whisper
 WORKDIR /tmp/whisper-stt
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["curl", "-fsS", "http://127.0.0.1:8080/health"]
-ENTRYPOINT ["/usr/local/bin/whisper-server"]
-CMD ["--host", "0.0.0.0", "--port", "8080", "--model", "/opt/whisper/models/ggml-base.en.bin", "--convert", "--tmp-dir", "/tmp/whisper-stt"]
+ENTRYPOINT ["python3", "/opt/whisper/gateway.py"]

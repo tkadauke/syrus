@@ -128,6 +128,17 @@ RSpec.describe ChatDictationChannel, type: :channel do
     expect(transmissions.last).to include("type" => "cancelled")
   end
 
+  it "cancels provider resources when the client disconnects" do
+    enable_speech_to_text!
+    stub_streaming_provider!
+    subscribe(chat_session_id: chat.id)
+    perform :receive, { "type" => "start", "content_type" => "audio/webm" }
+
+    unsubscribe
+
+    expect(provider_stream.cancelled).to be(true)
+  end
+
   it "checks out a connection inside the Rails executor for timeout work" do
     enable_speech_to_text!
     stub_streaming_provider!
@@ -168,11 +179,12 @@ RSpec.describe ChatDictationChannel, type: :channel do
 
   class FakeStreamingProviderStream
     attr_accessor :request
-    attr_reader :audio, :finished
+    attr_reader :audio, :finished, :cancelled
 
     def initialize
       @audio = []
       @finished = false
+      @cancelled = false
     end
 
     def accept_audio(bytes)
@@ -184,7 +196,9 @@ RSpec.describe ChatDictationChannel, type: :channel do
       request.on_complete.call(reason: "finalized")
     end
 
-    def cancel; end
+    def cancel
+      @cancelled = true
+    end
 
     def emit_delta(text, final:)
       request.on_delta.call(ChatSpeechToText::Providers::StreamingDelta.new(text: text, final: final, confidence: nil))

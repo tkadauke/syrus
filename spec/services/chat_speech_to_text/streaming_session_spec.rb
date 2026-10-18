@@ -69,11 +69,21 @@ RSpec.describe ChatSpeechToText::StreamingSession do
     expect(idle_session).to be_timed_out
   end
 
+  it "releases the provider stream when cancelled" do
+    started = session
+    started.start(on_delta: ->(_) { }, on_error: ->(_) { }, on_complete: ->(*) { })
+
+    started.cancel(reason: "disconnect")
+
+    expect(provider_stream.cancelled).to be(true)
+  end
+
   class FakeProviderStream
-    attr_reader :audio
+    attr_reader :audio, :cancelled
 
     def initialize
       @audio = []
+      @cancelled = false
     end
 
     def accept_audio(bytes)
@@ -82,7 +92,9 @@ RSpec.describe ChatSpeechToText::StreamingSession do
 
     def finish; end
 
-    def cancel; end
+    def cancel
+      @cancelled = true
+    end
 
     def emit_delta(text)
       @request.on_delta.call(ChatSpeechToText::Providers::StreamingDelta.new(text: text, final: false, confidence: nil))

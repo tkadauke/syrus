@@ -16,6 +16,12 @@ The stream is ephemeral. Syrus does not persist interim or final dictation text;
 the frontend keeps the buffered audio blob while streaming so an `error` frame's
 `fallback` payload can retry the existing backend batch endpoint.
 
+Interim transcript frames replace the current hypothesis in place. A final
+frame commits that range exactly once; it does not append a duplicate. Text
+that was already in the composer remains outside the replaceable dictation
+range. Browser Web Speech results use the same interim replacement and final
+commit behavior.
+
 ## Backend deployment
 
 Chat dictation is feature-gated by `chat_speech_to_text`. With the flag off,
@@ -31,8 +37,12 @@ installed, enabled, and currently available. The bundled `whisper_stt` plugin
 provides the local whisper.cpp backend: enable Plugin Runtime, enable
 `whisper_stt`, and wait for its `whisper-stt` service to become healthy. Once
 `PluginRuntime::Services.endpoint_for("whisper-stt")` has an endpoint, the chat
-capability payload reports `modes.backend_batch.available: true` and the
-microphone button sends browser audio to the daemon.
+capability payload reports both backend modes available when the service health
+response explicitly advertises streaming. The microphone sends ordered chunks
+over ActionCable while retaining the continuous recording for batch fallback.
+The Whisper gateway accumulates those chunks as one media file and emits
+revised hypotheses; arbitrary WebM continuation fragments are not decoded on
+their own.
 
 Without `whisper_stt`, with the plugin disabled, or while the daemon is absent,
 starting, unhealthy, or otherwise unreachable through Plugin Runtime,
@@ -64,6 +74,9 @@ Operational logs are structured as `chat_speech_to_text.*` events and include
 mode, provider name, latency, fallback reason, and error class/code. They must
 not include transcript text, prompts, uploaded audio bytes, executable paths, or
 model paths. Provider-specific diagnostics belong in the provider plugin's docs.
+Disconnect, cancel, idle timeout, normal finalization, and provider error paths
+close the provider session. Failures emit mode and fallback metadata without
+audio bytes or transcript text.
 
 ## Querying STT operational logs from chat
 
