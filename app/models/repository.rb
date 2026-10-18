@@ -106,6 +106,7 @@ class Repository < ApplicationRecord
   has_many :chat_pending_actions, dependent: :destroy
   has_many :main_branch_health_checks, dependent: :destroy
   has_many :preview_environments, dependent: :destroy
+  has_many :repository_execution_probes, dependent: :destroy
   has_many :cognitive_engagement_events, dependent: :destroy
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }

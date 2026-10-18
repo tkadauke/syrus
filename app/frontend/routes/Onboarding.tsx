@@ -1,7 +1,7 @@
 import { withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { startOnboardingChat } from "../api/chats"
@@ -10,7 +10,7 @@ import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
 import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
-import { fetchRepositoryReadiness } from "../api/repositories"
+import { fetchRepositoryReadiness, overrideRepositoryReadinessProbe, startRepositoryReadinessProbe } from "../api/repositories"
 import { Surface } from "../components/ui/Surface"
 import { TonePill } from "../components/StatusPill"
 
@@ -146,7 +146,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         </ol>
       </section>
 
-      {repositoryId ? <RepositoryReadinessReport loading={readiness.isLoading} report={readiness.data?.readiness} /> : null}
+      {repositoryId ? <RepositoryReadinessReport loading={readiness.isLoading} repositoryId={repositoryId} report={readiness.data?.readiness} /> : null}
 
       {chatError ? (
         <p
@@ -177,8 +177,12 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   )
 }
 
-function RepositoryReadinessReport({ loading, report }: { loading: boolean; report?: Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"] }) {
+function RepositoryReadinessReport({ loading, repositoryId, report }: { loading: boolean; repositoryId: number; report?: Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"] }) {
   const { t } = useT("common")
+  const queryClient = useQueryClient()
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["repository-readiness", repositoryId] })
+  const runProbe = useMutation({ mutationFn: () => startRepositoryReadinessProbe(repositoryId), onSuccess: refresh })
+  const overrideProbe = useMutation({ mutationFn: (probeId: number) => overrideRepositoryReadinessProbe(repositoryId, probeId), onSuccess: refresh })
   if (loading) return <Surface className="text-sm text-text-muted">{t("onboarding.readiness_loading")}</Surface>
   if (!report) return null
   const blocked = report.status === "needs_configuration" || report.status === "incompatible"
@@ -211,8 +215,29 @@ function RepositoryReadinessReport({ loading, report }: { loading: boolean; repo
         </>
       ) : null}
       <p className="mt-3 text-xs text-text-muted">{t("onboarding.readiness_advisory")}</p>
+      <div className="mt-4 border-t border-border-subtle pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-text-primary">{t("onboarding.readiness_probe")}</h3>
+          <button className={buttonClasses({ variant: "secondary", size: "sm" })} disabled={runProbe.isPending || report.execution_probe?.status === "queued" || report.execution_probe?.status === "running"} onClick={() => runProbe.mutate()} type="button">
+            {report.execution_probe ? t("onboarding.readiness_probe_retry") : t("onboarding.readiness_probe_run")}
+          </button>
+        </div>
+        {report.execution_probe ? <ExecutionProbe probe={report.execution_probe} onOverride={() => overrideProbe.mutate(report.execution_probe!.id)} /> : <p className="mt-1 text-xs text-text-muted">{t("onboarding.readiness_probe_description")}</p>}
+      </div>
     </Surface>
   )
+}
+
+function ExecutionProbe({ probe, onOverride }: { probe: NonNullable<Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"]["execution_probe"]>; onOverride: () => void }) {
+  const { t } = useT("common")
+  return <div className="mt-2 space-y-2 text-xs text-text-secondary">
+    <p><strong>{probe.status}</strong>{probe.result.summary ? ` — ${probe.result.summary}` : ""}</p>
+    {probe.result.duration_s != null ? <p>{t("onboarding.readiness_probe_metrics", { duration: probe.result.duration_s, bytes: probe.result.disk_growth_bytes ?? 0, cleanup: probe.result.cleanup })}</p> : null}
+    {probe.result.missing_executables?.length ? <p>{t("onboarding.readiness_probe_missing_executables", { names: probe.result.missing_executables.join(", ") })}</p> : null}
+    {probe.result.missing_services?.length ? <p>{t("onboarding.readiness_probe_missing_services", { names: probe.result.missing_services.join(", ") })}</p> : null}
+    {probe.result.commands?.map((command, index) => <details key={`${command.kind}-${index}`}><summary>{command.success ? "✓" : "×"} {command.kind}: $ {command.command}</summary>{command.output_tail ? <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-surface-inset p-2">{command.output_tail}</pre> : null}</details>)}
+    {probe.status === "blocked" && !probe.warning_override ? <button className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={onOverride} type="button">{t("onboarding.readiness_probe_override")}</button> : null}
+  </div>
 }
 
 function formatCapabilities(capabilities: Record<string, string[]>) {

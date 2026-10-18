@@ -38,6 +38,15 @@ class StepDispatcher
       return
     end
 
+    if (probe = RepositoryExecutionProbeGate.blocking_probe_for(workflow))
+      details = { "probe_id" => probe.id, "summary" => probe.result.to_h["summary"] }
+      record_start_blocked!(workflow, REPOSITORY_PREFLIGHT_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF, details: details)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+      warn_if_stuck_queued(workflow, REPOSITORY_PREFLIGHT_BLOCK_REASON)
+      return
+    end
+    clear_start_blocked!(workflow, REPOSITORY_PREFLIGHT_BLOCK_REASON)
+
     if Feature.coding_mode_enabled? && workflow.job.coding?
       Rails.logger.info(
         "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
@@ -250,6 +259,7 @@ class StepDispatcher
   PAUSE_REASON_RESOURCE_SAFETY = "resource_safety"
   MANUAL_PAUSE_REASON = "manual_pause"
   LANDING_PAUSE_BLOCK_REASON = "landing_paused"
+  REPOSITORY_PREFLIGHT_BLOCK_REASON = "repository_preflight_required_command_unavailable"
   PHASE_ADMISSION_RECHECK_DELAY = 10.minutes
   START_BLOCKED_BACKOFF = 5.minutes
 

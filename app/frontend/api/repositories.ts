@@ -207,11 +207,38 @@ export type RepositoryReadinessPayload = {
       queue_name: string
       worker_available: boolean
     }>
+    execution_probe?: RepositoryExecutionProbe | null
+  }
+}
+
+export type RepositoryExecutionProbe = {
+  id: number
+  status: "queued" | "running" | "succeeded" | "warning" | "failed" | "blocked"
+  revision: string | null
+  warning_override: boolean
+  started_at: string | null
+  completed_at: string | null
+  result: {
+    summary?: string
+    duration_s?: number
+    disk_growth_bytes?: number
+    cleanup?: string
+    missing_executables?: string[]
+    missing_services?: string[]
+    commands?: Array<{ kind: string; command: string; success: boolean; required: boolean; output_tail?: string; could_not_start?: boolean }>
   }
 }
 
 export function fetchRepositoryReadiness(id: number | string) {
   return getJson<RepositoryReadinessPayload>(`/api/v1/app/repositories/${id}/readiness`)
+}
+
+export function startRepositoryReadinessProbe(id: number | string) {
+  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
+}
+
+export function overrideRepositoryReadinessProbe(id: number | string, probeId: number) {
+  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
 }
 
 export type GitHubOwnersPayload = {

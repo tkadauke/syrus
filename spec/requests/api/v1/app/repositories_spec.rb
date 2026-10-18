@@ -109,6 +109,37 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("readiness", "prepare_commands")).to eq([])
   end
 
+  it "starts one disposable probe and reuses it while it is active" do
+    repository = Factories.repository(user: user)
+    sign_in_as(user)
+
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
+    probe_id = parse_body.dig("execution_probe", "id")
+
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.not_to change(RepositoryExecutionProbe, :count)
+    expect(parse_body.dig("execution_probe", "id")).to eq(probe_id)
+
+    RepositoryExecutionProbe.find(probe_id).update!(status: "succeeded")
+    expect do
+      post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+    end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
+  end
+
+  it "allows an operator to override a required-command probe block" do
+    repository = Factories.repository(user: user)
+    probe = RepositoryExecutionProbe.create!(repository:, requested_by: user, status: "blocked", result: { "summary" => "missing executable" })
+    sign_in_as(user)
+
+    post "/api/v1/app/repositories/#{repository.id}/override_readiness_probe", params: { probe_id: probe.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(probe.reload).to be_warning_override
+  end
+
   it "401s throughput metrics when signed out" do
     repository = Factories.repository(user: user)
 

@@ -175,6 +175,15 @@ language versions, manifests and lockfiles, and displays the exact prepare and
 grader commands it would run. Environment and dependency hints are advisory;
 only invalid configuration, inaccessible repository content, and the absence
 of a worker with the required capabilities block readiness.
+
+Use **Run probe** when you want execution evidence before the first agent run.
+Syrus creates a disposable shallow checkout, installs declared toolchain
+versions, runs the proposed prepare commands, and runs one bounded grader or
+detected grader command. It does not invoke an agent, create a Job, push a
+branch, or open a pull request. The report includes command durations, bounded
+failure output, disk growth, and checkout cleanup. A required command that
+cannot start blocks the first implementation run until it is fixed or an
+operator explicitly overrides the warning.
 Worker compatibility is checked per workflow, target, and grader, so a mixed
 Linux/macOS repository can be ready when different workers satisfy its
 independently scheduled commands.
