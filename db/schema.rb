@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_221640) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_000403) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2745,10 +2745,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_221640) do
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
     t.string "last_poll_status"
-    t.boolean "main_branch_health_enabled", default: true, null: false
+    t.boolean "main_branch_health_enabled", default: false, null: false
     t.boolean "main_branch_repair_auto_approve", default: false, null: false
-    t.boolean "main_branch_repair_blocks_work", default: true, null: false
-    t.boolean "main_branch_repair_enabled", default: true, null: false
+    t.boolean "main_branch_repair_blocks_work", default: false, null: false
+    t.boolean "main_branch_repair_enabled", default: false, null: false
     t.integer "main_health_poll_error_streak", default: 0, null: false
     t.string "name", null: false, collation: "NOCASE"
     t.boolean "new_test_flakiness_gate_enabled", default: false, null: false
@@ -2758,7 +2758,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_221640) do
     t.datetime "plugin_signals_observed_at"
     t.json "poll_issue_errors"
     t.boolean "polling_enabled", default: true, null: false
-    t.boolean "pr_cost_footer_enabled", default: true, null: false
+    t.boolean "pr_cost_footer_enabled", default: false, null: false
     t.boolean "prepare_enabled", default: true, null: false
     t.string "review_policy", default: "self", null: false
     t.string "risk_profile", default: "production", null: false

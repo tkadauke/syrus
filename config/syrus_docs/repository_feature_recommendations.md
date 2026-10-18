@@ -35,6 +35,12 @@ intentionally conservative and relies on existing repository columns,
 scheduled-task rows, recent preview state, and the repository's `.syrus.yml`/
 default-branch file list.
 
+New repositories default main-branch health monitoring, automatic repair,
+repair-based work blocking, repair auto-approval, and PR cost footers off.
+Recommendations may offer those capabilities, but they never activate them;
+only an explicit repository-setting action does. Existing repository rows keep
+their saved choices.
+
 `.syrus.yml` and the file list are fetched over the GitHub API
 (`GithubClient#file_content_at` / `#file_tree_at`), not from the repository's
 local bare clone (`RepositoryBareClone`). This page is served from the web

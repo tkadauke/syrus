@@ -980,6 +980,7 @@
     "done": "Fertig",
     "title": "Repository hinzufügen",
     "description": "Wählen Sie das erste Repository, mit dem Syrus arbeiten soll. Sie können später weitere aus Repositories hinzufügen.",
+    "automation_opt_in": "Dies gewährt Zugriff für angeforderte Arbeiten. PR-Kostenfußzeilen sowie Überwachung und Reparatur des Haupt-Branches bleiben deaktiviert, bis Sie sie in den Repository-Einstellungen aktivieren.",
     "loading": "Wird geladen…",
     "field_user_org": "Benutzer/Organisation",
     "loading_accounts": "Ihre GitHub-Konten werden geladen…",
