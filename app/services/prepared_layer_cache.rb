@@ -1,4 +1,5 @@
 require "fileutils"
+require "find"
 require "json"
 
 # Host-level cache of prepared workspace trees, shared by every workflow that
@@ -175,12 +176,18 @@ class PreparedLayerCache
     end
 
     def measure_bytes(path)
-      Dir.glob(path.join("**", "*").to_s, File::FNM_DOTMATCH).sum do |entry|
-        stat = File.lstat(entry)
-        stat.file? ? stat.size : 0
-      rescue SystemCallError
-        0
+      bytes = 0
+      Find.find(path.to_s) do |entry|
+        begin
+          stat = File.lstat(entry)
+          bytes += stat.size if stat.file?
+        rescue SystemCallError
+          nil
+        end
       end
+      bytes
+    rescue SystemCallError
+      bytes
     end
 
     def sanitize(component)
