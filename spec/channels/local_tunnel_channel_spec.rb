@@ -19,6 +19,21 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     allow_any_instance_of(described_class).to receive(:drain_queued_tool_calls)
   end
 
+  # #unsubscribed is where stop_threads lives, and an example that returns
+  # without unsubscribing never reaches it. One example below deliberately
+  # runs the real heartbeat thread, and for 99 days it leaked that thread
+  # into the rest of the worker's suite: a loop reloading the session every
+  # 10ms that then blocked on the connection pool at teardown, so the rspec
+  # process could not exit. The grader sat in total silence until its
+  # 60-minute wall clock killed it -- 136 times, each one reported exit 124
+  # on a suite where every example had passed. Unsubscribe here so no
+  # example can leave a live channel behind.
+  after do
+    unsubscribe if subscription.present? && !subscription.rejected?
+  rescue StandardError => e
+    warn "[local_tunnel_channel_spec] cleanup failed: #{e.class}: #{e.message}"
+  end
+
   def enable_local_mode
     feature = Feature.find_or_initialize_by(slug: "local_mode")
     feature.update!(category: "Labs", name: "Local Mode", enabled: true)
@@ -377,6 +392,14 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
       expect(daemon_session.reload.disconnected_at).not_to be_nil
       expect(transmissions).to include(disconnected_frame)
+
+      # The thread this example started must not outlive it. Without this the
+      # process it belongs to cannot exit at all.
+      heartbeat = subscription.instance_variable_get(:@heartbeat_thread)
+      expect(heartbeat).to be_alive
+      unsubscribe
+      heartbeat.join(5)
+      expect(heartbeat).not_to be_alive
     end
   end
 end
