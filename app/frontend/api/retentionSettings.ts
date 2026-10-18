@@ -29,9 +29,15 @@ export type RetentionSettingsPayload = {
   available_space: RetentionAvailableSpace | null
   retention_available_space_override_gb: number
   storage_limits: {
-    prepared_layer_cache_bytes: number
-    prepared_layer_cache_source: "app_setting" | "worker_environment"
+    prepared_layer_cache_default_bytes: number
     coding_workspace_bytes: number
+    prepared_layer_cache_workers: Array<{
+      hostname: string
+      worker_storage_key: string | null
+      budget_bytes: number
+      source: "app_setting" | "worker_environment"
+      observed_at: string
+    }>
   }
   message?: string
 }

@@ -189,6 +189,9 @@ Disk budget, in GB, for each worker's cache of prepared workspace trees -- the
 trees grader checkouts are materialized from. `SYRUS_PREPARED_LAYER_CACHE_GB`
 overrides it on an individual worker, which is the point of having both: a
 256 GB laptop worker and a 1 TB server should not be told the same number.
+Each worker records its effective value and source with host-health telemetry;
+Admin → Retention & Storage shows those worker-attributed reports separately
+from the instance default.
 
 Entries live in `$SYRUS_DATA_ROOT/prepared-layers/<worker storage key>/<prepare
 fingerprint>/`, outside any workflow workspace. The fingerprint already covers
