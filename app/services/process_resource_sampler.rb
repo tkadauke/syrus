@@ -2,6 +2,16 @@ class ProcessResourceSampler
   VERSION = 2
   METHOD = "linux_proc_process_group".freeze
 
+  def self.rss_bytes(pid: Process.pid, proc_root: "/proc")
+    raw = File.read(File.join(proc_root, pid.to_s, "stat"))
+    after_name = raw[(raw.rindex(")") + 2)..]
+    pages = Integer(after_name.split.fetch(21))
+    page_size = Etc.sysconf(Etc::SC_PAGESIZE)
+    pages * page_size
+  rescue Errno::ENOENT, Errno::EACCES, ArgumentError, TypeError, IndexError
+    nil
+  end
+
   def initialize(pid:, pgid: nil, proc_root: "/proc")
     @pid = pid
     @pgid = pgid

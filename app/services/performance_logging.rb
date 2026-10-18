@@ -5,6 +5,8 @@ module PerformanceLogging
   SLOW_SQL_EVENT = "syrus.performance.slow_sql"
   SLOW_PHASE_EVENT = "syrus.performance.slow_phase"
   BROWSER_TRACE_EVENT = "syrus.performance.browser_trace"
+  MEMORY_HIGH_WATER_EVENT = "syrus.performance.memory_high_water"
+  JOB_MEMORY_SUMMARY_EVENT = "syrus.performance.job_memory_summary"
 
   DEFAULT_SLOW_REQUEST_MS = 1_000.0
   DEFAULT_SLOW_JOB_MS = 5_000.0
@@ -94,7 +96,9 @@ module PerformanceLogging
 
     error = nil
     started_at = monotonic_ms
-    with_job_context(job_context(job)) do
+    context = job_context(job)
+    memory_token = MemoryHighWaterSampler.register(context)
+    with_job_context(context) do
       begin
         yield
       rescue StandardError => e
@@ -102,6 +106,7 @@ module PerformanceLogging
         raise
       ensure
         record_job(job, monotonic_ms - started_at, error: error)
+        MemoryHighWaterSampler.unregister(memory_token)
       end
     end
   end

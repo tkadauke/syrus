@@ -93,8 +93,37 @@ class PerformanceLogEvent < ApplicationRecord
       "api_requests" => compact_api_requests(attrs["api_requests"]),
       "spans" => compact_browser_spans(attrs["spans"]),
       "self_top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["self_top_sql_fingerprints"]),
-      "top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["top_sql_fingerprints"])
+      "top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["top_sql_fingerprints"]),
+      "rss_bytes" => attrs["rss_bytes"],
+      "cgroup_memory_current_bytes" => attrs["cgroup_memory_current_bytes"],
+      "cgroup_memory_limit_bytes" => attrs["cgroup_memory_limit_bytes"],
+      "cgroup_memory_events" => compact_numeric_hash(attrs["cgroup_memory_events"]),
+      "heap_live_slots" => attrs["heap_live_slots"],
+      "active_jobs" => compact_job_contexts(attrs["active_jobs"]),
+      "jobs_started_since_previous_bucket" => compact_job_contexts(attrs["jobs_started_since_previous_bucket"]),
+      "started_at" => attrs["started_at"],
+      "ended_at" => attrs["ended_at"],
+      "start_rss_bytes" => attrs["start_rss_bytes"],
+      "end_rss_bytes" => attrs["end_rss_bytes"],
+      "peak_rss_bytes" => attrs["peak_rss_bytes"],
+      "start_cgroup_memory_current_bytes" => attrs["start_cgroup_memory_current_bytes"],
+      "end_cgroup_memory_current_bytes" => attrs["end_cgroup_memory_current_bytes"],
+      "peak_cgroup_memory_current_bytes" => attrs["peak_cgroup_memory_current_bytes"]
     }.compact_blank
+  end
+
+  def self.compact_numeric_hash(value)
+    value.to_h.first(20).to_h.transform_values { |entry| Integer(entry, exception: false) }.compact.presence
+  rescue StandardError
+    nil
+  end
+
+  def self.compact_job_contexts(value)
+    Array(value).first(50).filter_map do |entry|
+      attrs = entry.to_h
+      attrs.slice("job_class", "active_job_id", "provider_job_id", "queue_name", "job_id", "workflow_id", "run_id", "repository_id")
+        .compact_blank
+    end.presence
   end
 
   def self.compact_metadata(value)
