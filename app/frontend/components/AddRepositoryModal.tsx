@@ -375,6 +375,9 @@ export function AddRepositoryModal({
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                 {t('add_repository.description')}
               </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t('add_repository.automation_opt_in')}
+              </p>
             </div>
             <button
               aria-label={t('add_repository.close')}

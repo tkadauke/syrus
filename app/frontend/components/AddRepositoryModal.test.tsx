@@ -26,9 +26,21 @@ const newFormPayload = {
     trigger_label: "syrus",
     polling_enabled: true,
     prepare_enabled: true,
-    pr_cost_footer_enabled: true,
+    pr_cost_footer_enabled: false,
     auto_merge_enabled: false,
     trust_clean_rebase_grade: false,
+    land_on_inherited_check_failure: false,
+    known_flaky_failure_dismissal_enabled: false,
+    known_flaky_failure_min_score: null,
+    isolated_repro_dismissal_enabled: false,
+    main_branch_health_enabled: false,
+    main_branch_repair_enabled: false,
+    main_branch_repair_blocks_work: false,
+    main_branch_repair_auto_approve: false,
+    treat_grader_timeouts_as_failures: false,
+    fork_auto_sync_enabled: false,
+    external_pr_ingestion_enabled: false,
+    distributed_workflow_dag_enabled: false,
     agent_provider: "",
     auto_approve_mode: "never",
     github_owner_id: null,
@@ -104,6 +116,7 @@ describe("AddRepositoryModal", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
     expect(screen.getByText("syrus")).toBeInTheDocument()
     expect(screen.getByText(/add more later/i)).toBeInTheDocument()
+    expect(screen.getByText(/main-branch monitoring and repair stay off/i)).toBeInTheDocument()
   })
 
   it("reveals the Repository dropdown after a User/Org is selected, then a branch dropdown", async () => {
@@ -150,6 +163,13 @@ describe("AddRepositoryModal", () => {
       upstream_owner: "",
       upstream_name: "",
       github_repository_id: "7"
+    })
+    expect(repo).toMatchObject({
+      pr_cost_footer_enabled: false,
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: false,
+      main_branch_repair_blocks_work: false,
+      main_branch_repair_auto_approve: false
     })
   })
 

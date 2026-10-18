@@ -551,6 +551,36 @@ RSpec.describe SystemAlerts do
       expect(alerts.count { |alert| alert.id.start_with?("stuck_main_branch_repair:") }).to eq(2)
     end
 
+    it "does not notify about repair automation after the repository opts out" do
+      admin = Factories.user(admin: true)
+      owner = Factories.user
+      repository = Factories.repository(user: owner)
+      repair_job = repository.jobs.create!(
+        user: owner,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch",
+        issue_body: "Commit: abc123",
+        agent_provider: "claude",
+        priority: "urgent",
+        state: "failed",
+        needs_attention: true,
+        needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON,
+        needs_attention_since: Time.current
+      )
+      Workflow.create!(
+        job: repair_job,
+        trigger_kind: "main_branch_repair",
+        state: "failed",
+        artifacts: { GraderLoopProgress::STOP_ARTIFACT_KEY => { "failing_set" => [ "spec/a_spec.rb" ] } }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alerts = described_class.active_for(user: admin)
+
+      expect(alerts.none? { |candidate| candidate.id == "no_progress_main_branch_repair:#{repair_job.id}" }).to be(true)
+    end
+
     it "does not show disk usage alerts to non-admin users" do
       Factories.user(admin: true)
       user = Factories.user(admin: false)
@@ -570,4 +600,5 @@ RSpec.describe SystemAlerts do
       path: "/syrus-home/.syrus"
     )
   end
+
 end

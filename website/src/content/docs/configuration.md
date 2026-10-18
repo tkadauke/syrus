@@ -584,7 +584,11 @@ Repository settings are stored in Syrus, not in `.syrus.yml`.
 | Trigger label | `syrus` | Label that turns an issue into a Job |
 | Polling enabled | `true` | If disabled, scheduled pollers skip the repo |
 | Agent provider override | Blank | If set, new Jobs for the repo use this provider instead of the user's default |
-| PR cost footer | `true` | Adds or updates a cost footer on PRs when cost data exists |
+| PR cost footer | `false` | Adds or updates a cost footer on PRs when cost data exists |
+| Main branch health monitoring | `false` | Polls and records health for the default branch |
+| Automatic main branch repair | `false` | Creates repair Jobs when monitored main is broken |
+| Block work while main is broken | `false` | Pauses ordinary work and landing while monitored main is broken |
+| Auto-approve main branch repairs | `false` | Approves successful repair Jobs without operator review |
 | Review policy | `self` | Who must approve before a Job lands; see [Review Policies](#review-policies) below |
 | Default issue workflow | `initial` | Label-triggered issues currently use the built-in Initial template |
 
@@ -595,6 +599,12 @@ repository. The instance setting `repository_full_poll_interval_hours`
 defaults to `24`; once a repository's last successful full issue poll is older
 than that, the next autonomous issue poll omits the cursor and reconciles open
 trigger-labeled issues without creating duplicate Jobs.
+
+Newly added repositories are enrolled only in explicitly requested work.
+Main-branch surveillance and repair are opt-in repository settings; enabling
+them does not change the checks run on Syrus-created pull requests or the
+validation performed before landing. Existing repositories retain their saved
+settings when these defaults change.
 
 ## Review Policies
 
