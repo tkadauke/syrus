@@ -297,6 +297,8 @@ Indexes short-lived structured Rails application log events so Syrus implementat
 
 The `read_syrus_logs` MCP tool (bundled in the `syrus_dev` plugin) exposes search over this index, but only to workflow agents in the `workflow_implement` or `agent_insight` roles working on a recognized Syrus repository, and only while the flag and the repository check both pass; there's a matching admin-chat tool for admin use. Indexed events are retained 6 hours (`OperationalLogEvent::RETENTION`) and pruned by a recurring job. `SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS` (default 1000 ms) suppresses noisy fast successful job events from ingestion. Off by default; only useful when running (or forked from) `tkadauke/syrus` itself.
 
+Expected workflow outcomes such as `Steps::Base::StepFailed` remain searchable at `info` severity and include `expected_failure` context; unexpected Active Job exceptions are indexed at `error`. This keeps failed implementations and graders visible without mixing them into searches for Syrus platform failures.
+
 ## browser_error_auto_reports
 
 **Category:** Operations

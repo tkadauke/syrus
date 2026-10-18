@@ -211,6 +211,42 @@ RSpec.describe OperationalLogging do
     )
   end
 
+  it "downgrades expected workflow step failures from error to info" do
+    exception = Steps::Base::StepFailed.new("grader rspec failed (exit 1)")
+
+    event = described_class.ingest_job(
+      {
+        job: RunJob.new,
+        exception: [ "Steps::Base::StepFailed", exception.message ],
+        exception_object: exception
+      },
+      1_234.56
+    )
+
+    expect(event["level"]).to eq("info")
+    expect(event["context"]).to include(
+      "expected_failure" => "Steps::Base::StepFailed",
+      "exception" => "Steps::Base::StepFailed",
+      "exception_message" => "grader rspec failed (exit 1)"
+    )
+  end
+
+  it "keeps unexpected active job exceptions at error severity" do
+    exception = ActiveRecord::ConnectionNotEstablished.new("Too many connections")
+
+    event = described_class.ingest_job(
+      {
+        job: PollInputSourceJob.new,
+        exception: [ exception.class.name, exception.message ],
+        exception_object: exception
+      },
+      1_234.56
+    )
+
+    expect(event["level"]).to eq("error")
+    expect(event["context"]).not_to have_key("expected_failure")
+  end
+
   it "keeps notification subscription installation idempotent across repeated boot paths" do
     prepare_search_tables
     path = "/api/v1/app/jobs/operational-log-idempotency-spec"
