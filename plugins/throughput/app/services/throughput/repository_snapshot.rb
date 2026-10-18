@@ -45,6 +45,11 @@ module Throughput
       payload
     end
 
+    def refresh_needed?
+      snapshot = cached_snapshot
+      snapshot.nil? || !fresh?(snapshot)
+    end
+
     def self.snapshot_key(repository_id)
       "throughput:repository_snapshot:v#{MetricContract::VERSION}:repository:#{repository_id}"
     end
