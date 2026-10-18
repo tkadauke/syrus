@@ -68,6 +68,11 @@ secret material.
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
+Whiteboard's high-level arrow tool creates connectors anchored to the visible
+edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels
+render as bound text and move with the connector, while raw scene updates
+remain available for advanced Excalidraw geometry.
+
 Metrics Dashboard records the same bounded metrics exposed to Prometheus. Its
 feature-usage and admission-decision counters combine increments from every web
 and worker process into monotonic shared totals. If that cross-process snapshot
