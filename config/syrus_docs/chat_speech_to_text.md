@@ -40,9 +40,10 @@ provides the local whisper.cpp backend: enable Plugin Runtime, enable
 capability payload reports both backend modes available when the service health
 response explicitly advertises streaming. The microphone sends ordered chunks
 over ActionCable while retaining the continuous recording for batch fallback.
-The Whisper gateway accumulates those chunks as one media file and emits
-revised hypotheses; arbitrary WebM continuation fragments are not decoded on
-their own.
+The Whisper gateway feeds those chunks to one persistent media decoder per
+session and emits revised hypotheses from a bounded PCM window; arbitrary WebM
+continuation fragments are not decoded on their own and inference input does
+not grow without bound.
 
 Without `whisper_stt`, with the plugin disabled, or while the daemon is absent,
 starting, unhealthy, or otherwise unreachable through Plugin Runtime,
