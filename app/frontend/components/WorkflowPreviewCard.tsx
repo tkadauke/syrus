@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { fetchWorkflowPreview } from "../api/workflows"
 import { Card, Skeleton } from "./Card"
 import { StatusPill } from "./StatusPill"
-import { WorkflowReference } from "./WorkflowReference"
+import { WorkflowReferenceControl } from "./WorkflowReferenceControl"
 
 export function WorkflowPreviewCard({ id }: { id: number; slug?: string; compact?: boolean }) {
   const navigate = useNavigate()
@@ -34,7 +34,7 @@ export function WorkflowPreviewCard({ id }: { id: number; slug?: string; compact
       variant="preview"
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <WorkflowReference path={workflow.path} slug={workflow.slug} />
+        <WorkflowReferenceControl path={workflow.path} slug={workflow.slug} />
         <span className="text-xs text-text-secondary">{workflow.trigger_label}</span>
         <StatusPill state={workflow.state} />
       </div>
