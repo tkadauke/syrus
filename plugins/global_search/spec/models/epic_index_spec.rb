@@ -46,6 +46,20 @@ RSpec.describe GlobalSearch::EpicIndex do
     expect(described_class.search("new").map { |row| row[:epic_id] }).to eq([ epic.id ])
   end
 
+  it "shares one row byte ceiling across title and description" do
+    stub_const("SearchIndexWriteLimits::MAX_ROW_BYTES", 40)
+    epic = Factories.epic(
+      user: user,
+      repository: repo,
+      title: "title #{'t' * 30}",
+      description: "description #{'d' * 100}"
+    )
+
+    fields = described_class.send(:index_fields, epic)
+
+    expect(fields.values.sum(&:bytesize)).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
+  end
+
   it "returns matching rows for authorization by the caller" do
     own_epic = Factories.epic(user: user, repository: repo, title: "wal search scope")
     other_epic = Factories.epic(user: other_user, repository: other_repo, title: "wal search scope")
