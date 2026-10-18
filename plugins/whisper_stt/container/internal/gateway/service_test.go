@@ -244,6 +244,67 @@ func TestRealDecoderAcceptsFragmentedWebM(t *testing.T) {
 	}
 }
 
+func TestMediaDecoderCancellationUnblocksPipeWriteAndReapsProcess(t *testing.T) {
+	if _, err := exec.LookPath("sleep"); err != nil {
+		t.Skip("sleep unavailable")
+	}
+	media, err := startMediaDecoder(exec.Command("sleep", "30"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	err = media.Feed(ctx, make([]byte, 4*1024*1024))
+	if err != context.DeadlineExceeded {
+		t.Fatalf("feed error = %v, want deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("cancelled feed took %s", elapsed)
+	}
+	if media.cmd.ProcessState == nil || !media.processExited {
+		t.Fatal("decoder process was not reaped")
+	}
+}
+
+func TestClientCancellationUnblocksSessionFeedAndRemovesSession(t *testing.T) {
+	if _, err := exec.LookPath("sleep"); err != nil {
+		t.Skip("sleep unavailable")
+	}
+	media, err := startMediaDecoder(exec.Command("sleep", "30"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(Config{Upstream: "http://127.0.0.1:1"})
+	s.factory = func(string) (decoder, error) { return media, nil }
+	s.transcriber = &fakeTranscriber{}
+	t.Cleanup(s.Close)
+	_, created := request(t, s, "POST", "/stream/sessions", []byte(`{"content_type":"audio/webm"}`))
+	id := created["id"].(string)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	r := httptest.NewRequest("PUT", "/stream/sessions/"+id+"/chunks/1", bytes.NewReader(make([]byte, 4*1024*1024))).WithContext(ctx)
+	r.ContentLength = 4 * 1024 * 1024
+	done := make(chan struct{})
+	go func() {
+		s.ServeHTTP(httptest.NewRecorder(), r)
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond) // the child does not read stdin, so its pipe fills
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("disconnected chunk request remained blocked")
+	}
+	if media.cmd.ProcessState == nil || !media.processExited {
+		t.Fatal("disconnected session did not reap decoder process")
+	}
+	if _, err := s.find(id); err == nil {
+		t.Fatal("disconnected session remains registered")
+	}
+}
+
 func TestUnsupportedStreamingFormat(t *testing.T) {
 	_, err := newMediaDecoder("audio/mp4")
 	if err == nil || fmt.Sprint(err) != "content type does not support streaming" {
