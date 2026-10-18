@@ -600,5 +600,4 @@ RSpec.describe SystemAlerts do
       path: "/syrus-home/.syrus"
     )
   end
-
 end
