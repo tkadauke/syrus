@@ -15,6 +15,8 @@ module WorkerTimeline
           paths: [ "/worker_timeline", "/worker_timeline/workflow" ],
           component: "worker_timeline/WorkerTimeline",
           icon: "timeline",
+          smart_folder_api_path: "/api/v1/app/admin/worker_timeline/macro",
+          smart_folder_subject: "worker_timeline",
           order: 80
         }
       ]
