@@ -69,6 +69,28 @@ RSpec.describe PerformanceLogging::MemoryHighWaterSampler do
     )
   end
 
+  it "retains a job registered while a crossing sample reads resources for the next bucket" do
+    described_class.register(first_context)
+    registered_mid_sample = false
+    allow(ProcessResourceSampler).to receive(:rss_bytes) do
+      unless registered_mid_sample
+        registered_mid_sample = true
+        described_class.register(second_context)
+        300.megabytes
+      else
+        600.megabytes
+      end
+    end
+
+    described_class.sample!
+    described_class.sample!
+
+    events = PerformanceLogEvent.where(event_name: PerformanceLogging::MEMORY_HIGH_WATER_EVENT).order(:id).map(&:as_event_hash)
+    expect(events.last["jobs_started_since_previous_bucket"]).to contain_exactly(
+      include("job_class" => "WorkEngine::ReconcileJob", "job_id" => 34)
+    )
+  end
+
   it "is inert without active jobs and samples resources once regardless of job count" do
     described_class.sample!
     expect(ProcessResourceSampler).not_to have_received(:rss_bytes)
@@ -91,6 +113,20 @@ RSpec.describe PerformanceLogging::MemoryHighWaterSampler do
     described_class.register(second_context)
 
     expect(Thread).to have_received(:new).once
+  end
+
+  it "lets a registration replace a sampler that atomically retires while idle" do
+    retiring_thread = instance_double(Thread, alive?: true, kill: nil)
+    replacement_thread = instance_double(Thread, alive?: true, kill: nil)
+    allow(Thread).to receive(:new).and_return(retiring_thread, replacement_thread)
+    allow(described_class).to receive(:start_thread).and_call_original
+    token = described_class.register(first_context)
+    described_class.unregister(token)
+
+    expect(described_class.send(:retire_thread_if_idle, retiring_thread)).to be(true)
+    described_class.register(second_context)
+
+    expect(Thread).to have_received(:new).twice
   end
 
   it "swallows sampling and persistence failures instead of raising into observed work" do
