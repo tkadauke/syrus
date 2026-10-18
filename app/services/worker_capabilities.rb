@@ -71,6 +71,7 @@ class WorkerCapabilities
     # to clear it.
     def reset_detection_cache!
       @detected_defaults = nil
+      @tool_versions = nil
     end
 
     def parse(raw)
@@ -374,7 +375,15 @@ class WorkerCapabilities
       []
     end
 
+    # Like capability detection, version probing describes the worker image,
+    # which cannot change underneath a running worker. Immutable checkout
+    # fingerprints call this repeatedly, so keep the subprocess results for
+    # the process lifetime.
     def tool_versions
+      @tool_versions ||= detect_tool_versions
+    end
+
+    def detect_tool_versions
       VERSION_PROBES.filter_map do |name, command|
         output, status = Timeout.timeout(PROBE_TIMEOUT_SECONDS) { Open3.capture2e(*command) }
         next unless status.success?

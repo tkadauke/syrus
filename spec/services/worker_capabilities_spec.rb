@@ -26,6 +26,15 @@ RSpec.describe WorkerCapabilities do
       expect(described_class).to have_received(:command_result)
         .at_most(described_class::TOOL_PROBES.size + 4).times
     end
+
+    it "probes tool versions once per process rather than for every environment fingerprint" do
+      allow(described_class).to receive(:command_result).and_return(probe_result(success: false))
+      allow(Open3).to receive(:capture2e).and_return([ "version 1\n", instance_double(Process::Status, success?: true) ])
+
+      3.times { described_class.environment_fingerprint_metadata }
+
+      expect(Open3).to have_received(:capture2e).exactly(described_class::VERSION_PROBES.size).times
+    end
   end
 
   describe ".parse" do
