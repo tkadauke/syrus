@@ -1,7 +1,8 @@
 require "rails_helper"
 
 RSpec.describe CredentialStore::SshHostKeyEnrollment do
-  let(:key_data) { Base64.strict_encode64("test-host-public-key") }
+  let(:key_blob) { [ 11 ].pack("N") + "ssh-ed25519" + [ 32 ].pack("N") + ("k" * 32) }
+  let(:key_data) { Base64.strict_encode64(key_blob) }
   let(:result) { CredentialStore::SshRunner::Result.new(stdout: "example.test ssh-ed25519 #{key_data}\n", stderr: "", status: 0) }
 
   after { described_class.runner = nil }
@@ -29,5 +30,17 @@ RSpec.describe CredentialStore::SshHostKeyEnrollment do
   it "requires bracketed host notation for a nonstandard port" do
     key = described_class.manual!(host: "example.test", port: 2222, known_host: "[example.test]:2222 ssh-ed25519 #{key_data}")
     expect(key.port).to eq(2222)
+  end
+
+  it "rejects truncated, arbitrary, and declared-type-mismatched SSH key blobs" do
+    arbitrary = Base64.strict_encode64("a")
+    truncated = Base64.strict_encode64([ 11 ].pack("N") + "ssh-ed25519" + [ 32 ].pack("N") + "short")
+    mismatched = Base64.strict_encode64([ 7 ].pack("N") + "ssh-rsa" + [ 1 ].pack("N") + "e" + [ 1 ].pack("N") + "n")
+
+    [ arbitrary, truncated, mismatched ].each do |encoded|
+      expect {
+        described_class.manual!(host: "example.test", port: 22, known_host: "example.test ssh-ed25519 #{encoded}")
+      }.to raise_error(CredentialStore::SshExec::InvalidTarget)
+    end
   end
 end
