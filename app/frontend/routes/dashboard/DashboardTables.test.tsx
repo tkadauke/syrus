@@ -480,6 +480,8 @@ describe("dashboard DataTable migrations", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /WF-8 Fix widgets/ })).toHaveAttribute("href", "/admin/workflows/8")
+    expect(screen.getByRole("link", { name: "WF-8" })).toHaveAttribute("href", "/admin/workflows/8")
+    expect(screen.getByRole("button", { name: "Copy WF-8 to clipboard" })).toBeInTheDocument()
   })
 })
 

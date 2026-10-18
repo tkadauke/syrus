@@ -14,6 +14,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
+import { WorkflowReference } from "../../components/WorkflowReference"
 
 
 // Dashboard epic + workflow tables extracted from Dashboard.tsx: EpicsTable and
@@ -287,14 +288,15 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
   const slug = workflowLabel(workflow)
 
   return (
-    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white" to={withRoutePrefix(workflow.path, prefix)}>
-      <div className="pt-1">
+    <div className="relative grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white">
+      <Link aria-label={`${slug} ${workflow.job.title}`} className="absolute inset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(workflow.path, prefix)} />
+      <div className="pointer-events-none relative z-10 pt-1">
         <StatusPill state={workflow.state} />
       </div>
-      <div className="min-w-0">
+      <div className="pointer-events-none relative z-10 min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{slug}</span>
-          <span className="text-sm font-semibold leading-snug text-brand underline">{workflow.job.title}</span>
+          <span className="pointer-events-auto"><WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={slug} /></span>
+          <Link className="pointer-events-auto text-sm font-semibold leading-snug text-brand underline" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
         </div>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{workflow.job.repository.slug}</div>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -305,7 +307,7 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
           {finishedAt ? <span>{t("finished_at", { date: formatRelativeDate(new Date(finishedAt)) })}</span> : null}
         </div>
       </div>
-    </Link>
+    </div>
   )
 }
 
@@ -313,7 +315,7 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "workflow" || column === "title") {
     return (
       <DataTable.Cell className="font-medium">
-        <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
+        <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={workflowLabel(workflow)} />
       </DataTable.Cell>
     )
   }

@@ -17,6 +17,7 @@ import {
   AdminEventPanelMessage,
   adminEventLinkClass
 } from "../components/AdminEventLogPanel"
+import { WorkflowReference } from "../components/WorkflowReference"
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -115,9 +116,7 @@ function buildStuckColumns({
       render: (item) => (
         <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
           {item.workflow_path ? (
-            <Link className={adminEventLinkClass()} to={withRoutePrefix(item.workflow_path, prefix)}>
-              {item.workflow_slug || t("stuck.link_workflow")}
-            </Link>
+            <WorkflowReference className={adminEventLinkClass()} path={withRoutePrefix(item.workflow_path, prefix)} slug={item.workflow_slug || workflowSlug(item.workflow_id!)} />
           ) : null}
           {item.job_id ? (
             <Link

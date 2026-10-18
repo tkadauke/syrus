@@ -26,6 +26,7 @@ import {
 import { workflowSlug } from "../lib/slugs"
 import { DataTable, Page } from "../components/ui"
 import { useConfirm } from "../hooks/useConfirm"
+import { WorkflowReference } from "../components/WorkflowReference"
 
 export function AdminProcessesIndex() {
   const { t } = useT("admin")
@@ -416,9 +417,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workflow")}</dt>
             <dd>
               {process.workflow_path ? (
-                <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
-                  {process.workflow_slug || workflowSlug(process.workflow_id)}
-                </Link>
+                <WorkflowReference path={withRoutePrefix(process.workflow_path, prefix)} slug={process.workflow_slug || workflowSlug(process.workflow_id)} />
               ) : (
                 process.workflow_slug || workflowSlug(process.workflow_id)
               )}

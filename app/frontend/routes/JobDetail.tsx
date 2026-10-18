@@ -12,6 +12,7 @@ import { ChevronIcon } from "../components/ChevronIcon"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
+import { WorkflowReference } from "../components/WorkflowReference"
 import { NoticeToast, type NoticeToastTone } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
 import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
@@ -1651,9 +1652,7 @@ export function FeedbackHistoryPanel({ entries, prefix }: { entries: JobDetailPa
                     <RelativeTimestamp value={entry.created_at} />
                   </span>
                   {entry.workflow_path ? (
-                    <Link className="text-brand hover:underline" to={withRoutePrefix(entry.workflow_path, prefix)}>
-                      {entry.workflow_slug || (entry.workflow_id ? workflowSlug(entry.workflow_id) : t("workflow"))}
-                    </Link>
+                    <WorkflowReference path={withRoutePrefix(entry.workflow_path, prefix)} slug={entry.workflow_slug || workflowSlug(entry.workflow_id!)} />
                   ) : null}
                 </div>
               </div>

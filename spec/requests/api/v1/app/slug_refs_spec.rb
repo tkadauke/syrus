@@ -108,6 +108,24 @@ RSpec.describe "App API slug refs", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "does not resolve a Workflow outside an invocation token's scope" do
+    admin = Factories.user(admin: true)
+    invocation_job = Factories.job_with_run(user: admin, issue_number: 100, run_attrs: { state: "running" })
+    other_workflow = Factories.job(user: admin, repository: invocation_job.repository, issue_number: 101).workflows.first
+    token = McpInvocationContext.issue_for_app_run(invocation_job.runs.first, expires_in: 5.minutes)
+
+    get "/api/v1/app/slug_refs/WF-#{other_workflow.id}",
+        headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("slug_ref")).to include(
+      "canonical_slug" => "WF-#{other_workflow.id}",
+      "accessible" => false,
+      "web_path" => nil,
+      "api_preview_path" => nil
+    )
+  end
+
   it "resolves plugin-owned Design Doc refs through the slug type registry" do
     design_doc = DesignDocs::DesignDoc.create!(
       owner_user: user,

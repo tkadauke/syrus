@@ -327,9 +327,10 @@ function SlugReferenceOpenAction({ close, href, slug }: { close: () => void; hre
 }
 
 type LegacySlugHoverCardProps = {
-  kind: "job" | "epic" | "plugin" | "chat"
+  kind: "job" | "epic" | "plugin" | "chat" | "workflow"
   id: number
   prefix?: string
+  href?: string | null
   children: ReactNode
 }
 
@@ -337,7 +338,8 @@ const legacyEntries: Record<LegacySlugHoverCardProps["kind"], SlugReferenceRegis
   chat: legacyEntry("CHAT", "chat", { hrefTemplate: "/chats/:id" }),
   epic: legacyEntry("EPIC", "epic", { hrefTemplate: "/epics/EPIC-:id" }),
   job: legacyEntry("JOB", "job", { hrefTemplate: "/jobs/JOB-:id" }),
-  plugin: legacyEntry("PLUGIN", "plugin")
+  plugin: legacyEntry("PLUGIN", "plugin"),
+  workflow: legacyEntry("WF", "workflow", { hrefTemplate: "/s/WF-:id" })
 }
 
 function legacyEntry(prefix: string, type: string, options: { hrefTemplate?: string | null; linkable?: boolean } = {}): SlugReferenceRegistryEntry {
@@ -357,8 +359,9 @@ function legacyEntry(prefix: string, type: string, options: { hrefTemplate?: str
   }
 }
 
-export function SlugHoverCard({ kind, prefix, id, children }: LegacySlugHoverCardProps) {
-  const entry = prefix ? { ...legacyEntries.plugin, prefix, pluginPreviewComponent: pluginSlugPreviewCardComponentForPrefix(prefix) } : legacyEntries[kind]
+export function SlugHoverCard({ kind, prefix, href, id, children }: LegacySlugHoverCardProps) {
+  const baseEntry = prefix ? { ...legacyEntries.plugin, prefix, pluginPreviewComponent: pluginSlugPreviewCardComponentForPrefix(prefix) } : legacyEntries[kind]
+  const entry = href ? { ...baseEntry, hrefTemplate: href, linkable: true } : baseEntry
 
   return (
     <SlugReferenceCard entry={entry} id={id}>
