@@ -8,7 +8,8 @@ listens on the internal Plugin Runtime network, and reports readiness through
 This plugin also registers the `whisper_stt` `speech_to_text_provider`. When
 the plugin is enabled and Plugin Runtime reports the `whisper-stt` service as
 healthy, chat dictation exposes backend streaming and batch transcription.
-The image runs a session gateway in front of `whisper-server`. Each stream
+The image runs a compiled Go session gateway in front of `whisper-server`.
+The minimal runtime contains no Python interpreter or gateway source. Each stream
 owns one persistent `ffmpeg` process, so ordered MediaRecorder continuation
 chunks pass through the same WebM/Ogg decoder state and are converted to PCM.
 The gateway sends WAV snapshots from a bounded 15-second PCM window to
@@ -41,6 +42,8 @@ runtime manager pulls `ghcr.io/tkadauke/syrus-plugin-whisper-stt` at the tag
 matching your Syrus release and starts `whisper-server` on the project
 network. The image includes `ffmpeg` and runs `whisper-server --convert`, so
 browser audio formats such as WebM/Opus can be decoded by the daemon.
+The Go gateway and `whisper-server` image are built for both supported target
+architectures by the repository's multi-platform release build.
 
 **Kubernetes.** Deploy the image yourself and set, on the Syrus web and
 worker pods:
