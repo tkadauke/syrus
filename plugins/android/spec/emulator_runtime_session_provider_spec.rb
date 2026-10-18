@@ -3,12 +3,13 @@ require "tmpdir"
 
 RSpec.describe Android::EmulatorRuntimeSessionProvider do
   class AndroidRuntimeFakeRunner
-    attr_reader :captures, :spawns, :killed_pids
+    attr_reader :captures, :spawns, :killed_pids, :kill_calls
 
     def initialize
       @captures = []
       @spawns = []
       @killed_pids = []
+      @kill_calls = []
       @responses = []
     end
 
@@ -16,7 +17,7 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       @responses << [ match, Android::EmulatorRuntimeSessionProvider::CommandResult.new(stdout: stdout, stderr: stderr, status: status) ]
     end
 
-    def capture(argv, env:, chdir: nil, timeout: 60, stdin_data: nil)
+    def capture(argv, env:, chdir: nil, timeout: 60, stdin_data: nil, runtime_session: nil)
       @captures << { argv: argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data }
       index = @responses.index { |(match, _)| match.call(argv) }
       return @responses.delete_at(index).last if index
@@ -24,13 +25,14 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
       Android::EmulatorRuntimeSessionProvider::CommandResult.new(stdout: "", stderr: "", status: 0)
     end
 
-    def spawn(argv, env:, chdir: nil, out: File::NULL, err: File::NULL)
+    def spawn(argv, env:, chdir: nil, out: File::NULL, err: File::NULL, runtime_session: nil)
       @spawns << { argv: argv, env: env, chdir: chdir, out: out, err: err }
-      Android::EmulatorRuntimeSessionProvider::ProcessHandle.new(pid: 12_345)
+      Android::EmulatorRuntimeSessionProvider::ProcessHandle.new(pid: 12_345, spawned_process_id: 54_321)
     end
 
-    def kill(pid)
+    def kill(pid, spawned_process_id: nil)
       @killed_pids << pid
+      @kill_calls << { pid: pid, spawned_process_id: spawned_process_id }
     end
   end
 
@@ -112,6 +114,28 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
     end
   end
 
+  describe "CommandRunner" do
+    it "durably attributes, cancels, and finalizes a managed emulator process" do
+      session = runtime_session
+      handle = Android::EmulatorRuntimeSessionProvider::CommandRunner.new.spawn(
+        [ RbConfig.ruby, "-e", "sleep 30" ], env: {}, chdir: @workspace,
+        runtime_session: session
+      )
+
+      process = SpawnedProcess.find(handle.spawned_process_id)
+      expect(process).to have_attributes(
+        kind: "runtime_session", chat_session_id: chat_session.id,
+        resource_attribution: include("runtime_session_id" => session.id)
+      )
+
+      ProcessRunner::BackgroundHandle.find(handle.spawned_process_id).cancel!
+      deadline = 2.seconds.from_now
+      sleep 0.01 until process.reload.finished_at? || Time.current >= deadline
+
+      expect(process).to have_attributes(outcome: "operator_killed", finished_at: be_present)
+    end
+  end
+
   describe "#start_session" do
     it "creates an isolated AVD when needed, starts the emulator, and waits for boot readiness" do
       session = runtime_session(state: "starting", metadata: {})
@@ -125,7 +149,8 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
         avd_name: "syrus-runtime-#{session.id}",
         avd_created: true,
         serial: "emulator-#{5554 + (session.id % 64) * 2}",
-        emulator_pid: 12_345
+        emulator_pid: 12_345,
+        emulator_spawned_process_id: 54_321
       )
       expect(runner.captures.find { |call| call[:argv].first(4) == %w[avdmanager create avd --force] }[:stdin_data]).to eq("no\n")
       expect(runner.spawns.first[:argv]).to include("emulator", "-avd", "syrus-runtime-#{session.id}", "-no-window")
@@ -334,12 +359,15 @@ RSpec.describe Android::EmulatorRuntimeSessionProvider do
 
   describe "#stop_session" do
     it "kills the emulator and remembered process" do
-      session = runtime_session(metadata: { "serial" => "emulator-5580", "emulator_pid" => 12_345 })
+      session = runtime_session(
+        metadata: { "serial" => "emulator-5580", "emulator_pid" => 12_345, "emulator_spawned_process_id" => 54_321 }
+      )
 
       expect(provider.stop_session(session.id)).to be true
 
       expect(command_seen?("adb", "-s", "emulator-5580", "emu", "kill")).to be true
       expect(runner.killed_pids).to include(12_345)
+      expect(runner.kill_calls).to include(pid: 12_345, spawned_process_id: 54_321)
     end
   end
 

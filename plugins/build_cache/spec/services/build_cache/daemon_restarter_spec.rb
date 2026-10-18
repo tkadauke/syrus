@@ -4,30 +4,36 @@ RSpec.describe BuildCache::DaemonRestarter do
   let(:env) { { "SCCACHE_SERVER_PORT" => "20042" } }
 
   describe ".restart!" do
+    def stub_capture(success: false, error: nil)
+      runner = instance_double(ProcessRunner)
+      allow(ProcessRunner).to receive(:new).and_return(runner)
+      if error
+        allow(runner).to receive(:capture).and_raise(error)
+      else
+        allow(runner).to receive(:capture).and_return(double(success?: success))
+      end
+    end
+
     it "returns true when --stop-server exits successfully" do
-      status = instance_double(Process::Status, success?: true)
-      allow(Open3).to receive(:capture2e)
-        .with(env, "sccache", "--stop-server")
-        .and_return([ "Stopped the server", status ])
+      stub_capture(success: true)
 
       expect(described_class.restart!(env: env)).to eq(true)
     end
 
     it "returns false when --stop-server exits non-zero" do
-      status = instance_double(Process::Status, success?: false)
-      allow(Open3).to receive(:capture2e).and_return([ "sccache: no server running", status ])
+      stub_capture
 
       expect(described_class.restart!(env: env)).to eq(false)
     end
 
     it "returns false when the sccache binary is not on PATH" do
-      allow(Open3).to receive(:capture2e).and_raise(Errno::ENOENT)
+      stub_capture(error: Errno::ENOENT.new)
 
       expect(described_class.restart!(env: env)).to eq(false)
     end
 
     it "returns false and logs a warning when the call times out" do
-      allow(Open3).to receive(:capture2e).and_raise(Timeout::Error, "execution expired")
+      stub_capture(error: Timeout::Error.new("execution expired"))
       allow(Rails.logger).to receive(:warn)
 
       expect(described_class.restart!(env: env)).to eq(false)

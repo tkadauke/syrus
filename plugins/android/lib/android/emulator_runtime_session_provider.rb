@@ -1,7 +1,5 @@
-require "open3"
 require "securerandom"
 require "syrus/plugin/runtime_session_provider"
-require "timeout"
 
 module Android
   class EmulatorRuntimeSessionProvider
@@ -19,30 +17,52 @@ module Android
       def combined_output = [ stdout, stderr ].compact.join("\n").strip
     end
 
-    ProcessHandle = Struct.new(:pid, keyword_init: true)
+    ProcessHandle = Struct.new(:pid, :spawned_process_id, keyword_init: true)
 
     class RuntimeError < StandardError; end
 
     class CommandRunner
-      def capture(argv, env:, chdir: nil, timeout: 60, stdin_data: nil)
-        stdout, stderr, status = Timeout.timeout(timeout) do
-          Open3.capture3(env, *argv, chdir: chdir, stdin_data: stdin_data)
+      def capture(argv, env:, chdir: nil, timeout: 60, stdin_data: nil, runtime_session: nil)
+        capture = runner(argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data,
+                         runtime_session: runtime_session).capture
+        stderr = capture.stderr
+        stderr = "#{stderr}timed out after #{timeout}s" if capture.result.timed_out?
+        CommandResult.new(stdout: capture.stdout, stderr: stderr, status: capture.result.exit_status || 124)
+      end
+
+      def spawn(argv, env:, chdir: nil, out: File::NULL, err: File::NULL, runtime_session: nil)
+        log_paths = [ out, err ].reject { |path| path == File::NULL }.uniq
+        callback = if log_paths.any?
+          ->(chunk) { log_paths.each { |path| File.open(path, "ab") { |file| file.write(chunk) } } }
         end
-        CommandResult.new(stdout: stdout, stderr: stderr, status: status.exitstatus)
-      rescue Timeout::Error
-        CommandResult.new(stdout: "", stderr: "timed out after #{timeout}s", status: 124)
+        handle = runner(argv, env: env, chdir: chdir, timeout: 24.hours, runtime_session: runtime_session,
+                        on_output_chunk: callback).start
+        ProcessHandle.new(pid: handle.pid, spawned_process_id: handle.spawned_process_id)
       end
 
-      def spawn(argv, env:, chdir: nil, out: File::NULL, err: File::NULL)
-        pid = Process.spawn(env, *argv, chdir: chdir, out: out, err: err)
-        Process.detach(pid)
-        ProcessHandle.new(pid: pid)
-      end
-
-      def kill(pid)
-        Process.kill("TERM", pid.to_i)
-      rescue Errno::ESRCH, TypeError
+      def kill(pid, spawned_process_id: nil)
+        if spawned_process_id
+          ProcessRunner::BackgroundHandle.find(spawned_process_id).cancel!
+        else
+          process = SpawnedProcess.running.find_by(pid: pid)
+          ProcessRunner::BackgroundHandle.find(process.id).cancel! if process
+        end
+      rescue ActiveRecord::RecordNotFound, TypeError
         nil
+      end
+
+      private
+
+      def runner(argv, env:, chdir:, timeout:, runtime_session:, stdin_data: nil, on_output_chunk: nil)
+        current_run = runtime_session&.run || Thread.current[:syrus_current_run]
+        ProcessRunner.new(
+          env: env, command: argv, mounts: ProcessRunner.mounts(chdir || Dir.pwd), network: "agent",
+          timeout: timeout, stdin_data: stdin_data, on_output_chunk: on_output_chunk,
+          kind: "runtime_session", run: current_run,
+          workflow: runtime_session&.workflow || current_run&.workflow,
+          job: runtime_session&.job, chat_session: runtime_session&.chat_session,
+          resource_attribution: { runtime_session_id: runtime_session&.id }.compact
+        )
       end
     end
 
@@ -96,6 +116,7 @@ module Android
         avd_created: avd.created?,
         serial: serial,
         emulator_pid: handle.pid,
+        emulator_spawned_process_id: handle.spawned_process_id,
         emulator_log_path: log_path,
         android_env: session_env.slice("ANDROID_HOME", "ANDROID_SDK_ROOT", "ANDROID_AVD_HOME", "ANDROID_USER_HOME")
       }.compact
@@ -206,8 +227,14 @@ module Android
       runtime_session = runtime_session_for(session_id)
       env = env_for(runtime_session.workspace_ref, runtime_session.metadata)
       adb(runtime_session, "emu", "kill", timeout: 10)
-      self.class.command_runner.kill(runtime_session.metadata["emulator_pid"]) if runtime_session.metadata["emulator_pid"].present?
-      delete_avd(runtime_session.metadata["avd_name"], env: env, chdir: runtime_session.workspace_ref) if runtime_session.metadata["delete_avd_on_stop"]
+      self.class.command_runner.kill(
+        runtime_session.metadata["emulator_pid"],
+        spawned_process_id: runtime_session.metadata["emulator_spawned_process_id"]
+      ) if runtime_session.metadata["emulator_pid"].present?
+      delete_avd(
+        runtime_session.metadata["avd_name"], env: env, chdir: runtime_session.workspace_ref,
+        runtime_session: runtime_session
+      ) if runtime_session.metadata["delete_avd_on_stop"]
       true
     end
 
@@ -260,7 +287,10 @@ module Android
       ]
       argv << "-no-snapshot-load" if config[:no_snapshot_load] != false
       FileUtils.mkdir_p(File.dirname(log_path))
-      self.class.command_runner.spawn(argv, env: env, chdir: chdir, out: log_path, err: log_path)
+      self.class.command_runner.spawn(
+        argv, env: env, chdir: chdir, out: log_path, err: log_path,
+        runtime_session: config[:runtime_session]
+      )
     rescue SystemCallError => e
       raise RuntimeError, "failed to start Android emulator: #{e.message}"
     end
@@ -293,7 +323,8 @@ module Android
         [ command, "--no-daemon", task ],
         env: env_for(runtime_session.workspace_ref, runtime_session.metadata),
         chdir: runtime_session.workspace_ref,
-        timeout: 600
+        timeout: 600,
+        runtime_session: runtime_session
       )
       result
     rescue RuntimeError => e
@@ -388,29 +419,42 @@ module Android
         [ "adb", "-s", runtime_session.metadata.fetch("serial"), *args ],
         env: env_for(runtime_session.workspace_ref, runtime_session.metadata),
         chdir: runtime_session.workspace_ref,
-        timeout: timeout
+        timeout: timeout,
+        runtime_session: runtime_session
       )
     end
 
-    def capture!(argv, env:, chdir:, timeout: 60, stdin_data: nil)
-      result = capture(argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data)
+    def capture!(argv, env:, chdir:, timeout: 60, stdin_data: nil, runtime_session: nil)
+      result = capture(
+        argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data,
+        runtime_session: runtime_session
+      )
       return result if result.success?
 
       raise RuntimeError, result.combined_output.presence || "#{argv.join(' ')} failed with exit #{result.status}"
     end
 
-    def capture(argv, env:, chdir:, timeout: 60, stdin_data: nil)
-      self.class.command_runner.capture(argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data)
+    def capture(argv, env:, chdir:, timeout: 60, stdin_data: nil, runtime_session: nil)
+      runtime_session ||= RuntimeSession.find_by(id: env["SYRUS_RUNTIME_SESSION_ID"])
+      self.class.command_runner.capture(
+        argv, env: env, chdir: chdir, timeout: timeout, stdin_data: stdin_data,
+        runtime_session: runtime_session
+      )
     end
 
-    def delete_avd(avd_name, env:, chdir:)
-      capture([ "avdmanager", "delete", "avd", "--name", avd_name ], env: env, chdir: chdir, timeout: 60)
+    def delete_avd(avd_name, env:, chdir:, runtime_session: nil)
+      capture(
+        [ "avdmanager", "delete", "avd", "--name", avd_name ], env: env, chdir: chdir,
+        timeout: 60, runtime_session: runtime_session
+      )
     end
 
     def env_for(workspace_ref, config)
       config = config.to_h.stringify_keys
       workspace_env = Android::StepEnvironment.extra_env(scope: nil, workspace_path: workspace_ref)
-      ENV.to_h.merge(config.fetch("env", {})).merge(workspace_env)
+      ENV.to_h.merge(config.fetch("env", {})).merge(workspace_env).merge(
+        "SYRUS_RUNTIME_SESSION_ID" => config["runtime_session"]&.id&.to_s
+      ).compact
     end
 
     def runtime_session_for(session_id)

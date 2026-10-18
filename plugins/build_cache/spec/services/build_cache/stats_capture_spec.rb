@@ -5,38 +5,42 @@ RSpec.describe BuildCache::StatsCapture do
   let(:chdir) { Dir.tmpdir }
 
   describe ".capture" do
+    def stub_capture(stdout: "", success: false, error: nil)
+      runner = instance_double(ProcessRunner)
+      allow(ProcessRunner).to receive(:new).and_return(runner)
+      value = double(success?: success, stdout: stdout)
+      if error
+        allow(runner).to receive(:capture).and_raise(error)
+      else
+        allow(runner).to receive(:capture).and_return(value)
+      end
+    end
+
     it "returns nil when the sccache binary is not on PATH" do
       # Stubbed rather than relying on ambient PATH: some sandboxes (this one
       # included) do have a real `sccache` binary installed, which would
       # otherwise make this exercise the success path instead of the
       # Errno::ENOENT a non-C/C++ repo (or an image built before sccache
       # existed) hits on every call.
-      allow(Open3).to receive(:capture2e)
-        .with(env, "sccache", "--show-stats", "--stats-format=json", chdir: chdir.to_s)
-        .and_raise(Errno::ENOENT)
+      stub_capture(error: Errno::ENOENT.new)
 
       expect(described_class.capture(env: env, chdir: chdir)).to be_nil
     end
 
     it "returns the parsed stats hash on a clean JSON success" do
-      status = instance_double(Process::Status, success?: true)
-      allow(Open3).to receive(:capture2e)
-        .with(env, "sccache", "--show-stats", "--stats-format=json", chdir: chdir.to_s)
-        .and_return([ '{"compile_requests": 12}', status ])
+      stub_capture(stdout: '{"compile_requests": 12}', success: true)
 
       expect(described_class.capture(env: env, chdir: chdir)).to eq({ "compile_requests" => 12 })
     end
 
     it "returns nil when sccache exits non-zero" do
-      status = instance_double(Process::Status, success?: false)
-      allow(Open3).to receive(:capture2e).and_return([ "sccache: error: server startup failed", status ])
+      stub_capture(stdout: "sccache: error: server startup failed")
 
       expect(described_class.capture(env: env, chdir: chdir)).to be_nil
     end
 
     it "returns nil and logs a warning on unparseable output" do
-      status = instance_double(Process::Status, success?: true)
-      allow(Open3).to receive(:capture2e).and_return([ "not json", status ])
+      stub_capture(stdout: "not json", success: true)
       allow(Rails.logger).to receive(:warn)
 
       expect(described_class.capture(env: env, chdir: chdir)).to be_nil
@@ -44,7 +48,7 @@ RSpec.describe BuildCache::StatsCapture do
     end
 
     it "returns nil and logs a warning when the call times out" do
-      allow(Open3).to receive(:capture2e).and_raise(Timeout::Error, "execution expired")
+      stub_capture(error: Timeout::Error.new("execution expired"))
       allow(Rails.logger).to receive(:warn)
 
       expect(described_class.capture(env: env, chdir: chdir)).to be_nil

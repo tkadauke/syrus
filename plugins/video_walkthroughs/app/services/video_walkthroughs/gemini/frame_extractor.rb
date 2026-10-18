@@ -1,4 +1,3 @@
-require "open3"
 require "shellwords"
 
 module VideoWalkthroughs
@@ -34,7 +33,15 @@ module VideoWalkthroughs
         attr_writer :runner
 
         def runner
-          @runner ||= ->(cmd) { o, s = Open3.capture2e(*cmd); [o, s] }
+          @runner ||= lambda do |cmd|
+            current_run = Thread.current[:syrus_current_run]
+            capture = ProcessRunner.new(
+              env: {}, command: cmd, mounts: ProcessRunner.mounts(Dir.pwd), network: "grader",
+              timeout: 2.minutes, kind: "media", run: current_run, workflow: current_run&.workflow,
+              chat_session: Thread.current[:syrus_current_chat_session]
+            ).capture
+            [ "#{capture.stdout}#{capture.stderr}", capture ]
+          end
         end
 
         def available?
