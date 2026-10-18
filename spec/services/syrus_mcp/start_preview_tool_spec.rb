@@ -194,7 +194,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       run.step.workflow.set_artifact!("visual_review_preview_preparations", [
         { "run_id" => run.id, "project_id" => nil, "prepared_at" => Time.current.iso8601 }
       ])
-      allow(Process).to receive(:spawn).and_raise(Errno::ENOENT, "missing executable")
+      allow(launcher).to receive(:spawn_app).and_raise(Errno::ENOENT, "missing executable")
     end
 
     it "cleans up the provisioned database and returns a launch error" do

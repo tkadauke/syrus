@@ -29,11 +29,13 @@ RSpec.describe WorkerCapabilities do
 
     it "probes tool versions once per process rather than for every environment fingerprint" do
       allow(described_class).to receive(:command_result).and_return(probe_result(success: false))
-      allow(Open3).to receive(:capture2e).and_return([ "version 1\n", instance_double(Process::Status, success?: true) ])
+      capture = double(success?: true, stdout: "version 1\n", stderr: "")
+      allow(described_class).to receive(:capability_probe).and_return(capture)
 
       3.times { described_class.environment_fingerprint_metadata }
 
-      expect(Open3).to have_received(:capture2e).exactly(described_class::VERSION_PROBES.size).times
+      expect(described_class).to have_received(:capability_probe)
+        .exactly(described_class::VERSION_PROBES.size).times
     end
   end
 
