@@ -1,7 +1,7 @@
 import { withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { startOnboardingChat } from "../api/chats"
@@ -10,6 +10,9 @@ import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
 import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
+import { fetchRepositoryReadiness } from "../api/repositories"
+import { Surface } from "../components/ui/Surface"
+import { TonePill } from "../components/StatusPill"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
 
@@ -43,6 +46,13 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const setup = bootstrap?.setup_status
   const user = bootstrap?.current_user
+  const repositoryId = setup?.onboarding_repository_id
+  const readiness = useQuery({
+    queryKey: ["repository-readiness", repositoryId],
+    queryFn: () => fetchRepositoryReadiness(repositoryId!),
+    enabled: Boolean(repositoryId),
+    staleTime: 60_000
+  })
 
   if (!user || !setup) {
     return (
@@ -123,6 +133,10 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         </ol>
       </section>
 
+      {repositoryId ? (
+        <RepositoryReadinessReport loading={readiness.isLoading} report={readiness.data?.readiness} />
+      ) : null}
+
       {chatError ? (
         <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" role="alert">{chatError}</p>
       ) : null}
@@ -142,6 +156,32 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       {openModal === "add_repository" ? <AddRepositoryModal onClose={() => setOpenModal(null)} /> : null}
     </main>
   )
+}
+
+function RepositoryReadinessReport({ loading, report }: { loading: boolean; report?: Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"] }) {
+  const { t } = useT("common")
+  if (loading) return <Surface className="text-sm text-text-muted">{t("onboarding.readiness_loading")}</Surface>
+  if (!report) return null
+  const blocked = report.status === "needs_configuration" || report.status === "incompatible"
+  return (
+    <Surface aria-label={t("onboarding.readiness_label")}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-text-primary">{t("onboarding.readiness_label")}</h2>
+        <TonePill tone={blocked ? "red" : report.status === "ready" ? "green" : "amber"}>{report.summary}</TonePill>
+      </div>
+      <ul className="mt-3 space-y-1 text-sm text-text-secondary">
+        {report.checks.map((check, index) => <li key={`${check.key}-${index}`}>{check.level === "pass" ? "✓" : check.level === "warning" ? "!" : "×"} {check.message}</li>)}
+      </ul>
+      <CommandList commands={report.prepare_commands} label={t("onboarding.readiness_prepare")} />
+      <CommandList commands={report.grader_commands} label={t("onboarding.readiness_graders")} />
+      <p className="mt-3 text-xs text-text-muted">{t("onboarding.readiness_advisory")}</p>
+    </Surface>
+  )
+}
+
+function CommandList({ commands, label }: { commands: string[]; label: string }) {
+  if (commands.length === 0) return null
+  return <div className="mt-3"><h3 className="text-xs font-medium uppercase text-text-muted">{label}</h3><pre className="mt-1 overflow-x-auto rounded bg-surface-inset p-3 text-xs text-text-primary">{commands.map((command) => `$ ${command}`).join("\n")}</pre></div>
 }
 
 function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>): ChecklistStep[] {

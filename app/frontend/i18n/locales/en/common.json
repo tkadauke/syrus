@@ -41,7 +41,12 @@
     "edit_label": "Edit",
     "ready_heading": "Ready for normal operations",
     "ready_description": "Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.",
-    "open_dashboard": "Open dashboard"
+    "open_dashboard": "Open dashboard",
+    "readiness_label": "Repository readiness",
+    "readiness_loading": "Inspecting repository readiness…",
+    "readiness_prepare": "Proposed prepare commands",
+    "readiness_graders": "Proposed grader commands",
+    "readiness_advisory": "Warnings are advisory. Syrus only blocks invalid configuration, inaccessible repository content, or missing worker capabilities."
   },
   "search": {
     "heading": "Search",

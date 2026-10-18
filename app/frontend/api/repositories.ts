@@ -188,6 +188,24 @@ export type RepositorySavedPayload = {
   credential_status: RepositoryCredentialStatus
 }
 
+export type RepositoryReadinessPayload = {
+  readiness: {
+    status: "ready" | "ready_with_warnings" | "needs_configuration" | "incompatible"
+    summary: string
+    revision: string | null
+    repository_size_bytes: number | null
+    file_count: number | null
+    checks: Array<{ key: string; level: "pass" | "warning" | "block"; message: string }>
+    prepare_commands: string[]
+    grader_commands: string[]
+    required_capabilities: Record<string, string[]>
+  }
+}
+
+export function fetchRepositoryReadiness(id: number | string) {
+  return getJson<RepositoryReadinessPayload>(`/api/v1/app/repositories/${id}/readiness`)
+}
+
 export type GitHubOwnersPayload = {
   user?: string
   orgs?: string[]

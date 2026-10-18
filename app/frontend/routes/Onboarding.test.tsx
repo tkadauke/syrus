@@ -124,6 +124,31 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
   })
 
+  it("shows the static readiness result and exact proposed commands after repository selection", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(jsonResponse({
+      readiness: {
+        status: "ready_with_warnings",
+        summary: "Ready with warnings",
+        revision: "abc123",
+        repository_size_bytes: 42,
+        file_count: 2,
+        checks: [{ key: "configuration", level: "warning", message: ".syrus.yml is absent; commands are inferred." }],
+        prepare_commands: ["bundle install"],
+        grader_commands: ["bin/rspec"],
+        required_capabilities: { os: ["linux"] }
+      }
+    }))
+
+    renderOnboarding(bootstrap({
+      setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 }
+    }))
+
+    expect(await screen.findByText("Ready with warnings")).toBeInTheDocument()
+    expect(screen.getByText("$ bundle install")).toBeInTheDocument()
+    expect(screen.getByText("$ bin/rspec")).toBeInTheDocument()
+    expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/repositories/7/readiness", expect.anything())
+  })
+
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {
     renderOnboarding(bootstrap())
 

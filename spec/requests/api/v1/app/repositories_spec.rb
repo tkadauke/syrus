@@ -91,6 +91,21 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "returns a static readiness report for an accessible repository" do
+    user.update!(github_token: "github-token")
+    repository = Factories.repository(user: user)
+    stub_repository_content(repository, files: { ".syrus.yml" => "prepare: []\n" })
+    decision = RunQueueResolver::Decision.new(queue_name: "runs", requirements: { "os" => [ "linux" ] }, sticky_resume: false, blocked_reason: nil, details: {})
+    allow(RunQueueResolver).to receive(:resolve_candidate).and_return(decision)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("readiness", "summary")).to eq("Ready with warnings")
+    expect(parse_body.dig("readiness", "prepare_commands")).to eq([])
+  end
+
   it "401s throughput metrics when signed out" do
     repository = Factories.repository(user: user)
 

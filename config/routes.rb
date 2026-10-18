@@ -347,6 +347,7 @@ Rails.application.routes.draw do
             post :sync_fork
             post :check_ci_now
             get :coverage_trend
+            get :readiness
             get :target_graph, to: "target_graphs#repository"
           end
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
