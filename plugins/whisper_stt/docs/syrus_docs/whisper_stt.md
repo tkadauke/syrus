@@ -8,11 +8,17 @@ listens on the internal Plugin Runtime network, and reports readiness through
 This plugin also registers the `whisper_stt` `speech_to_text_provider`. When
 the plugin is enabled and Plugin Runtime reports the `whisper-stt` service as
 healthy, chat dictation exposes backend streaming and batch transcription.
-The image runs a session gateway in front of `whisper-server`. The gateway
-accepts ordered MediaRecorder chunks, appends them to one recording, and
-decodes the complete recording prefix for each revised interim hypothesis.
-It never submits a continuation WebM fragment as an independent recording.
-Stopping performs one final decode and releases the session directory.
+The image runs a session gateway in front of `whisper-server`. Each stream
+owns one persistent `ffmpeg` process, so ordered MediaRecorder continuation
+chunks pass through the same WebM/Ogg decoder state and are converted to PCM.
+The gateway sends WAV snapshots from a bounded 15-second PCM window to
+Whisper, periodically commits older 10-second windows, and emits the composed
+revised hypothesis. It never submits a continuation fragment as an independent
+recording or repeatedly decodes the accumulated media container. Stopping
+flushes the decoder, transcribes the remaining bounded window, and terminates
+the per-session process.
+Live sessions accept the composer's WebM and Ogg recorder formats. Other audio
+formats remain available through the batch `/inference` path.
 
 The existing `/inference` multipart endpoint remains available through the
 gateway. It receives audio as the `file` field with `response_format=json`;
@@ -23,8 +29,10 @@ Syrus forwards optional `language` and `prompt` fields.
 - **Plugin Runtime**, which Whisper speech-to-text depends on, to run or
   locate the service.
 - Enough CPU and memory for the `base.en` whisper.cpp model and concurrent
-  session decodes. Each active stream retains up to 10 MB of temporary audio;
-  interim decoding uses more CPU than a single batch request.
+  session decodes. Each active stream owns an `ffmpeg` process and retains at
+  most 15 seconds of decoded PCM plus committed transcript state; interim
+  inference uses more CPU than a single batch request, but its input window
+  does not grow with utterance length.
 
 ## Running The Service
 
@@ -55,8 +63,9 @@ With the `chat_speech_to_text` feature flag on, a healthy service makes
 startup, ordering, decode, timeout, disconnect, and cancellation failures
 release gateway resources. The composer retains the complete browser audio;
 when possible, it automatically retries `/inference`, then uses browser speech
-recognition if batch transcription also fails. Idle gateway sessions expire
-after 120 seconds and ActionCable sessions time out after 30 seconds.
+recognition if batch transcription also fails. Cancel, disconnect, error, and
+idle-expiry paths terminate the session decoder process. Idle gateway sessions
+expire after 120 seconds and ActionCable sessions time out after 30 seconds.
 
 Set `SYRUS_STT_PROVIDER=whisper_stt` when more than one speech-to-text provider
 is installed and this daemon should be the selected backend.
