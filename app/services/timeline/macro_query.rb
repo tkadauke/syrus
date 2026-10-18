@@ -54,6 +54,51 @@ module Timeline
       }
     end
 
+    # Count the same visible entries as #call without constructing lane/span
+    # payloads or blocked explanations. Evaluation stops at limit + 1 matches
+    # so SmartFolder navigation can report a capped count at bounded cost.
+    def capped_count(limit: SmartFolder::COUNT_CAP)
+      stop_at = limit + 1
+      count = 0
+      active_hostnames = Set.new
+
+      each_batch(workflow_scope.includes(:job), stop_at) do |batch|
+        attributions = WorkerAttribution.for_workflows(batch)
+        batch.each do |workflow|
+          attribution = attributions.fetch(workflow.id)
+          next if hostname_filter && attribution[:hostname] != hostname_filter
+          next if expression && !expression.matches_workflow?(workflow, source: :span, attribution: attribution)
+
+          active_hostnames << attribution[:hostname] if attribution[:hostname].present?
+          count += 1
+          return capped_count_result(count, limit) if count >= stop_at
+        end
+      end
+
+      each_batch(pending_workflow_scope.includes(:job), stop_at - count) do |batch|
+        batch.each do |workflow|
+          next if expression && !expression.matches_workflow?(workflow, source: :pending)
+
+          count += 1
+          return capped_count_result(count, limit) if count >= stop_at
+        end
+      end
+
+      idle_hostnames = Set.new
+      each_batch(instance_version_scope, stop_at - count) do |batch|
+        batch.each do |instance|
+          next if active_hostnames.include?(instance.hostname) || idle_hostnames.include?(instance.hostname)
+          next if expression && !expression.matches_instance?(instance)
+
+          idle_hostnames << instance.hostname
+          count += 1
+          return capped_count_result(count, limit) if count >= stop_at
+        end
+      end
+
+      capped_count_result(count, limit)
+    end
+
     private
 
     attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter, :job_type_filter, :expression, :allowed_job_ids
@@ -139,28 +184,29 @@ module Timeline
     end
 
     def workflows
-      @workflows ||= begin
-        scope = Workflow.where.not(started_at: nil)
-          .where("workflows.started_at < ?", to)
-          .where("workflows.finished_at IS NULL OR workflows.finished_at > ?", from)
-          .includes(:job, :work_unit)
-          .order(:started_at)
-        scope = apply_filters(scope)
-        scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
-        scope = scope.where(state: status_filter) if status_filter
-        scope.to_a
-      end
+      @workflows ||= workflow_scope.includes(:job, :work_unit).order(:started_at).to_a
     end
 
     def pending_workflows
-      @pending_workflows ||= begin
-        scope = Workflow.where(started_at: nil, state: "queued")
-          .where("workflows.created_at > ?", STALE_PENDING_THRESHOLD.ago)
-          .includes(:job, :work_unit).order(:created_at)
-        scope = apply_filters(scope)
-        scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
-        scope.to_a
-      end
+      @pending_workflows ||= pending_workflow_scope.includes(:job, :work_unit).order(:created_at).to_a
+    end
+
+    def workflow_scope
+      scope = Workflow.where.not(started_at: nil)
+        .where("workflows.started_at < ?", to)
+        .where("workflows.finished_at IS NULL OR workflows.finished_at > ?", from)
+      scope = apply_filters(scope)
+      scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
+      scope = scope.where(state: status_filter) if status_filter
+      scope
+    end
+
+    def pending_workflow_scope
+      scope = Workflow.where(started_at: nil, state: "queued")
+        .where("workflows.created_at > ?", STALE_PENDING_THRESHOLD.ago)
+      scope = apply_filters(scope)
+      scope = scope.where(job_id: allowed_job_ids) if allowed_job_ids
+      scope
     end
 
     def apply_filters(scope)
@@ -219,13 +265,15 @@ module Timeline
     end
 
     def instance_versions
-      @instance_versions ||= begin
-        scope = InstanceVersion.where(role: "worker")
-          .where("started_at < ?", to)
-          .where("finished_at IS NULL OR finished_at > ?", from)
-        scope = scope.where(hostname: hostname_filter) if hostname_filter
-        scope.to_a.select { |instance| expression.nil? || expression.matches_instance?(instance) }
-      end
+      @instance_versions ||= instance_version_scope.to_a.select { |instance| expression.nil? || expression.matches_instance?(instance) }
+    end
+
+    def instance_version_scope
+      scope = InstanceVersion.where(role: "worker")
+        .where("started_at < ?", to)
+        .where("finished_at IS NULL OR finished_at > ?", from)
+      scope = scope.where(hostname: hostname_filter) if hostname_filter
+      scope
     end
 
     def instance_for_hostname(hostname)
@@ -244,6 +292,18 @@ module Timeline
         last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
         finished_at: instance.finished_at&.iso8601
       }
+    end
+
+    def each_batch(scope, remaining)
+      return if remaining <= 0
+
+      scope.find_in_batches(batch_size: [ remaining, 100 ].min) do |batch|
+        yield batch
+      end
+    end
+
+    def capped_count_result(count, limit)
+      { count: [ count, limit ].min, count_capped: count > limit }
     end
 
     def parse_time(value)
