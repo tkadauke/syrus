@@ -1,5 +1,8 @@
 require "uri"
 require "yaml"
+require "base64"
+require "json"
+require "openssl"
 
 module K8sCluster
   # Resolves a pasted kubeconfig YAML's current-context to a single
@@ -11,8 +14,9 @@ module K8sCluster
   class KubeconfigParser
     class ParseError < StandardError; end
 
-    Result = Data.define(:api_server_url, :credentials, :context_name, :cluster_name, :host) do
+    Result = Data.define(:api_server_url, :credentials, :context_name, :cluster_name, :host, :expires_at, :refreshable) do
       def credential_kind
+        return "oidc" if credentials.to_h["oidc"].present?
         return "token" if credentials.to_h["token"].present?
         return "client_cert" if credentials.to_h["client_cert"].present?
 
@@ -43,7 +47,9 @@ module K8sCluster
         credentials: credentials_for(cluster, user),
         context_name: context_name,
         cluster_name: context["cluster"],
-        host: server_uri.host
+        host: server_uri.host,
+        expires_at: credential_expiry(user),
+        refreshable: oidc_config(user)&.values_at("refresh-token", "client-id", "idp-issuer-url")&.all?(&:present?) || false
       )
     end
 
@@ -102,12 +108,34 @@ module K8sCluster
       elsif user["exec"].present?
         raise ParseError, "user uses an exec-based credential plugin (e.g. aws-iam-authenticator, gke-gcloud-auth-plugin), which Syrus cannot run; " \
                           "use a context whose user has an inline bearer token or client-certificate-data/client-key-data instead"
+      elsif oidc_config(user).present? && oidc_config(user)["id-token"].present?
+        { "token" => oidc_config(user)["id-token"], "oidc" => true }
       elsif user["client-certificate"].present? || user["client-key"].present? || user["tokenFile"].present?
         raise ParseError, "user credentials reference external files, not inline data; paste a kubeconfig with " \
                           "certificate-authority-data/client-certificate-data/client-key-data embedded"
       else
         raise ParseError, "user has no supported credentials (expected a bearer token, or client-certificate-data + client-key-data)"
       end
+    end
+
+    def credential_expiry(user)
+      if user["client-certificate-data"].present?
+        OpenSSL::X509::Certificate.new(Base64.strict_decode64(user["client-certificate-data"])).not_after
+      else
+        token = user["token"].presence || oidc_config(user)&.fetch("id-token", nil)
+        payload = token.to_s.split(".", 3)[1]
+        return unless payload
+
+        decoded = Base64.urlsafe_decode64(payload.ljust((payload.length + 3) / 4 * 4, "="))
+        Time.at(JSON.parse(decoded).fetch("exp")).utc
+      end
+    rescue ArgumentError, JSON::ParserError, KeyError, OpenSSL::OpenSSLError
+      nil
+    end
+
+    def oidc_config(user)
+      provider = user["auth-provider"]
+      provider["config"] if provider.is_a?(Hash) && provider["name"] == "oidc" && provider["config"].is_a?(Hash)
     end
 
     def parse_server_uri(server, cluster_name)

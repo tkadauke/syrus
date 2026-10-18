@@ -1851,6 +1851,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.datetime "updated_at", null: false
     t.bigint "credential_store_credential_id"
     t.string "credential_kind"
+    t.string "credential_refresh_status"
+    t.string "credential_refresh_error"
+    t.datetime "credential_refresh_attempted_at"
     t.index ["credential_store_credential_id"], name: "idx_kubernetes_clusters_credential_store_credential"
   end
 

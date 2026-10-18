@@ -147,9 +147,26 @@ module Api
               credential_scope_type: credential&.scope_type,
               credential_scope_id: credential&.scope_id,
               legacy_credentials: cluster.credential_store_credential_id.blank?,
+              credential_health: credential_health(cluster, credential),
+              credential_expires_at: credential&.expires_at&.iso8601,
+              credential_refreshable: credential_refreshable?(credential),
+              credential_refresh_error: cluster.credential_refresh_error,
               created_at: cluster.created_at.iso8601,
               updated_at: cluster.updated_at.iso8601
             }
+          end
+
+          def credential_health(cluster, credential)
+            return "legacy" unless credential
+            return "failed" if cluster.credential_refresh_status == "failed"
+            return "expired" if credential.expired?
+            return "expiring" if credential.expires_at && credential.expires_at <= 15.minutes.from_now
+
+            credential.expires_at ? "healthy" : "unknown"
+          end
+
+          def credential_refreshable?(credential)
+            credential&.safe_metadata.to_h["refreshable"] == "true"
           end
 
           def requested_scope(default_type: "instance", default_id: nil)

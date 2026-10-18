@@ -7,7 +7,11 @@ export type KubernetesClusterRow = {
   agentic_access_enabled: boolean
   allow_writes: boolean
   insecure_skip_tls_verify: boolean
-  credential_kind: "token" | "client_cert" | null
+  credential_kind: "token" | "client_cert" | "oidc" | null
+  credential_health: "healthy" | "expiring" | "expired" | "failed" | "unknown" | "legacy"
+  credential_expires_at: string | null
+  credential_refreshable: boolean
+  credential_refresh_error: string | null
   credential_scope_type: CredentialScopeType | null
   credential_scope_id: number | null
   legacy_credentials: boolean

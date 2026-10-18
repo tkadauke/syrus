@@ -95,6 +95,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
         target_constraints: {},
         allowed_surfaces: %w[admin workflow chat],
         allowed_tools: [],
+        expires_at: 10.minutes.from_now,
         last_rotated_at: 1.hour.ago
       )
       Factories.kubernetes_cluster(label: "Staging", credential_store_credential_id: credential.id, credential_kind: "token")
@@ -105,6 +106,8 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
       expect(response).to have_http_status(:ok)
       cluster = parse_body.fetch("kubernetes_clusters").first
       expect(cluster["credential_kind"]).to eq("token")
+      expect(cluster["credential_health"]).to eq("expiring")
+      expect(cluster["credential_expires_at"]).to eq(credential.expires_at.iso8601)
       expect(response.body).not_to include("s3cret-token")
     end
 
