@@ -535,14 +535,23 @@ class ProcessRunner
   end
 
   # Capture is implemented as a ProcessRunner invocation rather than an
-  # Open3 shortcut. Redirection only separates the two streams; the runner
-  # still owns spawning, stdin delivery, timeouts, cancellation and outcome.
+  # Open3 shortcut. The child writes each stream to a named pipe that a reader
+  # drains continuously. BoundedBuffer retains only the configured prefix but
+  # the readers keep consuming discarded bytes, so neither worker memory nor
+  # workspace disk grows with untrusted child output. The runner still owns
+  # spawning, stdin delivery, timeouts, cancellation and outcome.
   def capture(limit: 1.megabyte)
     stdout = BoundedBuffer.new(limit)
     stderr = BoundedBuffer.new(limit)
     Dir.mktmpdir("process-runner-capture", @chdir) do |dir|
       stdout_path = File.join(dir, "stdout")
       stderr_path = File.join(dir, "stderr")
+      File.mkfifo(stdout_path)
+      File.mkfifo(stderr_path)
+      readers = [
+        Thread.new { drain_capture_pipe(stdout_path, stdout) },
+        Thread.new { drain_capture_pipe(stderr_path, stderr) }
+      ]
       original_command = @command
       original_env = @env
       original_display_command = @display_command
@@ -550,8 +559,7 @@ class ProcessRunner
       @command = [ "bash", "-c", 'exec "$@" > "$PROCESS_RUNNER_STDOUT" 2> "$PROCESS_RUNNER_STDERR"', "process-runner", *@command ]
       @display_command ||= original_command.compact.map(&:to_s).join(" ")
       result = run
-      stdout << File.binread(stdout_path) if File.exist?(stdout_path)
-      stderr << File.binread(stderr_path) if File.exist?(stderr_path)
+      readers.each(&:value)
       CaptureResult.new(
         result: result,
         stdout: stdout.value,
@@ -560,6 +568,7 @@ class ProcessRunner
         stderr_truncated: stderr.truncated?
       )
     ensure
+      readers&.each { |reader| reader.kill if reader.alive? }
       @command = original_command
       @env = original_env
       @display_command = original_display_command
@@ -588,6 +597,14 @@ class ProcessRunner
   end
 
   private
+
+  def drain_capture_pipe(path, buffer)
+    File.open(path, "rb") do |pipe|
+      while (chunk = pipe.read(READ_CHUNK_BYTES))
+        buffer << chunk
+      end
+    end
+  end
 
   # Held for the lifetime of the spawned subprocess so
   # WorkflowWorkspace.cleanup_for's non-blocking exclusive flock on the
