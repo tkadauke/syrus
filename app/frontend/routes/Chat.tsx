@@ -163,6 +163,13 @@ export function activeChatRefetchInterval(activeForMs: number) {
   return 30_000
 }
 
+export type ActiveChatPollingState = { chatId: string; startedAt: number }
+
+export function nextActiveChatPollingState(current: ActiveChatPollingState | null, chatId: string, now: number) {
+  const state = current?.chatId === chatId ? current : { chatId, startedAt: now }
+  return { state, interval: activeChatRefetchInterval(now - state.startedAt) }
+}
+
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
     <p className={`${mobile ? "border-t" : "pointer-events-none absolute left-0 right-0 top-0 border-b"} border-gray-100 bg-white px-4 py-1.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400`}>
@@ -191,7 +198,7 @@ export function ChatRoute() {
   const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
-  const activePollingStartedAtRef = useRef<number | null>(null)
+  const activePollingStateRef = useRef<ActiveChatPollingState | null>(null)
   const chat = useQuery({
     queryKey,
     queryFn: async () => {
@@ -209,10 +216,11 @@ export function ChatRoute() {
       if (document.visibilityState !== "visible") return false
       const data = query.state.data as ChatPayload | undefined
       if (data && isAgentActive(data)) {
-        activePollingStartedAtRef.current ??= Date.now()
-        return activeChatRefetchInterval(Date.now() - activePollingStartedAtRef.current)
+        const polling = nextActiveChatPollingState(activePollingStateRef.current, id, Date.now())
+        activePollingStateRef.current = polling.state
+        return polling.interval
       }
-      activePollingStartedAtRef.current = null
+      activePollingStateRef.current = null
       return isDisconnected ? 30_000 : false
     },
     placeholderData: (previousData, previousQuery) => (

@@ -158,9 +158,11 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     chat, message = create_stuck_chat
     # Solid Queue tables are not part of the normal single-database test schema,
     # so stub the queue-inspection boundary with the failed execution payload.
-    allow_any_instance_of(ChatTurnLiveness).to receive(:failed_chat_turn_job_error).and_return(
-      "exception_class" => "SolidQueue::Processes::ProcessPrunedError",
-      "message" => "Process was found dead and pruned"
+    allow(ChatTurnLiveness).to receive(:failed_chat_turn_job_errors_for).and_return(
+      chat.id => {
+        "exception_class" => "SolidQueue::Processes::ProcessPrunedError",
+        "message" => "Process was found dead and pruned"
+      }
     )
 
     expect {
@@ -179,9 +181,11 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     chat, = create_stuck_chat
     # Solid Queue tables are not part of the normal single-database test schema,
     # so stub the queue-inspection boundary with a terminal execution payload.
-    allow_any_instance_of(ChatTurnLiveness).to receive(:failed_chat_turn_job_error).and_return(
-      "exception_class" => "ArgumentError",
-      "message" => "invalid turn input"
+    allow(ChatTurnLiveness).to receive(:failed_chat_turn_job_errors_for).and_return(
+      chat.id => {
+        "exception_class" => "ArgumentError",
+        "message" => "invalid turn input"
+      }
     )
 
     expect {
@@ -192,6 +196,20 @@ RSpec.describe ChatTurnAutoRetryReconciler do
     expect(chat.reload).not_to be_turn_in_flight
     expect(chat.current_turn_message_id).to be_nil
     expect(chat.messages.where(role: "system", content: { "text" => "Agent turn failed." }).count).to eq(1)
+  end
+
+  it "loads failed queue executions once for a batch of stranded turns" do
+    first_chat, first_message = create_stuck_chat
+    second_chat, second_message = create_stuck_chat
+
+    expect(ChatTurnLiveness).to receive(:failed_chat_turn_job_errors_for).once do |identities|
+      expect(identities).to eq(first_chat.id => first_message.id, second_chat.id => second_message.id)
+      {}
+    end
+
+    expect {
+      described_class.sweep!
+    }.to change(ChatTurnAutoRetryAttempt, :count).by(2)
   end
 
   it "uses the shared retry budget and exponential backoff across retry status messages" do
