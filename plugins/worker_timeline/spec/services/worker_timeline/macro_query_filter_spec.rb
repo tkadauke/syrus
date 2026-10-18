@@ -56,18 +56,16 @@ RSpec.describe WorkerTimeline::MacroQueryFilter do
       expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
     end
 
-    it "falls back to the 3-hour default (not MacroQuery's own 1-hour default) when a within_last chip has a malformed unit" do
-      filter = described_class.new({ "and" => [ { "field" => "window", "op" => "within_last", "value" => { "n" => 30, "unit" => "fortnights" } } ] })
-
-      expect(filter.from).to be_within(1).of(Time.current - 3.hours)
-      expect(filter.to).to be_within(1).of(Time.current)
+    it "rejects a within_last chip with an unsupported unit" do
+      expect {
+        described_class.new({ "and" => [ { "field" => "window", "op" => "within_last", "value" => { "n" => 30, "unit" => "fortnights" } } ] })
+      }.to raise_error(ArgumentError, /invalid value/)
     end
 
-    it "falls back to the 3-hour default on the broken side of a between chip with an unparsable bound" do
-      filter = described_class.new({ "and" => [ { "field" => "window", "op" => "between", "value" => [ "not-a-date", "2026-01-02" ] } ] })
-
-      expect(filter.from).to be_within(1).of(Time.current - 3.hours)
-      expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
+    it "rejects a between chip with an unparsable bound" do
+      expect {
+        described_class.new({ "and" => [ { "field" => "window", "op" => "between", "value" => [ "not-a-date", "2026-01-02" ] } ] })
+      }.to raise_error(ArgumentError, /invalid value/)
     end
 
     it "clamps a between chip's end bound to now when it names a future time" do
@@ -82,10 +80,19 @@ RSpec.describe WorkerTimeline::MacroQueryFilter do
 
       expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
     end
+
+    it "keeps the default display range for a negated window" do
+      filter = described_class.new({ "not" => { "field" => "window", "op" => "within_last", "value" => { "n" => 30, "unit" => "minutes" } } })
+
+      expect(filter.to - filter.from).to be_within(1).of(3.hours)
+    end
   end
 
-  describe "#repository_id / #epic_id / #hostname / #status / #job_type" do
-    it "reads the chip values for the request's q param" do
+  describe "expression evaluation" do
+    let(:job) { instance_double(Job, repository_id: 7, epic_id: 9, kind: "issue") }
+    let(:workflow) { instance_double(Workflow, job:, state: "running", started_at: 20.minutes.ago, finished_at: nil, created_at: 30.minutes.ago) }
+
+    it "evaluates every registered chip" do
       tree = {
         "and" => [
           { "field" => "repository_id", "op" => "is", "value" => 7 },
@@ -95,36 +102,38 @@ RSpec.describe WorkerTimeline::MacroQueryFilter do
           { "field" => "job_type", "op" => "is_one_of", "value" => %w[ user ] }
         ]
       }
+      tree["and"] << { "field" => "window", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } }
       filter = described_class.from_params(ActionController::Parameters.new(q: encode(tree)))
 
-      expect(filter.repository_id).to eq(7)
-      expect(filter.epic_id).to eq(9)
-      expect(filter.hostname).to eq("worker-x")
-      expect(filter.status).to eq(%w[ running queued ])
-      expect(filter.job_type).to eq(%w[ user ])
+      expect(filter.matches_workflow?(workflow, source: :span, attribution: { hostname: "worker-x" })).to be(true)
     end
 
-    it "returns nil/empty values when no chips are present" do
-      filter = described_class.new(nil)
-
-      expect(filter.repository_id).to be_nil
-      expect(filter.epic_id).to be_nil
-      expect(filter.hostname).to be_nil
-      expect(filter.status).to eq([])
-      expect(filter.job_type).to eq([])
-    end
-
-    it "ignores chips nested inside an OR group or wrapped in NOT" do
+    it "composes nested AND, OR, and NOT groups" do
       tree = {
         "and" => [
-          { "or" => [ { "field" => "repository_id", "op" => "is", "value" => 1 }, { "field" => "repository_id", "op" => "is", "value" => 2 } ] },
-          { "not" => { "field" => "hostname", "op" => "is", "value" => "worker-x" } }
+          { "or" => [ { "field" => "repository_id", "op" => "is", "value" => 1 }, { "field" => "repository_id", "op" => "is", "value" => 7 } ] },
+          { "not" => { "field" => "hostname", "op" => "is", "value" => "worker-y" } }
         ]
       }
       filter = described_class.new(tree)
 
-      expect(filter.repository_id).to be_nil
-      expect(filter.hostname).to be_nil
+      expect(filter.matches_workflow?(workflow, source: :span, attribution: { hostname: "worker-x" })).to be(true)
+      expect(filter.matches_workflow?(workflow, source: :span, attribution: { hostname: "worker-y" })).to be(false)
+    end
+
+    it "evaluates pending workflows and idle instances with explicit source semantics" do
+      status_filter = described_class.new({ "and" => [ { "field" => "status", "op" => "is_one_of", "value" => [ "running" ] } ] })
+      hostname_filter = described_class.new({ "and" => [ { "field" => "hostname", "op" => "is", "value" => "worker-x" } ] })
+      instance = instance_double(InstanceVersion, hostname: "worker-x", started_at: 1.hour.ago, finished_at: nil)
+
+      expect(status_filter.matches_workflow?(workflow, source: :pending)).to be(true)
+      expect(status_filter.matches_instance?(instance)).to be(false)
+      expect(hostname_filter.matches_instance?(instance)).to be(true)
+    end
+
+    it "rejects unknown fields and unsupported operators" do
+      expect { described_class.new({ "field" => "secret", "op" => "is", "value" => true }) }.to raise_error(Filters::UnknownFilterField)
+      expect { described_class.new({ "field" => "hostname", "op" => "contains", "value" => "x" }) }.to raise_error(ArgumentError, /unsupported operator/)
     end
   end
 

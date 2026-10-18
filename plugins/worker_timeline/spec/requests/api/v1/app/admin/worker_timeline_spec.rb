@@ -111,6 +111,124 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
         %w[ repository_id epic_id hostname job_type status window ]
       )
     end
+
+    it "evaluates nested boolean groups instead of flattening them" do
+      enable_plugin!
+      sign_in_as(admin)
+      matching = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+      excluded = Workflow.create!(job: job, trigger_kind: "retry", state: "failed", started_at: 9.minutes.ago, worker_hostname: "worker-y")
+      q = Filters::QueryParam.encode(
+        "and" => [
+          { "or" => [
+            { "field" => "hostname", "op" => "is", "value" => "worker-x" },
+            { "field" => "status", "op" => "is_one_of", "value" => [ "succeeded" ] }
+          ] },
+          { "not" => { "field" => "status", "op" => "is_one_of", "value" => [ "failed" ] } }
+        ]
+      )
+
+      get "/api/v1/app/admin/worker_timeline/macro", params: { q: q }
+
+      ids = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }
+      expect(ids).to contain_exactly(matching.id)
+      expect(ids).not_to include(excluded.id)
+    end
+
+    it "applies one OR expression consistently to pending workflows and idle lanes" do
+      enable_plugin!
+      sign_in_as(admin)
+      pending = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+      InstanceVersion.create!(hostname: "worker-idle", role: "worker", version: "abc123",
+                              started_at: 1.hour.ago, last_heartbeat_at: 1.minute.ago)
+      q = Filters::QueryParam.encode("or" => [
+        { "field" => "status", "op" => "is_one_of", "value" => [ "queued" ] },
+        { "field" => "hostname", "op" => "is", "value" => "worker-idle" }
+      ])
+
+      get "/api/v1/app/admin/worker_timeline/macro", params: { q: q }
+
+      expect(parse_body.fetch("pending").map { |entry| entry.fetch("workflow_id") }).to include(pending.id)
+      idle_lane = parse_body.fetch("lanes").find { |lane| lane.fetch("hostname") == "worker-idle" }
+      expect(idle_lane).to include("spans" => [])
+    end
+
+    it "enforces repository visibility before evaluating the expression" do
+      enable_plugin!
+      sign_in_as(admin)
+      another_user = Factories.user
+      hidden_repository = Factories.repository(user: another_user)
+      hidden_job = Factories.job_record(user: another_user, repository: hidden_repository, state: "running")
+      hidden = Workflow.create!(job: hidden_job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago, worker_hostname: "worker-secret")
+      q = Filters::QueryParam.encode("and" => [ { "not" => { "field" => "hostname", "op" => "is", "value" => "nobody" } } ])
+
+      get "/api/v1/app/admin/worker_timeline/macro", params: { q: q }
+
+      ids = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }
+      expect(ids).not_to include(hidden.id)
+    end
+
+    it "uses a saved folder, allows a URL override, and exposes navigation metadata" do
+      enable_plugin!
+      sign_in_as(admin)
+      running = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+      failed = Workflow.create!(job: job, trigger_kind: "retry", state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago, worker_hostname: "worker-x")
+      folder = SmartFolder.create!(user: admin, name: "Failures", kind: "user_defined", subject_type: "worker_timeline", position: 0,
+                                   filter: { "and" => [ { "field" => "status", "op" => "is_one_of", "value" => [ "failed" ] } ] })
+
+      get "/api/v1/app/admin/worker_timeline/macro", params: { smart_folder_id: folder.id }
+      expect(parse_body.fetch("active_smart_folder_id")).to eq(folder.id)
+      expect(parse_body.fetch("smart_folders").first).to include("id" => folder.id, "path" => "/worker_timeline?smart_folder_id=#{folder.id}")
+      expect(parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }).to eq([ failed.id ])
+
+      q = Filters::QueryParam.encode("and" => [ { "field" => "status", "op" => "is_one_of", "value" => [ "running" ] } ])
+      get "/api/v1/app/admin/worker_timeline/macro", params: { smart_folder_id: folder.id, q: q }
+      expect(parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }).to eq([ running.id ])
+    end
+
+    it "rejects unsupported saved predicates clearly" do
+      enable_plugin!
+      sign_in_as(admin)
+      q = Filters::QueryParam.encode("and" => [ { "field" => "hostname", "op" => "contains", "value" => "worker" } ])
+
+      get "/api/v1/app/admin/worker_timeline/macro", params: { q: q }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_filter")
+      expect(parse_body.dig("error", "message")).to include("unsupported operator")
+    end
+  end
+
+  describe "Worker Timeline smart folder CRUD" do
+    let(:filter) { { "and" => [ { "field" => "hostname", "op" => "is", "value" => "worker-a" } ] } }
+
+    before do
+      enable_plugin!
+      sign_in_as(admin)
+    end
+
+    it "creates, updates, navigates to, and deletes a saved timeline expression" do
+      post "/api/v1/app/smart_folders", params: {
+        subject_type: "worker_timeline", filter: filter.to_json,
+        smart_folder: { name: "Worker A" }
+      }
+      expect(response).to have_http_status(:created)
+      folder_id = parse_body.dig("smart_folder", "id")
+      expect(parse_body.fetch("redirect_to")).to eq("/worker_timeline?smart_folder_id=#{folder_id}")
+
+      replacement = { "or" => [
+        { "field" => "hostname", "op" => "is", "value" => "worker-a" },
+        { "field" => "hostname", "op" => "is", "value" => "worker-b" }
+      ] }
+      patch "/api/v1/app/smart_folders/#{folder_id}", params: {
+        filter: replacement.to_json, smart_folder: { name: "Primary workers", position: 1 }
+      }
+      expect(response).to have_http_status(:ok)
+      expect(SmartFolder.find(folder_id)).to have_attributes(name: "Primary workers", filter: replacement)
+
+      delete "/api/v1/app/smart_folders/#{folder_id}"
+      expect(response).to have_http_status(:ok)
+      expect(SmartFolder.exists?(folder_id)).to be(false)
+    end
   end
 
   describe "GET /workflow" do
