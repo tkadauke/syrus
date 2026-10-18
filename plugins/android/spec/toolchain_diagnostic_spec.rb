@@ -83,4 +83,21 @@ RSpec.describe Android::ToolchainDiagnostic do
     )
     expect(diagnostic.dig("jvm", "java", "summary")).to include("openjdk version")
   end
+
+  it "returns a non-fatal diagnostic and finalizes a timed-out probe" do
+    stub_const("Android::ToolchainDiagnostic::COMMAND_TIMEOUT_SECONDS", 0.05)
+    executable("adb", output: "", exit_status: 0)
+    @bin.join("adb").write("#!/bin/sh\n/bin/sleep 30\n")
+    FileUtils.chmod(0o755, @bin.join("adb"))
+
+    diagnostic = described_class.call(env: env)
+
+    expect(diagnostic.dig("commands", "adb")).to include(
+      "available" => true,
+      "ok" => false,
+      "exit_status" => 124,
+      "summary" => "timed out after 0.05s"
+    )
+    expect(SpawnedProcess.where(kind: "runtime_probe").order(:id).last).to have_attributes(outcome: "timed_out")
+  end
 end
