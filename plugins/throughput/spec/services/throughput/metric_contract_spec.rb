@@ -775,6 +775,28 @@ RSpec.describe Throughput::MetricContract do
       expect(select_clause).not_to include("\"runs\".*")
     end
 
+    it "loads only the workflow and step columns used by landing metrics" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 124)
+      workflow = workflow_for(job, trigger_kind: "auto_merge")
+      step_for(workflow, kind: "grader", started_at: now - 8.minutes, finished_at: now - 6.minutes)
+
+      queries = captured_sql { call }
+      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.include?("\"workflows\".\"artifacts\"") }
+      step_select = queries.find do |sql|
+        sql.include?('SELECT "steps"."id", "steps"."workflow_id", "steps"."kind"')
+      end
+      job_select = queries.find do |sql|
+        sql.include?('SELECT "jobs"."id", "jobs"."state", "jobs"."approved_at"')
+      end
+
+      expect(workflow_select[/SELECT.*?FROM/m]).not_to include("\"workflows\".*")
+      expect(step_select[/SELECT.*?FROM/m]).not_to include("\"steps\".*")
+      expect(step_select[/SELECT.*?FROM/m]).not_to include("\"steps\".\"details\"")
+      expect(job_select[/SELECT.*?FROM/m]).not_to include("\"jobs\".*")
+      expect(job_select[/SELECT.*?FROM/m]).not_to include("\"jobs\".\"issue_body\"")
+      expect(call.fetch(:windows).fetch("1h").dig(:landing, :grader_phase_duration_seconds, :average)).to eq(2.minutes.to_i)
+    end
+
     # The prefilter is deliberately a superset spanning every window, so the
     # per-window split has to stay exact in Ruby.
     it "still separates windows when one prefilter range spans them all" do

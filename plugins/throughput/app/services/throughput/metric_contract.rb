@@ -288,9 +288,7 @@ module Throughput
     private_constant :LandingAttempt
 
     def workflows_in(range, trigger_kinds:)
-      finished_workflows.select do |workflow|
-        trigger_kinds.include?(workflow.trigger_kind) && in_range?(workflow.finished_at, range)
-      end
+      finished_workflows_in(range, trigger_kinds: trigger_kinds)
     end
 
     def landing_attempts_in(range)
@@ -729,13 +727,38 @@ module Throughput
         .to_a
     end
 
-    def finished_workflows
-      @finished_workflows ||= Workflow.joins(:job)
+    WORKFLOW_COLUMNS = %w[
+      workflows.id workflows.job_id workflows.trigger_kind workflows.state
+      workflows.started_at workflows.finished_at workflows.artifacts
+    ].freeze
+    WORKFLOW_STEP_COLUMNS = %w[
+      steps.id steps.workflow_id steps.kind steps.started_at steps.finished_at
+      steps.cancellation_reason
+    ].freeze
+    WORKFLOW_JOB_COLUMNS = %w[
+      jobs.id jobs.state jobs.approved_at jobs.finished_at jobs.pr_number
+      jobs.external_pr_number jobs.fork_review_pr_number
+    ].freeze
+
+    def finished_workflows_in(range, trigger_kinds:)
+      workflows = Workflow.joins(:job)
         .where(jobs: { repository_id: repository.id })
-        .where(trigger_kind: LANDING_TRIGGER_KINDS + REBASE_TRIGGER_KINDS)
-        .where(window_condition(:workflows, :finished_at))
-        .includes(:steps, :job)
+        .where(trigger_kind: trigger_kinds)
+        .where(finished_at: range)
+        .select(*WORKFLOW_COLUMNS)
         .to_a
+
+      ActiveRecord::Associations::Preloader.new(
+        records: workflows,
+        associations: :job,
+        scope: Job.select(*WORKFLOW_JOB_COLUMNS)
+      ).call
+      ActiveRecord::Associations::Preloader.new(
+        records: workflows,
+        associations: :steps,
+        scope: Step.select(*WORKFLOW_STEP_COLUMNS)
+      ).call
+      workflows
     end
 
     def merge_trains
