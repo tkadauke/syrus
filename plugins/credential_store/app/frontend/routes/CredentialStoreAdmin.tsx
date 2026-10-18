@@ -1013,11 +1013,7 @@ function RotateCredentialModal({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!payload.trim()) return
-    onRotate(
-      credential.credential_type === "ssh_private_key"
-        ? sshCredentialPayload(payload, sshPassphrase)
-        : payload
-    )
+    onRotate(credential.credential_type === "ssh_private_key" ? sshCredentialPayload(payload, sshPassphrase) : payload)
   }
 
   return (
@@ -1165,8 +1161,7 @@ function inputFromDraft(
     allowed_tools: splitList(draft.allowed_tools),
     expires_at: draft.expires_at ? new Date(draft.expires_at).toISOString() : null
   }
-  if (ssh && draft.ssh_private_key.trim())
-    input.payload = sshCredentialPayload(draft.ssh_private_key, draft.ssh_passphrase)
+  if (ssh && draft.ssh_private_key.trim()) input.payload = sshCredentialPayload(draft.ssh_private_key, draft.ssh_passphrase)
   else if (draft.payload.trim()) input.payload = draft.payload
   return { input, errors: {} }
 }
