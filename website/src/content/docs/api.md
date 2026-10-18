@@ -187,7 +187,7 @@ prefix format, or a human-readable slug derived from the issue or epic title
 Epic creation and are unique per instance.
 
 `GET /api/v1/app/slug_refs/:slug` resolves canonical display refs such as
-`JOB-<id>`, `EPIC-<number>`, and `CHAT-<id>` through the shared slug registry.
+`JOB-<id>`, `EPIC-<number>`, `CHAT-<id>`, and `WF-<id>` through the shared slug registry.
 The response includes the canonical ref, type, prefix, numeric id, access flag,
 app path, preview API path when available, copy/linkification defaults, and
 mobile interaction hints. Known-but-missing or inaccessible refs return a
@@ -195,6 +195,11 @@ neutral payload with `accessible: false` and no app path; malformed known refs
 return `400`, and unknown prefixes return `404`. `/api/v1/app/slugs/:slug` is
 an alias, and browser navigation can use either `/s/:slug` or a bare root ref
 such as `/JOB-<id>` to redirect accessible refs to their app page.
+
+`GET /api/v1/app/workflows/:workflow_id/preview` returns the focused workflow
+preview used by slug hover and touch interactions: canonical slug and path,
+human-readable workflow type, workflow state, and a compact projected step
+list. Access follows the parent Job's visibility rules.
 
 `POST /api/v1/app/jobs/:id/chat_feedback` lets the authenticated job owner
 submit follow-up feedback directly, without confirming a chat pending action.

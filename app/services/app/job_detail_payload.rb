@@ -30,6 +30,10 @@ module App
       new(job: job, user: job.user).timeline_payload
     end
 
+    def self.workflow_preview(workflow:, user:)
+      new(job: workflow.job, user: user).workflow_preview_payload(workflow)
+    end
+
     def self.build_dependency_options(job:, user:)
       new(job: job, user: user).dependency_options_payload
     end

@@ -5,6 +5,7 @@ import { Button } from "../components/Button"
 import { MutationError } from "../components/MutationError"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { WorkflowReference } from "../components/WorkflowReference"
 import { fetchAdminWorkUnits, type AdminWorkUnitsPayload, type LinkedJob, type WorkIntentSummary, type WorkUnitSummary } from "../api/adminWorkUnits"
 import { updateAdminSettings } from "../api/adminSettings"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -209,7 +210,7 @@ function UnitList({ units, prefix }: { units: WorkUnitSummary[]; prefix: string 
             <span className="font-semibold text-gray-900 dark:text-gray-100">{unit.label}</span>
             <Pill state={unit.state} />
             <span className="font-mono text-xs text-gray-500 dark:text-gray-400">WU-{unit.id}</span>
-            {unit.workflow ? <Link className={linkClass()} to={withRoutePrefix(unit.workflow.path, prefix)}>{unit.workflow.slug}</Link> : null}
+            {unit.workflow ? <WorkflowReference className={linkClass()} path={withRoutePrefix(unit.workflow.path, prefix)} slug={unit.workflow.slug} /> : null}
           </div>
           {(unit.blocked_reason || unit.preemption_reason || unit.pause_requested) ? (
             <div className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-300">

@@ -19,6 +19,7 @@ import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, debugOnlyDetails, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, graderFanoutSelections, humanize, humanizeGraderName, isActiveState, isDiagnosticRelevantRun, isDiagnosticRelevantStep, isRedundantRunStatus, isRedundantRunTiming, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, prepareFailureDetails, prepareFailureStatus, softCommandFailures, sortedRunsNewestFirst, stepAgentic, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, workflowWarningsForDisplay, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
+import { WorkflowReference } from "../../components/WorkflowReference"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
@@ -347,7 +348,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-text-primary">
-            <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
+            <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={workflow.slug || workflowSlug(workflow.id)} />
           </h2>
           <p className="text-xs text-text-muted">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
           <ProviderFailoverNotice className="mt-1" failover={workflow.provider_failover} />

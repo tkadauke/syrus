@@ -45,6 +45,26 @@ module App
         hydrate_queue_wait(workflows)
       end
 
+      def workflow_preview_payload(workflow)
+        @serialized_workflows = [ workflow ]
+        step_ids = workflow.steps.reorder(:position, :id).pluck(:id)
+        @visible_step_ids_by_workflow_id = { workflow.id => step_ids }
+        @step_counts_by_workflow_id_from_visible_query = { workflow.id => step_ids.length }
+        serialized = workflow_json(workflow)
+        {
+          id: workflow.id,
+          slug: workflow.slug,
+          path: serialized.fetch(:path),
+          trigger_kind: workflow.trigger_kind,
+          trigger_label: Workflow::TriggerKind.label_for(workflow.trigger_kind),
+          state: workflow.state,
+          steps: App::WorkflowPreviewStepSelector.new(
+            serialized.fetch(:steps),
+            active: !workflow.terminal?
+          ).call
+        }
+      end
+
       def work_units_json
         return [] if @job.closed?
 

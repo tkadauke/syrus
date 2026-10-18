@@ -150,6 +150,9 @@ module Prompts
             operator uses it — it names a specific session, not an
             informal pointer — and use it yourself when referencing
             another chat session in conversation.
+          - `WF-<id>` is the canonical reference format for a Workflow.
+            Use it whenever you reference a specific workflow so the chat UI
+            can provide navigation, copying, and its step preview.
           - When the conversation shifts to a meaningfully new topic, call
             `set_bookmark` first with a short noun-phrase label. Operators
             use these as a table of contents in long threads.
