@@ -18,6 +18,7 @@ class PreparedWorkspaceArchive
   MAX_BYTES = 1.gigabyte
   COMPRESSION_LEVEL = 1
   READ_CHUNK_SIZE = 1.megabyte
+  ERROR_TAIL_BYTES = 64.kilobytes
   PREPARE_CACHE_FORMAT_VERSION = 3
 
   def self.prepare_fingerprint_for(plan)
@@ -178,7 +179,7 @@ class PreparedWorkspaceArchive
         kind: "archive", workflow: @workflow, job: @workflow.job,
         on_output_chunk: ->(chunk) { writer.write(chunk) }
       ).run.tap do |result|
-        log(File.read(error_file.path).strip) unless result.success? || File.zero?(error_file.path)
+        log(read_error_tail(error_file.path).strip) unless result.success? || File.zero?(error_file.path)
       end
     ensure
       writer.close unless writer.closed?
@@ -192,6 +193,13 @@ class PreparedWorkspaceArchive
       ["pigz", "-#{COMPRESSION_LEVEL}", "-c"]
     else
       ["gzip", "-#{COMPRESSION_LEVEL}", "-c"]
+    end
+  end
+
+  def read_error_tail(path)
+    File.open(path, "rb") do |file|
+      file.seek(-ERROR_TAIL_BYTES, IO::SEEK_END) if file.size > ERROR_TAIL_BYTES
+      file.read(ERROR_TAIL_BYTES)
     end
   end
 

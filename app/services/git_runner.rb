@@ -17,6 +17,7 @@ class GitRunner
   # the realistic upper end. ProcessRunner's aliveness probe still
   # catches the "git process died, child held the pipe" case faster.
   DEFAULT_TIMEOUT = 10.minutes
+  OUTPUT_TAIL_BYTES = 1.megabyte
   REMOTE_NETWORK_SUBCOMMANDS = %w[clone fetch pull push ls-remote].freeze
 
   def self.redact(text)
@@ -97,6 +98,7 @@ class GitRunner
         next if self.class.ignorable_output_line?(line)
 
         output << line
+        output.replace(output.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if output.bytesize > OUTPUT_TAIL_BYTES
         log_sink.call(line)
       end
     ).run

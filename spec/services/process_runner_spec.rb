@@ -46,6 +46,29 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(chunks).to include("two")
   end
 
+  it "flushes oversized newline-free output in bounded chunks without losing data" do
+    payload = "x" * (described_class::MAX_PARTIAL_LINE_BYTES * 3 + 17)
+    lines = []
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "STDOUT.write('x' * #{payload.bytesize})" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      on_output_line: ->(line) { lines << line }
+    ).run
+
+    expect(result).to be_success
+    expect(lines.join).to eq(payload)
+    expect(lines.map(&:bytesize)).to eq([
+      described_class::MAX_PARTIAL_LINE_BYTES,
+      described_class::MAX_PARTIAL_LINE_BYTES,
+      described_class::MAX_PARTIAL_LINE_BYTES,
+      17
+    ])
+  end
+
   it "captures bounded, distinct stdout and stderr while writing stdin" do
     capture = described_class.new(
       env: {},

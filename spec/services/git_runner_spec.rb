@@ -22,6 +22,34 @@ RSpec.describe GitRunner do
     expect(lines.join).to match(/git version/)
   end
 
+  it "retains only a bounded output tail while continuing to stream every chunk" do
+    chunk = "x" * described_class::OUTPUT_TAIL_BYTES
+    final = "fatal: retained tail\n"
+    streamed = 0
+    result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1,
+      spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new) do |on_output_line:, **|
+      3.times do
+        on_output_line.call(chunk)
+        streamed += chunk.bytesize
+      end
+      on_output_line.call(final)
+      streamed += final.bytesize
+      instance_double(ProcessRunner, run: result)
+    end
+
+    expect {
+      described_class.new(log_sink: ->(_line) { }).run("status")
+    }.to raise_error(GitRunner::GitError) do |error|
+      expect(error.output.bytesize).to eq(described_class::OUTPUT_TAIL_BYTES)
+      expect(error.output).to end_with(final)
+    end
+    expect(streamed).to eq(described_class::OUTPUT_TAIL_BYTES * 3 + final.bytesize)
+  end
+
   it "honors chdir" do
     Dir.mktmpdir do |dir|
       described_class.new.run("init", chdir: dir)

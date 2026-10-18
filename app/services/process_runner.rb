@@ -166,6 +166,7 @@ class ProcessRunner
 
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
+  MAX_PARTIAL_LINE_BYTES = 64 * 1024
   KILL_POLL_INTERVAL_SECONDS = 5
   SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 120
   SYNC_STDIN_BYTES = 32 * 1024
@@ -1288,8 +1289,15 @@ class ProcessRunner
     return unless @on_output_line
 
     line_buffer << chunk
-    while (newline = line_buffer.index("\n"))
-      @on_output_line.call(line_buffer.slice!(0..newline))
+    loop do
+      newline = line_buffer.index("\n")
+      if newline && newline < MAX_PARTIAL_LINE_BYTES
+        @on_output_line.call(line_buffer.slice!(0..newline))
+      elsif line_buffer.bytesize >= MAX_PARTIAL_LINE_BYTES
+        @on_output_line.call(line_buffer.slice!(0, MAX_PARTIAL_LINE_BYTES))
+      else
+        break
+      end
     end
   end
 
