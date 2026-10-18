@@ -549,6 +549,7 @@ class PreviewService
     with_connection do
       PreviewEnvironment.where(id: stopped_ids, state: "stopping").find_each do |env|
         env.mark_stopped! && env.save!
+        cleanup_preview_database(env)
         PreviewWorkspace.cleanup_for(env)
       end
     end
