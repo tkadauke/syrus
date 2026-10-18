@@ -29,3 +29,10 @@ callers also pass a registered `kind:` plus the available Run, Workflow, Job,
 chat session, or agent attribution. Use `display_command:` when the executable
 arguments contain credentials or other values that should not be persisted;
 stored commands are additionally passed through `CommandRedactor`.
+
+`spec/architecture/runtime_process_execution_spec.rb` audits production Ruby
+under `app/`, `lib/`, and `plugins/`. The only low-level launch implementation
+it permits is `ProcessRunner` itself. Specs, developer commands under `bin/`,
+and process syntax contained inside generated source strings are outside the
+runtime boundary; Ruby tokenization keeps those generated strings from being
+mistaken for launches performed by the generator.
