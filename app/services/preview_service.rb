@@ -332,6 +332,11 @@ class PreviewService
       process = SpawnedProcess.find_by(id: child.spawned_process_id)
       next if process && !process.finished?
 
+      if process&.outcome == "orphaned"
+        child.managed_handle.cancel!
+        next if child.managed_handle.alive?
+      end
+
       @mutex.synchronize { @children.delete(env_id) }
       env = PreviewEnvironment.find_by(id: env_id)
       next unless env

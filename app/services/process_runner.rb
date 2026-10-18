@@ -76,7 +76,12 @@ class ProcessRunner
     def cancel!(user: nil)
       process = spawned_process
       process.request_kill!(user: user) unless process.finished?
+      ProcessRunner.terminate_durable_process(process) unless @thread
       self
+    end
+
+    def alive?
+      ProcessRunner.durable_process_alive?(spawned_process)
     end
 
     def finalize(timeout: nil)
@@ -98,6 +103,47 @@ class ProcessRunner
 
       ProcessRunner.result_from_spawned_process(process)
     end
+  end
+
+  # Durable handles may be reconstructed after their original runner thread
+  # disappeared. A PID alone is not enough to signal safely because the OS can
+  # reuse it. Persist and verify the Linux boot id plus /proc start time and
+  # process group before an ownerless handle sends a local signal.
+  class ProcessIdentity
+    BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+    def self.capture(pid, pgid: nil)
+      stat = read_stat(pid)
+      return unless stat
+
+      {
+        "boot_id" => File.read(BOOT_ID_PATH).strip,
+        "start_time_ticks" => stat.fetch(:start_time_ticks),
+        "pgid" => pgid || stat.fetch(:pgid)
+      }
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
+    end
+
+    def self.matches?(pid, identity)
+      return false if pid.blank? || identity.blank?
+      return false unless File.read(BOOT_ID_PATH).strip == identity["boot_id"]
+
+      stat = read_stat(pid)
+      stat && stat.fetch(:start_time_ticks) == identity["start_time_ticks"].to_i &&
+        stat.fetch(:pgid) == identity["pgid"].to_i
+    rescue Errno::ENOENT, Errno::EACCES
+      false
+    end
+
+    def self.read_stat(pid)
+      raw = File.read("/proc/#{Integer(pid)}/stat")
+      fields = raw[(raw.rindex(")") + 2)..].split
+      { pgid: Integer(fields[2]), start_time_ticks: Integer(fields[19]) }
+    rescue ArgumentError, TypeError
+      nil
+    end
+    private_class_method :read_stat
   end
 
   class WorkspaceAttributionError < StandardError; end
@@ -127,6 +173,30 @@ class ProcessRunner
   # update is a hot write on long-running agent/grader processes. Persist
   # sparingly while running; finalization always writes the final attribution.
   RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 5 * 60
+
+  class << self
+    def durable_process_alive?(process)
+      return false unless process.hostname == Socket.gethostname
+
+      ProcessIdentity.matches?(process.pid, process.resource_attribution["process_identity"])
+    end
+
+    def terminate_durable_process(process, grace_seconds: TERM_GRACE_SECONDS)
+      return false unless durable_process_alive?(process)
+      pgid = process.pgid || process.resource_attribution.dig("process_identity", "pgid")
+      return false unless pgid.present? && pgid.to_i == process.pid.to_i
+
+      Process.kill("TERM", -pgid.to_i)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + grace_seconds
+      while durable_process_alive?(process) && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        sleep 0.05
+      end
+      Process.kill("KILL", -pgid.to_i) if durable_process_alive?(process)
+      true
+    rescue Errno::ESRCH, Errno::EPERM
+      false
+    end
+  end
 
   Mount = Data.define(:host_path, :mount_path) do
     def initialize(host_path:, mount_path: nil)
@@ -805,6 +875,7 @@ class ProcessRunner
         status = wait_thread.value
         sample_cgroup_exit!
         process_exit_status = status.exitstatus || 1
+        operator_killed ||= @spawned_process&.reload&.kill_requested?
         clean_exit_after_aliveness =
           aliveness_failed &&
           process_exit_status.zero? &&
@@ -978,6 +1049,7 @@ class ProcessRunner
     end
     attach_cgroup!(pid)
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
+    @process_identity = ProcessIdentity.capture(pid, pgid: pgid)
     sample_resource_attribution!
     @spawned_process.update!(
       pid: pid,
@@ -1081,6 +1153,7 @@ class ProcessRunner
 
   def current_resource_attribution
     payload = @initial_resource_attribution.merge(@resource_sampler&.payload || {})
+    payload["process_identity"] = @process_identity if @process_identity
     return payload unless @cgroup
 
     payload.merge("cgroup" => @cgroup.payload)
