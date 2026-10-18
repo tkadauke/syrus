@@ -12,6 +12,161 @@ RSpec.describe "bin/deploy database migrations" do
     Open3.capture3(env, "bash", "-c", script, chdir: root)
   end
 
+  # Every function the migration path needs, lifted out of bin/deploy so the
+  # examples can drive it against a fake kubectl on PATH.
+  def migration_functions
+    %w[
+      run_database_migrations apply_and_wait_db_prepare_job
+      wait_for_db_prepare_job duration_to_seconds delete_db_prepare_job
+    ].map { |name| deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy" }
+      .join("\n")
+  end
+
+  # A kubectl that answers `get job` from an attempt counter, so an example can
+  # say "fail the first Job, complete the second". `logs` returns whatever the
+  # example put in logs.txt.
+  def fake_kubectl(dir, failed_attempts:)
+    File.write(File.join(dir, "attempts"), "0\n")
+    File.write(File.join(dir, "applied.ndjson"), "")
+    File.write(File.join(dir, "deployment.json"), {
+      "spec" => { "template" => { "spec" => {
+        "containers" => [ { "name" => "syrus-web", "image" => "old-app" } ]
+      } } }
+    }.to_json)
+    File.write(File.join(dir, "kubectl"), <<~SH)
+      #!/bin/sh
+      set -eu
+      if [ "$1" = "get" ] && [ "${2:-}" = "deployment" ]; then
+        for arg in "$@"; do
+          if [ "$arg" = "-o" ]; then
+            cat "#{File.join(dir, "deployment.json")}"
+          fi
+        done
+        exit 0
+      fi
+      if [ "$1" = "apply" ]; then
+        cat >> "#{File.join(dir, "applied.ndjson")}"
+        count=$(cat "#{File.join(dir, "attempts")}")
+        echo $((count + 1)) > "#{File.join(dir, "attempts")}"
+        exit 0
+      fi
+      if [ "$1" = "get" ] && [ "${2:-}" = "job" ]; then
+        count=$(cat "#{File.join(dir, "attempts")}")
+        if [ "$count" -le #{failed_attempts} ]; then
+          printf '%s\\n' '{"status":{"conditions":[{"type":"Failed","status":"True"}]}}'
+        else
+          printf '%s\\n' '{"status":{"conditions":[{"type":"Complete","status":"True"}]}}'
+        fi
+        exit 0
+      fi
+      if [ "$1" = "logs" ]; then
+        cat "#{File.join(dir, "logs.txt")}"
+        exit 0
+      fi
+      if [ "$1" = "delete" ] || [ "$1" = "describe" ]; then
+        exit 0
+      fi
+      echo "unexpected kubectl $*" >&2
+      exit 1
+    SH
+    File.chmod(0o755, File.join(dir, "kubectl"))
+  end
+
+  def run_migrations(dir, attempts: 4, timeout: "1s")
+    bash(<<~SH, { "PATH" => "#{dir}:#{ENV.fetch("PATH")}" })
+      set -euo pipefail
+      SHA=abc123
+      REGISTRY=ghcr.io/example/syrus
+      DB_PREPARE_TIMEOUT=#{timeout}
+      DB_PREPARE_ATTEMPTS=#{attempts}
+      DB_PREPARE_RETRY_DELAY=0
+      #{migration_functions}
+      run_database_migrations staging kubeconfig syrus
+    SH
+  end
+
+  def applied_jobs(dir)
+    File.read(File.join(dir, "applied.ndjson")).scan(/"kind":"Job"/).length
+  end
+
+  # Regression: the web deployment runs `db:prepare` in a db-prepare
+  # initContainer on every replica at every boot, and bin/deploy runs its own
+  # one-shot db:prepare Job. Rails serializes migrations with a MySQL advisory
+  # lock, so the two overlapping -- a Flux reconcile mid-deploy, an eviction,
+  # both replicas booting together -- kills the loser with
+  # ActiveRecord::ConcurrentMigrationError and took a whole deploy down with it.
+  # Losing that race means someone else is doing the work; it is not a reason to
+  # stop deploying.
+  describe "a migration Job that lost the advisory lock race" do
+    it "retries and carries on once the lock clears" do
+      Dir.mktmpdir do |dir|
+        fake_kubectl(dir, failed_attempts: 1)
+        File.write(File.join(dir, "logs.txt"), <<~LOG)
+          bin/rails aborted!
+          ActiveRecord::ConcurrentMigrationError:  (ActiveRecord::ConcurrentMigrationError)
+          Cannot run migrations because another migration process is currently running.
+        LOG
+
+        out, err, status = run_migrations(dir)
+
+        expect(status).to be_success, err
+        expect(out).to include("holds the migration lock; retrying")
+        expect(out).to include("database migrations complete")
+        expect(applied_jobs(dir)).to eq(2)
+      end
+    end
+
+    it "gives up after DB_PREPARE_ATTEMPTS rather than retrying forever" do
+      Dir.mktmpdir do |dir|
+        fake_kubectl(dir, failed_attempts: 99)
+        File.write(File.join(dir, "logs.txt"), "ActiveRecord::ConcurrentMigrationError\n")
+
+        _out, err, status = run_migrations(dir, attempts: 3)
+
+        expect(status).not_to be_success
+        expect(err).to include("database migration job failed")
+        expect(applied_jobs(dir)).to eq(3)
+      end
+    end
+
+    it "does not retry a migration that genuinely failed" do
+      Dir.mktmpdir do |dir|
+        fake_kubectl(dir, failed_attempts: 99)
+        File.write(File.join(dir, "logs.txt"), <<~LOG)
+          bin/rails aborted!
+          StandardError: Mysql2::Error: Duplicate column name 'widgets'
+        LOG
+
+        _out, err, status = run_migrations(dir)
+
+        expect(status).not_to be_success
+        expect(err).to include("database migration job failed")
+        expect(err).to include("Duplicate column name")
+        # One attempt only: a broken migration is not going to fix itself.
+        expect(applied_jobs(dir)).to eq(1)
+      end
+    end
+
+    # "did not complete before 10m" about a Job that died in 40 seconds sends
+    # the operator hunting a hang that never happened.
+    it "calls a timeout a timeout and a failure a failure" do
+      Dir.mktmpdir do |dir|
+        fake_kubectl(dir, failed_attempts: 0)
+        File.write(File.join(dir, "logs.txt"), "")
+        # Never-completing job: `get job` reports neither condition.
+        File.write(File.join(dir, "kubectl"), File.read(File.join(dir, "kubectl"))
+          .sub('{"status":{"conditions":[{"type":"Complete","status":"True"}]}}', '{"status":{}}'))
+
+        _out, err, status = run_migrations(dir, timeout: "1s")
+
+        expect(status).not_to be_success
+        expect(err).to include("did not complete before 1s")
+        expect(err).not_to include("database migration job failed")
+        expect(applied_jobs(dir)).to eq(1)
+      end
+    end
+  end
+
   it "applies migrations before changing any live workload image" do
     migrate_at = deploy.index('run_database_migrations "$label"')
     pin_at = deploy.index('pin_live_images "$label"')
@@ -92,7 +247,7 @@ RSpec.describe "bin/deploy database migrations" do
   end
 
   it "runs migrations from the newly built app image" do
-    helper = deploy[/^run_database_migrations\(\) \{.*?\n\}/m]
+    helper = deploy[/^apply_and_wait_db_prepare_job\(\) \{.*?\n\}/m]
 
     expect(helper).to include('DB_PREPARE_IMAGE="${REGISTRY}:${SHA}"')
     expect(helper).to include('"command"] = [ "./bin/rails" ]')
@@ -161,17 +316,14 @@ RSpec.describe "bin/deploy database migrations" do
         exit 1
       SH
       File.chmod(0o755, File.join(dir, "kubectl"))
-      function = deploy[/^run_database_migrations\(\) \{.*?\n\}/m] + "\n" +
-        deploy[/^wait_for_db_prepare_job\(\) \{.*?\n\}/m] + "\n" +
-        deploy[/^duration_to_seconds\(\) \{.*?\n\}/m] + "\n" +
-        deploy[/^delete_db_prepare_job\(\) \{.*?\n\}/m]
-
       _out, err, status = bash(<<~SH, { "PATH" => "#{dir}:#{ENV.fetch("PATH")}" })
         set -euo pipefail
         SHA=abc123
         REGISTRY=ghcr.io/example/syrus
         DB_PREPARE_TIMEOUT=1s
-        #{function}
+        DB_PREPARE_ATTEMPTS=1
+        DB_PREPARE_RETRY_DELAY=0
+        #{migration_functions}
         run_database_migrations staging kubeconfig syrus
       SH
 

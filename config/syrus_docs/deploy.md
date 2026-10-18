@@ -106,6 +106,19 @@ add columns/tables/indexes first, keep old readers and writers working, and
 land destructive or contract migrations only after the old code is no longer
 running.
 
+The web deployment *also* runs `db:prepare`, in its own `db-prepare`
+initContainer, on every replica at every boot. Rails serializes migrations with
+a MySQL advisory lock, so the pre-rollout Job and a web pod that happens to be
+starting at the same moment -- a Flux reconcile mid-deploy, an eviction, a
+crash-restart, or both replicas booting together -- race for it, and the loser
+aborts with `ActiveRecord::ConcurrentMigrationError`. Losing that race means
+another process is already applying the same migrations, so `bin/deploy` deletes
+the Job and retries: `DB_PREPARE_ATTEMPTS` attempts (default `4`), waiting
+`DB_PREPARE_RETRY_DELAY` seconds (default `20`) between them. Only that specific
+error is retried -- a migration that genuinely failed stops the deploy on the
+first attempt, and the failure message distinguishes a Job that failed from one
+that ran out of `DB_PREPARE_TIMEOUT`.
+
 Worker containers also check `db:abort_if_pending_migrations` before starting
 `bin/jobs`. In a normal deploy that check is already satisfied by the
 pre-rollout Job. If a worker is started against a database that is still behind
