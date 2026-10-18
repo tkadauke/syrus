@@ -40,6 +40,10 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
     YAML
   end
 
+  def jwt(expiry)
+    [ { alg: "none" }, { exp: expiry.to_i }, "" ].map { |part| Base64.urlsafe_encode64(JSON.generate(part), padding: false) }.join(".")
+  end
+
   it "is disabled by default (plugin disabled)" do
     sign_in_as(admin)
 
@@ -214,6 +218,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
 
     it "updates a cluster's label without requiring a new kubeconfig" do
       cluster = Factories.kubernetes_cluster(label: "Old label")
+      expect_any_instance_of(KubernetesCluster).to receive(:with_lock).and_call_original
 
       patch "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}", params: {
         kubernetes_cluster: { label: "Renamed" }
@@ -221,6 +226,38 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(cluster.reload.label).to eq("Renamed")
+    end
+
+    it "serializes manual rotation with automatic refresh and audits the operator" do
+      cluster = Factories.kubernetes_cluster(label: "Old label")
+      K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: token_kubeconfig, user: admin)
+      cluster.save!
+      CredentialStore::CredentialAccessEvent.delete_all
+      expect_any_instance_of(KubernetesCluster).to receive(:with_lock).and_call_original
+
+      patch "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}", params: {
+        kubernetes_cluster: { kubeconfig: token_kubeconfig(token: "replacement") }
+      }
+
+      expect(response).to have_http_status(:ok)
+      event = CredentialStore::CredentialAccessEvent.find_by!(action: "rotate")
+      expect(event).to have_attributes(user: admin, surface: "admin", result: "allowed")
+      expect(event.metadata).to include("payload_replaced" => true, "source" => "k8s_cluster")
+    end
+
+    it "rejects an already-expired replacement without changing the credential" do
+      cluster = Factories.kubernetes_cluster
+      K8sCluster::ClusterCredential.upsert!(cluster: cluster, kubeconfig: token_kubeconfig(token: "original"), user: admin)
+      cluster.save!
+      credential = K8sCluster::ClusterCredential.credential_for(cluster)
+
+      patch "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}", params: {
+        kubernetes_cluster: { kubeconfig: token_kubeconfig(token: jwt(1.minute.ago)) }
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("already expired")
+      expect(credential.reload.payload).to include("original")
     end
 
     it "re-parses a new kubeconfig on update, rotating credentials" do
