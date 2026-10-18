@@ -476,6 +476,7 @@ class ProcessRunner
       Open3.popen2e(@env, *effective_command,
                     chdir: @chdir,
                     unsetenv_others: @unsetenv_others,
+                    close_others: true,
                     pgroup: @pgroup) do |stdin, output, wait_thread|
         record_chat_process_spawn_latency!(spawn_started_at)
         update_pid!(wait_thread.pid)
@@ -983,6 +984,10 @@ class ProcessRunner
   end
 
   def terminate(pid)
+    # Collected before signalling anything: once the group dies its children
+    # are reparented to init and the ppid trail is gone.
+    descendants = descendant_pids(pid)
+
     Process.kill("TERM", -pid)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @kill_grace_seconds
     loop do
@@ -994,5 +999,99 @@ class ProcessRunner
     Process.kill("KILL", -pid)
   rescue Errno::ESRCH
     # Already dead.
+  ensure
+    reap_escaped_descendants(descendants, pid)
+  end
+
+  # Killing `-pid` signals our child's process group, which is right until
+  # something inside it starts a group of its own. `parallel_tests` does
+  # exactly that for each test worker, so a wedged worker survived every
+  # grader timeout: three were found alive on one production node, orphaned
+  # to init, the oldest 3h19m after its grader had been killed at 60 minutes,
+  # each still holding a few hundred MB and the parent's inherited sockets.
+  #
+  # Best-effort by design: a racing exit, an unreadable entry or a missing
+  # process table all just mean fewer pids to follow up on, never a failed
+  # terminate. /proc is the fast path on Linux (production); `ps` is the
+  # portable fallback so this is exercisable on a macOS dev machine too.
+  def descendant_pids(root)
+    children = parent_to_children_map
+    return [] if children.empty?
+
+    found = []
+    queue = [ root ]
+    until queue.empty?
+      Array(children[queue.shift]).each do |child|
+        next if found.include?(child) || child == root
+
+        found << child
+        queue << child
+      end
+    end
+    found
+  rescue StandardError => e
+    Rails.logger.warn("[ProcessRunner] could not enumerate descendants of #{root}: #{e.class}: #{e.message}")
+    []
+  end
+
+  def parent_to_children_map
+    if File.directory?("/proc")
+      Dir.children("/proc").each_with_object({}) do |entry, map|
+        next unless entry.match?(/\A\d+\z/)
+
+        stat = begin
+          File.read("/proc/#{entry}/stat")
+        rescue SystemCallError, IOError
+          next
+        end
+        # comm (field 2) is parenthesised and may itself contain spaces or
+        # parens, so parse after the last ')' rather than splitting the line.
+        ppid = stat[(stat.rindex(")").to_i + 1)..].to_s.split[1].to_i
+        (map[ppid] ||= []) << entry.to_i
+      end
+    else
+      out, status = Open3.capture2("ps", "-A", "-o", "pid=,ppid=")
+      return {} unless status.success?
+
+      out.each_line.each_with_object({}) do |line, map|
+        pid, ppid = line.split.map(&:to_i)
+        next unless pid&.positive? && ppid
+
+        (map[ppid] ||= []) << pid
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[ProcessRunner] could not read the process table: #{e.class}: #{e.message}")
+    {}
+  end
+
+  def reap_escaped_descendants(pids, root)
+    survivors = Array(pids).reject { |pid| pid == root }.select { |pid| alive?(pid) }
+    return if survivors.empty?
+
+    Rails.logger.warn("[ProcessRunner] reaping #{survivors.size} descendant(s) that outlived process group #{root}: #{survivors.join(', ')}")
+    survivors.each { |pid| signal_quietly("TERM", pid) }
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @kill_grace_seconds
+    while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      break if survivors.none? { |pid| alive?(pid) }
+
+      sleep 0.1
+    end
+    survivors.each { |pid| signal_quietly("KILL", pid) if alive?(pid) }
+  end
+
+  def alive?(pid)
+    Process.kill(0, pid)
+    true
+  rescue Errno::ESRCH
+    false
+  rescue Errno::EPERM
+    true
+  end
+
+  def signal_quietly(signal, pid)
+    Process.kill(signal, pid)
+  rescue Errno::ESRCH, Errno::EPERM
+    nil
   end
 end

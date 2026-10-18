@@ -81,6 +81,34 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(step.details).to include("exit_code" => 0, "output" => include("durable output"))
   end
 
+
+  # Two production rspec graders finished every example, printed their
+  # summaries, then never exited -- 49.2 minutes of total silence before the
+  # wall-clock timeout killed them at 60 and failed them exit 124 on a suite
+  # that had passed. ProcessRunner's own guidance warns against tight silent
+  # timeouts on bursty commands, and a grader opens with bundle install and
+  # db:test:prepare, so this is deliberately generous: half the budget, with
+  # a ten-minute floor.
+  it "gives the graded command a generous silent timeout rather than none" do
+    captured = nil
+    fake_result = instance_double(
+      ProcessRunner::Result,
+      success?: true, exit_status: 0, timed_out?: false, timed_out: false,
+      stopped?: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      captured = kwargs
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+
+    expect(captured[:timeout]).to eq(1.minute)
+    expect(captured[:silent_timeout]).to eq(10.minutes)
+  end
+
   it "does not rerun or adjudicate a successful grader command" do
     expect(ProcessRunner).to receive(:new).once.and_call_original
     expect(BaseRevisionRetry).not_to receive(:call)

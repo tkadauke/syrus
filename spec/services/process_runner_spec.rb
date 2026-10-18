@@ -1,4 +1,5 @@
 require "rails_helper"
+require "fcntl"
 require "rbconfig"
 require "tmpdir"
 
@@ -58,6 +59,77 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).to be_timed_out
     expect(result.exit_status).to be_nil
     expect(result).not_to be_success
+  end
+
+  # mysql2 opens its sockets in a C extension, so they carry no FD_CLOEXEC
+  # (production shows flags=02) and survived exec into every graded command:
+  # a four-minute-old rspec worker held six live connections to the
+  # production database it had no credentials for and could not see.
+  it "does not leak a parent file descriptor that lacks FD_CLOEXEC" do
+    reader, writer = IO.pipe
+    writer.fcntl(Fcntl::F_SETFD, 0)
+
+    begin
+      chunks = []
+      described_class.new(
+        env: {},
+        command: [
+          ruby, "-e",
+          "begin; IO.for_fd(#{writer.fileno}).fileno; print 'INHERITED'; rescue Exception; print 'closed'; end"
+        ],
+        mounts: described_class.mounts(@dir),
+        network: "grader",
+        timeout: 5,
+        on_output_chunk: ->(chunk) { chunks << chunk }
+      ).run
+
+      expect(chunks.join).to include("closed")
+      expect(chunks.join).not_to include("INHERITED")
+    ensure
+      reader.close
+      writer.close
+    end
+  end
+
+  # Killing `-pid` covers our child's process group, which parallel_tests
+  # steps outside of for each test worker. A wedged worker therefore survived
+  # every grader timeout -- three were found alive on one production node,
+  # orphaned to init, the oldest 3h19m after its grader was killed at 60
+  # minutes.
+  it "reaps a descendant that started its own process group" do
+    marker = File.join(@dir, "escaped.pid")
+    escapee = <<~RUBY
+      pid = Process.spawn(#{ruby.inspect}, "-e", "sleep 120", pgroup: true)
+      File.write(#{marker.inspect}, pid.to_s)
+      sleep 120
+    RUBY
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", escapee ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 1.5,
+      kill_grace_seconds: 0
+    ).run
+
+    expect(result).to be_timed_out
+    escaped_pid = Integer(File.read(marker).strip)
+    expect(escaped_pid).to be_positive
+
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    alive = true
+    while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      begin
+        Process.kill(0, escaped_pid)
+        sleep 0.1
+      rescue Errno::ESRCH
+        alive = false
+        break
+      end
+    end
+
+    expect(alive).to be(false), "escaped process #{escaped_pid} outlived its grader"
   end
 
   it "stops when the stop callback becomes true" do

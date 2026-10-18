@@ -398,6 +398,24 @@ module Steps
       nil
     end
 
+    # ProcessRunner's own guidance is not to put a silent timeout on bursty
+    # commands, and a grader is bursty: it opens with `bundle check ||
+    # bundle install`, `db:test:prepare` and `rake parallel:prepare`, any of
+    # which can go quiet for minutes. So this is deliberately generous rather
+    # than tight -- half the command's own budget, never under ten minutes,
+    # which leaves every legitimate quiet phase far more room than it needs.
+    #
+    # What it catches is the pathological case: an rspec worker that finished
+    # its examples, printed its summary and then never exited. Two such runs
+    # sat in *total* silence for 49.2 minutes before the wall-clock timeout
+    # killed them at 60, and both then failed exit 124 on a suite where every
+    # example had passed.
+    SILENT_TIMEOUT_FLOOR = 10.minutes
+
+    def silent_timeout_for(timeout_minutes)
+      [ timeout_minutes.minutes / 2, SILENT_TIMEOUT_FLOOR ].max
+    end
+
     def prepare_dependency_status(result)
       return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?
       return "operator killed" if result.operator_killed?
@@ -413,6 +431,7 @@ module Steps
         mounts: ProcessRunner.mounts(workspace.path),
         network: "grader",
         timeout: timeout_minutes.minutes,
+        silent_timeout: silent_timeout_for(timeout_minutes),
         kind: "grader",
         run: run,
         workflow: workflow,
