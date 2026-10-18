@@ -213,6 +213,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning
   const [jumpIndex, setJumpIndex] = useState(0)
+  const dictationRangeRef = useRef<{ start: number; end: number } | null>(null)
   const dictation = useChatDictation({
     chatId: payload.chat.id,
     capability: payload.speech_to_text ?? UNAVAILABLE_SPEECH_TO_TEXT,
@@ -220,7 +221,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       batch: payload.paths.app_speech_to_text_batch_path,
       stream: payload.paths.app_speech_to_text_stream_path
     },
-    onTranscript: insertDictationTranscript
+    onTranscript: applyDictationTranscript,
+    onTranscriptComplete: () => { dictationRangeRef.current = null }
   })
 
   useEffect(() => {
@@ -1514,32 +1516,39 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     })
   }
 
-  function insertDictationTranscript(spokenText: string) {
+  function applyDictationTranscript(spokenText: string, final: boolean) {
     const transcript = spokenText.trim()
-    if (transcript.length === 0) return
-
-    const textarea = textareaRef.current
-    const selectionStart = textarea?.selectionStart
-    const selectionEnd = textarea?.selectionEnd
+    const existingRange = dictationRangeRef.current
     let nextCursor: number | null = null
+    if (existingRange) {
+      nextCursor = existingRange.start + transcript.length
+      dictationRangeRef.current = final ? null : { start: existingRange.start, end: nextCursor }
+    }
 
     setText((current) => {
-      const start = selectionStart ?? current.length
-      const end = selectionEnd ?? start
-      const before = current.slice(0, start)
-      const after = current.slice(end)
-      const prefix = before.length > 0 && !/\s$/.test(before) ? " " : ""
-      const suffix = after.length > 0 && !/^\s/.test(after) ? " " : ""
-      const inserted = `${prefix}${transcript}${suffix}`
-      nextCursor = before.length + inserted.length
+      let range = existingRange
+      if (!range) {
+        const textarea = textareaRef.current
+        const start = textarea?.selectionStart ?? current.length
+        const end = textarea?.selectionEnd ?? start
+        const prefix = start > 0 && !/\s$/.test(current.slice(0, start)) && transcript ? " " : ""
+        const suffix = end < current.length && !/^\s/.test(current.slice(end)) && transcript ? " " : ""
+        range = { start, end }
+        const inserted = `${prefix}${transcript}${suffix}`
+        nextCursor = start + inserted.length
+        dictationRangeRef.current = final ? null : {
+          start: start + prefix.length,
+          end: start + prefix.length + transcript.length
+        }
+        return `${current.slice(0, start)}${inserted}${current.slice(end)}`
+      }
 
-      return `${before}${inserted}${after}`
+      return `${current.slice(0, range.start)}${transcript}${current.slice(range.end)}`
     })
     if (pendingConfirmation) setPendingConfirmation(null)
-
     window.requestAnimationFrame(() => {
-      textarea?.focus()
-      if (nextCursor != null) textarea?.setSelectionRange(nextCursor, nextCursor)
+      textareaRef.current?.focus()
+      if (nextCursor != null) textareaRef.current?.setSelectionRange(nextCursor, nextCursor)
     })
   }
 
@@ -2183,11 +2192,13 @@ function useChatDictation({
   capability,
   chatId,
   onTranscript,
+  onTranscriptComplete,
   paths
 }: {
   capability: NonNullable<ChatPayload["speech_to_text"]>
   chatId: number
-  onTranscript: (text: string) => void
+  onTranscript: (text: string, final: boolean) => void
+  onTranscriptComplete: () => void
   paths: { batch?: string; stream?: string }
 }) {
   const { t } = useT("chat")
@@ -2200,6 +2211,7 @@ function useChatDictation({
   const startedAtRef = useRef<number | null>(null)
   const subscriptionRef = useRef<Subscription | null>(null)
   const streamingSequenceRef = useRef(0)
+  const streamingUploadRef = useRef<Promise<void>>(Promise.resolve())
   const stoppingRef = useRef(false)
   const fallbackAfterStopRef = useRef(false)
   const discardOnStopRef = useRef(false)
@@ -2241,6 +2253,8 @@ function useChatDictation({
     stoppingRef.current = false
     fallbackAfterStopRef.current = false
     browserRecognitionTerminalErrorRef.current = false
+    streamingSequenceRef.current = 0
+    streamingUploadRef.current = Promise.resolve()
 
     if (capability.modes.backend_streaming.available && paths.stream) {
       await startBackendStream()
@@ -2329,11 +2343,12 @@ function useChatDictation({
     recognition.onresult = (event: SpeechRecognitionEventLike) => {
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index]
-        if (result?.isFinal) onTranscript(result[0]?.transcript || "")
+        onTranscript(result?.[0]?.transcript || "", !!result?.isFinal)
       }
     }
     recognition.onerror = (event: { error?: string }) => {
       if (event.error === "not-allowed") {
+        onTranscriptComplete()
         browserRecognitionTerminalErrorRef.current = true
         setPhase("error")
         setMessageTone("error")
@@ -2342,6 +2357,7 @@ function useChatDictation({
       }
 
       if (event.error === "no-speech" || (event.error === "aborted" && stoppingRef.current)) {
+        onTranscriptComplete()
         browserRecognitionTerminalErrorRef.current = false
         setPhase("idle")
         setMessageTone("status")
@@ -2350,11 +2366,13 @@ function useChatDictation({
       }
 
       browserRecognitionTerminalErrorRef.current = true
+      onTranscriptComplete()
       setPhase("error")
       setMessageTone("error")
       setMessage(t("dictation_error"))
     }
     recognition.onend = () => {
+      onTranscriptComplete()
       setPhase((currentPhase) => {
         if (browserRecognitionTerminalErrorRef.current || currentPhase === "error") return currentPhase
         return "idle"
@@ -2397,7 +2415,11 @@ function useChatDictation({
         cleanup()
         return
       }
-      options.onChunk?.(event.data)
+      if (options.onChunk) {
+        streamingUploadRef.current = streamingUploadRef.current.then(async () => {
+          await options.onChunk?.(event.data)
+        })
+      }
     }
     recorder.onstop = () => {
       streamRef.current?.getTracks().forEach((track) => track.stop())
@@ -2408,7 +2430,7 @@ function useChatDictation({
         return
       }
       if (options.mode === "streaming" && stoppingRef.current) {
-        subscriptionRef.current?.perform("receive", { type: "stop" })
+        void streamingUploadRef.current.then(() => subscriptionRef.current?.perform("receive", { type: "stop" }))
         setPhase("transcribing")
         setMessage(t("dictation_transcribing"))
       } else if (options.mode === "streaming" && fallbackAfterStopRef.current) {
@@ -2444,7 +2466,7 @@ function useChatDictation({
         durationSeconds: durationSeconds(),
         prompt: ""
       })
-      onTranscript(result.transcript.text)
+      onTranscript(result.transcript.text, true)
       setPhase("idle")
       setMessage(null)
       cleanup()
@@ -2460,8 +2482,9 @@ function useChatDictation({
   }
 
   function handleStreamEvent(data: DictationStreamEvent) {
-    if (data.type === "transcript_delta" && data.text && data.final) onTranscript(data.text)
+    if (data.type === "transcript_delta") onTranscript(data.text || "", !!data.final)
     if (data.type === "done") {
+      onTranscriptComplete()
       cleanup()
       setPhase("idle")
       setMessage(null)
@@ -2477,6 +2500,7 @@ function useChatDictation({
         void transcribeBufferedAudio()
         return
       }
+      onTranscriptComplete()
       showError(new Error(data.message || t("dictation_error")), t("dictation_error"))
     }
   }

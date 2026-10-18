@@ -1620,6 +1620,30 @@ describe("chat composer dictation", () => {
     })
   })
 
+  it("replaces interim streaming hypotheses and commits the final text once", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ streaming: true, batch: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Review" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
+    await act(async () => {
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "the fail", final: false })
+    })
+    expect(textarea).toHaveValue("Review the fail")
+
+    await act(async () => {
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "the failing grader", final: false })
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
+      dictationSubscription()?.mixin.received({ type: "done" })
+    })
+    expect(textarea).toHaveValue("Review the failing grader")
+  })
+
   it("prewarms desktop microphone permission before backend recording", async () => {
     installMediaRecorderMock()
     const prewarmMicrophone = vi.fn(() => Promise.resolve({ granted: true }))
@@ -1691,6 +1715,22 @@ describe("chat composer dictation", () => {
     })
 
     await waitFor(() => expect(textarea).toHaveValue("Please summarize this"))
+  })
+
+  it("replaces browser interim results without duplicating pre-existing composer text", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Please" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await act(async () => recognition.lastInstance?.onresult?.({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: "sum" } }] }))
+    expect(textarea).toHaveValue("Please sum")
+    await act(async () => recognition.lastInstance?.onresult?.({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: "summarize" } }] }))
+    expect(textarea).toHaveValue("Please summarize")
+    await act(async () => recognition.lastInstance?.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "summarize this" } }] }))
+    expect(textarea).toHaveValue("Please summarize this")
   })
 
   it("keeps browser speech recognition permission errors visible after recognition ends", async () => {

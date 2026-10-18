@@ -1,5 +1,6 @@
 require "net/http"
 require "tempfile"
+require "cgi"
 
 module WhisperStt
   # HTTP client for whisper.cpp's whisper-server daemon.
@@ -9,6 +10,8 @@ module WhisperStt
     class Unavailable < Error; end
 
     INFERENCE_PATH = "/inference".freeze
+    HEALTH_PATH = "/health".freeze
+    STREAMS_PATH = "/stream/sessions".freeze
     OPEN_TIMEOUT = 2
     READ_TIMEOUT = 90
     NETWORK_ERRORS = [
@@ -26,7 +29,66 @@ module WhisperStt
       audio_file&.close! if audio_file.respond_to?(:close!) && audio_file != audio
     end
 
+    def streaming_available?
+      endpoint = PluginRuntime::Services.endpoint_for(RuntimeService.service_name)
+      return false unless endpoint
+
+      response = json_request(Net::HTTP::Get, endpoint, HEALTH_PATH)
+      response.dig("capabilities", "streaming") == true
+    rescue Error
+      false
+    end
+
+    def start_stream(content_type:, language: nil, prompt: nil)
+      endpoint = endpoint!
+      response = json_request(Net::HTTP::Post, endpoint, STREAMS_PATH, body: {
+        content_type: content_type, language: language, prompt: prompt
+      }.compact)
+      response.fetch("id")
+    end
+
+    def append_stream(id:, sequence:, audio:)
+      endpoint = endpoint!
+      json_request(Net::HTTP::Put, endpoint, "#{STREAMS_PATH}/#{escape(id)}/chunks/#{sequence}", body: audio, content_type: "application/octet-stream")
+    end
+
+    def finish_stream(id:)
+      json_request(Net::HTTP::Post, endpoint!, "#{STREAMS_PATH}/#{escape(id)}/finish", body: {})
+    end
+
+    def cancel_stream(id:)
+      json_request(Net::HTTP::Delete, endpoint!, "#{STREAMS_PATH}/#{escape(id)}")
+    rescue Error
+      nil
+    end
+
     private
+
+    def endpoint!
+      PluginRuntime::Services.endpoint_for(RuntimeService.service_name) || raise(Unavailable, "whisper.cpp transcription failed")
+    end
+
+    def escape(value)
+      CGI.escapeURIComponent(value.to_s)
+    end
+
+    def json_request(klass, endpoint, path, body: nil, content_type: "application/json")
+      uri = URI(endpoint)
+      uri.path = path
+      req = klass.new(uri)
+      if body
+        req["Content-Type"] = content_type
+        req.body = content_type == "application/json" ? JSON.generate(body) : body
+      end
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) { |http| http.request(req) }
+      raise Error, error_message(response) unless response.is_a?(Net::HTTPSuccess)
+
+      json(response)
+    rescue Timeout::Error
+      raise TimeoutError, "Backend transcription timed out."
+    rescue *NETWORK_ERRORS => e
+      raise Error, e.message.presence || "whisper.cpp transcription failed"
+    end
 
     def request(klass, endpoint, path, form:)
       uri = URI(endpoint)

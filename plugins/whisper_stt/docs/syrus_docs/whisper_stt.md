@@ -7,21 +7,24 @@ listens on the internal Plugin Runtime network, and reports readiness through
 
 This plugin also registers the `whisper_stt` `speech_to_text_provider`. When
 the plugin is enabled and Plugin Runtime reports the `whisper-stt` service as
-healthy, chat dictation exposes backend batch transcription. The chat
-microphone records browser audio and posts it to the daemon's `/inference`
-endpoint as multipart form data. The daemon receives the audio as the `file`
-field with `response_format=json`; Syrus forwards optional `language` and
-`prompt` fields from the chat request.
+healthy, chat dictation exposes backend streaming and batch transcription.
+The image runs a session gateway in front of `whisper-server`. The gateway
+accepts ordered MediaRecorder chunks, appends them to one recording, and
+decodes the complete recording prefix for each revised interim hypothesis.
+It never submits a continuation WebM fragment as an independent recording.
+Stopping performs one final decode and releases the session directory.
 
-The provider is batch-only. It does not implement backend streaming because
-`whisper-server` answers one HTTP request at a time rather than producing the
-incremental deltas required by `ChatSpeechToText::StreamingSession`.
+The existing `/inference` multipart endpoint remains available through the
+gateway. It receives audio as the `file` field with `response_format=json`;
+Syrus forwards optional `language` and `prompt` fields.
 
 ## Requirements
 
 - **Plugin Runtime**, which Whisper speech-to-text depends on, to run or
   locate the service.
-- Enough CPU and memory for the `base.en` whisper.cpp model.
+- Enough CPU and memory for the `base.en` whisper.cpp model and concurrent
+  session decodes. Each active stream retains up to 10 MB of temporary audio;
+  interim decoding uses more CPU than a single batch request.
 
 ## Running The Service
 
@@ -43,15 +46,17 @@ On Syrus, `SYRUS_WHISPER_STT_IMAGE` overrides the image Compose runs.
 ## Checking That It Works
 
 After enabling, use Admin -> Plugin Services to inspect the `whisper-stt`
-service. A healthy service answers `GET /health` with status 200 once the
-model is loaded. During startup the service may report that the model is
-still loading.
+service. A healthy service answers `GET /health` with status 200 and reports
+`capabilities.streaming: true` once the model is loaded. During startup the
+service reports unavailable and chat does not advertise backend streaming.
 
 With the `chat_speech_to_text` feature flag on, a healthy service makes
-`ChatSpeechToText::Capability.for(user:).backend_batch_available?` true. If the
-plugin is disabled or the service has no usable Plugin Runtime endpoint,
-backend batch dictation is unavailable and chat falls back to browser speech
-recognition when the browser supports it.
+`backend_streaming_available?` and `backend_batch_available?` true. Stream
+startup, ordering, decode, timeout, disconnect, and cancellation failures
+release gateway resources. The composer retains the complete browser audio;
+when possible, it automatically retries `/inference`, then uses browser speech
+recognition if batch transcription also fails. Idle gateway sessions expire
+after 120 seconds and ActionCable sessions time out after 30 seconds.
 
 Set `SYRUS_STT_PROVIDER=whisper_stt` when more than one speech-to-text provider
 is installed and this daemon should be the selected backend.
