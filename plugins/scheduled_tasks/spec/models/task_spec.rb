@@ -163,6 +163,13 @@ RSpec.describe ScheduledTasks::Task do
         expect(task).to be_valid
       end
 
+      it "rejects a prompt and skill together" do
+        task = build_cron(prompt: "Do it", skill_name: "investigate", skill_args: { "question" => "x" })
+
+        expect(task).not_to be_valid
+        expect(task.errors[:base]).to include("Choose either a prompt or a skill, not both")
+      end
+
       it "still requires a prompt for freeform tasks" do
         task = build_cron(prompt: "")
         expect(task).not_to be_valid
