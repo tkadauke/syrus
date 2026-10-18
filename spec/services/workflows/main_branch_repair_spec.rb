@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Workflows::MainBranchRepair do
   let(:user) { Factories.user }
   let(:repository) do
-    Factories.repository(user: user).tap do |r|
+    Factories.repository(user: user, main_branch_health_enabled: true, main_branch_repair_enabled: true, main_branch_repair_blocks_work: true).tap do |r|
       r.update!(
         grader_health: "broken",
         last_health_checked_sha: "abc123def456"

@@ -45,7 +45,7 @@ RSpec.describe Steps::GraderCollect, "inherited test-case failures" do
   end
 
   it "passes test-case grader failures only when failed cases match the base revision" do
-    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    job.repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
     base_step = Step.create!(workflow: base_workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec", "failures" => "allow_inherited" })
     base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
@@ -91,7 +91,7 @@ RSpec.describe Steps::GraderCollect, "inherited test-case failures" do
   end
 
   it "does not pass test-case grader failures that introduce a new failed case" do
-    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    job.repository.update!(main_branch_health_enabled: true, ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
     base_step = Step.create!(workflow: base_workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec", "failures" => "allow_inherited" })
     base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")

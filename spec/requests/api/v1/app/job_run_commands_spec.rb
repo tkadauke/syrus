@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "App API job run commands", type: :request do
   let(:user) { Factories.user }
-  let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
+  let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets", main_branch_health_enabled: true) }
   let(:job) { Factories.job(repository: repo, issue_number: 42) }
 
   before { sign_in_as(user) }

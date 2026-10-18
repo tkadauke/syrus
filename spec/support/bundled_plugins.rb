@@ -12,6 +12,7 @@ module Syrus
         spending_insights team_directory
       ].freeze
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
+        "git_history" => %r{\A\./plugins/git_history/spec/},
         "operator_briefing" => %r{\A\./plugins/operator_briefing/spec/}
       }.freeze
       TEST_DISABLED_PLUGIN_NAMES = EXAMPLE_ENABLED_PLUGIN_PATHS.keys.freeze

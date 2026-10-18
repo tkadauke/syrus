@@ -231,7 +231,7 @@ function RepositoryReadinessReport({
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium text-text-primary">{t("onboarding.readiness_probe")}</h3>
           <button
-            className={buttonClasses({ variant: "secondary", size: "sm" })}
+            className={buttonClasses("secondary", "sm")}
             disabled={runProbe.isPending || report.execution_probe?.status === "queued" || report.execution_probe?.status === "running"}
             onClick={() => runProbe.mutate()}
             type="button"
@@ -289,7 +289,7 @@ function ExecutionProbe({
         </details>
       ))}
       {probe.status === "blocked" && !probe.warning_override ? (
-        <button className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={onOverride} type="button">
+        <button className={buttonClasses("secondary", "sm")} onClick={onOverride} type="button">
           {t("onboarding.readiness_probe_override")}
         </button>
       ) : null}

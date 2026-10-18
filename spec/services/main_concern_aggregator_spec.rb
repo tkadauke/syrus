@@ -4,7 +4,7 @@ RSpec.describe MainConcernAggregator do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
-  let(:repository) { Factories.repository(user: user) }
+  let(:repository) { Factories.repository(user: user, main_branch_health_enabled: true, main_branch_repair_enabled: true, main_branch_repair_blocks_work: true) }
   let(:sha) { "abc123" }
 
   def create_report(repo: repository, **overrides)

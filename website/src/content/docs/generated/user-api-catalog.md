@@ -301,7 +301,10 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/repositories/:id/cognitive_debt` | `api/v1/app/repositories#cognitive_debt` |
 | core | GET | `/api/v1/app/repositories/:id/coverage_trend` | `api/v1/app/repositories#coverage_trend` |
 | core | GET | `/api/v1/app/repositories/:id/edit` | `api/v1/app/repositories#edit` |
+| core | POST | `/api/v1/app/repositories/:id/override_readiness_probe` | `api/v1/app/repositories#override_readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/poll` | `api/v1/app/repositories#poll` |
+| core | GET | `/api/v1/app/repositories/:id/readiness` | `api/v1/app/repositories#readiness` |
+| core | POST | `/api/v1/app/repositories/:id/readiness_probe` | `api/v1/app/repositories#readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/release_needs_triage_job` | `api/v1/app/repositories#release_needs_triage_job` |
 | core | POST | `/api/v1/app/repositories/:id/repair_main_branch` | `api/v1/app/repositories#repair_main_branch` |
 | core | POST | `/api/v1/app/repositories/:id/resume_landing` | `api/v1/app/repositories#resume_landing` |

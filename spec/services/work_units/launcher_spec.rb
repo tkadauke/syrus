@@ -459,6 +459,7 @@ RSpec.describe WorkUnits::Launcher do
   end
 
   it "allows landing work past legacy main-repair repository locks when the repair-blocking policy is disabled" do
+    repository.update!(main_branch_repair_blocks_work: true)
     repair_job = Factories.job_record(user: user, repository: repository)
     repair_workflow = described_class.instantiate(kind: "main_branch_repair", job: repair_job)
     repository.update!(main_branch_repair_blocks_work: false)
