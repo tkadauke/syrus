@@ -154,7 +154,7 @@ type EntityReferenceDefinition = {
   label: (reference: EntityReferenceProps) => string | null
   href: (reference: EntityReferenceProps) => string | null
   copyValue?: (reference: EntityReferenceProps, label: string) => string | null
-  hoverKind?: "job" | "epic" | "chat" | "plugin"
+  hoverKind?: "job" | "epic" | "chat" | "plugin" | "workflow"
   hoverPrefix?: string
 }
 
@@ -183,7 +183,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     const id = compactEntityValue(reference.id)
     const jobId = compactEntityValue(reference.jobId)
     return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
-  }, copyValue: slugCopyValue },
+  }, copyValue: slugCopyValue, hoverKind: "workflow" },
   pull_request: { label: (reference) => {
     const id = compactEntityValue(reference.id)
     return id ? `PR #${id}` : null
@@ -212,7 +212,7 @@ function hoverWrapper(reference: EntityReferenceProps, children: ReactNode) {
   const id = numberValue(reference.id)
   if (id == null) return children
   const definition = ENTITY_REFERENCE_DEFINITIONS[reference.kind]
-  return definition.hoverKind ? <SlugHoverCard id={id} kind={definition.hoverKind} prefix={definition.hoverPrefix}>{children}</SlugHoverCard> : children
+  return definition.hoverKind ? <SlugHoverCard href={entityReferenceHref(reference)} id={id} kind={definition.hoverKind} prefix={definition.hoverPrefix}>{children}</SlugHoverCard> : children
 }
 
 const COPY_ICON_BUTTON_CLASS = [

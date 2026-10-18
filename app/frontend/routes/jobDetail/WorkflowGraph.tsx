@@ -144,7 +144,7 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
             <span>WU-{unit.id}</span>
             {unit.parent_work_unit_id ? <span>child of WU-{unit.parent_work_unit_id}</span> : null}
             {workflowPath ? (
-              <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
+              <WorkflowReference path={workflowPath} slug={unit.workflow_slug || workflowSlug(unit.workflow_id!)} />
             ) : (
               <span>No workflow attached</span>
             )}
