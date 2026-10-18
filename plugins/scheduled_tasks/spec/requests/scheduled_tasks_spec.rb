@@ -229,7 +229,11 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
   it "returns an actionable error when a template skill's arguments no longer match" do
     sign_in_as(user)
-    template = Factories.cron_template(user: user, prompt: nil, skill_name: "investigate", skill_args: {})
+    template = Factories.cron_template(
+      user: user, prompt: nil, skill_name: "investigate",
+      skill_args: { "question" => "Initially valid" }
+    )
+    template.update_column(:skill_args, {})
 
     post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
       from_template: template.id,

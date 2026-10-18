@@ -20,6 +20,7 @@ module Api
           template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).build(cron_template_params)
           template.skill_args = cron_template_skill_args
           template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
+          assign_skill_validation_context(template)
 
           if template.save
             render json: template_detail_payload(template).merge(message: "Template created."), status: :created
@@ -33,6 +34,7 @@ module Api
           template = find_template
           template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
           template.skill_args = cron_template_skill_args unless params.dig(:cron_template, :skill_name).nil?
+          assign_skill_validation_context(template)
 
           if template.update(cron_template_params)
             render json: template_detail_payload(template).merge(message: "Template updated.")
@@ -140,6 +142,14 @@ module Api
 
         def cron_template_skill_args
           plain_json(params.dig(:cron_template, :skill_args).presence || {})
+        end
+
+        def assign_skill_validation_context(template)
+          repository_id = params.dig(:cron_template, :validation_repository_id).presence
+          return if repository_id.nil?
+
+          template.skill_validation_repository = Repository.accessible_to(Current.user)
+            .merge(Repository.writable_by(Current.user)).active.find(repository_id)
         end
 
         def schedule_preview_json(result)
