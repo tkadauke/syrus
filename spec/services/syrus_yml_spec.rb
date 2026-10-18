@@ -1379,6 +1379,17 @@ RSpec.describe SyrusYml do
     end
   end
 
+  it "accepts the native Go coverage profile format" do
+    config = parse(<<~YAML)
+      coverage:
+        sources:
+          - artifact: coverage.out
+            format: go-cover
+    YAML
+
+    expect(config.coverage.sources.first.format).to eq("go-cover")
+  end
+
   describe "formatters: key" do
     it "parses formatters, normalizing a string or array of file globs" do
       config = parse(<<~YAML)

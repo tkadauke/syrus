@@ -718,6 +718,55 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
     end
   end
 
+  context "native Go grader coverage" do
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage.out
+              format: go-cover
+      YAML
+      File.write(@ws_path.join("coverage.out"), <<~COVERAGE)
+        mode: atomic
+        example.com/acme/app/main.go:2.1,3.8 4 4
+        example.com/acme/app/main.go:5.1,7.12 1 0
+      COVERAGE
+      File.write(@ws_path.join("go.mod"), "module example.com/acme\n")
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: <<~DIFF)
+          diff --git a/app/main.go b/app/main.go
+          --- a/app/main.go
+          +++ b/app/main.go
+          @@ -0,0 +2,2 @@
+          +covered
+          +covered
+        DIFF
+      )
+      Syrus::PluginRegistry.register(
+        name: "go_coverage_integration", version: "1.0.0",
+        provides: { coverage_analyzer: Go::CoverageAnalyzer }
+      )
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    it "discovers and analyzes a go test coverprofile artifact through the plugin registry" do
+      handler.call
+
+      artifact = workflow.reload.artifact("coverage")
+      expect(artifact.dig("summary", "lines_pct")).to eq(80.0)
+      expect(artifact.fetch("files")).to include(
+        "app/main.go" => include("line_count" => 5, "covered_line_count" => 4)
+      )
+      expect(artifact.fetch("diff_annotations")).to include(
+        "app/main.go" => include("2" => "covered", "3" => "covered")
+      )
+      expect(artifact.fetch("sources_status")).to include(
+        include("artifact" => "coverage.out", "found" => true, "lines_pct" => 80.0)
+      )
+    end
+  end
+
   context "pr_comment body generation" do
     context "when pr_comment: false (default)" do
       before do

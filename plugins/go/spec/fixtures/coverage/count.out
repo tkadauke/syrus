@@ -1,0 +1,5 @@
+mode: count
+example.com/acme/pkg/math.go:3.10,5.2 2 4
+example.com/acme/pkg/math.go:5.1,6.8 1 0
+example.com/acme/pkg/math.go:5.4,5.12 1 3
+example.com/acme/cmd/tool/main.go:10.2,10.20 1 0
