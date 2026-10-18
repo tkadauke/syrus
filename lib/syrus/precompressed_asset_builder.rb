@@ -1,4 +1,3 @@
-require "open3"
 require "pathname"
 require "zlib"
 
@@ -37,8 +36,8 @@ module Syrus
 
         target = Pathname.new("#{path}.br")
         command = brotli_command(path, target)
-        _stdout, stderr, status = Open3.capture3(*command)
-        raise "brotli failed for #{path}: #{stderr}" unless status.success?
+        result = capture(command)
+        raise "brotli failed for #{path}: #{result.stderr}" unless result.success?
 
         target
       end
@@ -82,19 +81,28 @@ module Syrus
       end
 
       def brotli_command_available?
-        @brotli_command_available = system("brotli", "--version", out: File::NULL, err: File::NULL) if @brotli_command_available.nil?
+        @brotli_command_available = capture([ "brotli", "--version" ]).success? if @brotli_command_available.nil?
         @brotli_command_available
+      rescue Errno::ENOENT
+        @brotli_command_available = false
       end
 
       def node_brotli_available?
-        @node_brotli_available = system(
+        @node_brotli_available = capture([
           "node",
           "-e",
-          "require('zlib').brotliCompressSync(Buffer.from('ok'))",
-          out: File::NULL,
-          err: File::NULL
-        ) if @node_brotli_available.nil?
+          "require('zlib').brotliCompressSync(Buffer.from('ok'))"
+        ]).success? if @node_brotli_available.nil?
         @node_brotli_available
+      rescue Errno::ENOENT
+        @node_brotli_available = false
+      end
+
+      def capture(command)
+        ProcessRunner.new(
+          env: {}, command: command, mounts: ProcessRunner.mounts(output_path),
+          network: "grader", timeout: 2.minutes, kind: "generate"
+        ).capture
       end
   end
 end
