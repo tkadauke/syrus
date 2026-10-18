@@ -92,12 +92,13 @@ module Throughput
       jobs = jobs_in(range)
       pr_creation = pr_creation_for(range, hours)
       landed_jobs = landed_jobs_in(range)
-      landing_attempts = landing_attempts_in(range)
+      finished_workflows = finished_workflows_in(range)
+      landing_attempts = landing_attempts_in(range, finished_workflows: finished_workflows)
       successful_landing_attempts = landing_attempts.select(&:successful?)
       failed_landing_attempts = landing_attempts.select(&:failed?)
       cancelled_landing_attempts = landing_attempts.select(&:cancelled?)
       deferred_landing_attempts = landing_attempts.select(&:deferred?)
-      rebase_workflows = workflows_in(range, trigger_kinds: REBASE_TRIGGER_KINDS)
+      rebase_workflows = workflows_in(finished_workflows, trigger_kinds: REBASE_TRIGGER_KINDS)
       output = output_for(range)
       feedback = feedback_for(range)
       approvals = approvals_in(range)
@@ -230,6 +231,7 @@ module Throughput
       :workflow,
       :train,
       :jobs,
+      :step_metrics,
       keyword_init: true
     ) do
       def successful? = state == "succeeded"
@@ -257,53 +259,66 @@ module Throughput
       end
 
       def grader_phase_seconds
-        duration_for_step_kinds(LANDING_GRADER_STEP_KINDS)
+        step_metrics&.grader_phase_seconds
       end
 
       def mergeability_rebase_wait_seconds
-        duration_for_step_kinds(MERGEABILITY_REBASE_WAIT_STEP_KINDS)
+        step_metrics&.mergeability_rebase_wait_seconds
       end
 
       def base_moved_regrade?
         return true if workflow&.artifact(Steps::MergeTrainLand::STALE_BASE_ARTIFACT).is_a?(Hash)
 
-        workflow&.steps&.any? { |step| step.kind == "merge_train_rebase" } || false
+        step_metrics&.merge_train_rebase? || false
       end
 
       def reused_landing_validation?
-        workflow&.steps&.any? { |step| step.cancellation_reason == LANDING_VALIDATION_CACHED_REASON } || false
-      end
-
-      private
-
-      def duration_for_step_kinds(kinds)
-        matching_steps = workflow&.steps&.select { |step| kinds.include?(step.kind) } || []
-        started = matching_steps.filter_map(&:started_at).min
-        finished = matching_steps.filter_map(&:finished_at).max
-        return unless started && finished
-
-        finished - started
+        step_metrics&.reused_landing_validation? || false
       end
     end
     private_constant :LandingAttempt
 
-    def workflows_in(range, trigger_kinds:)
-      finished_workflows.select do |workflow|
-        trigger_kinds.include?(workflow.trigger_kind) && in_range?(workflow.finished_at, range)
+    StepMetrics = Struct.new(
+      :grader_started_at,
+      :grader_finished_at,
+      :rebase_started_at,
+      :rebase_finished_at,
+      :merge_train_rebase,
+      :reused_landing_validation,
+      keyword_init: true
+    ) do
+      def grader_phase_seconds = duration(grader_started_at, grader_finished_at)
+      def mergeability_rebase_wait_seconds = duration(rebase_started_at, rebase_finished_at)
+      def merge_train_rebase? = merge_train_rebase.to_i.positive?
+      def reused_landing_validation? = reused_landing_validation.to_i.positive?
+
+      private
+
+      def duration(started_at, finished_at)
+        return unless started_at && finished_at
+
+        finished_at - started_at
       end
     end
+    private_constant :StepMetrics
 
-    def landing_attempts_in(range)
-      auto_merge_attempts = workflows_in(range, trigger_kinds: [ "auto_merge" ]).map do |workflow|
+    def workflows_in(finished_workflows, trigger_kinds:)
+      finished_workflows.select { |workflow| trigger_kinds.include?(workflow.trigger_kind) }
+    end
+
+    def landing_attempts_in(range, finished_workflows: finished_workflows_in(range))
+      step_metrics = step_metrics_by_workflow_id(finished_workflows)
+      auto_merge_attempts = workflows_in(finished_workflows, trigger_kinds: [ "auto_merge" ]).map do |workflow|
         LandingAttempt.new(
           unit_type: "auto_merge",
           state: workflow.state,
           workflow: workflow,
-          jobs: [ workflow.job ]
+          jobs: [ workflow.job ],
+          step_metrics: step_metrics[workflow.id]
         )
       end
 
-      train_workflows_by_train_id = workflows_in(range, trigger_kinds: [ "merge_train" ])
+      train_workflows_by_train_id = workflows_in(finished_workflows, trigger_kinds: [ "merge_train" ])
         .filter_map { |workflow| [ workflow.artifact("merge_train_id").to_i, workflow ] if workflow.artifact("merge_train_id").present? }
         .to_h
 
@@ -315,7 +330,8 @@ module Throughput
             state: train.state,
             workflow: train_workflows_by_train_id[train.id],
             train: train,
-            jobs: train.members.map(&:job)
+            jobs: train.members.map(&:job),
+            step_metrics: step_metrics[train_workflows_by_train_id[train.id]&.id]
           )
         end
 
@@ -729,13 +745,74 @@ module Throughput
         .to_a
     end
 
-    def finished_workflows
-      @finished_workflows ||= Workflow.joins(:job)
+    WORKFLOW_COLUMNS = %w[
+      workflows.id workflows.job_id workflows.trigger_kind workflows.state
+      workflows.started_at workflows.finished_at workflows.artifacts
+    ].freeze
+    WORKFLOW_JOB_COLUMNS = %w[
+      jobs.id jobs.state jobs.approved_at jobs.finished_at jobs.pr_number
+      jobs.external_pr_number jobs.fork_review_pr_number
+    ].freeze
+
+    def finished_workflows_in(range)
+      workflows = Workflow.joins(:job)
         .where(jobs: { repository_id: repository.id })
         .where(trigger_kind: LANDING_TRIGGER_KINDS + REBASE_TRIGGER_KINDS)
-        .where(window_condition(:workflows, :finished_at))
-        .includes(:steps, :job)
+        .where(finished_at: range)
+        .select(*WORKFLOW_COLUMNS)
         .to_a
+
+      ActiveRecord::Associations::Preloader.new(
+        records: workflows,
+        associations: :job,
+        scope: Job.select(*WORKFLOW_JOB_COLUMNS)
+      ).call
+      workflows
+    end
+
+    def step_metrics_by_workflow_id(workflows)
+      workflow_ids = workflows.filter_map { |workflow| workflow.id if LANDING_TRIGGER_KINDS.include?(workflow.trigger_kind) }
+      return {} if workflow_ids.empty?
+
+      grader_kinds = quoted_list(LANDING_GRADER_STEP_KINDS)
+      rebase_kinds = quoted_list(MERGEABILITY_REBASE_WAIT_STEP_KINDS)
+      cached_reason = ActiveRecord::Base.connection.quote(LANDING_VALIDATION_CACHED_REASON)
+
+      Step.where(workflow_id: workflow_ids)
+        .group(:workflow_id)
+        .pluck(
+          :workflow_id,
+          Arel.sql("MIN(CASE WHEN kind IN (#{grader_kinds}) THEN started_at END)"),
+          Arel.sql("MAX(CASE WHEN kind IN (#{grader_kinds}) THEN finished_at END)"),
+          Arel.sql("MIN(CASE WHEN kind IN (#{rebase_kinds}) THEN started_at END)"),
+          Arel.sql("MAX(CASE WHEN kind IN (#{rebase_kinds}) THEN finished_at END)"),
+          Arel.sql("MAX(CASE WHEN kind = 'merge_train_rebase' THEN 1 ELSE 0 END)"),
+          Arel.sql("MAX(CASE WHEN cancellation_reason = #{cached_reason} THEN 1 ELSE 0 END)")
+        )
+        .to_h do |workflow_id, grader_started, grader_finished, rebase_started, rebase_finished, merge_rebase, reused|
+          [
+            workflow_id,
+            StepMetrics.new(
+              grader_started_at: metric_time(grader_started),
+              grader_finished_at: metric_time(grader_finished),
+              rebase_started_at: metric_time(rebase_started),
+              rebase_finished_at: metric_time(rebase_finished),
+              merge_train_rebase: merge_rebase,
+              reused_landing_validation: reused
+            )
+          ]
+        end
+    end
+
+    def quoted_list(values)
+      values.map { |value| ActiveRecord::Base.connection.quote(value) }.join(", ")
+    end
+
+    def metric_time(value)
+      return value if value.respond_to?(:iso8601)
+      return if value.blank?
+
+      Time.zone.parse(value.to_s)
     end
 
     def merge_trains
