@@ -59,6 +59,22 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
+  it "enforces the Whisper gateway tests with ffmpeg available" do
+    grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "whisper-gateway-tests" }
+
+    expect(grader).to have_attributes(
+      command: "command -v ffmpeg >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s plugins/whisper_stt/container -p 'test_*.py'",
+      phases: %w[review landing ci],
+      required: true,
+      timeout_minutes: 3,
+      when_files_changed: [
+        "plugins/whisper_stt/container/**/*.py",
+        "plugins/whisper_stt/container/Dockerfile",
+        "Dockerfile"
+      ]
+    )
+  end
+
   it "does not keep the old broad Go workspace backstop in the root config" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 

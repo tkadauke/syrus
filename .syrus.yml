@@ -285,6 +285,21 @@ grade:
       - "eslint-rules/**/*.js"
     timeout_minutes: 3
 
+  - name: whisper-gateway-tests
+    description: |
+      Exercises the Whisper streaming gateway protocol, including ordered
+      chunks, bounded decoder state, cleanup, and real fragmented-WebM
+      decoding. The explicit ffmpeg preflight prevents the media-boundary
+      regression test from silently skipping on an incomplete worker image.
+    run: command -v ffmpeg >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s plugins/whisper_stt/container -p 'test_*.py'
+    phases: [review, landing, ci]
+    required: true
+    when_files_changed:
+      - "plugins/whisper_stt/container/**/*.py"
+      - "plugins/whisper_stt/container/Dockerfile"
+      - "Dockerfile"
+    timeout_minutes: 3
+
   - name: plugin-model-namespaces
     description: |
       Ensures plugin-owned Active Record models are namespaced and use
