@@ -14,9 +14,13 @@ require "syrus/plugin/preview_provider"
 # can pick a free port and hand it off in one step.
 class PreviewCommandSource
   # `start_command_for` — callable(port:) → String
-  Config = Data.define(:start_command_for, :setup_commands, :seed_command, :health_check_path, :health_check_timeout_seconds, :log_paths, :env, :unset_env) do
-    def initialize(health_check_timeout_seconds: nil, **rest)
-      super(health_check_timeout_seconds: health_check_timeout_seconds, **rest)
+  Config = Data.define(:start_command_for, :setup_commands, :seed_command, :health_check_path, :health_check_timeout_seconds, :log_paths, :env, :unset_env, :env_for, :cleanup_command) do
+    def initialize(health_check_timeout_seconds: nil, env_for: nil, cleanup_command: nil, **rest)
+      super(health_check_timeout_seconds: health_check_timeout_seconds, env_for: env_for, cleanup_command: cleanup_command, **rest)
+    end
+
+    def environment(key: nil)
+      env.merge(env_for ? env_for.call(key:) : {})
     end
   end
 
@@ -46,7 +50,9 @@ class PreviewCommandSource
       health_check_timeout_seconds: p.health_check_timeout_seconds,
       log_paths:         p.logs,
       env:               p.env,
-      unset_env:         p.unset_env
+      unset_env:         p.unset_env,
+      env_for:           nil,
+      cleanup_command:   nil
     )
   rescue SyrusYml::ParseError, Errno::ENOENT
     nil
@@ -68,7 +74,9 @@ class PreviewCommandSource
       health_check_timeout_seconds: p.health_check_timeout_seconds,
       log_paths:         p.logs,
       env:               p.env,
-      unset_env:         p.unset_env
+      unset_env:         p.unset_env,
+      env_for:           nil,
+      cleanup_command:   nil
     )
   rescue SyrusYml::ParseError, TargetGraph::Error, Errno::ENOENT
     nil
@@ -86,7 +94,9 @@ class PreviewCommandSource
       health_check_timeout_seconds: provider.respond_to?(:health_check_timeout_seconds) ? provider.health_check_timeout_seconds : nil,
       log_paths:         provider.log_paths,
       env:               provider.respond_to?(:env) ? provider.env : {},
-      unset_env:         provider.respond_to?(:unset_env) ? provider.unset_env : []
+      unset_env:         provider.respond_to?(:unset_env) ? provider.unset_env : [],
+      env_for:           provider.respond_to?(:env_for) ? provider.method(:env_for) : nil,
+      cleanup_command:   provider.respond_to?(:cleanup_command) ? provider.cleanup_command : nil
     )
   end
 end

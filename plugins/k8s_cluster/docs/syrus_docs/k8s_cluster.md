@@ -22,7 +22,7 @@ further Job added gated, read-only agentic access (MCP tools) - see "Agentic
 access" below. This Job adds a short, explicit allowlist of write/mutating
 MCP tools - restart a deployment rollout, scale a deployment, delete a pod,
 cordon/uncordon a node - gated by a separate, stricter `allow_writes` opt-in
-per DOC-21 phase 2; see "Write-capable agentic tools" and "Minimal RBAC for
+behind the stricter write-access phase; see "Write-capable agentic tools" and "Minimal RBAC for
 agentic access" below. The plugin also depends on `credential_store` for
 registered cluster credentials and credential-backed kubectl access; see
 "Credential storage" and "Credential-backed kubectl" below.
@@ -40,7 +40,7 @@ only non-secret metadata. Three independent booleans, all default `false`:
   mirroring `mysql_db_browser`'s per-connection agentic gating. Not wired to
   anything yet.
 - `allow_writes` - reserved the same way, for the narrowly scoped write
-  actions DOC-21 describes.
+  actions described below.
 - `insecure_skip_tls_verify` - skips TLS certificate verification when
   connecting to the cluster's API server, for self-signed k3s API servers.
   Always defaults to `false` and is rendered as a clearly-labeled opt-in
@@ -686,13 +686,29 @@ roleRef:
 Generate the ServiceAccount's bearer token (e.g. a long-lived Secret of type
 `kubernetes.io/service-account-token`, or `kubectl create token
 syrus-k8s-cluster-viewer --duration=...` for a short-lived one) and paste a
-kubeconfig built from it - see "Kubeconfig parsing" above. There is no
-token rotation/expiry handling in v1 (a known gap - see DOC-21); an expired
-token needs the operator to re-paste an updated kubeconfig.
+kubeconfig built from it - see "Kubeconfig parsing" above. Syrus derives
+expiry from JWT `exp` claims and inline client certificates and shows the
+credential health without returning secret material. Bearer tokens and client
+certificates cannot be refreshed: edit the existing cluster and paste a
+replacement kubeconfig when prompted. Rotation preserves cluster identity,
+access settings, credential scope, and audit history.
+
+OIDC `auth-provider` kubeconfigs containing an `id-token`, `refresh-token`,
+`client-id`, and `idp-issuer-url` are refreshed within 15 minutes of expiry.
+The five-minute plugin tick enqueues `K8sCluster::RefreshCredentialsJob` on
+the consumed `low_priority_maintenance` queue. A cluster row lock serializes
+attempts. Success replaces the encrypted kubeconfig and expiry atomically;
+failure keeps the prior encrypted payload and exposes a redacted actionable
+status. Operator and automatic rotations append Credential Store audit events
+with the actor/source and result, but never credential material.
+Already-expired replacement or refreshed credentials are rejected. Credential
+Store continues to reject expired credentials until a rotation or successful
+refresh recovers the cluster. Exec credential plugins
+remain unsupported.
 
 ## What's not here yet
 
-Per DOC-21's explicit out-of-scope list: per-repository cluster association
+Still out of scope: per-repository cluster association
 or auto-detection of "which cluster does this repo deploy to," an in-cluster
 relay agent for clusters Syrus can't reach directly (NAT/firewalled), any
 general-purpose `kubectl exec` or arbitrary manifest `apply` via the agent,

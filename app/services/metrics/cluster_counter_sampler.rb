@@ -6,11 +6,13 @@ module Metrics
   # shrink.
   class ClusterCounterSampler
     CACHE_KEY = "syrus:metrics:cluster_counter_totals".freeze
+    HEALTH_CACHE_KEY = "syrus:metrics:cluster_counter_capture".freeze
     CACHE_TTL = 5.minutes
 
     def self.sample!
       totals = ClusterCounters.totals
       Rails.cache.write(CACHE_KEY, totals, expires_in: CACHE_TTL)
+      Rails.cache.write(HEALTH_CACHE_KEY, ClusterCounters.capture_status, expires_in: CACHE_TTL)
       totals
     end
 
@@ -25,6 +27,12 @@ module Metrics
         series.each { |labels, total| Syrus::Metrics.counter(definition.name).reconcile!(total, tags: labels) }
       end
       true
+    end
+
+    def self.capture_status
+      return "unavailable" if Rails.cache.read(CACHE_KEY).nil?
+
+      Rails.cache.read(HEALTH_CACHE_KEY) || "unavailable"
     end
 
     Syrus::Metrics.register_sampler(self)

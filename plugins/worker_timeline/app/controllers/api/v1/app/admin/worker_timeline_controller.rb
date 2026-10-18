@@ -13,20 +13,25 @@ module Api
           before_action :require_worker_timeline_enabled
 
           def macro
-            filter = ::WorkerTimeline::MacroQueryFilter.from_params(params)
+            folder = active_smart_folder
+            floor = ::WorkerTimeline::MacroQueryFilter.smart_folder_floor(params, folder, user: Current.user)
+            filter = ::WorkerTimeline::MacroQueryFilter.from_params(params, smart_folder: floor, user: Current.user)
 
-            render json: ::Timeline::MacroQuery.call(
+            payload = ::Timeline::MacroQuery.call(
               from: filter.from,
               to: filter.to,
-              repository_id: filter.repository_id,
-              epic_id: filter.epic_id,
-              hostname: filter.hostname,
-              status: filter.status,
-              job_type: filter.job_type
-            ).merge(
-              filter: filter.to_h,
-              filter_schema: ::WorkerTimeline::MacroQueryFilter.schema
+              expression: filter,
+              allowed_job_ids: ::Job.accessible_to(Current.user).select(:id)
             )
+            render json: payload.merge(
+              filter: filter.to_h,
+              filter_schema: ::WorkerTimeline::MacroQueryFilter.schema,
+              active_smart_folder_id: folder&.id,
+              smart_folders: smart_folders
+            )
+          rescue ArgumentError => e
+            Rails.logger.info("Worker Timeline rejected filter: #{e.message}")
+            render_error("invalid_filter", e.message, status: :unprocessable_content)
           end
 
           def live
@@ -48,6 +53,29 @@ module Api
           end
 
           private
+
+          def active_smart_folder
+            @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
+              subject: :worker_timeline, user: Current.user, params: params
+            )
+          end
+
+          def smart_folders
+            ::Admin::SmartFolderNavigation.new(
+              subject: :worker_timeline, user: Current.user,
+              active_folder: active_smart_folder, base_scope: ::Workflow.none,
+              filter_class: ::WorkerTimeline::MacroQueryFilter,
+              count_provider: ->(folder) { smart_folder_count(folder) }
+            ).folders
+          end
+
+          def smart_folder_count(folder)
+            filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
+            ::Timeline::MacroQuery.new(
+              from: filter.from, to: filter.to, expression: filter,
+              allowed_job_ids: ::Job.accessible_to(Current.user).select(:id)
+            ).capped_count
+          end
 
           def require_worker_timeline_enabled
             return if ::WorkerTimeline.enabled?

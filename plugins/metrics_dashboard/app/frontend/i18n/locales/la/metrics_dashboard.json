@@ -6,6 +6,8 @@
   "error": "Metra onerari non potuerunt.",
   "panel_empty": "Nulla data hoc intervallo adhuc collecta.",
   "no_data_notice": "Nihil adhuc collectum est. Collectio post minutum ab instrumento incitato incipit.",
+  "cluster_counter_unavailable_notice": "Captura numeratorum inter processus non praesto est aut obsolevit. Tabulae usus functionum et decisionum admissionis novas mensuras omittunt donec captura reficiatur.",
+  "cluster_counter_partial_notice": "Captura numeratorum inter processus manca est. Saltem unus processus transmissiones obsoletas vel lapsas habet, itaque summae recentes imperfectae esse possunt.",
   "stale_notice": "Collectio cessavisse videtur. Ultimum exemplum: {{at}}.",
   "hide_series": "Seriem {{name}} celare",
   "show_series": "Seriem {{name}} ostendere",

@@ -1,5 +1,6 @@
 import { getJson, postJson } from "@app/api/client"
 import type { FilterSchemaField } from "@app/components/FilterBar"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
 
 export type WorkerTimelineBlockedInfo = {
   blocked_reason: string | null
@@ -58,6 +59,8 @@ export type WorkerTimelineMacroPayload = {
   pending: WorkerTimelinePendingEntry[]
   filter: Record<string, unknown> | null
   filter_schema: FilterSchemaField[]
+  active_smart_folder_id: number | null
+  smart_folders: AdminSmartFolder[]
 }
 
 export type WorkerTimelineWaterfallWorkflow = {

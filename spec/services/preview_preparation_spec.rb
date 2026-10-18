@@ -60,4 +60,48 @@ RSpec.describe PreviewPreparation do
       )
     }
   end
+
+  it "redacts database credentials from preparation logs and failure evidence" do
+    messages = []
+    runner = double("ProcessRunner")
+    allow(ProcessRunner).to receive(:new) do |options|
+      options.fetch(:on_output_chunk).call("connection refused: postgresql://preview:secret-value@postgres/app")
+      runner
+    end
+    allow(runner).to receive(:run).and_return(result(exit_status: 1))
+
+    expect {
+      described_class.new(workspace_path, project_id: "web", workflow: workflow, log: ->(message, **) { messages << message }).call
+    }.to raise_error(described_class::Error) { |error|
+      expect(error.details.fetch("output_tail")).to include("postgresql://preview:[REDACTED]@postgres/app")
+      expect(error.details.fetch("output_tail")).not_to include("secret-value")
+    }
+    expect(messages.join).not_to include("secret-value")
+  end
+
+  it "runs provider cleanup when database creation or migration fails" do
+    postgres_source = PreviewCommandSource::Config.new(
+      start_command_for: ->(port:) { "bin/server --port #{port}" },
+      setup_commands: [],
+      seed_command: "bin/rails db:create db:migrate db:seed",
+      health_check_path: "/up",
+      log_paths: [],
+      env: {},
+      unset_env: [],
+      env_for: ->(key:) { { "DATABASE_URL" => "postgresql://preview:secret@postgres/syrus_preview_#{key}" } },
+      cleanup_command: "bin/rails db:drop"
+    )
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: "web").and_return(double(resolve: postgres_source))
+    failed = double(run: result(exit_status: 1))
+    cleaned = double(run: result)
+    expect(ProcessRunner).to receive(:new).with(hash_including(command: [ "bash", "-c", postgres_source.seed_command ])).and_return(failed)
+    expect(ProcessRunner).to receive(:new).with(hash_including(
+      command: [ "bash", "-c", postgres_source.cleanup_command ],
+      env: hash_including("DATABASE_URL" => "postgresql://preview:secret@postgres/syrus_preview_review-1")
+    )).and_return(cleaned)
+
+    expect {
+      described_class.new(workspace_path, project_id: "web", workflow: workflow, preview_key: "review-1").call
+    }.to raise_error(described_class::Error, /preview seed failed/)
+  end
 end

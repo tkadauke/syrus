@@ -22,6 +22,9 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { AdminEventLogTable, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
 import { Button, DataTable, DescriptionList, Form, Page, buttonClasses } from "@app/components/ui"
+import { Input } from "@app/components/Input"
+import { fetchRepositorySkills, type SkillSummary } from "@app/api/skills"
+import { initialArgs, SkillOption, SkillParameterInput } from "@app/routes/RepositorySkillNew"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -33,6 +36,8 @@ const emptyTemplate: CronTemplateInput = {
   schedule_timezone: "UTC",
   pr_pileup_policy: "skip",
   prompt: "",
+  skill_name: "",
+  skill_args: {},
   enabled: true
 }
 export function CronTemplatesIndex() {
@@ -105,6 +110,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   const loading = index.isPending || (mode === "edit" && detail.isPending)
   const error = index.error || detail.error
   const policies = index.data?.pr_pileup_policies || detail.data?.pr_pileup_policies || defaultPolicies
+  const repositories = index.data?.repositories || detail.data?.repositories || []
   const initial = mode === "edit" && detail.data ? inputFromTemplate(detail.data.template) : emptyTemplate
 
   return (
@@ -118,7 +124,17 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
 
       {loading ? <PanelMessage>{t("cron_templates.loading_form")}</PanelMessage> : null}
       {error ? <CronTemplatesError error={error} /> : null}
-      {!loading && !error ? <CronTemplateForm basePath={basePath} id={Number(id)} initial={initial} key={`${mode}:${id}`} mode={mode} policies={policies} /> : null}
+      {!loading && !error ? (
+        <CronTemplateForm
+          basePath={basePath}
+          id={Number(id)}
+          initial={initial}
+          key={`${mode}:${id}`}
+          mode={mode}
+          policies={policies}
+          repositories={repositories}
+        />
+      ) : null}
     </Page.Root>
   )
 }
@@ -175,7 +191,13 @@ function templateColumns({ basePath, t }: { basePath: string; t: ReturnType<type
       sort: "schedule",
       sortValue: (template) => template.schedule_explanation || template.cron_expression
     },
-    { key: "pileup", header: t("cron_templates.col_pileup"), render: (template) => template.pr_pileup_policy, sort: "pileup", sortValue: (template) => template.pr_pileup_policy },
+    {
+      key: "pileup",
+      header: t("cron_templates.col_pileup"),
+      render: (template) => template.pr_pileup_policy,
+      sort: "pileup",
+      sortValue: (template) => template.pr_pileup_policy
+    },
     {
       key: "applied",
       header: t("cron_templates.col_applied"),
@@ -184,7 +206,13 @@ function templateColumns({ basePath, t }: { basePath: string; t: ReturnType<type
       sort: "applied",
       sortValue: (template) => template.applied_tasks_count
     },
-    { key: "status", header: t("cron_templates.col_status"), render: (template) => <StatusPill enabled={template.enabled} />, sort: "status", sortValue: (template) => Number(template.enabled) },
+    {
+      key: "status",
+      header: t("cron_templates.col_status"),
+      render: (template) => <StatusPill enabled={template.enabled} />,
+      sort: "status",
+      sortValue: (template) => Number(template.enabled)
+    },
     {
       key: "open",
       header: <span className="sr-only">{t("cron_templates.col_open")}</span>,
@@ -262,9 +290,11 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_prompt")}</h2>
+        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">
+          {t(payload.template.skill_name ? "cron_templates.section_skill" : "cron_templates.section_prompt")}
+        </h2>
         <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">
-          {payload.template.prompt}
+          {payload.template.skill_name ? `${payload.template.skill_name}\n${JSON.stringify(payload.template.skill_args, null, 2)}` : payload.template.prompt}
         </pre>
       </section>
 
@@ -280,21 +310,42 @@ function CronTemplateForm({
   mode,
   initial,
   policies,
+  repositories,
   basePath
 }: {
   id: number
   mode: "new" | "edit"
   initial: CronTemplateInput
   policies: string[]
+  repositories: Array<{ id: number; slug: string }>
   basePath: string
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [values, setValues] = useState<CronTemplateInput>(initial)
+  const [taskSource, setTaskSource] = useState<"prompt" | "skill">(initial.skill_name ? "skill" : "prompt")
+  const [repositoryId, setRepositoryId] = useState(repositories[0]?.id.toString() || "")
+  const skills = useQuery({
+    queryKey: ["repositories", repositoryId, "skills"],
+    queryFn: () => fetchRepositorySkills(repositoryId),
+    enabled: taskSource === "skill" && repositoryId.length > 0
+  })
+  const selectedSkill = skills.data?.skills.find((skill) => skill.name === values.skill_name) || null
+
+  function selectTaskSource(source: "prompt" | "skill") {
+    setTaskSource(source)
+    setValues((current) => (source === "prompt" ? { ...current, skill_name: "", skill_args: {} } : { ...current, prompt: "" }))
+  }
+
+  function selectSkill(skill: SkillSummary) {
+    setValues((current) => ({ ...current, prompt: "", skill_name: skill.name, skill_args: initialArgs(skill) }))
+  }
   const save = useMutation({
     mutationFn: (structuredIntent: Record<string, unknown> | null) =>
-      mode === "new" ? createCronTemplate(submitInput(values, structuredIntent)) : updateCronTemplate(id, submitInput(values, structuredIntent)),
+      mode === "new"
+        ? createCronTemplate(submitInput(values, structuredIntent, repositoryId))
+        : updateCronTemplate(id, submitInput(values, structuredIntent, repositoryId)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["cron_templates", String(payload.template.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["cron_templates"] })
@@ -355,10 +406,64 @@ function CronTemplateForm({
           ))}
         </Form.Select>
       </Form.Field>
-      <Form.Field controlId="cron-template-prompt">
-        <Form.Label>{t("cron_templates.field_prompt")}</Form.Label>
-        <Form.Textarea className="font-mono" onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
-      </Form.Field>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-text-primary">{t("cron_templates.field_task_source")}</legend>
+        <div className="flex gap-4 text-sm text-text-primary">
+          <label className="flex w-auto items-center gap-2">
+            <Input
+              checked={taskSource === "prompt"}
+              className="h-4 w-4 accent-brand"
+              fullWidth={false}
+              name="cron-template-source"
+              onChange={() => selectTaskSource("prompt")}
+              type="radio"
+            />
+            {t("cron_templates.task_source_prompt")}
+          </label>
+          <label className="flex w-auto items-center gap-2">
+            <Input
+              checked={taskSource === "skill"}
+              className="h-4 w-4 accent-brand"
+              fullWidth={false}
+              name="cron-template-source"
+              onChange={() => selectTaskSource("skill")}
+              type="radio"
+            />
+            {t("cron_templates.task_source_skill")}
+          </label>
+        </div>
+      </fieldset>
+      {taskSource === "prompt" ? (
+        <Form.Field controlId="cron-template-prompt">
+          <Form.Label>{t("cron_templates.field_prompt")}</Form.Label>
+          <Form.Textarea className="font-mono" onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+        </Form.Field>
+      ) : (
+        <>
+          <Form.Field controlId="cron-template-repository">
+            <Form.Label>{t("cron_templates.field_skill_repository")}</Form.Label>
+            <Form.Select onChange={(event) => setRepositoryId(event.target.value)} value={repositoryId}>
+              {repositories.map((repository) => (
+                <option key={repository.id} value={repository.id}>
+                  {repository.slug}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.HelpText>{t("cron_templates.skill_repository_help")}</Form.HelpText>
+          </Form.Field>
+          {skills.data?.skills.map((skill) => (
+            <SkillOption key={skill.name} onSelect={() => selectSkill(skill)} selected={skill.name === values.skill_name} skill={skill} />
+          ))}
+          {selectedSkill?.parameters.map((field) => (
+            <SkillParameterInput
+              field={field}
+              key={field.key}
+              onChange={(value) => setValues((current) => ({ ...current, skill_args: { ...current.skill_args, [field.key]: value } }))}
+              value={values.skill_args[field.key]}
+            />
+          ))}
+        </>
+      )}
       <Form.Field controlId="cron-template-enabled">
         <Form.Checkbox
           checked={values.enabled}
@@ -367,7 +472,7 @@ function CronTemplateForm({
         />
       </Form.Field>
       <div className="flex items-center gap-3">
-        <Button disabled={save.isPending} type="submit" variant="primary">
+        <Button disabled={save.isPending || (taskSource === "skill" && !values.skill_name)} type="submit" variant="primary">
           {save.isPending ? t("cron_templates.saving") : mode === "new" ? t("cron_templates.create") : t("cron_templates.save")}
         </Button>
         <Link
@@ -515,8 +620,8 @@ function routeBase(pathname: string) {
   return `${routePrefix(pathname)}/cron_templates`
 }
 
-function submitInput(values: CronTemplateInput, structuredIntent: Record<string, unknown> | null): CronTemplateInput {
-  return { ...values, structured_intent: structuredIntent }
+function submitInput(values: CronTemplateInput, structuredIntent: Record<string, unknown> | null, repositoryId: string): CronTemplateInput {
+  return { ...values, structured_intent: structuredIntent, validation_repository_id: values.skill_name ? repositoryId : undefined }
 }
 
 function inputFromTemplate(template: CronTemplateDetail): CronTemplateInput {
@@ -528,7 +633,9 @@ function inputFromTemplate(template: CronTemplateDetail): CronTemplateInput {
     schedule_expression: template.schedule_expression || "",
     schedule_timezone: template.schedule_timezone || "UTC",
     pr_pileup_policy: template.pr_pileup_policy,
-    prompt: template.prompt,
+    prompt: template.prompt || "",
+    skill_name: template.skill_name || "",
+    skill_args: template.skill_args || {},
     enabled: template.enabled
   }
 }

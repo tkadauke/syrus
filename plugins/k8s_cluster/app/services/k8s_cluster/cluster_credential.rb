@@ -32,13 +32,18 @@ module K8sCluster
 
     class DependencyDisabled < StandardError; end
     class MissingCredential < StandardError; end
+    class ExpiredCredential < StandardError; end
 
     class << self
       def upsert!(cluster:, kubeconfig:, user:, scope_type: "instance", scope_id: nil)
         raise DependencyDisabled, "credential_store plugin must be enabled to store Kubernetes cluster credentials" unless credential_store_enabled?
 
         parsed = KubeconfigParser.parse(kubeconfig)
-        credential = credential_record_for(cluster) || CredentialStore::Credential.new(
+        raise ExpiredCredential, "kubeconfig credential is already expired" if parsed.expires_at && parsed.expires_at <= Time.current
+
+        credential = credential_record_for(cluster)
+        rotating = credential.present?
+        credential ||= CredentialStore::Credential.new(
           created_by: user,
           owner_user: user,
           scope_type: scope_type
@@ -54,14 +59,27 @@ module K8sCluster
           target_constraints: {},
           allowed_surfaces: %w[admin workflow chat],
           allowed_tools: ALLOWED_TOOLS,
+          expires_at: parsed.expires_at,
           last_rotated_at: Time.current,
           revoked_at: nil
         )
         credential.save!
+        CredentialStore::CredentialAccessEvent.record!(
+          credential: credential,
+          user: user,
+          surface: "admin",
+          action: rotating ? "rotate" : "create",
+          result: "allowed",
+          purpose: PURPOSE,
+          metadata: { payload_replaced: true, source: "k8s_cluster" }
+        )
         cluster.credential_store_credential_id = credential.id
         cluster.api_server_url = parsed.api_server_url
         cluster.credential_kind = parsed.credential_kind
         cluster.credentials = {}
+        cluster.credential_refresh_status = parsed.expires_at.present? ? "healthy" : "unknown"
+        cluster.credential_refresh_error = nil
+        cluster.credential_refresh_attempted_at = nil
         parsed
       end
 
@@ -129,14 +147,15 @@ module K8sCluster
         {
           "cluster" => parsed.cluster_name,
           "context" => parsed.context_name,
-          "host" => parsed.host
+          "host" => parsed.host,
+          "refreshable" => parsed.refreshable.to_s
         }.compact
       end
 
       def legacy_material_for(cluster)
         credentials = cluster.credentials.to_h
         unless credentials["token"].present? || (credentials["client_cert"].present? && credentials["client_key"].present?)
-          return KubeconfigParser::Result.new(api_server_url: cluster.api_server_url, credentials: credentials, context_name: nil, cluster_name: nil, host: nil)
+          return KubeconfigParser::Result.new(api_server_url: cluster.api_server_url, credentials: credentials, context_name: nil, cluster_name: nil, host: nil, expires_at: nil, refreshable: false)
         end
 
         KubeconfigParser.parse(build_kubeconfig(api_server_url: cluster.api_server_url, credentials: credentials))

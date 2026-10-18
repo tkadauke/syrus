@@ -1,6 +1,12 @@
 require "rails_helper"
 
 RSpec.describe Metrics::ProductUsage do
+  it "declares feature usage as a cluster counter" do
+    definition = Syrus::Metrics.definitions.find { |candidate| candidate.name == :syrus_feature_used_total }
+
+    expect(definition.cluster).to be(true)
+  end
+
   # The registry is process-global, so a reset must be undone or every later
   # spec (and the catalog drift guard) sees a registry missing most metrics.
   around do |example|

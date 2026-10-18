@@ -37,6 +37,41 @@ RSpec.describe ScheduledTasks::CronTemplate do
       expect(build_template(prompt: "")).not_to be_valid
     end
 
+    it "accepts a skill instead of a prompt" do
+      template = build_template(
+        prompt: nil, skill_name: "investigate", skill_args: { "question" => "Why?" },
+        skill_validation_repository: Factories.repository(user: user)
+      )
+
+      expect(template).to be_valid
+    end
+
+    it "validates skill arguments against the selected repository" do
+      template = build_template(
+        prompt: nil, skill_name: "investigate", skill_args: {},
+        skill_validation_repository: Factories.repository(user: user)
+      )
+
+      expect(template).not_to be_valid
+      expect(template.errors[:skill_args].join).to include("question")
+    end
+
+    it "requires repository context when skill validation is requested" do
+      template = build_template(
+        prompt: nil, skill_name: "investigate", skill_args: { "question" => "Why?" }
+      )
+
+      expect(template).not_to be_valid
+      expect(template.errors[:skill_name]).to include("requires a repository validation context")
+    end
+
+    it "rejects both a prompt and a skill" do
+      template = build_template(skill_name: "investigate", skill_args: { "question" => "Why?" })
+
+      expect(template).not_to be_valid
+      expect(template.errors[:base]).to include("Choose either a prompt or a skill, not both")
+    end
+
     it "requires a schedule" do
       t = build_template(cron_expression: nil)
       expect(t).not_to be_valid

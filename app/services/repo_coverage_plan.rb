@@ -3,7 +3,7 @@ class RepoCoveragePlan
   Threshold = Data.define(:lines, :branches, :pr_lines)
 
   VALID_ON_MISS        = %w[block warn schedule].freeze
-  VALID_FORMATS        = %w[lcov cobertura].freeze
+  VALID_FORMATS        = %w[lcov cobertura go-cover].freeze
   DEFAULT_ON_MISS      = "warn".freeze
   DEFAULT_HITMAP_TTL_DAYS = 30
 

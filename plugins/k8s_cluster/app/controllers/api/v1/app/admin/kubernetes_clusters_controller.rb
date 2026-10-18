@@ -28,15 +28,16 @@ module Api
             render json: { kubernetes_cluster: cluster_json(cluster) }, status: :created
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled,
+            K8sCluster::ClusterCredential::ExpiredCredential, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
           def update
             cluster = find_cluster
-            cluster.assign_attributes(cluster_params)
 
-            ActiveRecord::Base.transaction do
+            cluster.with_lock do
+              cluster.assign_attributes(cluster_params)
               apply_kubeconfig!(cluster, require_kubeconfig: false)
               raise ActiveRecord::RecordInvalid.new(cluster) if cluster.errors.any?
 
@@ -52,7 +53,8 @@ module Api
             render json: { kubernetes_cluster: cluster_json(cluster) }
           rescue ActiveRecord::RecordInvalid => e
             render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
-          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled, ArgumentError => e
+          rescue K8sCluster::KubeconfigParser::ParseError, K8sCluster::ClusterCredential::DependencyDisabled,
+            K8sCluster::ClusterCredential::ExpiredCredential, ArgumentError => e
             render_error("validation_failed", e.message, status: :unprocessable_content)
           end
 
@@ -147,9 +149,26 @@ module Api
               credential_scope_type: credential&.scope_type,
               credential_scope_id: credential&.scope_id,
               legacy_credentials: cluster.credential_store_credential_id.blank?,
+              credential_health: credential_health(cluster, credential),
+              credential_expires_at: credential&.expires_at&.iso8601,
+              credential_refreshable: credential_refreshable?(credential),
+              credential_refresh_error: cluster.credential_refresh_error,
               created_at: cluster.created_at.iso8601,
               updated_at: cluster.updated_at.iso8601
             }
+          end
+
+          def credential_health(cluster, credential)
+            return "legacy" unless credential
+            return "failed" if cluster.credential_refresh_status == "failed"
+            return "expired" if credential.expired?
+            return "expiring" if credential.expires_at && credential.expires_at <= 15.minutes.from_now
+
+            credential.expires_at ? "healthy" : "unknown"
+          end
+
+          def credential_refreshable?(credential)
+            credential&.safe_metadata.to_h["refreshable"] == "true"
           end
 
           def requested_scope(default_type: "instance", default_id: nil)

@@ -26,6 +26,16 @@ RSpec.describe "GET /api/v1/app/admin/metrics_dashboard", type: :request do
       expect(body["panels"].map { |panel| panel["key"] })
         .to include("queue_oldest_age", "queue_ready", "feature_usage")
       expect(body["windows"]).to include("1h", "24h")
+      expect(body["cluster_counter_capture"]).to eq("unavailable")
+    end
+
+    it "reports partial capture when a contributor's flush is failing" do
+      allow(Metrics::ClusterCounterSampler).to receive(:capture_status).and_return("partial")
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/metrics_dashboard"
+
+      expect(response.parsed_body["cluster_counter_capture"]).to eq("partial")
     end
 
     # Instance-wide operational numbers -- queue depth, failure counts, which

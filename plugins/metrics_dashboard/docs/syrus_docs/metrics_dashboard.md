@@ -71,21 +71,24 @@ reason: the event that produced the number happened on one worker, but
 that cache on whichever process serves `/metrics` — so every process renders
 the same number, and the recorder's copy is the truth.
 
-**Partial: genuinely per-process counters.** `syrus_feature_used_total` and
-`syrus_admission_decisions_total` are incremented in whichever process
-serves the request or makes the admission decision — currently web for
-feature usage, whichever worker is deciding for `admission_decisions`. The
-recorder runs on one worker, so it records only that process's share, which
-is frequently zero.
+**Accurate: cross-process counters.** `syrus_feature_used_total` and
+`syrus_admission_decisions_total` buffer increments in each web or worker
+process and periodically add them to a shared, monotonic total. The recorder
+reconciles its in-memory counter up to that total, never down, so restarts and
+repeated refreshes cannot double-count or decrease a series. Flush batches have
+a durable per-process sequence watermark committed atomically with the totals,
+so retrying a batch after an ambiguous connection failure applies it exactly
+once.
 
-That gap is the cross-process capture that is not built yet (see
-`docs/plans/complete/prometheus-dashboard.md`): worker pods fork one process per queue
-definition sharing no memory, and are not scraped. The feature-usage and
-admission-decisions panels are therefore present but thin until that lands, at
-which point they fill in with no change to this plugin.
-
-This is stated rather than hidden because a dashboard that quietly shows a
-plausible-but-wrong zero is worse than one that shows nothing.
+The hot path only updates an in-memory buffer; it does not wait for the
+recorder or database. Flushes normally happen within ten seconds, and an
+orderly process exit flushes once more. An abrupt kill can lose only the final
+unflushed interval. If the shared snapshot is missing, expired, or cannot be
+read, the recorder omits these counter samples and the page displays a warning
+instead of charting the recorder process's plausible-but-wrong local zero. A
+fresh shared snapshot can still be partial when one contributor's flush is
+failing or stale; contributor heartbeats make that state a separate dashboard
+warning until the process recovers or ages out of the active contributor set.
 
 ## Tabs
 

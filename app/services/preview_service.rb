@@ -126,7 +126,7 @@ class PreviewService
     env.update_columns(port: port, internal_host: INTERNAL_HOST)
     env.begin_seeding! && env.save!
 
-    process_env = preview_process_env(source, workdir)
+    process_env = preview_process_env(source, workdir, preview_key: env.id)
 
     return unless run_setup_commands(source, workdir, workspace_path, env, process_env)
     return if stop_requested?(env)
@@ -251,13 +251,13 @@ class PreviewService
     ChildProcess.new(pid: pid, environment_id: preview_environment.id, port: port, spawned_process_id: spawned_process.id)
   end
 
-  def preview_process_env(source, workspace_path)
+  def preview_process_env(source, workspace_path, preview_key: nil)
     env = ProcessRunner.forwarded_env(
       Steps::Prepare.prep_env_forward,
       extra: WorkspaceDependencyEnv.for(workspace_path)
     )
     Array(source.unset_env).each { |name| env[name.to_s] = nil }
-    env.merge!(source.env || {})
+    env.merge!(source.environment(key: preview_key))
     env
   end
 
@@ -349,11 +349,13 @@ class PreviewService
 
         if env.stopping?
           env.mark_stopped! && env.save!
+          cleanup_preview_database(env)
           PreviewWorkspace.cleanup_for(env)
           Rails.logger.info("[PreviewService] environment #{env_id} stopped (pid=#{child.pid})")
         elsif exit_status.success?
           env.begin_stopping! && env.save!
           env.mark_stopped! && env.save!
+          cleanup_preview_database(env)
           PreviewWorkspace.cleanup_for(env)
           Rails.logger.info("[PreviewService] environment #{env_id} exited cleanly")
         else
@@ -371,6 +373,7 @@ class PreviewService
       kill_process_group(child.pid)
     else
       env.mark_stopped! && env.save!
+      cleanup_preview_database(env)
       PreviewWorkspace.cleanup_for(env)
     end
   end
@@ -390,8 +393,32 @@ class PreviewService
 
     env.update_columns(error_message: message, error_reason: reason) if env.persisted?
     env.fail! && env.save! if env.may_fail?
+    cleanup_preview_database(env)
     PreviewWorkspace.cleanup_for(env)
     Rails.logger.error("[PreviewService] environment #{env.id} failed: #{message}")
+  end
+
+  def cleanup_preview_database(env)
+    workspace_path = env.workspace_path
+    return unless workspace_path.present? && Dir.exist?(workspace_path)
+
+    workdir = preview_workdir(env, workspace_path)
+    source = PreviewCommandSource.new(workspace_path, project_id: env.project_id).resolve
+    return if source&.cleanup_command.blank?
+
+    result = ProcessRunner.new(
+      env: preview_process_env(source, workdir, preview_key: env.id),
+      command: [ "bash", "-c", source.cleanup_command ],
+      mounts: ProcessRunner.mounts(workdir, read_write: workspace_path),
+      network: "prepare",
+      timeout: PREVIEW_COMMAND_TIMEOUT_SECONDS,
+      kind: "preview",
+      job: env.job,
+      display_command: source.cleanup_command
+    ).run
+    Rails.logger.warn("[PreviewService] database cleanup failed for environment #{env.id}") unless result.success?
+  rescue StandardError => e
+    Rails.logger.warn("[PreviewService] database cleanup failed for environment #{env.id}: #{CommandRedactor.redact(e.message)}")
   end
 
   def child_exited?(child)
@@ -522,6 +549,7 @@ class PreviewService
     with_connection do
       PreviewEnvironment.where(id: stopped_ids, state: "stopping").find_each do |env|
         env.mark_stopped! && env.save!
+        cleanup_preview_database(env)
         PreviewWorkspace.cleanup_for(env)
       end
     end

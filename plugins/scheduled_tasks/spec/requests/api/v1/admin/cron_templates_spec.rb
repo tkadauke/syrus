@@ -53,4 +53,19 @@ RSpec.describe "API: /api/v1/admin/cron_templates", type: :request do
       "cron_expression" => template.cron_expression
     )
   end
+
+  it "returns skill template details" do
+    template = Factories.cron_template(
+      user: admin, prompt: nil, skill_name: "investigate",
+      skill_args: { "question" => "Why?" }
+    )
+
+    get "/api/v1/admin/cron_templates/#{template.id}", headers: auth(admin_token)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "skill_name" => "investigate",
+      "skill_args" => { "question" => "Why?" }
+    )
+  end
 end

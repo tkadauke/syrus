@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
-import { Page } from "@app/components/ui"
+import { Notice, Page } from "@app/components/ui"
 import { fetchMetricsDashboard } from "../api/metricsDashboard"
 import { MetricsChart } from "./MetricsChart"
 
@@ -97,6 +97,9 @@ export function MetricsDashboardRoute() {
       </Page.Header>
 
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
+      {payload.cluster_counter_capture !== "available" ? (
+        <Notice tone="warning">{t(`cluster_counter_${payload.cluster_counter_capture}_notice`)}</Notice>
+      ) : null}
 
       <Page.Nav>
         <nav aria-label={t("tabs_aria")} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" role="tablist">
@@ -146,11 +149,7 @@ function RecordingNotice({ recording, lastRecordedAt }: { recording: boolean; la
   const { t } = useT("metrics_dashboard")
   if (recording) return null
 
-  return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-      {lastRecordedAt ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() }) : t("no_data_notice")}
-    </div>
-  )
+  return <Notice tone="warning">{lastRecordedAt ? t("stale_notice", { at: new Date(lastRecordedAt).toLocaleString() }) : t("no_data_notice")}</Notice>
 }
 
 export default MetricsDashboardRoute

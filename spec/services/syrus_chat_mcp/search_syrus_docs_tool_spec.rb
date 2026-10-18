@@ -197,6 +197,16 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
       FileUtils.rm_rf(dir)
     end
 
+    it "discovers the bundled Team Directory feature documentation" do
+      with_plugins(manifest(name: "team_directory", enabled: true))
+
+      payload = response_payload(call_tool(query: "single-operator instances"))
+
+      expect(payload[:results].first).to include(source: "plugin:team_directory")
+      expect(payload[:results].first[:path]).to end_with("plugins/team_directory/docs/syrus_docs/team_directory.md")
+      expect(payload[:results].first[:snippet]).to include("sidebar item is hidden")
+    end
+
     it "does not search a disabled plugin's docs" do
       dir = Pathname.new(Dir.mktmpdir)
       (dir / "terminal.md").write("# Terminal\n\n## Sessions\nA session survives browser navigation.\n")

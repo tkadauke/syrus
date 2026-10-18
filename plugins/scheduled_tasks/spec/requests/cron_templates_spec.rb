@@ -155,6 +155,63 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(parse_body.dig("template", "id")).to eq(template.id)
   end
 
+  it "creates and serializes a skill template" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+
+    post "/api/v1/app/cron_templates", params: { cron_template: valid_attrs.merge(
+      prompt: "", skill_name: "investigate", skill_args: { question: "Find the cause" }, validation_repository_id: repository.id
+    ) }
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body["template"]).to include(
+      "prompt" => "",
+      "skill_name" => "investigate",
+      "skill_args" => { "question" => "Find the cause" }
+    )
+  end
+
+  it "rejects invalid skill arguments at template creation" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+
+    [
+      [ "investigate", {} ],
+      [ "investigate", { question: "Why?", unexpected: "value" } ],
+      [ "explain-failing-ci", { job_id: "not-an-integer" } ]
+    ].each do |skill_name, skill_args|
+      post "/api/v1/app/cron_templates", params: { cron_template: valid_attrs.merge(
+        prompt: "", skill_name: skill_name, skill_args: skill_args, validation_repository_id: repository.id
+      ) }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("Skill args")
+    end
+  end
+
+  it "rejects an unknown skill at template creation" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+
+    post "/api/v1/app/cron_templates", params: { cron_template: valid_attrs.merge(
+      prompt: "", skill_name: "missing-skill", skill_args: {}, validation_repository_id: repository.id
+    ) }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("could not be resolved")
+  end
+
+  it "requires an authorized repository context for skill templates" do
+    sign_in_as(user)
+    inaccessible_repository = Factories.repository(user: other_user)
+
+    post "/api/v1/app/cron_templates", params: { cron_template: valid_attrs.merge(
+      prompt: "", skill_name: "investigate", skill_args: { question: "Why?" }, validation_repository_id: inaccessible_repository.id
+    ) }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "returns validation errors" do
     sign_in_as(user)
 
@@ -180,6 +237,39 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(template.reload.prompt).to eq("Updated prompt.")
     expect(template.enabled).to be(false)
     expect(parse_body["message"]).to eq("Template updated.")
+  end
+
+  it "rejects invalid skill arguments when editing a template" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    template = ScheduledTasks::CronTemplate.create!(valid_attrs.merge(user: user))
+
+    patch "/api/v1/app/cron_templates/#{template.id}", params: {
+      cron_template: {
+        prompt: "", skill_name: "investigate", skill_args: {},
+        validation_repository_id: repository.id
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Skill args")
+    expect(template.reload.skill_name).to be_nil
+  end
+
+  it "switches a template from skill mode to prompt mode without retaining arguments" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    template = ScheduledTasks::CronTemplate.create!(valid_attrs.merge(
+      user: user, prompt: nil, skill_name: "investigate", skill_args: { "question" => "Why?" },
+      skill_validation_repository: repository
+    ))
+
+    patch "/api/v1/app/cron_templates/#{template.id}", params: {
+      cron_template: { prompt: "Updated prompt.", skill_name: "", skill_args: {}, validation_repository_id: repository.id }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(template.reload).to have_attributes(prompt: "Updated prompt.", skill_name: "", skill_args: {})
   end
 
   it "deletes a template" do

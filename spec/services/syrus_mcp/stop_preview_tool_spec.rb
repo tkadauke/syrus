@@ -37,6 +37,16 @@ RSpec.describe Mcp::Tools::StopPreviewTool do
       expect(Mcp::Tools::AgentPreviewRegistry).to receive(:kill).with(run.id).and_call_original
       call
     end
+
+
+    it "runs the registered resource cleanup after stopping the process" do
+      cleanup = instance_double(Proc, call: nil)
+      Mcp::Tools::AgentPreviewRegistry.register(key: run.id, pid: 9999, port: 3001, cleanup: cleanup)
+
+      call
+
+      expect(cleanup).to have_received(:call)
+    end
   end
 
   context "when no preview is running" do

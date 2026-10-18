@@ -13,13 +13,15 @@ module Api
           repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
 
           payload = PerformanceLogging.phase("repository_throughput_metrics", repository_id: repository.id) do
-            ::Throughput::MetricContract.new(repository: repository).call
+            ::Throughput::RepositorySnapshot.new(repository: repository).read
           end
 
           render json: payload.merge(
             repository: repository_json(repository),
             tabs: repository_tabs_json(repository)
           )
+        rescue ::Throughput::RepositorySnapshot::Unavailable => e
+          render json: { error: "throughput_snapshot_unavailable", message: e.message }, status: :service_unavailable
         end
 
         private

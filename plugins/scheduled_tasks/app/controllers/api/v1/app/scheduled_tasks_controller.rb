@@ -61,7 +61,7 @@ module Api
           task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
           if params[:from_template].present?
             template = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).find_by(id: params[:from_template])
-            task.cron_template = template if template
+            assign_from_template(task, template) if template
           end
 
           if task.save
@@ -370,6 +370,8 @@ module Api
           task.assign_attributes(
             name: template.name,
             prompt: template.prompt,
+            skill_name: template.skill_name,
+            skill_args: template.skill_args || {},
             cron_expression: template.cron_expression,
             schedule_input: template.schedule_input || template.cron_expression,
             schedule_expression: template.schedule_expression,

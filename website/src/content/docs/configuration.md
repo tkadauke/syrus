@@ -364,7 +364,7 @@ commands and inserts a `coverage_analyze` step after grading.
 coverage:
   sources:
     - artifact: coverage/lcov.info
-      format: lcov          # lcov | cobertura
+      format: lcov          # lcov | cobertura | go-cover
   threshold:
     lines: 80               # overall line coverage minimum (%)
     pr_lines: 90            # PR-diff line coverage minimum (%)
@@ -374,9 +374,25 @@ coverage:
 ```
 
 **`sources`** (required) — list of coverage artifact files and their format.
-LCOV is the recommended format (supported by SimpleCov, Jest/nyc, coverage.py,
-gcov2lcov, and llvm-cov). Cobertura XML is also accepted. Add as many sources
-as you have test suites; Syrus merges them before analysis.
+LCOV is the recommended general-purpose format (supported by SimpleCov, Jest/nyc, coverage.py,
+gcov2lcov, and llvm-cov). Cobertura XML is also accepted. With the bundled Go
+plugin enabled, `go-cover` reads `go test -coverprofile=coverage.out` output
+directly in `set`, `count`, or `atomic` mode, without a converter. Aggregate
+percentages retain Go's statement weighting, while statement ranges are
+projected onto source lines for changed-line coverage. Add as many sources as
+you have test suites; Syrus merges them before analysis.
+
+For Go, the recommended configuration is:
+
+```yaml
+grade:
+  - name: go-tests
+    run: go test -covermode=atomic -coverprofile=coverage.out ./...
+coverage:
+  sources:
+    - artifact: coverage.out
+      format: go-cover
+```
 
 **`threshold`** — optional pass/fail gate. `lines` checks overall line
 coverage; `pr_lines` checks coverage on lines changed in the PR diff. A miss

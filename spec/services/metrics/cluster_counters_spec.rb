@@ -38,6 +38,24 @@ RSpec.describe Metrics::ClusterCounters do
     expect(total("error")).to eq(1)
   end
 
+  it "combines distinct process-shaped flushes exactly once" do
+    web = described_class::Batch.new(
+      identity: "web-process", sequence: 1,
+      deltas: { [ "syrus_things_total", { "outcome" => "answered" } ] => 2 }
+    )
+    worker = described_class::Batch.new(
+      identity: "worker-process", sequence: 1,
+      deltas: { [ "syrus_things_total", { "outcome" => "answered" } ] => 5 }
+    )
+
+    described_class.send(:write, web)
+    described_class.send(:write, worker)
+    described_class.send(:write, web) # ambiguous committed retry
+    described_class.send(:write, worker)
+
+    expect(total("answered")).to eq(7)
+  end
+
   it "only sends counters declared cluster: true" do
     Syrus::Metrics.counter(:syrus_local_total).increment(tags: { outcome: "answered" })
 
@@ -49,12 +67,33 @@ RSpec.describe Metrics::ClusterCounters do
     allow(MetricCounterTotal).to receive(:upsert_all).and_raise(ActiveRecord::StatementInvalid, "database gone")
 
     expect(described_class.flush!).to eq(0)
+    expect(described_class.capture_status).to eq("partial")
 
     allow(MetricCounterTotal).to receive(:upsert_all).and_call_original
     described_class.record(:syrus_things_total, { outcome: "answered" }, 1)
     described_class.flush!
 
     expect(total("answered")).to eq(3)
+    expect(described_class.capture_status).to eq("available")
+  end
+
+  it "does not double-apply a batch when the client observes an error after commit" do
+    described_class.record(:syrus_things_total, { outcome: "answered" }, 2)
+    first_attempt = true
+    allow(described_class).to receive(:write).and_wrap_original do |original, batch|
+      applied = original.call(batch)
+      if first_attempt
+        first_attempt = false
+        raise ActiveRecord::ConnectionNotEstablished, "connection lost after commit"
+      end
+      applied
+    end
+
+    expect(described_class.flush!).to eq(0)
+    expect(total("answered")).to eq(2)
+
+    expect(described_class.flush!).to eq(0)
+    expect(total("answered")).to eq(2)
   end
 
   it "never lets recording fail the caller" do
@@ -100,6 +139,50 @@ RSpec.describe Metrics::ClusterCounters do
       described_class.refresh_gauges!
 
       expect(rendered_value).to eq(10)
+    end
+
+    it "does not reapply a cached snapshot after a process registry reset" do
+      Metrics::ClusterCounters.record(:syrus_things_total, { outcome: "answered" }, 7)
+      Metrics::ClusterCounters.flush!
+      described_class.sample!
+      described_class.refresh_gauges!
+
+      Syrus::Metrics.reset!
+      Syrus::Metrics.declare { counter :things_total, tags: %i[outcome], cluster: true, comment: "things" }
+      2.times { described_class.refresh_gauges! }
+
+      expect(rendered_value).to eq(7.0)
+      expect(total("answered")).to eq(7)
+    end
+
+    it "reports an expired or missing shared snapshot as unavailable" do
+      expect(described_class.capture_status).to eq("unavailable")
+      described_class.sample!
+      expect(described_class.capture_status).to eq("available")
+    end
+
+    it "reports a fresh contributor with a failed flush as partial" do
+      MetricCounterContributor.create!(
+        identity: "failing-worker", last_applied_sequence: 1,
+        last_success_at: 1.minute.ago, last_error_at: Time.current
+      )
+
+      described_class.sample!
+
+      expect(described_class.capture_status).to eq("partial")
+    end
+
+    it "reports a missed heartbeat as partial, then ages out a disappeared process" do
+      now = Time.current
+      contributor = MetricCounterContributor.create!(
+        identity: "disappeared-worker", last_applied_sequence: 1,
+        last_success_at: now - 1.minute, updated_at: now - 1.minute
+      )
+
+      expect(Metrics::ClusterCounters.capture_status(now: now)).to eq("partial")
+
+      contributor.update_columns(updated_at: now - 6.minutes)
+      expect(Metrics::ClusterCounters.capture_status(now: now)).to eq("available")
     end
   end
 

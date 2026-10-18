@@ -178,8 +178,9 @@ decision made on that silence errs in the expensive direction — concluding
 nobody wants a feature that was merely switched off.
 
 Features are counted at the **web request that asks for them**, not inside the
-worker that later performs the work. A retried Run is not a second use, and web
-is currently the only role scraped. `Metrics::ProductUsage::FEATURES` is a
+worker that later performs the work. A retried Run is not a second use. The
+counter is cluster-backed, so requests served by distinct web processes combine
+into the shared monotonic total. `Metrics::ProductUsage::FEATURES` is a
 closed enum; `record` raises on an unknown key in development and test, and
 ignores it in production. Adding a feature means adding it to that list, which
 is the point — product analytics is exactly where a user-supplied string gets
@@ -280,18 +281,17 @@ a Step's `started_at`/`finished_at` spans every repair/retry attempt inside
 it, so a Step that failed once and was repaired still reports one wall-clock
 duration for the whole Step rather than one per Run.
 
-`syrus_admission_decisions_total` is the one metric in this group that is
-**not** GLOBAL. Admission decisions happen inline in
+`syrus_admission_decisions_total` is a cluster-backed GLOBAL counter. Admission
+decisions happen inline in
 `WorkflowAdmissionBudget#call` and `RunHostAdmission#call` -- see
 `config/syrus_docs/multi_worker.md` -- and the counter is incremented at the
 exact moment a decision is produced, in whichever process (web or worker)
 made it. It is declared once, in `WorkflowAdmissionBudget`, and
 `RunHostAdmission` increments the same declared counter for its own
-`admit`/`defer` decisions rather than redeclaring it. Per *Aggregating*
-below, this is fine for a per-process counter -- Prometheus sums it across
-every pod that exposes it -- but see the *Scope* note above: until a worker
-exporter exists, only decisions made on the web role's own process are
-actually visible on a scrape.
+`admit`/`defer` decisions rather than redeclaring it. Each process buffers its
+increments in the shared counter sink and flushes them
+without coupling admission to recorder availability; replicas aggregate it
+with `max`, not `sum`.
 
 ### Fleet
 
@@ -610,8 +610,7 @@ but it is not the only signal: `job_state`, `landing_queue_depth`,
 `docs/metrics-catalog.md` description ends in `(GLOBAL -- aggregate with max
 by...)` instead. Treat that annotation, not the name, as authoritative.
 
-Non-global metrics (`syrus_admission_decisions_total`, the `syrus_cable_*`
-and `syrus_client_*` metrics -- genuinely per-process, since each web
+Non-global metrics (the `syrus_cable_*` and `syrus_client_*` metrics -- genuinely per-process, since each web
 process holds its own distinct WebSocket connections and serves its own
 requests -- and every other `*_total` counter/histogram not listed above)
 are per-process and aggregate normally with `sum`.
@@ -749,8 +748,20 @@ background thread, adds the deltas to `metric_counter_totals` with one atomic
 reads that table on the metrics tick, and each scrape reconciles the counter up
 to its cluster total -- never down. Instrumentation keeps its guarantees:
 recording only touches the in-memory buffer, never raises, never blocks, and a
-failed flush keeps its deltas for the next one. Increments a process had not
+failed flush keeps its immutable batch for the next one. Each process assigns
+those batches increasing sequence numbers; `metric_counter_contributors`
+stores the last sequence committed for that process in the same transaction as
+the additive upsert. Retrying after an ambiguous post-commit connection error
+therefore acknowledges the already-applied batch instead of adding it twice.
+Increments a process had not
 flushed when it was killed (SIGKILL, OOM) are lost; an orderly exit flushes.
+
+The contributor row also carries success, error, and heartbeat timestamps.
+The sampler publishes capture as `partial` while any recently participating
+process has a failed or stale flush, `unavailable` when the shared snapshot is
+missing, and `available` only when every recent contributor is healthy. Old
+process identities age out of the health decision without deleting their
+deduplication watermark or decreasing the cumulative totals.
 
 The totals are cluster-wide, so every web replica renders the same value: mark
 the comment GLOBAL and aggregate with `max by`, never `sum`. Only counters can

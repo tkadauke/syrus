@@ -14,13 +14,15 @@ export type CronTemplateRow = {
   legacy_cron_expression: string | null
   pr_pileup_policy: string
   enabled: boolean
+  skill_name: string | null
   applied_tasks_count: number
   created_at: string
   updated_at: string
 }
 
 export type CronTemplateDetail = CronTemplateRow & {
-  prompt: string
+  prompt: string | null
+  skill_args: Record<string, string | boolean>
 }
 
 export type CronTemplateRepository = {
@@ -43,6 +45,7 @@ export type CronTemplateAppliedTask = {
 export type CronTemplatesIndexPayload = {
   templates: CronTemplateRow[]
   pr_pileup_policies: string[]
+  repositories: CronTemplateRepository[]
   message?: string
 }
 
@@ -64,6 +67,9 @@ export type CronTemplateInput = {
   schedule_timezone: string
   pr_pileup_policy: string
   prompt: string
+  skill_name: string
+  skill_args: Record<string, string | boolean>
+  validation_repository_id?: string
   enabled: boolean
   structured_intent?: Record<string, unknown> | null
 }

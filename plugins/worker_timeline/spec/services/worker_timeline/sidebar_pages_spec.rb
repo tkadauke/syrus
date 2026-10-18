@@ -44,7 +44,9 @@ RSpec.describe WorkerTimeline::SidebarPages do
         path: "/worker_timeline",
         paths: [ "/worker_timeline", "/worker_timeline/workflow" ],
         component: "worker_timeline/WorkerTimeline",
-        icon: "timeline"
+        icon: "timeline",
+        smart_folder_api_path: "/api/v1/app/admin/worker_timeline/macro",
+        smart_folder_subject: "worker_timeline"
       )
     )
   end

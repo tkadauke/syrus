@@ -68,7 +68,8 @@ module Steps
           project_id: project_id,
           run: run,
           workflow: workflow,
-          log: method(:log)
+          log: method(:log),
+          preview_key: project_id.present? ? "#{run.id}:#{project_id}" : run.id
         ).call.merge("run_id" => run.id)
       end
       workflow.set_artifact!("visual_review_preview_preparations", preparations)

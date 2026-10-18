@@ -9,6 +9,7 @@ RSpec.describe MetricsDashboard::Recorder do
     allow(Syrus::Metrics).to receive(:render).and_return(text)
     allow(Metrics::QueueSampler).to receive(:refresh_gauges!).and_return(true)
     allow(Metrics::PluginSampler).to receive(:refresh_gauges!).and_return(true)
+    allow(Metrics::ClusterCounterSampler).to receive(:refresh_gauges!).and_return(true)
   end
 
   it "records each series from the exposition text" do
@@ -75,6 +76,18 @@ RSpec.describe MetricsDashboard::Recorder do
     described_class.record!
 
     expect(MetricsDashboard::Sample.exists?(metric: "syrus_max_concurrent_agent_runs")).to be(true)
+  end
+
+  it "omits cluster counters rather than recording a local zero when capture is unavailable" do
+    render_metrics(<<~TEXT)
+      syrus_feature_used_total{feature="chat_created"} 0
+      syrus_global_queue_ready_count{queue="runs"} 4
+    TEXT
+    allow(Metrics::ClusterCounterSampler).to receive(:refresh_gauges!).and_return(false)
+
+    described_class.record!
+
+    expect(MetricsDashboard::Sample.pluck(:metric)).to eq([ "syrus_global_queue_ready_count" ])
   end
 
   # Mirrors the isolation guarantee MetricsController#refresh_global_gauges

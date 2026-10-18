@@ -82,10 +82,7 @@ describe("CronTemplatesIndex", () => {
 
   it("renders templates with shared sortable and configurable table controls", async () => {
     renderIndexRoute({
-      templates: [
-        templateRow({ id: 1, name: "Weekly update", applied_tasks_count: 2 }),
-        templateRow({ id: 2, name: "Daily sweep", applied_tasks_count: 1 })
-      ],
+      templates: [templateRow({ id: 1, name: "Weekly update", applied_tasks_count: 2 }), templateRow({ id: 2, name: "Daily sweep", applied_tasks_count: 1 })],
       pr_pileup_policies: ["skip", "pile", "replace"]
     })
 
@@ -146,10 +143,7 @@ describe("CronTemplateDetailRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/cron_templates/5",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/cron_templates/5", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -160,13 +154,14 @@ describe("CronTemplateDetailRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/cron_templates/5",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/cron_templates/5", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -186,7 +181,9 @@ function renderNewForm() {
 function renderEditForm() {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = String(input)
-    return Promise.resolve(jsonResponse(url === "/api/v1/app/cron_templates/5" ? templateDetail() : { templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
+    return Promise.resolve(
+      jsonResponse(url === "/api/v1/app/cron_templates/5" ? templateDetail() : { templates: [], pr_pileup_policies: ["skip", "pile", "replace"] })
+    )
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -220,19 +217,21 @@ describe("CronTemplateFormRoute cadence preview", () => {
       if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         expect(body.schedule_input).toBe("Every Monday at 9:00 AM")
-        return Promise.resolve(jsonResponse({
-          valid: true,
-          schedule_input: "Every Monday at 9:00 AM",
-          schedule_format: "rrule",
-          schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-          schedule_timezone: "UTC",
-          schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null,
-          cron_expression: null,
-          errors: [],
-          source: "natural",
-          structured_intent: null
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            schedule_input: "Every Monday at 9:00 AM",
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: null,
+            errors: [],
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
     })
@@ -245,31 +244,88 @@ describe("CronTemplateFormRoute cadence preview", () => {
     })
   })
 
+  it("switches from prompt mode to the shared repository skill picker", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/repositories/12/skills") {
+        return Promise.resolve(
+          jsonResponse({
+            skills: [
+              {
+                name: "investigate",
+                description: "Investigate a question",
+                source: "built_in",
+                parameters: [{ key: "question", type: "string", required: true, label: "Question", options: [], default: null, depends_on: null }]
+              }
+            ]
+          })
+        )
+      }
+      if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ valid: true, schedule_input: "Every Monday at 9:00 AM", errors: [] }))
+      }
+      if (url === "/api/v1/app/cron_templates" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        expect(body.cron_template).toMatchObject({
+          skill_name: "investigate",
+          skill_args: { question: "Find the cause" },
+          validation_repository_id: "12"
+        })
+        return Promise.resolve(jsonResponse(templateDetail()))
+      }
+      return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"], repositories: [{ id: 12, slug: "acme/widgets" }] }))
+    })
+
+    renderNewForm()
+    fireEvent.click(await screen.findByLabelText("Skill"))
+
+    expect(await screen.findByText("Investigate a question")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Investigate a question"))
+    fireEvent.change(await screen.findByLabelText("Question"), { target: { value: "Find the cause" } })
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Investigate weekly" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create template" }))
+
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/cron_templates", expect.objectContaining({ method: "POST" })))
+  })
+
   it("labels an LLM-assisted preview as a deterministic explanation with an AI-assist badge", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
         const body = JSON.parse(String(init.body))
         if (body.schedule_input === "moday at 9am in tjhe mornin") {
-          return Promise.resolve(jsonResponse({
+          return Promise.resolve(
+            jsonResponse({
+              valid: true,
+              schedule_input: "moday at 9am in tjhe mornin",
+              schedule_format: "rrule",
+              schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+              schedule_timezone: "UTC",
+              schedule_explanation: "Every Monday at 9:00 AM UTC",
+              next_fire_at: null,
+              cron_expression: null,
+              errors: [],
+              source: "structured_intent",
+              structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+            })
+          )
+        }
+        return Promise.resolve(
+          jsonResponse({
             valid: true,
-            schedule_input: "moday at 9am in tjhe mornin",
+            schedule_input: body.schedule_input,
             schedule_format: "rrule",
-            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_expression: "",
             schedule_timezone: "UTC",
             schedule_explanation: "Every Monday at 9:00 AM UTC",
             next_fire_at: null,
             cron_expression: null,
             errors: [],
-            source: "structured_intent",
-            structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
-          }))
-        }
-        return Promise.resolve(jsonResponse({
-          valid: true, schedule_input: body.schedule_input, schedule_format: "rrule",
-          schedule_expression: "", schedule_timezone: "UTC", schedule_explanation: "Every Monday at 9:00 AM UTC",
-          next_fire_at: null, cron_expression: null, errors: [], source: "natural", structured_intent: null
-        }))
+            source: "natural",
+            structured_intent: null
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"] }))
     })

@@ -762,5 +762,22 @@ RSpec.describe PreviewService do
 
       expect(kill_calls).to include([ "-TERM", fake_pid ])
     end
+
+    it "cleans up the preview database before deleting its workspace" do
+      service = described_class.new
+      env = create_env(state: "stopping", port: 28_007)
+      fake_pid = 99_998
+      service.instance_variable_get(:@children)[env.id] =
+        PreviewService::ChildProcess.new(pid: fake_pid, environment_id: env.id, port: 28_007)
+      allow(Process).to receive(:waitpid).with(fake_pid).and_return(nil)
+      allow(service).to receive(:kill_process_group).with(fake_pid)
+
+      expect(service).to receive(:cleanup_preview_database).with(have_attributes(id: env.id)).ordered
+      expect(PreviewWorkspace).to receive(:cleanup_for).with(have_attributes(id: env.id)).ordered
+
+      service.send(:shutdown_gracefully)
+
+      expect(env.reload).to be_stopped
+    end
   end
 end

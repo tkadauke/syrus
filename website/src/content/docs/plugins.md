@@ -53,8 +53,31 @@ snapshot calls out the launch-relevant groups:
 | Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights |
 | Language and platform support | Android, Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
 | Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
+
+Worker Timeline uses the shared composable filter bar and Smart Folders. Saved
+timeline expressions can combine supported fields with nested AND, OR, and NOT
+groups across workflow spans, pending workflows, and idle worker lanes.
+
+The Kubernetes Cluster Viewer reports kubeconfig credential expiry in its
+admin cluster list. Operators rotate pasted tokens or client certificates by
+editing the existing connection and pasting a replacement kubeconfig, which
+keeps cluster identity and access settings intact. OIDC auth-provider
+kubeconfigs with refresh credentials renew automatically shortly before
+expiry; failures appear as a degraded credential state without exposing
+secret material.
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
+
+Whiteboard's high-level arrow tool creates connectors anchored to the visible
+edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels
+render as bound text and move with the connector, while raw scene updates
+remain available for advanced Excalidraw geometry.
+
+Metrics Dashboard records the same bounded metrics exposed to Prometheus. Its
+feature-usage and admission-decision counters combine increments from every web
+and worker process into monotonic shared totals. If that cross-process snapshot
+is unavailable or stale, those charts omit new readings and show an operator
+warning instead of presenting the recorder process's local zero as complete.
 
 MySQL DB Browser connections inherit access from their Credential Store scope:
 user, repository, team, or instance. New connections default to the creating
@@ -103,9 +126,10 @@ off.
 Syrus can tell you a plugin is worth turning on before you go looking for it.
 A plugin can declare what its own signal looks like, and Admin -> Plugins shows
 the ones this instance appears to want, with the evidence behind each: how many
-of your repositories are Python, whether you are running more than one worker
-host, whether you are on MySQL. Plugins you have already enabled are never
-suggested, and a suggestion with no evidence behind it is not shown at all.
+of your repositories are Python, which repositories have a resolvable Django
+settings module, whether you are running more than one worker host, or whether
+you are on MySQL. Plugins you have already enabled are never suggested, and a
+suggestion with no evidence behind it is not shown at all.
 
 The repository side of this is observed while Syrus already has a clone in
 hand, during a normal run, so a repository Syrus has never worked on produces

@@ -1851,6 +1851,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.datetime "updated_at", null: false
     t.bigint "credential_store_credential_id"
     t.string "credential_kind"
+    t.string "credential_refresh_status"
+    t.string "credential_refresh_error"
+    t.datetime "credential_refresh_attempted_at"
     t.index ["credential_store_credential_id"], name: "idx_kubernetes_clusters_credential_store_credential"
   end
 
@@ -2134,6 +2137,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
+  end
+
+  create_table "metric_counter_contributors", force: :cascade do |t|
+    t.string "identity", limit: 191, null: false
+    t.bigint "last_applied_sequence", default: 0, null: false
+    t.datetime "last_success_at"
+    t.datetime "last_error_at"
+    t.string "last_error", limit: 500
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["identity"], name: "index_metric_counter_contributors_on_identity", unique: true
+    t.index ["updated_at"], name: "index_metric_counter_contributors_on_updated_at"
   end
 
   create_table "metric_counter_totals", force: :cascade do |t|
@@ -3156,13 +3171,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.string "legacy_cron_expression"
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
-    t.text "prompt", null: false
+    t.text "prompt"
     t.text "schedule_expression"
     t.string "schedule_format", default: "rrule", null: false
     t.string "schedule_input"
     t.string "schedule_timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "skill_name"
+    t.json "skill_args"
     t.index ["user_id"], name: "index_scheduled_task_cron_templates_on_user_id"
   end
 
@@ -3873,8 +3890,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.string "tree_sha"
     t.datetime "updated_at", null: false
     t.bigint "workflow_id", null: false
-    t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
+    t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end
 
