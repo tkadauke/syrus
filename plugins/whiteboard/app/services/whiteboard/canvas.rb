@@ -20,6 +20,11 @@ module Whiteboard
       crowfoot_many
       crowfoot_one_or_many
     ].freeze
+    CONNECTOR_GEOMETRIES = {
+      "rectangle" => :rectangle_connector_scale,
+      "ellipse" => :ellipse_connector_scale,
+      "diamond" => :diamond_connector_scale
+    }.freeze
 
     module_function
 
@@ -218,8 +223,10 @@ module Whiteboard
 
     def arrow_element(from_element, to_element)
       arrow_id = ExcalidrawId.generate
-      start = center_of(from_element)
-      finish = center_of(to_element)
+      start_center = center_of(from_element)
+      end_center = center_of(to_element)
+      start = connector_point(from_element, toward: end_center)
+      finish = connector_point(to_element, toward: start_center)
 
       base_element(id: arrow_id, type: "arrow", x: start.fetch("x"), y: start.fetch("y"), width: finish.fetch("x") - start.fetch("x"), height: finish.fetch("y") - start.fetch("y")).merge(
         "points" => [ [ 0, 0 ], [ finish.fetch("x") - start.fetch("x"), finish.fetch("y") - start.fetch("y") ] ],
@@ -246,17 +253,26 @@ module Whiteboard
       removed = elements.find { |element| element["id"] == id }
       raise ArgumentError, "unknown element id: #{id}" unless removed
 
+      associated_ids = Array(removed["boundElements"])
+        .select { |bound| bound["type"] == "text" }
+        .map { |bound| bound["id"] }
       elements.delete(removed)
+      elements.delete_if { |element| associated_ids.include?(element["id"]) }
       elements.each do |element|
         element["boundElements"] = Array(element["boundElements"]).reject { |bound| bound["id"] == id } if element["boundElements"]
       end
 
       return unless removed["type"] != "arrow"
 
-      elements.delete_if do |element|
+      arrows = elements.select do |element|
         element["type"] == "arrow" &&
           [ element.dig("startBinding", "elementId"), element.dig("endBinding", "elementId") ].include?(id)
       end
+      arrow_ids = arrows.map { |arrow| arrow["id"] }
+      arrow_label_ids = arrows.flat_map do |arrow|
+        Array(arrow["boundElements"]).select { |bound| bound["type"] == "text" }.map { |bound| bound["id"] }
+      end
+      elements.delete_if { |element| arrow_ids.include?(element["id"]) || arrow_label_ids.include?(element["id"]) }
     end
 
     def recalibrate_bound_arrows!(elements)
@@ -364,6 +380,45 @@ module Whiteboard
       }
     end
 
+    # Find the intersection between the ray from an element's center toward
+    # the other endpoint and the element's visible outline. Excalidraw keeps
+    # the binding metadata responsible for subsequent browser-side edits; this
+    # geometry supplies a correct initial scene and server-side move result.
+    # Rotated, malformed, and unsupported elements deliberately fall back to
+    # their center, preserving the behavior of older scenes.
+    def connector_point(element, toward:)
+      center = center_of(element)
+      return center unless element.fetch("angle", 0).to_f.zero?
+
+      half_width = element.fetch("width", 0).to_f.abs / 2.0
+      half_height = element.fetch("height", 0).to_f.abs / 2.0
+      return center unless half_width.positive? && half_height.positive?
+
+      dx = toward.fetch("x").to_f - center.fetch("x")
+      dy = toward.fetch("y").to_f - center.fetch("y")
+      return center if dx.zero? && dy.zero?
+
+      geometry = CONNECTOR_GEOMETRIES[element["type"]]
+      scale = public_send(geometry, dx, dy, half_width, half_height) if geometry
+      return center unless scale&.finite?
+
+      { "x" => center.fetch("x") + dx * scale, "y" => center.fetch("y") + dy * scale }
+    rescue KeyError, TypeError, ArgumentError
+      center
+    end
+
+    def rectangle_connector_scale(dx, dy, half_width, half_height)
+      1.0 / [ dx.abs / half_width, dy.abs / half_height ].max
+    end
+
+    def ellipse_connector_scale(dx, dy, half_width, half_height)
+      1.0 / Math.sqrt((dx / half_width)**2 + (dy / half_height)**2)
+    end
+
+    def diamond_connector_scale(dx, dy, half_width, half_height)
+      1.0 / (dx.abs / half_width + dy.abs / half_height)
+    end
+
     def recalibrate_arrow!(arrow, elements)
       start_id = arrow.dig("startBinding", "elementId")
       end_id = arrow.dig("endBinding", "elementId")
@@ -373,8 +428,10 @@ module Whiteboard
       end_element = elements.find { |element| element["id"] == end_id }
       return unless start_element && end_element
 
-      start = center_of(start_element)
-      finish = center_of(end_element)
+      start_center = center_of(start_element)
+      end_center = center_of(end_element)
+      start = connector_point(start_element, toward: end_center)
+      finish = connector_point(end_element, toward: start_center)
       arrow["x"] = start.fetch("x")
       arrow["y"] = start.fetch("y")
       arrow["width"] = finish.fetch("x") - start.fetch("x")
@@ -382,6 +439,16 @@ module Whiteboard
       arrow["points"] = [ [ 0, 0 ], [ arrow["width"], arrow["height"] ] ]
       arrow["version"] = arrow.fetch("version", 0).to_i + 1
       arrow["updated"] = (Time.current.to_f * 1000).to_i
+
+      Array(arrow["boundElements"]).select { |bound| bound["type"] == "text" }.each do |bound|
+        label = elements.find { |element| element["id"] == bound["id"] && element["type"] == "text" }
+        next unless label
+
+        label["x"] = arrow.fetch("x").to_f + (arrow.fetch("width").to_f - label.fetch("width", 0).to_f) / 2.0
+        label["y"] = arrow.fetch("y").to_f + (arrow.fetch("height").to_f - label.fetch("height", 0).to_f) / 2.0
+        label["version"] = label.fetch("version", 0).to_i + 1
+        label["updated"] = arrow["updated"]
+      end
     end
 
     def integer_or_default(value, default)

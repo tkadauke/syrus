@@ -68,7 +68,10 @@ them — omitting these renders the element invisible even though a page
 fine. `remove_element!` also strips dangling `boundElements` references and
 deletes any arrow bound to the removed element;
 `recalibrate_bound_arrows!`/`recalibrate_arrow!` re-derive a bound arrow's
-geometry from its endpoints' current centers after a move.
+geometry from its endpoints' current edges after a move. Axis-aligned
+rectangles (including stickies), ellipses, and diamonds use their respective
+outline intersections. Rotated, malformed, or unsupported elements retain the
+safe center-to-center fallback used by older scenes.
 
 ## MCP tools (`Whiteboard::ChatToolSet`)
 
@@ -80,13 +83,11 @@ deferred tool tier loads — no feature flag or role gate beyond that):
 - **`draw_shape`** / **`draw_text`** / **`draw_line`** / **`draw_arrow`** /
   **`draw_freedraw`** / **`draw_frame`** / **`draw_embed`** /
   **`draw_image`** — append one high-level element. `draw_arrow` produces a
-  *bound* arrow that tracks two existing elements' centers as they move —
-  its endpoints are centers, not edges, so it visually cuts through shape
-  interiors and labels; the system prompt steers the agent toward
-  `draw_line` with `type: "arrow"` and manually-computed edge-anchored
-  points for diagrams connecting labeled shapes instead. `draw_arrow`'s
-  `label` parameter does not currently render visible text — the agent is
-  told to add a separate `draw_text` call near the midpoint.
+  *bound* arrow whose endpoints meet the visible edges of supported shapes
+  and track them as they move or resize. Its optional `label` creates a
+  visible Excalidraw text element bound to the arrow, so it moves with the
+  connector and round-trips with the scene. Raw `update_scene` remains
+  available for advanced geometry.
 - **`move_element`** / **`delete_element`** — mutate or remove an existing
   element by id.
 - **`update_scene`** — full-scene replacement, reserved for cases the
