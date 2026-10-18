@@ -699,8 +699,11 @@ The five-minute plugin tick enqueues `K8sCluster::RefreshCredentialsJob` on
 the consumed `low_priority_maintenance` queue. A cluster row lock serializes
 attempts. Success replaces the encrypted kubeconfig and expiry atomically;
 failure keeps the prior encrypted payload and exposes a redacted actionable
-status. Credential Store continues to reject expired credentials until a
-rotation or successful refresh recovers the cluster. Exec credential plugins
+status. Operator and automatic rotations append Credential Store audit events
+with the actor/source and result, but never credential material.
+Already-expired replacement or refreshed credentials are rejected. Credential
+Store continues to reject expired credentials until a rotation or successful
+refresh recovers the cluster. Exec credential plugins
 remain unsupported.
 
 ## What's not here yet
