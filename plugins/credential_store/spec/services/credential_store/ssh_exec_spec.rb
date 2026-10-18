@@ -23,7 +23,7 @@ RSpec.describe CredentialStore::SshExec do
       safe_metadata: {
         "host" => "app.example.com",
         "username" => "deploy",
-        "known_host" => "app.example.com ssh-ed25519 dGVzdC1ob3N0LWtleQ==",
+        "known_host" => "app.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtra2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr",
         "fingerprint" => "SHA256:host"
       },
       target_constraints: { "allowed_hosts" => [ "app.example.com" ] },
@@ -138,7 +138,7 @@ RSpec.describe CredentialStore::SshExec do
 
   it "accepts IPv6 literal hosts" do
     credential = create_credential(
-      safe_metadata: { "host" => "2001:db8::1", "username" => "deploy", "known_host" => "2001:db8::1 ssh-ed25519 dGVzdC1ob3N0LWtleQ==" },
+      safe_metadata: { "host" => "2001:db8::1", "username" => "deploy", "known_host" => "2001:db8::1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtra2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr" },
       target_constraints: { "allowed_hosts" => [ "2001:db8::1" ] }
     )
     allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "", stderr: "", status: 0))
@@ -273,7 +273,7 @@ RSpec.describe CredentialStore::SshExec do
   end
 
   it "refuses unconstrained credentials unless explicitly allowed" do
-    credential = create_credential(safe_metadata: { "username" => "deploy", "known_host" => "app.example.com ssh-ed25519 dGVzdC1ob3N0LWtleQ==" }, target_constraints: {})
+    credential = create_credential(safe_metadata: { "username" => "deploy", "known_host" => "app.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtra2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr" }, target_constraints: {})
 
     expect {
       described_class.call(context: context, credential: credential.id, host: "app.example.com", user: "deploy", command: "uptime")

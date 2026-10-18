@@ -156,6 +156,43 @@ describe("CredentialStoreAdmin", () => {
     await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith("/confirm"))).toBe(true))
   })
 
+  it("invalidates an enrolled host key when the host or port changes", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          payload({
+            credentials: [
+              credential({
+                credential_type: "ssh_private_key",
+                safe_metadata: {
+                  host: "host.example",
+                  username: "deploy",
+                  port: 22,
+                  fingerprint: "SHA256:old",
+                  known_host: "host.example ssh-ed25519 OLD"
+                }
+              })
+            ],
+            options: { credential_types: [{ name: "ssh_private_key", label: "SSH private key" }] }
+          })
+        )
+      )
+    )
+    renderRoute(<CredentialStoreAdmin />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText(/Host key enrolled: SHA256:old/)).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText("Primary host"), { target: { value: "new.example" } })
+    expect(within(dialog).getByText(/No host key enrolled/)).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText("SSH port"), { target: { value: "2222" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    const body = requestCredential(vi.mocked(window.fetch), "/api/v1/app/credential_store/credentials/1", "PATCH")
+    expect(body.safe_metadata).toEqual(expect.not.objectContaining({ known_host: expect.anything(), fingerprint: expect.anything() }))
+  })
+
   it("submits edit metadata without sending a blank payload", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
