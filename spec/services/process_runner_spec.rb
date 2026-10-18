@@ -248,6 +248,20 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result).not_to be_success
   end
 
+  it "times out capture commands that remain silent" do
+    capture = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "sleep 10" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 0.05,
+      kill_grace_seconds: 0
+    ).capture
+
+    expect(capture.result).to be_timed_out
+    expect(capture).not_to be_success
+  end
+
   it "stops when the stop callback becomes true" do
     lines = []
     stop_after_first_line = false

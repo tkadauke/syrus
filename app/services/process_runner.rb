@@ -645,7 +645,11 @@ class ProcessRunner
       original_env = @env
       original_display_command = @display_command
       @env = @env.merge("PROCESS_RUNNER_STDOUT" => stdout_path, "PROCESS_RUNNER_STDERR" => stderr_path)
-      @command = [ "bash", "-c", 'exec "$@" > "$PROCESS_RUNNER_STDOUT" 2> "$PROCESS_RUNNER_STDERR"', "process-runner", *@command ]
+      # Keep the wrapper's original output descriptors open while it waits for
+      # the redirected child. ProcessRunner monitors those descriptors for
+      # timeout/cancellation; `exec` would close them immediately and make the
+      # monitor block later in WaitThread#value without enforcing a deadline.
+      @command = [ "/bin/bash", "-c", '"$@" > "$PROCESS_RUNNER_STDOUT" 2> "$PROCESS_RUNNER_STDERR"', "process-runner", *@command ]
       @display_command ||= original_command.compact.map(&:to_s).join(" ")
       result = run
       readers.each(&:value)
@@ -774,11 +778,7 @@ class ProcessRunner
         update_pid!(wait_thread.pid)
         write_stdin(stdin)
 
-        killer = Thread.new do
-          sleep @timeout
-          timed_out = true
-          terminate(wait_thread.pid)
-        end
+        timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @timeout
 
         last_kill_check = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         # Tracks the first time we observed the pid missing. The
@@ -843,7 +843,11 @@ class ProcessRunner
 
         stream_output(output, wait_thread, silent_check) do
           heartbeat!
-          next if timed_out
+          if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= timeout_at
+            timed_out = true
+            terminate(wait_thread.pid)
+            next
+          end
 
           if @stop_requested.call
             stopped = true
@@ -870,7 +874,6 @@ class ProcessRunner
         end
 
         @stdin_writer&.join
-        killer.kill
         sample_resource_attribution!
         status = wait_thread.value
         sample_cgroup_exit!
