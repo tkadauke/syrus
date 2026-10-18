@@ -77,6 +77,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::SpeechToTextProvider }
   end
 
+  let(:execution_backend_class) do
+    Class.new(Execution::Backend) { include Syrus::Plugin::ExecutionBackend }
+  end
+
   let(:slug_type_class) do
     Class.new do
       include Syrus::Plugin::SlugType
@@ -173,6 +177,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:repository_content_provider)
     end
 
+    it "includes :execution_backend" do
+      expect(described_class::EXTENSION_POINTS).to include(:execution_backend)
+    end
+
     it "includes :workspace_tab" do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
@@ -210,6 +218,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :source_control_provider to Syrus::Plugin::SourceControlProvider" do
       expect(described_class::INTERFACE_FOR[:source_control_provider].call).to eq(Syrus::Plugin::SourceControlProvider)
+    end
+
+    it "maps :execution_backend to Syrus::Plugin::ExecutionBackend" do
+      expect(described_class::INTERFACE_FOR[:execution_backend].call).to eq(Syrus::Plugin::ExecutionBackend)
     end
 
     it "maps :prompt_injector to Syrus::Plugin::PromptInjector" do
@@ -547,6 +559,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:speech_to_text_provider)).to eq([ speech_to_text_provider_class ])
+    end
+
+    it "returns execution backend providers" do
+      described_class.register(
+        name: "execution_backend_plugin", version: "1.0.0",
+        provides: { execution_backend: execution_backend_class }
+      )
+
+      expect(described_class.providers_for(:execution_backend)).to eq([ execution_backend_class ])
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do
