@@ -2,21 +2,35 @@
 
 ## Conclusion
 
-The strongest code-level explanation is throughput snapshot diff sampling, not
-archive handling or `ProcessRunner`'s standard capture path.
+The code audit does not identify a path that can credibly account for a 16 GiB
+spike under the checked-in home-worker topology. The culprit remains
+unresolved.
 
 `Throughput::MetricContract#output_diffs_by_run_id` asks MySQL for both
 `runs.step_agent_diff` and `runs.agent_diff` for 25 Runs, then applies its
 256 KiB-per-diff and 2 MiB-total limits in Ruby. Both columns are 16 MiB
 `MEDIUMTEXT` columns. One refresh can therefore transfer and materialize close
-to 800 MiB of diff text before retaining at most 2 MiB. The refresh lock is per
-repository, while the polling callback enqueues one refresh per active
-repository, so concurrent refreshes can multiply that transient allocation
-past a 16 GiB worker limit. This mechanism fits an episodic cliff, the refresh
-job's repeated presence at each worker death, and recovery after the particular
-queue burst ended. The correlation does not prove that every failed refresh
-was the allocating job, but this is the only audited path that combines large
-database blobs, ineffective post-load bounds, and repository-level fan-out.
+to 800 MiB of diff text before retaining at most 2 MiB.
+
+That is a real ineffective bound, but it does not bridge the incident's scale.
+`config/queue.home.yml` runs `polling` in one Solid Queue process with two
+threads by default. The repository-level lock allows two different repository
+refreshes to overlap, not an arbitrary number, so the default maximum is about
+1.6 GiB of raw diff values in that process. Reaching 16 GiB from this path alone
+would require roughly tenfold additional simultaneous copies, unusually full
+diff columns, or a deployment override of `POLLING_CONCURRENCY`; the repository
+supplies evidence for none of those. The refresh failures therefore remain
+consistent with either a contributor or a frequently running bystander, not a
+root-cause finding.
+
+The 16 GiB limit applies to the whole home container. Its control-plane,
+polling, indexing, cleanup, maintenance, chat, video, and connectivity pools
+each run as a separate process, so allocations in different pools add at the
+container boundary while no single Ruby heap sees all of them. The checked-in
+defaults permit several other jobs to overlap the two refreshes, but the audit
+found no ordinary bounded workload whose remaining peak plausibly fills the
+roughly 14 GiB gap. Several paths are byte-unbounded and could do so only with
+pathological source data or subprocess output that the incident did not retain.
 
 The contained follow-up is to make the database query enforce the bound before
 the values cross the adapter boundary. Select only the preferred diff
@@ -28,11 +42,15 @@ not materialized while fallback and aggregate-limit semantics remain intact.
 
 ## Candidate audit
 
-### Throughput repository snapshots: plausible at 16 GiB under fan-out
+### Throughput repository snapshots: large avoidable allocation, insufficient alone
 
-The refresh job itself is serialized only by repository. A cache miss calls
-`MetricContract#call` under a four-minute timeout; a timeout limits duration,
-not memory.
+The refresh job is serialized by repository and constrained by the polling
+pool. A cache miss calls `MetricContract#call` under a four-minute timeout; a
+timeout limits duration, not memory. The home configuration defaults to one
+polling process with two threads. Because each queue entry has `processes: 1`,
+the other home queues run in sibling processes inside the same container; they
+can add container memory pressure but cannot increase concurrency inside the
+polling heap.
 
 The contract intentionally materializes several result sets with `to_a` and
 reuses them across its five windows:
@@ -53,8 +71,13 @@ repository and normally seven days. They can produce hundreds of megabytes on
 an exceptionally busy repository, especially because Active Record objects
 and included associations cost more than their wire representation. They do
 not independently offer a convincing route to 16 GiB in the observed workload.
-The diff query does: its schema ceiling is about 800 MiB per refresh before
-adapter and Ruby copies, and refreshes for different repositories can overlap.
+The diff query's schema ceiling is about 800 MiB per refresh before adapter and
+Ruby copies, or about 1.6 GiB of raw values at the default two-way polling
+concurrency. Adapter result storage, Ruby strings, and intermediate arrays add
+copies, but no code-level measurement supports the approximately tenfold
+multiplier needed to make this path consume the full container limit. It is
+significant enough to fix and potentially contributes to reduced headroom; it
+is not sufficient evidence for attribution.
 
 `last_active` can widen the SQL interval earlier than seven days. It uses the
 minimum start and maximum end of all windows rather than two disjoint ranges.
@@ -105,12 +128,15 @@ keep an explicitly capped tail. Archive publishing writes chunks into a pipe.
 
 `GitRunner#run` is the relevant exception: its `on_output_line` callback appends
 every line to an unbounded local `output` string so it can return command output
-or build an error. The string lives for one git invocation, not all 885, and
-ordinary git status/fetch/rev-parse output is small. It could reach gigabytes
-only if one git command itself emitted gigabytes. The subprocess count and
-completion status do not support that, and the failure correlation points
-elsewhere. Still, this wrapper should use a bounded tail for errors and require
-callers needing large successful output to opt into an explicit limit.
+or build an error. `ProcessRunner#stream_lines` also holds an unbounded partial
+line until it sees a newline for every `on_output_line` caller. Either can reach
+gigabytes if one child emits gigabytes (or one newline-free record), but the
+strings live for one invocation, not all 885. Ordinary git
+status/fetch/rev-parse output is small, and completed invocation count does not
+show the necessary output volume. This remains a possible pathological-input
+route rather than evidence of the observed cause. `GitRunner` should use a
+bounded tail for errors, and `stream_lines` should cap or flush oversized
+partial lines.
 
 Two specialized CI-repair callers explicitly request a 1 GiB capture limit,
 and a few focused-retry helpers append subprocess chunks without a bound.
@@ -157,8 +183,8 @@ owned by `PerformanceLogging`, activated while at least one job context is
 registered:
 
 1. Sample process RSS and cgroup `memory.current`/`memory.events` every second.
-   Reuse the existing worker-health readers rather than adding another metrics
-   interpretation layer.
+   Reuse the existing process/cgroup resource readers rather than adding
+   another metrics interpretation layer.
 2. Keep the active job contexts registered by `around_job`. On each new coarse
    high-water bucket (for example every 256 MiB, plus 70/80/90% of the cgroup
    limit), synchronously persist a compact performance event containing RSS,
@@ -168,22 +194,25 @@ registered:
 3. Emit a final per-job start/end/peak event on normal completion. Rate-limit by
    bucket so a spike produces a handful of rows, not per-second telemetry.
 
-A worker-wide RSS sample cannot perfectly divide shared heap among concurrent
-job threads, so the event should record the complete active-job set and which
-jobs started since the previous bucket. That would still have answered this
-incident in one look: the last durable event before each kill would show the
-memory slope and whether repository refreshes, indexing, or a Run overlapped
-the threshold crossings. A targeted `PerformanceLogging.phase` around
+A process RSS sample cannot perfectly divide shared heap among concurrent job
+threads, so each pool process should record its complete active-job set and
+which jobs started since the previous bucket. The cgroup reading supplies the
+container-wide total shared by those process events. Together, the last durable
+events before each kill would show which process supplied the RSS growth and
+whether repository refreshes, indexing, or another job overlapped the threshold
+crossings. A targeted `PerformanceLogging.phase` around
 `RepositorySnapshot#refresh!` can add finer attribution, but it is supplementary;
 instrumenting only that suspect would leave the next unknown job-shaped spike
 unexplained.
 
 ## Follow-up priority
 
-1. Bound throughput diff selection in SQL. This is an obviously correct,
-   contained fix for the only 16 GiB-plausible audited allocation.
-2. Add durable performance-memory high-water events so an OOM leaves evidence.
-3. Bound `GitRunner#run` output and stream cache-size traversal as defense in
-   depth.
+1. Add durable performance-memory high-water events. The audit cannot
+   responsibly attribute the 16 GiB spike without them.
+2. Bound throughput diff selection in SQL. This is an obviously correct,
+   contained fix for a large avoidable allocation, but not a demonstrated fix
+   for the OOM.
+3. Bound `GitRunner#run` output and partial-line buffering, and stream
+   cache-size traversal as defense in depth.
 4. Add byte ceilings to bulk FTS writers based on real retained-event/document
    size distributions rather than guessing a global content limit.
