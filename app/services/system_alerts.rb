@@ -278,7 +278,9 @@ module SystemAlerts
   def self.no_progress_main_branch_repairs
     Job
       .includes(:repository, :workflows)
+      .joins(:repository)
       .where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR, needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON)
+      .where(repositories: { main_branch_health_enabled: true, main_branch_repair_enabled: true })
       .where(state: %w[failed closed])
       .order(updated_at: :desc, id: :desc)
       .limit(10)

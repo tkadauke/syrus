@@ -985,6 +985,7 @@
     "done": "Done",
     "title": "Add repository",
     "description": "Pick the first repository Syrus should work with. You can add more later from Repositories.",
+    "automation_opt_in": "This grants access for requested work. PR cost footers, main-branch monitoring and repair stay off until you enable them in repository settings.",
     "loading": "Loading…",
     "field_user_org": "User/Org",
     "loading_accounts": "Loading your GitHub accounts…",

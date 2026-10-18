@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Repository, "#main_health" do
-  let(:repo) { Factories.repository }
+  let(:repo) { Factories.repository(main_branch_health_enabled: true) }
 
   it "is unknown when both ci_health and grader_health are unknown" do
     expect(repo.main_health).to eq("unknown")
@@ -140,18 +140,20 @@ RSpec.describe Repository, "#main_health" do
   end
 
   describe "main branch health defaults" do
-    it "enables health checking and auto-repair for original repositories" do
+    it "does not autonomously monitor, repair, or block work for new repositories" do
       fresh = Factories.repository
 
-      expect(fresh.main_branch_health_enabled).to eq(true)
-      expect(fresh.main_branch_repair_enabled).to eq(true)
+      expect(fresh.pr_cost_footer_enabled).to eq(false)
+      expect(fresh.main_branch_health_enabled).to eq(false)
+      expect(fresh.main_branch_repair_enabled).to eq(false)
+      expect(fresh.main_branch_repair_blocks_work).to eq(false)
       expect(fresh.main_branch_repair_auto_approve).to eq(false)
     end
 
-    it "enables health checking but disables auto-repair for fork repositories" do
+    it "does not autonomously monitor or repair fork repositories" do
       fork = Factories.repository(upstream_owner: "rails", upstream_name: "rails")
 
-      expect(fork.main_branch_health_enabled).to eq(true)
+      expect(fork.main_branch_health_enabled).to eq(false)
       expect(fork.main_branch_repair_enabled).to eq(false)
       expect(fork.main_branch_repair_auto_approve).to eq(false)
     end
