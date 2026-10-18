@@ -33,6 +33,7 @@ RSpec.describe "desktop packaging" do
     expect(Gem::Version.new(electron_requirement.delete_prefix("^"))).to be >= Gem::Version.new("40.9.3")
     expect(Gem::Version.new(locked_electron)).to be >= Gem::Version.new("40.9.3")
     expect(package_json.dig("allowScripts", "electron@#{locked_electron}")).to be(true)
+    expect(package_json.dig("devDependencies", "@electron-internal/extract-zip")).to eq("^1.0.5")
   end
 
   it "carries Electron 44's platform and clipboard migrations into the package" do
