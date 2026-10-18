@@ -40,6 +40,7 @@ module ScheduledTasks
     validates :consecutive_failure_count,
               presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
     validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
+    validate  :prompt_or_skill
 
     validates :schedule_expression, presence: true, if: :cron?
     validates :fire_at,         presence: true, if: :one_shot?
@@ -47,6 +48,7 @@ module ScheduledTasks
     validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
     validate  :skill_args_match_parameter_schema, if: -> { skill_name.present? && repository.present? }
 
+    before_validation :normalize_task_source
     before_validation :canonicalize_recurring_schedule
     before_validation :seed_minute_offset_for_cron, on: :create
 
@@ -201,6 +203,10 @@ module ScheduledTasks
 
     private
 
+    def normalize_task_source
+      self.skill_args = {} if skill_name.blank?
+    end
+
     def scheduled_fire_window_start(now: Time.current)
       Schedules::RecurringSchedule.due_window_start(schedule_expression, timezone: schedule_timezone, now: now)
     rescue ArgumentError
@@ -253,6 +259,12 @@ module ScheduledTasks
       errors.add(:skill_name, "could not be resolved: #{e.message}")
     rescue Skills::ParameterSchema::ValidationError => e
       errors.add(:skill_args, e.message)
+    end
+
+    def prompt_or_skill
+      return unless prompt.present? && skill_name.present?
+
+      errors.add(:base, "Choose either a prompt or a skill, not both")
     end
   end
 end

@@ -155,6 +155,21 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(parse_body.dig("template", "id")).to eq(template.id)
   end
 
+  it "creates and serializes a skill template" do
+    sign_in_as(user)
+
+    post "/api/v1/app/cron_templates", params: { cron_template: valid_attrs.merge(
+      prompt: "", skill_name: "investigate", skill_args: { question: "Find the cause" }
+    ) }
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body["template"]).to include(
+      "prompt" => "",
+      "skill_name" => "investigate",
+      "skill_args" => { "question" => "Find the cause" }
+    )
+  end
+
   it "returns validation errors" do
     sign_in_as(user)
 
@@ -180,6 +195,20 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(template.reload.prompt).to eq("Updated prompt.")
     expect(template.enabled).to be(false)
     expect(parse_body["message"]).to eq("Template updated.")
+  end
+
+  it "switches a template from skill mode to prompt mode without retaining arguments" do
+    sign_in_as(user)
+    template = ScheduledTasks::CronTemplate.create!(valid_attrs.merge(
+      user: user, prompt: nil, skill_name: "investigate", skill_args: { "question" => "Why?" }
+    ))
+
+    patch "/api/v1/app/cron_templates/#{template.id}", params: {
+      cron_template: { prompt: "Updated prompt.", skill_name: "", skill_args: {} }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(template.reload).to have_attributes(prompt: "Updated prompt.", skill_name: "", skill_args: {})
   end
 
   it "deletes a template" do

@@ -201,6 +201,45 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(body.dig("task", "cron_template_id")).to eq(template.id)
   end
 
+  it "applies a skill template and validates it against the target repository" do
+    sign_in_as(user)
+    template = Factories.cron_template(
+      user: user, name: "Investigate", prompt: nil, skill_name: "investigate",
+      skill_args: { "question" => "Find the cause" }
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/new", params: { from_template: template.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["task"]).to include(
+      "prompt" => nil,
+      "skill_name" => "investigate",
+      "skill_args" => { "question" => "Find the cause" }
+    )
+
+    post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+      from_template: template.id,
+      scheduled_task: parse_body["task"].slice("name", "prompt", "skill_name", "skill_args", "kind", "cron_expression", "schedule_input", "schedule_expression", "schedule_timezone", "pr_pileup_policy", "auto_approve_mode")
+    }
+
+    expect(response).to have_http_status(:created)
+    task = ScheduledTasks::Task.order(:id).last
+    expect(task).to have_attributes(skill_name: "investigate", skill_args: { "question" => "Find the cause" }, cron_template_id: template.id)
+  end
+
+  it "returns an actionable error when a template skill's arguments no longer match" do
+    sign_in_as(user)
+    template = Factories.cron_template(user: user, prompt: nil, skill_name: "investigate", skill_args: {})
+
+    post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+      from_template: template.id,
+      scheduled_task: valid_cron_attrs.merge(prompt: "", skill_name: template.skill_name, skill_args: template.skill_args)
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Skill args")
+  end
+
   it "returns repository-scoped form defaults from a recommendation preset" do
     sign_in_as(user)
 
