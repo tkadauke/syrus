@@ -85,6 +85,8 @@ export function parseUnifiedDiff(diff: string) {
   let remainingNewLines = 0
   let hunkId = -1
   let hasSeenHunk = false
+  let activeHunkHeader: DiffLine | null = null
+  let activeHunkSuffix = ""
 
   for (const rawLine of rawLines) {
     const insideHunkBody = remainingOldLines > 0 || remainingNewLines > 0
@@ -98,13 +100,32 @@ export function parseUnifiedDiff(diff: string) {
       newLine = hunkNewStart
       remainingOldLines = hunkOldLines
       remainingNewLines = hunkNewLines
-      hunkId += 1
       hasSeenHunk = true
-      lines.push({ kind: "hunk", oldLine: null, newLine: null, marker: "", code: rawLine, hunkId, hunkOldStart, hunkOldLines, hunkNewStart, hunkNewLines })
+
+      const adjacentToActiveHunk = activeHunkHeader
+        && activeHunkHeader.hunkOldStart != null
+        && activeHunkHeader.hunkOldLines != null
+        && activeHunkHeader.hunkNewStart != null
+        && activeHunkHeader.hunkNewLines != null
+        && hunkOldStart === activeHunkHeader.hunkOldStart + activeHunkHeader.hunkOldLines
+        && hunkNewStart === activeHunkHeader.hunkNewStart + activeHunkHeader.hunkNewLines
+
+      if (adjacentToActiveHunk && activeHunkHeader) {
+        activeHunkHeader.hunkOldLines = hunkOldStart + hunkOldLines - activeHunkHeader.hunkOldStart!
+        activeHunkHeader.hunkNewLines = hunkNewStart + hunkNewLines - activeHunkHeader.hunkNewStart!
+        activeHunkHeader.code = formatHunkHeader(activeHunkHeader, activeHunkSuffix)
+      } else {
+        hunkId += 1
+        activeHunkSuffix = rawLine.slice(hunk[0].length)
+        activeHunkHeader = { kind: "hunk", oldLine: null, newLine: null, marker: "", code: rawLine, hunkId, hunkOldStart, hunkOldLines, hunkNewStart, hunkNewLines }
+        lines.push(activeHunkHeader)
+      }
       continue
     }
 
     if (rawLine.startsWith("diff --git ")) {
+      activeHunkHeader = null
+      activeHunkSuffix = ""
       lines.push(diffLine("file", rawLine))
     } else if (insideHunkBody && rawLine.startsWith("+") && remainingNewLines > 0) {
       lines.push(diffLine("add", rawLine.slice(1), null, newLine, "+", hunkId))
@@ -145,6 +166,10 @@ export function parseUnifiedDiff(diff: string) {
   }
 
   return lines
+}
+
+function formatHunkHeader(line: DiffLine, suffix: string): string {
+  return `@@ -${line.hunkOldStart},${line.hunkOldLines} +${line.hunkNewStart},${line.hunkNewLines} @@${suffix}`
 }
 
 export function diffLine(kind: DiffLineKind, code: string, oldLine: number | null = null, newLine: number | null = null, marker = "", hunkId = -1): DiffLine {
