@@ -711,7 +711,11 @@ grade:
 Use `runtime` when large suites have uneven spec-file costs. Syrus asks enabled
 grader input materializers to write a `parallel_tests` runtime log into the
 grader workspace before the command starts; if none is produced, the Ruby
-grader logs a fallback note and runs without runtime grouping. Runtime logs use
+grader falls back to `--group-by filesize` and says so. It does not fall back
+to `parallel_tests`' own default, which balances by *file count*: on one
+production suite that produced shards from 3m53s to 9m56s, and since the
+slowest shard sets the grader's wall clock that 2.5x spread was paid in full.
+File size needs no recorded state and is a much better proxy for runtime. Runtime logs use
 the `path/to/spec.rb:seconds` format that `parallel_tests` writes. When the log
 is partial, `parallel_rspec.allowed_missing` and
 `parallel_rspec.unknown_runtime` pass through to `parallel_tests` so known

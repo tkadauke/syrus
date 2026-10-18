@@ -563,7 +563,7 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include("--allowed-missing\\ 100")
     expect(steps.first.run).to include("--unknown-runtime\\ 0.1")
     expect(steps.first.run).to include("--runtime-log\\ .syrus/parallel_runtime_rspec.log")
-    expect(steps.first.run).to include("falling back to parallel_tests default grouping")
+    expect(steps.first.run).to include("grouping shards by file size")
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
@@ -576,7 +576,11 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.third.run).not_to include("parallel_rspec")
   end
 
-  it "falls back to default parallel_rspec grouping when no runtime profile was materialized" do
+  # parallel_tests' own default balances shards by file count, which on this
+  # suite produced a 2.5x spread between the fastest and slowest shard -- and
+  # the slowest one sets the grader's wall clock. File size needs no recorded
+  # state and is a much better runtime proxy.
+  it "groups shards by file size when no runtime profile was materialized" do
     step = described_class.grade_steps(
       config: {
         "parallel_rspec" => {
@@ -592,8 +596,24 @@ RSpec.describe Ruby::RspecGraderType do
     stdout, stderr, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 0)
 
     expect(status).to be_success, stderr
-    expect(stdout).to include("falling back to parallel_tests default grouping")
+    expect(stdout).to include("grouping shards by file size")
+    expect(parallel_args).to include("--group-by filesize")
     expect(parallel_args).not_to include("--group-by runtime")
+  end
+
+  # Steps::Grader#resource_grant_env sets SYRUS_PROCESS_PARALLELISM, yet every
+  # production rspec run reports `source: host-cpu-fallback` with an -n equal
+  # to the raw host CPU count -- 10 to 20 depending on the node, which is the
+  # difference between a 10-minute and a 32-minute grader. The echo
+  # distinguishes "never arrived" from "arrived empty"; nothing else in the
+  # chain can tell those apart after the run.
+  it "reports whether SYRUS_PROCESS_PARALLELISM arrived at the command" do
+    step = described_class.grade_steps(
+      config: { "parallel_rspec" => { "enabled" => true, "rspec_modes" => [ "full" ], "exec_args" => "bin/rspec-worker" } },
+      default_failures: "strict"
+    ).first
+
+    expect(step.run).to include('echo "[rspec] SYRUS_PROCESS_PARALLELISM=[${SYRUS_PROCESS_PARALLELISM-<unset>}]"')
   end
 
   it "uses runtime grouping when the runtime profile was materialized" do

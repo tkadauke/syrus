@@ -612,6 +612,13 @@ module Ruby
       configured = parallel_config["processes"].to_s.strip.presence
       fallback = configured || '$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)'
       commands = [
+        # Steps::Grader#resource_grant_env sets SYRUS_PROCESS_PARALLELISM and
+        # logs the grant it came from, yet every production run so far reports
+        # `source: host-cpu-fallback` and an `-n` equal to the raw host CPU
+        # count -- so the value is not arriving. Distinguish unset from empty
+        # here: nothing else in the chain can tell those apart after the fact,
+        # and the difference points at different culprits.
+        'echo "[rspec] SYRUS_PROCESS_PARALLELISM=[${SYRUS_PROCESS_PARALLELISM-<unset>}]"',
         'RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"',
         'RSPEC_PARALLEL_SOURCE="SYRUS_PROCESS_PARALLELISM"',
         "if [ -z \"$RSPEC_PARALLEL_PROCESSES\" ]; then RSPEC_PARALLEL_PROCESSES=#{fallback}; RSPEC_PARALLEL_SOURCE=#{configured ? 'parallel_rspec.processes' : 'host-cpu-fallback'}; fi"
@@ -638,12 +645,19 @@ module Ruby
       runtime_log = parallel_runtime_log(mode)
       runtime_args = Shellwords.join([ "--group-by", "runtime", *parallel_runtime_tolerance_args, "--runtime-log", runtime_log ])
       escaped_runtime_log = Shellwords.escape(runtime_log)
+      # Without a runtime profile, parallel_tests' default grouping balances by
+      # *file count*, which on this suite produced shards of 3m53s to 9m56s --
+      # the slowest one sets the grader's wall clock, so a 2.5x spread is paid
+      # in full. `--group-by filesize` is a far better runtime proxy and needs
+      # no recorded state, so it is the fallback rather than the default.
+      fallback_args = Shellwords.join([ "--group-by", "filesize" ])
       <<~BASH.squish
         parallel_runtime_args="";
         if [ -s #{escaped_runtime_log} ]; then
           parallel_runtime_args=#{Shellwords.escape(runtime_args)};
         else
-          echo "No RSpec runtime profile found at #{escaped_runtime_log}; falling back to parallel_tests default grouping";
+          parallel_runtime_args=#{Shellwords.escape(fallback_args)};
+          echo "No RSpec runtime profile found at #{escaped_runtime_log}; grouping shards by file size";
         fi;
       BASH
     end
