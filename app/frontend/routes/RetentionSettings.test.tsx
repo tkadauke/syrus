@@ -34,9 +34,15 @@ function retentionPayload(overrides: Record<string, unknown> = {}) {
     },
     retention_available_space_override_gb: 0,
     storage_limits: {
-      prepared_layer_cache_bytes: 10 * 1024 ** 3,
-      prepared_layer_cache_source: "app_setting",
-      coding_workspace_bytes: 10 * 1024 ** 3
+      prepared_layer_cache_default_bytes: 10 * 1024 ** 3,
+      coding_workspace_bytes: 10 * 1024 ** 3,
+      prepared_layer_cache_workers: [{
+        hostname: "worker-a",
+        worker_storage_key: "storage-a",
+        budget_bytes: 3 * 1024 ** 3,
+        source: "worker_environment",
+        observed_at: "2026-09-16T00:00:00Z"
+      }]
     },
     ...overrides
   }
@@ -95,9 +101,10 @@ describe("RetentionSettings", () => {
     expect(await screen.findByText("notifications")).toBeInTheDocument()
     expect(screen.getByText("In-app user notifications.")).toBeInTheDocument()
     expect(screen.getByText("1,000 rows (200KB)")).toBeInTheDocument()
-    expect(screen.getByText("Prepared workspace cache")).toBeInTheDocument()
+    expect(screen.getByText("Prepared workspace cache default")).toBeInTheDocument()
     expect(screen.getAllByText("10GB").length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText("The prepared-cache limit comes from the instance setting.")).toBeInTheDocument()
+    expect(screen.getByText(/worker-a: 3GB/)).toBeInTheDocument()
+    expect(screen.getByText(/worker environment override/)).toBeInTheDocument()
   })
 
   it("sets a table to infinite retention and saves 0", async () => {

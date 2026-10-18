@@ -29,6 +29,8 @@ class WorkerHostHealthSampler
       data_root = data_root_snapshot || data_root_metrics
       pressure = pressure_metrics
       raw_metrics = raw_metrics(data_root: data_root, observed_at: observed_at)
+      raw_metrics[:prepared_layer_cache_budget_bytes] = PreparedLayerCache.budget_bytes
+      raw_metrics[:prepared_layer_cache_budget_source] = PreparedLayerCache.budget_source
       pressure.each do |kind, reading|
         raw_metrics[:"#{kind}_pressure_source"] = reading.source if reading.source
         raw_metrics[:"#{kind}_pressure_path"] = reading.path if reading.path

@@ -73,7 +73,9 @@ RSpec.describe WorkerHostHealthSampler do
       )
       expect(metrics[:raw_metrics]).to include(
         sampler: "worker_host_health_sampler",
-        observed_at: "2026-07-31T12:00:00Z"
+        observed_at: "2026-07-31T12:00:00Z",
+        prepared_layer_cache_budget_bytes: 10.gigabytes,
+        prepared_layer_cache_budget_source: "app_setting"
       )
     end
 
