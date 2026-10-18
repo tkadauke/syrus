@@ -71,12 +71,10 @@ module Api
 
           def smart_folder_count(folder)
             filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
-            result = ::Timeline::MacroQuery.call(
+            ::Timeline::MacroQuery.new(
               from: filter.from, to: filter.to, expression: filter,
               allowed_job_ids: ::Job.accessible_to(Current.user).select(:id)
-            )
-            count = result[:lanes].sum { |lane| [ lane[:spans].length, 1 ].max } + result[:pending].length
-            { count: [ count, ::SmartFolder::COUNT_CAP ].min, count_capped: count >= ::SmartFolder::COUNT_CAP }
+            ).capped_count
           end
 
           def require_worker_timeline_enabled

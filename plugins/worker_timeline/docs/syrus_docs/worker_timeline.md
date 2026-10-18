@@ -153,7 +153,9 @@ shared FilterBar, suggestion search, usage recording, and saved-folder
 create/update/delete/navigation controls use the same infrastructure as the
 other filtered admin surfaces. A saved folder stores the complete AST and an
 explicit `q=` edit replaces the folder expression, including an explicitly
-empty expression.
+empty expression. Folder badges use `Timeline::MacroQuery#capped_count`, which
+stops after `SmartFolder::COUNT_CAP + 1` matching timeline entries and does not
+construct lane/span payloads or blocked explanations for count-only queries.
 
 The macro query deliberately does not pretend its data is one ActiveRecord
 relation. `WorkerTimeline::MacroQueryFilter` evaluates `and`, `or`, and `not`
