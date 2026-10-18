@@ -69,6 +69,63 @@ RSpec.describe "App API slug refs", type: :request do
     )
   end
 
+  it "resolves accessible Workflow refs and serves a projected preview" do
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+    workflow.steps.create!(kind: "prepare", position: 1, state: "succeeded")
+    workflow.steps.create!(kind: "grader", position: 2, state: "failed", details: { "accepted_failure" => true, "name" => "focused" })
+
+    get "/api/v1/app/slug_refs/WF-#{workflow.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("slug_ref")).to include(
+      "canonical_slug" => "WF-#{workflow.id}",
+      "type" => "workflow",
+      "web_path" => "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}",
+      "api_preview_path" => "/api/v1/app/workflows/#{workflow.id}/preview"
+    )
+
+    get "/api/v1/app/workflows/#{workflow.id}/preview"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("workflow")).to include(
+      "slug" => "WF-#{workflow.id}",
+      "trigger_label" => "Initial implementation",
+      "state" => "failed"
+    )
+    expect(parse_body.dig("workflow", "steps").last).to include("display_name" => "Focused", "status" => "warning")
+  end
+
+  it "does not expose inaccessible Workflow refs or previews" do
+    other_user = Factories.user(global_role: "user")
+    other_repository = Factories.repository(user: other_user)
+    job = Factories.job_record(user: other_user, repository: other_repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+
+    get "/api/v1/app/slug_refs/WF-#{workflow.id}"
+    expect(parse_body.fetch("slug_ref")).to include("accessible" => false, "web_path" => nil)
+
+    get "/api/v1/app/workflows/#{workflow.id}/preview"
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "does not resolve a Workflow outside an invocation token's scope" do
+    admin = Factories.user(admin: true)
+    invocation_job = Factories.job_with_run(user: admin, issue_number: 100, run_attrs: { state: "running" })
+    other_workflow = Factories.job(user: admin, repository: invocation_job.repository, issue_number: 101).workflows.first
+    token = McpInvocationContext.issue_for_app_run(invocation_job.runs.first, expires_in: 5.minutes)
+
+    get "/api/v1/app/slug_refs/WF-#{other_workflow.id}",
+        headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("slug_ref")).to include(
+      "canonical_slug" => "WF-#{other_workflow.id}",
+      "accessible" => false,
+      "web_path" => nil,
+      "api_preview_path" => nil
+    )
+  end
+
   it "resolves plugin-owned Design Doc refs through the slug type registry" do
     design_doc = DesignDocs::DesignDoc.create!(
       owner_user: user,

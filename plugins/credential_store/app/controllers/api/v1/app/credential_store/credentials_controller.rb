@@ -5,6 +5,41 @@ module Api
         class CredentialsController < BaseController
           before_action :require_credential_store_enabled
 
+          def probe_host_key
+            return unless authorize_enrollment_scope!("test")
+            key = ::CredentialStore::SshHostKeyEnrollment.probe!(host: enrollment_params[:host], port: enrollment_params[:port])
+            record_enrollment!("test", "allowed", key: key, source: "probe")
+            render json: { enrollment: key.as_json }
+          rescue ::CredentialStore::SshExec::Error => e
+            record_enrollment!("test", "failed", error: e, source: "probe")
+            render_error("ssh_host_key_probe_failed", e.message, status: :unprocessable_content)
+          end
+
+          def inspect_host_key
+            return unless authorize_enrollment_scope!("test")
+            key = ::CredentialStore::SshHostKeyEnrollment.manual!(host: enrollment_params[:host], port: enrollment_params[:port], known_host: enrollment_params[:known_host])
+            record_enrollment!("test", "allowed", key: key, source: "manual")
+            render json: { enrollment: key.as_json }
+          rescue ::CredentialStore::SshExec::Error => e
+            record_enrollment!("test", "failed", error: e, source: "manual")
+            render_error("ssh_known_host_invalid", e.message, status: :unprocessable_content)
+          end
+
+          def confirm_host_key
+            return unless authorize_enrollment_scope!("update")
+            key = ::CredentialStore::SshHostKeyEnrollment.manual!(host: enrollment_params[:host], port: enrollment_params[:port], known_host: enrollment_params[:known_host])
+            credential = enrollment_credential
+            if credential
+              metadata = credential.safe_metadata.to_h.merge("host" => key.host, "port" => key.port, "known_host" => key.known_host, "fingerprint" => key.fingerprint)
+              credential.update!(safe_metadata: metadata)
+            end
+            record_enrollment!("update", "allowed", key: key, source: "confirmation", credential: credential)
+            render json: { enrollment: key.as_json, credential: credential && ::CredentialStore::ManagementPayload.credential_json(credential, user: Current.user) }
+          rescue ::CredentialStore::SshExec::Error, ActiveRecord::RecordInvalid => e
+            record_enrollment!("update", "failed", error: e, source: "confirmation")
+            render_error("ssh_host_key_confirmation_failed", e.message, status: :unprocessable_content)
+          end
+
           def index
             render json: payload_for(visible_credentials)
           end
@@ -98,6 +133,38 @@ module Api
           end
 
           private
+
+          def enrollment_params
+            @enrollment_params ||= params.require(:enrollment).permit(:credential_id, :scope_type, :scope_id, :host, :port, :known_host).to_h.symbolize_keys
+          end
+
+          def enrollment_credential
+            return @enrollment_credential if defined?(@enrollment_credential)
+            @enrollment_credential = enrollment_params[:credential_id].present? ? visible_credentials.find(enrollment_params[:credential_id]) : nil
+          end
+
+          def authorize_enrollment_scope!(action)
+            if enrollment_params[:credential_id].present?
+              credential = visible_credentials.find_by(id: enrollment_params[:credential_id])
+              return deny_enrollment!(action) unless credential && authorization.can_manage?(credential)
+              @enrollment_credential = credential
+            elsif !authorization.can_manage_scope?(enrollment_params[:scope_type], enrollment_params[:scope_id])
+              return deny_enrollment!(action)
+            end
+            true
+          end
+
+          def deny_enrollment!(action)
+            ::CredentialStore::CredentialAccessEvent.record!(credential: nil, user: Current.user, surface: "admin", action: action, result: "denied",
+              denial_reason: "not authorized to enroll an SSH host key", metadata: { operation: "ssh_host_key_enrollment" })
+            render_error("forbidden", "You cannot manage SSH host keys for that scope.", status: :forbidden)
+            false
+          end
+
+          def record_enrollment!(action, result, key: nil, error: nil, source:, credential: enrollment_credential)
+            ::CredentialStore::CredentialAccessEvent.record!(credential: credential, user: Current.user, surface: "admin", action: action, result: result,
+              metadata: { operation: "ssh_host_key_enrollment", source: source, host: key&.host || enrollment_params[:host], port: key&.port || enrollment_params[:port], fingerprint: key&.fingerprint, error_class: error&.class&.name }.compact)
+          end
 
           def require_credential_store_enabled
             return if ::CredentialStore.enabled?

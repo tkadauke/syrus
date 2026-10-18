@@ -74,6 +74,23 @@ export type CredentialStoreInput = {
   expires_at: string | null
 }
 
+export type SshHostKeyEnrollment = {
+  host: string
+  port: number
+  key_type: string
+  fingerprint: string
+  known_host: string
+}
+
+export type SshEnrollmentInput = {
+  credential_id?: number
+  scope_type: CredentialStoreCredential["scope_type"]
+  scope_id: number | null
+  host: string
+  port: number
+  known_host?: string
+}
+
 const BASE = "/api/v1/app/credential_store/credentials"
 
 export function fetchCredentialStore() {
@@ -98,4 +115,18 @@ export function revokeCredentialStoreCredential(id: number) {
 
 export function deleteCredentialStoreCredential(id: number) {
   return deleteJson<CredentialStorePayload>(`${BASE}/${id}`)
+}
+
+export function probeSshHostKey(input: SshEnrollmentInput) {
+  return postJson<{ enrollment: SshHostKeyEnrollment }>("/api/v1/app/credential_store/ssh_host_keys/probe", { enrollment: input })
+}
+
+export function inspectSshHostKey(input: SshEnrollmentInput) {
+  return postJson<{ enrollment: SshHostKeyEnrollment }>("/api/v1/app/credential_store/ssh_host_keys/inspect", { enrollment: input })
+}
+
+export function confirmSshHostKey(input: SshEnrollmentInput) {
+  return postJson<{ enrollment: SshHostKeyEnrollment; credential?: CredentialStoreCredential }>("/api/v1/app/credential_store/ssh_host_keys/confirm", {
+    enrollment: input
+  })
 }

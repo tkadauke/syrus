@@ -4,10 +4,19 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
+import {
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  type AdminEventLogTableColumn,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  adminEventLinkClass,
+  severityPillClass
+} from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
+import { WorkflowReference } from "../components/WorkflowReference"
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -31,12 +40,7 @@ export function AdminReconcilerActivity() {
   return (
     <AdminEventPageShell
       actions={
-        <Button
-          className="shrink-0"
-          disabled={activity.isFetching}
-          onClick={() => void activity.refetch()}
-          variant="secondary"
-        >
+        <Button className="shrink-0" disabled={activity.isFetching} onClick={() => void activity.refetch()} variant="secondary">
           {activity.isFetching ? t("reconciler_activity.refreshing") : t("reconciler_activity.refresh")}
         </Button>
       }
@@ -44,15 +48,27 @@ export function AdminReconcilerActivity() {
       eyebrow={t("section_label")}
       title={t("reconciler_activity.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("reconciler_activity.clear_filters")} filter={activity.data?.filter} filterSchema={activity.data?.filter_schema} fields={[
-        { name: "event_type", label: t("reconciler_activity.filter_event_type"), options: [
-          { value: "", label: t("reconciler_activity.all_event_types") },
-          ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))
-        ] },
-        { name: "job_id", label: t("reconciler_activity.filter_job"), inputMode: "numeric" },
-        { name: "workflow_id", label: t("reconciler_activity.filter_workflow"), inputMode: "numeric" },
-        { name: "run_id", label: t("reconciler_activity.filter_run"), inputMode: "numeric" }
-      ]} search={location.search} searchLabel={t("reconciler_activity.apply_filters")} onNavigate={navigateSearch} />
+      <AdminEventFilterBar
+        clearLabel={t("reconciler_activity.clear_filters")}
+        filter={activity.data?.filter}
+        filterSchema={activity.data?.filter_schema}
+        fields={[
+          {
+            name: "event_type",
+            label: t("reconciler_activity.filter_event_type"),
+            options: [
+              { value: "", label: t("reconciler_activity.all_event_types") },
+              ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))
+            ]
+          },
+          { name: "job_id", label: t("reconciler_activity.filter_job"), inputMode: "numeric" },
+          { name: "workflow_id", label: t("reconciler_activity.filter_workflow"), inputMode: "numeric" },
+          { name: "run_id", label: t("reconciler_activity.filter_run"), inputMode: "numeric" }
+        ]}
+        search={location.search}
+        searchLabel={t("reconciler_activity.apply_filters")}
+        onNavigate={navigateSearch}
+      />
 
       {activity.isPending ? <AdminEventPanelMessage>{t("reconciler_activity.loading")}</AdminEventPanelMessage> : null}
       {activity.isError ? <AdminEventPanelMessage tone="error">{t("reconciler_activity.error_load")}</AdminEventPanelMessage> : null}
@@ -61,7 +77,17 @@ export function AdminReconcilerActivity() {
   )
 }
 
-function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (params: URLSearchParams) => void; payload: AdminReconcilerActivityPayload; prefix: string; search: string }) {
+function ActivityTable({
+  onNavigate,
+  payload,
+  prefix,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: AdminReconcilerActivityPayload
+  prefix: string
+  search: string
+}) {
   const { t } = useT("admin")
   if (payload.events.length === 0) return <AdminEventPanelMessage>{t("reconciler_activity.no_events")}</AdminEventPanelMessage>
   const columns: Array<AdminEventLogTableColumn<ReconcilerActivityEvent>> = [
@@ -111,7 +137,9 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
           <div>{event.message}</div>
           <details className="mt-1">
             <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">details</summary>
-            <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{JSON.stringify(event.details, null, 2)}</pre>
+            <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
+              {JSON.stringify(event.details, null, 2)}
+            </pre>
           </details>
         </>
       )
@@ -136,7 +164,11 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
       tableClassName="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700"
       onNavigate={onNavigate}
       panel={{
-        summary: t("reconciler_activity.showing", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total }),
+        summary: t("reconciler_activity.showing", {
+          first: payload.pagination.first_item,
+          last: payload.pagination.last_item,
+          total: payload.pagination.total
+        }),
         pagination: {
           ariaLabel: t("reconciler_activity.aria_pagination"),
           label: t("reconciler_activity.page_of", { page: payload.pagination.page, total: payload.pagination.total_pages }),
@@ -160,9 +192,20 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
 
 function ContextLinks({ event, prefix }: { event: ReconcilerActivityEvent; prefix: string }) {
   const links: ReactNode[] = []
-  if (event.job) links.push(<Link className={linkClass()} key="job" to={withRoutePrefix(event.job.path, prefix)}>{event.job.slug}</Link>)
-  if (event.workflow) links.push(<Link className={linkClass()} key="workflow" to={withRoutePrefix(event.workflow.path, prefix)}>{event.workflow.slug}</Link>)
-  if (event.run) links.push(<Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>Run #{event.run.id}</Link>)
+  if (event.job)
+    links.push(
+      <Link className={linkClass()} key="job" to={withRoutePrefix(event.job.path, prefix)}>
+        {event.job.slug}
+      </Link>
+    )
+  if (event.workflow)
+    links.push(<WorkflowReference className={linkClass()} key="workflow" path={withRoutePrefix(event.workflow.path, prefix)} slug={event.workflow.slug} />)
+  if (event.run)
+    links.push(
+      <Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>
+        Run #{event.run.id}
+      </Link>
+    )
   if (links.length === 0) return <span>-</span>
 
   return <span className="flex flex-wrap gap-x-2 gap-y-1">{links}</span>

@@ -302,7 +302,9 @@ chat tool when the plugin is enabled. It accepts a credential id or name,
 file only for the duration of the SSH process, and returns sanitized
 `stdout`, `stderr`, and exit status. Payloads may be a raw private key or JSON
 with `private_key` and optional `passphrase`; passphrases are passed through a
-temporary askpass helper and redacted from results.
+temporary askpass helper and redacted from results. SSH private-key material is
+written with exactly one final newline for OpenSSH compatibility; this runtime
+normalization does not rewrite the encrypted credential payload.
 
 SSH targets use a deliberately narrow syntax. `user` must begin with an ASCII
 letter, digit, or underscore and may then contain only ASCII letters, digits,
@@ -318,10 +320,23 @@ Use target policy on SSH credentials:
 - Set `safe_metadata.host` and `safe_metadata.username` when a key belongs to
   one target account.
 - Set `target_constraints.allowed_hosts` for host allowlists.
-- Set `safe_metadata.known_host` to a full public known-hosts line when the
-  tool must enforce a specific host key.
+- Enroll `safe_metadata.known_host` through the guided Credential Store form.
+  Discovery displays the key type, SHA-256 fingerprint, target, and complete
+  known-hosts line but does not prove identity; verify the fingerprint through
+  a trusted channel and explicitly confirm it. If the web process cannot reach
+  the server, paste a complete known-hosts line for validation and confirmation.
 - Set `safe_metadata.fingerprint` for operator-visible fingerprint tracking;
-  use `known_host` when the tool must enforce host identity.
+  the confirmed `known_host` is what enforces host identity.
+
+Client authentication, destination authorization, and server identity are
+separate controls: the private key authenticates the client;
+`safe_metadata.host` and `target_constraints.allowed_hosts` authorize where it
+may connect; the confirmed known-hosts line identifies the server. SSH
+execution fails before spawning `ssh` when enrollment is missing. Confirmed
+entries are written to a credential-specific temporary `0600` file and used
+with `StrictHostKeyChecking=yes`; Syrus never falls back to a worker user's
+ambient known-hosts file. Replacing a key repeats the fingerprint confirmation
+flow and shows both fingerprints.
 
 The tool refuses credentials that have no host, known-host, or `allowed_hosts`
 constraint unless a workflow caller explicitly sets

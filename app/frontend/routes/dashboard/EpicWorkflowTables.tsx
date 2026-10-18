@@ -1,4 +1,16 @@
-import { epicApparentState, SortableColumnHeader, TimestampCell, useMediaQuery, EpicCommitsBehindBadge, EpicProgressBar, EpicStuckBadge, NeutralStatePill, OwnerBadge, RepositorySlugLink, workflowLabel } from "./components"
+import {
+  epicApparentState,
+  SortableColumnHeader,
+  TimestampCell,
+  useMediaQuery,
+  EpicCommitsBehindBadge,
+  EpicProgressBar,
+  EpicStuckBadge,
+  NeutralStatePill,
+  OwnerBadge,
+  RepositorySlugLink,
+  workflowLabel
+} from "./components"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { bulkButtonClass, columnAriaSort, compactText, epicDateValue, humanizeOption, withRoutePrefix, workflowDateValue } from "./helpers"
 import type { DashboardSortState } from "./helpers"
@@ -14,7 +26,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
-
+import { WorkflowReference } from "../../components/WorkflowReference"
 
 // Dashboard epic + workflow tables extracted from Dashboard.tsx: EpicsTable and
 // WorkflowsTable with their bulk actions, mobile lists, and per-row cells.
@@ -25,10 +37,24 @@ import { errorMessage } from "../../lib/errorMessage"
 // see User::DASHBOARD_REQUIRED_COLUMNS plus epicTableColumns' unconditional
 // checkbox prepend -- so these stay static here rather than threading
 // `controls` down from Dashboard.tsx just for this.
-const EPIC_REQUIRED_COLUMNS = [ "checkbox", "epic" ]
-const WORKFLOW_REQUIRED_COLUMNS = [ "workflow", "job" ]
+const EPIC_REQUIRED_COLUMNS = ["checkbox", "epic"]
+const WORKFLOW_REQUIRED_COLUMNS = ["workflow", "job"]
 
-export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPending, sortState }: { columns: string[]; items: DashboardEpicItem[]; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState }) {
+export function EpicsTable({
+  columns,
+  items,
+  onReorderColumns,
+  prefix,
+  reorderPending,
+  sortState
+}: {
+  columns: string[]
+  items: DashboardEpicItem[]
+  onReorderColumns?: (nextOrder: string[]) => void
+  prefix: string
+  reorderPending?: boolean
+  sortState: DashboardSortState
+}) {
   const { t } = useT("dashboard")
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
@@ -53,7 +79,7 @@ export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPe
   function toggleAll() {
     setSelectedIds((current) => {
       if (allSelected) return new Set()
-      return new Set([ ...Array.from(current), ...visibleIds ])
+      return new Set([...Array.from(current), ...visibleIds])
     })
   }
 
@@ -72,28 +98,34 @@ export function EpicsTable({ columns, items, onReorderColumns, prefix, reorderPe
       {isDesktop ? (
         <DataTable.Root>
           <DataTable.Header>
-              <DataTable.Row>
+            <DataTable.Row>
+              {orderedColumns.map((column) => (
+                <DataTable.HeadCell
+                  aria-sort={columnAriaSort("epic", column, sortState)}
+                  checkbox={column === "checkbox"}
+                  className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+                  key={column}
+                  {...(draggable(column) ? dragProps(column) : {})}
+                >
+                  {column === "checkbox" ? (
+                    <Checkbox aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} />
+                  ) : (
+                    <SortableColumnHeader column={column} sortState={sortState} subject="epic" />
+                  )}
+                </DataTable.HeadCell>
+              ))}
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {items.map((epic) => (
+              <DataTable.Row key={epic.id}>
                 {orderedColumns.map((column) => (
-                  <DataTable.HeadCell
-                    aria-sort={columnAriaSort("epic", column, sortState)}
-                    checkbox={column === "checkbox"}
-                    className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
-                    key={column}
-                    {...(draggable(column) ? dragProps(column) : {})}
-                  >
-                    {column === "checkbox" ? <Checkbox aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
-                  </DataTable.HeadCell>
+                  <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />
                 ))}
               </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-              {items.map((epic) => (
-                <DataTable.Row key={epic.id}>
-                  {orderedColumns.map((column) => <EpicCell column={column} epic={epic} key={column} onToggleOne={toggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
-                </DataTable.Row>
-              ))}
-            </DataTable.Body>
-          </DataTable.Root>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       ) : (
         <MobileEpicsList items={items} onToggleOne={toggleOne} prefix={prefix} selectedIds={selectedIds} />
       )}
@@ -128,30 +160,61 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
       <div>
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
+        {action.isError ? (
+          <span className="ml-3 text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(action.error, t("bulk_action_error"))}
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">{t("move_to_in_progress")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("start")} type="button">
+          {t("move_to_in_progress")}
+        </button>
       </div>
     </div>
   )
 }
 
-function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: DashboardEpicItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string }) {
+function MobileEpicsList({
+  items,
+  selectedIds,
+  onToggleOne,
+  prefix
+}: {
+  items: DashboardEpicItem[]
+  selectedIds: Set<number>
+  onToggleOne: (id: number) => void
+  prefix: string
+}) {
   return (
     <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {items.map((epic) => <MobileEpicRow epic={epic} key={epic.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />)}
+        {items.map((epic) => (
+          <MobileEpicRow epic={epic} key={epic.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(epic.id)} />
+        ))}
       </div>
     </div>
   )
 }
 
-function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+function MobileEpicRow({
+  epic,
+  selected,
+  onToggleOne,
+  prefix
+}: {
+  epic: DashboardEpicItem
+  selected: boolean
+  onToggleOne: (id: number) => void
+  prefix: string
+}) {
   const { t } = useT("dashboard")
   const showProgress = epicProgressVisible(epic)
   return (
-    <article aria-label={`${epic.display_number} ${epic.title}`} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 overflow-hidden px-4 pt-3 text-gray-700 dark:text-gray-200 ${showProgress ? "" : "pb-3"}`}>
+    <article
+      aria-label={`${epic.display_number} ${epic.title}`}
+      className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 overflow-hidden px-4 pt-3 text-gray-700 dark:text-gray-200 ${showProgress ? "" : "pb-3"}`}
+    >
       <Checkbox aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} />
       <div className="min-w-0 pb-3">
         <div className="mb-1 flex flex-wrap gap-1">
@@ -163,9 +226,17 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <SlugHoverCard id={epic.id} kind="epic">
             <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
           </SlugHoverCard>
-          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+          <Link
+            aria-label={`${epic.display_number} ${epic.title}`}
+            className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            to={withRoutePrefix(epic.paths.epic_path, prefix)}
+          >
+            {epic.title}
+          </Link>
         </div>
-        {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p> : null}
+        {compactText(epic.description) ? (
+          <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p>
+        ) : null}
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={epic.repository} />
           <OwnerBadge badge={epic.owner_badge} />
@@ -180,17 +251,37 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
   )
 }
 
-function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+function EpicCell({
+  epic,
+  column,
+  selected,
+  onToggleOne,
+  prefix
+}: {
+  epic: DashboardEpicItem
+  column: string
+  selected: boolean
+  onToggleOne: (id: number) => void
+  prefix: string
+}) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <DataTable.Cell className="align-top"><Checkbox aria-label={t("select_item", { title: epic.title })} checked={selected} onChange={() => onToggleOne(epic.id)} /></DataTable.Cell>
+    return (
+      <DataTable.Cell className="align-top">
+        <Checkbox aria-label={t("select_item", { title: epic.title })} checked={selected} onChange={() => onToggleOne(epic.id)} />
+      </DataTable.Cell>
+    )
   }
   if (column === "epic") {
     return (
       <DataTable.Cell className="max-w-md">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.paths.epic_path, prefix)}>
+          {epic.title}
+        </Link>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
-          <SlugHoverCard id={epic.id} kind="epic">{epic.display_number}</SlugHoverCard>
+          <SlugHoverCard id={epic.id} kind="epic">
+            {epic.display_number}
+          </SlugHoverCard>
         </div>
       </DataTable.Cell>
     )
@@ -212,9 +303,22 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
       </DataTable.Cell>
     )
   }
-  if (column === "owner") return <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-300"><OwnerBadge badge={epic.owner_badge} /></DataTable.Cell>
+  if (column === "owner")
+    return (
+      <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-300">
+        <OwnerBadge badge={epic.owner_badge} />
+      </DataTable.Cell>
+    )
   if (column === "repository") {
-    return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={epic.repository} /></DataTable.Cell>
+    return (
+      <DataTable.Cell>
+        <RepositorySlugLink
+          className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300"
+          prefix={prefix}
+          repository={epic.repository}
+        />
+      </DataTable.Cell>
+    )
   }
   if (column === "updated") return <TimestampCell value={epic.updated_at} />
   if (column === "number") return <TextCell mono value={String(epic.number)} />
@@ -232,7 +336,21 @@ function epicProgressVisible(epic: DashboardEpicItem) {
   return epic.state === "in_progress" && epic.jobs_count > 0
 }
 
-export function WorkflowsTable({ columns, items, onReorderColumns, prefix, reorderPending, sortState }: { columns: string[]; items: DashboardWorkflowItem[]; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState }) {
+export function WorkflowsTable({
+  columns,
+  items,
+  onReorderColumns,
+  prefix,
+  reorderPending,
+  sortState
+}: {
+  columns: string[]
+  items: DashboardWorkflowItem[]
+  onReorderColumns?: (nextOrder: string[]) => void
+  prefix: string
+  reorderPending?: boolean
+  sortState: DashboardSortState
+}) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { dragOverKey, dragProps, draggable, orderedColumns } = useOrderedColumns({
     columns,
@@ -246,27 +364,29 @@ export function WorkflowsTable({ columns, items, onReorderColumns, prefix, reord
   return (
     <DataTable.Root>
       <DataTable.Header>
-          <DataTable.Row>
+        <DataTable.Row>
+          {orderedColumns.map((column) => (
+            <DataTable.HeadCell
+              aria-sort={columnAriaSort("workflow", column, sortState)}
+              className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+              key={column}
+              {...(draggable(column) ? dragProps(column) : {})}
+            >
+              <SortableColumnHeader column={column} sortState={sortState} subject="workflow" />
+            </DataTable.HeadCell>
+          ))}
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {items.map((workflow) => (
+          <DataTable.Row key={workflow.id}>
             {orderedColumns.map((column) => (
-              <DataTable.HeadCell
-                aria-sort={columnAriaSort("workflow", column, sortState)}
-                className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
-                key={column}
-                {...(draggable(column) ? dragProps(column) : {})}
-              >
-                <SortableColumnHeader column={column} sortState={sortState} subject="workflow" />
-              </DataTable.HeadCell>
+              <WorkflowCell column={column} key={column} prefix={prefix} workflow={workflow} />
             ))}
           </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {items.map((workflow) => (
-            <DataTable.Row key={workflow.id}>
-              {orderedColumns.map((column) => <WorkflowCell column={column} key={column} prefix={prefix} workflow={workflow} />)}
-            </DataTable.Row>
-          ))}
-        </DataTable.Body>
-      </DataTable.Root>
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -274,7 +394,9 @@ function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]
   return (
     <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {items.map((workflow) => <MobileWorkflowRow key={workflow.id} prefix={prefix} workflow={workflow} />)}
+        {items.map((workflow) => (
+          <MobileWorkflowRow key={workflow.id} prefix={prefix} workflow={workflow} />
+        ))}
       </div>
     </div>
   )
@@ -287,14 +409,23 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
   const slug = workflowLabel(workflow)
 
   return (
-    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white" to={withRoutePrefix(workflow.path, prefix)}>
-      <div className="pt-1">
+    <div className="relative grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white">
+      <Link
+        aria-label={`${slug} ${workflow.job.title}`}
+        className="absolute inset-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        to={withRoutePrefix(workflow.path, prefix)}
+      />
+      <div className="pointer-events-none relative z-10 pt-1">
         <StatusPill state={workflow.state} />
       </div>
-      <div className="min-w-0">
+      <div className="pointer-events-none relative z-10 min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{slug}</span>
-          <span className="text-sm font-semibold leading-snug text-brand underline">{workflow.job.title}</span>
+          <span className="pointer-events-auto">
+            <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={slug} />
+          </span>
+          <Link className="pointer-events-auto text-sm font-semibold leading-snug text-brand underline" to={withRoutePrefix(workflow.job.path, prefix)}>
+            {workflow.job.title}
+          </Link>
         </div>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{workflow.job.repository.slug}</div>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -305,7 +436,7 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
           {finishedAt ? <span>{t("finished_at", { date: formatRelativeDate(new Date(finishedAt)) })}</span> : null}
         </div>
       </div>
-    </Link>
+    </div>
   )
 }
 
@@ -313,15 +444,22 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "workflow" || column === "title") {
     return (
       <DataTable.Cell className="font-medium">
-        <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
+        <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={workflowLabel(workflow)} />
       </DataTable.Cell>
     )
   }
-  if (column === "state") return <DataTable.Cell><StatusPill state={workflow.state} /></DataTable.Cell>
+  if (column === "state")
+    return (
+      <DataTable.Cell>
+        <StatusPill state={workflow.state} />
+      </DataTable.Cell>
+    )
   if (column === "job") {
     return (
       <DataTable.Cell className="max-w-md">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(workflow.job.path, prefix)}>
+          {workflow.job.title}
+        </Link>
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={workflow.job.repository} />
           <OwnerBadge badge={workflow.job.owner_badge} />
@@ -344,5 +482,9 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
 }
 
 function TextCell({ value, mono = false }: { value: string | null | undefined; mono?: boolean }) {
-  return <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>{value || "-"}</DataTable.Cell>
+  return (
+    <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>
+      {value || "-"}
+    </DataTable.Cell>
+  )
 }

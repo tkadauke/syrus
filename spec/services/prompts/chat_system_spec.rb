@@ -240,6 +240,13 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Recognize it when the\s+operator uses it/)
   end
 
+  it "instructs chat to use canonical Workflow reference formats" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("`WF-<id>` is the canonical reference format for a Workflow")
+    expect(out).to include("navigation, copying, and its step preview")
+  end
+
   it "instructs chat to resolve a specific chat id directly instead of guessing search_chats keywords" do
     out = described_class.new(repository: repo).to_s
 

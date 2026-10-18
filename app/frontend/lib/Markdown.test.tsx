@@ -38,7 +38,8 @@ function domRect(overrides: Partial<DOMRect> = {}): DOMRect {
 beforeEach(() => {
   setSlugReferenceRegistryForTests([
     registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" }),
-    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" })
+    registryEntry({ prefix: "EPIC", type: "epic", hrefTemplate: "/epics/EPIC-:id" }),
+    registryEntry({ prefix: "WF", type: "workflow", hrefTemplate: "/s/WF-:id" })
   ])
 })
 
@@ -101,7 +102,7 @@ describe("Markdown", () => {
       "| Surface | Notes |",
       "| --- | --- |",
       "| Dashboard Jobs | Long narrative content that should not squeeze the short label column into letter-by-letter wrapping. |",
-      "| Inspector | ALongUnbrokenTokenThatStillNeedsToStayInsideTheChatLayoutWithoutBreakingTheMessageShell |",
+      "| Inspector | ALongUnbrokenTokenThatStillNeedsToStayInsideTheChatLayoutWithoutBreakingTheMessageShell |"
     ].join("\n")
     const { container } = render(<Markdown text={markdown} />)
 
@@ -157,20 +158,26 @@ describe("Markdown", () => {
   })
 
   it("allocates measured table width to prose columns instead of letting short labels dominate", () => {
-    const layout = allocateMarkdownTableColumns([
-      { kind: "label", min: 68, preferred: 92 },
-      { kind: "prose", min: 128, preferred: 620 }
-    ], 360)
+    const layout = allocateMarkdownTableColumns(
+      [
+        { kind: "label", min: 68, preferred: 92 },
+        { kind: "prose", min: 128, preferred: 620 }
+      ],
+      360
+    )
 
     expect(layout.wide).toBe(false)
     expect(layout.widths).toEqual([78, 282])
   })
 
   it("preserves horizontal scrolling only when measured minimum widths cannot fit", () => {
-    const layout = allocateMarkdownTableColumns([
-      { kind: "label", min: 160, preferred: 180 },
-      { kind: "prose", min: 260, preferred: 640 }
-    ], 360)
+    const layout = allocateMarkdownTableColumns(
+      [
+        { kind: "label", min: 160, preferred: 180 },
+        { kind: "prose", min: 260, preferred: 640 }
+      ],
+      360
+    )
 
     expect(layout).toEqual({ wide: true, widths: [160, 260] })
   })
@@ -183,7 +190,8 @@ describe("Markdown", () => {
       if (this.tagName === "TH" || this.tagName === "TD") {
         const text = this.textContent ?? ""
         const measuringMinContent = this.style.width === "min-content"
-        const width = text.includes("Recommendation") || text.includes("Use the browser_use") ? (measuringMinContent ? 128 : 620) : measuringMinContent ? 72 : 92
+        const width =
+          text.includes("Recommendation") || text.includes("Use the browser_use") ? (measuringMinContent ? 128 : 620) : measuringMinContent ? 72 : 92
         return domRect({ width })
       }
       return originalGetBoundingClientRect.call(this)
@@ -226,7 +234,9 @@ describe("Markdown", () => {
 
   it("renders strong emphasis that spans a soft-broken source line", () => {
     const { container } = render(
-      <Markdown text={"## 4. Open-core boundary\n\n**Decision: OSS ships mechanism, including good isolation. Commercial ships\ntenancy.**\n\nIsolation is commodity."} />
+      <Markdown
+        text={"## 4. Open-core boundary\n\n**Decision: OSS ships mechanism, including good isolation. Commercial ships\ntenancy.**\n\nIsolation is commodity."}
+      />
     )
 
     const strong = container.querySelector("p strong")
@@ -276,9 +286,7 @@ describe("Markdown", () => {
   })
 
   it("renders indented lists as children of their parent item", () => {
-    const { container } = render(
-      <Markdown text={"1. First track\n   - Child A\n   - Child B\n2. Second track\n   - Child C"} />
-    )
+    const { container } = render(<Markdown text={"1. First track\n   - Child A\n   - Child B\n2. Second track\n   - Child C"} />)
 
     const topList = container.querySelector("ol")
     expect(topList?.children).toHaveLength(2)
@@ -291,7 +299,11 @@ describe("Markdown", () => {
   it("keeps reported markdown section numbers and nested bullet indentation", () => {
     const { container } = render(
       <MemoryRouter>
-        <Markdown text={"1. **Already in flight**\n   - JOB-110 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - the Tier 1 tool-card work throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."} />
+        <Markdown
+          text={
+            "1. **Already in flight**\n   - JOB-110 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - the Tier 1 tool-card work throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."
+          }
+        />
       </MemoryRouter>
     )
 
@@ -301,7 +313,7 @@ describe("Markdown", () => {
     expect(topItems.map((item) => item.querySelector(":scope > strong")?.textContent)).toEqual([
       "Already in flight",
       "Throughput/review funnel Epic",
-      "Agent Insights infrastructure",
+      "Agent Insights infrastructure"
     ])
     expect(topList?.querySelectorAll(":scope > li > ul")).toHaveLength(3)
     expect(screen.getByText("read_run_worker_health(run_id:)").tagName).toBe("CODE")
@@ -316,6 +328,20 @@ describe("Markdown", () => {
 
     expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
     expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/EPIC-5")
+  })
+
+  it("turns a generated Workflow slug into a navigable, copyable preview reference without touching paths or code blocks", () => {
+    render(
+      <MemoryRouter>
+        <Markdown text={"Inspect WF-42 at /syrus-home/.syrus/workflows/42/repo.\n\n```sh\necho WF-43\n```"} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "WF-42" })).toHaveAttribute("href", "/s/WF-42")
+    expect(screen.getByRole("button", { name: "Copy WF-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WF-43" })).not.toBeInTheDocument()
+    expect(screen.getByText("echo WF-43")).toBeInTheDocument()
+    expect(screen.getByText(/\/syrus-home\/\.syrus\/workflows\/42\/repo/)).toBeInTheDocument()
   })
 
   it("links job and epic slugs inside inline code spans", () => {
@@ -484,9 +510,7 @@ describe("Markdown", () => {
   })
 
   it("renders inline TeX math in list items and table cells", () => {
-    const { container } = render(
-      <Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />
-    )
+    const { container } = render(<Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />)
 
     expect(container.querySelector("li .syrus-inline-math .katex-html")).toBeInTheDocument()
     expect(container.querySelector("td .syrus-inline-math .katex-html")).toBeInTheDocument()

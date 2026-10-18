@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState, type FormEvent, type ReactNode } from "react"
+import { useMemo, useState, type ComponentType, type FormEvent, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 import { Button, DataTable, Input, Modal, Notice, Page, Select, Text, Textarea, TonePill, Toolbar, type DataTableSortDirection } from "@app/components/ui"
-import { FilterBar, filterTreeFromPayload, topFilterChildren, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
+import {
+  FilterBar,
+  filterTreeFromPayload,
+  topFilterChildren,
+  type FilterChip,
+  type FilterNode,
+  type FilterSchemaField,
+  type FilterTree
+} from "@app/components/FilterBar"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -17,13 +25,17 @@ import { useT } from "@app/hooks/useT"
 import { useMediaQuery } from "@app/routes/dashboard/components"
 import {
   createCredentialStoreCredential,
+  confirmSshHostKey,
   fetchCredentialStore,
+  inspectSshHostKey,
+  probeSshHostKey,
   rotateCredentialStoreCredential,
   updateCredentialStoreCredential,
   revokeCredentialStoreCredential,
   type CredentialStoreCredential,
   type CredentialStoreInput,
-  type CredentialStorePayload
+  type CredentialStorePayload,
+  type SshHostKeyEnrollment
 } from "../api/credentialStore"
 
 const QUERY_KEY = ["credential_store", "credentials"]
@@ -31,6 +43,26 @@ const VISIBLE_COLUMNS_STORAGE_KEY = "syrus.credential_store.visible_columns"
 const CREDENTIAL_MODAL_CLASS =
   "flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-panel)] bg-surface shadow-[var(--shadow-panel)]"
 const ROTATION_MODAL_CLASS = "w-full max-w-lg rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+
+export function normalizeSshPrivateKey(privateKey: string) {
+  return `${privateKey.replace(/(?:\r\n|\n)+$/, "")}\n`
+}
+
+export function sshCredentialPayload(value: string, passphrase = "") {
+  let privateKey = value
+  let payloadPassphrase = passphrase
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof (parsed as { private_key?: unknown }).private_key === "string") {
+      privateKey = (parsed as { private_key: string }).private_key
+      const parsedPassphrase = (parsed as { passphrase?: unknown }).passphrase
+      if (!payloadPassphrase && typeof parsedPassphrase === "string") payloadPassphrase = parsedPassphrase
+    }
+  } catch {
+    // Raw private keys are the normal input form.
+  }
+  return JSON.stringify({ private_key: normalizeSshPrivateKey(privateKey), ...(payloadPassphrase ? { passphrase: payloadPassphrase } : {}) })
+}
 
 type SortColumn =
   | "name"
@@ -81,6 +113,14 @@ type Draft = {
   allowed_surfaces: string
   allowed_tools: string
   expires_at: string
+  ssh_private_key: string
+  ssh_passphrase: string
+  ssh_host: string
+  ssh_username: string
+  ssh_port: string
+  ssh_allowed_hosts: string[]
+  ssh_known_host: string
+  ssh_fingerprint: string
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -95,7 +135,15 @@ const EMPTY_DRAFT: Draft = {
   target_constraints: "{}",
   allowed_surfaces: "",
   allowed_tools: "",
-  expires_at: ""
+  expires_at: "",
+  ssh_private_key: "",
+  ssh_passphrase: "",
+  ssh_host: "",
+  ssh_username: "",
+  ssh_port: "22",
+  ssh_allowed_hosts: [],
+  ssh_known_host: "",
+  ssh_fingerprint: ""
 }
 
 type CredentialModalState = { mode: "create" } | { mode: "edit"; credential: CredentialStoreCredential }
@@ -293,44 +341,50 @@ function CredentialForm({
   const scopeOptions = optionsForScope(payload, draft.scope_type)
   const typeOptions = payload.options.credential_types
   const selectedType = typeOptions.find((type) => type.name === draft.credential_type)
+  const SpecializedFields = CREDENTIAL_FORM_FIELDS[draft.credential_type]
 
   return (
     <div className="space-y-4">
-        <Field label={t("name")}>
-          <Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} />
-        </Field>
-        <Field label={t("credential_type")}>
-          <Select value={draft.credential_type} onChange={(event) => onChange({ ...draft, credential_type: event.target.value })}>
-            <option value="">{t("choose_type")}</option>
-            {typeOptions.map((type) => (
-              <option key={type.name} value={type.name}>
-                {type.label} ({type.name})
+      <Field label={t("name")}>
+        <Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} />
+      </Field>
+      <Field label={t("credential_type")}>
+        <Select value={draft.credential_type} onChange={(event) => onChange({ ...draft, credential_type: event.target.value })}>
+          <option value="">{t("choose_type")}</option>
+          {typeOptions.map((type) => (
+            <option key={type.name} value={type.name}>
+              {type.label} ({type.name})
+            </option>
+          ))}
+        </Select>
+        {selectedType?.description ? (
+          <Text muted variant="caption">
+            {selectedType.description}
+          </Text>
+        ) : null}
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("scope_type")}>
+          <Select value={draft.scope_type} onChange={(event) => onChange({ ...draft, scope_type: event.target.value as Draft["scope_type"], scope_id: "" })}>
+            {payload.options.scopes.map((scope) => (
+              <option key={scope.value} value={scope.value}>
+                {scope.label}
               </option>
             ))}
           </Select>
-          {selectedType?.description ? <Text muted variant="caption">{selectedType.description}</Text> : null}
         </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={t("scope_type")}>
-            <Select value={draft.scope_type} onChange={(event) => onChange({ ...draft, scope_type: event.target.value as Draft["scope_type"], scope_id: "" })}>
-              {payload.options.scopes.map((scope) => (
-                <option key={scope.value} value={scope.value}>
-                  {scope.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("scope_target")}>
-            <Select disabled={draft.scope_type === "instance"} value={draft.scope_id} onChange={(event) => onChange({ ...draft, scope_id: event.target.value })}>
-              <option value="">{draft.scope_type === "instance" ? t("scope_instance") : t("choose_scope")}</option>
-              {scopeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
+        <Field label={t("scope_target")}>
+          <Select disabled={draft.scope_type === "instance"} value={draft.scope_id} onChange={(event) => onChange({ ...draft, scope_id: event.target.value })}>
+            <option value="">{draft.scope_type === "instance" ? t("scope_instance") : t("choose_scope")}</option>
+            {scopeOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      {!SpecializedFields ? (
         <Field label={draft.id ? t("payload_optional") : t("payload")}>
           <Textarea
             aria-label={t("payload")}
@@ -340,9 +394,13 @@ function CredentialForm({
             onChange={(event) => onChange({ ...draft, payload: event.target.value })}
           />
         </Field>
-        <Field label={t("description_label")}>
-          <Textarea value={draft.description} onChange={(event) => onChange({ ...draft, description: event.target.value })} />
-        </Field>
+      ) : null}
+      <Field label={t("description_label")}>
+        <Textarea value={draft.description} onChange={(event) => onChange({ ...draft, description: event.target.value })} />
+      </Field>
+      {SpecializedFields ? (
+        <SpecializedFields draft={draft} onChange={onChange} />
+      ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           <Field label={t("safe_metadata")}>
             <Textarea
@@ -350,7 +408,9 @@ function CredentialForm({
               value={draft.safe_metadata}
               onChange={(event) => onChange({ ...draft, safe_metadata: event.target.value })}
             />
-            <Text muted variant="caption">{t("safe_metadata_hint", { keys: payload.options.safe_metadata_keys.join(", ") })}</Text>
+            <Text muted variant="caption">
+              {t("safe_metadata_hint", { keys: payload.options.safe_metadata_keys.join(", ") })}
+            </Text>
             {validationErrors.safe_metadata ? <FieldError>{validationErrors.safe_metadata}</FieldError> : null}
           </Field>
           <Field label={t("target_constraints")}>
@@ -359,22 +419,214 @@ function CredentialForm({
               value={draft.target_constraints}
               onChange={(event) => onChange({ ...draft, target_constraints: event.target.value })}
             />
-            <Text muted variant="caption">{t("target_constraints_hint", { keys: payload.options.target_constraint_keys.join(", ") })}</Text>
+            <Text muted variant="caption">
+              {t("target_constraints_hint", { keys: payload.options.target_constraint_keys.join(", ") })}
+            </Text>
             {validationErrors.target_constraints ? <FieldError>{validationErrors.target_constraints}</FieldError> : null}
           </Field>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={t("allowed_surfaces")}>
-            <Input value={draft.allowed_surfaces} onChange={(event) => onChange({ ...draft, allowed_surfaces: event.target.value })} />
-          </Field>
-          <Field label={t("allowed_tools")}>
-            <Input value={draft.allowed_tools} onChange={(event) => onChange({ ...draft, allowed_tools: event.target.value })} />
-          </Field>
-        </div>
-        <Field label={t("expires_at")}>
-          <Input type="datetime-local" value={draft.expires_at} onChange={(event) => onChange({ ...draft, expires_at: event.target.value })} />
-        </Field>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ListField
+          label={t("allowed_surfaces")}
+          values={splitList(draft.allowed_surfaces)}
+          onChange={(values) => onChange({ ...draft, allowed_surfaces: values.join(", ") })}
+        />
+        <ListField
+          label={t("allowed_tools")}
+          values={splitList(draft.allowed_tools)}
+          onChange={(values) => onChange({ ...draft, allowed_tools: values.join(", ") })}
+        />
+      </div>
+      <Field label={t("expires_at")}>
+        <Input type="datetime-local" value={draft.expires_at} onChange={(event) => onChange({ ...draft, expires_at: event.target.value })} />
+      </Field>
     </div>
+  )
+}
+
+type SpecializedFieldsProps = { draft: Draft; onChange: (draft: Draft) => void }
+const CREDENTIAL_FORM_FIELDS: Record<string, ComponentType<SpecializedFieldsProps>> = { ssh_private_key: SshPrivateKeyFields }
+
+function SshPrivateKeyFields({ draft, onChange }: SpecializedFieldsProps) {
+  const { t } = useT("credential_store")
+  const [candidate, setCandidate] = useState<SshHostKeyEnrollment | null>(null)
+  const [manual, setManual] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const enrollmentInput = {
+    ...(draft.id ? { credential_id: draft.id } : {}),
+    scope_type: draft.scope_type,
+    scope_id: draft.scope_type === "instance" ? null : Number(draft.scope_id || 0),
+    host: draft.ssh_host,
+    port: Number(draft.ssh_port || 22)
+  }
+
+  function changeTarget(values: Pick<Draft, "ssh_host"> | Pick<Draft, "ssh_port">) {
+    setCandidate(null)
+    onChange({ ...draft, ...values, ssh_known_host: "", ssh_fingerprint: "" })
+  }
+
+  async function loadCandidate(request: () => Promise<{ enrollment: SshHostKeyEnrollment }>, fallback: string) {
+    setPending(true)
+    setError(null)
+    setCandidate(null)
+    try {
+      setCandidate((await request()).enrollment)
+    } catch (cause) {
+      setError(errorMessage(cause, fallback))
+    } finally {
+      setPending(false)
+    }
+  }
+  async function confirm() {
+    if (!candidate) return
+    setPending(true)
+    setError(null)
+    try {
+      const confirmed = (await confirmSshHostKey({ ...enrollmentInput, known_host: candidate.known_host })).enrollment
+      onChange({
+        ...draft,
+        ssh_host: confirmed.host,
+        ssh_port: String(confirmed.port),
+        ssh_known_host: confirmed.known_host,
+        ssh_fingerprint: confirmed.fingerprint
+      })
+      setCandidate(null)
+      setManual("")
+    } catch (cause) {
+      setError(errorMessage(cause, t("ssh_confirm_error")))
+    } finally {
+      setPending(false)
+    }
+  }
+  const replacing = Boolean(candidate && draft.ssh_fingerprint && candidate.fingerprint !== draft.ssh_fingerprint)
+  return (
+    <section className="space-y-4 rounded border border-border p-4" aria-label={t("ssh_settings")}>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Field label={draft.id ? t("ssh_private_key_optional") : t("ssh_private_key")}>
+          <Textarea
+            aria-label={t("ssh_private_key")}
+            autoComplete="new-password"
+            value={draft.ssh_private_key}
+            onChange={(event) => onChange({ ...draft, ssh_private_key: event.target.value })}
+          />
+        </Field>
+        <Field label={draft.id ? t("ssh_passphrase_optional_edit") : t("ssh_passphrase_optional")}>
+          <Input
+            aria-label={t("ssh_passphrase_optional")}
+            autoComplete="new-password"
+            type="password"
+            value={draft.ssh_passphrase}
+            onChange={(event) => onChange({ ...draft, ssh_passphrase: event.target.value })}
+          />
+        </Field>
+        <Field label={t("ssh_host")}>
+          <Input value={draft.ssh_host} onChange={(event) => changeTarget({ ssh_host: event.target.value })} />
+        </Field>
+        <Field label={t("ssh_username")}>
+          <Input value={draft.ssh_username} onChange={(event) => onChange({ ...draft, ssh_username: event.target.value })} />
+        </Field>
+        <Field label={t("ssh_port")}>
+          <Input min="1" max="65535" type="number" value={draft.ssh_port} onChange={(event) => changeTarget({ ssh_port: event.target.value })} />
+        </Field>
+      </div>
+      <ListField
+        hostValidation
+        label={t("ssh_allowed_hosts")}
+        values={draft.ssh_allowed_hosts}
+        onChange={(values) => onChange({ ...draft, ssh_allowed_hosts: values })}
+      />
+      <div className="space-y-2 rounded bg-surface-muted p-3">
+        <Text className="font-medium">{draft.ssh_fingerprint ? t("ssh_enrolled", { fingerprint: draft.ssh_fingerprint }) : t("ssh_not_enrolled")}</Text>
+        <Text muted variant="caption">
+          {t("ssh_identity_warning")}
+        </Text>
+        <Button
+          disabled={pending || !draft.ssh_host}
+          onClick={() => loadCandidate(() => probeSshHostKey(enrollmentInput), t("ssh_probe_error"))}
+          type="button"
+          variant="secondary"
+        >
+          {t("ssh_probe")}
+        </Button>
+        <Field label={t("ssh_manual_line")}>
+          <Textarea value={manual} onChange={(event) => setManual(event.target.value)} />
+        </Field>
+        <Button
+          disabled={pending || !manual.trim() || !draft.ssh_host}
+          onClick={() => loadCandidate(() => inspectSshHostKey({ ...enrollmentInput, known_host: manual }), t("ssh_manual_error"))}
+          type="button"
+          variant="secondary"
+        >
+          {t("ssh_validate_manual")}
+        </Button>
+        {candidate ? (
+          <div className="space-y-2 rounded border border-border bg-surface p-3" role="status">
+            {replacing ? (
+              <Notice tone="danger">{t("ssh_replacement_warning", { old: draft.ssh_fingerprint, replacement: candidate.fingerprint })}</Notice>
+            ) : null}
+            <Text>{t("ssh_candidate", { type: candidate.key_type, fingerprint: candidate.fingerprint, host: candidate.host, port: candidate.port })}</Text>
+            <pre className="overflow-auto whitespace-pre-wrap break-all text-xs">{candidate.known_host}</pre>
+            <Button disabled={pending} onClick={confirm} type="button">
+              {replacing ? t("ssh_confirm_replace") : t("ssh_confirm")}
+            </Button>
+          </div>
+        ) : null}
+        {error ? <FieldError>{error}</FieldError> : null}
+      </div>
+    </section>
+  )
+}
+
+function ListField({
+  hostValidation = false,
+  label,
+  onChange,
+  values
+}: {
+  hostValidation?: boolean
+  label: string
+  onChange: (values: string[]) => void
+  values: string[]
+}) {
+  const { t } = useT("credential_store")
+  const [value, setValue] = useState("")
+  const valid = !hostValidation || /^[A-Za-z0-9][A-Za-z0-9.:-]*$/.test(value)
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-text-primary">{label}</legend>
+      <div className="flex gap-2">
+        <Input aria-label={t("list_value", { label })} value={value} onChange={(event) => setValue(event.target.value)} />
+        <Button
+          disabled={!value.trim() || !valid}
+          onClick={() => {
+            onChange([...values, value.trim()].filter((item, index, all) => all.indexOf(item) === index))
+            setValue("")
+          }}
+          type="button"
+          variant="secondary"
+        >
+          {t("add")}
+        </Button>
+      </div>
+      {!valid && value ? <FieldError>{t("ssh_invalid_host")}</FieldError> : null}
+      <div className="flex flex-wrap gap-2">
+        {values.map((item) => (
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-1 text-sm" key={item}>
+            {item}
+            <button
+              aria-label={t("remove_value", { value: item })}
+              className="text-danger-text"
+              onClick={() => onChange(values.filter((entry) => entry !== item))}
+              type="button"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+    </fieldset>
   )
 }
 
@@ -400,22 +652,27 @@ function CredentialList({
   const [sortState, setSortState] = useState<SortState>(DEFAULT_SORT)
   const filterTree = useMemo(() => filterTreeFromSearch(search), [search])
   const filterSchema = useMemo(() => credentialFilterSchema(payload, t), [payload, t])
-  const columns = useMemo(
-    () => buildCredentialColumns({ isRevoking, onEdit, onRevoke, onRotate, t }),
-    [isRevoking, onEdit, onRevoke, onRotate, t]
-  )
+  const columns = useMemo(() => buildCredentialColumns({ isRevoking, onEdit, onRevoke, onRotate, t }), [isRevoking, onEdit, onRevoke, onRotate, t])
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: VISIBLE_COLUMNS_STORAGE_KEY })
   const filteredCredentials = useMemo(
-    () => sortedCredentials(payload.credentials.filter((credential) => credentialMatchesFilter(credential, filterTree)), sortState),
+    () =>
+      sortedCredentials(
+        payload.credentials.filter((credential) => credentialMatchesFilter(credential, filterTree)),
+        sortState
+      ),
     [filterTree, payload.credentials, sortState]
   )
   const emptyMessage = payload.credentials.length === 0 ? t("empty") : t("no_matches")
 
   function toggleSortColumn(column: SortColumn) {
-    setSortState((current) => current.column === column ? {
-      column,
-      direction: current.direction === "ascending" ? "descending" : "ascending"
-    } : { column, direction: "ascending" })
+    setSortState((current) =>
+      current.column === column
+        ? {
+            column,
+            direction: current.direction === "ascending" ? "descending" : "ascending"
+          }
+        : { column, direction: "ascending" }
+    )
   }
 
   return (
@@ -538,7 +795,9 @@ function CredentialMobileList({
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
-                <Text className="truncate font-medium" as="p">{credential.name}</Text>
+                <Text className="truncate font-medium" as="p">
+                  {credential.name}
+                </Text>
                 <CredentialStatusPill credential={credential} />
               </div>
               <Text muted variant="caption">
@@ -548,9 +807,15 @@ function CredentialMobileList({
             <CredentialManagementButtons credential={credential} isRevoking={isRevoking} onEdit={onEdit} onRevoke={onRevoke} onRotate={onRotate} />
           </div>
           <div className="grid gap-1 text-[length:var(--text-caption)] text-text-muted">
-            <span>{t("last_used")}: {formatDate(credential.last_access?.created_at || null, t("never"))}</span>
-            <span>{t("last_rotated")}: {formatDate(credential.last_rotated_at, t("never"))}</span>
-            <span>{t("expires")}: {formatDate(credential.expires_at, t("never"))}</span>
+            <span>
+              {t("last_used")}: {formatDate(credential.last_access?.created_at || null, t("never"))}
+            </span>
+            <span>
+              {t("last_rotated")}: {formatDate(credential.last_rotated_at, t("never"))}
+            </span>
+            <span>
+              {t("expires")}: {formatDate(credential.expires_at, t("never"))}
+            </span>
           </div>
         </div>
       ))}
@@ -580,8 +845,14 @@ function buildCredentialColumns({
       cellClassName: "min-w-48",
       renderCell: (credential) => (
         <div className="min-w-0">
-          <Text className="truncate font-medium" as="p">{credential.name}</Text>
-          {credential.description ? <Text className="max-w-64 truncate" muted variant="caption">{credential.description}</Text> : null}
+          <Text className="truncate font-medium" as="p">
+            {credential.name}
+          </Text>
+          {credential.description ? (
+            <Text className="max-w-64 truncate" muted variant="caption">
+              {credential.description}
+            </Text>
+          ) : null}
         </div>
       )
     },
@@ -663,11 +934,14 @@ function buildCredentialColumns({
       label: t("last_access_result"),
       defaultVisible: false,
       sortKey: "last_access_result",
-      renderCell: (credential) => credential.last_access ? t("last_access_detail", {
-        action: credential.last_access.action,
-        surface: credential.last_access.surface,
-        result: credential.last_access.result
-      }) : t("never")
+      renderCell: (credential) =>
+        credential.last_access
+          ? t("last_access_detail", {
+              action: credential.last_access.action,
+              surface: credential.last_access.surface,
+              result: credential.last_access.result
+            })
+          : t("never")
     },
     {
       key: "actions",
@@ -700,9 +974,18 @@ function CredentialManagementButtons({
   const { t } = useT("credential_store")
   return (
     <Toolbar className="justify-end">
-      <Button disabled={!credential.can_manage} onClick={() => onEdit(credential)} size="sm" variant="secondary">{t("edit")}</Button>
-      <Button disabled={!credential.can_manage || Boolean(credential.revoked_at)} onClick={() => onRotate(credential)} size="sm" variant="secondary">{t("rotate")}</Button>
-      <Button disabled={!credential.can_manage || Boolean(credential.revoked_at) || isRevoking === credential.id} onClick={() => onRevoke(credential.id)} size="sm" variant="danger">
+      <Button disabled={!credential.can_manage} onClick={() => onEdit(credential)} size="sm" variant="secondary">
+        {t("edit")}
+      </Button>
+      <Button disabled={!credential.can_manage || Boolean(credential.revoked_at)} onClick={() => onRotate(credential)} size="sm" variant="secondary">
+        {t("rotate")}
+      </Button>
+      <Button
+        disabled={!credential.can_manage || Boolean(credential.revoked_at) || isRevoking === credential.id}
+        onClick={() => onRevoke(credential.id)}
+        size="sm"
+        variant="danger"
+      >
         {t("revoke")}
       </Button>
     </Toolbar>
@@ -724,12 +1007,13 @@ function RotateCredentialModal({
 }) {
   const { t } = useT("credential_store")
   const [payload, setPayload] = useState("")
+  const [sshPassphrase, setSshPassphrase] = useState("")
   const title = t("rotate_title", { name: credential.name })
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!payload.trim()) return
-    onRotate(payload)
+    onRotate(credential.credential_type === "ssh_private_key" ? sshCredentialPayload(payload, sshPassphrase) : payload)
   }
 
   return (
@@ -750,6 +1034,11 @@ function RotateCredentialModal({
             onChange={(event) => setPayload(event.target.value)}
           />
         </Field>
+        {credential.credential_type === "ssh_private_key" ? (
+          <Field label={t("ssh_passphrase_optional")}>
+            <Input autoComplete="new-password" type="password" value={sshPassphrase} onChange={(event) => setSshPassphrase(event.target.value)} />
+          </Field>
+        ) : null}
         {error ? (
           <p className="text-sm text-danger-text" role="alert">
             {errorMessage(error, t("rotate_error"))}
@@ -807,6 +1096,8 @@ function optionsForScope(payload: CredentialStorePayload, scope: CredentialStore
 }
 
 function draftFromCredential(credential: CredentialStoreCredential): Draft {
+  const metadata = credential.safe_metadata || {}
+  const constraints = credential.target_constraints || {}
   return {
     id: credential.id,
     name: credential.name,
@@ -819,7 +1110,15 @@ function draftFromCredential(credential: CredentialStoreCredential): Draft {
     target_constraints: JSON.stringify(credential.target_constraints || {}, null, 2),
     allowed_surfaces: credential.allowed_surfaces.join(", "),
     allowed_tools: credential.allowed_tools.join(", "),
-    expires_at: credential.expires_at ? credential.expires_at.slice(0, 16) : ""
+    expires_at: credential.expires_at ? credential.expires_at.slice(0, 16) : "",
+    ssh_private_key: "",
+    ssh_passphrase: "",
+    ssh_host: String(metadata.host || ""),
+    ssh_username: String(metadata.username || ""),
+    ssh_port: String(metadata.port || 22),
+    ssh_allowed_hosts: Array.isArray(constraints.allowed_hosts) ? constraints.allowed_hosts.map(String) : [],
+    ssh_known_host: String(metadata.known_host || ""),
+    ssh_fingerprint: String(metadata.fingerprint || "")
   }
 }
 
@@ -829,8 +1128,22 @@ function inputFromDraft(
   t: ReturnType<typeof useT>["t"]
 ): { input: CredentialStoreInput | null; errors: ValidationErrors } {
   const fallbackType = payload.options.credential_types[0]?.name || ""
-  const safeMetadata = parseObject(draft.safe_metadata, t("safe_metadata"), t)
-  const targetConstraints = parseObject(draft.target_constraints, t("target_constraints"), t)
+  const ssh = draft.credential_type === "ssh_private_key"
+  const parsedMetadata = parseObject(draft.safe_metadata, t("safe_metadata"), t)
+  const parsedConstraints = parseObject(draft.target_constraints, t("target_constraints"), t)
+  const safeMetadata = ssh
+    ? {
+        value: {
+          ...omitKeys(parsedMetadata.value, ["known_host", "fingerprint"]),
+          host: draft.ssh_host,
+          username: draft.ssh_username,
+          port: Number(draft.ssh_port || 22),
+          ...(draft.ssh_known_host ? { known_host: draft.ssh_known_host, fingerprint: draft.ssh_fingerprint } : {})
+        },
+        error: null
+      }
+    : parsedMetadata
+  const targetConstraints = ssh ? { value: { ...parsedConstraints.value, allowed_hosts: draft.ssh_allowed_hosts }, error: null } : parsedConstraints
   const errors: ValidationErrors = {}
   if (safeMetadata.error) errors.safe_metadata = safeMetadata.error
   if (targetConstraints.error) errors.target_constraints = targetConstraints.error
@@ -848,7 +1161,8 @@ function inputFromDraft(
     allowed_tools: splitList(draft.allowed_tools),
     expires_at: draft.expires_at ? new Date(draft.expires_at).toISOString() : null
   }
-  if (draft.payload.trim()) input.payload = draft.payload
+  if (ssh && draft.ssh_private_key.trim()) input.payload = sshCredentialPayload(draft.ssh_private_key, draft.ssh_passphrase)
+  else if (draft.payload.trim()) input.payload = draft.payload
   return { input, errors: {} }
 }
 
@@ -861,6 +1175,10 @@ function parseObject(value: string, label: string, t: ReturnType<typeof useT>["t
   } catch {
     return { value: {}, error: t("json_parse_error", { field: label }) }
   }
+}
+
+function omitKeys(value: Record<string, unknown>, keys: string[]) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)))
 }
 
 function splitList(value: string) {
@@ -980,24 +1298,29 @@ function credentialMatchesChip(credential: CredentialStoreCredential, chip: Filt
       return value === null || value === undefined || String(value).length === 0
     case "contains":
     default:
-      return String(value ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase())
+      return String(value ?? "")
+        .toLowerCase()
+        .includes(String(expected ?? "").toLowerCase())
   }
 }
 
 function credentialFilterValue(credential: CredentialStoreCredential, field: string): SortValue {
-  if (field === "text") return [
-    credential.name,
-    credential.description,
-    credential.credential_type,
-    credential.scope_type,
-    credential.scope_label,
-    credentialStatus(credential),
-    credential.allowed_surfaces.join(" "),
-    credential.allowed_tools.join(" "),
-    JSON.stringify(credential.safe_metadata || {}),
-    JSON.stringify(credential.target_constraints || {}),
-    credential.last_access?.result
-  ].filter(Boolean).join(" ")
+  if (field === "text")
+    return [
+      credential.name,
+      credential.description,
+      credential.credential_type,
+      credential.scope_type,
+      credential.scope_label,
+      credentialStatus(credential),
+      credential.allowed_surfaces.join(" "),
+      credential.allowed_tools.join(" "),
+      JSON.stringify(credential.safe_metadata || {}),
+      JSON.stringify(credential.target_constraints || {}),
+      credential.last_access?.result
+    ]
+      .filter(Boolean)
+      .join(" ")
   if (field === "credential_type") return credential.credential_type
   if (field === "scope_type") return credential.scope_type
   if (field === "status") return credentialStatus(credential)

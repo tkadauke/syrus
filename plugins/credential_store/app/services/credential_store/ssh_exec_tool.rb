@@ -6,8 +6,8 @@ module CredentialStore
 
     description "Run a command over SSH using a credential_store ssh_private_key credential lease. " \
                 "The private key is materialized only as a temporary 0600 file, command output is redacted, " \
-                "and credential access is audited. Credentials must be constrained by host metadata, known_host, " \
-                "or allowed_hosts unless allow_unconstrained_host is explicitly true."
+                "and credential access is audited. An explicitly confirmed known_host is required; host metadata " \
+                "or allowed_hosts separately authorize the destination."
 
     input_schema(
       type: "object",

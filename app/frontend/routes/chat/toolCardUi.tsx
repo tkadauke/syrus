@@ -61,11 +61,19 @@ export function stateTone(state: string | null | undefined): Tone {
 
 export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
   const resolvedTone = tone ?? stateTone(state)
-  return <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>{state.replace(/_/g, " ")}</Pill>
+  return (
+    <Pill className="text-2xs font-semibold uppercase" tone={TONE_TO_SEMANTIC_TONE[resolvedTone]}>
+      {state.replace(/_/g, " ")}
+    </Pill>
+  )
 }
 
 export function Badge({ children }: { children: ReactNode }) {
-  return <Pill className="text-2xs" tone="neutral">{children}</Pill>
+  return (
+    <Pill className="text-2xs" tone="neutral">
+      {children}
+    </Pill>
+  )
 }
 
 export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
@@ -75,7 +83,9 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   return (
     <div className="flex flex-wrap gap-1" title={workerCapabilitiesText(capabilities)}>
       {entries.map((entry) => (
-        <Badge key={`${entry.dimension}:${entry.value}`}>{entry.dimension}: {entry.value}</Badge>
+        <Badge key={`${entry.dimension}:${entry.value}`}>
+          {entry.dimension}: {entry.value}
+        </Badge>
       ))}
     </div>
   )
@@ -84,14 +94,22 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
 export function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <Text as="div" variant="label" tone="muted">{label}</Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>{value}</Text>
+      <Text as="div" variant="label" tone="muted">
+        {label}
+      </Text>
+      <Text as="div" className="truncate font-mono text-xs" title={value}>
+        {value}
+      </Text>
     </div>
   )
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <Text as="div" variant="label" tone="muted">{children}</Text>
+  return (
+    <Text as="div" variant="label" tone="muted">
+      {children}
+    </Text>
+  )
 }
 
 export function CardShell({ children }: { children: ReactNode }) {
@@ -101,7 +119,9 @@ export function CardShell({ children }: { children: ReactNode }) {
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
     <Surface className="mt-1" padding="sm" variant="inset">
-      <Text as="div" variant="caption" tone="muted">{children}</Text>
+      <Text as="div" variant="caption" tone="muted">
+        {children}
+      </Text>
     </Surface>
   )
 }
@@ -114,17 +134,7 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
-export type ToolCardEntityKind =
-  | "job"
-  | "epic"
-  | "design_doc"
-  | "chat"
-  | "run"
-  | "workflow"
-  | "pull_request"
-  | "artifact"
-  | "repository"
-  | "proposal"
+export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -154,7 +164,7 @@ type EntityReferenceDefinition = {
   label: (reference: EntityReferenceProps) => string | null
   href: (reference: EntityReferenceProps) => string | null
   copyValue?: (reference: EntityReferenceProps, label: string) => string | null
-  hoverKind?: "job" | "epic" | "chat" | "plugin"
+  hoverKind?: "job" | "epic" | "chat" | "plugin" | "workflow"
   hoverPrefix?: string
 }
 
@@ -172,22 +182,41 @@ const repositoryHref = (reference: EntityReferenceProps) => {
 const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDefinition> = {
   job: { label: (reference) => prefixedEntityLabel("JOB", reference.id), href: idHref("/jobs"), copyValue: slugCopyValue, hoverKind: "job" },
   epic: { label: (reference) => prefixedEntityLabel("EPIC", reference.id), href: idHref("/epics"), copyValue: slugCopyValue, hoverKind: "epic" },
-  design_doc: { label: (reference) => prefixedEntityLabel("DOC", reference.id), href: idHref("/design_docs"), copyValue: slugCopyValue, hoverKind: "plugin", hoverPrefix: "DOC" },
+  design_doc: {
+    label: (reference) => prefixedEntityLabel("DOC", reference.id),
+    href: idHref("/design_docs"),
+    copyValue: slugCopyValue,
+    hoverKind: "plugin",
+    hoverPrefix: "DOC"
+  },
   chat: { label: (reference) => prefixedEntityLabel("CHAT", reference.id), href: idHref("/chats"), copyValue: slugCopyValue, hoverKind: "chat" },
-  run: { label: (reference) => prefixedEntityLabel("RUN", reference.id), href: (reference) => {
-    const jobId = compactEntityValue(reference.jobId)
-    const workflowId = compactEntityValue(reference.workflowId)
-    return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
-  }, copyValue: slugCopyValue },
-  workflow: { label: (reference) => prefixedEntityLabel("WF", reference.id), href: (reference) => {
-    const id = compactEntityValue(reference.id)
-    const jobId = compactEntityValue(reference.jobId)
-    return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
-  }, copyValue: slugCopyValue },
-  pull_request: { label: (reference) => {
-    const id = compactEntityValue(reference.id)
-    return id ? `PR #${id}` : null
-  }, href: (reference) => displayValue(reference.prUrl), copyValue: slugCopyValue },
+  run: {
+    label: (reference) => prefixedEntityLabel("RUN", reference.id),
+    href: (reference) => {
+      const jobId = compactEntityValue(reference.jobId)
+      const workflowId = compactEntityValue(reference.workflowId)
+      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+    },
+    copyValue: slugCopyValue
+  },
+  workflow: {
+    label: (reference) => prefixedEntityLabel("WF", reference.id),
+    href: (reference) => {
+      const id = compactEntityValue(reference.id)
+      const jobId = compactEntityValue(reference.jobId)
+      return id && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${id}` : null
+    },
+    copyValue: slugCopyValue,
+    hoverKind: "workflow"
+  },
+  pull_request: {
+    label: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `PR #${id}` : null
+    },
+    href: (reference) => displayValue(reference.prUrl),
+    copyValue: slugCopyValue
+  },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
@@ -212,7 +241,13 @@ function hoverWrapper(reference: EntityReferenceProps, children: ReactNode) {
   const id = numberValue(reference.id)
   if (id == null) return children
   const definition = ENTITY_REFERENCE_DEFINITIONS[reference.kind]
-  return definition.hoverKind ? <SlugHoverCard id={id} kind={definition.hoverKind} prefix={definition.hoverPrefix}>{children}</SlugHoverCard> : children
+  return definition.hoverKind ? (
+    <SlugHoverCard href={entityReferenceHref(reference)} id={id} kind={definition.hoverKind} prefix={definition.hoverPrefix}>
+      {children}
+    </SlugHoverCard>
+  ) : (
+    children
+  )
 }
 
 const COPY_ICON_BUTTON_CLASS = [
@@ -244,7 +279,11 @@ function entityLabelWrapClass(reference: EntityReferenceProps) {
 
 function linkedEntityReference(label: string, href: string, external: boolean, reference: EntityReferenceProps) {
   const className = `min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`
-  return <a className={className} href={href} rel={external ? "noreferrer" : undefined} target={external ? "_blank" : undefined}>{label}</a>
+  return (
+    <a className={className} href={href} rel={external ? "noreferrer" : undefined} target={external ? "_blank" : undefined}>
+      {label}
+    </a>
+  )
 }
 
 export function EntityReference(reference: EntityReferenceProps) {
@@ -293,7 +332,17 @@ export function truncateLines(text: string, maxLines: number): LinePreview {
   return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
 }
 
-export function LargeTextPreview({ emptyLabel = "No text returned.", label, maxLines = 40, text }: { emptyLabel?: string; label: string; maxLines?: number; text: string | null }) {
+export function LargeTextPreview({
+  emptyLabel = "No text returned.",
+  label,
+  maxLines = 40,
+  text
+}: {
+  emptyLabel?: string
+  label: string
+  maxLines?: number
+  text: string | null
+}) {
   return (
     <Disclosure label={label}>
       <PreviewTextBlock emptyLabel={emptyLabel} maxLines={maxLines} text={text} />
@@ -309,12 +358,28 @@ export function PreviewTextBlock({ emptyLabel = "No text returned.", maxLines = 
   return (
     <>
       <CodeSurface code={preview} maxHeightClassName="max-h-72" />
-      {truncated ? <Text as="div" className="mt-1" variant="caption" tone="muted">Showing first {maxLines} of {totalLines} lines.</Text> : null}
+      {truncated ? (
+        <Text as="div" className="mt-1" variant="caption" tone="muted">
+          Showing first {maxLines} of {totalLines} lines.
+        </Text>
+      ) : null}
     </>
   )
 }
 
-export function FilterableList<T,>({ children, emptyLabel = "No matching rows.", itemText, items, placeholder = "Filter results" }: { children: (items: T[]) => ReactNode; emptyLabel?: string; itemText: (item: T) => string; items: T[]; placeholder?: string }) {
+export function FilterableList<T>({
+  children,
+  emptyLabel = "No matching rows.",
+  itemText,
+  items,
+  placeholder = "Filter results"
+}: {
+  children: (items: T[]) => ReactNode
+  emptyLabel?: string
+  itemText: (item: T) => string
+  items: T[]
+  placeholder?: string
+}) {
   const [query, setQuery] = useState("")
   const normalizedQuery = query.trim().toLowerCase()
   const visibleItems = useMemo(() => {
@@ -334,7 +399,9 @@ export function FilterableList<T,>({ children, emptyLabel = "No matching rows.",
           type="search"
           value={query}
         />
-        <Text as="span" variant="caption" tone="muted">{visibleItems.length} of {items.length}</Text>
+        <Text as="span" variant="caption" tone="muted">
+          {visibleItems.length} of {items.length}
+        </Text>
       </div>
       {visibleItems.length > 0 ? children(visibleItems) : <EmptyState>{emptyLabel}</EmptyState>}
     </div>

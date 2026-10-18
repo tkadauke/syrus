@@ -66,9 +66,20 @@ export const NO_NEWLINE_MARKER = "\\ No newline at end of file"
 // are expected structure, not parse failures, so the generic-fallback
 // warning in parseUnifiedDiff below must not fire for them.
 const RECOGNIZED_META_PREFIXES = [
-  "--- ", "+++ ", "index ", "old mode ", "new mode ", "deleted file mode ",
-  "new file mode ", "copy from ", "copy to ", "rename from ", "rename to ",
-  "similarity index ", "dissimilarity index ", "Binary files "
+  "--- ",
+  "+++ ",
+  "index ",
+  "old mode ",
+  "new mode ",
+  "deleted file mode ",
+  "new file mode ",
+  "copy from ",
+  "copy to ",
+  "rename from ",
+  "rename to ",
+  "similarity index ",
+  "dissimilarity index ",
+  "Binary files "
 ]
 
 function isRecognizedDiffPreambleLine(rawLine: string): boolean {
@@ -85,6 +96,17 @@ export function parseUnifiedDiff(diff: string) {
   let remainingNewLines = 0
   let hunkId = -1
   let hasSeenHunk = false
+  let activeHunkHeader: DiffLine | null = null
+  let activeHunkSuffix = ""
+  let activeHunkLineKeys = new Set<string>()
+
+  function appendHunkBodyLine(line: DiffLine) {
+    const key = `${line.kind}:${line.oldLine ?? ""}:${line.newLine ?? ""}:${line.code}`
+    if (activeHunkLineKeys.has(key)) return
+
+    activeHunkLineKeys.add(key)
+    lines.push(line)
+  }
 
   for (const rawLine of rawLines) {
     const insideHunkBody = remainingOldLines > 0 || remainingNewLines > 0
@@ -98,24 +120,56 @@ export function parseUnifiedDiff(diff: string) {
       newLine = hunkNewStart
       remainingOldLines = hunkOldLines
       remainingNewLines = hunkNewLines
-      hunkId += 1
       hasSeenHunk = true
-      lines.push({ kind: "hunk", oldLine: null, newLine: null, marker: "", code: rawLine, hunkId, hunkOldStart, hunkOldLines, hunkNewStart, hunkNewLines })
+
+      const touchesOrOverlapsActiveHunk =
+        activeHunkHeader &&
+        activeHunkHeader.hunkNewStart != null &&
+        activeHunkHeader.hunkNewLines != null &&
+        hunkNewStart <= activeHunkHeader.hunkNewStart + activeHunkHeader.hunkNewLines
+
+      if (touchesOrOverlapsActiveHunk && activeHunkHeader) {
+        activeHunkHeader.hunkOldLines =
+          Math.max(activeHunkHeader.hunkOldStart! + activeHunkHeader.hunkOldLines!, hunkOldStart + hunkOldLines) - activeHunkHeader.hunkOldStart!
+        activeHunkHeader.hunkNewLines =
+          Math.max(activeHunkHeader.hunkNewStart! + activeHunkHeader.hunkNewLines!, hunkNewStart + hunkNewLines) - activeHunkHeader.hunkNewStart!
+        activeHunkHeader.code = formatHunkHeader(activeHunkHeader, activeHunkSuffix)
+      } else {
+        hunkId += 1
+        activeHunkSuffix = rawLine.slice(hunk[0].length)
+        activeHunkLineKeys = new Set()
+        activeHunkHeader = {
+          kind: "hunk",
+          oldLine: null,
+          newLine: null,
+          marker: "",
+          code: rawLine,
+          hunkId,
+          hunkOldStart,
+          hunkOldLines,
+          hunkNewStart,
+          hunkNewLines
+        }
+        lines.push(activeHunkHeader)
+      }
       continue
     }
 
     if (rawLine.startsWith("diff --git ")) {
+      activeHunkHeader = null
+      activeHunkSuffix = ""
+      activeHunkLineKeys = new Set()
       lines.push(diffLine("file", rawLine))
     } else if (insideHunkBody && rawLine.startsWith("+") && remainingNewLines > 0) {
-      lines.push(diffLine("add", rawLine.slice(1), null, newLine, "+", hunkId))
+      appendHunkBodyLine(diffLine("add", rawLine.slice(1), null, newLine, "+", hunkId))
       if (newLine !== null) newLine += 1
       remainingNewLines -= 1
     } else if (insideHunkBody && rawLine.startsWith("-") && remainingOldLines > 0) {
-      lines.push(diffLine("delete", rawLine.slice(1), oldLine, null, "-", hunkId))
+      appendHunkBodyLine(diffLine("delete", rawLine.slice(1), oldLine, null, "-", hunkId))
       if (oldLine !== null) oldLine += 1
       remainingOldLines -= 1
     } else if (insideHunkBody && rawLine.startsWith(" ") && oldLine !== null && newLine !== null && remainingOldLines > 0 && remainingNewLines > 0) {
-      lines.push(diffLine("context", rawLine.slice(1), oldLine, newLine, "", hunkId))
+      appendHunkBodyLine(diffLine("context", rawLine.slice(1), oldLine, newLine, "", hunkId))
       oldLine += 1
       newLine += 1
       remainingOldLines -= 1
@@ -138,7 +192,7 @@ export function parseUnifiedDiff(diff: string) {
       // silently loses the gutter/coverage alignment for that row, so make
       // it visible in dev instead of degrading without a trace.
       if (import.meta.env.DEV && !isRecognizedDiffPreambleLine(rawLine)) {
-        console.warn("parseUnifiedDiff: unexpected line inside diff, falling back to \"meta\" classification", rawLine)
+        console.warn('parseUnifiedDiff: unexpected line inside diff, falling back to "meta" classification', rawLine)
       }
       lines.push(diffLine("meta", rawLine))
     }
@@ -147,38 +201,57 @@ export function parseUnifiedDiff(diff: string) {
   return lines
 }
 
+function formatHunkHeader(line: DiffLine, suffix: string): string {
+  return `@@ -${line.hunkOldStart},${line.hunkOldLines} +${line.hunkNewStart},${line.hunkNewLines} @@${suffix}`
+}
+
 export function diffLine(kind: DiffLineKind, code: string, oldLine: number | null = null, newLine: number | null = null, marker = "", hunkId = -1): DiffLine {
   return { kind, oldLine, newLine, marker, code, hunkId }
 }
 
 export function diffLineClass(kind: DiffLineKind) {
   switch (kind) {
-    case "add": return "bg-green-50 dark:bg-green-950/40"
-    case "delete": return "bg-red-50 dark:bg-red-950/40"
-    case "hunk": return "bg-info/10 text-info"
-    case "file": return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
-    case "meta": case "no_newline": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
-    default: return "bg-white dark:bg-gray-950"
+    case "add":
+      return "bg-green-50 dark:bg-green-950/40"
+    case "delete":
+      return "bg-red-50 dark:bg-red-950/40"
+    case "hunk":
+      return "bg-info/10 text-info"
+    case "file":
+      return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
+    case "meta":
+    case "no_newline":
+      return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+    default:
+      return "bg-white dark:bg-gray-950"
   }
 }
 
 export function diffGutterClass(kind: DiffLineKind) {
   const base = "w-12 select-none border-r px-2 py-0.5 text-right text-gray-400"
   switch (kind) {
-    case "add": return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
-    case "delete": return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
-    case "hunk": return `${base} border-info/30 bg-info/10 text-info`
-    default: return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
+    case "add":
+      return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
+    case "delete":
+      return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
+    case "hunk":
+      return `${base} border-info/30 bg-info/10 text-info`
+    default:
+      return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
   }
 }
 
 export function diffMarkerClass(kind: DiffLineKind) {
   const base = "w-6 select-none px-2 py-0.5 text-center"
   switch (kind) {
-    case "add": return `${base} text-green-700`
-    case "delete": return `${base} text-red-700`
-    case "hunk": return `${base} text-info`
-    default: return `${base} text-gray-300`
+    case "add":
+      return `${base} text-green-700`
+    case "delete":
+      return `${base} text-red-700`
+    case "hunk":
+      return `${base} text-info`
+    default:
+      return `${base} text-gray-300`
   }
 }
 
@@ -253,8 +326,8 @@ export function contextGapsForHunks(hunks: HunkMeta[], totalFileLines: number | 
     const prev = hunks[i - 1]
     const next = hunks[i]
     const startNew = prev ? prev.newStart + prev.newLines : 1
-    const offset = prev ? (prev.newStart + prev.newLines) - (prev.oldStart + prev.oldLines) : 0
-    const endNew = next ? next.newStart - 1 : (totalFileLines != null ? totalFileLines : Number.POSITIVE_INFINITY)
+    const offset = prev ? prev.newStart + prev.newLines - (prev.oldStart + prev.oldLines) : 0
+    const endNew = next ? next.newStart - 1 : totalFileLines != null ? totalFileLines : Number.POSITIVE_INFINITY
     gaps.push({ startNew, endNew, offset })
   }
   return gaps
@@ -282,13 +355,23 @@ export function remainingInGap(gap: ContextGap, state: GapRevealState | undefine
 // content) around each hunk. Existing hunk lines are never touched or
 // renumbered, so line-comment anchors (keyed by old/new line number) keep
 // pointing at the right row after expansion.
-export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gapStates: Array<GapRevealState | undefined>, fileLines: string[] | null): DiffLine[] {
+export function mergeContextIntoLines(
+  lines: DiffLine[],
+  gaps: ContextGap[],
+  gapStates: Array<GapRevealState | undefined>,
+  fileLines: string[] | null
+): DiffLine[] {
   if (!fileLines || fileLines.length === 0) return lines
 
   const resolvedFileLines = fileLines
   const result: DiffLine[] = []
 
-  function appendGap(gap: ContextGap | undefined, state: GapRevealState | undefined, placement: "beforeHunk" | "afterHunk", hunkIds: { bottom: number; top: number }) {
+  function appendGap(
+    gap: ContextGap | undefined,
+    state: GapRevealState | undefined,
+    placement: "beforeHunk" | "afterHunk",
+    hunkIds: { bottom: number; top: number }
+  ) {
     if (!gap) return
     const size = gapSize(gap)
     if (size <= 0 || !state) return
@@ -439,12 +522,10 @@ function revealedIntervalsForGapPlacement(gap: ContextGap, state: GapRevealState
 }
 
 function mergeIntervals(intervals: RevealedGapSegment[]): RevealedGapSegment[] {
-  const sorted = intervals
-    .filter(isOrderedSegment)
-    .sort((a, b) => {
-      const startComparison = a.startNew - b.startNew
-      return startComparison === 0 ? a.endNew - b.endNew : startComparison
-    })
+  const sorted = intervals.filter(isOrderedSegment).sort((a, b) => {
+    const startComparison = a.startNew - b.startNew
+    return startComparison === 0 ? a.endNew - b.endNew : startComparison
+  })
   const merged: RevealedGapSegment[] = []
 
   for (const interval of sorted) {
