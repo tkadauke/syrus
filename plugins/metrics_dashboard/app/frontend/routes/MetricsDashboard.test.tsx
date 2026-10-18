@@ -76,6 +76,12 @@ describe("MetricsDashboardRoute tabs", () => {
     expect(await screen.findByText(/Cross-process counter capture is unavailable/)).toBeInTheDocument()
   })
 
+  it("warns when one process has failed or stale flushes", async () => {
+    renderRoute(payload({ cluster_counter_capture: "partial" }))
+
+    expect(await screen.findByText(/Cross-process counter capture is partial/)).toBeInTheDocument()
+  })
+
   it("defaults to the first category and shows only that tab's panels", async () => {
     renderRoute()
 

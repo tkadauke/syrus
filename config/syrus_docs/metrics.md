@@ -748,8 +748,20 @@ background thread, adds the deltas to `metric_counter_totals` with one atomic
 reads that table on the metrics tick, and each scrape reconciles the counter up
 to its cluster total -- never down. Instrumentation keeps its guarantees:
 recording only touches the in-memory buffer, never raises, never blocks, and a
-failed flush keeps its deltas for the next one. Increments a process had not
+failed flush keeps its immutable batch for the next one. Each process assigns
+those batches increasing sequence numbers; `metric_counter_contributors`
+stores the last sequence committed for that process in the same transaction as
+the additive upsert. Retrying after an ambiguous post-commit connection error
+therefore acknowledges the already-applied batch instead of adding it twice.
+Increments a process had not
 flushed when it was killed (SIGKILL, OOM) are lost; an orderly exit flushes.
+
+The contributor row also carries success, error, and heartbeat timestamps.
+The sampler publishes capture as `partial` while any recently participating
+process has a failed or stale flush, `unavailable` when the shared snapshot is
+missing, and `available` only when every recent contributor is healthy. Old
+process identities age out of the health decision without deleting their
+deduplication watermark or decreasing the cumulative totals.
 
 The totals are cluster-wide, so every web replica renders the same value: mark
 the comment GLOBAL and aggregate with `max by`, never `sum`. Only counters can
