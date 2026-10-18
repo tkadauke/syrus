@@ -34,6 +34,5 @@ module K8sCluster
     private
 
     attr_reader :env, :argv, :timeout, :max_output_bytes
-
   end
 end
