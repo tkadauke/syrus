@@ -43,10 +43,16 @@ class PreviewProcessLauncher
       @preview_key = key
       prepare! unless prepared
 
-      command = source.start_command_for.call(port: port)
-      spawned_preview = spawn_app(command, port, process_env, preview_workdir, key)
-      pid = spawned_preview.pid
-      Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port, cleanup: -> { cleanup! })
+      begin
+        command = source.start_command_for.call(port: port)
+        spawned_preview = spawn_app(command, port, process_env, preview_workdir, key)
+        pid = spawned_preview.pid
+        Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port, cleanup: -> { cleanup! })
+      rescue StandardError => e
+        terminate_unregistered_preview(spawned_preview)
+        cleanup!
+        raise LaunchError, CommandRedactor.redact(e.message)
+      end
 
       begin
         health_check_url = "http://127.0.0.1:#{port}#{source.health_check_path.presence || '/'}"
@@ -82,6 +88,14 @@ class PreviewProcessLauncher
   end
 
   private
+
+  def terminate_unregistered_preview(spawned_preview)
+    return unless spawned_preview
+
+    Process.kill("-TERM", spawned_preview.pid)
+  rescue Errno::ESRCH, Errno::EPERM
+    nil
+  end
 
   def spawn_app(command, port, env, workdir, key)
     spawn_env = env.merge("PORT" => port.to_s)

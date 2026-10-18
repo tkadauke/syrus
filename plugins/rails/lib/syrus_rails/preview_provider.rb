@@ -6,8 +6,10 @@ require "yaml"
 module SyrusRails
   class PreviewProvider
     RAILS_HEALTH_ROUTE_MARKER = "rails/health#show"
+    POSTGRESQL_READINESS_TIMEOUT_SECONDS = 30
 
     def detect?(repo_path)
+      remove_instance_variable(:@development_adapter) if defined?(@development_adapter) && @repo_path != repo_path
       @repo_path = repo_path
 
       File.exist?(File.join(repo_path, "Gemfile")) &&
@@ -101,7 +103,8 @@ module SyrusRails
     end
 
     def postgresql_readiness_command
-      %(ruby -ruri -rsocket -e 'u=URI(ENV.fetch("DATABASE_URL")); deadline=Process.clock_gettime(Process::CLOCK_MONOTONIC)+30; begin; TCPSocket.new(u.host,u.port||5432).close; rescue SystemCallError,SocketError; raise "PostgreSQL preview infrastructure was not ready within 30 seconds" if Process.clock_gettime(Process::CLOCK_MONOTONIC)>=deadline; sleep 1; retry; end')
+      timeout = POSTGRESQL_READINESS_TIMEOUT_SECONDS
+      %(ruby -ruri -rsocket -e 'u=URI(ENV.fetch("DATABASE_URL")); deadline=Process.clock_gettime(Process::CLOCK_MONOTONIC)+#{timeout}; begin; TCPSocket.new(u.host,u.port||5432).close; rescue SystemCallError,SocketError; raise "PostgreSQL preview infrastructure was not ready within #{timeout} seconds" if Process.clock_gettime(Process::CLOCK_MONOTONIC)>=deadline; sleep 1; retry; end')
     end
 
     def isolated_postgresql_url(key)
