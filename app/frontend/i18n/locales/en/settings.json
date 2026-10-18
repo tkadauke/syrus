@@ -909,6 +909,8 @@
     "insight_scheduling_enable": "Enable automatic insights",
     "insight_scheduling_min_jobs": "Minimum jobs",
     "insight_scheduling_max_jobs": "Maximum jobs",
+    "insight_scheduling_badge_on": "Auto: on (min {{min}} / max {{max}})",
+    "insight_scheduling_badge_off": "Auto: off",
     "insight_scheduling_thresholds_hint": "Insights fire immediately when maximum is reached; the sweep checks every few hours and fires if minimum is reached.",
     "insight_scheduling_save": "Save",
     "insight_scheduling_saving": "Saving…",
