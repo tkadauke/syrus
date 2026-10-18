@@ -138,6 +138,8 @@ RSpec.describe OperationalLogIndex do
     expect(Rails.logger).to receive(:warn).at_least(:once).with(/Search index text truncated.*record_id=#{oversized.id}/)
     described_class.upsert_many([ oversized ])
 
+    text_binds = described_class.send(:insert_binds, oversized).values_at(1, 2, 3)
+    expect(text_binds.sum { |bind| bind.value_before_type_cast.bytesize }).to be <= SearchIndexWriteLimits::MAX_ROW_BYTES
     expect(described_class.search(query: "searchable-prefix", since: 1.hour.ago)).not_to be_empty
     expect(described_class.search(query: "omitted-suffix", since: 1.hour.ago)).to be_empty
   end

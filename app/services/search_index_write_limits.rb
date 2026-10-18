@@ -20,6 +20,41 @@ module SearchIndexWriteLimits
     text.safe_byteslice(0, limit)
   end
 
+  def self.row(fields, index:, record_id:, limit: MAX_ROW_BYTES)
+    remaining = limit
+    fields.to_h do |field, value|
+      text = prefix(value, limit: remaining, index: index, record_id: record_id, field: field)
+      remaining -= text.bytesize
+      [ field, text ]
+    end
+  end
+
+  def self.join_prefix(values, separator: " ", limit:, index:, record_id:, field:)
+    result = +""
+    truncated = false
+
+    values.each do |value|
+      if result.bytesize >= limit
+        truncated = true
+        break
+      end
+
+      text = value.respond_to?(:to_json) ? value.to_json : value.to_s
+      addition = result.empty? ? text : "#{separator}#{text}"
+      if addition.bytesize > limit - result.bytesize
+        result << addition.safe_byteslice(0, limit - result.bytesize)
+        truncated = true
+        break
+      end
+      result << addition
+    end
+
+    Rails.logger.warn(
+      "Search index text truncated index=#{index} record_id=#{record_id} field=#{field} limit=#{limit}"
+    ) if truncated
+    result
+  end
+
   def self.batches(records, max_rows: MAX_BATCH_ROWS, max_bytes: MAX_BATCH_BYTES, &size)
     Enumerator.new do |batches|
       batch = []
