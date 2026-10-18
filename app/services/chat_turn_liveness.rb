@@ -35,6 +35,17 @@ class ChatTurnLiveness
     end
   end
 
+  def failed_chat_turn_job_error
+    message = latest_user_message
+    return unless message
+
+    failed_chat_turn_job_rows(created_after: message.created_at).each do |arguments, error|
+      return normalize_error(error) if chat_turn_job_for_message?(arguments, @chat_session.id, message.id)
+    end
+
+    nil
+  end
+
   private
 
   def active_chat_turn_job_arguments
@@ -51,6 +62,17 @@ class ChatTurnLiveness
       []
     end
   rescue NameError
+    []
+  end
+
+  def failed_chat_turn_job_rows(created_after:)
+    SolidQueue::FailedExecution
+      .joins(:job)
+      .where(solid_queue_jobs: { class_name: "ChatTurnJob", finished_at: nil })
+      .where("solid_queue_jobs.created_at >= ?", created_after)
+      .order("solid_queue_failed_executions.created_at DESC")
+      .pluck("solid_queue_jobs.arguments", "solid_queue_failed_executions.error")
+  rescue ActiveRecord::StatementInvalid, NameError
     []
   end
 
@@ -71,5 +93,11 @@ class ChatTurnLiveness
     Array(payload&.dig("arguments") || payload&.dig(:arguments))
   rescue JSON::ParserError
     []
+  end
+
+  def normalize_error(error)
+    error.respond_to?(:to_h) ? error.to_h.stringify_keys : JSON.parse(error.to_s)
+  rescue JSON::ParserError
+    { "message" => error.to_s }
   end
 end

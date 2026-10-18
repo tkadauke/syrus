@@ -154,6 +154,14 @@ const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
 ].join(",")
 const USER_SCROLL_INTENT_WINDOW_MS = 700
 const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
+const ACTIVE_CHAT_FAST_POLL_WINDOW_MS = 2 * 60_000
+const ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS = 10 * 60_000
+
+export function activeChatRefetchInterval(activeForMs: number) {
+  if (activeForMs < ACTIVE_CHAT_FAST_POLL_WINDOW_MS) return 3_000
+  if (activeForMs < ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS) return 10_000
+  return 30_000
+}
 
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
@@ -183,6 +191,7 @@ export function ChatRoute() {
   const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
+  const activePollingStartedAtRef = useRef<number | null>(null)
   const chat = useQuery({
     queryKey,
     queryFn: async () => {
@@ -199,7 +208,11 @@ export function ChatRoute() {
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
       const data = query.state.data as ChatPayload | undefined
-      if (data && isAgentActive(data)) return 3_000
+      if (data && isAgentActive(data)) {
+        activePollingStartedAtRef.current ??= Date.now()
+        return activeChatRefetchInterval(Date.now() - activePollingStartedAtRef.current)
+      }
+      activePollingStartedAtRef.current = null
       return isDisconnected ? 30_000 : false
     },
     placeholderData: (previousData, previousQuery) => (

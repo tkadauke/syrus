@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute, chatQueryKey, contextFindSurface } from "./Chat"
+import { activeChatRefetchInterval, ChatRoute, chatQueryKey, contextFindSurface } from "./Chat"
 import { Compose } from "./chat/Compose"
 import { MobileChatHeaderContext, type MobileChatHeaderControls } from "./chat/MobileChatHeaderContext"
 import {
@@ -74,6 +74,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
   __resetInFlightComposerDraftsForTests()
+})
+
+describe("activeChatRefetchInterval", () => {
+  it("backs off polling for a turn that remains active for a long time", () => {
+    expect(activeChatRefetchInterval(30_000)).toBe(3_000)
+    expect(activeChatRefetchInterval(3 * 60_000)).toBe(10_000)
+    expect(activeChatRefetchInterval(11 * 60_000)).toBe(30_000)
+  })
 })
 
 // ChatRoute always opens a resource-scoped ChatChannel subscription (see
