@@ -46,6 +46,65 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(chunks).to include("two")
   end
 
+  it "delivers a JSONL record spanning many read chunks to its parser intact" do
+    text_bytes = 128.kilobytes
+    events = []
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-rjson", "-e", "puts JSON.generate(type: 'event', text: 'x' * #{text_bytes})" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      on_output_line: ->(line) { events << JSON.parse(line) }
+    ).run
+
+    expect(result).to be_success
+    expect(events).to eq([ { "type" => "event", "text" => "x" * text_bytes } ])
+  end
+
+  it "rejects an oversized newline-free record instead of sending fragments to a line callback" do
+    payload_bytes = described_class::MAX_OUTPUT_LINE_BYTES + 17
+    lines = []
+
+    expect {
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "STDOUT.write('x' * #{payload_bytes})" ],
+        mounts: described_class.mounts(@dir),
+        network: "grader",
+        timeout: 5,
+        on_output_line: ->(line) { lines << line }
+      ).run
+    }.to raise_error(ProcessRunner::OutputLineTooLongError, /exceeds #{described_class::MAX_OUTPUT_LINE_BYTES}/)
+
+    expect(lines).to be_empty
+  end
+
+  it "lets explicit fragment consumers drain an oversized newline-free record" do
+    payload = "x" * (described_class::MAX_OUTPUT_LINE_BYTES * 2 + 17)
+    complete_lines = []
+    fragments = []
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "STDOUT.write('x' * #{payload.bytesize})" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      on_output_line: ->(line) { complete_lines << line },
+      on_output_line_fragment: ->(fragment) { fragments << fragment }
+    ).run
+
+    expect(result).to be_success
+    expect(fragments.join + complete_lines.join).to eq(payload)
+    expect(fragments.map(&:bytesize)).to eq([
+      described_class::MAX_OUTPUT_LINE_BYTES,
+      described_class::MAX_OUTPUT_LINE_BYTES
+    ])
+    expect(complete_lines.map(&:bytesize)).to eq([ 17 ])
+  end
+
   it "captures bounded, distinct stdout and stderr while writing stdin" do
     capture = described_class.new(
       env: {},
