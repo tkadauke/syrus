@@ -56,6 +56,12 @@ snapshot calls out the launch-relevant groups:
 | Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
+Metrics Dashboard records the same bounded metrics exposed to Prometheus. Its
+feature-usage and admission-decision counters combine increments from every web
+and worker process into monotonic shared totals. If that cross-process snapshot
+is unavailable or stale, those charts omit new readings and show an operator
+warning instead of presenting the recorder process's local zero as complete.
+
 MySQL DB Browser connections inherit access from their Credential Store scope:
 user, repository, team, or instance. New connections default to the creating
 user, while existing instance-scoped connections remain shared until an admin

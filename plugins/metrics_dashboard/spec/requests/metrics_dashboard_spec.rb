@@ -26,6 +26,7 @@ RSpec.describe "GET /api/v1/app/admin/metrics_dashboard", type: :request do
       expect(body["panels"].map { |panel| panel["key"] })
         .to include("queue_oldest_age", "queue_ready", "feature_usage")
       expect(body["windows"]).to include("1h", "24h")
+      expect(body["cluster_counter_capture"]).to eq("unavailable")
     end
 
     # Instance-wide operational numbers -- queue depth, failure counts, which

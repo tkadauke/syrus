@@ -27,6 +27,8 @@ module Metrics
       true
     end
 
+    def self.available? = !Rails.cache.read(CACHE_KEY).nil?
+
     Syrus::Metrics.register_sampler(self)
   end
 end

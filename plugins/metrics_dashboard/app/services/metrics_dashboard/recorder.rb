@@ -5,19 +5,8 @@ module MetricsDashboard
   # charts and an external Prometheus read the same source and cannot disagree
   # (see TextFormatParser).
   #
-  # **What it can and cannot see, stated plainly.** The recorder runs inside one
-  # process and renders that process's registry, after refreshing every
-  # registered sampler's global gauges from the cache. So:
-  #
-  #   * `syrus_global_*` -- accurate. They are sampled cluster-wide into the
-  #     cache by SampleGlobalMetricsJob and are the same everywhere.
-  #   * per-process counters (feature usage) -- only this process's share.
-  #     Counters incremented on web are not visible to a worker, because worker
-  #     pods are not scraped yet and processes share no memory.
-  #
-  # That gap is the unbuilt cross-process capture noted in
-  # docs/plans/complete/prometheus-dashboard.md, not something this plugin works around.
-  # When it lands, these panels gain the data with no change here.
+  # Cluster counters are omitted when their shared snapshot is unavailable;
+  # the recorder process's local zero would be a plausible-looking undercount.
   class Recorder
     class << self
       def record!(...) = new(...).record!
@@ -76,12 +65,21 @@ module MetricsDashboard
     # sampler's refresh is independently rescued so one unreachable source
     # costs its own gauges, not every other sampler's.
     def exposition
+      cluster_counters_available = true
       Syrus::Metrics.samplers.each do |sampler|
-        sampler.refresh_gauges!
+        refreshed = sampler.refresh_gauges!
+        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler && !refreshed
       rescue StandardError => e
+        cluster_counters_available = false if sampler == Metrics::ClusterCounterSampler
         Rails.logger.warn("[MetricsDashboard::Recorder] could not refresh #{sampler}: #{e.class}: #{e.message}")
       end
-      Syrus::Metrics.render
+      rendered = Syrus::Metrics.render
+      return rendered if cluster_counters_available
+
+      cluster_names = Syrus::Metrics.definitions.select(&:cluster).map { |definition| definition.name.to_s }
+      rendered.lines.reject do |line|
+        cluster_names.any? { |name| line.match?(/\A(?:# (?:HELP|TYPE) )?#{Regexp.escape(name)}(?:\{| |$)/) }
+      end.join
     rescue StandardError => e
       Rails.logger.warn("[MetricsDashboard::Recorder] could not render metrics: #{e.class}: #{e.message}")
       ""

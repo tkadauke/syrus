@@ -263,7 +263,7 @@ RSpec.describe RunHostAdmission do
     expect(decision.details["resource_guard_binding_terms"]).not_to include("compute_units")
   end
 
-  # syrus_admission_decisions_total is the same per-process counter
+  # syrus_admission_decisions_total is the same cluster-backed counter
   # WorkflowAdmissionBudget increments; RunHostAdmission's own admit/defer
   # decisions feed it too (see config/syrus_docs/metrics.md). Reads the count
   # before/after since the registry is real and process-global.
