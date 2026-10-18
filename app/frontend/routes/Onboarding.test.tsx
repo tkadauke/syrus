@@ -199,6 +199,23 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(screen.queryByText("Execution scopes and workers")).not.toBeInTheDocument()
   })
 
+  it("shows actionable disposable probe failures and cleanup evidence", async () => {
+    vi.mocked(window.fetch).mockResolvedValue(jsonResponse({ readiness: {
+      status: "ready", summary: "Ready", revision: "abc123", repository_size_bytes: 42, file_count: 2,
+      checks: [], prepare_commands: ["missing-setup"], grader_commands: ["bin/specs"], required_capabilities: { os: ["linux"] }, execution_scopes: [],
+      execution_probe: {
+        id: 9, status: "blocked", revision: "abc123", warning_override: false, started_at: "2026-10-17T00:00:00Z", completed_at: "2026-10-17T00:00:02Z",
+        result: { summary: "A required command could not start; the first implementation run is blocked.", duration_s: 2, disk_growth_bytes: 512, cleanup: "completed", missing_executables: ["missing-setup"], commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }] }
+      }
+    } }))
+
+    renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
+
+    expect(await screen.findByText(/first implementation run is blocked/)).toBeInTheDocument()
+    expect(screen.getByText("Missing executables: missing-setup")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Override warning" })).toBeInTheDocument()
+  })
+
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {
     renderOnboarding(bootstrap())
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_005611) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_031841) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2786,6 +2786,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_005611) do
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"
     t.index ["vcs", "archived_at", "id"], name: "idx_repositories_vcs_active_scan"
+  end
+
+  create_table "repository_execution_probes", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.integer "requested_by_id", null: false
+    t.string "status", default: "queued", null: false
+    t.string "revision"
+    t.json "result", null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.boolean "warning_override", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_repository_execution_probes_on_repository_id"
+    t.index ["requested_by_id"], name: "index_repository_execution_probes_on_requested_by_id"
   end
 
   create_table "repository_final_approvers", force: :cascade do |t|

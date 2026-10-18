@@ -348,6 +348,8 @@ Rails.application.routes.draw do
             post :check_ci_now
             get :coverage_trend
             get :readiness
+            post :readiness_probe
+            post :override_readiness_probe
             get :target_graph, to: "target_graphs#repository"
           end
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
