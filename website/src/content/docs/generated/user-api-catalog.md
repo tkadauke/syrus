@@ -389,6 +389,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | DELETE | `/api/v1/app/tours/reset` | `api/v1/app/tours#reset` |
 | core | GET | `/api/v1/app/users/invitable` | `api/v1/app/users#invitable` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/coverage_hit_map` | `api/v1/app/workflows#coverage_hit_map` |
+| core | GET | `/api/v1/app/workflows/:workflow_id/preview` | `api/v1/app/workflows#preview` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/target_graph` | `api/v1/app/target_graphs#workflow` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/visual_artifact` | `api/v1/app/workflows#visual_artifact` |
 
