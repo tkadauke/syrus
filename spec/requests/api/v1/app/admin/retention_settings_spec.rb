@@ -72,6 +72,8 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
 
   it "shows worker-attributed effective prepared-cache limits in storage diagnostics" do
     sign_in_as(admin)
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_PREPARED_LAYER_CACHE_GB").and_return("99")
     WorkerHostHealthSample.create!(
       hostname: "worker-a",
       worker_storage_key: "storage-a",
@@ -86,6 +88,7 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
 
     get "/api/v1/app/admin/retention_settings"
 
+    expect(parse_body.dig("storage_limits", "prepared_layer_cache_default_bytes")).to eq(10.gigabytes)
     expect(parse_body.dig("storage_limits", "prepared_layer_cache_workers")).to contain_exactly(
       include(
         "hostname" => "worker-a",

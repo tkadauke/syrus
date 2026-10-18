@@ -79,6 +79,18 @@ RSpec.describe WorkerHostHealthSampler do
       )
     end
 
+    it "reports the worker's prepared-cache environment override" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("SYRUS_PREPARED_LAYER_CACHE_GB").and_return("4")
+
+      metrics = described_class.sample(observed_at: Time.zone.parse("2026-07-31 12:00:00 UTC"))
+
+      expect(metrics[:raw_metrics]).to include(
+        prepared_layer_cache_budget_bytes: 4.gigabytes,
+        prepared_layer_cache_budget_source: "worker_environment"
+      )
+    end
+
     it "prefers cgroup v2 pressure files and records their source" do
       allow(File).to receive(:read) do |path|
         case path
