@@ -646,8 +646,6 @@ export type RepositoryNeedsTriageJob = {
   created_at: string
 }
 
-
-
 export type CoverageTrendPoint = {
   date: string
   lines_pct: number | null
@@ -680,11 +678,6 @@ export function fetchRepositoryDetail(id: string, search = "") {
 export function fetchRepositoryCognitiveDebt(id: string) {
   return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt`)
 }
-
-
-
-
-
 
 export function pollRepositoryDetail(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
@@ -735,20 +728,23 @@ export function fetchEditRepositoryForm(id: string) {
 }
 
 export function fetchRepositoryOwners() {
-  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners")
-    .catch((error) => githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"]))
+  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners").catch((error) =>
+    githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"])
+  )
 }
 
 export function fetchRepositoryOptions(owner: string, ownerType: string) {
   const params = new URLSearchParams({ owner, owner_type: ownerType })
-  return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`)
-    .catch((error) => githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"]))
+  return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`).catch((error) =>
+    githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"])
+  )
 }
 
 export function fetchRepositoryBranches(owner: string, name: string) {
   const params = new URLSearchParams({ owner, name })
-  return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`)
-    .catch((error) => githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"]))
+  return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`).catch((error) =>
+    githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"])
+  )
 }
 
 function githubSelectorFallback<T extends { error?: string }>(error: unknown, handledCodes: string[]): T {
@@ -782,14 +778,6 @@ export type RepositoryFlakyTestsPayload = {
 export function fetchRepositoryFlakyTests(path: string) {
   return getJson<RepositoryFlakyTestsPayload>(path)
 }
-
-
-
-
-
-
-
-
 
 export function updateRepository(id: number, values: RepositoryInput) {
   return patchJson<RepositorySavedPayload>(`/api/v1/app/repositories/${id}`, { repository: values })
@@ -872,8 +860,5 @@ export function fetchInsightScheduleConfig(id: number | string) {
 }
 
 export function updateInsightScheduleConfig(id: number | string, values: InsightScheduleConfigInput) {
-  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(
-    `/api/v1/app/repositories/${id}/insight_schedule_config`,
-    values
-  )
+  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(`/api/v1/app/repositories/${id}/insight_schedule_config`, values)
 }
