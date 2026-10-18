@@ -58,6 +58,46 @@ RSpec.describe InputSources::Github do
       expect(job.issue_number).to eq(42)
     end
 
+    it "creates an investigation Job from the investigation label" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", Workflows::INVESTIGATION_LABEL ]) ])
+
+      source.poll!
+
+      expect(Job.last).to be_investigation
+    end
+
+    it "sets the delivery track from a track label" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", "syrus-track-hotfix" ]) ])
+
+      source.poll!
+
+      expect(Job.last.delivery_track).to eq("hotfix")
+    end
+
+    it "applies label-derived attributes to Epic children" do
+      epic = Epic.create!(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/77",
+        title: "Batch epic",
+        description: "Existing epic"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([
+        issue(
+          labels: [ "syrus", Workflows::INVESTIGATION_LABEL, "syrus-track-hotfix" ],
+          body: epic_marker("#77")
+        )
+      ])
+
+      source.poll!
+
+      job = epic.jobs.sole
+      expect(job).to be_investigation
+      expect(job.delivery_track).to eq("hotfix")
+    end
+
     it "enqueues classifier-pending issues through the recovery-aware classifier helper" do
       allow_any_instance_of(User).to receive(:agent_provider_configured?).and_return(true)
       allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue ])
