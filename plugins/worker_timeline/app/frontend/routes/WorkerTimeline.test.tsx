@@ -10,14 +10,14 @@ import type { WorkerTimelineLivePayload, WorkerTimelineMacroPayload } from "../a
 
 function filterSchema() {
   return [
-    { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is" ], typeahead: true },
-    { field: "epic_id", label: "Epic", bucket: "fk", operators: [ "is" ], typeahead: true },
-    { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
+    { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "epic_id", label: "Epic", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "hostname", label: "Hostname", bucket: "fk", operators: ["is"], typeahead: true },
     {
       field: "job_type",
       label: "Job type",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: ["is_one_of"],
       values: [
         { value: "user", label: "User" },
         { value: "system", label: "Infrastructure" }
@@ -27,7 +27,7 @@ function filterSchema() {
       field: "status",
       label: "Status",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: ["is_one_of"],
       values: [
         { value: "queued", label: "Queued" },
         { value: "running", label: "Running" },
@@ -36,7 +36,7 @@ function filterSchema() {
         { value: "cancelled", label: "Cancelled" }
       ]
     },
-    { field: "window", label: "Time window", bucket: "date", operators: [ "within_last", "between" ] }
+    { field: "window", label: "Time window", bucket: "date", operators: ["within_last", "between"] }
   ]
 }
 
@@ -64,6 +64,8 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
     range: { from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" },
     filter: { and: [] },
     filter_schema: filterSchema(),
+    active_smart_folder_id: null,
+    smart_folders: [],
     lanes: [
       {
         key: "durable:storage-a:runs",
@@ -109,7 +111,14 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
             status: "running",
             label: "JOB-43 · pr_comment",
             job_title: "Investigate flaky CI",
-            blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:14:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:16:00Z", available: true, historical: false }
+            blocked: {
+              blocked_reason: "provider_availability",
+              blocked_since: "2026-01-01T00:14:00Z",
+              blocked_details: { provider: "codex" },
+              next_check_at: "2026-01-01T00:16:00Z",
+              available: true,
+              historical: false
+            }
           }
         ]
       }
@@ -125,12 +134,12 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
     range: { from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" },
     filter: { and: [] },
     filter_schema: [
-      { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
+      { field: "hostname", label: "Hostname", bucket: "fk", operators: ["is"], typeahead: true },
       {
         field: "status",
         label: "Status",
         bucket: "enum",
-        operators: [ "is_one_of" ],
+        operators: ["is_one_of"],
         values: [
           { value: "idle", label: "Idle" },
           { value: "busy", label: "Busy" },
@@ -138,9 +147,12 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
           { value: "overloaded", label: "Overloaded" }
         ]
       },
-      { field: "window", label: "Health window", bucket: "date", operators: [ "within_last", "between" ] }
+      { field: "window", label: "Health window", bucket: "date", operators: ["within_last", "between"] }
     ],
-    attribution: { exact_thread_ownership: false, strategy: "Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state." },
+    attribution: {
+      exact_thread_ownership: false,
+      strategy: "Slots are inferred from running spawned processes, claimed worker capacity, and active Run/Workflow state."
+    },
     summary: { total_workers: 2, idle: 1, busy: 1, degraded: 0, overloaded: 0, used_slots: 2, total_slots: 3 },
     workers: [
       {
@@ -148,16 +160,20 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
         hostname: "worker-a",
         worker_storage_key: "storage-a",
         status: "busy",
-        status_reasons: [ "2/2 inferred slots occupied" ],
+        status_reasons: ["2/2 inferred slots occupied"],
         occupancy: { used: 2, total: 2 },
         health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 42, memory_used_percent: 64, io_pressure_some: 5 },
-        sparklines: { cpu: [ { observed_at: "2026-01-01T00:59:00Z", value: 42 } ], memory: [ { observed_at: "2026-01-01T00:59:00Z", value: 64 } ], io: [ { observed_at: "2026-01-01T00:59:00Z", value: 5 } ] },
+        sparklines: {
+          cpu: [{ observed_at: "2026-01-01T00:59:00Z", value: 42 }],
+          memory: [{ observed_at: "2026-01-01T00:59:00Z", value: 64 }],
+          io: [{ observed_at: "2026-01-01T00:59:00Z", value: 5 }]
+        },
         pools: [
           {
             key: "worker-a:101",
             hostname: "worker-a",
             pid: 101,
-            queues: [ "runs", "maintenance" ],
+            queues: ["runs", "maintenance"],
             capacity: 2,
             used: 2,
             status: "busy",
@@ -226,11 +242,23 @@ function livePayload(overrides: Partial<WorkerTimelineLivePayload> = {}): Worker
         hostname: "worker-idle",
         worker_storage_key: "storage-idle",
         status: "idle",
-        status_reasons: [ "0/1 inferred slots occupied" ],
+        status_reasons: ["0/1 inferred slots occupied"],
         occupancy: { used: 0, total: 1 },
         health: { level: "ok", reasons: [], observed_at: "2026-01-01T00:59:00Z", cpu_used_percent: 5, memory_used_percent: 12, io_pressure_some: 0 },
         sparklines: { cpu: [], memory: [], io: [] },
-        pools: [ { key: "worker-idle:102", hostname: "worker-idle", pid: 102, queues: [ "runs" ], capacity: 1, used: 0, status: "idle", last_heartbeat_at: "2026-01-01T00:59:00Z", slots: [] } ]
+        pools: [
+          {
+            key: "worker-idle:102",
+            hostname: "worker-idle",
+            pid: 102,
+            queues: ["runs"],
+            capacity: 1,
+            used: 0,
+            status: "idle",
+            last_heartbeat_at: "2026-01-01T00:59:00Z",
+            slots: []
+          }
+        ]
       }
     ],
     ...overrides
@@ -286,14 +314,25 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         hostname: "worker-a",
         pid: 123,
         runs: [],
-        blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:09:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:20:00Z", available: true, historical: false }
+        blocked: {
+          blocked_reason: "provider_availability",
+          blocked_since: "2026-01-01T00:09:00Z",
+          blocked_details: { provider: "codex" },
+          next_check_at: "2026-01-01T00:20:00Z",
+          available: true,
+          historical: false
+        }
       }
     ],
     ...overrides
   }
 }
 
-function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallOverrides: Record<string, unknown> = {}, liveOverrides: Partial<WorkerTimelineLivePayload> = {}) {
+function setupFetchMock(
+  macroOverrides: Record<string, unknown> = {},
+  waterfallOverrides: Record<string, unknown> = {},
+  liveOverrides: Partial<WorkerTimelineLivePayload> = {}
+) {
   const calls: string[] = []
 
   vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
@@ -311,24 +350,35 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
     }
     if (url.startsWith("/api/v1/app/filters/fk_options")) {
       const field = new URL(url, "http://example.test").searchParams.get("field")
-      if (field === "repository_id") return Promise.resolve(jsonResponse({ options: [ { value: 1, label: "acme/widgets" } ] }))
-      if (field === "hostname") return Promise.resolve(jsonResponse({ options: [ { value: "worker-b", label: "worker-b" } ] }))
+      if (field === "repository_id") return Promise.resolve(jsonResponse({ options: [{ value: 1, label: "acme/widgets" }] }))
+      if (field === "hostname") return Promise.resolve(jsonResponse({ options: [{ value: "worker-b", label: "worker-b" }] }))
       return Promise.resolve(jsonResponse({ options: [] }))
     }
     if (url.startsWith("/api/v1/app/filters/suggestions")) {
-      return Promise.resolve(jsonResponse({
-        suggestions: [
-          {
-            id: "value-repository",
-            label: "Repository is tkadauke/syrus",
-            filter: { field: "repository_id", op: "is", value: 2 },
-            source: "value"
-          }
-        ]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          suggestions: [
+            {
+              id: "value-repository",
+              label: "Repository is tkadauke/syrus",
+              filter: { field: "repository_id", op: "is", value: 2 },
+              source: "value"
+            }
+          ]
+        })
+      )
     }
     if (url === "/api/v1/app/filters/usage") {
       return Promise.resolve(jsonResponse({ recorded: true }))
+    }
+    if (url === "/api/v1/app/smart_folders") {
+      return Promise.resolve(
+        jsonResponse({
+          redirect_to: "/worker_timeline?smart_folder_id=42",
+          smart_folder: { id: 42, name: "Worker failures", position: 0, filter: { and: [] } },
+          smart_folders: []
+        })
+      )
     }
 
     return Promise.reject(new Error(`Unexpected fetch: ${url}`))
@@ -342,7 +392,7 @@ function renderTimeline(initialPath = "/worker_timeline") {
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ initialPath ]}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <WorkerTimelineRoute />
         </MemoryRouter>
       </QueryClientProvider>
@@ -393,8 +443,39 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(await screen.findByText("acme/widgets"))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: "1" } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "repository_id", op: "is", value: "1" }] })
     })
+  })
+
+  it("renders saved-folder navigation and saves the current expression as a folder", async () => {
+    const calls = setupFetchMock({
+      active_smart_folder_id: 7,
+      smart_folders: [
+        {
+          id: 7,
+          name: "Running here",
+          i18n_key: null,
+          position: 0,
+          kind: "user_defined",
+          subject_type: "worker_timeline",
+          visibility: "always",
+          count: 1,
+          active: true,
+          filter: { and: [{ field: "status", op: "is_one_of", value: ["running"] }] },
+          path: "/worker_timeline?smart_folder_id=7"
+        }
+      ]
+    })
+    renderTimeline("/worker_timeline?smart_folder_id=7")
+
+    expect(await screen.findByRole("link", { name: /Running here/ })).toHaveAttribute("href", "/worker_timeline?smart_folder_id=7")
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Job type list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
+    fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "Worker failures" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+    await waitFor(() => expect(calls).toContain("/api/v1/app/smart_folders"))
   })
 
   it("offers top-level suggested filters from worker timeline deep search", async () => {
@@ -412,7 +493,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(suggestion)
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: 2 } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "repository_id", op: "is", value: 2 }] })
     })
     await waitFor(() => {
       expect(calls).toContain("/api/v1/app/filters/usage")
@@ -430,7 +511,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Running" }))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "status", op: "is_one_of", value: ["running"] }] })
     })
   })
 
@@ -445,7 +526,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "job_type", op: "is_one_of", value: [ "system" ] } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "job_type", op: "is_one_of", value: ["system"] }] })
     })
   })
 
@@ -461,7 +542,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.click(await screen.findByText("worker-b"))
 
     await waitFor(() => {
-      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "hostname", op: "is", value: "worker-b" } ] })
+      expect(latestMacroFilter(calls)).toEqual({ and: [{ field: "hostname", op: "is", value: "worker-b" }] })
     })
   })
 
@@ -485,7 +566,14 @@ describe("WorkerTimeline macro view", () => {
           label: "JOB-77 · initial",
           job_title: "Queue the aqueduct repair",
           created_at: "2026-01-01T00:00:00Z",
-          blocked: { blocked_reason: "main_branch_health", blocked_since: "2026-01-01T00:00:00Z", blocked_details: {}, next_check_at: null, available: true, historical: false }
+          blocked: {
+            blocked_reason: "main_branch_health",
+            blocked_since: "2026-01-01T00:00:00Z",
+            blocked_details: {},
+            next_check_at: null,
+            available: true,
+            historical: false
+          }
         }
       ]
     })
@@ -525,7 +613,15 @@ describe("WorkerTimeline macro view", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+      width: 320,
+      height: 120,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 120,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
     setupFetchMock()
     renderTimeline()
@@ -542,7 +638,15 @@ describe("WorkerTimeline macro view", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
-      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+      width: 320,
+      height: 120,
+      top: 0,
+      left: 0,
+      right: 320,
+      bottom: 120,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
     })
     setupFetchMock()
     renderTimeline()
@@ -786,10 +890,14 @@ describe("WorkerTimeline macro view", () => {
 
     rendered.unmount()
     vi.restoreAllMocks()
-    setupFetchMock({}, {}, {
-      workers: [],
-      summary: { total_workers: 0, idle: 0, busy: 0, degraded: 0, overloaded: 0, used_slots: 0, total_slots: 0 }
-    })
+    setupFetchMock(
+      {},
+      {},
+      {
+        workers: [],
+        summary: { total_workers: 0, idle: 0, busy: 0, degraded: 0, overloaded: 0, used_slots: 0, total_slots: 0 }
+      }
+    )
     renderTimeline("/worker_timeline?tab=live")
 
     expect(await screen.findByText("No live workers match these filters.")).toBeInTheDocument()
@@ -806,7 +914,7 @@ describe("WorkerTimeline macro view", () => {
 
     await waitFor(() => {
       const liveCalls = calls.filter((url) => url.startsWith("/api/v1/app/admin/worker_timeline/live") && url.includes("q="))
-      expect(decodeQ(liveCalls.at(-1) || "")).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "overloaded" ] } ] })
+      expect(decodeQ(liveCalls.at(-1) || "")).toEqual({ and: [{ field: "status", op: "is_one_of", value: ["overloaded"] }] })
     })
   })
 })
@@ -871,16 +979,59 @@ describe("WorkerTimeline waterfall (micro) view", () => {
   })
 
   it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
-    setupFetchMock({}, {
-      workflow: {
-        id: 501, slug: "WF-501", job_id: 42, job_slug: "JOB-42", job_path: "/jobs/42", workflow_path: "/jobs/42?tab=workflows#workflow-501", trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
-        blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
-      },
-      steps: [
-        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null, runs: [],
-          blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false } }
-      ]
-    })
+    setupFetchMock(
+      {},
+      {
+        workflow: {
+          id: 501,
+          slug: "WF-501",
+          job_id: 42,
+          job_slug: "JOB-42",
+          job_path: "/jobs/42",
+          workflow_path: "/jobs/42?tab=workflows#workflow-501",
+          trigger_kind: "initial",
+          status: "queued",
+          started_at: null,
+          finished_at: null,
+          worker_storage_key: null,
+          queue_role: null,
+          hostname: null,
+          pid: null,
+          blocked: {
+            blocked_reason: "provider_availability",
+            blocked_since: null,
+            blocked_details: {},
+            next_check_at: null,
+            available: true,
+            historical: false
+          }
+        },
+        steps: [
+          {
+            id: 901,
+            kind: "prepare",
+            status: "queued",
+            position: 0,
+            iteration: 1,
+            started_at: null,
+            finished_at: null,
+            worker_storage_key: null,
+            queue_role: null,
+            hostname: null,
+            pid: null,
+            runs: [],
+            blocked: {
+              blocked_reason: "provider_availability",
+              blocked_since: null,
+              blocked_details: {},
+              next_check_at: null,
+              available: true,
+              historical: false
+            }
+          }
+        ]
+      }
+    )
     renderTimeline("/worker_timeline/workflow?id=501")
 
     expect(await screen.findByText("This workflow hasn't started running yet. Hover a step below to see why.")).toBeInTheDocument()

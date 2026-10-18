@@ -43,6 +43,13 @@ module WorkerTimeline
       scope.effect("worker_timeline filter subject") do
         Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)
       end
+      scope.effect("worker_timeline smart folder subject") do
+        SmartFolder.register_subject!(
+          :worker_timeline,
+          label: "Worker Timeline",
+          path: ->(**query) { query.present? ? "/worker_timeline?#{query.to_query}" : "/worker_timeline" }
+        )
+      end
     end
   end
 end
