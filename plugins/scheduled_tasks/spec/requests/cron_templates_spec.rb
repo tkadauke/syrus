@@ -171,7 +171,6 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     )
   end
 
-
   it "rejects invalid skill arguments at template creation" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

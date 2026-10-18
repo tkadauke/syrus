@@ -46,7 +46,6 @@ RSpec.describe ScheduledTasks::CronTemplate do
       expect(template).to be_valid
     end
 
-
     it "validates skill arguments against the selected repository" do
       template = build_template(
         prompt: nil, skill_name: "investigate", skill_args: {},
