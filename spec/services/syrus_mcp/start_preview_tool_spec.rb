@@ -154,6 +154,41 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
   end
 
+  context "when spawning fails after the database was prepared" do
+    let(:preview_config) do
+      PreviewCommandSource::Config.new(
+        start_command_for: ->(port:) { "bin/rails server -p #{port}" },
+        setup_commands: [],
+        seed_command: "bin/rails db:create db:migrate db:seed",
+        health_check_path: "/health",
+        log_paths: [],
+        env: {},
+        unset_env: [],
+        cleanup_command: "bin/rails db:drop"
+      )
+    end
+
+    before do
+      run.step.workflow.set_artifact!("visual_review_preview_preparations", [
+        { "run_id" => run.id, "project_id" => nil, "prepared_at" => Time.current.iso8601 }
+      ])
+      allow(Process).to receive(:spawn).and_raise(Errno::ENOENT, "missing executable")
+    end
+
+    it "cleans up the provisioned database and returns a launch error" do
+      cleanup_runner = double(run: process_result)
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        command: [ "bash", "-c", "bin/rails db:drop" ]
+      )).and_return(cleanup_runner)
+
+      response = call
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("missing executable")
+      expect(Mcp::Tools::AgentPreviewRegistry.get(run.id)).to be_nil
+    end
+  end
+
   context "when the run has no step" do
     before { run.update_columns(step_id: nil) }
 
