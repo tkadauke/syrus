@@ -268,10 +268,7 @@ module Steps
     end
 
     def capture_git_status(name:)
-      stdout, _stderr, status = Open3.capture3("git", "status", "--porcelain", chdir: workspace.path.to_s)
-      return nil unless status.success?
-
-      stdout
+      GitRunner.new(workflow: workflow).run("status", "--porcelain", chdir: workspace.path.to_s)
     rescue StandardError => e
       log("[builder_fanout:#{name}] warning: git status check failed (skipping side-effect detection): #{e.class}: #{e.message}")
       nil

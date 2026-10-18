@@ -101,13 +101,15 @@ class PreviewProcessLauncher
     spawn_env = env.merge("PORT" => port.to_s)
     startup_log_path = startup_log_path_for(key)
     FileUtils.mkdir_p(File.dirname(startup_log_path))
-    File.open(startup_log_path, "w") do |startup_log|
-      startup_log.sync = true
-      pid = Process.spawn(spawn_env, command, chdir: workdir, pgroup: true,
-                                              out: startup_log, err: startup_log,
-                                              unsetenv_others: true)
-      SpawnedPreview.new(pid: pid, startup_log_path: startup_log_path)
-    end
+    File.write(startup_log_path, "")
+    handle = ProcessRunner.new(
+      env: spawn_env, command: [ "bash", "-c", command ],
+      mounts: ProcessRunner.mounts(workdir, read_write: @workspace_path),
+      network: "prepare", timeout: 24.hours, kind: "preview",
+      run: @run, workflow: @workflow, display_command: command,
+      on_output_chunk: ->(chunk) { File.open(startup_log_path, "ab") { |file| file.write(chunk) } }
+    ).start
+    SpawnedPreview.new(pid: handle.spawned_process.pid, startup_log_path: startup_log_path)
   end
 
   def preview_workdir

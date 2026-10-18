@@ -119,19 +119,24 @@ RSpec.describe PreviewService do
     it "passes preview env to the spawned app" do
       service = described_class.new
       env = create_env
-      allow(Process).to receive(:spawn).and_return(12_345)
-      allow(Process).to receive(:getpgid).with(12_345).and_return(12_345)
+      spawned = SpawnedProcess.create!(
+        kind: "preview", command: "bin/server", workdir: workspace_path,
+        hostname: "worker", started_at: Time.current, pid: 12_345
+      )
+      handle = instance_double(ProcessRunner::BackgroundHandle, spawned_process: spawned)
+      runner = instance_double(ProcessRunner, start: handle)
+      expect(ProcessRunner).to receive(:new).with(hash_including(
+        env: { "DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "28000" },
+        command: [ "bash", "-c", "bin/server" ],
+        kind: "preview"
+      )).and_return(runner)
 
       service.send(:spawn_app, "bin/server", workspace_path, 28_000, env, {
         "DATABASE_URL" => nil,
         "RAILS_ENV" => "development"
       })
 
-      expect(Process).to have_received(:spawn).with(
-        { "DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "28000" },
-        "bin/server",
-        hash_including(chdir: workspace_path, pgroup: true, unsetenv_others: true)
-      )
+      expect(spawned.reload.resource_attribution).to include("preview_environment_id" => env.id)
     end
   end
 

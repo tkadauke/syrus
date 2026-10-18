@@ -1,5 +1,4 @@
 require "fileutils"
-require "open3"
 require "tmpdir"
 
 module App
@@ -62,20 +61,24 @@ module App
 
     def export_ref!(clone_path, ref, destination)
       archive_path = File.join(destination, "repo.tar")
-      run!("git", "--git-dir=#{clone_path}", "archive", "--format=tar", "-o", archive_path, ref)
-      run!("tar", "-xf", archive_path, "-C", destination)
+      git.run("--git-dir=#{clone_path}", "archive", "--format=tar", "-o", archive_path, ref,
+        chdir: destination)
+      run_archive!("tar", "-xf", archive_path, "-C", destination, chdir: destination)
       FileUtils.rm_f(archive_path)
     rescue StandardError
       FileUtils.rm_f(archive_path)
       raise
     end
 
-    def run!(*cmd)
-      stdout, stderr, status = Open3.capture3(*cmd)
-      return stdout if status.success?
+    def run_archive!(*cmd, chdir:)
+      capture = ProcessRunner.new(
+        env: {}, command: cmd, mounts: ProcessRunner.mounts(chdir), network: "grader",
+        timeout: GitRunner::DEFAULT_TIMEOUT, kind: "archive"
+      ).capture
+      return capture.stdout if capture.success?
 
-      output = [ stdout, stderr ].join
-      raise GitRunner::GitError.new(cmd, status.exitstatus || -1, output)
+      output = capture.stdout + capture.stderr
+      raise GitRunner::GitError.new(cmd, capture.result.exit_status || -1, output)
     end
   end
 end

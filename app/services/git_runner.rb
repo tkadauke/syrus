@@ -71,7 +71,7 @@ class GitRunner
   # Per-call env is merged with the instance env (per-call wins).
   # Useful for one-shot flags like GIT_TERMINAL_PROMPT=0 that you
   # only want on git operations that talk to a remote.
-  def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil)
+  def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil, stdin_data: nil)
     cmd = [ "git", *args.map(&:to_s) ]
     output = +""
     log_sink = @log_sink
@@ -88,6 +88,7 @@ class GitRunner
       mounts: ProcessRunner.mounts(chdir || Dir.pwd),
       network: network_profile_for(args),
       timeout: timeout.to_i,
+      stdin_data: stdin_data,
       kind: "git",
       run: current_run,
       workflow: process_workflow,
@@ -105,6 +106,20 @@ class GitRunner
     end
 
     output
+  end
+
+  # Raw, separately captured stdout/stderr for callers where a non-zero status
+  # is part of the command contract (for example `diff --no-index`) or stdout
+  # may be binary. Unlike #run, this does not raise GitError.
+  def capture(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil, stdin_data: nil, limit: 1.megabyte)
+    current_run = Thread.current[:syrus_current_run]
+    process_workflow = workflow || @workflow || current_run&.workflow
+    ProcessRunner.new(
+      env: @env.merge(env), command: [ "git", *args.map(&:to_s) ],
+      mounts: ProcessRunner.mounts(chdir || Dir.pwd), network: network_profile_for(args),
+      timeout: timeout.to_i, stdin_data: stdin_data, kind: "git",
+      run: current_run, workflow: process_workflow
+    ).capture(limit: limit)
   end
 
   # Sets the local commit author for the checkout at `chdir`. `identity` is any

@@ -55,8 +55,15 @@ RSpec.describe IsolatedReproRecorder do
       end
     end
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ focused_provider ])
-    status = instance_double(Process::Status, exitstatus: 0)
-    allow(Open3).to receive(:capture2e).and_return([ "1 example, 0 failures", status ])
+    result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    capture = ProcessRunner::CaptureResult.new(
+      result: result, stdout: "1 example, 0 failures", stderr: "",
+      stdout_truncated: false, stderr_truncated: false
+    )
+    allow_any_instance_of(ProcessRunner).to receive(:capture).and_return(capture)
   end
 
   def call(**overrides)
@@ -144,8 +151,15 @@ RSpec.describe IsolatedReproRecorder do
 
 
   it "rejects an agent result that disagrees with the independently observed exit status" do
-    status = instance_double(Process::Status, exitstatus: 1)
-    allow(Open3).to receive(:capture2e).and_return([ "1 failure", status ])
+    result_status = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    capture = ProcessRunner::CaptureResult.new(
+      result: result_status, stdout: "1 failure", stderr: "",
+      stdout_truncated: false, stderr_truncated: false
+    )
+    allow_any_instance_of(ProcessRunner).to receive(:capture).and_return(capture)
 
     result = call
 

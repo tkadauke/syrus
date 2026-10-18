@@ -1,6 +1,5 @@
 require "digest"
 require "json"
-require "open3"
 require "openssl"
 require "active_storage/service/s3_service"
 
@@ -59,7 +58,12 @@ class PreparedWorkspaceArchive
   def self.pigz_available?
     return @pigz_available if defined?(@pigz_available)
 
-    @pigz_available = system("pigz", "--version", out: File::NULL, err: File::NULL) == true
+    @pigz_available = ProcessRunner.new(
+      env: {}, command: [ "pigz", "--version" ], mounts: ProcessRunner.mounts(Dir.pwd),
+      network: "grader", timeout: 10, kind: "runtime_probe"
+    ).capture.success?
+  rescue Errno::ENOENT
+    @pigz_available = false
   end
 
   def initialize(workflow:, snapshot:, step:, path:, plan: nil, log: nil)
@@ -140,7 +144,7 @@ class PreparedWorkspaceArchive
   # stdout straight into the destination service, tracking size and
   # integrity digests as bytes flow through -- no intermediate archive file.
   def stream_archive!(service:, key:)
-    stdout, wait_threads = archive_pipeline
+    stdout, runner_threads = archive_pipeline
     stdout.binmode
     source = StreamingSource.new(stdout, max_bytes: MAX_BYTES)
 
@@ -154,15 +158,33 @@ class PreparedWorkspaceArchive
       stdout.close unless stdout.closed?
     end
 
-    verify_pipeline!(wait_threads)
+    verify_pipeline!(runner_threads)
     source
   end
 
   def archive_pipeline
-    Open3.pipeline_r(
-      ["tar", "--exclude=./.syrus/immutable-checkouts", "-cf", "-", "-C", @path.to_s, "."],
-      compressor_command
-    )
+    reader, writer = IO.pipe
+    reader.binmode
+    writer.binmode
+    compressor = compressor_command
+    error_file = Tempfile.new("prepared-workspace-archive-errors")
+    error_file.close
+    script = '{ tar --exclude=./.syrus/immutable-checkouts -cf - -C "$1" . | "$2" "$3" -c; } 2>"$PROCESS_RUNNER_ARCHIVE_ERROR"'
+    thread = Thread.new do
+      ProcessRunner.new(
+        env: { "PROCESS_RUNNER_ARCHIVE_ERROR" => error_file.path },
+        command: [ "bash", "-o", "pipefail", "-c", script, "archive", @path.to_s, *compressor ],
+        mounts: ProcessRunner.mounts(@path.dirname), network: "grader", timeout: 30.minutes,
+        kind: "archive", workflow: @workflow, job: @workflow.job,
+        on_output_chunk: ->(chunk) { writer.write(chunk) }
+      ).run.tap do |result|
+        log(File.read(error_file.path).strip) unless result.success? || File.zero?(error_file.path)
+      end
+    ensure
+      writer.close unless writer.closed?
+      error_file.unlink
+    end
+    [ reader, [ thread ] ]
   end
 
   def compressor_command
@@ -196,12 +218,12 @@ class PreparedWorkspaceArchive
     end
   end
 
-  def verify_pipeline!(wait_threads)
-    statuses = wait_threads.map(&:value)
-    return if statuses.all?(&:success?)
+  def verify_pipeline!(runner_threads)
+    results = runner_threads.map(&:value)
+    return if results.all?(&:success?)
 
     raise ArchivePipelineError, "archive pipeline failed: " \
-      "#{statuses.map { |status| "pid #{status.pid} exited #{status.exitstatus}" }.join(", ")}"
+      "#{results.map { |result| "process exited #{result.exit_status}" }.join(", ")}"
   end
 
   def cleanup_partial_upload!(service, key)

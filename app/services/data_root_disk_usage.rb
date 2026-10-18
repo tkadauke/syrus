@@ -57,8 +57,12 @@ class DataRootDiskUsage
 
     def read(path)
       FileUtils.mkdir_p(path)
-      output, err, status = Open3.capture3("df", "-Pk", path.to_s)
-      raise "df failed: #{err.presence || output}" unless status.success?
+      capture = ProcessRunner.new(
+        env: {}, command: [ "df", "-Pk", path.to_s ], mounts: ProcessRunner.mounts(path),
+        network: "grader", timeout: 30, kind: "filesystem"
+      ).capture
+      output = capture.stdout
+      raise "df failed: #{capture.stderr.presence || output}" unless capture.success?
 
       parse_df(output, path: path.to_s)
     rescue => e

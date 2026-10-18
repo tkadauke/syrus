@@ -12,11 +12,22 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
   let(:lower) { @root.join("lower").tap { |path| FileUtils.mkdir_p(path) } }
   let(:mount) { @root.join("mount") }
 
+  def capture(success:, stdout: "", stderr: "", exit_status: success ? 0 : 32)
+    result = ProcessRunner::Result.new(
+      exit_status: exit_status, timed_out: false, stopped: false, silent_timed_out: false,
+      operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    ProcessRunner::CaptureResult.new(
+      result: result, stdout: stdout, stderr: stderr,
+      stdout_truncated: false, stderr_truncated: false
+    )
+  end
+
   it "mounts overlayfs when the worker can mount it directly" do
     allow(described_class).to receive(:capability).and_return(described_class::Capability.new(:direct, nil))
-    allow(Open3).to receive(:capture3)
-      .with("mount", "-t", "overlay", "overlay", "-o", /lowerdir=#{Regexp.escape(lower.to_s)}/, mount.to_s)
-      .and_return([ "", "", instance_double(Process::Status, success?: true) ])
+    expect(described_class).to receive(:capture)
+      .with(array_including("mount", /lowerdir=#{Regexp.escape(lower.to_s)}/), workdir: mount.dirname)
+      .and_return(capture(success: true))
 
     result = described_class.mount(lower_path: lower, mount_path: mount)
 
@@ -33,19 +44,18 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
   it "does not attempt a mount on a worker that cannot do one" do
     allow(described_class).to receive(:capability)
       .and_return(described_class::Capability.new(:unavailable, "overlay mount failed: must be superuser to use mount"))
-    allow(Open3).to receive(:capture3)
+    expect(described_class).not_to receive(:capture)
 
     result = described_class.mount(lower_path: lower, mount_path: mount)
 
     expect(result).not_to be_mounted
     expect(result.strategy).to eq("copy")
     expect(result.reason).to eq("overlay mount failed: must be superuser to use mount")
-    expect(Open3).not_to have_received(:capture3)
   end
 
   it "returns the mount failure as the explicit fallback reason" do
     allow(described_class).to receive(:capability).and_return(described_class::Capability.new(:direct, nil))
-    allow(Open3).to receive(:capture3).and_return([ "", "wrong fs type", instance_double(Process::Status, success?: false, exitstatus: 32) ])
+    allow(described_class).to receive(:capture).and_return(capture(success: false, stderr: "wrong fs type"))
 
     result = described_class.mount(lower_path: lower, mount_path: mount)
 
@@ -61,7 +71,7 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
     end
 
     it "reports a direct mount when the worker holds the capability" do
-      allow(Open3).to receive(:capture3).and_return([ "", "", instance_double(Process::Status, success?: true) ])
+      allow(described_class).to receive(:capture).and_return(capture(success: true))
       allow(described_class).to receive(:unmount)
 
       capability = described_class.probe_capability
@@ -75,10 +85,10 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
     # strategy is recorded rather than used: the mount lives in the namespace,
     # so the graded command would have to run inside it too.
     it "reports a user-namespace mount when only the unprivileged path works" do
-      allow(Open3).to receive(:capture3).with("mount", any_args)
-        .and_return([ "", "must be superuser to use mount", instance_double(Process::Status, success?: false, exitstatus: 32) ])
-      allow(Open3).to receive(:capture3).with("unshare", any_args)
-        .and_return([ "", "", instance_double(Process::Status, success?: true) ])
+      allow(described_class).to receive(:capture).and_return(
+        capture(success: false, stderr: "must be superuser to use mount"),
+        capture(success: true)
+      )
 
       capability = described_class.probe_capability
 
@@ -88,8 +98,8 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
     end
 
     it "reports neither when both paths are refused" do
-      allow(Open3).to receive(:capture3)
-        .and_return([ "", "must be superuser to use mount", instance_double(Process::Status, success?: false, exitstatus: 32) ])
+      allow(described_class).to receive(:capture)
+        .and_return(capture(success: false, stderr: "must be superuser to use mount"))
 
       capability = described_class.probe_capability
 
@@ -99,10 +109,9 @@ RSpec.describe ImmutableSourceCheckoutOverlay, :ci_only do
 
     it "reports non-Linux workers without probing" do
       allow(RbConfig::CONFIG).to receive(:fetch).with("host_os").and_return("darwin")
-      allow(Open3).to receive(:capture3)
+      expect(described_class).not_to receive(:capture)
 
       expect(described_class.probe_capability.reason).to eq("overlayfs requires Linux workers")
-      expect(Open3).not_to have_received(:capture3)
     end
   end
 end
