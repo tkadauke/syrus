@@ -54,6 +54,7 @@ module K8sCluster
           target_constraints: {},
           allowed_surfaces: %w[admin workflow chat],
           allowed_tools: ALLOWED_TOOLS,
+          expires_at: parsed.expires_at,
           last_rotated_at: Time.current,
           revoked_at: nil
         )
@@ -62,6 +63,9 @@ module K8sCluster
         cluster.api_server_url = parsed.api_server_url
         cluster.credential_kind = parsed.credential_kind
         cluster.credentials = {}
+        cluster.credential_refresh_status = parsed.expires_at.present? ? "healthy" : "unknown"
+        cluster.credential_refresh_error = nil
+        cluster.credential_refresh_attempted_at = nil
         parsed
       end
 
@@ -129,14 +133,15 @@ module K8sCluster
         {
           "cluster" => parsed.cluster_name,
           "context" => parsed.context_name,
-          "host" => parsed.host
+          "host" => parsed.host,
+          "refreshable" => parsed.refreshable.to_s
         }.compact
       end
 
       def legacy_material_for(cluster)
         credentials = cluster.credentials.to_h
         unless credentials["token"].present? || (credentials["client_cert"].present? && credentials["client_key"].present?)
-          return KubeconfigParser::Result.new(api_server_url: cluster.api_server_url, credentials: credentials, context_name: nil, cluster_name: nil, host: nil)
+          return KubeconfigParser::Result.new(api_server_url: cluster.api_server_url, credentials: credentials, context_name: nil, cluster_name: nil, host: nil, expires_at: nil, refreshable: false)
         end
 
         KubeconfigParser.parse(build_kubeconfig(api_server_url: cluster.api_server_url, credentials: credentials))

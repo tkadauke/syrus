@@ -25,6 +25,10 @@ RSpec.describe K8sCluster::KubeconfigParser do
     }.to_yaml
   end
 
+  def jwt(expiry)
+    [ { alg: "none" }, { exp: expiry.to_i }, "" ].map { |part| Base64.urlsafe_encode64(JSON.generate(part), padding: false) }.join(".")
+  end
+
   describe "token auth" do
     it "extracts the server URL and bearer token" do
       yaml = kubeconfig(user_attrs: { "token" => "abc123" })
@@ -36,6 +40,30 @@ RSpec.describe K8sCluster::KubeconfigParser do
         "token" => "abc123",
         "ca_data" => Base64.strict_encode64("ca-cert-pem")
       )
+    end
+
+    it "extracts JWT expiry without exposing additional token material" do
+      expiry = 1.hour.from_now.change(usec: 0)
+      result = described_class.parse(kubeconfig(user_attrs: { "token" => jwt(expiry) }))
+
+      expect(result.expires_at).to eq(expiry)
+      expect(result.refreshable).to be(false)
+    end
+  end
+
+  describe "OIDC auth" do
+    it "accepts refreshable auth-provider credentials" do
+      expiry = 1.hour.from_now.change(usec: 0)
+      result = described_class.parse(kubeconfig(user_attrs: {
+        "auth-provider" => { "name" => "oidc", "config" => {
+          "id-token" => jwt(expiry), "refresh-token" => "refresh-value",
+          "client-id" => "syrus", "idp-issuer-url" => "https://idp.example.com"
+        } }
+      }))
+
+      expect(result.credential_kind).to eq("oidc")
+      expect(result.expires_at).to eq(expiry)
+      expect(result.refreshable).to be(true)
     end
   end
 

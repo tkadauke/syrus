@@ -267,6 +267,7 @@ function clusterFilterSchema(t: ReturnType<typeof useT>["t"]): FilterSchemaField
       values: [
         { value: "token", label: t("credential_kind_token") },
         { value: "client_cert", label: t("credential_kind_client_cert") },
+        { value: "oidc", label: t("credential_kind_oidc") },
         { value: "none", label: t("credential_kind_none") }
       ]
     },
@@ -421,6 +422,20 @@ function clusterColumns({
       sortValue: (cluster) => credentialLabel(cluster, t)
     },
     {
+      key: "credential_health",
+      header: t("col_credential_health"),
+      render: (cluster) => (
+        <div title={cluster.credential_refresh_error || undefined}>
+          <StatusBadge tone={credentialHealthTone(cluster.credential_health)}>{t(`credential_health_${cluster.credential_health}`)}</StatusBadge>
+          {cluster.credential_expires_at ? (
+            <div className="mt-1 text-xs text-text-muted">{t("credential_expires", { date: new Date(cluster.credential_expires_at).toLocaleString() })}</div>
+          ) : null}
+        </div>
+      ),
+      sort: "credential_health",
+      sortValue: (cluster) => cluster.credential_health
+    },
+    {
       key: "agentic_access",
       header: t("col_agentic_access"),
       render: (cluster) => (
@@ -483,7 +498,15 @@ function clusterColumns({
 function credentialLabel(cluster: KubernetesClusterRow, t: ReturnType<typeof useT>["t"]) {
   if (cluster.credential_kind === "token") return t("credential_kind_token")
   if (cluster.credential_kind === "client_cert") return t("credential_kind_client_cert")
+  if (cluster.credential_kind === "oidc") return t("credential_kind_oidc")
   return t("credential_kind_none")
+}
+
+function credentialHealthTone(health: KubernetesClusterRow["credential_health"]): "success" | "warning" | "error" | "neutral" {
+  if (health === "healthy") return "success"
+  if (health === "expiring") return "warning"
+  if (health === "expired" || health === "failed") return "error"
+  return "neutral"
 }
 
 function ClusterActions({

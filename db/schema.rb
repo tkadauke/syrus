@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_005020) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_013622) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1852,6 +1852,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_005020) do
     t.datetime "updated_at", null: false
     t.bigint "credential_store_credential_id"
     t.string "credential_kind"
+    t.string "credential_refresh_status"
+    t.string "credential_refresh_error"
+    t.datetime "credential_refresh_attempted_at"
     t.index ["credential_store_credential_id"], name: "idx_kubernetes_clusters_credential_store_credential"
   end
 
