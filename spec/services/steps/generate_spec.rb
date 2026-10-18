@@ -153,7 +153,8 @@ RSpec.describe Steps::Generate do
             generates: "lib/bad.rb"
       YAML
       fake_runner = instance_double(ProcessRunner, run: failure_result)
-      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+      allow(ProcessRunner).to receive(:new).and_call_original
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: "generate")).and_return(fake_runner)
       expect(handler).to receive(:commit_agent_changes)
 
       expect { handler.call }.not_to raise_error
