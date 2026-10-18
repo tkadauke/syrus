@@ -31,7 +31,7 @@ class SyrusYml
   # promotion config would silently start running during promotions too.
   DEFAULT_GRADE_PHASES = %w[review landing ci].freeze
 
-  COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
+  COVERAGE_VALID_FORMATS = %w[lcov cobertura go-cover].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
   COVERAGE_DEFAULT_ON_MISS = "warn".freeze
   COVERAGE_DEFAULT_HITMAP_TTL_DAYS = 7

@@ -3,6 +3,7 @@ require "go/review_criteria_provider"
 require "go/gofmt_autofix"
 require "go/dependency_audit_command"
 require "go/test_grader_type"
+require "go/coverage_analyzer"
 
 module Go
   extend Syrus::PluginApi
@@ -24,6 +25,7 @@ module Go
              review_criteria_provider: "Go::ReviewCriteriaProvider",
              autofix_command: "Go::GofmtAutofix",
              dependency_audit_command: "Go::DependencyAuditCommand",
-             grader_type: "Go::TestGraderType"
+             grader_type: "Go::TestGraderType",
+             coverage_analyzer: "Go::CoverageAnalyzer"
   end
 end
