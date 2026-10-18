@@ -507,7 +507,7 @@ export function AddRepositoryModal({
 
               <Box tone="muted">
                 {t("add_repository.defaults_info_prefix", { agent: form.data?.user_agent_provider_label || t("add_repository.defaults_agent_default") })}{" "}
-                <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800">{values.trigger_label}</code>{" "}
+                <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-xs">{values.trigger_label}</code>{" "}
                 {t("add_repository.defaults_info_suffix")}
               </Box>
 
