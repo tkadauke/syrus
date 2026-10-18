@@ -5,7 +5,16 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, durationLabel, severityPillClass } from "../components/AdminEventLogPanel"
+import {
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  type AdminEventLogTableColumn,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  adminEventLinkClass,
+  durationLabel,
+  severityPillClass
+} from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { WorkflowReference } from "../components/WorkflowReference"
@@ -32,7 +41,12 @@ export function AdminWorkflowActivity() {
   return (
     <AdminEventPageShell
       actions={
-        <Button className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500" disabled={activity.isFetching} onClick={() => void activity.refetch()} variant="secondary">
+        <Button
+          className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500"
+          disabled={activity.isFetching}
+          onClick={() => void activity.refetch()}
+          variant="secondary"
+        >
           {activity.isFetching ? t("activity.refreshing") : t("activity.refresh")}
         </Button>
       }
@@ -40,17 +54,26 @@ export function AdminWorkflowActivity() {
       eyebrow={t("section_label")}
       title={t("activity.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("activity.clear_filters")} filter={activity.data?.filter} filterSchema={activity.data?.filter_schema} fields={[
-        { name: "event_type", label: t("activity.filter_event_type"), options: [
-          { value: "", label: t("activity.all_event_types") },
-          ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))
-        ] },
-        { name: "trigger_kind", label: t("activity.filter_trigger") },
-        { name: "reason_key", label: t("activity.filter_reason") },
-        { name: "job_id", label: t("activity.filter_job"), inputMode: "numeric" },
-        { name: "workflow_id", label: t("activity.filter_workflow"), inputMode: "numeric" },
-        { name: "run_id", label: t("activity.filter_run"), inputMode: "numeric" }
-      ]} search={location.search} searchLabel={t("activity.apply_filters")} onNavigate={navigateSearch} />
+      <AdminEventFilterBar
+        clearLabel={t("activity.clear_filters")}
+        filter={activity.data?.filter}
+        filterSchema={activity.data?.filter_schema}
+        fields={[
+          {
+            name: "event_type",
+            label: t("activity.filter_event_type"),
+            options: [{ value: "", label: t("activity.all_event_types") }, ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))]
+          },
+          { name: "trigger_kind", label: t("activity.filter_trigger") },
+          { name: "reason_key", label: t("activity.filter_reason") },
+          { name: "job_id", label: t("activity.filter_job"), inputMode: "numeric" },
+          { name: "workflow_id", label: t("activity.filter_workflow"), inputMode: "numeric" },
+          { name: "run_id", label: t("activity.filter_run"), inputMode: "numeric" }
+        ]}
+        search={location.search}
+        searchLabel={t("activity.apply_filters")}
+        onNavigate={navigateSearch}
+      />
 
       {activity.isPending ? <AdminEventPanelMessage>{t("activity.loading")}</AdminEventPanelMessage> : null}
       {activity.isError ? <AdminEventPanelMessage tone="error">{t("activity.error_load")}</AdminEventPanelMessage> : null}
@@ -59,7 +82,17 @@ export function AdminWorkflowActivity() {
   )
 }
 
-function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (params: URLSearchParams) => void; payload: AdminWorkflowActivityPayload; prefix: string; search: string }) {
+function ActivityTable({
+  onNavigate,
+  payload,
+  prefix,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: AdminWorkflowActivityPayload
+  prefix: string
+  search: string
+}) {
   const { t } = useT("admin")
   if (payload.events.length === 0) return <AdminEventPanelMessage>{t("activity.no_events")}</AdminEventPanelMessage>
   const columns: Array<AdminEventLogTableColumn<WorkflowActivityEvent>> = [
@@ -117,7 +150,9 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
           <div>{event.message}</div>
           <details className="mt-1">
             <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">metadata</summary>
-            <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{JSON.stringify(event.metadata, null, 2)}</pre>
+            <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
+              {JSON.stringify(event.metadata, null, 2)}
+            </pre>
           </details>
         </>
       )
@@ -166,9 +201,20 @@ function ActivityTable({ onNavigate, payload, prefix, search }: { onNavigate: (p
 
 function ContextLinks({ event, prefix }: { event: WorkflowActivityEvent; prefix: string }) {
   const links: ReactNode[] = []
-  if (event.job) links.push(<Link className={linkClass()} key="job" to={withRoutePrefix(event.job.path, prefix)}>{event.job.slug}</Link>)
-  if (event.workflow) links.push(<WorkflowReference className={linkClass()} key="workflow" path={withRoutePrefix(event.workflow.path, prefix)} slug={event.workflow.slug} />)
-  if (event.run) links.push(<Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>Run #{event.run.id}</Link>)
+  if (event.job)
+    links.push(
+      <Link className={linkClass()} key="job" to={withRoutePrefix(event.job.path, prefix)}>
+        {event.job.slug}
+      </Link>
+    )
+  if (event.workflow)
+    links.push(<WorkflowReference className={linkClass()} key="workflow" path={withRoutePrefix(event.workflow.path, prefix)} slug={event.workflow.slug} />)
+  if (event.run)
+    links.push(
+      <Link className={linkClass()} key="run" to={withRoutePrefix(event.run.path, prefix)}>
+        Run #{event.run.id}
+      </Link>
+    )
   if (links.length === 0) return <span>-</span>
   return <span className="flex flex-wrap gap-x-2 gap-y-1">{links}</span>
 }

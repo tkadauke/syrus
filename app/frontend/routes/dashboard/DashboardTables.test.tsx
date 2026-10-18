@@ -12,7 +12,10 @@ vi.mock("../../pluginUiSlots", async () => {
   const React = await import("react")
 
   return {
-    PluginUiSlotCarousel: ({ labels, panels }: {
+    PluginUiSlotCarousel: ({
+      labels,
+      panels
+    }: {
       labels: {
         region: string
         position: (index: number, count: number) => string
@@ -21,9 +24,7 @@ vi.mock("../../pluginUiSlots", async () => {
       }
       panels?: Array<{ id: string; order: number }>
     }) => {
-      const visiblePanels = (panels || [])
-        .filter((panel) => panel.id !== "test.hidden")
-        .sort((left, right) => left.order - right.order)
+      const visiblePanels = (panels || []).filter((panel) => panel.id !== "test.hidden").sort((left, right) => left.order - right.order)
       const [index, setIndex] = React.useState(0)
       const activeIndex = Math.min(index, Math.max(visiblePanels.length - 1, 0))
       const activePanel = visiblePanels[activeIndex]
@@ -34,8 +35,12 @@ vi.mock("../../pluginUiSlots", async () => {
           {visiblePanels.length > 1 ? (
             <div>
               <span role="status">{labels.position(activeIndex + 1, visiblePanels.length)}</span>
-              <button aria-label={labels.previous} onClick={() => setIndex((activeIndex - 1 + visiblePanels.length) % visiblePanels.length)} type="button">previous</button>
-              <button aria-label={labels.next} onClick={() => setIndex((activeIndex + 1) % visiblePanels.length)} type="button">next</button>
+              <button aria-label={labels.previous} onClick={() => setIndex((activeIndex - 1 + visiblePanels.length) % visiblePanels.length)} type="button">
+                previous
+              </button>
+              <button aria-label={labels.next} onClick={() => setIndex((activeIndex + 1) % visiblePanels.length)} type="button">
+                next
+              </button>
             </div>
           ) : null}
           <div role="status">plugin notice {activePanel.id}</div>
@@ -93,9 +98,7 @@ function dataTransfer() {
 function renderWithProviders(children: ReactNode) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -275,7 +278,7 @@ describe("dashboard DataTable migrations", () => {
         landingQueueEntries={[]}
         prefix=""
         sortState={sortState({ onSort })}
-        t={(key, opts) => key === "selected_count" ? `${opts?.count} selected` : key}
+        t={(key, opts) => (key === "selected_count" ? `${opts?.count} selected` : key)}
       />
     )
 
@@ -322,7 +325,7 @@ describe("dashboard DataTable migrations", () => {
         landingQueueEntries={[]}
         prefix=""
         sortState={sortState()}
-        t={(key, opts) => key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key}
+        t={(key, opts) => (key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key)}
         uiPanels={[
           { id: "test.second", component: "test/Notice", order: 20 },
           { id: "test.hidden", component: "test/HiddenNotice", order: 30 },
@@ -360,7 +363,7 @@ describe("dashboard DataTable migrations", () => {
         landingQueueEntries={[]}
         prefix=""
         sortState={sortState()}
-        t={(key, opts) => key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key}
+        t={(key, opts) => (key === "notice_position" ? `Notice ${opts?.index} of ${opts?.count}` : key)}
         uiPanels={[
           { id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 },
           { id: "test.first_notice", component: "test/Notice", order: 5 }
@@ -384,15 +387,7 @@ describe("dashboard DataTable migrations", () => {
     setDesktop(true)
 
     renderWithProviders(
-      <JobsDashboardTable
-        columns={["issue"]}
-        controls={controls}
-        items={[job()]}
-        landingQueueEntries={[]}
-        prefix=""
-        sortState={sortState()}
-        t={(key) => key}
-      />
+      <JobsDashboardTable columns={["issue"]} controls={controls} items={[job()]} landingQueueEntries={[]} prefix="" sortState={sortState()} t={(key) => key} />
     )
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
@@ -411,29 +406,33 @@ describe("dashboard DataTable migrations", () => {
         columns={["landing_queue_position", "issue", "state"]}
         controls={controls}
         items={[approved]}
-        landingQueueEntries={[{
-          blocker_jobs: [{
-            created_at: "2026-01-01T00:00:00Z",
-            id: 9,
-            job_path: "/jobs/9",
-            latest_workflow_id: null,
-            latest_workflow_state: null,
-            latest_workflow_trigger_kind: null,
-            pr_number: null,
-            pr_path: null,
-            repository,
-            started_at: null,
-            state: "open",
-            title: "Blocking job"
-          }],
-          dependency_edges: [],
-          job_ids: [approved.id],
-          key: "epic:1",
-          position: 1
-        }]}
+        landingQueueEntries={[
+          {
+            blocker_jobs: [
+              {
+                created_at: "2026-01-01T00:00:00Z",
+                id: 9,
+                job_path: "/jobs/9",
+                latest_workflow_id: null,
+                latest_workflow_state: null,
+                latest_workflow_trigger_kind: null,
+                pr_number: null,
+                pr_path: null,
+                repository,
+                started_at: null,
+                state: "open",
+                title: "Blocking job"
+              }
+            ],
+            dependency_edges: [],
+            job_ids: [approved.id],
+            key: "epic:1",
+            position: 1
+          }
+        ]}
         prefix=""
         sortState={sortState({ column: "landing_queue_position" })}
-        t={(key, opts) => key === "blocker_one" ? `${opts?.count} blocker` : key}
+        t={(key, opts) => (key === "blocker_one" ? `${opts?.count} blocker` : key)}
       />
     )
 
@@ -450,14 +449,7 @@ describe("dashboard DataTable migrations", () => {
     setDesktop(true)
     const onSort = vi.fn()
 
-    renderWithProviders(
-      <EpicsTable
-        columns={["checkbox", "epic", "state"]}
-        items={[epic()]}
-        prefix=""
-        sortState={sortState({ onSort })}
-      />
-    )
+    renderWithProviders(<EpicsTable columns={["checkbox", "epic", "state"]} items={[epic()]} prefix="" sortState={sortState({ onSort })} />)
 
     fireEvent.click(screen.getByRole("button", { name: "Sort by Epic descending" }))
     expect(onSort).toHaveBeenCalledWith("epic")
@@ -469,14 +461,7 @@ describe("dashboard DataTable migrations", () => {
   it("preserves workflow mobile fallback while desktop uses DataTable", () => {
     setDesktop(false)
 
-    renderWithProviders(
-      <WorkflowsTable
-        columns={["workflow", "job", "state"]}
-        items={[workflow()]}
-        prefix=""
-        sortState={sortState()}
-      />
-    )
+    renderWithProviders(<WorkflowsTable columns={["workflow", "job", "state"]} items={[workflow()]} prefix="" sortState={sortState()} />)
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /WF-8 Fix widgets/ })).toHaveAttribute("href", "/admin/workflows/8")
@@ -495,15 +480,7 @@ describe("job subtitle attention row", () => {
     setDesktop(true)
 
     renderWithProviders(
-      <JobsDashboardTable
-        columns={["issue"]}
-        controls={controls}
-        items={[job()]}
-        landingQueueEntries={[]}
-        prefix=""
-        sortState={sortState()}
-        t={(key) => key}
-      />
+      <JobsDashboardTable columns={["issue"]} controls={controls} items={[job()]} landingQueueEntries={[]} prefix="" sortState={sortState()} t={(key) => key} />
     )
 
     expect(attentionRows("Fix widgets")).toHaveLength(1)
@@ -534,14 +511,16 @@ describe("job subtitle attention row", () => {
       <JobsDashboardTable
         columns={["issue"]}
         controls={controls}
-        items={[job({
-          provider_mismatch: {
-            job_provider: "codex",
-            job_provider_label: "Codex",
-            repository_provider: "claude",
-            repository_provider_label: "Claude"
-          }
-        })]}
+        items={[
+          job({
+            provider_mismatch: {
+              job_provider: "codex",
+              job_provider_label: "Codex",
+              repository_provider: "claude",
+              repository_provider_label: "Claude"
+            }
+          })
+        ]}
         landingQueueEntries={[]}
         prefix=""
         sortState={sortState()}

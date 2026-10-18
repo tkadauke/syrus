@@ -63,18 +63,27 @@ export function AdminStuck() {
       eyebrow={t("section_label")}
       title={t("stuck.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("stuck.clear_filters")} filter={stuck.data?.filter} filterSchema={stuck.data?.filter_schema} fields={[
-        { name: "severity", label: t("stuck.filter_severity") },
-        { name: "status", label: t("stuck.filter_status") },
-        { name: "kind", label: t("stuck.filter_kind") },
-        { name: "job_id", label: t("stuck.filter_job"), inputMode: "numeric" },
-        { name: "workflow_id", label: t("stuck.filter_workflow"), inputMode: "numeric" },
-        { name: "run_id", label: t("stuck.filter_run"), inputMode: "numeric" }
-      ]} search={location.search} searchLabel={t("stuck.apply_filters")} />
+      <AdminEventFilterBar
+        clearLabel={t("stuck.clear_filters")}
+        filter={stuck.data?.filter}
+        filterSchema={stuck.data?.filter_schema}
+        fields={[
+          { name: "severity", label: t("stuck.filter_severity") },
+          { name: "status", label: t("stuck.filter_status") },
+          { name: "kind", label: t("stuck.filter_kind") },
+          { name: "job_id", label: t("stuck.filter_job"), inputMode: "numeric" },
+          { name: "workflow_id", label: t("stuck.filter_workflow"), inputMode: "numeric" },
+          { name: "run_id", label: t("stuck.filter_run"), inputMode: "numeric" }
+        ]}
+        search={location.search}
+        searchLabel={t("stuck.apply_filters")}
+      />
 
       {stuck.isPending ? <AdminEventPanelMessage>{t("stuck.loading")}</AdminEventPanelMessage> : null}
       {stuck.isError ? <AdminEventPanelMessage tone="error">{t("stuck.error_load")}</AdminEventPanelMessage> : null}
-      {stuck.isSuccess ? <StuckTable items={stuck.data.items} pagination={stuck.data.pagination} prefix={prefix} search={location.search} onNavigate={navigateSearch} /> : null}
+      {stuck.isSuccess ? (
+        <StuckTable items={stuck.data.items} pagination={stuck.data.pagination} prefix={prefix} search={location.search} onNavigate={navigateSearch} />
+      ) : null}
     </AdminEventPageShell>
   )
 }
@@ -105,7 +114,13 @@ function buildStuckColumns({
     },
     { key: "kind", header: t("stuck.col_kind"), sort: "kind", className: "font-mono text-xs text-gray-700 dark:text-gray-200", render: (item) => item.kind },
     { key: "detail", header: t("stuck.col_detail"), sort: "detail", className: "text-gray-700 dark:text-gray-200", render: (item) => item.detail },
-    { key: "context", header: t("stuck.col_context"), sort: "context", className: "text-xs text-gray-600 dark:text-gray-300", render: (item) => contextLabel(item) },
+    {
+      key: "context",
+      header: t("stuck.col_context"),
+      sort: "context",
+      className: "text-xs text-gray-600 dark:text-gray-300",
+      render: (item) => contextLabel(item)
+    },
     { key: "age", header: t("stuck.col_age"), sort: "age", className: "text-xs text-gray-500 dark:text-gray-400", render: (item) => item.age_label },
     {
       key: "links",
@@ -116,21 +131,19 @@ function buildStuckColumns({
       render: (item) => (
         <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
           {item.workflow_path ? (
-            <WorkflowReference className={adminEventLinkClass()} path={withRoutePrefix(item.workflow_path, prefix)} slug={item.workflow_slug || workflowSlug(item.workflow_id!)} />
+            <WorkflowReference
+              className={adminEventLinkClass()}
+              path={withRoutePrefix(item.workflow_path, prefix)}
+              slug={item.workflow_slug || workflowSlug(item.workflow_id!)}
+            />
           ) : null}
           {item.job_id ? (
-            <Link
-              className={adminEventLinkClass()}
-              to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}
-            >
+            <Link className={adminEventLinkClass()} to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>
               {t("stuck.link_job")}
             </Link>
           ) : null}
           {item.run_id && item.has_transcript ? (
-            <Link
-              className={adminEventLinkClass()}
-              to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}
-            >
+            <Link className={adminEventLinkClass()} to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>
               {t("stuck.link_transcript")}
             </Link>
           ) : null}

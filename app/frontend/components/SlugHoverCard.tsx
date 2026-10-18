@@ -1,5 +1,15 @@
 import { FloatingPortal, autoPlacement, flip, offset, shift, useFloating } from "@floating-ui/react"
-import { type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import {
+  type ComponentType,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react"
 import { Link } from "react-router-dom"
 import { pluginSlugPreviewCardComponentForPrefix, type PluginSlugPreviewCardProps } from "../pluginSlugPreviewCards"
 import { hrefForSlugReference, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
@@ -84,20 +94,23 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
     middleware: [offset(8), flip({ padding: 8 }), autoPlacement({ padding: 8 }), shift({ padding: 8 })]
   })
 
-  const open = useCallback((mode: "preview" | "actions") => {
-    if (mode === "preview" && !entry.previewAvailable) return
-    if (mode === "actions" && !entry.previewAvailable && !hasActions) return
-    if (unmountTimer.current) clearTimeout(unmountTimer.current)
-    if (enterFrame.current !== null) window.cancelAnimationFrame(enterFrame.current)
-    setSurfaceMode(mode)
-    setSurfaceIsVisible(false)
-    setSurfaceIsMounted(true)
-    setIsOpen(true)
-    enterFrame.current = window.requestAnimationFrame(() => {
-      setSurfaceIsVisible(true)
-      enterFrame.current = null
-    })
-  }, [entry.previewAvailable, hasActions])
+  const open = useCallback(
+    (mode: "preview" | "actions") => {
+      if (mode === "preview" && !entry.previewAvailable) return
+      if (mode === "actions" && !entry.previewAvailable && !hasActions) return
+      if (unmountTimer.current) clearTimeout(unmountTimer.current)
+      if (enterFrame.current !== null) window.cancelAnimationFrame(enterFrame.current)
+      setSurfaceMode(mode)
+      setSurfaceIsVisible(false)
+      setSurfaceIsMounted(true)
+      setIsOpen(true)
+      enterFrame.current = window.requestAnimationFrame(() => {
+        setSurfaceIsVisible(true)
+        enterFrame.current = null
+      })
+    },
+    [entry.previewAvailable, hasActions]
+  )
 
   const close = useCallback(() => {
     if (enterFrame.current !== null) {
@@ -262,7 +275,19 @@ export function SlugReferenceCard({ entry, id, slug: slugProp, children }: SlugR
   )
 }
 
-function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: () => void; entry: SlugReferenceRegistryEntry; href: string | null; id: number; slug: string }) {
+function SlugReferenceActionSurface({
+  close,
+  entry,
+  href,
+  id,
+  slug
+}: {
+  close: () => void
+  entry: SlugReferenceRegistryEntry
+  href: string | null
+  id: number
+  slug: string
+}) {
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
 
@@ -285,11 +310,7 @@ function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: (
       <div className="flex flex-wrap gap-2">
         {href ? <SlugReferenceOpenAction close={close} href={href} slug={slug} /> : null}
         {entry.copyable ? (
-          <button
-            className={actionButtonClassName}
-            onClick={copySlug}
-            type="button"
-          >
+          <button className={actionButtonClassName} onClick={copySlug} type="button">
             <CopyIcon className={`h-4 w-4 ${copied ? "text-success-text" : "text-text-secondary"}`} />
             {copied ? t("copy.copied") : t("slug_reference.copy_action", { slug })}
           </button>
@@ -301,7 +322,9 @@ function SlugReferenceActionSurface({ close, entry, href, id, slug }: { close: (
           <PreviewCard entry={entry} id={id} slug={slug} />
         </div>
       ) : (
-        <p className="rounded border border-dashed border-border bg-surface-subtle px-3 py-2 text-sm text-text-secondary">{t("slug_reference.preview_unavailable")}</p>
+        <p className="rounded border border-dashed border-border bg-surface-subtle px-3 py-2 text-sm text-text-secondary">
+          {t("slug_reference.preview_unavailable")}
+        </p>
       )}
     </div>
   )
