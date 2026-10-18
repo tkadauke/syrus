@@ -13,6 +13,7 @@ module Throughput
 
     optionally_depends_on [ "metrics_dashboard" ]
     provides repo_page_tab: "Throughput::RepoPageTabs",
+             callbacks: "Throughput::Callbacks",
              "metrics_dashboard:tab" => "Throughput::MetricsDashboardTabs"
 
     route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
@@ -36,5 +37,7 @@ module Throughput
               comment: "Jobs landed via a successful landing attempt (a merge_train counts every member Job)"
       sampler MetricsSampler
     end
+
+    tick_interval 5.minutes
   end
 end

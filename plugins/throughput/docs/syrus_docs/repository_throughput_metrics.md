@@ -38,6 +38,7 @@ The current contract is produced by `Throughput::MetricContract` (in the
   version: 1,
   repository_id: 123,
   generated_at: "2026-07-31T12:00:00Z",
+  cache_status: "fresh",
   windows: {
     "1h" => { ... },
     "4h" => { ... },
@@ -55,7 +56,21 @@ GET /api/v1/app/repositories/:id/throughput_metrics
 ```
 
 The endpoint is scoped through the signed-in user's repository workspace
-memberships and computes directly from durable rows at request time.
+memberships. The plugin precomputes one versioned snapshot per active, polled
+repository every five minutes on the consumed `polling` queue. Snapshots are
+fresh for ten minutes and retained for up to 24 hours so a refresh failure does
+not erase the last known metrics. The response adds `cache_status`: `fresh`,
+`computed` for the single cold-cache fallback, or `stale`. `generated_at`
+continues to describe when the metric windows were computed, not request time.
+
+Refreshes are serialized per repository and also guarded by a shared-cache
+claim, preventing web and worker processes from duplicating the expensive
+rollup. A cold request may compute the snapshot once. If another process owns
+that computation and no retained snapshot exists, the endpoint returns `503`
+with `throughput_snapshot_unavailable`; it never substitutes plausible empty
+metrics. Failed refreshes leave the prior snapshot intact. Cache keys include
+both repository ID and `MetricContract::VERSION`, so a contract version bump
+cannot serve an older payload under the new contract.
 
 The repository detail page also renders this contract on its own "Throughput"
 tab. It exposes a window selector, headline rates, confidence labels, sample
