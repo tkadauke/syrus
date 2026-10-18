@@ -204,8 +204,8 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(AppSetting.video_storage_budget_bytes).to eq(0)
   end
 
-  it ".chat_coding_workspace_budget_bytes converts the MB column to bytes (default unlimited)" do
-    expect(AppSetting.chat_coding_workspace_budget_bytes).to eq(0)
+  it ".chat_coding_workspace_budget_bytes converts the MB column to bytes (default 10 GB)" do
+    expect(AppSetting.chat_coding_workspace_budget_bytes).to eq(10.gigabytes)
 
     AppSetting.current.update!(chat_coding_workspace_budget_mb: 20_000)
 
