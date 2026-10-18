@@ -7,14 +7,16 @@ RSpec.describe "App API job workflows conditional GET", type: :request do
   before { sign_in_as(user) }
 
   it "returns a 304 with no body when the workflows tree has not changed since the last ETag" do
-    get "/api/v1/app/jobs/#{job.id}/workflows"
-    expect(response).to have_http_status(:ok)
-    etag = response.headers["ETag"]
-    expect(etag).to be_present
+    freeze_time do
+      get "/api/v1/app/jobs/#{job.id}/workflows"
+      expect(response).to have_http_status(:ok)
+      etag = response.headers["ETag"]
+      expect(etag).to be_present
 
-    get "/api/v1/app/jobs/#{job.id}/workflows", headers: { "If-None-Match" => etag }
-    expect(response).to have_http_status(:not_modified)
-    expect(response.body).to be_blank
+      get "/api/v1/app/jobs/#{job.id}/workflows", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_blank
+    end
   end
 
   it "returns a fresh 200 once a nested Step changes, even though the ETag was previously fresh" do
