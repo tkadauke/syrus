@@ -14,6 +14,9 @@ module Django
     author "Thomas Kadauke"
     category "language"
     depends_on [ "python" ]
+    suggests_enabling "Django repositories get manage.py preview hosting, database migrations, and optional fixture loading." do |signals|
+      signals.repositories_detecting("django")
+    end
     provides preview_provider: "Django::PreviewProvider"
   end
 end

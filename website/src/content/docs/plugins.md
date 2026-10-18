@@ -126,9 +126,10 @@ off.
 Syrus can tell you a plugin is worth turning on before you go looking for it.
 A plugin can declare what its own signal looks like, and Admin -> Plugins shows
 the ones this instance appears to want, with the evidence behind each: how many
-of your repositories are Python, whether you are running more than one worker
-host, whether you are on MySQL. Plugins you have already enabled are never
-suggested, and a suggestion with no evidence behind it is not shown at all.
+of your repositories are Python, which repositories have a resolvable Django
+settings module, whether you are running more than one worker host, or whether
+you are on MySQL. Plugins you have already enabled are never suggested, and a
+suggestion with no evidence behind it is not shown at all.
 
 The repository side of this is observed while Syrus already has a clone in
 hand, during a normal run, so a repository Syrus has never worked on produces
