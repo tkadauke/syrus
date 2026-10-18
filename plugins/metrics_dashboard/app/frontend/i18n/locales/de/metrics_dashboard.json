@@ -7,6 +7,7 @@
   "panel_empty": "In diesem Zeitraum wurden noch keine Daten aufgezeichnet.",
   "no_data_notice": "Es wurde noch nichts aufgezeichnet. Die Aufzeichnung beginnt eine Minute nach Aktivierung des Plugins.",
   "cluster_counter_unavailable_notice": "Die prozessübergreifende Zählererfassung ist nicht verfügbar oder veraltet. Diagramme zur Funktionsnutzung und zu Zulassungsentscheidungen lassen neue Messwerte aus, bis die Erfassung wieder funktioniert.",
+  "cluster_counter_partial_notice": "Die prozessübergreifende Zählererfassung ist unvollständig. Mindestens ein Prozess hat veraltete oder fehlgeschlagene Übertragungen; aktuelle Summen können daher unvollständig sein.",
   "stale_notice": "Die Aufzeichnung scheint gestoppt zu sein. Letzte Messung: {{at}}.",
   "hide_series": "Serie {{name}} ausblenden",
   "show_series": "Serie {{name}} einblenden",

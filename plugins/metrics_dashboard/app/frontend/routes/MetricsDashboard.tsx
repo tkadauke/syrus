@@ -97,9 +97,9 @@ export function MetricsDashboardRoute() {
       </Page.Header>
 
       <RecordingNotice lastRecordedAt={payload.last_recorded_at} recording={payload.recording} />
-      {payload.cluster_counter_capture === "unavailable" ? (
+      {payload.cluster_counter_capture !== "available" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-          {t("cluster_counter_unavailable_notice")}
+          {t(`cluster_counter_${payload.cluster_counter_capture}_notice`)}
         </div>
       ) : null}
 

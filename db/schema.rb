@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_005020) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2137,6 +2137,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
   end
 
+  create_table "metric_counter_contributors", force: :cascade do |t|
+    t.string "identity", limit: 191, null: false
+    t.bigint "last_applied_sequence", default: 0, null: false
+    t.datetime "last_success_at"
+    t.datetime "last_error_at"
+    t.string "last_error", limit: 500
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["identity"], name: "index_metric_counter_contributors_on_identity", unique: true
+    t.index ["updated_at"], name: "index_metric_counter_contributors_on_updated_at"
+  end
+
   create_table "metric_counter_totals", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.json "labels"
@@ -3858,8 +3870,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_041659) do
     t.string "tree_sha"
     t.datetime "updated_at", null: false
     t.bigint "workflow_id", null: false
-    t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
+    t.index ["prepare_fingerprint", "id"], name: "idx_wf_source_snapshots_prepare_fingerprint"
     t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end
 
