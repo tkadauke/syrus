@@ -203,14 +203,38 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("shows actionable disposable probe failures and cleanup evidence", async () => {
-    vi.mocked(window.fetch).mockResolvedValue(jsonResponse({ readiness: {
-      status: "ready", summary: "Ready", revision: "abc123", repository_size_bytes: 42, file_count: 2,
-      checks: [], prepare_commands: ["missing-setup"], grader_commands: ["bin/specs"], required_capabilities: { os: ["linux"] }, execution_scopes: [],
-      execution_probe: {
-        id: 9, status: "blocked", revision: "abc123", warning_override: false, started_at: "2026-10-17T00:00:00Z", completed_at: "2026-10-17T00:00:02Z",
-        result: { summary: "A required command could not start; the first implementation run is blocked.", duration_s: 2, disk_growth_bytes: 512, cleanup: "completed", missing_executables: ["missing-setup"], commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }] }
-      }
-    } }))
+    vi.mocked(window.fetch).mockResolvedValue(
+      jsonResponse({
+        readiness: {
+          status: "ready",
+          summary: "Ready",
+          revision: "abc123",
+          repository_size_bytes: 42,
+          file_count: 2,
+          checks: [],
+          prepare_commands: ["missing-setup"],
+          grader_commands: ["bin/specs"],
+          required_capabilities: { os: ["linux"] },
+          execution_scopes: [],
+          execution_probe: {
+            id: 9,
+            status: "blocked",
+            revision: "abc123",
+            warning_override: false,
+            started_at: "2026-10-17T00:00:00Z",
+            completed_at: "2026-10-17T00:00:02Z",
+            result: {
+              summary: "A required command could not start; the first implementation run is blocked.",
+              duration_s: 2,
+              disk_growth_bytes: 512,
+              cleanup: "completed",
+              missing_executables: ["missing-setup"],
+              commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }]
+            }
+          }
+        }
+      })
+    )
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
 
@@ -224,15 +248,31 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     vi.mocked(window.fetch).mockImplementation(() => {
       reads += 1
       const active = reads === 1
-      return Promise.resolve(jsonResponse({ readiness: {
-        status: "ready", summary: "Ready", revision: "abc123", repository_size_bytes: 42, file_count: 2,
-        checks: [], prepare_commands: [], grader_commands: [], required_capabilities: { os: ["linux"] }, execution_scopes: [],
-        execution_probe: {
-          id: 9, status: active ? "queued" : "succeeded", revision: active ? null : "abc123", warning_override: false,
-          started_at: null, completed_at: active ? null : "2026-10-17T00:00:02Z",
-          result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
-        }
-      } }))
+      return Promise.resolve(
+        jsonResponse({
+          readiness: {
+            status: "ready",
+            summary: "Ready",
+            revision: "abc123",
+            repository_size_bytes: 42,
+            file_count: 2,
+            checks: [],
+            prepare_commands: [],
+            grader_commands: [],
+            required_capabilities: { os: ["linux"] },
+            execution_scopes: [],
+            execution_probe: {
+              id: 9,
+              status: active ? "queued" : "succeeded",
+              revision: active ? null : "abc123",
+              warning_override: false,
+              started_at: null,
+              completed_at: active ? null : "2026-10-17T00:00:02Z",
+              result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
+            }
+          }
+        })
+      )
     })
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
