@@ -181,15 +181,24 @@ RSpec.describe Throughput::MetricContract do
     )
   end
 
-  it "does not load over-budget run diffs for throughput LOC metrics" do
+  it "rejects over-budget preferred diffs in SQL before materializing them" do
     stub_const("#{described_class}::MAX_DIFF_SAMPLE_BYTES", 10)
     stub_const("#{described_class}::MAX_TOTAL_DIFF_SAMPLE_BYTES", 10)
     job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 40.minutes)
     workflow = workflow_for(job, trigger_kind: "initial")
     step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
-    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "+#{'x' * 20}\n")
+    run_for(
+      job,
+      step,
+      head_sha: "b" * 40,
+      step_agent_diff: "+#{'x' * 20}\n",
+      agent_diff: "+small\n"
+    )
 
-    output = call.fetch(:windows).fetch("1h").fetch(:output)
+    result = nil
+    queries = captured_sql { result = call }
+    output = result.fetch(:windows).fetch("1h").fetch(:output)
+    diff_query = queries.find { |sql| sql.include?("OCTET_LENGTH") }
 
     expect(output.fetch(:commits)).to include(count: 1, sample_count: 1)
     expect(output.fetch(:loc)).to include(count: 0, sample_count: 0, confidence: "none", unavailable_sample_count: 1)
@@ -205,6 +214,34 @@ RSpec.describe Throughput::MetricContract do
         net: 0
       )
     )
+    expect(diff_query).to match(/SELECT .*runs.*id.*, COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)/i)
+    expect(diff_query).to match(/OCTET_LENGTH\(COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)\) <= \?/i)
+  end
+
+  it "uses the run diff when the preferred step diff is empty" do
+    job = Factories.job_record(user: user, repository: repository, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "", agent_diff: "+fallback\n")
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:loc)).to include(count: 1, additions: 1, deletions: 0, unavailable_sample_count: 0)
+  end
+
+  it "keeps the aggregate diff sample limit in Ruby" do
+    stub_const("#{described_class}::MAX_DIFF_SAMPLE_BYTES", 20)
+    stub_const("#{described_class}::MAX_TOTAL_DIFF_SAMPLE_BYTES", 10)
+    job = Factories.job_record(user: user, repository: repository, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    2.times do |index|
+      step = step_for(workflow, kind: "implement", finished_at: now - (25 - index).minutes, position: index)
+      run_for(job, step, head_sha: index.to_s * 40, step_agent_diff: "+small\n")
+    end
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:loc)).to include(sample_count: 1, unavailable_sample_count: 1)
   end
 
   it "caps the number of run diffs sampled for throughput LOC metrics even when all diffs are small" do
@@ -217,13 +254,17 @@ RSpec.describe Throughput::MetricContract do
       job
     end
 
-    output = call.fetch(:windows).fetch("1h").fetch(:output)
+    result = nil
+    queries = captured_sql { result = call }
+    output = result.fetch(:windows).fetch("1h").fetch(:output)
+    diff_query = queries.find { |sql| sql.include?("OCTET_LENGTH") }
 
     expect(output.fetch(:commits)).to include(count: 3, sample_count: 3)
     expect(output.fetch(:loc)).to include(sample_count: 1, unavailable_sample_count: 2)
     expect(output.fetch(:by_job).sum { |entry| entry.fetch(:diff_sample_count) }).to eq(1)
     expect(output.fetch(:by_job).sum { |entry| entry.fetch(:unavailable_sample_count) }).to eq(2)
     expect(jobs.map(&:id)).to include(*output.fetch(:by_job).map { |entry| entry.fetch(:job_id) })
+    expect(diff_query).to match(/LIMIT \?\z/)
   end
 
   it "defines landing throughput, merge-train size, latency, and landing waste for clean auto-merge and trains" do
