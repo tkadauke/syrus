@@ -95,7 +95,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     user.update!(github_token: "github-token")
     repository = Factories.repository(user: user)
     stub_repository_content(repository, files: { ".syrus.yml" => "prepare: []\n" })
-    decision = RunQueueResolver::Decision.new(queue_name: "runs", requirements: { "os" => [ "linux" ] }, sticky_resume: false, blocked_reason: nil, details: {})
+    decision = RunQueueResolver::Decision.new(
+      queue_name: "runs", requirements: { "os" => [ "linux" ] }, sticky_resume: false, blocked_reason: nil,
+      details: { "live_workers" => [ { "eligible" => true } ] }
+    )
     allow(RunQueueResolver).to receive(:resolve_candidate).and_return(decision)
     sign_in_as(user)
 

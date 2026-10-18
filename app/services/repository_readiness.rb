@@ -1,7 +1,7 @@
 require "tmpdir"
 
 class RepositoryReadiness
-  Result = Data.define(:status, :summary, :revision, :repository_size_bytes, :file_count, :checks, :prepare_commands, :grader_commands, :required_capabilities)
+  Result = Data.define(:status, :summary, :revision, :repository_size_bytes, :file_count, :checks, :prepare_commands, :grader_commands, :required_capabilities, :execution_scopes)
 
   MATERIALIZED_PATHS = %w[
     .syrus.yml Gemfile Gemfile.lock package.json package-lock.json yarn.lock pnpm-lock.yaml
@@ -42,9 +42,8 @@ class RepositoryReadiness
       grade_signals = RepoGradeSignals.for(dir)
       config = parse_config(dir, checks)
       checks.concat(heuristic_checks(dir, entries, prep, grade, grade_signals))
-      capabilities = required_capabilities(config)
-      worker = worker_decision(capabilities)
-      checks << check("worker", worker.blocked? ? "block" : "pass", worker_message(worker, capabilities))
+      scopes = execution_scopes(config, prep, grade)
+      checks << worker_check(scopes)
 
       status = classify(checks)
       Result.new(
@@ -52,13 +51,14 @@ class RepositoryReadiness
         repository_size_bytes: entries.sum { |entry| entry.size.to_i }, file_count: entries.count(&:file?),
         checks:, prepare_commands: prep.commands,
         grader_commands: grade.graders.any? ? grade.graders.map(&:command) : grade_signals.candidates.map(&:run),
-        required_capabilities: capabilities
+        required_capabilities: scopes.first.fetch(:capabilities), execution_scopes: scopes
       )
     rescue SyrusYml::ParseError => e
       checks << check("configuration", "block", e.message) unless checks.any? { |item| item[:key] == "configuration" && item[:level] == "block" }
       Result.new(status: "needs_configuration", summary: summary_for("needs_configuration"), revision: revision.id,
                  repository_size_bytes: entries.sum { |entry| entry.size.to_i }, file_count: entries.count(&:file?), checks:,
-                 prepare_commands: [], grader_commands: [], required_capabilities: RunQueueResolver::DEFAULT_RUN_CAPABILITIES)
+                 prepare_commands: [], grader_commands: [], required_capabilities: RunQueueResolver::DEFAULT_RUN_CAPABILITIES,
+                 execution_scopes: [])
     end
   rescue RepositoryContent::NotFound, RepositoryContent::UnknownRevision => e
     blocked_result("needs_configuration", "access", "Default branch #{@repository.default_branch} could not be resolved: #{e.message}")
@@ -135,23 +135,47 @@ class RepositoryReadiness
     checks
   end
 
-  def required_capabilities(config)
-    values = [ config&.project&.capabilities, *Array(config&.targets).map(&:capabilities), *Array(config&.grade&.steps).map(&:capabilities) ].compact
-    merged = values.each_with_object({}) do |capabilities, result|
-      capabilities.to_h.each { |dimension, required| result[dimension.to_s] = (Array(result[dimension.to_s]) + Array(required)).map(&:to_s).uniq }
+  def execution_scopes(config, prep, grade)
+    scopes = [ execution_scope("workflow", "Workflow workspace", prep.commands.join(" && ").presence, config&.project&.capabilities) ]
+    Array(config&.targets).each do |target|
+      next if target.command.blank?
+
+      scopes << execution_scope("target:#{target.name}", "Target #{target.name}", target.command, target.capabilities)
     end
-    WorkerCapabilities.normalize(merged.presence || RunQueueResolver::DEFAULT_RUN_CAPABILITIES)
+    grade.graders.each do |grader|
+      scopes << execution_scope("grader:#{grader.name}", "Grader #{grader.display_name || grader.name}", grader.command, grader.capabilities)
+    end
+    scopes
+  end
+
+  def execution_scope(key, label, command, declared_capabilities)
+    capabilities = WorkerCapabilities.normalize(declared_capabilities&.to_h.presence || RunQueueResolver::DEFAULT_RUN_CAPABILITIES)
+    decision = worker_decision(capabilities)
+    live_workers = Array(decision.details["live_workers"])
+    {
+      key:, label:, command:, capabilities:, queue_name: decision.queue_name,
+      worker_available: !decision.blocked? && live_workers.any? { |worker| worker["eligible"] }
+    }
   end
 
   def worker_decision(capabilities)
-    workflow = Struct.new(:trigger_kind, :planned_execution_capabilities, :worker_storage_key, :worker_hostname, :job).new("initial", capabilities, nil, nil, nil)
-    step = Struct.new(:placement_policy, :details, :kind).new(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, {}, "implement")
+    workflow = Struct.new(:id, :trigger_kind, :planned_execution_capabilities, :worker_storage_key, :worker_hostname, :job).new(nil, "initial", capabilities, nil, nil, nil)
+    step = Struct.new(:id, :placement_policy, :details, :kind).new(nil, Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, {}, "implement")
     RunQueueResolver.resolve_candidate(workflow:, step:)
   end
 
-  def worker_message(decision, capabilities)
-    prefix = decision.blocked? ? "No live worker satisfies" : "A live worker satisfies"
-    "#{prefix} #{capabilities.map { |key, values| "#{key}=#{Array(values).join('/')}" }.join(', ')}. Proposed queue: #{decision.queue_name}."
+  def worker_check(scopes)
+    missing = scopes.reject { |scope| scope[:worker_available] }
+    if missing.empty?
+      check("worker", "pass", "Every executable scope has a live capable worker.")
+    else
+      labels = missing.map { |scope| "#{scope[:label]} (#{capabilities_description(scope[:capabilities])})" }
+      check("worker", "block", "No live capable worker is available for: #{labels.join('; ')}.")
+    end
+  end
+
+  def capabilities_description(capabilities)
+    capabilities.map { |key, values| "#{key}=#{Array(values).join('/')}" }.join(", ")
   end
 
   def classify(checks)
@@ -176,6 +200,6 @@ class RepositoryReadiness
   def blocked_result(status, key, message)
     Result.new(status:, summary: summary_for(status), revision: nil, repository_size_bytes: nil, file_count: nil,
                checks: [ check(key, "block", message) ], prepare_commands: [], grader_commands: [],
-               required_capabilities: RunQueueResolver::DEFAULT_RUN_CAPABILITIES)
+               required_capabilities: RunQueueResolver::DEFAULT_RUN_CAPABILITIES, execution_scopes: [])
   end
 end
