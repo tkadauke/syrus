@@ -15,11 +15,29 @@ RSpec.describe "desktop packaging" do
 
   let(:builder_config) { read("electron-builder.yml") }
   let(:package_json) { JSON.parse(read("package.json")) }
+  let(:package_lock) { JSON.parse(read("package-lock.json")) }
+  let(:main_process) { read("electron/main.ts") }
   let(:staging_script) { read("scripts/stage-backend-assets.mjs") }
 
   it "moves the build config out of package.json into electron-builder.yml" do
     expect(package_json).not_to have_key("build")
     expect(builder_config).to include("appId: app.syrus.desktop")
+  end
+
+  it "uses an Electron release with the macOS ShipIt on-demand launch fix" do
+    electron_requirement = package_json.dig("devDependencies", "electron")
+    locked_electron = package_lock.dig("packages", "node_modules/electron", "version")
+
+    # Electron 40.9.3 is the first stable release containing the upstream
+    # Squirrel.Mac trigger that starts ShipIt in on-demand-only launchd domains.
+    expect(Gem::Version.new(electron_requirement.delete_prefix("^"))).to be >= Gem::Version.new("40.9.3")
+    expect(Gem::Version.new(locked_electron)).to be >= Gem::Version.new("40.9.3")
+    expect(package_json.dig("allowScripts", "electron@#{locked_electron}")).to be(true)
+  end
+
+  it "carries Electron 44's platform and clipboard migrations into the package" do
+    expect(builder_config).to include('minimumSystemVersion: "13.0"')
+    expect(main_process).to include("await clipboard.writeText(text)")
   end
 
   it "ships as Syrus.app, mirroring Claude Desktop naming" do

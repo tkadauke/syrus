@@ -2857,7 +2857,7 @@ ipcMain.handle("quit-app", () => {
   app.quit()
 })
 ipcMain.handle("copy-text", async (_event, text: string) => {
-  clipboard.writeText(text)
+  await clipboard.writeText(text)
 })
 ipcMain.handle("fetch-bootstrap", async () => fetchBootstrap())
 ipcMain.handle("fetch-repositories", async () => fetchRepositories())
