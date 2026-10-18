@@ -63,18 +63,24 @@ RSpec.describe Steps::BuilderFanout do
   end
 
   def stub_runner(result = success_result)
-    allow(ProcessRunner).to receive(:new) do |**args|
-      args[:on_output_chunk].call("builder output\n")
-      instance_double(ProcessRunner, run: result)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    %w[prepare builder].each do |kind|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: kind)) do |**args|
+        args[:on_output_chunk].call("builder output\n")
+        instance_double(ProcessRunner, run: result)
+      end
     end
   end
 
   def stub_runner_with_calls(result = success_result)
     calls = []
-    allow(ProcessRunner).to receive(:new) do |**args|
-      calls << args
-      args[:on_output_chunk].call("builder output\n")
-      instance_double(ProcessRunner, run: result)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    %w[prepare builder].each do |kind|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: kind)) do |**args|
+        calls << args
+        args[:on_output_chunk].call("builder output\n")
+        instance_double(ProcessRunner, run: result)
+      end
     end
     calls
   end
