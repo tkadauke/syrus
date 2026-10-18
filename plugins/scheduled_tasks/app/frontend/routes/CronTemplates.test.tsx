@@ -264,6 +264,15 @@ describe("CronTemplateFormRoute cadence preview", () => {
       if (url === "/api/v1/app/cron_templates/preview_schedule" && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ valid: true, schedule_input: "Every Monday at 9:00 AM", errors: [] }))
       }
+      if (url === "/api/v1/app/cron_templates" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        expect(body.cron_template).toMatchObject({
+          skill_name: "investigate",
+          skill_args: { question: "Find the cause" },
+          validation_repository_id: "12"
+        })
+        return Promise.resolve(jsonResponse(templateDetail()))
+      }
       return Promise.resolve(jsonResponse({ templates: [], pr_pileup_policies: ["skip", "pile", "replace"], repositories: [{ id: 12, slug: "acme/widgets" }] }))
     })
 
@@ -272,8 +281,12 @@ describe("CronTemplateFormRoute cadence preview", () => {
 
     expect(await screen.findByText("Investigate a question")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Investigate a question"))
-    expect(await screen.findByLabelText("Question")).toBeInTheDocument()
+    fireEvent.change(await screen.findByLabelText("Question"), { target: { value: "Find the cause" } })
     expect(screen.queryByRole("textbox", { name: "Prompt" })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Investigate weekly" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create template" }))
+
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/cron_templates", expect.objectContaining({ method: "POST" })))
   })
 
   it("labels an LLM-assisted preview as a deterministic explanation with an AI-assist badge", async () => {

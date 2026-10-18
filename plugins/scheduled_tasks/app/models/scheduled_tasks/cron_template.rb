@@ -66,12 +66,12 @@ module ScheduledTasks
              foreign_key: :cron_template_id, inverse_of: :cron_template, dependent: :nullify
 
     # Transient, not persisted — see ScheduledTask#structured_intent.
-    attr_accessor :structured_intent
+    attr_accessor :structured_intent, :skill_validation_repository
 
     validates :name, presence: true, length: { maximum: 200 }
     validates :prompt, presence: true, if: -> { skill_name.blank? }
     validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
-    validate :prompt_or_skill, :skill_args_are_an_object
+    validate :prompt_or_skill, :skill_args_are_an_object, :skill_args_match_parameter_schema
     validates :schedule_expression, presence: true
     validates :pr_pileup_policy, presence: true, inclusion: { in: PR_PILEUP_POLICIES }
     validate  :schedule_expression_is_parseable_and_hourly
@@ -119,6 +119,21 @@ module ScheduledTasks
 
     def skill_args_are_an_object
       errors.add(:skill_args, "must be an object") unless skill_args.nil? || skill_args.is_a?(Hash)
+    end
+
+    def skill_args_match_parameter_schema
+      return if skill_name.blank?
+      if skill_validation_repository.nil?
+        errors.add(:skill_name, "requires a repository validation context")
+        return
+      end
+
+      resolution = Skills.for(repository: skill_validation_repository, name: skill_name, user: user)
+      Skills::ParameterSchema.validate!(resolution.definition.parameters, skill_args.presence || {})
+    rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+      errors.add(:skill_name, "could not be resolved: #{e.message}")
+    rescue Skills::ParameterSchema::ValidationError => e
+      errors.add(:skill_args, e.message)
     end
 
     def canonicalize_recurring_schedule

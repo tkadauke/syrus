@@ -51,12 +51,16 @@ module Factories
   end
 
   def cron_template(**attrs)
+    template_user = attrs[:user] || user
+    validation_repository = attrs.delete(:skill_validation_repository)
+    validation_repository ||= repository(user: template_user) if attrs[:skill_name].present?
     ScheduledTasks::CronTemplate.create!({
-      user: attrs[:user] || user,
+      user: template_user,
       name: "Weekly maintenance",
       prompt: "Keep things tidy.",
       cron_expression: "0 9 * * 1",
-      pr_pileup_policy: "skip"
+      pr_pileup_policy: "skip",
+      skill_validation_repository: validation_repository
     }.merge(attrs))
   end
 
