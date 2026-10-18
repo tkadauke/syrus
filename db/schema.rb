@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_031841) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2799,6 +2799,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_031841) do
     t.boolean "warning_override", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "in_flight", default: true
+    t.index ["repository_id", "in_flight"], name: "idx_repository_execution_probes_single_flight", unique: true
     t.index ["repository_id"], name: "index_repository_execution_probes_on_repository_id"
     t.index ["requested_by_id"], name: "index_repository_execution_probes_on_requested_by_id"
   end

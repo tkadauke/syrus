@@ -341,10 +341,9 @@ module Api
 
         def readiness_probe
           repository = find_repository
-          running = repository.repository_execution_probes.where(status: %w[queued running]).recent_first.first
-          probe = running || repository.repository_execution_probes.create!(requested_by: Current.user, result: {})
-          RepositoryExecutionProbeJob.perform_later(probe.id) unless running
-          render json: { execution_probe: execution_probe_json(probe) }, status: running ? :ok : :accepted
+          claim = RepositoryExecutionProbe.claim!(repository:, requested_by: Current.user)
+          RepositoryExecutionProbeJob.perform_later(claim.probe.id) if claim.created
+          render json: { execution_probe: execution_probe_json(claim.probe) }, status: claim.created ? :accepted : :ok
         end
 
         def override_readiness_probe
