@@ -39,3 +39,5 @@ use ./plugins/git_mirror/container
 use ./plugins/browser/container
 
 use ./plugins/tailscale/container
+
+use ./plugins/whisper_stt/container

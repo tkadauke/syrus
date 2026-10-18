@@ -291,14 +291,30 @@ grade:
       chunks, bounded decoder state, cleanup, and real fragmented-WebM
       decoding. The explicit ffmpeg preflight prevents the media-boundary
       regression test from silently skipping on an incomplete worker image.
-    run: command -v ffmpeg >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s plugins/whisper_stt/container -p 'test_*.py'
+    run: command -v ffmpeg >/dev/null && cd plugins/whisper_stt/container && GOWORK=off mise exec go@1.26.5 -- go test ./...
     phases: [review, landing, ci]
     required: true
     when_files_changed:
-      - "plugins/whisper_stt/container/**/*.py"
+      - "plugins/whisper_stt/container/**/*.go"
+      - "plugins/whisper_stt/container/go.mod"
       - "plugins/whisper_stt/container/Dockerfile"
+      - "go.work"
       - "Dockerfile"
     timeout_minutes: 3
+
+  - name: whisper-image-smoke
+    description: |
+      Builds the real Whisper plugin image, verifies its runtime executables
+      and shared libraries, starts the actual entrypoint, and waits for the
+      model-backed health endpoint. The runtime must not contain Python.
+    run: bin/test-whisper-stt-image
+    phases: [review, landing, ci]
+    required: true
+    when_files_changed:
+      - "plugins/whisper_stt/container/**"
+      - "bin/test-whisper-stt-image"
+      - "bin/publish-plugin-images"
+    timeout_minutes: 20
 
   - name: plugin-model-namespaces
     description: |
