@@ -137,8 +137,8 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details).to include("decision_basis" => "measured_host_pressure")
   end
 
-  # syrus_admission_decisions_total is per-process and lives in the real,
-  # process-global registry (see config/syrus_docs/metrics.md), so this reads
+  # syrus_admission_decisions_total also lives in the real process registry
+  # before its delta is flushed to the cluster total, so this reads
   # the count before/after rather than asserting an absolute value -- other
   # examples in this run may have already incremented the same tag.
   it "increments syrus_admission_decisions_total for the action taken" do

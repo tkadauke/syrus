@@ -38,6 +38,16 @@ RSpec.describe Metrics::ClusterCounters do
     expect(total("error")).to eq(1)
   end
 
+  it "combines distinct process-shaped flushes exactly once" do
+    web = { [ "syrus_things_total", { "outcome" => "answered" } ] => 2 }
+    worker = { [ "syrus_things_total", { "outcome" => "answered" } ] => 5 }
+
+    described_class.send(:write, web)
+    described_class.send(:write, worker)
+
+    expect(total("answered")).to eq(7)
+  end
+
   it "only sends counters declared cluster: true" do
     Syrus::Metrics.counter(:syrus_local_total).increment(tags: { outcome: "answered" })
 
@@ -100,6 +110,26 @@ RSpec.describe Metrics::ClusterCounters do
       described_class.refresh_gauges!
 
       expect(rendered_value).to eq(10)
+    end
+
+    it "does not reapply a cached snapshot after a process registry reset" do
+      Metrics::ClusterCounters.record(:syrus_things_total, { outcome: "answered" }, 7)
+      Metrics::ClusterCounters.flush!
+      described_class.sample!
+      described_class.refresh_gauges!
+
+      Syrus::Metrics.reset!
+      Syrus::Metrics.declare { counter :things_total, tags: %i[outcome], cluster: true, comment: "things" }
+      2.times { described_class.refresh_gauges! }
+
+      expect(rendered_value).to eq(7.0)
+      expect(total("answered")).to eq(7)
+    end
+
+    it "reports an expired or missing shared snapshot as unavailable" do
+      expect(described_class.available?).to be(false)
+      described_class.sample!
+      expect(described_class.available?).to be(true)
     end
   end
 

@@ -16,10 +16,8 @@ module Metrics
   # `record` raises on an unknown key in development and test.
   #
   # Counted at the **web entry point** where a person asks for the thing, not
-  # deep inside the worker that later performs it. Two reasons: the request is
-  # where "someone used this" actually happens (a retried Run is not a second
-  # use), and web is the only role currently scraped -- counters incremented in
-  # a forked Solid Queue worker are not exported yet.
+  # deep inside the worker that later performs it. The counter is cluster-backed
+  # because several web processes may serve requests while one process records.
   module ProductUsage
     FEATURES = %i[
       direct_job_created
@@ -36,7 +34,7 @@ module Metrics
       # about redefined constants.
       def declare_metrics!
         Syrus::Metrics.declare do
-          counter :feature_used_total, tags: %i[feature],
+          counter :feature_used_total, tags: %i[feature], cluster: true,
                   comment: "Feature invocations, counted at the request that asked for them"
         end
       end

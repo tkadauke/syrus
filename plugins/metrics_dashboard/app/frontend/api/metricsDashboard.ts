@@ -37,6 +37,7 @@ export type MetricsDashboardPayload = {
   bucket_seconds: number
   recording: boolean
   last_recorded_at: string | null
+  cluster_counter_capture: "available" | "unavailable"
   /** Canonical core tab display order. Includes "other" only when some panel actually fell back to it. */
   categories: string[]
   /** One entry per currently enabled plugin that contributes a tab. */
