@@ -115,6 +115,39 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(response.body).not_to include("show-secret")
   end
 
+  it "probes, previews, and explicitly confirms SSH host keys without auditing key material" do
+    credential = create_credential(credential_type: "ssh_private_key", safe_metadata: { "host" => "example.test", "username" => "deploy" })
+    key_data = Base64.strict_encode64("host-key")
+    runner = class_double(CredentialStore::SshRunner, call: CredentialStore::SshRunner::Result.new(stdout: "example.test ssh-ed25519 #{key_data}\n", stderr: "", status: 0))
+    CredentialStore::SshHostKeyEnrollment.runner = runner
+    sign_in_as(operator)
+
+    post "/api/v1/app/credential_store/ssh_host_keys/probe", params: { enrollment: { credential_id: credential.id, host: "example.test", port: 22 } }
+    expect(response).to have_http_status(:ok)
+    enrollment = parse_body.fetch("enrollment")
+    expect(enrollment).to include("key_type" => "ssh-ed25519", "known_host" => "example.test ssh-ed25519 #{key_data}")
+    expect(credential.reload.safe_metadata).not_to have_key("known_host")
+
+    post "/api/v1/app/credential_store/ssh_host_keys/confirm", params: { enrollment: { credential_id: credential.id, host: "example.test", port: 22, known_host: enrollment.fetch("known_host") } }
+    expect(response).to have_http_status(:ok)
+    expect(credential.reload.safe_metadata).to include("known_host" => enrollment.fetch("known_host"), "fingerprint" => enrollment.fetch("fingerprint"))
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("operation" => "ssh_host_key_enrollment", "fingerprint" => enrollment.fetch("fingerprint"))
+    expect(CredentialStore::CredentialAccessEvent.last.metadata.to_json).not_to include(key_data)
+  ensure
+    CredentialStore::SshHostKeyEnrollment.runner = nil
+  end
+
+  it "validates manual host keys and denies enrollment for an unmanaged scope" do
+    key_data = Base64.strict_encode64("host-key")
+    sign_in_as(operator)
+    post "/api/v1/app/credential_store/ssh_host_keys/inspect", params: { enrollment: { scope_type: "user", scope_id: operator.id, host: "example.test", port: 22, known_host: "example.test ssh-ed25519 #{key_data}" } }
+    expect(response).to have_http_status(:ok)
+
+    post "/api/v1/app/credential_store/ssh_host_keys/inspect", params: { enrollment: { scope_type: "user", scope_id: other_user.id, host: "example.test", port: 22, known_host: "example.test ssh-ed25519 #{key_data}" } }
+    expect(response).to have_http_status(:forbidden)
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(result: "denied", denial_reason: "not authorized to enroll an SSH host key")
+  end
+
   it "authorizes user-scoped credentials to the referenced user or an admin" do
     sign_in_as(operator)
 

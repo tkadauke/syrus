@@ -772,7 +772,12 @@ plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP
 tools for controlled credential use, including SSH command execution backed by
 `ssh_private_key` leases, temporary key files, target constraints, redaction,
-and audit rows. The encrypted values live in the primary database. The
+and audit rows. The SSH editor guides operators through private-key entry,
+destination allowlists, and explicit host-key enrollment. A discovered key is
+not proof of server identity: verify its SHA-256 fingerprint through a trusted
+channel before confirming it. SSH execution requires that confirmed entry,
+uses a temporary `0600` known-hosts file with strict checking, and never relies
+on the worker's ambient known-hosts file. The encrypted values live in the primary database. The
 encryption keys can come from Rails credentials via `RAILS_MASTER_KEY`, or
 directly from the `ACTIVE_RECORD_ENCRYPTION_*` environment variables. Any
 process that reads or writes encrypted credentials needs one complete, stable

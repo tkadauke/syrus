@@ -14,7 +14,7 @@ module CredentialStore
     disableable true
 
     credential_types [
-      { name: "ssh_private_key", label: "SSH private key", description: "Private key material for SSH access, constrained by host, user, fingerprint, or known-host metadata." },
+      { name: "ssh_private_key", label: "SSH private key", description: "Private key material for SSH access with destination authorization and explicitly confirmed host-key identity." },
       { name: "token", label: "Token", description: "Opaque token material constrained by safe metadata and target policy." },
       { name: "json", label: "JSON credential", description: "Opaque JSON credential material constrained by safe metadata and target policy." },
       { name: "env", label: "Environment credential", description: "Environment-style secret material constrained by safe metadata and target policy." },
@@ -34,6 +34,9 @@ module CredentialStore
     route :patch, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#update"
     route :post, "/api/v1/app/credential_store/credentials/:id/rotate", to: "api/v1/app/credential_store/credentials#rotate"
     route :post, "/api/v1/app/credential_store/credentials/:id/revoke", to: "api/v1/app/credential_store/credentials#revoke"
+    route :post, "/api/v1/app/credential_store/ssh_host_keys/probe", to: "api/v1/app/credential_store/credentials#probe_host_key"
+    route :post, "/api/v1/app/credential_store/ssh_host_keys/inspect", to: "api/v1/app/credential_store/credentials#inspect_host_key"
+    route :post, "/api/v1/app/credential_store/ssh_host_keys/confirm", to: "api/v1/app/credential_store/credentials#confirm_host_key"
     route :delete, "/api/v1/app/credential_store/credentials/:id", to: "api/v1/app/credential_store/credentials#revoke"
     route :post, "/api/v1/app/credential_store/leases", to: "api/v1/app/credential_store/leases#create"
     route :post, "/api/v1/app/credential_store/exec_material", to: "api/v1/app/credential_store/leases#exec_material"
