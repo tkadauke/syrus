@@ -139,7 +139,6 @@ RSpec.describe App::Presentation do
       # it in the plugin's own specs (e.g. schedule_recurring, delete_design_doc).
       plugin_owned = Dir[Rails.root.join("plugins/*/app/services/pending_actions/*.rb")]
         .map { |path| File.basename(path, ".rb") }
-        .reject { |key| PendingActions::REGISTRY.key?(key) }
 
       core_keys = (ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES) - plugin_owned
       expect(core_keys).to include("cancel_job")
