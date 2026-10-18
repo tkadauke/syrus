@@ -8,8 +8,9 @@ class AddSingleFlightToRepositoryExecutionProbes < ActiveRecord::Migration[8.1]
       SET in_flight = CASE WHEN status IN ('queued', 'running') THEN TRUE ELSE NULL END
     SQL
     change_column_default :repository_execution_probes, :in_flight, from: nil, to: true
-    add_index :repository_execution_probes, %i[repository_id in_flight], unique: true,
-      name: INDEX_NAME, if_not_exists: true
+    unless index_exists?(:repository_execution_probes, %i[repository_id in_flight], name: INDEX_NAME)
+      add_index :repository_execution_probes, %i[repository_id in_flight], unique: true, name: INDEX_NAME
+    end
   end
 
   def down
