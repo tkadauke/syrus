@@ -8,6 +8,7 @@ Use it for design and architecture discussions where text is not enough. The plu
 
 - A chat workspace tab for the shared whiteboard.
 - MCP drawing, move, delete, read, save, clear, and load tools.
+- Edge-anchored bound arrows with optional visible labels that move with their connectors.
 - REST endpoints for whiteboard state and snapshots.
 
 ## When To Enable
