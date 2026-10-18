@@ -13,7 +13,7 @@ function panel(key: string, category: string, overrides: Partial<MetricsPanel> =
     unit: "jobs",
     mode: "value",
     category,
-    series: [ { name: "total", values: [ 1, 2, 3 ] } ],
+    series: [{ name: "total", values: [1, 2, 3] }],
     ...overrides
   }
 }
@@ -21,25 +21,27 @@ function panel(key: string, category: string, overrides: Partial<MetricsPanel> =
 function payload(overrides: Partial<MetricsDashboardPayload> = {}): MetricsDashboardPayload {
   return {
     window: "6h",
-    windows: [ "1h", "6h", "24h", "7d" ],
-    buckets: [ "2026-01-01T00:00:00Z", "2026-01-01T00:05:00Z", "2026-01-01T00:10:00Z" ],
+    windows: ["1h", "6h", "24h", "7d"],
+    buckets: ["2026-01-01T00:00:00Z", "2026-01-01T00:05:00Z", "2026-01-01T00:10:00Z"],
     bucket_seconds: 300,
     recording: true,
     last_recorded_at: "2026-01-01T00:10:00Z",
-    categories: [ "queue_throughput", "workers_fleet", "resilience_product" ],
+    cluster_counter_capture: "available",
+    categories: ["queue_throughput", "workers_fleet", "resilience_product"],
     plugin_tabs: [],
-    panels: [
-      panel("queue_ready", "queue_throughput"),
-      panel("worker_cpu", "workers_fleet"),
-      panel("feature_usage", "resilience_product")
-    ],
+    panels: [panel("queue_ready", "queue_throughput"), panel("worker_cpu", "workers_fleet"), panel("feature_usage", "resilience_product")],
     ...overrides
   }
 }
 
 function LocationProbe() {
   const location = useLocation()
-  return <span data-testid="location">{location.pathname}{location.search}</span>
+  return (
+    <span data-testid="location">
+      {location.pathname}
+      {location.search}
+    </span>
+  )
 }
 
 function renderRoute(responsePayload: MetricsDashboardPayload = payload(), initialEntry = "/app-shell/metrics_dashboard") {
@@ -47,7 +49,7 @@ function renderRoute(responsePayload: MetricsDashboardPayload = payload(), initi
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route
             element={
@@ -67,6 +69,12 @@ function renderRoute(responsePayload: MetricsDashboardPayload = payload(), initi
 
 describe("MetricsDashboardRoute tabs", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("warns when cross-process counter capture is unavailable", async () => {
+    renderRoute(payload({ cluster_counter_capture: "unavailable" }))
+
+    expect(await screen.findByText(/Cross-process counter capture is unavailable/)).toBeInTheDocument()
+  })
 
   it("defaults to the first category and shows only that tab's panels", async () => {
     renderRoute()
@@ -125,11 +133,8 @@ describe("MetricsDashboardRoute tabs", () => {
   it("shows an 'Other' tab for a panel with no real category, instead of dropping it", async () => {
     renderRoute(
       payload({
-        categories: [ "queue_throughput", "workers_fleet", "resilience_product", "other" ],
-        panels: [
-          panel("queue_ready", "queue_throughput"),
-          panel("mystery", "other")
-        ]
+        categories: ["queue_throughput", "workers_fleet", "resilience_product", "other"],
+        panels: [panel("queue_ready", "queue_throughput"), panel("mystery", "other")]
       })
     )
 
@@ -151,11 +156,8 @@ describe("MetricsDashboardRoute plugin tabs", () => {
   it("renders a tab per contributing plugin, after the core tabs, using its literal label", async () => {
     renderRoute(
       payload({
-        plugin_tabs: [ pluginTab("throughput", "Throughput") ],
-        panels: [
-          panel("queue_ready", "queue_throughput"),
-          panel("landing_units", "throughput", { label: "Landing units, by type" })
-        ]
+        plugin_tabs: [pluginTab("throughput", "Throughput")],
+        panels: [panel("queue_ready", "queue_throughput"), panel("landing_units", "throughput", { label: "Landing units, by type" })]
       })
     )
 
@@ -167,11 +169,8 @@ describe("MetricsDashboardRoute plugin tabs", () => {
   it("shows a plugin panel's literal title, and its own panels, once its tab is selected", async () => {
     renderRoute(
       payload({
-        plugin_tabs: [ pluginTab("throughput", "Throughput") ],
-        panels: [
-          panel("queue_ready", "queue_throughput"),
-          panel("landing_units", "throughput", { label: "Landing units, by type" })
-        ]
+        plugin_tabs: [pluginTab("throughput", "Throughput")],
+        panels: [panel("queue_ready", "queue_throughput"), panel("landing_units", "throughput", { label: "Landing units, by type" })]
       })
     )
     await screen.findByText("Jobs waiting, by queue")
