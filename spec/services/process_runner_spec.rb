@@ -117,6 +117,7 @@ RSpec.describe ProcessRunner, :ci_only do
       agent: nil,
       display_command: nil,
       on_spawned_process: nil,
+      execution_backend: nil,
       local_runner: nil
     )
 
@@ -143,7 +144,6 @@ RSpec.describe ProcessRunner, :ci_only do
 
     expect(result).to be_success
   end
-
   it "returns a failed result for nonzero exit" do
     result = run_command(ruby, "-e", "exit 7")
 
