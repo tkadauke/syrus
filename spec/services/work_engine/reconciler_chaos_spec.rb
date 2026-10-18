@@ -1340,7 +1340,14 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     def active_main_health_start_block
       job, workflow, _step, run = graph
       remove_first_run!(workflow, run)
-      job.repository.update!(risk_profile: "production", main_branch_health_enabled: true, ci_health: "broken", grader_health: "broken", landing_paused: true)
+      job.repository.update!(
+        risk_profile: "production",
+        main_branch_health_enabled: true,
+        main_branch_repair_blocks_work: true,
+        ci_health: "broken",
+        grader_health: "broken",
+        landing_paused: true
+      )
       workflow.update!(
         artifacts: {
           "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,

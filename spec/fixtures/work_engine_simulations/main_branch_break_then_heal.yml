@@ -1,4 +1,7 @@
 name: main branch break pauses then heals
+repository:
+  main_branch_health_enabled: true
+  main_branch_repair_blocks_work: true
 jobs:
   first:
     title: First job

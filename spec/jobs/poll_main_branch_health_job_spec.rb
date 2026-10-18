@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe PollMainBranchHealthJob do
   include ActiveJob::TestHelper
   let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user) }
+  let(:repository) { Factories.repository(user: user, main_branch_health_enabled: true) }
   let(:sha) { "abc123def456" }
 
   before do

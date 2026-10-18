@@ -4,7 +4,13 @@ RSpec.describe Workflows::MainGrader do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user) }
+  let(:repository) do
+    Factories.repository(
+      user: user,
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true
+    )
+  end
   let(:job) do
     Job.create!(
       user: user,
