@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
+import { CardShell, displayValue, EmptyState, EntityReference, numberValue, Row, StatePill } from "../toolCardUi"
+import { TextPreview } from "../toolCardMarkdown"
 import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_list_processes (the tool-card work).
@@ -7,6 +8,7 @@ import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adm
 // resource usage, timing, and the Run/Workflow it's attributed to.
 type ProcessRow = {
   key: string
+  id: string
   kind: string | null
   hostname: string
   pid: string | null
@@ -23,10 +25,12 @@ type ProcessRow = {
 function parseRow(value: unknown, index: number): ProcessRow | null {
   if (!isPlainObject(value)) return null
   const hostname = displayValue(value.hostname)
-  if (!hostname) return null
+  const id = displayValue(value.id)
+  if (!hostname || !id) return null
 
   return {
-    key: `${displayValue(value.id) ?? index}`,
+    key: `${id}-${index}`,
+    id,
     kind: displayValue(value.kind),
     hostname,
     pid: displayValue(value.pid),
@@ -45,7 +49,10 @@ function processRows(context: ToolCardContext): ProcessRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.processes)) return null
 
-  return parsed.processes.flatMap((process, index) => { const row = parseRow(process, index); return row ? [row] : [] })
+  return parsed.processes.flatMap((process, index) => {
+    const row = parseRow(process, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -60,27 +67,66 @@ function StateBadge({ state }: { state: string | null }) {
 }
 
 function renderExpanded(context: ToolCardContext) {
+  const state = displayValue(context.input?.state) ?? "running"
+  const kind = displayValue(context.input?.kind) ?? "All"
+  const limit = displayValue(context.input?.limit) ?? "20"
+
+  const filters = (
+    <div className="grid grid-cols-3 gap-2">
+      <Row label="State" value={state} />
+      <Row label="Kind" value={kind} />
+      <Row label="Limit" value={limit} />
+    </div>
+  )
+
+  if (context.resultError) {
+    return (
+      <CardShell>
+        {filters}
+        <EmptyState>Processes could not be loaded.</EmptyState>
+        {context.resultBody ? <TextPreview maxLines={4} text={context.resultBody} title="Error details" /> : null}
+      </CardShell>
+    )
+  }
+
   const rows = processRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>No processes found.</EmptyState>
+  if (rows.length === 0)
+    return (
+      <CardShell>
+        {filters}
+        <EmptyState>No processes found.</EmptyState>
+      </CardShell>
+    )
 
   return (
     <CardShell>
-      <Table>
-        <THead columns={["Kind", "Host", "Pid", "State", "CPU", "RSS", "Started", "Heartbeat", "Run/Workflow", "Outcome"]} />
+      {filters}
+      <Table responsive>
+        <THead columns={["ID", "Kind", "Host", "Pid", "State", "CPU", "RSS", "Started", "Heartbeat", "Run", "Workflow", "Outcome"]} />
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
+              <Td mono primary>
+                <EntityReference id={row.id} kind="artifact" wrap="nowrap" />
+              </Td>
               <Td>{row.kind || "—"}</Td>
-              <Td mono>{row.hostname}</Td>
+              <Td mono>
+                <EntityReference id={row.hostname} kind="artifact" wrap="nowrap" />
+              </Td>
               <Td mono>{row.pid || "—"}</Td>
-              <Td><StateBadge state={row.state} /></Td>
+              <Td>
+                <StateBadge state={row.state} />
+              </Td>
               <Td mono>{formatPercent(row.cpu)}</Td>
               <Td mono>{formatBytesLarge(row.rss)}</Td>
               <Td mono>{row.startedAt || "—"}</Td>
               <Td mono>{row.lastHeartbeatAt || "—"}</Td>
-              <Td mono>{row.runId ? `RUN-${row.runId}` : row.workflowId ? `WF-${row.workflowId}` : "—"}</Td>
+              <Td mono>{row.runId ? <EntityReference href={`/admin/runs/${row.runId}/transcript`} id={row.runId} kind="run" wrap="nowrap" /> : "—"}</Td>
+              <Td mono>
+                {row.workflowId ? <EntityReference href={`/admin/workflows/${row.workflowId}`} id={row.workflowId} kind="workflow" wrap="nowrap" /> : "—"}
+              </Td>
               <Td>{row.outcome || "—"}</Td>
             </tr>
           ))}
