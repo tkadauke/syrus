@@ -287,6 +287,24 @@ documentation for details.
 
 Rebases the PR branch onto the base branch. Skips `commit_agent_changes` (rebase rewrites history). Uses `--force-with-lease` to prevent clobbering concurrent pushes. Closed-preempted Jobs remain in the rebase poll scope while their external PR is open.
 
+## base_refresh_retry
+
+**When it fires:** An operator requests that completed mutation work from a
+failed Workflow be preserved while its effective base is refreshed.
+
+**Step chain:** `base_refresh_rebase → agent_rebase? → publish_source_snapshot
+→ prepare → graders → summary/test-plan/PR publication`
+
+The workflow restores the failed Workflow's latest published mutation
+checkpoint into a new workspace, pins the current effective base ref and SHA,
+and rebases onto that exact revision. This also works before a Job has a PR
+branch. A clean mechanical rebase skips the agent; conflicts use the bounded
+agentic rebase step. The original Workflow and its source snapshot remain
+immutable, and the new Workflow records the checkpoint, old and new base,
+reason, refreshed source snapshot, and terminal outcome. Missing or stale
+checkpoints and concurrent mutation work fail without reopening historical
+state. Ordinary failed-step and same-snapshot workflow retries are unchanged.
+
 ## stack_rebase
 
 **When it fires:** A dependent PR stack needs rebasing due to base-branch advancement.

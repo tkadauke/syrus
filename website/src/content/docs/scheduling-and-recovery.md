@@ -86,6 +86,15 @@ Syrus prefers the smallest safe retry:
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
 
+When completed mutation work is still valid but the effective base has moved,
+a base-refresh retry starts a new workflow from the latest published mutation
+checkpoint. Syrus pins the current base ref and commit (including a stacked
+parent branch), attempts a mechanical rebase, and asks an agent to repair only
+real conflicts. It then publishes a new immutable source snapshot and reruns
+setup and graders before continuing through the normal PR-publication tail.
+The failed historical workflow is never reopened or rewritten, and Jobs that
+have not published a PR branch yet can use the same recovery path.
+
 ## Provider Availability
 
 Provider availability is tracked per user/provider/account. Usage-limit
