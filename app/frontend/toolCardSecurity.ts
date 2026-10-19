@@ -6,7 +6,20 @@ const INLINE_SECRET_KEY_PATTERN =
   "(?:accessToken|access[_-]?token|apiKey|api[_-]?key|apikey|clientSecret|client[_-]?secret|credential|idToken|id[_-]?token|password|refreshToken|refresh[_-]?token|secret|sessionToken|session[_-]?token|token)"
 const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN =
   "[A-Za-z0-9_-]*(?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)[A-Za-z0-9_-]*"
-const SAFE_SENSITIVE_METADATA_KEY_PATTERN = /(?:^|_)(?:present|active|usable|mode|id|name|type|class|count|error_message|inactive_reason)$/i
+const SAFE_SENSITIVE_METADATA_KEYS = new Set([
+  "app_credential_inactive_reason",
+  "credential_id",
+  "credential_kind",
+  "credential_mode",
+  "credential_name",
+  "credential_scope",
+  "credential_scope_id",
+  "credential_scope_type",
+  "credential_status",
+  "credential_type",
+  "jwt_error_class",
+  "jwt_error_message"
+])
 const IDENTIFIER_VALUE_KEY_PATTERN = /(?:^|_)(?:key_names?|resource_names?|name)$/i
 const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|created_at)$/i
 
@@ -62,7 +75,7 @@ function redactToolCardEntry(key: string, value: unknown) {
 }
 
 function safeSensitiveMetadataKey(key: string) {
-  return SAFE_SENSITIVE_METADATA_KEY_PATTERN.test(normalizedKey(key))
+  return SAFE_SENSITIVE_METADATA_KEYS.has(normalizedKey(key).toLowerCase())
 }
 
 function identifierValueKey(key: string) {

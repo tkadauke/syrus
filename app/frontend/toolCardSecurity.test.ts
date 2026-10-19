@@ -97,6 +97,24 @@ describe("toolCardSecurity", () => {
     })
   })
 
+  it("does not exempt arbitrary sensitive keys with metadata-like suffixes", () => {
+    expect(
+      redactToolCardValue({
+        password_name: "hunter2",
+        token_name: "actual-token-value",
+        password_error_message: "hunter2",
+        secret_type: "plaintext",
+        jwt_class: "signed.jwt.value"
+      })
+    ).toEqual({
+      password_name: "[redacted]",
+      token_name: "[redacted]",
+      password_error_message: "[redacted]",
+      secret_type: "[redacted]",
+      jwt_class: "[redacted]"
+    })
+  })
+
   it("keeps credential metadata objects while redacting secrets inside them", () => {
     expect(
       redactToolCardValue({
