@@ -175,6 +175,7 @@ class CodexInvocation
     process_start_requested_at = startup_timing.now
     output_start_requested_at = process_start_requested_at
     mcp_server_names = normalized_mcp_servers(mcp_servers || mcp_server).keys
+    oversized_record_reported = false
     runner_result = ProcessRunner.new(
       env: env,
       command: cmd,
@@ -212,6 +213,15 @@ class CodexInvocation
           )
         end
         metadata.merge!(update.compact) if update
+      end,
+      on_output_line_fragment: ->(_fragment) do
+        next if oversized_record_reported
+
+        oversized_record_reported = true
+        log_sink.call(
+          "[codex output] oversized JSONL record omitted from the run log",
+          kind: "system"
+        )
       end
     ).run
     if !runner_result.success? && metadata[:outcome].blank? && metadata[:startup_output].present?
