@@ -3,12 +3,14 @@ import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } fro
 
 describe("toolCardSecurity", () => {
   it("redacts sensitive object keys recursively", () => {
-    expect(redactToolCardValue({
-      safe: "visible",
-      api_token: "tok_live_123456789",
-      accessToken: "access-secret-123456",
-      nested: { password: "hunter2-secret", rows: [{ client_secret: "shh-123456", refreshToken: "refresh-secret-123456" }] }
-    })).toEqual({
+    expect(
+      redactToolCardValue({
+        safe: "visible",
+        api_token: "tok_live_123456789",
+        accessToken: "access-secret-123456",
+        nested: { password: "hunter2-secret", rows: [{ client_secret: "shh-123456", refreshToken: "refresh-secret-123456" }] }
+      })
+    ).toEqual({
       safe: "visible",
       api_token: "[redacted]",
       accessToken: "[redacted]",
@@ -23,41 +25,55 @@ describe("toolCardSecurity", () => {
   })
 
   it("redacts environment-style secret assignments with prefixed key names", () => {
-    expect(redactToolCardText([
-      "DATABASE_PASSWORD=hunter2hunter2",
-      "MY_API_KEY=abcdef123456789",
-      "export GITHUB_TOKEN=abcdef123456",
-      "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      "SECRET_KEY_BASE=0123456789abcdef0123456789abcdef"
-    ].join("\n"))).toBe([
-      "DATABASE_PASSWORD=[redacted]",
-      "MY_API_KEY=[redacted]",
-      "export GITHUB_TOKEN=[redacted]",
-      "AWS_SECRET_ACCESS_KEY=[redacted]",
-      "SECRET_KEY_BASE=[redacted]"
-    ].join("\n"))
+    expect(
+      redactToolCardText(
+        [
+          "DATABASE_PASSWORD=hunter2hunter2",
+          "MY_API_KEY=abcdef123456789",
+          "export GITHUB_TOKEN=abcdef123456",
+          "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          "SECRET_KEY_BASE=0123456789abcdef0123456789abcdef"
+        ].join("\n")
+      )
+    ).toBe(
+      [
+        "DATABASE_PASSWORD=[redacted]",
+        "MY_API_KEY=[redacted]",
+        "export GITHUB_TOKEN=[redacted]",
+        "AWS_SECRET_ACCESS_KEY=[redacted]",
+        "SECRET_KEY_BASE=[redacted]"
+      ].join("\n")
+    )
   })
 
   it("redacts entire quoted secret assignment values", () => {
-    expect(redactToolCardText('password = "hunter two"')).toBe(
-      'password = "[redacted]"'
-    )
+    expect(redactToolCardText('password = "hunter two"')).toBe('password = "[redacted]"')
   })
 
   it("redacts quoted secret assignment values with escaped quotes", () => {
-    expect(redactToolCardText(String.raw`password = "hunter \"two\" tail"`)).toBe(
-      'password = "[redacted]"'
-    )
+    expect(redactToolCardText(String.raw`password = "hunter \"two\" tail"`)).toBe('password = "[redacted]"')
   })
 
   it("redacts camelCase token keys in JSON-ish text", () => {
-    expect(redactToolCardText('{"accessToken":"access-secret-123456","safe":"visible"}')).toBe(
-      '{"accessToken":"[redacted]","safe":"visible"}'
-    )
+    expect(redactToolCardText('{"accessToken":"access-secret-123456","safe":"visible"}')).toBe('{"accessToken":"[redacted]","safe":"visible"}')
   })
 
   it("redacts bare secret-like values from compact detail strings", () => {
     expect(redactToolCardText("plugin-input-secret-123456")).toBe("[redacted]")
+  })
+
+  it("redacts credentials embedded in command output", () => {
+    const text = [
+      "DATABASE_URL=postgres://database_user:database-password@example.test/app",
+      "curl -u api-user:api-password https://example.test",
+      "-----BEGIN RSA PRIVATE KEY-----",
+      "private-key-material",
+      "-----END RSA PRIVATE KEY-----"
+    ].join("\n")
+
+    expect(redactToolCardText(text)).toBe(
+      ["DATABASE_URL=postgres://database_user:[redacted]@example.test/app", "curl -u api-user:[redacted] https://example.test", "[redacted]"].join("\n")
+    )
   })
 
   it("reports payload size in bytes for small payloads", () => {
