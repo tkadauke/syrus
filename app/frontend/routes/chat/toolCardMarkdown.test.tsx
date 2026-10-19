@@ -45,10 +45,10 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an empty state for empty or whitespace-only text", () => {
+    render(<MarkdownPreview text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText("No text provided.")).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
@@ -187,5 +187,32 @@ describe("TextPreview", () => {
     render(<TextPreview maxLines={2} text={"one\ntwo\nthree\nfour"} truncate="tail" />)
 
     expect(screen.getByTestId("text-preview-content")).toHaveTextContent("… 2 earlier lines\nthree\nfour", { normalizeWhitespace: false })
+  })
+})
+
+describe("MarkdownPreview link handling", () => {
+  it("linkifies slugs and URLs and forwards link clicks", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls onLinkClick={onLinkClick} text="See JOB-42 at https://example.test/jobs/42." />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    const url = screen.getByRole("link", { name: "https://example.test/jobs/42" })
+    fireEvent.click(url)
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/jobs/42", expect.anything())
+  })
+
+  it("truncates by maxChars and provides a modal copy control", () => {
+    render(<MarkdownPreview maxChars={12} text="A sufficiently long markdown note." />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("A sufficient…")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Show more" })
+    expect(within(dialog).getByText("A sufficiently long markdown note.")).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: /Copy .*clipboard/i })).toBeInTheDocument()
   })
 })

@@ -23,6 +23,13 @@
     "stdout": "stdout",
     "stderr": "stderr"
   },
+  "markdown_preview": {
+    "empty": "Nullus textus praebitus est.",
+    "dialog_label": "Praevisio Markdown plena",
+    "title": "Textus plenus",
+    "copy": "Describe",
+    "close": "Claude praevisionem"
+  },
   "workflows": "Cursus operum",
   "file_preview": {
     "dialog_label": "Praevisio plicae {{title}}",

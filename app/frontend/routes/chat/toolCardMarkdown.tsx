@@ -22,19 +22,21 @@ const CLOSE_BUTTON_CLASS = [
 ].join(" ")
 
 export type MarkdownPreviewProps = {
-  text: string
-  maxLines?: number
+  text: string | null | undefined
+  className?: string
+  emptyLabel?: string
+  linkifySlugs?: boolean
+  linkifyUrls?: boolean
   maxChars?: number
+  maxLines?: number
+  onLinkClick?: MarkdownLinkHandler
   title?: string
   modalLabel?: string
   emptyState?: ReactNode
-  linkifySlugs?: boolean
-  linkifyUrls?: boolean
-  onLinkClick?: MarkdownLinkHandler
   slugHrefFallbacks?: Record<string, string>
 }
 
-export type TextPreviewProps = MarkdownPreviewProps & { truncate?: TextTruncationMode; maxChars?: number }
+export type TextPreviewProps = Omit<MarkdownPreviewProps, "text"> & { text: string; truncate?: TextTruncationMode }
 
 export type TextTruncationMode = "head" | "tail" | "headTail"
 
@@ -49,24 +51,30 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 // Tool-card prose primitive: compact light markdown on the card, with the
 // complete Markdown renderer available in a dialog only when content is cut.
 export function MarkdownPreview({
-  text,
-  maxLines = DEFAULT_MAX_LINES,
-  maxChars,
-  title,
-  modalLabel,
-  emptyState = null,
+  className,
+  emptyLabel,
+  emptyState,
   linkifySlugs = true,
   linkifyUrls = false,
+  maxChars,
+  maxLines = DEFAULT_MAX_LINES,
+  modalLabel,
   onLinkClick,
-  slugHrefFallbacks
+  slugHrefFallbacks,
+  text,
+  title
 }: MarkdownPreviewProps) {
   const { t } = useT("common")
-  const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
-  const empty = !text.trim()
-  const truncated = useMemo(() => truncateMarkdown(text, maxLines, maxChars), [text, maxLines, maxChars])
+  const [open, setOpen] = useState(false)
+  const completeText = text ?? ""
+  const normalized = completeText.trim()
+  const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
 
-  if (empty) return <>{emptyState}</>
+  if (!normalized) {
+    if (emptyState !== undefined) return <>{emptyState}</>
+    return <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>
+  }
 
   const lineClampStyle = {
     display: "-webkit-box",
@@ -79,7 +87,11 @@ export function MarkdownPreview({
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
-      <div className="break-words text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="markdown-preview-content" style={lineClampStyle}>
+      <div
+        className={["break-words text-xs text-text-muted [overflow-wrap:anywhere]", className].filter(Boolean).join(" ")}
+        data-testid="markdown-preview-content"
+        style={lineClampStyle}
+      >
         {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks })}
         {truncated.truncated ? "…" : null}
       </div>
@@ -100,7 +112,7 @@ export function MarkdownPreview({
           <button
             aria-label={t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
             className={CLOSE_BUTTON_CLASS}
-            onClick={() => copy(text)}
+            onClick={() => copy(completeText)}
             title={copied ? t("copy.copied") : t("copy.copy", { slug: title || dialogLabel })}
             type="button"
           >
@@ -117,7 +129,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
-            text={text}
+            text={completeText}
           />
         </div>
       </Modal>
@@ -245,8 +257,12 @@ export function truncateMarkdown(text: string, maxLines: number, maxChars?: numb
     }
   }
 
-  const whitespace = normalized.slice(0, cutoff).search(/\s+\S*$/)
-  if (whitespace > 0) cutoff = whitespace
+  if (maxChars == null) {
+  if (maxChars == null) {
+    const whitespace = normalized.slice(0, cutoff).search(/\s+\S*$/)
+    if (whitespace > 0) cutoff = whitespace
+  }
+  }
 
   return { preview: normalized.slice(0, cutoff).trimEnd(), truncated: true }
 }
