@@ -104,6 +104,22 @@ export function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+export function WrappingRow({ label, value, copyable = false }: { label: string; value: string; copyable?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <Text as="div" variant="label" tone="muted">
+        {label}
+      </Text>
+      <div className="flex min-w-0 items-start gap-1">
+        <Text as="div" className="min-w-0 break-all font-mono text-xs" title={value}>
+          {value}
+        </Text>
+        {copyable ? <CopyOnlyIconButton value={value} /> : null}
+      </div>
+    </div>
+  )
+}
+
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <Text as="div" variant="label" tone="muted">

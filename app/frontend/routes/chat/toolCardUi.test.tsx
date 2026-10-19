@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentProps } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, Row } from "./toolCardUi"
+import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, Row, WrappingRow } from "./toolCardUi"
 
 describe("toolCardUi CardShell", () => {
   it("cannot define a wider minimum width than its chat column", () => {
@@ -109,5 +109,21 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+  })
+})
+
+describe("WrappingRow", () => {
+  it("wraps and optionally copies long values without changing Row's truncating default", () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+
+    const { rerender } = render(<WrappingRow copyable label="Branch" value="feature/a-very-long-branch" />)
+    expect(screen.getByText("feature/a-very-long-branch")).toHaveClass("break-all")
+    fireEvent.click(screen.getByRole("button", { name: "Copy feature/a-very-long-branch to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("feature/a-very-long-branch")
+
+    rerender(<Row label="Branch" value="feature/default" />)
+    expect(screen.getByText("feature/default")).toHaveClass("truncate")
   })
 })

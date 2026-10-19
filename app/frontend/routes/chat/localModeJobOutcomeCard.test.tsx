@@ -59,12 +59,38 @@ describe("LocalModeJobOutcomeCard", () => {
       message: "opened"
     })!
 
-    render(<LocalModeJobOutcomeCard result={result} />)
+    render(<LocalModeJobOutcomeCard requestedJobId="4225" result={result} />)
 
-    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
-    expect(screen.getByText("coding")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-4225" })[0]).toHaveAttribute("href", "/jobs/4225")
+    expect(screen.getByText("coding", { selector: "strong" })).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
     expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
     expect(screen.getByText("opened")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /copy.*syrus\/direct-325/i })).toBeInTheDocument()
+  })
+
+  it("renders markdown messages and a clear state outcome", () => {
+    const result = parseLocalModeJobOutcome({
+      job_id: 4225,
+      job_state: "implemented",
+      message: "Returned after cancelling `local mode`."
+    })!
+
+    render(<LocalModeJobOutcomeCard result={result} stateTransition />)
+
+    expect(screen.getByText("implemented", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("local mode", { selector: "code" })).toBeInTheDocument()
+  })
+
+  it("offers Show more for a long markdown message", () => {
+    const result = parseLocalModeJobOutcome({
+      job_id: 4225,
+      job_state: "implemented",
+      message: `Cancellation details: ${"long ".repeat(250)}`
+    })!
+
+    render(<LocalModeJobOutcomeCard result={result} />)
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 })
