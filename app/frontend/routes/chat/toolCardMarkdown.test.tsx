@@ -29,6 +29,22 @@ describe("MarkdownPreview", () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it("can show an explicit empty state", () => {
+    render(<MarkdownPreview emptyLabel="No prompt was provided." text="  " />)
+    expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and a copy control in the modal", () => {
+    render(<MarkdownPreview maxChars={12} text="A deliberately long prompt with more details." title="Prompt" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Prompt" })).toBeInTheDocument()
+  })
+
+  it("linkifies plain URLs in the compact preview", () => {
+    render(<MarkdownPreview text="See https://example.test/report for details." />)
+    expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 

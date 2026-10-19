@@ -406,6 +406,9 @@ module ChatSerialization
   # live/unanchored pending-actions list shows the same target link as the
   # message-anchored card once a pending action gets anchored to a tool call.
   def pending_action_resource(action)
+    presenter_resource = ::App::Presentation.pending_action_resource(action)
+    return presenter_resource if presenter_resource
+
     payload = action.payload || {}
 
     case action.action
