@@ -167,6 +167,34 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
 
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>No summary supplied.</span>} text="  " />)
+    expect(screen.getByText("No summary supplied.")).toBeInTheDocument()
+  })
+
+  it("offers expansion when responsive line clamping causes rendered overflow", () => {
+    const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(32)
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(80)
+    const text = "This summary is below the character cutoff but wraps beyond two lines inside a narrow card."
+    render(<MarkdownPreview maxChars={320} maxLines={2} text={text} />)
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText(text)).toBeInTheDocument()
+    clientHeight.mockRestore()
+    scrollHeight.mockRestore()
+  })
+
+  it("copies complete modal text and passes links through both renderers", () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    const onLinkClick = vi.fn()
+    const text = `${"Review JOB-42 and https://example.test/details. ".repeat(20)}ending`
+    render(<MarkdownPreview linkifySlugs linkifyUrls maxChars={80} onLinkClick={onLinkClick} text={text} />)
+    expect(screen.getAllByRole("link").length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy/ }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 
