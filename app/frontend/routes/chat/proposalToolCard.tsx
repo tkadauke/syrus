@@ -15,9 +15,11 @@ import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePil
 // result) and is handled by its own tool_cards/propose_epic_with_jobs.tsx.
 export type MaterializedOutcome =
   | { kind: "job"; jobId: string; jobTitle: string | null; jobState: string | null }
-  | { kind: "epic"; epicId: string; childJobCount: number }
+  | { kind: "epic"; epicId: string; childJobs: MaterializedChildJob[] }
   | { kind: "rejected"; reason: string }
   | null
+
+type MaterializedChildJob = { jobId: string; title: string | null }
 
 export type ProposalOutcome = {
   slug: string
@@ -79,8 +81,7 @@ function parseMaterialized(value: unknown): MaterializedOutcome {
   if (kind === "epic") {
     const epicId = displayValue(value.epic_id)
     if (!epicId) return null
-    const childJobCount = Array.isArray(value.child_jobs) ? value.child_jobs.length : 0
-    return { kind: "epic", epicId, childJobCount }
+    return { kind: "epic", epicId, childJobs: materializedChildJobs(value.child_jobs) }
   }
 
   if (kind === "rejected") {
@@ -89,6 +90,17 @@ function parseMaterialized(value: unknown): MaterializedOutcome {
   }
 
   return null
+}
+
+function materializedChildJobs(value: unknown): MaterializedChildJob[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!isPlainObject(item)) return []
+    const jobId = displayValue(item.job_id)
+    if (!jobId) return []
+    return [{ jobId, title: displayValue(item.title) }]
+  })
 }
 
 function stringList(value: unknown): string[] {
@@ -226,9 +238,23 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
 
   if (materialized.kind === "epic") {
     return (
-      <div className="text-gray-700 dark:text-gray-300">
-        Materialized as <EntityReference id={materialized.epicId} kind="epic" />
-        {materialized.childJobCount > 0 ? ` (${materialized.childJobCount} child Job${materialized.childJobCount === 1 ? "" : "s"})` : ""}
+      <div className="min-w-0 text-gray-700 dark:text-gray-300">
+        <div>
+          Materialized as <EntityReference id={materialized.epicId} kind="epic" />
+        </div>
+        {materialized.childJobs.length > 0 ? (
+          <div className="mt-2">
+            <SectionLabel>Child Jobs ({materialized.childJobs.length})</SectionLabel>
+            <ul className="mt-1 space-y-1">
+              {materialized.childJobs.map((child) => (
+                <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1" key={child.jobId}>
+                  <EntityReference id={child.jobId} kind="job" />
+                  {child.title ? <span className="min-w-0 break-words [overflow-wrap:anywhere]">{child.title}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -276,7 +302,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         linkifySlugs
         linkifyUrls
         maxChars={960}
-        modalLabel="Full Job description"
+        modalLabel={`Full ${humanizeKind(proposal.kind)} description`}
         text={proposal.body}
         title="Description"
       />
