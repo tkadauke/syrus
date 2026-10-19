@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import listJobWorkflowsToolCard from "./list_job_workflows"
@@ -33,6 +33,8 @@ const workflow = {
 }
 
 describe("list_job_workflows tool card", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it("registers under the normalized MCP tool name", () => {
     expect(normalizedToolName("mcp__syrus-chat-sidecar__list_job_workflows")).toBe(listJobWorkflowsToolCard.toolName)
   })
@@ -71,8 +73,11 @@ describe("list_job_workflows tool card", () => {
   })
 
   it("shows the complete markdown summary on request", () => {
-    const longSummary = `**Result:** ${"responsive workflow details ".repeat(35)}`
-    render(<>{listJobWorkflowsToolCard.renderExpanded(context({ parsedResult: { job_id: 9, workflows: [{ ...workflow, summary: longSummary }] } }))}</>)
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+    const payloadSizedSummary = `**Result:** ${"responsive workflow details ".repeat(8)}`
+    expect(payloadSizedSummary.length).toBeLessThanOrEqual(300)
+    render(<>{listJobWorkflowsToolCard.renderExpanded(context({ parsedResult: { job_id: 9, workflows: [{ ...workflow, summary: payloadSizedSummary }] } }))}</>)
 
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     const dialog = screen.getByRole("dialog", { name: "Workflow 42 summary" })
