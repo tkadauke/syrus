@@ -135,6 +135,8 @@ class ClaudeInvocation
       agent: current_agent,
       stop_requested: -> { mcp_server_failed || stop_requested.call },
       on_spawned_process: process_started,
+      max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
+      on_output_line_too_long: AgentInvocation.oversized_event_handler("Claude"),
       on_output_line: ->(line) do
         update = process_event(line, log_sink)
         if update
