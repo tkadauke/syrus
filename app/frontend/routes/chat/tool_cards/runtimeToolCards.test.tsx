@@ -274,9 +274,9 @@ describe("Runtime tool cards", () => {
     const preview = screen.getByText("Log preview").closest("details")
     expect(preview).not.toBeNull()
     if (!preview) throw new Error("missing log preview")
-    expect(screen.getByText("Showing first 40 of 45 lines.")).toBeInTheDocument()
-    expect(within(preview).getByText(/line 1/)).toBeInTheDocument()
-    expect(within(preview).queryByText(/line 45/)).not.toBeInTheDocument()
+    expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
+    expect(preview.textContent).not.toContain("\nline 1\n")
+    expect(within(preview).getByText(/line 45/)).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 

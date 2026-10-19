@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, displayValue, Row, truncateLines } from "../toolCardUi"
+import { CardShell, Disclosure, displayValue, Row } from "../toolCardUi"
+import { TextPreview } from "../toolCardMarkdown"
 
 // Local Mode tool card for run_command (the tool-card work). A non-zero
 // exit code or `killed` is a normal successful tool call (the command ran,
@@ -37,12 +38,9 @@ function ExitCodeBadge({ result }: { result: RunCommandResult }) {
 
 function OutputSection({ label, output }: { label: string; output: string }) {
   if (!output) return null
-  const { preview, truncated, totalLines } = truncateLines(output, OUTPUT_LINE_LIMIT)
-
   return (
     <Disclosure label={label}>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-      {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {OUTPUT_LINE_LIMIT} of {totalLines} lines.</div> : null}
+      <TextPreview maxLines={OUTPUT_LINE_LIMIT} modalLabel={`Full ${label}`} text={output} truncate="headTail" />
     </Disclosure>
   )
 }
