@@ -555,5 +555,19 @@
   "card_preview_pending_one": "{{count}} ausstehend",
   "card_preview_pending_other": "{{count}} ausstehend",
   "tool_card_diff_page_only_stats": "Die Änderungszahlen gelten nur für diese Seite.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs",
+  "daemon_invocation_context": {
+    "summary": "Aufrufkontext: {{surface}}{{identity}}",
+    "summary_denied": "Aufrufkontext verweigert: {{error}}",
+    "ok": "OK",
+    "denied": "Verweigert",
+    "surface": "Oberfläche",
+    "role": "Rolle",
+    "tier": "Stufe",
+    "provider": "Anbieter",
+    "job": "Job",
+    "chat_session": "Chatsitzung",
+    "run_id": "Run-ID",
+    "current_message_id": "Aktuelle Nachrichten-ID"
+  }
 }

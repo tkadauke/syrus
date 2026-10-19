@@ -1,4 +1,6 @@
 import { CopyableSlug } from "@app/components/CopyableSlug"
+import { useT } from "@app/hooks/useT"
+import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, EntityReference, Row, StatePill } from "../toolCardUi"
 
@@ -54,25 +56,24 @@ function parseInvocationContext(context: ToolCardContext): InvocationContext | n
 function collapsedSummary(context: ToolCardContext) {
   const card = parseInvocationContext(context)
   if (!card) return null
-  if (!card.ok) return `invocation context denied: ${card.error}`
+  if (!card.ok) return i18n.t("chat:daemon_invocation_context.summary_denied", { error: card.error })
 
   const identity = card.chatSessionId ?? card.runId ?? card.jobId
-  return `invocation context: ${card.surface}${identity ? ` ${identity}` : ""}`
+  return i18n.t("chat:daemon_invocation_context.summary", { surface: card.surface, identity: identity ? ` ${identity}` : "" })
 }
 
 function CopyableValue({ value }: { value: string }) {
   return <CopyableSlug className="text-xs" slug={value} />
 }
 
-function renderExpanded(context: ToolCardContext) {
-  const card = parseInvocationContext(context)
-  if (!card) return null
+function InvocationContextCard({ card }: { card: InvocationContext }) {
+  const { t } = useT("chat")
 
   if (!card.ok) {
     return (
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
-          <StatePill state="denied" tone="failure" />
+          <StatePill state={t("daemon_invocation_context.denied")} tone="failure" />
           <span className="font-mono text-xs font-semibold text-danger-text">{card.error}</span>
         </div>
         <div className="break-words rounded border border-danger-border bg-danger-surface px-2 py-1 text-sm text-danger-text">{card.message}</div>
@@ -82,15 +83,15 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <StatePill state="ok" tone="success" />
+      <StatePill state={t("daemon_invocation_context.ok")} tone="success" />
       <dl className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
-        <Row label="Surface" value={card.surface} />
-        <Row label="Role" value={card.role} />
-        <Row label="Tier" value={card.tier} />
-        <Row label="Provider" value={card.provider} />
+        <Row label={t("daemon_invocation_context.surface")} value={card.surface} />
+        <Row label={t("daemon_invocation_context.role")} value={card.role} />
+        <Row label={t("daemon_invocation_context.tier")} value={card.tier} />
+        <Row label={t("daemon_invocation_context.provider")} value={card.provider} />
         {card.jobId ? (
           <div className="min-w-0">
-            <dt className="text-2xs font-semibold uppercase text-text-muted">Job</dt>
+            <dt className="text-2xs font-semibold uppercase text-text-muted">{t("daemon_invocation_context.job")}</dt>
             <dd>
               <EntityReference id={card.jobId} kind="job" />
             </dd>
@@ -98,7 +99,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {card.chatSessionId ? (
           <div className="min-w-0">
-            <dt className="text-2xs font-semibold uppercase text-text-muted">Chat session</dt>
+            <dt className="text-2xs font-semibold uppercase text-text-muted">{t("daemon_invocation_context.chat_session")}</dt>
             <dd>
               <EntityReference id={card.chatSessionId} kind="chat" />
             </dd>
@@ -106,7 +107,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {card.runId ? (
           <div className="min-w-0">
-            <dt className="text-2xs font-semibold uppercase text-text-muted">Run ID</dt>
+            <dt className="text-2xs font-semibold uppercase text-text-muted">{t("daemon_invocation_context.run_id")}</dt>
             <dd>
               <CopyableValue value={card.runId} />
             </dd>
@@ -114,7 +115,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {card.currentMessageId ? (
           <div className="min-w-0">
-            <dt className="text-2xs font-semibold uppercase text-text-muted">Current message ID</dt>
+            <dt className="text-2xs font-semibold uppercase text-text-muted">{t("daemon_invocation_context.current_message_id")}</dt>
             <dd>
               <CopyableValue value={card.currentMessageId} />
             </dd>
@@ -123,6 +124,11 @@ function renderExpanded(context: ToolCardContext) {
       </dl>
     </CardShell>
   )
+}
+
+function renderExpanded(context: ToolCardContext) {
+  const card = parseInvocationContext(context)
+  return card ? <InvocationContextCard card={card} /> : null
 }
 
 const daemonInvocationContextToolCard: ToolCardRenderer = {
