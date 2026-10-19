@@ -74,6 +74,7 @@ type ParsedCard = {
   generatedAt: string | null
   clusterId: string | null
   namespace: string | null
+  resourceName: string | null
   overview?: OverviewCard
 }
 type OverviewSection = {
@@ -404,7 +405,8 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
       errorMessage,
       generatedAt: null,
       clusterId: displayValue(context.input?.cluster_id),
-      namespace: displayValue(context.input?.namespace)
+      namespace: displayValue(context.input?.namespace),
+      resourceName: displayValue(context.input?.name)
     }
 
   const parsed = context.parsedResult
@@ -424,6 +426,7 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
       generatedAt: displayValue(parsed.generated_at),
       clusterId: displayValue(context.input?.cluster_id),
       namespace: displayValue(context.input?.namespace),
+      resourceName: displayValue(context.input?.name),
       overview
     }
   }
@@ -440,7 +443,8 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
     errorMessage: null,
     generatedAt: displayValue(parsed.generated_at),
     clusterId: displayValue(context.input?.cluster_id),
-    namespace: displayValue(context.input?.namespace)
+    namespace: displayValue(context.input?.namespace),
+    resourceName: displayValue(context.input?.name)
   }
 }
 
@@ -958,6 +962,12 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
           <>
             <span>/</span>
             <EntityReference kind="namespace" label={card.namespace} slug={card.namespace} clusterId={card.clusterId} />
+          </>
+        ) : null}
+        {card.resourceName ? (
+          <>
+            <span>/</span>
+            <span className="break-all">{card.resourceName}</span>
           </>
         ) : null}
       </div>

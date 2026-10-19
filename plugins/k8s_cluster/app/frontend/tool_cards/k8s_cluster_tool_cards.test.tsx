@@ -665,6 +665,7 @@ describe("Kubernetes cluster tool cards", () => {
     expect(ingressesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web · 1 ingresses")
     render(<>{ingressesToolCard.renderExpanded(cardContext)}</>)
 
+    expect(screen.getByText("Scope").parentElement).toHaveTextContent("Cluster 7/default/web")
     expect(screen.getByText("web:80")).toBeInTheDocument()
     expect(screen.queryByText("No backend")).not.toBeInTheDocument()
   })
@@ -726,7 +727,7 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
-    expect(screen.getByText("web-1")).toBeInTheDocument()
+    expect(screen.getAllByText("web-1")).toHaveLength(2)
     expect(screen.getByText(/boot complete/)).toBeInTheDocument()
   })
 
