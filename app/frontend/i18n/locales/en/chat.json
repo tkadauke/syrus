@@ -614,5 +614,18 @@
     "chat_session": "Chat session",
     "run_id": "Run ID",
     "current_message_id": "Current message ID"
-  }
+  },
+  "tool_card_classify_pr_failed": "Pull request classification failed",
+  "tool_card_classify_pr_failed_recovery": "Check the repository and pull request number, then try again.",
+  "tool_card_classify_pr_empty": "No pull request classification details were returned.",
+  "tool_card_classify_pr_fork": "fork",
+  "tool_card_classify_pr_same_repo": "same repository",
+  "tool_card_classify_pr_marker_badge": "marker: {{kind}}",
+  "tool_card_classify_pr_disabled": "Classification disabled.",
+  "tool_card_classify_pr_disabled_detail": "This repository is not currently classifying pull requests.",
+  "tool_card_classify_pr_repository": "Repository",
+  "tool_card_classify_pr_head_repository": "Head repository",
+  "tool_card_classify_pr_head_ref": "Head ref",
+  "tool_card_classify_pr_base_ref": "Base ref",
+  "tool_card_classify_pr_marker_details": "Marker details"
 }
