@@ -143,6 +143,7 @@ export type ToolCardEntityKind =
   | "workflow"
   | "pull_request"
   | "issue"
+  | "commit"
   | "artifact"
   | "repository"
   | "proposal"
@@ -254,6 +255,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     href: (reference) => safeEntityHref(reference.issueUrl),
     copyValue: slugCopyValue
   },
+  commit: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },

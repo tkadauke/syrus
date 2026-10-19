@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
-import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 type CheckRow = {
@@ -22,9 +23,8 @@ type RefreshCard = {
   headSha: string | null
   baseSha: string | null
   providers: string[]
-  refreshedChecks: string[]
+  refreshedChecks: CheckRow[]
   failingChecks: CheckRow[]
-  errors: string[]
 }
 
 const failureConfig: ToolFailureConfig = {
@@ -45,28 +45,18 @@ function stringsFromArray(value: unknown): string[] {
   })
 }
 
-function checkNamesFromArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) => {
-    if (isPlainObject(item)) {
-      const name = displayValue(item.name) || displayValue(item.check_name)
-      return name ? [name] : []
-    }
-
-    const label = displayValue(item)
-    return label ? [label] : []
-  })
-}
-
 function parseCheck(value: unknown, index: number): CheckRow | null {
-  if (!isPlainObject(value)) return null
+  if (!isPlainObject(value)) {
+    const name = displayValue(value)
+    return name ? { key: `check-${name}-${index}`, name, provider: null, conclusion: null, detailsUrl: null, summary: null } : null
+  }
 
   const name = displayValue(value.name) || displayValue(value.check_name)
   if (!name) return null
 
   const provider = displayValue(value.provider) || displayValue(value.provider_name) || displayValue(value.app_slug) || displayValue(value.app)
   const conclusion = displayValue(value.conclusion) || displayValue(value.status)
-  const detailsUrl = displayValue(value.details_url) || displayValue(value.html_url) || displayValue(value.url)
+  const detailsUrl = safeHttpUrl(displayValue(value.details_url) || displayValue(value.html_url) || displayValue(value.url))
 
   return {
     key: `${provider || "check"}-${name}-${index}`,
@@ -78,19 +68,21 @@ function parseCheck(value: unknown, index: number): CheckRow | null {
   }
 }
 
-function parseErrors(value: unknown): string[] {
+function safeHttpUrl(value: string | null): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+function checksFromArray(value: unknown): CheckRow[] {
   if (!Array.isArray(value)) return []
-
-  return value.flatMap((item) => {
-    if (isPlainObject(item)) {
-      const message = displayValue(item.message) || displayValue(item.error) || displayValue(item.details)
-      const provider = displayValue(item.provider) || displayValue(item.provider_name)
-      if (!message) return []
-      return provider ? [`${provider}: ${message}`] : [message]
-    }
-
-    const message = displayValue(item)
-    return message ? [message] : []
+  return value.flatMap((check, index) => {
+    const row = parseCheck(check, index)
+    return row ? [row] : []
   })
 }
 
@@ -102,23 +94,14 @@ function parseRefresh(context: ToolCardContext): RefreshCard | null {
   const currentState = displayValue(parsed.pr_checks_state) || displayValue(parsed.current_pr_checks_state) || displayValue(parsed.current_state)
   if (!jobId || !currentState) return null
 
-  const failingChecks = Array.isArray(parsed.failing_checks)
-    ? parsed.failing_checks.flatMap((check, index) => {
-        const row = parseCheck(check, index)
-        return row ? [row] : []
-      })
-    : []
+  const failingChecks = checksFromArray(parsed.failing_checks)
+  const refreshedChecks = checksFromArray(parsed.refreshed_checks ?? parsed.check_names ?? parsed.checks)
 
   const providerCandidates = [
     ...stringsFromArray(parsed.refreshed_providers),
     ...stringsFromArray(parsed.providers),
+    ...refreshedChecks.flatMap((check) => (check.provider ? [check.provider] : [])),
     ...failingChecks.flatMap((check) => (check.provider ? [check.provider] : []))
-  ]
-  const refreshedChecks = [
-    ...checkNamesFromArray(parsed.refreshed_checks),
-    ...checkNamesFromArray(parsed.check_names),
-    ...checkNamesFromArray(parsed.checks),
-    ...failingChecks.map((check) => check.name)
   ]
 
   return {
@@ -131,9 +114,8 @@ function parseRefresh(context: ToolCardContext): RefreshCard | null {
     headSha: displayValue(parsed.head_sha),
     baseSha: displayValue(parsed.base_sha),
     providers: Array.from(new Set(providerCandidates)),
-    refreshedChecks: Array.from(new Set(refreshedChecks)),
-    failingChecks,
-    errors: parseErrors(parsed.errors)
+    refreshedChecks,
+    failingChecks
   }
 }
 
@@ -143,7 +125,7 @@ function targetLabel(card: RefreshCard) {
 }
 
 function succeeded(card: RefreshCard) {
-  return card.errors.length === 0 && card.currentState !== "unknown"
+  return card.currentState !== "unknown"
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -157,8 +139,6 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function NextActionHint({ card }: { card: RefreshCard }) {
-  if (card.errors.length > 0)
-    return <div className="text-text-secondary">Next: review provider errors, then retry the refresh once the provider is healthy.</div>
   if (card.currentState === "failing")
     return <div className="text-text-secondary">Next: inspect the failing checks before rerunning CI repair or marking the repair no-op.</div>
   if (card.currentState === "pending")
@@ -174,7 +154,12 @@ function CheckList({ checks }: { checks: CheckRow[] }) {
         <li className="rounded border border-border bg-surface px-2 py-1" key={check.key}>
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             {check.detailsUrl ? (
-              <a className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis" href={check.detailsUrl} rel="noreferrer" target="_blank">
+              <a
+                className="break-words font-mono font-medium text-brand hover:underline dark:text-brand-emphasis [overflow-wrap:anywhere]"
+                href={check.detailsUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
                 {check.name}
               </a>
             ) : (
@@ -183,10 +168,40 @@ function CheckList({ checks }: { checks: CheckRow[] }) {
             {check.provider ? <Badge>{check.provider}</Badge> : null}
             {check.conclusion ? <StatePill state={check.conclusion} /> : null}
           </div>
-          {check.summary ? <div className="mt-0.5 text-text-secondary">{check.summary}</div> : null}
+          {check.summary ? (
+            <div className="mt-1">
+              <MarkdownPreview maxLines={3} modalLabel={`Full summary for ${check.name}`} text={check.summary} />
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>
+  )
+}
+
+function githubRepositoryUrl(checks: CheckRow[]) {
+  for (const check of checks) {
+    if (!check.detailsUrl) continue
+    const url = new URL(check.detailsUrl)
+    const segments = url.pathname.split("/").filter(Boolean)
+    if (url.hostname.toLowerCase() === "github.com" && segments.length >= 2) return `${url.origin}/${segments[0]}/${segments[1]}`
+  }
+  return null
+}
+
+function ShaRow({ label, sha, repositoryUrl }: { label: string; sha: string; repositoryUrl: string | null }) {
+  const shortSha = sha.slice(0, 12)
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{label}</SectionLabel>
+      <EntityReference
+        href={repositoryUrl ? `${repositoryUrl}/commit/${encodeURIComponent(sha)}` : null}
+        id={shortSha}
+        kind="commit"
+        label={shortSha}
+        slug={sha}
+      />
+    </div>
   )
 }
 
@@ -195,35 +210,45 @@ function renderExpanded(context: ToolCardContext) {
 
   const card = parseRefresh(context)
   if (!card) return null
+  const repositoryUrl = githubRepositoryUrl([...card.refreshedChecks, ...card.failingChecks])
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-text-primary">{targetLabel(card)}</span>
+        <EntityReference id={card.jobId} kind="job" label={`JOB-${card.jobId}`} slug={card.slug} />
+        {card.prNumber ? (
+          <EntityReference id={card.prNumber} kind="pull_request" prUrl={repositoryUrl ? `${repositoryUrl}/pull/${card.prNumber}` : null} />
+        ) : null}
         <StatePill state={card.currentState} tone={succeeded(card) ? undefined : "warning"} />
       </div>
 
       <dl className="grid gap-1 sm:grid-cols-2">
         {card.priorState ? <Row label="Prior state" value={card.priorState} /> : null}
         <Row label="Current state" value={card.currentState} />
-        {card.headSha ? <Row label="Head SHA" value={card.headSha} /> : null}
-        {card.baseSha ? <Row label="Base SHA" value={card.baseSha} /> : null}
+        {card.headSha ? <ShaRow label="Head SHA" repositoryUrl={repositoryUrl} sha={card.headSha} /> : null}
+        {card.baseSha ? <ShaRow label="Base SHA" repositoryUrl={repositoryUrl} sha={card.baseSha} /> : null}
         {card.checkedAt ? <Row label="Refreshed at" value={card.checkedAt} /> : null}
       </dl>
 
-      {card.providers.length > 0 || card.refreshedChecks.length > 0 ? (
+      {card.providers.length > 0 ? (
         <div className="space-y-1">
-          <SectionLabel>Refreshed</SectionLabel>
+          <SectionLabel>Refreshed providers</SectionLabel>
           <div className="flex flex-wrap gap-1">
             {card.providers.map((provider) => (
               <Badge key={`provider-${provider}`}>{provider}</Badge>
             ))}
-            {card.refreshedChecks.map((check) => (
-              <Badge key={`check-${check}`}>{check}</Badge>
-            ))}
           </div>
         </div>
       ) : null}
+
+      {card.refreshedChecks.length > 0 ? (
+        <div className="space-y-1">
+          <SectionLabel>Refreshed checks</SectionLabel>
+          <CheckList checks={card.refreshedChecks} />
+        </div>
+      ) : (
+        <EmptyState>No refreshed checks reported.</EmptyState>
+      )}
 
       {card.failingChecks.length > 0 ? (
         <div className="space-y-1">
@@ -233,19 +258,6 @@ function renderExpanded(context: ToolCardContext) {
       ) : (
         <EmptyState>No failing checks reported.</EmptyState>
       )}
-
-      {card.errors.length > 0 ? (
-        <div className="space-y-1">
-          <SectionLabel>Errors</SectionLabel>
-          <ul className="space-y-1 text-danger-text">
-            {card.errors.map((error) => (
-              <li className="break-words" key={error}>
-                {error}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       <div>
         <SectionLabel>Next action</SectionLabel>
@@ -322,15 +334,7 @@ export const examples: ToolCardExample[] = [
     id: "provider_failure",
     label: "Provider/check failure",
     input: { job_id: 45 },
-    parsedResult: {
-      job_id: 45,
-      slug: "provider-timeout",
-      pr_number: 316,
-      previous_pr_checks_state: "pending",
-      pr_checks_state: "unknown",
-      refreshed_providers: ["GitHub Actions"],
-      errors: [{ provider: "GitHub Actions", message: "Timed out fetching check runs." }],
-      failing_checks: []
-    }
+    resultBody: "Error: Timed out fetching check runs.",
+    resultError: true
   }
 ]
