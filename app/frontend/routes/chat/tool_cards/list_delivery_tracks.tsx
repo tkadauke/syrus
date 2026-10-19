@@ -63,6 +63,22 @@ function BranchReference({ branch, repository }: { branch: string | null; reposi
   )
 }
 
+function TrackReference({ name, repository, rows }: { name: string | null; repository: string | null; rows: TrackRow[] }) {
+  if (!name) return <>—</>
+  const targetBranch = rows.find((row) => row.name === name)?.branch
+  if (!repository || !targetBranch) return <span className="font-mono">{name}</span>
+
+  return (
+    <a
+      className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis"
+      href={githubUrl(repository, `/tree/${encodeURIComponent(targetBranch)}`)}
+      title={`${name} track (${targetBranch})`}
+    >
+      {name}
+    </a>
+  )
+}
+
 function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
@@ -102,7 +118,7 @@ function renderExpanded(context: ToolCardContext) {
                 <Td>{row.ciFailureGradePhase || "—"}</Td>
                 <Td>{row.branchHealthGradePhase || "—"}</Td>
                 <Td>
-                  <BranchReference branch={row.afterLandingSyncTo} repository={result.repository} />
+                  <TrackReference name={row.afterLandingSyncTo} repository={result.repository} rows={result.rows} />
                 </Td>
               </tr>
             ))}
@@ -131,12 +147,17 @@ export const examples: ToolCardExample[] = [
         {
           name: "default",
           default: true,
-          branch: "main",
+          branch: "develop",
           review_grade_phase: "review",
           landing_grade_phase: "landing",
           ci_failure_grade_phase: "ci_failure",
-          branch_health_grade_phase: "branch_health",
-          after_landing_sync_to: "develop"
+          branch_health_grade_phase: "branch_health"
+        },
+        {
+          name: "hotfix",
+          default: false,
+          branch: "main",
+          after_landing_sync_to: "default"
         }
       ]
     }

@@ -30,24 +30,31 @@ describe("list_delivery_tracks tool card", () => {
         {
           name: "default",
           default: true,
-          branch: "main",
+          branch: "develop",
           review_grade_phase: "review",
           landing_grade_phase: "landing",
           ci_failure_grade_phase: "ci_failure",
-          branch_health_grade_phase: "branch_health",
-          after_landing_sync_to: "develop"
+          branch_health_grade_phase: "branch_health"
         },
-        { name: "staging", default: false, branch: "staging-branch", review_grade_phase: null, landing_grade_phase: null }
+        {
+          name: "hotfix",
+          default: false,
+          branch: "main",
+          review_grade_phase: null,
+          landing_grade_phase: null,
+          after_landing_sync_to: "default"
+        }
       ]
     }
 
     render(<>{listDeliveryTracksToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getAllByText("default")).toHaveLength(2)
-    expect(screen.getByText("staging")).toBeInTheDocument()
+    expect(screen.getAllByText("default")).toHaveLength(3)
+    expect(screen.getByText("hotfix")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
     expect(screen.getByRole("link", { name: "main" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/main")
-    expect(screen.getByRole("link", { name: "develop" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/develop")
+    expect(screen.getByRole("link", { name: "default" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/develop")
+    expect(screen.queryByRole("link", { name: "default" })).not.toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/default")
     expect(screen.getByText("review")).toBeInTheDocument()
     expect(screen.getByText("landing")).toBeInTheDocument()
     expect(screen.getByText("ci_failure")).toBeInTheDocument()
