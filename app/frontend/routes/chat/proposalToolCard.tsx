@@ -275,7 +275,7 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
 // dependencies, materialized result), not the full interactive proposal
 // card (ProposalCards.tsx's ProposalCard), which already renders separately
 // for the same chat_proposal item and owns edit/confirm/reject controls.
-export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome }) {
+export function ProposalOutcomeCard({ proposal, onLinkClick }: { proposal: ProposalOutcome; onLinkClick?: ToolCardContext["onLinkClick"] }) {
   const hasDetails =
     proposal.repository ||
     proposal.targetEpicLabel ||
@@ -303,6 +303,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         linkifyUrls
         maxChars={960}
         modalLabel={`Full ${humanizeKind(proposal.kind)} description`}
+        onLinkClick={onLinkClick}
         text={proposal.body}
         title="Description"
       />

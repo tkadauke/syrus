@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { MouseEvent, ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 export { isPlainObject } from "./toolCardParsing"
 
@@ -46,6 +46,10 @@ export type ToolCardContext = {
     chatMedia?: ChatMediaPayload
     previewPanels?: ChatPreviewPanel[]
   }
+  // Chat-owned navigation interception for links rendered inside card
+  // Markdown (workspace files open in the source preview instead of leaving
+  // the chat). Catalog/admin contexts may omit it.
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 }
 
 export type ToolCardRenderer = {

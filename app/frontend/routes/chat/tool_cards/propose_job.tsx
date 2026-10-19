@@ -27,7 +27,7 @@ function renderExpanded(context: ToolCardContext) {
 
   const proposal = parseProposalOutcome(context.parsedResult, context.input, context.presentation)
   if (!proposal) return null
-  return <ProposalOutcomeCard proposal={proposal} />
+  return <ProposalOutcomeCard onLinkClick={context.onLinkClick} proposal={proposal} />
 }
 
 const proposeJobToolCard: ToolCardRenderer = {

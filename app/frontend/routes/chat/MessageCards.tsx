@@ -905,7 +905,20 @@ export const ToolGroup = memo(function ToolGroup({
   chatMedia?: ChatMediaPayload
 }) {
   const [open, setOpen] = useState(false)
+  const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
   const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
+
+  function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (!payload) return
+    const resolved = resolveWorkspaceFileLink(href, payload)
+    if (resolved) {
+      event.preventDefault()
+      setSourcePreview(resolved)
+      return
+    }
+
+    if (workspaceHrefLooksLocal(href)) event.preventDefault()
+  }
 
   const details = item.calls
     .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
@@ -947,7 +960,7 @@ export const ToolGroup = memo(function ToolGroup({
                 {detail ? `(${detail})` : ""}
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} presentation={presentation} /> : null}
+              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} onLinkClick={handleMarkdownLink} presentation={presentation} /> : null}
               {expanded ? (
                 <RawToolDetails
                   payload={{
@@ -973,6 +986,7 @@ export const ToolGroup = memo(function ToolGroup({
           )
         })}
       </div>
+      {sourcePreview && payload ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
   )
 })
@@ -997,7 +1011,11 @@ function callHasExpandedCard(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call)) != null
 }
 
-function ToolResultBody({ call, presentation }: { call: ChatToolGroupItem["calls"][number]; presentation?: ToolCardContext["presentation"] }) {
+function ToolResultBody({ call, onLinkClick, presentation }: {
+  call: ChatToolGroupItem["calls"][number]
+  onLinkClick?: ToolCardContext["onLinkClick"]
+  presentation?: ToolCardContext["presentation"]
+}) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -1015,7 +1033,7 @@ function ToolResultBody({ call, presentation }: { call: ChatToolGroupItem["calls
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, presentation))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, presentation, onLinkClick))
   if (pluginBody != null) return <>{pluginBody}</>
 
   if (call.result_error) return <ToolErrorCard call={call} />
@@ -1035,7 +1053,11 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], pr
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-function toolCardContext(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"]): ToolCardContext {
+function toolCardContext(
+  call: ChatToolGroupItem["calls"][number],
+  presentation?: ToolCardContext["presentation"],
+  onLinkClick?: ToolCardContext["onLinkClick"]
+): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
@@ -1045,7 +1067,8 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number], presentation?
     resultError: call.result_error,
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
-    presentation
+    presentation,
+    onLinkClick
   }
 }
 

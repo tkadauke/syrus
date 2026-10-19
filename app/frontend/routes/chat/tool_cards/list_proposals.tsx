@@ -1,6 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { EmptyState, EntityReference, StatePill } from "../toolCardUi"
-import { parseProposalOutcome, type ProposalOutcome } from "../proposalToolCard"
+import { EmptyState } from "../toolCardUi"
+import { parseProposalOutcome, ProposalOutcomeCard, type ProposalOutcome } from "../proposalToolCard"
+import { ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for list_proposals (the pending-action tool-card work).
 function proposalRows(context: ToolCardContext): ProposalOutcome[] | null {
@@ -8,46 +9,37 @@ function proposalRows(context: ToolCardContext): ProposalOutcome[] | null {
   if (!isPlainObject(parsed) || !Array.isArray(parsed.proposals)) return null
 
   return parsed.proposals.flatMap((item) => {
-    const proposal = parseProposalOutcome(item)
+    const proposal = parseProposalOutcome(item, context.input, context.presentation)
     return proposal ? [proposal] : []
   })
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  if (failureSummary) return failureSummary
   const rows = proposalRows(context)
   if (!rows) return null
   return `${rows.length} proposal${rows.length === 1 ? "" : "s"}`
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
   const rows = proposalRows(context)
   if (!rows) return null
   if (rows.length === 0) return <EmptyState>No proposals in this chat yet.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Slug</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Kind</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Title</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((proposal) => (
-            <tr key={proposal.slug}>
-              <td className="whitespace-nowrap px-2 py-1"><EntityReference kind="proposal" slug={proposal.slug} /></td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{proposal.kind}</td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={proposal.state} /></td>
-              <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={proposal.title ?? undefined}>{proposal.title || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-1 grid min-w-0 gap-2">
+      {rows.map((proposal) => <ProposalOutcomeCard key={proposal.slug} onLinkClick={context.onLinkClick} proposal={proposal} />)}
     </div>
   )
+}
+
+const failureConfig: ToolFailureConfig = {
+  title: "Proposal list",
+  attempted: () => "List proposals",
+  retrySafety: "safe",
+  recovery: "Retry after checking the chat connection."
 }
 
 const listProposalsToolCard: ToolCardRenderer = {
@@ -66,8 +58,19 @@ export const examples = [
     label: "Mixed proposal states",
     parsedResult: {
       proposals: [
-        { slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" },
-        { slug: "tier-2-cards", title: "Tier 2 Custom Tool Cards", kind: "epic", state: "withdrawn" }
+        {
+          slug: "fix-output",
+          title: "Fix output",
+          body: "Render **linked** dependency details for JOB-12.",
+          kind: "job",
+          state: "proposed",
+          repository: "tkadauke/syrus",
+          dependencies: ["card-primitives"],
+          depends_on_job_ids: [12],
+          target_epic: { id: 7, label: "Chat polish" },
+          materialized: { kind: "job", job_id: 91, job_title: "Fix output", job_state: "queued" }
+        },
+        { slug: "tier-2-cards", title: "Tier 2 Custom Tool Cards", body: "", kind: "epic", state: "withdrawn" }
       ]
     }
   },
