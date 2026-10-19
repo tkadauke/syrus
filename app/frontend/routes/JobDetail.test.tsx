@@ -4018,7 +4018,7 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText("Sign in")).toBeInTheDocument()
   })
 
-  it("renders before_after_visual_diff: linked before and after screenshots", () => {
+  function renderVisualComparison() {
     renderArtifactsTab([
       {
         type: "visual_diff_comparison",
@@ -4042,11 +4042,73 @@ describe("ArtifactsTab", () => {
         }
       }
     ])
+  }
 
-    expect(screen.getByText("Merge-base / before")).toBeInTheDocument()
-    expect(screen.getByText("PR / after")).toBeInTheDocument()
-    expect(screen.getByRole("img", { name: "Merge-base / before: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/2/visual_artifact?type=before")
-    expect(screen.getByRole("img", { name: "PR / after: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=after")
+  it("overlays the after image on the left and before image on the right", () => {
+    renderVisualComparison()
+
+    expect(screen.getByRole("img", { name: "After: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=after")
+    expect(screen.getByRole("img", { name: "Before: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/2/visual_artifact?type=before")
+    expect(screen.getByTestId("visual-before-layer")).toHaveStyle({ clipPath: "inset(0 0 0 50%)" })
+    expect(screen.getByTestId("visual-comparison")).toHaveClass("w-full", "touch-none")
+  })
+
+  it("moves the comparison divider with touch and keyboard input without opening after a drag", () => {
+    renderVisualComparison()
+    const comparison = screen.getByTestId("visual-comparison")
+    vi.spyOn(comparison, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 400,
+      right: 400,
+      top: 0,
+      bottom: 200,
+      height: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    fireEvent.pointerDown(comparison, { button: 0, clientX: 200, pointerId: 1, pointerType: "touch" })
+    fireEvent.pointerMove(comparison, { clientX: 100, pointerId: 1, pointerType: "touch" })
+    fireEvent.pointerUp(comparison, { clientX: 100, pointerId: 1, pointerType: "touch" })
+
+    expect(screen.getByRole("slider", { name: "Before and after divider for Dashboard" })).toHaveAttribute("aria-valuenow", "25")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowRight" })
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "27")
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "End" })
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "100")
+  })
+
+  it("opens a preview on tap and cycles labeled images with controls, keyboard, and swipe", () => {
+    renderVisualComparison()
+    const comparison = screen.getByTestId("visual-comparison")
+
+    fireEvent.pointerDown(comparison, { button: 0, clientX: 100, pointerId: 1 })
+    fireEvent.pointerUp(comparison, { clientX: 102, pointerId: 1 })
+
+    const dialog = screen.getByRole("dialog", { name: "Before and after preview: Dashboard" })
+    expect(within(dialog).getByRole("img", { name: "After: Dashboard" })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }))
+    expect(within(dialog).getByRole("img", { name: "Before: Dashboard" })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "ArrowRight" })
+    expect(within(dialog).getByRole("img", { name: "After: Dashboard" })).toBeInTheDocument()
+
+    const swipeArea = within(dialog).getByTestId("visual-preview-swipe-area")
+    fireEvent.pointerDown(swipeArea, { clientX: 200, pointerId: 2, pointerType: "touch" })
+    fireEvent.pointerUp(swipeArea, { clientX: 100, pointerId: 2, pointerType: "touch" })
+    expect(within(dialog).getByRole("img", { name: "Before: Dashboard" })).toBeInTheDocument()
+  })
+
+  it("keeps the comparison in one responsive frame at a 402x812 viewport", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
+    renderVisualComparison()
+
+    const comparison = screen.getByTestId("visual-comparison")
+    expect(comparison).toHaveClass("w-full", "overflow-hidden", "touch-none")
+    expect(comparison.closest(".grid")).toBeNull()
   })
 
   it("falls back to raw JSON for image_diff artifacts with no image_url", () => {

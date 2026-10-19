@@ -101,6 +101,11 @@ The visual reviewer should inspect the running app and screenshots, not run
 builds or full test suites. Deterministic build and test checks belong in
 graders.
 
+When a matching merge-base capture is available, the Job review presents the
+before and after screenshots in a single responsive comparison. Drag the
+divider (or use its keyboard controls) to reveal either version, and tap the
+comparison to open a larger preview with labeled before/after navigation.
+
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
 `.syrus.yml`, and their seed notes are shown when that project preview is one

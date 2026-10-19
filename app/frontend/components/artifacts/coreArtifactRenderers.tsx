@@ -1,6 +1,7 @@
-import type { TypedArtifact, ImageDiffPayload, BeforeAfterVisualDiffPayload, BeforeAfterVisualImage } from "../../api/artifacts"
+import type { TypedArtifact, ImageDiffPayload, BeforeAfterVisualDiffPayload } from "../../api/artifacts"
 import { useT } from "../../hooks/useT"
 import type { ArtifactRendererDefinition, ArtifactRendererExample } from "../../pluginArtifactRenderers"
+import { BeforeAfterVisualComparison } from "./BeforeAfterVisualComparison"
 
 // Bare definition plus its example fixtures, colocated the same way a
 // plugin renderer module colocates `default` and `examples` -- core
@@ -140,25 +141,9 @@ function BeforeAfterVisualDiffBody({ payload }: { payload: BeforeAfterVisualDiff
       {pairs.map((pair, index) => (
         <div className="space-y-2" key={`${pair.title || "visual"}-${index}`}>
           <div className="text-xs font-semibold text-gray-700">{pair.title || `Screenshot ${index + 1}`}</div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <VisualPane label="Merge-base / before" image={pair.before} />
-            <VisualPane label="PR / after" image={pair.after} />
-          </div>
+          <BeforeAfterVisualComparison before={pair.before} after={pair.after} title={pair.title || `Screenshot ${index + 1}`} />
         </div>
       ))}
-    </div>
-  )
-}
-
-function VisualPane({ label, image }: { label: string; image: BeforeAfterVisualImage }) {
-  if (!image?.image_url) return null
-
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-gray-500">{label}</div>
-      <a href={image.image_url} target="_blank" rel="noreferrer">
-        <img src={image.image_url} alt={`${label}: ${image.title || "screenshot"}`} className="max-w-full rounded border border-gray-200" />
-      </a>
     </div>
   )
 }
