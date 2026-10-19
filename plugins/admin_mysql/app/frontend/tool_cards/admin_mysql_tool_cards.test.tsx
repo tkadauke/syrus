@@ -22,10 +22,13 @@ const healthyPayload = {
   connection_summary: {
     threads_connected: 7,
     threads_running: 1,
+    max_used_connections: 42,
     max_connections: 151,
     sleeping_connections: 1,
     aborted_connects: 0,
-    max_connection_errors: 0
+    max_connection_errors: 0,
+    wait_timeout: 28800,
+    interactive_timeout: 28800
   },
   variables: {
     slow_query_log: "ON",
@@ -96,6 +99,11 @@ describe("Admin MySQL tool cards", () => {
 
     expect(screen.getByText("healthy")).toBeInTheDocument()
     expect(screen.getByText("Active queries")).toBeInTheDocument()
+    expect(screen.getByText("Max used connections")).toBeInTheDocument()
+    expect(screen.getByText("42")).toBeInTheDocument()
+    expect(screen.getByText("Wait timeout")).toBeInTheDocument()
+    expect(screen.getByText("Interactive timeout")).toBeInTheDocument()
+    expect(screen.getAllByText("8h 0m")).toHaveLength(2)
     expect(screen.getByText("SELECT COUNT(*) FROM jobs")).toBeInTheDocument()
     expect(screen.getByText("Statement digests")).toBeInTheDocument()
     expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
