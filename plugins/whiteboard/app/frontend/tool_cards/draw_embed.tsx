@@ -1,6 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CompactActionCard } from "@app/routes/chat/compactActionCard"
 import { Badge, CardShell, Row, StatePill, displayValue } from "@app/routes/chat/toolCardUi"
+import type { ReactNode } from "react"
 import { ElementFailureCard, elementActionSummary, elementFailureSummary, parseElementResult, t } from "../whiteboardToolCard"
 
 const ACTION_KEY = "tool_action_drew_embed"
@@ -51,6 +52,15 @@ function EmbedPreview({ link }: { link: unknown }) {
   )
 }
 
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs font-semibold uppercase text-text-subtle">{label}</dt>
+      <dd className="min-w-0 break-words text-xs text-text-secondary">{children}</dd>
+    </div>
+  )
+}
+
 function renderExpanded(context: ToolCardContext) {
   const action = t(ACTION_KEY)
   if (context.resultError) return <ElementFailureCard action={action} context={context} />
@@ -75,7 +85,9 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <EmbedPreview link={input.link} />
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-        <Row label={t("tool_field_link")} value={<EmbedLink value={input.link} />} />
+        <DetailRow label={t("tool_field_link")}>
+          <EmbedLink value={input.link} />
+        </DetailRow>
         {type ? <Row label={t("tool_field_type")} value={type} /> : null}
         <Row label="X" value={displayValue(input.x) ?? "—"} />
         <Row label="Y" value={displayValue(input.y) ?? "—"} />

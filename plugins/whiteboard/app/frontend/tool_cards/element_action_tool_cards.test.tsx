@@ -258,7 +258,10 @@ describe("whiteboard element-action tool cards", () => {
         )}
       </>
     )
-    expect(screen.getByRole("link", { name: longUrl })).toHaveClass("break-all", "min-w-0")
+    const link = screen.getByRole("link", { name: longUrl })
+    expect(link).toHaveClass("break-all", "min-w-0")
+    expect(link.closest("dd")).toHaveClass("break-words", "min-w-0")
+    expect(link.closest("dd")).not.toHaveClass("truncate")
     for (const value of ["iframe", "11", "22", "640", "360", "wrapped-embed", "v9"]) expect(screen.getByText(value)).toBeInTheDocument()
   })
 
