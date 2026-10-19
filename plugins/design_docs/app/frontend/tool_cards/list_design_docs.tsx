@@ -27,21 +27,21 @@ function designDocs(context: ToolCardContext): DesignDocListItem[] | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return t("tool_list_error_summary")
-  if (!context.resultBody && context.parsedResult == null) return t("tool_list_pending_summary")
   const docs = designDocs(context)
+  if (context.resultError && !docs) return t("tool_list_error_summary")
+  if (!context.resultBody && context.parsedResult == null) return t("tool_list_pending_summary")
   if (!docs) return null
 
   return t("tool_design_doc_count", { count: docs.length })
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) {
+  const docs = designDocs(context)
+  if (context.resultError && !docs) {
     return <DesignDocErrorCard message={displayValue(context.resultBody) ?? t("tool_unknown_error")} title={t("tool_list_title")} />
   }
   if (!context.resultBody && context.parsedResult == null) return <DesignDocPendingCard title={t("tool_list_title")} />
 
-  const docs = designDocs(context)
   if (!docs) return null
 
   const filters = [
