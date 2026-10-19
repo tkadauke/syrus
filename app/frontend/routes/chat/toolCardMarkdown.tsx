@@ -41,6 +41,7 @@ export type MarkdownPreviewProps = {
 
 export type TextPreviewProps = {
   text: string
+  modalText?: string
   lang?: HighlighterLanguageId | null
   maxChars?: number
   maxLines?: number
@@ -151,7 +152,7 @@ export function MarkdownPreview({
 
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
-export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
+export function TextPreview({ text, modalText, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
@@ -161,6 +162,8 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
   if (empty) return null
 
   const dialogLabel = modalLabel || title || t("show_more")
+  const completeText = modalText ?? text
+  const showModal = truncated.truncated || modalText != null
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
@@ -172,7 +175,7 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
         lang={lang}
         maxHeightClassName="max-h-72"
       />
-      {truncated.truncated ? (
+      {showModal ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
@@ -189,7 +192,7 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
           <button
             aria-label={t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
             className={CLOSE_BUTTON_CLASS}
-            onClick={() => copy(text)}
+            onClick={() => copy(completeText)}
             title={copied ? t("copy.copied") : t("copy.copy", { slug: title || dialogLabel })}
             type="button"
           >
@@ -202,11 +205,11 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
           <CodeSurface
             className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
-            code={text}
+            code={completeText}
             lang={lang}
             maxHeightClassName="max-h-none"
           >
-            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{text}</code>}
+            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{completeText}</code>}
           </CodeSurface>
         </div>
       </Modal>

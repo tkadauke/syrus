@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
+import { Badge, CardShell, Disclosure, EntityReference, FilterableList, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { TextPreview } from "../toolCardMarkdown"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
@@ -17,7 +17,12 @@ type LogRow = {
   level: string | null
   role: string | null
   hostname: string | null
+  appRevision: string | null
+  pid: string | null
+  source: string | null
+  requestId: string | null
   message: string | null
+  context: Record<string, unknown>
   jobId: string | null
   workflowId: string | null
   runId: string | null
@@ -35,7 +40,12 @@ function parseLogRow(value: unknown, index: number): LogRow | null {
     level: displayValue(value.level),
     role: displayValue(value.role),
     hostname: displayValue(value.hostname),
+    appRevision: displayValue(value.app_revision),
+    pid: displayValue(value.pid),
+    source: displayValue(value.source),
+    requestId: displayValue(value.request_id),
     message: displayValue(value.message),
+    context: isPlainObject(value.context) ? value.context : {},
     jobId: displayValue(value.job_id),
     workflowId: displayValue(value.workflow_id),
     runId: displayValue(value.run_id)
@@ -61,6 +71,7 @@ function parseLogsCard(context: ToolCardContext): LogsCard | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  if (context.resultError) return "Operational log search failed"
   const card = parseLogsCard(context)
   if (!card) return null
   if (!card.enabled) return "Operational log indexing disabled"
@@ -85,7 +96,8 @@ function AppliedFilters({ input }: { input?: Record<string, unknown> }) {
     ["level", displayValue(input.level) ?? ""],
     ["role", displayValue(input.role) ?? ""],
     ["hostname", displayValue(input.hostname) ?? ""],
-    ["since", displayValue(input.since) ?? ""]
+    ["since", displayValue(input.since) ?? ""],
+    ["limit", displayValue(input.limit) ?? ""]
   ].filter(([, value]) => value.length > 0) as Array<[string, string]>
 
   if (entries.length === 0) return null
@@ -102,6 +114,18 @@ function AppliedFilters({ input }: { input?: Record<string, unknown> }) {
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) {
+    return (
+      <CardShell>
+        <div className="flex items-center gap-2">
+          <StatePill state="failed" tone="failure" />
+          <span className="font-semibold text-text-primary">Operational log search failed</span>
+        </div>
+        <div className="font-mono text-xs text-danger-text">{context.resultBody || "The operational log search failed."}</div>
+      </CardShell>
+    )
+  }
+
   const card = parseLogsCard(context)
   if (!card) return null
 
@@ -128,7 +152,25 @@ function renderExpanded(context: ToolCardContext) {
       ) : (
         <Disclosure label={`Log preview (${card.logs.length})`}>
           <FilterableList
-            itemText={(log) => [log.occurredAt, log.level, log.role, log.hostname, log.message, log.jobId, log.workflowId, log.runId].filter(Boolean).join(" ")}
+            itemText={(log) =>
+              [
+                log.occurredAt,
+                log.level,
+                log.role,
+                log.hostname,
+                log.appRevision,
+                log.pid,
+                log.source,
+                log.requestId,
+                log.message,
+                JSON.stringify(log.context),
+                log.jobId,
+                log.workflowId,
+                log.runId
+              ]
+                .filter(Boolean)
+                .join(" ")
+            }
             items={card.logs}
             placeholder="Filter log rows"
           >
@@ -138,29 +180,48 @@ function renderExpanded(context: ToolCardContext) {
 
               return (
                 <>
-                  <div className="max-h-96 overflow-auto">
-                    <Table>
-                      <THead columns={["Time", "Level", "Role", "Host", "Message", "Attribution"]} />
-                      <TBody>
-                        {visibleLogs.map((log) => (
-                          <tr key={log.key}>
-                            <Td mono>{log.occurredAt || "—"}</Td>
-                            <Td>{log.level ? <StatePill state={log.level} tone={levelTone(log.level)} /> : "—"}</Td>
-                            <Td>{log.role || "—"}</Td>
-                            <Td mono>{log.hostname || "—"}</Td>
-                            <Td maxWidth title={log.message ?? undefined}>
-                              {log.message ? <TextPreview maxChars={MESSAGE_PREVIEW_CHARS} maxLines={2} text={log.message} truncate="headTail" /> : "—"}
-                            </Td>
-                            <Td mono>
-                              {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null]
-                                .filter(Boolean)
-                                .join(" ") || "—"}
-                            </Td>
-                          </tr>
-                        ))}
-                      </TBody>
-                    </Table>
-                  </div>
+                  <Table responsive>
+                    <THead columns={["Time", "Level", "Role", "Host", "Revision", "PID", "Source", "Request", "Message", "Attribution"]} />
+                    <TBody>
+                      {visibleLogs.map((log) => (
+                        <tr key={log.key}>
+                          <Td mono>{log.occurredAt || "—"}</Td>
+                          <Td>{log.level ? <StatePill state={log.level} tone={levelTone(log.level)} /> : "—"}</Td>
+                          <Td>{log.role || "—"}</Td>
+                          <Td mono>{log.hostname || "—"}</Td>
+                          <Td mono>{log.appRevision || "—"}</Td>
+                          <Td mono>{log.pid || "—"}</Td>
+                          <Td>{log.source || "—"}</Td>
+                          <Td mono>{log.requestId || "—"}</Td>
+                          <Td maxWidth wrap>
+                            {log.message ? (
+                              <TextPreview
+                                maxChars={MESSAGE_PREVIEW_CHARS}
+                                maxLines={2}
+                                modalLabel="Log message and context"
+                                modalText={`${log.message}\n\nContext\n${JSON.stringify(log.context, null, 2)}`}
+                                text={log.message}
+                                truncate="headTail"
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </Td>
+                          <Td>
+                            {log.jobId ? (
+                              <span className="flex flex-wrap gap-2">
+                                <EntityReference id={log.jobId} kind="job" />
+                                {log.workflowId ? <EntityReference id={log.workflowId} jobId={log.jobId} kind="workflow" /> : null}
+                                {log.runId ? <EntityReference id={log.runId} jobId={log.jobId} workflowId={log.workflowId} kind="run" /> : null}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </Td>
+                        </tr>
+                      ))}
+                    </TBody>
+                  </Table>
                   {omitted > 0 ? (
                     <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">
                       Showing first {LOG_PREVIEW_ROW_LIMIT} of {logs.length} rows.
