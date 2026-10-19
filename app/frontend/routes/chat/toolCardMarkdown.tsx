@@ -48,11 +48,7 @@ export function MarkdownPreview({ text, maxLines = DEFAULT_MAX_LINES, title, mod
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
-      <div
-        className="break-words text-xs text-text-muted [overflow-wrap:anywhere]"
-        data-testid="markdown-preview-content"
-        style={lineClampStyle}
-      >
+      <div className="break-words text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="markdown-preview-content" style={lineClampStyle}>
         {renderLightMarkdown(truncated.preview)}
         {truncated.truncated ? "…" : null}
       </div>
@@ -70,12 +66,7 @@ export function MarkdownPreview({ text, maxLines = DEFAULT_MAX_LINES, title, mod
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
           <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-text-primary">{title || dialogLabel}</h2>
-          <button
-            aria-label={t("close")}
-            className={CLOSE_BUTTON_CLASS}
-            onClick={() => setOpen(false)}
-            type="button"
-          >
+          <button aria-label={t("close")} className={CLOSE_BUTTON_CLASS} onClick={() => setOpen(false)} type="button">
             <CloseIcon />
           </button>
         </header>
@@ -91,9 +82,7 @@ export function truncateMarkdown(text: string, maxLines: number): TruncatedMarkd
   const normalized = text.replace(/\r\n?/g, "\n")
   const lines = normalized.split("\n")
   const safeMaxLines = Math.max(1, maxLines)
-  const lineCutoff = lines.length > safeMaxLines
-    ? lines.slice(0, safeMaxLines).join("\n").length
-    : normalized.length
+  const lineCutoff = lines.length > safeMaxLines ? lines.slice(0, safeMaxLines).join("\n").length : normalized.length
   const characterCutoff = safeMaxLines * APPROXIMATE_CHARS_PER_LINE
   let cutoff = Math.min(lineCutoff, characterCutoff, normalized.length)
 
