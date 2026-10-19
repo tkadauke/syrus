@@ -134,6 +134,15 @@ visible. Confirming or rejecting the group emits one group outcome chat
 message and one follow-up turn, rather than one per successful member.
 Rejecting discards every still-pending member without applying any.
 
+The chat agent can call `withdraw_pending_action` with an action ID and an
+optional concise reason when it recognizes that it proposed an action in
+error. The tool is scoped to the current chat and its owner, acts immediately
+without creating a second confirmation, rejects pending actions, and cancels
+queued or otherwise cancellable actions. Repeating the call for an already
+rejected or cancelled action returns an unchanged, idempotent result. Grouped
+members must be rejected together from their group confirmation card so a
+single withdrawal cannot leave a partially active group.
+
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
 `admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.
