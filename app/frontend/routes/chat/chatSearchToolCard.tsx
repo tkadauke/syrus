@@ -222,6 +222,22 @@ function Metadata({ children }: { children: ReactNode }) {
   return <div className="flex min-w-0 flex-wrap items-center gap-1 text-2xs text-gray-500 dark:text-gray-400">{children}</div>
 }
 
+function ListChatsFilters({ mode, jobId, hasAttachedJobs }: { mode: string | null; jobId: string | null; hasAttachedJobs: boolean | null }) {
+  if (!mode && !jobId && hasAttachedJobs == null) return null
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {mode ? <Badge>Mode: {mode}</Badge> : null}
+      {jobId ? (
+        <Badge>
+          <span>Job:</span> <EntityReference id={jobId} kind="job" />
+        </Badge>
+      ) : null}
+      {hasAttachedJobs == null ? null : <Badge>{hasAttachedJobs ? "Has attached Jobs" : "No attached Jobs"}</Badge>}
+    </div>
+  )
+}
+
 export function parseListChats(context: ToolCardContext) {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.chats)) return null
@@ -249,22 +265,11 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
   const modeFilter = displayValue(context.input?.mode)
   const jobFilter = displayValue(context.input?.job_id)
   const attachedFilter = typeof context.input?.has_attached_jobs === "boolean" ? context.input.has_attached_jobs : null
-  const filters = [
-    modeFilter ? `Mode: ${modeFilter}` : null,
-    jobFilter ? `Job: JOB-${jobFilter}` : null,
-    attachedFilter == null ? null : attachedFilter ? "Has attached Jobs" : "No attached Jobs"
-  ].filter((filter): filter is string => filter != null)
 
   if (result.rows.length === 0)
     return (
       <CardShell>
-        {filters.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {filters.map((filter) => (
-              <Badge key={filter}>{filter}</Badge>
-            ))}
-          </div>
-        ) : null}
+        <ListChatsFilters hasAttachedJobs={attachedFilter} jobId={jobFilter} mode={modeFilter} />
         <EmptyState>No chats found.</EmptyState>
         <PaginationNote pagination={result.pagination} />
       </CardShell>
@@ -272,13 +277,7 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
 
   return (
     <CardShell>
-      {filters.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {filters.map((filter) => (
-            <Badge key={filter}>{filter}</Badge>
-          ))}
-        </div>
-      ) : null}
+      <ListChatsFilters hasAttachedJobs={attachedFilter} jobId={jobFilter} mode={modeFilter} />
       <div className="space-y-2">
         {result.rows.map((chat) => (
           <article className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={chat.id}>
@@ -315,10 +314,7 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
             {chat.attachedJobs.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {chat.attachedJobs.map((job) => (
-                  <span
-                    className="inline-flex min-h-7 max-w-full flex-wrap items-center gap-1 rounded border border-border px-2 py-1"
-                    key={job.id}
-                  >
+                  <span className="inline-flex min-h-7 max-w-full flex-wrap items-center gap-1 rounded border border-border px-2 py-1" key={job.id}>
                     <EntityReference id={job.id} kind="job" slug={job.slug} />
                     {job.title ? <span className="break-words text-text-secondary">{job.title}</span> : null}
                     {job.state ? <StatePill state={job.state} /> : null}
