@@ -14,9 +14,12 @@ type ConnectionSummary = {
   threadsConnected: number | null
   threadsRunning: number | null
   sleepingConnections: number | null
+  maxUsedConnections: number | null
   maxConnections: number | null
   abortedConnects: number | null
   maxConnectionErrors: number | null
+  waitTimeout: number | null
+  interactiveTimeout: number | null
 }
 type ProcessRow = {
   id: string
@@ -132,9 +135,12 @@ function parseConnectionSummary(value: unknown, processes: ProcessRow[]): Connec
     threadsConnected: integer(summary.threads_connected),
     threadsRunning: integer(summary.threads_running),
     sleepingConnections: integer(summary.sleeping_connections),
+    maxUsedConnections: integer(summary.max_used_connections),
     maxConnections: integer(summary.max_connections),
     abortedConnects: integer(summary.aborted_connects),
-    maxConnectionErrors: integer(summary.max_connection_errors)
+    maxConnectionErrors: integer(summary.max_connection_errors),
+    waitTimeout: integer(summary.wait_timeout),
+    interactiveTimeout: integer(summary.interactive_timeout)
   }
 }
 
@@ -452,9 +458,12 @@ export function StatusCard({ context }: { context: ToolCardContext }) {
         <Row label="Threads connected" value={payload.connection.threadsConnected?.toString() ?? "-"} />
         <Row label="Threads running" value={payload.connection.threadsRunning?.toString() ?? "-"} />
         <Row label="Sleeping" value={payload.connection.sleepingConnections?.toString() ?? "-"} />
+        <Row label="Max used connections" value={payload.connection.maxUsedConnections?.toString() ?? "-"} />
         <Row label="Max connections" value={payload.connection.maxConnections?.toString() ?? "-"} />
         <Row label="Aborted connects" value={payload.connection.abortedConnects?.toString() ?? "-"} />
         <Row label="Max connection errors" value={payload.connection.maxConnectionErrors?.toString() ?? "-"} />
+        <Row label="Wait timeout" value={seconds(payload.connection.waitTimeout)} />
+        <Row label="Interactive timeout" value={seconds(payload.connection.interactiveTimeout)} />
         <Row label="Slow queries" value={displayValue(payload.status.Slow_queries) ?? "-"} />
       </dl>
       <KeyValueSection label="Variables" values={payload.variables} />

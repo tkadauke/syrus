@@ -23,17 +23,18 @@ const healthyPayload = {
   connection_summary: {
     threads_connected: 7,
     threads_running: 1,
+    max_used_connections: 42,
     max_connections: 151,
     sleeping_connections: 1,
     aborted_connects: 0,
-    max_connection_errors: 0
+    max_connection_errors: 0,
+    wait_timeout: 600,
+    interactive_timeout: 900
   },
   variables: {
     slow_query_log: "ON",
     log_output: "TABLE",
     long_query_time: 1,
-    wait_timeout: 600,
-    interactive_timeout: 900,
     version: "8.4.0"
   },
   status: {
@@ -110,9 +111,13 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.getByText("Mysql2")).toBeInTheDocument()
     expect(screen.getByText("Aborted connects")).toBeInTheDocument()
     expect(screen.getByText("Max connection errors")).toBeInTheDocument()
+    expect(screen.getByText("Max used connections")).toBeInTheDocument()
+    expect(screen.getByText("42")).toBeInTheDocument()
+    expect(screen.getByText("Wait timeout")).toBeInTheDocument()
+    expect(screen.getByText("10m 0s")).toBeInTheDocument()
+    expect(screen.getByText("Interactive timeout")).toBeInTheDocument()
+    expect(screen.getByText("15m 0s")).toBeInTheDocument()
     expect(screen.getByText("limit: 25")).toBeInTheDocument()
-    expect(screen.getByText("wait_timeout: 600")).toBeInTheDocument()
-    expect(screen.getByText("interactive_timeout: 900")).toBeInTheDocument()
     expect(screen.getAllByText("sensitive_user")).toHaveLength(2)
     expect(screen.getAllByText("db.internal")).toHaveLength(2)
     expect(screen.getAllByText("syrus_production").length).toBeGreaterThan(1)
