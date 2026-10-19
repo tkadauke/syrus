@@ -1,0 +1,66 @@
+name: terminal cleanup cancelled retry recovers
+repository:
+  owner: simulation
+  name: terminal-cleanup-cancelled-retry-recovers
+jobs:
+  review:
+    title: Recover a transient visual review failure
+    state: failed
+    agent_provider: codex
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: visual_review
+          state: failed
+          runs:
+            - state: failed
+              agent_provider: codex
+              agent_outcome: turn_failed
+              created_at: "2026-01-01 00:00:00 UTC"
+              finished_at: "2026-01-01 00:01:00 UTC"
+              diagnostic:
+                error_class: Steps::Base::StepFailed
+                error_message: "Selected model is at capacity. Please try a different model."
+            - state: cancelled
+              agent_provider: codex
+              created_at: "2026-01-01 00:02:00 UTC"
+              finished_at: "2026-01-01 00:03:00 UTC"
+              transition:
+                from_state: queued
+                to_state: cancelled
+                event_name: cancel
+                source: reconciler
+                metadata:
+                  reason_key: cancel_terminal_workflow_active_descendants
+                  repair_action: cancel_terminal_workflow_active_descendants
+                  issue_kind: cleanup_blocked_by_active_descendants
+        - kind: summarize
+          state: cancelled
+          details:
+            cancelled_by: terminal_workflow_cleanup
+            cancelled_reason: cancel_terminal_workflow_active_descendants
+        - kind: pr_open
+          state: cancelled
+          details:
+            cancelled_by: terminal_workflow_cleanup
+            cancelled_reason: cancel_terminal_workflow_active_descendants
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  review:
+    - implemented
+expect:
+  queues:
+    active_runs: empty
+  events:
+    - retryable_run_failure
+    - auto retry

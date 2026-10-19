@@ -363,14 +363,6 @@ module WorkEngine
       workflow.steps.to_a
     end
 
-    def latest_run_for_step(step)
-      return nil unless step
-
-      @runs_by_step_id ||= runs.group_by(&:step_id)
-      candidates = @runs_by_step_id[step.id] || []
-      candidates.max_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
-    end
-
     def scoped_jobs
       if job_id.present?
         Job.where(id: job_id)
@@ -445,7 +437,8 @@ module WorkEngine
 
     def scoped_runs
       if run_id.present?
-        Run.where(id: run_id)
+        step_ids = Run.where(id: run_id).where.not(step_id: nil).select(:step_id)
+        Run.where(id: run_id).or(Run.where(step_id: step_ids, state: "failed"))
       elsif workflow_id.present?
         Run.where(step_id: Step.where(workflow_id: workflow_id).select(:id)).where(state: %w[ queued running failed ])
       elsif work_intent_id.present?
@@ -3898,7 +3891,37 @@ module WorkEngine
       step = run.step
       return false unless step&.failed?
 
-      latest_run_for_step(step) == run
+      controlling_run_for_failed_step(step) == run
+    end
+
+    # A retry can be enqueued just before its Workflow crosses a terminal
+    # threshold. Terminal descendant cleanup then cancels that newer Run even
+    # though it never got a chance to execute. That administrative cancellation
+    # must not hide the preceding failure which still explains the failed Step.
+    #
+    # Only the exact reconciler repair audit marker is ignored here. Operator,
+    # supersession, and ordinary cancellation remain authoritative.
+    def controlling_run_for_failed_step(step)
+      ordered_runs = Run.where(step_id: step.id).order(created_at: :desc, id: :desc).to_a
+      latest = ordered_runs.first
+      return latest unless terminal_cleanup_cancelled_run?(latest)
+
+      preceding = ordered_runs.second
+      preceding&.failed? ? preceding : latest
+    end
+
+    def terminal_cleanup_cancelled_run?(run)
+      return false unless run&.cancelled?
+      return false unless run.workflow&.terminal?
+
+      StateTransition.for_subject(run)
+        .where(to_state: "cancelled", source: "reconciler")
+        .recent
+        .any? do |transition|
+          metadata = transition.metadata.to_h
+          metadata["repair_action"] == "cancel_terminal_workflow_active_descendants" &&
+            metadata["reason_key"] == "cancel_terminal_workflow_active_descendants"
+        end
     end
 
     def retry_until_failure_superseded_by_later_success?(step)
