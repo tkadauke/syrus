@@ -288,6 +288,7 @@
   "tool_card_error_summary": "{{scope}} · error",
   "tool_card_filter_placeholder": "Filter resources",
   "tool_card_health": "Health",
+  "tool_card_generated_at": "Generated at",
   "tool_card_items": "items",
   "tool_card_default_container": "default",
   "tool_card_log_preview": "Log preview",
