@@ -14,6 +14,31 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
   end
 
   describe "#call" do
+    it "preserves a terminal hold as a non-failure decision without selecting a fallback" do
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: repository.id,
+        task_key: "initial",
+        action: { type: "hold", reason: "Await operator approval" },
+        candidates: []
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      decision = call
+
+      expect(decision).to be_held
+      expect(decision).not_to be_exhausted
+      expect(decision.candidate).to be_nil
+      expect(decision.artifact).to include(
+        "held" => true,
+        "routing_resolution" => include(
+          "matched_rule" => include("id" => rule.id),
+          "decision" => include("status" => "held", "failure" => false)
+        )
+      )
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+    end
+
     it "flags a sole candidate as exhausted when it is actively rate-limited, even though pause opt-in is off and no ProviderRoutingRule is configured" do
       user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
