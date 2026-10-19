@@ -146,6 +146,15 @@ describe("pluginToolCards", () => {
       expect(context.resultError).toBe(false)
       expect(context.parsedResult).toEqual(example.parsedResult)
       expect(context.resultBody).toBe(JSON.stringify(example.parsedResult))
+      expect(context.resultSettled).toBe(true)
+    })
+
+    it("preserves an example's explicit in-flight result state", () => {
+      const context = toolCardContextForExample("pin_chat", { id: "pending", label: "Pending", resultSettled: false })
+
+      expect(context.resultSettled).toBe(false)
+      expect(context.resultBody).toBe("")
+      expect(context.parsedResult).toBeNull()
     })
 
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {
