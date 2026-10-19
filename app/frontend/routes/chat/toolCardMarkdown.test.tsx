@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import type { MouseEvent } from "react"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -27,6 +28,27 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders an optional empty state for blank text", () => {
+    render(<MarkdownPreview emptyText="No preview text." text="  " />)
+
+    expect(screen.getByText("No preview text.")).toBeInTheDocument()
+  })
+
+  it("passes URL, slug, and click handling through the preview and modal and copies full text", async () => {
+    const onLinkClick = vi.fn((_: string, event: MouseEvent<HTMLAnchorElement>) => event.preventDefault())
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    const text = `${"See JOB-101 and https://example.test/runbook. ".repeat(12)}complete`
+    render(<MarkdownPreview linkifySlugs linkifyUrls maxChars={120} onLinkClick={onLinkClick} text={text} />)
+
+    fireEvent.click(screen.getAllByRole("link", { name: "https://example.test/runbook" })[0])
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/runbook", expect.anything())
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy text" }))
+    expect(writeText).toHaveBeenCalledWith(text)
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

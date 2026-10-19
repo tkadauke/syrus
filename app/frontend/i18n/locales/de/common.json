@@ -181,7 +181,8 @@
   "copy": {
     "copy_to_clipboard": "{{slug}} in die Zwischenablage kopieren",
     "copied": "Kopiert",
-    "copy": "{{slug}} kopieren"
+    "copy": "{{slug}} kopieren",
+    "copy_text": "Text kopieren"
   },
   "slug_reference": {
     "surface_label": "Aktionen für {{slug}}",

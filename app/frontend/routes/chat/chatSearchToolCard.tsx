@@ -14,6 +14,7 @@ import {
   StatePill
 } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
+import { MarkdownPreview } from "./toolCardMarkdown"
 
 const SNIPPET_CHARS = 280
 const MESSAGE_CHARS = 520
@@ -52,10 +53,18 @@ type SearchHit = {
   chatSessionId: string
   messageId: string | null
   chatTitle: string
+  mode: string | null
+  repositoryId: string | null
   repository: string | null
   role: string | null
   snippet: string | null
   createdAt: string | null
+  attachedJobsCount: number | null
+  attachedJobs: AttachedJob[]
+  chatDeletedAt: string | null
+  chatDeletedBy: string | null
+  messageDeletedAt: string | null
+  messageDeletedBy: string | null
 }
 
 type MessageRow = {
@@ -148,11 +157,60 @@ function parseSearchHit(value: unknown, index: number): SearchHit | null {
     chatSessionId,
     messageId,
     chatTitle,
+    mode: displayValue(value.mode),
+    repositoryId: displayValue(value.repository_id),
     repository: displayValue(value.repository),
     role: displayValue(value.role),
-    snippet: compactText(displayValue(value.snippet)),
-    createdAt: displayValue(value.created_at)
+    snippet: displayValue(value.snippet),
+    createdAt: displayValue(value.created_at),
+    attachedJobsCount: numberValue(value.attached_jobs_count),
+    attachedJobs: parseAttachedJobs(value.attached_jobs),
+    chatDeletedAt: displayValue(value.chat_session_deleted_at),
+    chatDeletedBy: deletionActor(value.chat_session_deleted_by),
+    messageDeletedAt: displayValue(value.deleted_at),
+    messageDeletedBy: deletionActor(value.deleted_by)
   }
+}
+
+function parseAttachedJobs(value: unknown): AttachedJob[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isPlainObject(item)) return []
+    const id = displayValue(item.id)
+    if (!id) return []
+    return [
+      {
+        id,
+        slug: displayValue(item.slug),
+        title: displayValue(item.title),
+        state: displayValue(item.state),
+        repositoryId: displayValue(item.repository_id),
+        repository: displayValue(item.repository)
+      }
+    ]
+  })
+}
+
+function deletionActor(value: unknown) {
+  if (!isPlainObject(value)) return null
+  return displayValue(value.name) ?? displayValue(value.email) ?? (displayValue(value.id) ? `User ${displayValue(value.id)}` : null)
+}
+
+function snippetMarkdown(value: string) {
+  return value.replace(/<b>/gi, "**").replace(/<\/b>/gi, "**")
+}
+
+function DeletedMetadata({ label, at, by }: { label: string; at: string; by: string | null }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-1 text-2xs text-text-muted">
+      <StatePill state="deleted" />
+      <span className="break-words">
+        {label}
+        {by ? ` by ${by}` : ""}
+        {at ? ` · ${timestamp(at)}` : ""}
+      </span>
+    </div>
+  )
 }
 
 function contentText(value: unknown): string | null {
@@ -183,34 +241,6 @@ function PaginationNote({ pagination }: { pagination: Pagination }) {
   ].filter(Boolean)
   if (pieces.length === 0) return null
   return <div className="text-2xs text-gray-500 dark:text-gray-400">{pieces.join(" · ")}</div>
-}
-
-function Snippet({ text }: { text: string }) {
-  const parts = text.split(/(<\/?b>)/i)
-  let marked = false
-  return (
-    <>
-      {parts.map((part, index) => {
-        const lower = part.toLowerCase()
-        if (lower === "<b>") {
-          marked = true
-          return null
-        }
-        if (lower === "</b>") {
-          marked = false
-          return null
-        }
-        if (!part) return null
-        return marked ? (
-          <mark className="rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" key={index}>
-            {part}
-          </mark>
-        ) : (
-          <span key={index}>{part}</span>
-        )
-      })}
-    </>
-  )
 }
 
 function ChatTitle({ chatId, messageId, title }: { chatId: string; messageId?: string | null; title: string }) {
@@ -333,8 +363,8 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
 
 export function parseSearchChats(context: ToolCardContext) {
   const parsed = context.parsedResult
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.results)) return null
-  const hits = parsed.results.flatMap((item, index) => {
+  if (!isPlainObject(parsed) || (!Array.isArray(parsed.results) && !displayValue(parsed.message))) return null
+  const hits = (Array.isArray(parsed.results) ? parsed.results : []).flatMap((item, index) => {
     const hit = parseSearchHit(item, index)
     return hit ? [hit] : []
   })
@@ -349,9 +379,18 @@ export function searchChatsCollapsedSummary(context: ToolCardContext) {
 }
 
 export function SearchChatsCard({ context }: { context: ToolCardContext }) {
+  if (context.resultError) return <ErrorCard title="Could not search chats" message={displayValue(context.resultBody) ?? "The chat search request failed."} />
   const result = parseSearchChats(context)
   if (!result) return null
-  if (result.hits.length === 0) return <EmptyState>{result.message || "No matching messages found."}</EmptyState>
+  const limit = displayValue(context.input?.limit)
+  if (result.hits.length === 0)
+    return (
+      <CardShell>
+        {result.query ? <Row label="Query" value={result.query} /> : null}
+        {limit ? <Row label="Limit" value={limit} /> : null}
+        <EmptyState>{result.message || "No matching messages found."}</EmptyState>
+      </CardShell>
+    )
 
   const matchCounts = new Map<string, number>()
   for (const hit of result.hits) matchCounts.set(hit.chatSessionId, (matchCounts.get(hit.chatSessionId) ?? 0) + 1)
@@ -359,20 +398,31 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
   return (
     <CardShell>
       {result.query ? <Row label="Query" value={result.query} /> : null}
+      {limit ? <Row label="Limit" value={limit} /> : null}
       <div className="space-y-2">
         {result.hits.map((hit) => (
           <article className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={hit.key}>
-            <div className="flex min-w-0 items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-gray-900 dark:text-gray-100" title={hit.chatTitle}>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="break-words font-medium text-text-primary" title={hit.chatTitle}>
                   <ChatTitle chatId={hit.chatSessionId} messageId={hit.messageId} title={hit.chatTitle} />
                 </div>
                 <Metadata>
-                  {hit.repository ? <Badge>{hit.repository}</Badge> : <span>No repository</span>}
+                  {hit.mode ? <Badge>{hit.mode}</Badge> : null}
+                  {hit.repository ? (
+                    <EntityReference kind="repository" repositoryId={hit.repositoryId} repositorySlug={hit.repository} />
+                  ) : (
+                    <span>No repository</span>
+                  )}
                   {hit.role ? <Badge>{hit.role}</Badge> : null}
                   <span>
                     {matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat
                   </span>
+                  {hit.attachedJobsCount != null ? (
+                    <span>
+                      {hit.attachedJobsCount} attached Job{hit.attachedJobsCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
                 </Metadata>
               </div>
               {hit.createdAt ? (
@@ -381,11 +431,30 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
                 </time>
               ) : null}
             </div>
-            {hit.snippet ? (
-              <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
-                <Snippet text={hit.snippet} />
-              </p>
+            {hit.attachedJobs.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {hit.attachedJobs.map((job) => (
+                  <span className="inline-flex min-h-7 max-w-full flex-wrap items-center gap-1 rounded border border-border px-2 py-1" key={job.id}>
+                    <EntityReference id={job.id} kind="job" slug={job.slug} />
+                    {job.title ? <span className="break-words text-text-secondary">{job.title}</span> : null}
+                    {job.state ? <StatePill state={job.state} /> : null}
+                    {job.repository ? <EntityReference kind="repository" repositoryId={job.repositoryId} repositorySlug={job.repository} /> : null}
+                  </span>
+                ))}
+              </div>
             ) : null}
+            {hit.chatDeletedAt ? <DeletedMetadata at={hit.chatDeletedAt} by={hit.chatDeletedBy} label="Chat" /> : null}
+            {hit.messageDeletedAt ? <DeletedMetadata at={hit.messageDeletedAt} by={hit.messageDeletedBy} label="Message" /> : null}
+            <div className="mt-1">
+              <MarkdownPreview
+                emptyText="No matching message text."
+                linkifySlugs
+                linkifyUrls
+                maxChars={SNIPPET_CHARS}
+                modalLabel={`Message match in ${hit.chatTitle}`}
+                text={snippetMarkdown(hit.snippet ?? "")}
+              />
+            </div>
           </article>
         ))}
       </div>

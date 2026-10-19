@@ -181,7 +181,8 @@
   "copy": {
     "copy_to_clipboard": "Copy {{slug}} to clipboard",
     "copied": "Copied",
-    "copy": "Copy {{slug}}"
+    "copy": "Copy {{slug}}",
+    "copy_text": "Copy text"
   },
   "slug_reference": {
     "surface_label": "Actions for {{slug}}",

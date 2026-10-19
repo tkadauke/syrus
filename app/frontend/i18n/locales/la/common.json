@@ -181,7 +181,8 @@
   "copy": {
     "copy_to_clipboard": "Describe {{slug}} in tabellam",
     "copied": "Descriptum",
-    "copy": "Describe {{slug}}"
+    "copy": "Describe {{slug}}",
+    "copy_text": "Describe textum"
   },
   "slug_reference": {
     "surface_label": "Actiones pro {{slug}}",
