@@ -10,6 +10,7 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     close_job_successfully
     retry_job
+    base_refresh_retry_job
     rebase_job
     force_rebase
     restack_epic
@@ -83,6 +84,7 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     close_job_successfully
     retry_job
+    base_refresh_retry_job
     force_fail_job
     rebase_job
     force_rebase
