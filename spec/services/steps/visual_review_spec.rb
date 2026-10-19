@@ -154,7 +154,7 @@ RSpec.describe Steps::VisualReview do
       workflow.set_artifact!("visual_review_iterations", [
         {
           "iteration" => review_step.iteration,
-          "critique" => "Could not reach the route because preview authentication was unavailable.",
+          "critique" => "Blocked by missing Codex credentials.",
           "verdict" => "skipped",
           "artifacts" => []
         }

@@ -37,7 +37,8 @@ class VisualReviewEvidenceGuard
   AUTH_TEXT_PATTERN = /\b(auth(?:entication)? required|log in|login|sign in|signin|session expired)\b/i
   ERROR_TEXT_PATTERN = /\b(application error|forbidden|internal server error|not found|page not found|unauthorized)\b/i
   CREDENTIALS_TEXT_PATTERN = /\bcredentials?\s+(?:are\s+required|(?:is|are|will be)\s+needed|need(?:s|ed)?)\b/i
-  ENVIRONMENT_BLOCKER_PATTERN = /\b(?:auth(?:entication)?|credentials?|environment|infrastructure|preview|seed data|session|tooling)\b.*\b(?:block(?:ed|er)?|cannot|can't|could not|failed|missing|need(?:ed|s)?|require[ds]?|unavailable|unreachable)\b|\b(?:cannot|can't|could not|failed)\b.*\b(?:access|authenticate|load|reach|sign in|start)\b/i
+  ENVIRONMENT_CONTEXT_PATTERN = /\b(?:auth(?:entication)?|credentials?|environment|infrastructure|preview|seed data|session|tooling)\b/i
+  BLOCKER_PATTERN = /\b(?:block(?:ed|er)?|cannot|can't|could not|failed|missing|need(?:ed|s)?|require[ds]?|unavailable|unreachable)\b/i
   ROUTE_PATTERN = /(?<![A-Za-z0-9_])\/[A-Za-z0-9][A-Za-z0-9_\-.\/]*/
   FILE_EXTENSION_PATTERN = /\.(?:css|erb|gif|html|jpe?g|js|jsx|json|md|png|rb|scss|ts|tsx|txt|ya?ml)\z/i
 
@@ -75,7 +76,9 @@ class VisualReviewEvidenceGuard
 
   def blocked_evidence_reason(verdict:, critique:)
     return "every captured screenshot shows an authentication, credentials, or error wall" if @artifacts.any? && @artifacts.all? { |artifact| wall_artifact?(artifact) }
-    "the review was skipped because the preview environment was blocked" if verdict == "skipped" && critique.to_s.match?(ENVIRONMENT_BLOCKER_PATTERN)
+    if verdict == "skipped" && critique.to_s.match?(ENVIRONMENT_CONTEXT_PATTERN) && critique.to_s.match?(BLOCKER_PATTERN)
+      "the review was skipped because the preview environment was blocked"
+    end
   end
 
   private
