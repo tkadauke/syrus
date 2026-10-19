@@ -5,6 +5,7 @@ import { MarkdownPreview } from "./toolCardMarkdown"
 import type { MarkdownLinkHandler } from "../../lib/Markdown"
 
 const SUMMARY_CHARS = 88
+const QUESTION_SLUG_HREF_FALLBACKS = { DOC: "/design_docs/:id" }
 const QUESTION_OPTION_CLASS = [
   "inline-flex min-h-11 w-full min-w-0 max-w-full items-center rounded-[var(--radius-pill)]",
   "bg-neutral-surface px-2 py-0.5 text-2xs text-neutral-text ring-1 ring-neutral-border",
@@ -105,14 +106,30 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
               <span className="shrink-0 font-mono text-2xs text-gray-500 dark:text-gray-400">#{index + 1}</span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-gray-900 dark:text-gray-100">
-                  <MarkdownPreview linkifySlugs linkifyUrls maxChars={500} maxLines={4} onLinkClick={onLinkClick} text={question.question} />
+                  <MarkdownPreview
+                    linkifySlugs
+                    linkifyUrls
+                    maxChars={500}
+                    maxLines={4}
+                    onLinkClick={onLinkClick}
+                    slugHrefFallbacks={QUESTION_SLUG_HREF_FALLBACKS}
+                    text={question.question}
+                  />
                 </div>
                 {question.options.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Badge>{question.multiple ? "multi-select" : "single-select"}</Badge>
                     {question.options.map((option) => (
                       <div className={QUESTION_OPTION_CLASS} data-testid="question-option" key={option}>
-                        <MarkdownPreview linkifySlugs linkifyUrls maxChars={240} maxLines={3} onLinkClick={onLinkClick} text={option} />
+                        <MarkdownPreview
+                          linkifySlugs
+                          linkifyUrls
+                          maxChars={240}
+                          maxLines={3}
+                          onLinkClick={onLinkClick}
+                          slugHrefFallbacks={QUESTION_SLUG_HREF_FALLBACKS}
+                          text={option}
+                        />
                       </div>
                     ))}
                   </div>

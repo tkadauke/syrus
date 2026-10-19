@@ -30,6 +30,7 @@ export type MarkdownPreviewProps = {
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   onLinkClick?: MarkdownLinkHandler
+  slugHrefFallbacks?: Record<string, string>
 }
 
 type TruncatedMarkdown = { preview: string; truncated: boolean }
@@ -45,7 +46,8 @@ export function MarkdownPreview({
   emptyState = null,
   linkifySlugs = true,
   linkifyUrls = false,
-  onLinkClick
+  onLinkClick,
+  slugHrefFallbacks
 }: MarkdownPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
@@ -67,7 +69,7 @@ export function MarkdownPreview({
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
       <div className="break-words text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="markdown-preview-content" style={lineClampStyle}>
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks })}
         {truncated.truncated ? "…" : null}
       </div>
       {truncated.truncated ? (
@@ -103,6 +105,7 @@ export function MarkdownPreview({
             linkifySlugs={linkifySlugs}
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
+            slugHrefFallbacks={slugHrefFallbacks}
             text={text}
           />
         </div>
