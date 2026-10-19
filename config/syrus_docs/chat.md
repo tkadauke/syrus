@@ -713,6 +713,13 @@ the standalone direct Job proposal card; grouped Epic proposal children keep
 their existing materialization behavior and cannot be routed to backlog by this
 v1 control.
 
+The Jobs workspace's Proposed section adds selection checkboxes to these
+pending Job and Epic proposals, including a select-all control. Once anything
+is selected, operators can backlog, implement, or reject the selection. A
+selection containing an Epic cannot use Backlog, because backlog routing is a
+direct Job capability; Implement starts a newly materialized Epic just like
+the Epic proposal card's Implement action.
+
 `propose_job` also accepts `investigation` for a read-only "go look into X and
 tell me what you find" request (a QA walkthrough, an audit, answering a
 question about behavior) where no pull request is expected. It defaults to

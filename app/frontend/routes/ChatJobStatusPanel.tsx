@@ -1,14 +1,17 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem, ChatJobStatusPendingProposal } from "../api/chats"
-import { fetchChatJobStatus } from "../api/chats"
+import { confirmChatProposal, fetchChatJobStatus, rejectChatProposal } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { errorMessage } from "../lib/errorMessage"
 
 function jobBorderClass(job: ChatJobStatusJobItem): string {
   if (job.blocker) return job.blocker.reason === "awaiting_review" ? "border-l-amber-400" : "border-l-red-500"
@@ -23,10 +26,11 @@ function jobBorderClass(job: ChatJobStatusJobItem): string {
 function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
   const { t } = useT("chat")
   const isAwaitingReview = blocker.reason === "awaiting_review"
-  const label =
-    isAwaitingReview ? t("job_status_blocker_awaiting_review") :
-      blocker.reason === "landing_failed" ? t("job_status_blocker_landing_failed") :
-        t("job_status_blocker_dependency_failed")
+  const label = isAwaitingReview
+    ? t("job_status_blocker_awaiting_review")
+    : blocker.reason === "landing_failed"
+      ? t("job_status_blocker_landing_failed")
+      : t("job_status_blocker_dependency_failed")
 
   // Awaiting review is an expected, natural step, not a failure. This
   // intentionally uses the literal Tailwind amber palette rather than the
@@ -43,7 +47,11 @@ function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
   return (
     <div className={`mt-1.5 flex items-center gap-1.5 rounded px-2 py-1 text-xs ${toneClasses}`}>
       <svg aria-hidden="true" className={`h-3 w-3 shrink-0 ${iconClasses}`} fill="currentColor" viewBox="0 0 20 20">
-        <path clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2V9a1 1 0 0 0-1-1H9z" fillRule="evenodd" />
+        <path
+          clipRule="evenodd"
+          d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2V9a1 1 0 0 0-1-1H9z"
+          fillRule="evenodd"
+        />
       </svg>
       {label}
     </div>
@@ -73,9 +81,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-            {job.title || job.slug}
-          </p>
+          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{job.title || job.slug}</p>
           <div className="mt-0.5 flex items-center gap-2">
             <span onClick={(e) => e.stopPropagation()}>
               <SlugHoverCard kind="job" id={job.job_id}>
@@ -83,9 +89,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
               </SlugHoverCard>
             </span>
             {workflowStep ? (
-              <span className="truncate text-xs text-gray-500 dark:text-gray-400">
-                {t("job_status_step", { step: workflowStep.replaceAll("_", " ") })}
-              </span>
+              <span className="truncate text-xs text-gray-500 dark:text-gray-400">{t("job_status_step", { step: workflowStep.replaceAll("_", " ") })}</span>
             ) : null}
             {job.pr_number && job.pr_url ? (
               <a
@@ -111,9 +115,7 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
   const [expanded, setExpanded] = useState(true)
   const { t } = useT("chat")
 
-  const visibleChildren = hideClosedJobs
-    ? epic.children.filter((j) => j.state !== "closed")
-    : epic.children
+  const visibleChildren = hideClosedJobs ? epic.children.filter((j) => j.state !== "closed") : epic.children
 
   const ariaLabel = expanded
     ? t("job_status_collapse_epic", { title: epic.title || epic.slug })
@@ -173,16 +175,104 @@ function proposalKindLabel(proposal: ChatJobStatusPendingProposal, t: (key: stri
   return t("job_status_proposal_kind_job")
 }
 
-function ProposedProposalsSection({ proposals, onSelectMessage }: { proposals: ChatJobStatusPendingProposal[]; onSelectMessage?: (messageId: number) => void }) {
+type BulkProposalAction = "backlog" | "implement" | "reject"
+
+function proposalActionPath(chatId: string | number, proposalId: number, action: "confirm" | "reject") {
+  return `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/proposals/${proposalId}/${action}`
+}
+
+function ProposedProposalsSection({
+  chatId,
+  proposals,
+  onSelectMessage
+}: {
+  chatId: string | number
+  proposals: ChatJobStatusPendingProposal[]
+  onSelectMessage?: (messageId: number) => void
+}) {
   const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const selectedProposals = proposals.filter((proposal) => selectedIds.has(proposal.id))
+  const allSelected = proposals.length > 0 && selectedProposals.length === proposals.length
+  const backlogAllowed = selectedProposals.every((proposal) => proposal.kind !== "epic")
+  const bulkAction = useMutation({
+    mutationFn: async (action: BulkProposalAction) => {
+      let firstError: unknown = null
+      for (const proposal of selectedProposals) {
+        try {
+          if (action === "reject") {
+            await rejectChatProposal(proposalActionPath(chatId, proposal.id, "reject"))
+          } else {
+            await confirmChatProposal(proposalActionPath(chatId, proposal.id, "confirm"), {
+              route_to_backlog: proposal.kind === "epic" ? undefined : action === "backlog",
+              start: proposal.kind === "epic" && action === "implement"
+            })
+          }
+        } catch (error) {
+          firstError ||= error
+        }
+      }
+      if (firstError) throw firstError
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["chats", String(chatId)] })
+    },
+    onSuccess: () => setSelectedIds(new Set())
+  })
+
+  useEffect(() => {
+    const availableIds = new Set(proposals.map((proposal) => proposal.id))
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => availableIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [proposals])
 
   if (proposals.length === 0) return null
 
+  function toggleProposal(id: number) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div aria-label={t("job_status_proposed_title")} className="space-y-1.5">
-      <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-        {t("job_status_proposed_title")}
-      </p>
+      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium uppercase tracking-wide text-text-muted">
+          <Checkbox
+            aria-label={t("job_status_select_all_proposals")}
+            checked={allSelected}
+            disabled={bulkAction.isPending}
+            onChange={() => setSelectedIds(allSelected ? new Set() : new Set(proposals.map((proposal) => proposal.id)))}
+          />
+          {t("job_status_proposed_title")}
+        </div>
+        {selectedProposals.length > 0 ? (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1" data-testid="proposal-bulk-actions">
+            <Button
+              disabled={bulkAction.isPending || !backlogAllowed}
+              onClick={() => bulkAction.mutate("backlog")}
+              size="sm"
+              title={!backlogAllowed ? t("job_status_backlog_epic_unavailable") : undefined}
+              variant="secondary"
+            >
+              {t("proposal_route_backlog")}
+            </Button>
+            <Button disabled={bulkAction.isPending} onClick={() => bulkAction.mutate("implement")} size="sm">
+              {t("proposal_route_implement")}
+            </Button>
+            <Button disabled={bulkAction.isPending} onClick={() => bulkAction.mutate("reject")} size="sm" variant="secondary">
+              {t("job_status_reject_selected")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {bulkAction.isError ? <p className="text-xs text-danger-text">{errorMessage(bulkAction.error, t("job_status_bulk_action_error"))}</p> : null}
       <div className="divide-y divide-border rounded border border-border">
         {proposals.map((proposal) => {
           const clickable = Boolean(onSelectMessage && proposal.anchor_message_id)
@@ -190,26 +280,32 @@ function ProposedProposalsSection({ proposals, onSelectMessage }: { proposals: C
 
           return (
             <div
-              className={`w-full bg-surface px-3 py-2.5 text-left ${clickable ? "cursor-pointer transition hover:bg-surface-raised" : ""}`}
+              className={`flex w-full items-start gap-2 bg-surface px-3 py-2.5 text-left ${clickable ? "cursor-pointer transition hover:bg-surface-raised" : ""}`}
               key={`${proposal.kind}-${proposal.id}`}
               onClick={handleClick}
               onKeyDown={clickable ? (event) => activateOnEnterOrSpace(event, () => handleClick?.()) : undefined}
               role={clickable ? "button" : undefined}
               tabIndex={clickable ? 0 : undefined}
             >
-              <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">
-                  {proposal.title}
-                </p>
-                <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={proposal.created_at} />
-              </div>
-              <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
-                <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-medium text-text-secondary">
-                  {proposalKindLabel(proposal, t)}
-                </span>
-                {proposal.kind === "epic" && proposal.active_children_count != null ? (
-                  <span>{t("job_status_proposal_child_count", { count: proposal.active_children_count })}</span>
-                ) : null}
+              <Checkbox
+                aria-label={t("job_status_select_proposal", { title: proposal.title })}
+                checked={selectedIds.has(proposal.id)}
+                className="mt-0.5"
+                disabled={bulkAction.isPending}
+                onChange={() => toggleProposal(proposal.id)}
+                onClick={(event) => event.stopPropagation()}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{proposal.title}</p>
+                  <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={proposal.created_at} />
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
+                  <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-medium text-text-secondary">{proposalKindLabel(proposal, t)}</span>
+                  {proposal.kind === "epic" && proposal.active_children_count != null ? (
+                    <span>{t("job_status_proposal_child_count", { count: proposal.active_children_count })}</span>
+                  ) : null}
+                </div>
               </div>
             </div>
           )
@@ -225,9 +321,7 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
   const navigate = useNavigate()
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
-  const [hideClosedJobs, setHideClosedJobs] = useState(
-    () => localStorage.getItem("chat_jobs_hide_closed") === "true"
-  )
+  const [hideClosedJobs, setHideClosedJobs] = useState(() => localStorage.getItem("chat_jobs_hide_closed") === "true")
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
@@ -265,17 +359,11 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
   const epics = items.filter((item): item is ChatJobStatusEpicItem => item.kind === "epic")
   const jobs = items.filter((item): item is ChatJobStatusJobItem => item.kind === "job")
 
-  const visibleEpics = hideClosedJobs
-    ? epics.filter((epic) => epic.children.some((j) => j.state !== "closed"))
-    : epics
+  const visibleEpics = hideClosedJobs ? epics.filter((epic) => epic.children.some((j) => j.state !== "closed")) : epics
 
-  const visibleJobs = hideClosedJobs
-    ? jobs.filter((j) => j.state !== "closed")
-    : jobs
+  const visibleJobs = hideClosedJobs ? jobs.filter((j) => j.state !== "closed") : jobs
 
-  const hasClosedItems =
-    jobs.some((j) => j.state === "closed") ||
-    epics.some((epic) => epic.children.some((j) => j.state === "closed"))
+  const hasClosedItems = jobs.some((j) => j.state === "closed") || epics.some((epic) => epic.children.some((j) => j.state === "closed"))
 
   function navigateToJob(jobId: number) {
     navigate(withRoutePrefix(`/jobs/${jobId}`, prefix))
@@ -283,16 +371,18 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
 
   return (
     <div className="space-y-3">
-      <ProposedProposalsSection onSelectMessage={onSelectMessage} proposals={pendingProposals} />
+      <ProposedProposalsSection chatId={chatId} onSelectMessage={onSelectMessage} proposals={pendingProposals} />
       {hasClosedItems ? (
         <div className="flex justify-end">
           <button
             className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            onClick={() => setHideClosedJobs((h) => {
-              const next = !h
-              localStorage.setItem("chat_jobs_hide_closed", String(next))
-              return next
-            })}
+            onClick={() =>
+              setHideClosedJobs((h) => {
+                const next = !h
+                localStorage.setItem("chat_jobs_hide_closed", String(next))
+                return next
+              })
+            }
             type="button"
           >
             {hideClosedJobs ? t("job_status_show_closed") : t("job_status_hide_closed")}
