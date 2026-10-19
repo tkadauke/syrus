@@ -20,17 +20,75 @@ import moveElementToolCard from "./move_element"
 // ElementActionCard renderer (see ../whiteboardToolCard.tsx), so one shared
 // test proves the whole family stays wired up and consistent instead of
 // duplicating the same assertions across ten near-identical files.
-const CARDS: { card: ToolCardRenderer; action: string }[] = [
-  { card: drawShapeToolCard, action: "Drew shape" },
-  { card: drawTextToolCard, action: "Drew text" },
-  { card: drawLineToolCard, action: "Drew line" },
-  { card: drawArrowToolCard, action: "Drew arrow" },
-  { card: drawFreedrawToolCard, action: "Drew freehand path" },
-  { card: drawFrameToolCard, action: "Drew frame" },
-  { card: drawEmbedToolCard, action: "Drew embed" },
-  { card: drawImageToolCard, action: "Drew image" },
-  { card: moveElementToolCard, action: "Moved element" },
-  { card: deleteElementToolCard, action: "Deleted element" }
+const CARDS: { card: ToolCardRenderer; action: string; input: Record<string, unknown>; expectedDetails: string[] }[] = [
+  {
+    card: drawShapeToolCard,
+    action: "Drew shape",
+    input: { type: "rectangle", x: 10, y: 20, width: 80, height: 40, color: "blue" },
+    expectedDetails: ["rectangle", "10", "20", "80", "40", "blue"]
+  },
+  {
+    card: drawTextToolCard,
+    action: "Drew text",
+    input: { content: "Text body", x: 11, y: 21, font_size: 18 },
+    expectedDetails: ["Text body", "11", "21", "18"]
+  },
+  {
+    card: drawLineToolCard,
+    action: "Drew line",
+    input: {
+      type: "line",
+      x: 12,
+      y: 22,
+      points: [
+        [0, 0],
+        [5, 5]
+      ],
+      stroke_width: 2
+    },
+    expectedDetails: ["line", "12", "22", "2 points", "2"]
+  },
+  {
+    card: drawArrowToolCard,
+    action: "Drew arrow",
+    input: { from_id: "source-id", to_id: "target-id", label: "Flow" },
+    expectedDetails: ["source-id", "target-id", "Flow"]
+  },
+  {
+    card: drawFreedrawToolCard,
+    action: "Drew freehand path",
+    input: {
+      x: 13,
+      y: 23,
+      points: [
+        [0, 0],
+        [1, 1]
+      ],
+      pressures: [0.25, 0.75],
+      simulate_pressure: false
+    },
+    expectedDetails: ["13", "23", "2 points", "0.25, 0.75", "No"]
+  },
+  {
+    card: drawFrameToolCard,
+    action: "Drew frame",
+    input: { type: "magicframe", x: 14, y: 24, width: 320, height: 180, name: "Overview" },
+    expectedDetails: ["magicframe", "14", "24", "320", "180", "Overview"]
+  },
+  {
+    card: drawEmbedToolCard,
+    action: "Drew embed",
+    input: { type: "iframe", link: "https://example.com/card", x: 15, y: 25, width: 400, height: 225 },
+    expectedDetails: ["iframe", "https://example.com/card", "15", "25", "400", "225"]
+  },
+  {
+    card: drawImageToolCard,
+    action: "Drew image",
+    input: { data_url: "data:image/png;base64,AA==", mime_type: "image/png", file_id: "input-file", x: 16, y: 26, width: 120, height: 90 },
+    expectedDetails: ["image/png", "input-file", "16", "26", "120", "90"]
+  },
+  { card: moveElementToolCard, action: "Moved element", input: { id: "move-me", x: 17, y: 27 }, expectedDetails: ["move-me", "17", "27"] },
+  { card: deleteElementToolCard, action: "Deleted element", input: { id: "delete-me" }, expectedDetails: ["delete-me"] }
 ]
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -61,14 +119,14 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByText("v4")).toBeInTheDocument()
   })
 
-  it.each(CARDS)("$card.toolName includes the tool call's own input as concise detail rows", ({ card, action }) => {
+  it.each(CARDS)("$card.toolName includes its representative tool input details", ({ card, action, input, expectedDetails }) => {
     const parsedResult = { id: "el_abc123", version: 1 }
-    const input = { type: "rectangle", x: 10, y: 20 }
+    const type = typeof input.type === "string" ? ` (${input.type})` : ""
 
-    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(`${action} (rectangle) · el_abc123`)
+    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(`${action}${type} · el_abc123`)
 
     render(<>{card.renderExpanded(context({ toolName: card.toolName, input, parsedResult }))}</>)
-    expect(screen.getByText("rectangle")).toBeInTheDocument()
+    for (const detail of expectedDetails) expect(screen.getAllByText(detail).length).toBeGreaterThan(0)
   })
 
   it("shows shape geometry and color with a swatch", () => {
@@ -130,7 +188,8 @@ describe("whiteboard element-action tool cards", () => {
         )}
       </>
     )
-    expect(screen.getAllByText("2 points")).toHaveLength(2)
+    expect(screen.getByText("2 points")).toBeInTheDocument()
+    expect(screen.getByText("0.3, 0.7")).toBeInTheDocument()
     expect(screen.getByText("No")).toBeInTheDocument()
   })
 
