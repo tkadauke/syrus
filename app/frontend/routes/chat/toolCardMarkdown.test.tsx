@@ -62,7 +62,7 @@ describe("MarkdownPreview", () => {
 
     expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy" })).toBeInTheDocument()
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Details to clipboard" })).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
