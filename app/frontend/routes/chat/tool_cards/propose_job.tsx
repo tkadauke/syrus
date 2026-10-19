@@ -17,7 +17,7 @@ function collapsedSummary(context: ToolCardContext) {
   const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
   if (failureSummary) return failureSummary
 
-  const proposal = parseProposalOutcome(context.parsedResult, context.input)
+  const proposal = parseProposalOutcome(context.parsedResult, context.input, context.presentation)
   if (!proposal) return null
   return proposalOutcomeSummary(proposal)
 }
@@ -25,7 +25,7 @@ function collapsedSummary(context: ToolCardContext) {
 function renderExpanded(context: ToolCardContext) {
   if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
 
-  const proposal = parseProposalOutcome(context.parsedResult, context.input)
+  const proposal = parseProposalOutcome(context.parsedResult, context.input, context.presentation)
   if (!proposal) return null
   return <ProposalOutcomeCard proposal={proposal} />
 }

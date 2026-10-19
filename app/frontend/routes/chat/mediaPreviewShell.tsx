@@ -26,6 +26,7 @@ export type MediaPreviewItem = {
   actions?: MediaPreviewAction[]
   meta?: MediaPreviewMeta[]
   previewChildren?: ReactNode
+  thumbnailChildren?: ReactNode
 }
 
 const MOBILE_MODAL_CLASS = "relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white shadow-lg dark:bg-gray-900"
@@ -40,7 +41,11 @@ function PreviewImage({ alt, className, fallbackLabel, src }: { alt: string; cla
   useEffect(() => setFailed(false), [src])
 
   if (failed) {
-    return <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">{fallbackLabel}</span>
+    return (
+      <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">
+        {fallbackLabel}
+      </span>
+    )
   }
 
   return <img alt={alt} className={className} loading="lazy" onError={() => setFailed(true)} src={src} />
@@ -67,7 +72,9 @@ export function MediaPreviewShell({
         type="button"
       >
         <span className="block aspect-video w-full overflow-hidden bg-gray-100 dark:bg-gray-900">
-          {item.src ? (
+          {item.thumbnailChildren ? (
+            item.thumbnailChildren
+          ) : item.src ? (
             <PreviewImage
               alt={item.alt ?? item.title}
               className="h-full w-full object-contain transition group-hover/media:scale-[1.02]"

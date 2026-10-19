@@ -1130,7 +1130,7 @@ function MessageStream({
               <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
               <SharedMessageRenderer key={renderItemKey(item)}>
-                <ToolGroup chatSessionId={payload.chat.id} item={item} />
+                <ToolGroup chatSessionId={payload.chat.id} item={item} payload={payload} />
               </SharedMessageRenderer>
             ) : (
               <ChatMessage
