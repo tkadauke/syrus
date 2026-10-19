@@ -32,6 +32,11 @@ describe("read_workflow tool card", () => {
   })
 
   it("renders the header, job link value, trigger kind, agent provider, cost, summary, and step/run timeline", () => {
+    const workflowSummary = `**Implementation:** ${"Explaining the workflow changes in detail. ".repeat(7)}`.slice(0, 300)
+    const runSummary = `**Changed** the code. ${"More context about the implementation and verification. ".repeat(10)}`.slice(0, 500)
+    expect(workflowSummary).toHaveLength(300)
+    expect(runSummary).toHaveLength(500)
+
     const parsedResult = {
       workflow: {
         id: 25606,
@@ -39,7 +44,7 @@ describe("read_workflow tool card", () => {
         trigger_kind: "initial",
         state: "running",
         agent_provider: "claude",
-        summary: `## Implementation\n\n${"Explaining the workflow changes in detail. ".repeat(30)}`,
+        summary: workflowSummary,
         step_count: 2,
         run_count: 3,
         total_cost_usd: "1.75",
@@ -61,7 +66,7 @@ describe("read_workflow tool card", () => {
                 id: 9,
                 state: "succeeded",
                 agent_outcome: "success",
-                agent_summary: `**Changed** the code. ${"More context. ".repeat(50)}`,
+                agent_summary: runSummary,
                 started_at: "2026-01-01T00:00:00Z",
                 finished_at: "2026-01-01T00:02:00Z",
                 cost_usd: "0.42"
@@ -81,7 +86,7 @@ describe("read_workflow tool card", () => {
     expect(screen.getByText("$1.7500")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-25606" })).toHaveAttribute("href", "/jobs/4221?tab=workflows#workflow-25606")
     expect(screen.getByRole("link", { name: "JOB-4221" })).toHaveAttribute("href", "/jobs/4221")
-    expect(screen.getByText("Implementation")).toBeInTheDocument()
+    expect(screen.getByText(/Implementation/)).toBeInTheDocument()
     expect(screen.getAllByText("Steps")).toHaveLength(2)
     expect(screen.getByText("2", { selector: "div.font-mono" })).toBeInTheDocument()
     expect(screen.getByText("Runs")).toBeInTheDocument()
@@ -97,6 +102,9 @@ describe("read_workflow tool card", () => {
     expect(screen.getByText("$0.4200")).toBeInTheDocument()
     expect(screen.getByText("Changed")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole("button", { name: "Show more" })[0])
+    expect(screen.getByRole("dialog", { name: "Full summary for WF-25606" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
     fireEvent.click(screen.getAllByRole("button", { name: "Show more" })[1])
     expect(screen.getByRole("dialog", { name: "Full summary for RUN-9" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Copy WF-25606 to clipboard" }))

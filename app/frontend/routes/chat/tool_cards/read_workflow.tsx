@@ -192,7 +192,7 @@ function renderExpanded(context: ToolCardContext) {
         <Row label="Steps" value={String(workflow.stepCount)} />
         <Row label="Runs" value={String(workflow.runCount)} />
       </dl>
-      {workflow.summary ? <MarkdownPreview modalLabel={`Full summary for WF-${workflow.id}`} text={workflow.summary} title="Summary" /> : null}
+      {workflow.summary ? <MarkdownPreview maxLines={1} modalLabel={`Full summary for WF-${workflow.id}`} text={workflow.summary} title="Summary" /> : null}
       {workflow.steps.length > 0 ? (
         <div>
           <SectionLabel>Steps</SectionLabel>
@@ -224,7 +224,7 @@ function renderExpanded(context: ToolCardContext) {
                         </div>
                         {run.agentSummary ? (
                           <div className="mt-1 min-w-0">
-                            <MarkdownPreview maxLines={3} modalLabel={`Full summary for RUN-${run.id}`} text={run.agentSummary} />
+                            <MarkdownPreview maxLines={2} modalLabel={`Full summary for RUN-${run.id}`} text={run.agentSummary} />
                           </div>
                         ) : null}
                       </li>
