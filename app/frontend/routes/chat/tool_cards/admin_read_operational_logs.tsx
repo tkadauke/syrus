@@ -24,8 +24,7 @@ type LogRow = {
 }
 
 type LogsCard =
-  | { enabled: false; error: string | null; message: string | null }
-  | { enabled: true; retentionSeconds: number | null; count: number | null; logs: LogRow[] }
+  { enabled: false; error: string | null; message: string | null } | { enabled: true; retentionSeconds: number | null; count: number | null; logs: LogRow[] }
 
 function parseLogRow(value: unknown, index: number): LogRow | null {
   if (!isPlainObject(value)) return null
@@ -54,7 +53,10 @@ function parseLogsCard(context: ToolCardContext): LogsCard | null {
     enabled: true,
     retentionSeconds: numberValue(parsed.retention_seconds),
     count: numberValue(parsed.count),
-    logs: parsed.logs.flatMap((log, index) => { const row = parseLogRow(log, index); return row ? [row] : [] })
+    logs: parsed.logs.flatMap((log, index) => {
+      const row = parseLogRow(log, index)
+      return row ? [row] : []
+    })
   }
 }
 
@@ -90,7 +92,11 @@ function AppliedFilters({ input }: { input?: Record<string, unknown> }) {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {entries.map(([key, value]) => <Badge key={key}>{key}: {value}</Badge>)}
+      {entries.map(([key, value]) => (
+        <Badge key={key}>
+          {key}: {value}
+        </Badge>
+      ))}
     </div>
   )
 }
@@ -146,14 +152,20 @@ function renderExpanded(context: ToolCardContext) {
                               {log.message ? <TextPreview maxChars={MESSAGE_PREVIEW_CHARS} maxLines={2} text={log.message} truncate="headTail" /> : "—"}
                             </Td>
                             <Td mono>
-                              {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null].filter(Boolean).join(" ") || "—"}
+                              {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null]
+                                .filter(Boolean)
+                                .join(" ") || "—"}
                             </Td>
                           </tr>
                         ))}
                       </TBody>
                     </Table>
                   </div>
-                  {omitted > 0 ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_ROW_LIMIT} of {logs.length} rows.</div> : null}
+                  {omitted > 0 ? (
+                    <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">
+                      Showing first {LOG_PREVIEW_ROW_LIMIT} of {logs.length} rows.
+                    </div>
+                  ) : null}
                 </>
               )
             }}

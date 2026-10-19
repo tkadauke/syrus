@@ -1,17 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import {
-  Badge,
-  CardShell,
-  Disclosure,
-  FilterableList,
-  displayValue,
-  EmptyState,
-  Row,
-  SectionLabel,
-  StatePill
-} from "./toolCardUi"
+import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { TextPreview } from "./toolCardMarkdown"
 
 type RuntimeLease = {
