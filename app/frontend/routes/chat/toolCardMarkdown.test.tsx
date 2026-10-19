@@ -1,8 +1,26 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/s/JOB-:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+  })
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
@@ -27,6 +45,18 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("supports an empty state, linked slugs and URLs, modal copying, and a character limit", () => {
+    const { rerender } = render(<MarkdownPreview emptyState={<span>No summary</span>} text=" " />)
+    expect(screen.getByText("No summary")).toBeInTheDocument()
+
+    rerender(<MarkdownPreview maxChars={20} text="Review JOB-42 at https://example.test/details because this sentence is deliberately long." />)
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/s/JOB-42")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Show more" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("Review JOB-42"))
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

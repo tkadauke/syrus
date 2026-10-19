@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { OutcomeBody, parseOutcome } from "../agentInsightToolCard"
+import { OutcomeCard, parseOutcome } from "../agentInsightToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
   const outcome = parseOutcome(context)
@@ -9,10 +9,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const outcome = parseOutcome(context)
-  if (!outcome) return null
-
-  return <OutcomeBody label="Saved insight" outcome={outcome} />
+  return <OutcomeCard context={context} label="Saved insight" />
 }
 
 const submitInsightToolCard: ToolCardRenderer = {

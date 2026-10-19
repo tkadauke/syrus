@@ -63,18 +63,20 @@ describe("Agent Insights tool cards", () => {
 
     render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights } }))}</>)
 
-    expect(screen.getByText("Prepare failures cluster")).toBeInTheDocument()
-    expect(screen.getAllByText("Several prepare failures share the same Bundler setup issue.")).toHaveLength(3)
-    expect(screen.getByText("Resolved memory cleanup")).toBeInTheDocument()
-    expect(screen.getByText("Retired duplicate")).toBeInTheDocument()
-    expect(screen.getByText("pending")).toBeInTheDocument()
-    expect(screen.getByText("accepted")).toBeInTheDocument()
-    expect(screen.getByText("retired")).toBeInTheDocument()
-    expect(screen.getAllByText("acme/widgets")).toHaveLength(3)
+    expect(screen.getAllByText("Prepare failures cluster")).toHaveLength(2)
+    expect(screen.getAllByText("Several prepare failures share the same Bundler setup issue.")).toHaveLength(6)
+    expect(screen.getAllByText("Resolved memory cleanup")).toHaveLength(2)
+    expect(screen.getAllByText("Retired duplicate")).toHaveLength(2)
+    expect(screen.getAllByText("pending")).toHaveLength(2)
+    expect(screen.getAllByText("accepted")).toHaveLength(2)
+    expect(screen.getAllByText("retired")).toHaveLength(2)
+    expect(screen.getAllByText("acme/widgets")).toHaveLength(6)
     expect(screen.getAllByRole("link", { name: "WF-12" })[0]).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
     expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
     fireEvent.click(screen.getAllByRole("button", { name: "Copy INSIGHT-41 to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-41")
+    expect(screen.getAllByRole("link", { name: "INSIGHT-41" })[0]).toHaveAttribute("href", "/s/INSIGHT-41")
+    expect(screen.getAllByText("Prepare failures cluster")[0].closest(".sm\\:hidden")).not.toBeNull()
   })
 
   it("renders read_insight details with long evidence, recommended action, links, and retirement outcome", () => {
@@ -104,7 +106,7 @@ describe("Agent Insights tool cards", () => {
     render(<>{readInsightToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("Recommended action")).toBeInTheDocument()
-    expect(screen.getByText("Show full text (8 lines)")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     expect(screen.getByText("Show remaining evidence (2)")).toBeInTheDocument()
     expect(screen.getByText("Retirement outcome")).toBeInTheDocument()
     expect(screen.getByText("Superseded by")).toBeInTheDocument()
@@ -151,16 +153,63 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("Both findings are stale.")).toBeInTheDocument()
   })
 
+  it("renders the live pending-action state on shared outcome cards", () => {
+    const cardContext = context({
+      toolName: "retire_insight",
+      parsedResult: { message: "Retirement requested.", insight_ids: [41] },
+      livePendingAction: {
+        id: 9,
+        action: "retire_insight",
+        state: "confirmed",
+        label: "Retire insight",
+        detail: "Retirement was confirmed by the operator.",
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    })
+
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("Retirement requested.")).toBeInTheDocument()
+    expect(screen.getByText("Retirement was confirmed by the operator.")).toBeInTheDocument()
+  })
+
   it("falls back to the generic renderer for malformed list and detail payloads", () => {
     expect(listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: "oops" } }))).toBeNull()
     expect(readInsightToolCard.renderExpanded(context({ toolName: "read_insight", parsedResult: { insight: { id: 5 } } }))).toBeNull()
   })
 
   it("ignores malformed insight rows while preserving valid rows", () => {
-    render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: [ { oops: true }, baseInsight ] } }))}</>)
+    render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: [{ oops: true }, baseInsight] } }))}</>)
 
     const rows = screen.getAllByRole("row")
     expect(rows).toHaveLength(2)
     expect(within(rows[1]).getByText("Prepare failures cluster")).toBeInTheDocument()
+  })
+
+  it("normalizes Codex and structured-content envelopes and renders markdown links", () => {
+    const codexEnvelope = {
+      content: [{ type: "text", text: JSON.stringify({ insights: [{ ...baseInsight, summary: "See **JOB-200** at https://example.test/details." }] }) }]
+    }
+    const structuredEnvelope = { structured_content: { insights: [{ ...baseInsight, id: 42, title: "Structured insight" }] } }
+
+    render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: codexEnvelope }))}</>)
+    expect(screen.getAllByRole("link", { name: "https://example.test/details" })[0]).toHaveAttribute("href", "https://example.test/details")
+    expect(listInsightsToolCard.collapsedSummary?.(context({ parsedResult: structuredEnvelope }))).toBe("1 insight")
+  })
+
+  it("shows all list filters in the empty state and renders tool failures", () => {
+    const filtered = context({ input: { state: "pending", repository_id: 3, limit: 10, page: 2 }, parsedResult: { insights: [] } })
+    render(<>{listInsightsToolCard.renderExpanded(filtered)}</>)
+
+    expect(screen.getByText("State: pending")).toBeInTheDocument()
+    expect(screen.getByText("Repository: 3")).toBeInTheDocument()
+    expect(screen.getByText("Limit: 10")).toBeInTheDocument()
+    expect(screen.getByText("Page: 2")).toBeInTheDocument()
+    expect(screen.getByText(/No insights match: State: pending/)).toBeInTheDocument()
+
+    const { unmount } = render(<>{listInsightsToolCard.renderExpanded(context({ resultError: true, resultBody: "Repository unavailable" }))}</>)
+    expect(screen.getByText("Repository unavailable")).toBeInTheDocument()
+    unmount()
   })
 })

@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/pluginToolCards"
 import { Text } from "@app/components/ui"
@@ -6,9 +7,9 @@ import { CardShell, SectionLabel } from "@app/routes/chat/toolCardUi"
 
 function summary(context: ToolCardContext) {
   const result = context.parsedResult
-  if (!isPlainObject(result)) return "Dismiss insight"
+  if (!isPlainObject(result)) return i18n.t("agent_insights:tool_dismiss_one")
   const ids = Array.isArray(result.insight_ids) ? result.insight_ids : []
-  return ids.length ? `Dismiss ${ids.length} insight${ids.length === 1 ? "" : "s"}` : "Dismiss insights"
+  return ids.length ? i18n.t("agent_insights:tool_dismiss_count", { count: ids.length }) : i18n.t("agent_insights:tool_dismiss_many")
 }
 
 function Expanded({ context }: { context: ToolCardContext }) {
