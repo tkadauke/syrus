@@ -1,4 +1,6 @@
-import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
+import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
 import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/mediaPreviewShell"
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
@@ -18,15 +20,16 @@ import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/ch
 // treats every non-test .tsx file under `tool_cards/` as a card module and
 // would warn about the missing default export (same reason core keeps
 // toolCardUi.tsx one directory up).
-export type ElementResult = { id: string; version: number | null }
+export type ElementResult = { id: string; version: number | null; labelId: string | null; fileId: string | null }
 
 export function parseElementResult(value: unknown): ElementResult | null {
+  if (isPlainObject(value) && isPlainObject(value.result)) value = value.result
   if (!isPlainObject(value)) return null
 
   const id = displayValue(value.id)
   if (!id) return null
 
-  return { id, version: numberValue(value.version) }
+  return { id, version: numberValue(value.version), labelId: displayValue(value.label_id), fileId: displayValue(value.file_id) }
 }
 
 // Small, deliberately generic set of input fields worth echoing across the
@@ -43,18 +46,33 @@ const INPUT_FIELDS: { key: string; label: string }[] = [
   { key: "label", label: "tool_field_label" },
   { key: "content", label: "tool_field_content" },
   { key: "link", label: "tool_field_link" },
-  { key: "name", label: "tool_field_name" }
+  { key: "name", label: "tool_field_name" },
+  { key: "color", label: "tool_field_color" },
+  { key: "stroke_width", label: "tool_field_stroke_width" },
+  { key: "points", label: "tool_field_points" },
+  { key: "start_arrowhead", label: "tool_field_start_arrowhead" },
+  { key: "end_arrowhead", label: "tool_field_end_arrowhead" },
+  { key: "font_size", label: "tool_field_font_size" },
+  { key: "pressures", label: "tool_field_pressures" },
+  { key: "simulate_pressure", label: "tool_field_simulate_pressure" },
+  { key: "mime_type", label: "tool_field_mime_type" },
+  { key: "file_id", label: "tool_field_file_id" }
 ]
 
 export function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`whiteboard:${key}`, options)
 }
 
-function inputRows(input: Record<string, unknown> | undefined) {
+function inputDetails(input: Record<string, unknown> | undefined) {
   if (!isPlainObject(input)) return []
 
   return INPUT_FIELDS.flatMap(({ key, label }) => {
-    const value = displayValue(input[key])
+    const raw = input[key]
+    const value = Array.isArray(raw)
+      ? t("tool_points_count", { count: raw.length })
+      : typeof raw === "boolean"
+        ? t(raw ? "tool_yes" : "tool_no")
+        : displayValue(raw)
     return value ? [{ key, label: label.length === 1 ? label : t(label), value }] : []
   })
 }
@@ -64,33 +82,98 @@ export function elementActionSummary(action: string, result: ElementResult, inpu
   return `${action}${type ? ` (${type})` : ""} · ${result.id}`
 }
 
-export function ElementActionCard({
-  action,
-  result,
-  input
-}: {
-  action: string
-  result: ElementResult
-  input?: Record<string, unknown>
-}) {
-  const rows = inputRows(input)
+export function ElementActionCard({ action, result, input }: { action: string; result: ElementResult; input?: Record<string, unknown> }) {
+  const details = inputDetails(input)
+  const rows: CompactActionRow[] =
+    details.length > 0
+      ? [
+          {
+            label: t("tool_details"),
+            value: (
+              <>
+                {details.map((detail) => (
+                  <span className="inline-flex min-w-0 items-center gap-1" key={detail.key}>
+                    <span className="text-text-subtle">{detail.label}:</span>
+                    {detail.key === "color" ? (
+                      <span
+                        aria-label={detail.value}
+                        className="h-3 w-3 shrink-0 rounded-full border border-border"
+                        style={{ backgroundColor: detail.value }}
+                      />
+                    ) : null}
+                    <span className="break-all font-mono">{detail.value}</span>
+                  </span>
+                ))}
+              </>
+            )
+          }
+        ]
+      : []
+  if (result.labelId) rows.push({ label: t("tool_field_label_id"), value: <span className="font-mono">{result.labelId}</span> })
+  if (result.fileId) rows.push({ label: t("tool_field_file_id"), value: <span className="font-mono">{result.fileId}</span> })
+  const link = isPlainObject(input) ? displayValue(input.link) : null
+  if (link && /^https?:\/\//i.test(link))
+    rows.push({
+      label: t("tool_field_link"),
+      value: (
+        <a className="break-all text-brand hover:underline" href={link} rel="noreferrer" target="_blank">
+          {link}
+        </a>
+      )
+    })
+  const dataUrl = isPlainObject(input) && typeof input.data_url === "string" && input.data_url.startsWith("data:image/") ? input.data_url : null
+  const content = isPlainObject(input) ? displayValue(input.content) : null
 
   return (
-    <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge>{action}</Badge>
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{result.id}</span>
-        {result.version != null ? <Badge>v{result.version}</Badge> : null}
-      </div>
-      {rows.length > 0 ? (
-        <dl className="grid gap-1 sm:grid-cols-2">
-          {rows.map((row) => (
-            <Row key={row.key} label={row.label} value={row.value} />
-          ))}
-        </dl>
-      ) : null}
-    </CardShell>
+    <CompactActionCard
+      action={action}
+      badges={result.version != null ? [`v${result.version}`] : []}
+      entity={<span className="break-all font-mono font-semibold text-text-primary">{result.id}</span>}
+      markdown={content ?? undefined}
+      media={
+        dataUrl
+          ? {
+              item: {
+                title: result.fileId ?? t("tool_image"),
+                src: dataUrl,
+                alt: t("tool_image"),
+                badge: isPlainObject(input) ? displayValue(input.mime_type) : null
+              }
+            }
+          : undefined
+      }
+      rows={rows}
+      tone="success"
+    />
   )
+}
+
+export function makeElementCard(toolName: string, actionKey: string): ToolCardRenderer {
+  return {
+    toolName,
+    collapsedSummary(context) {
+      const action = t(actionKey)
+      const failureSummary = elementFailureSummary(context, action)
+      if (failureSummary) return failureSummary
+      const result = parseElementResult(context.parsedResult)
+      if (!result) return context.parsedResult == null ? t("tool_pending_summary", { action }) : t("tool_missing_result_summary", { action })
+      return elementActionSummary(action, result, isPlainObject(context.input) ? context.input : undefined)
+    },
+    renderExpanded(context) {
+      const action = t(actionKey)
+      if (context.resultError) return <ElementFailureCard action={action} context={context} />
+      const result = parseElementResult(context.parsedResult)
+      if (!result)
+        return (
+          <CompactActionCard
+            action={action}
+            rows={[{ label: t("tool_status"), value: t(context.parsedResult == null ? "tool_pending" : "tool_missing_result") }]}
+            tone="info"
+          />
+        )
+      return <ElementActionCard action={action} input={isPlainObject(context.input) ? context.input : undefined} result={result} />
+    }
+  }
 }
 
 export function elementFailureSummary(context: ToolCardContext, action: string) {
@@ -104,9 +187,9 @@ export function ElementFailureCard({ context, action }: { context: ToolCardConte
 function elementFailureConfig(context: ToolCardContext, action: string): ToolFailureConfig {
   return {
     title: action,
-    attempted: () => elementAttempt(context, action),
+    attempted: () => t("tool_attempted", { attempt: elementAttempt(context, action) }),
     retrySafety: "caution",
-    recovery: "Check the canvas for a partial edit before retrying."
+    recovery: t("tool_recovery_check_canvas")
   }
 }
 
@@ -117,9 +200,9 @@ function elementAttempt(context: ToolCardContext, action: string) {
   const toId = displayValue(input.to_id)
   const id = displayValue(input.id) || displayValue(input.element_id)
 
-  if (fromId && toId) return `${action} from ${fromId} to ${toId}`
-  if (id) return `${action} ${id}`
-  if (type) return `${action} (${type})`
+  if (fromId && toId) return t("tool_attempt_from_to", { action, from: fromId, to: toId })
+  if (id) return t("tool_attempt_id", { action, id })
+  if (type) return t("tool_attempt_type", { action, type })
   return action || humanizeToolName(context.toolName)
 }
 
@@ -162,8 +245,7 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
 
 // save_canvas either records a snapshot or reports the canvas was empty.
 export type SaveCanvasResult =
-  | { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null }
-  | { saved: false; reason: string | null }
+  { saved: true; snapshotId: string | null; name: string | null; elementCount: number | null } | { saved: false; reason: string | null }
 
 export function parseSaveCanvasResult(value: unknown): SaveCanvasResult | null {
   if (!isPlainObject(value) || typeof value.saved !== "boolean") return null
