@@ -172,7 +172,7 @@ function renderExpanded(context: ToolCardContext) {
   )
 }
 
-const proposeDesignDocToolCard: ToolCardRenderer = { toolName: "propose_design_doc", collapsedSummary, renderExpanded }
+const proposeDesignDocToolCard: ToolCardRenderer = { toolName: "propose_design_doc", renderWhilePending: true, collapsedSummary, renderExpanded }
 export default proposeDesignDocToolCard
 
 export const examples: ToolCardExample[] = [

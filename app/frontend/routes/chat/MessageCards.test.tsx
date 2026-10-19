@@ -777,6 +777,54 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
+  it("renders a registered card's proposal inputs while its tool call is still pending", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose design doc",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "propose_design_doc",
+          raw_name: "mcp__syrus-chat-sidecar__propose_design_doc",
+          detail: "Unavailable proposal",
+          display_label: "Propose design doc",
+          progress_label: "Proposing design doc",
+          raw_payload: {
+            title: "Pending placement proposal",
+            markdown: "# Pending content\n\nThe proposed body is still in flight.",
+            visibility: "private",
+            repository_ids: [41],
+            collaborator_user_ids: [7, 8],
+            change_summary: "Adds **placement** guidance."
+          },
+          result_body: "",
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Propose design doc",
+      outcome_label: "Running",
+      collapsed_by_default: false,
+      prominent: true
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.queryByText("Pending placement proposal")).not.toBeInTheDocument()
+
+    expandToolGroup("Propose design doc")
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Waiting for the tool result.")).toBeInTheDocument()
+    expect(screen.getByText("Pending placement proposal")).toBeInTheDocument()
+    expect(screen.getByText("private")).toBeInTheDocument()
+    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository 41" })).toHaveAttribute("href", "/repositories/41")
+    expect(screen.getByText("placement").tagName).toBe("STRONG")
+    expect(screen.getByText("Pending content")).toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
   it("keeps an expanded tool group open when a streamed call joins it", () => {
     const firstCall = {
       message_id: 1,

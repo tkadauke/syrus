@@ -1007,6 +1007,11 @@ function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["call
   const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId))
   if (pluginBody != null) return <>{pluginBody}</>
 
+  // Registered cards may have a useful in-flight view derived entirely from
+  // the tool input. If such a card declines an unsettled call, preserve the
+  // prior live-call behavior instead of rendering an empty generic result.
+  if (!toolCallSettled(call)) return null
+
   if (call.result_error) return <ToolErrorCard call={call} />
 
   return <HighlightedToolResult code={redactToolCardText(call.result_body)} detail={redactToolCardText(call.detail)} error={call.result_error} />
