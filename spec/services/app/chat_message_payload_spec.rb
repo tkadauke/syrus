@@ -935,8 +935,19 @@ RSpec.describe App::ChatMessagePayload do
         title: "Pending job",
         state: "proposed",
         anchor_message_id: anchor.id,
+        dependency_ids: [],
         active_children_count: nil
       )
+    end
+
+    it "includes proposal dependencies for dependency-aware bulk confirmation" do
+      dependency = chat.proposals.create!(slug: "foundation", title: "Foundation", body: "Work.", kind: "job")
+      proposal = chat.proposals.create!(slug: "dependent", title: "Dependent", body: "Work.", kind: "job")
+      proposal.dependency_edges.create!(depends_on: dependency)
+
+      payload = described_class.job_status_proposal_json(proposal)
+
+      expect(payload.fetch(:dependency_ids)).to eq([ dependency.id ])
     end
 
     it "includes the active child count for an Epic bundle proposal" do
