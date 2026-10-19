@@ -26,6 +26,7 @@ describe("toolCardUi Row", () => {
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })
+
 })
 
 function renderReference(reference: ComponentProps<typeof EntityReference>) {
@@ -51,6 +52,7 @@ describe("EntityReference", () => {
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
+    [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12", "https://github.com/acme/widgets/issues/12"],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string]>)("links %s references", (reference, label, href) => {
     renderReference(reference)
@@ -75,6 +77,7 @@ describe("EntityReference", () => {
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88"],
+    [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12"],
     [{ kind: "artifact", id: "rails_schema_erd" }, "rails_schema_erd"],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
@@ -100,6 +103,8 @@ describe("EntityReference", () => {
   it.each([
     [{ kind: "workflow", id: 14 }, "WF-14"],
     [{ kind: "run", id: 2, jobId: 8 }, "RUN-2"],
+    [{ kind: "run", id: 2 }, "RUN-2"],
+    [{ kind: "issue", id: 12 }, "#12"],
     [{ kind: "repository", slug: "owner/private-repo" }, "owner/private-repo"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
   ] as Array<[ComponentProps<typeof EntityReference>, string]>)("falls back to copyable text when no route can be derived for %s", (reference, label) => {
@@ -114,5 +119,11 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+  })
+
+  it("rejects unsafe explicit and provider-supplied URLs", () => {
+    expect(entityReferenceHref({ kind: "issue", id: 12, issueUrl: "javascript:alert(1)" })).toBeNull()
+    expect(entityReferenceHref({ kind: "pull_request", id: 88, prUrl: "//evil.example/pull/88" })).toBeNull()
+    expect(entityReferenceHref({ kind: "issue", id: 12, href: "data:text/html,unsafe" })).toBeNull()
   })
 })
