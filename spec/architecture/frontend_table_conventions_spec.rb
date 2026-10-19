@@ -25,7 +25,6 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/chat/tool_cards/list_delivery_tracks.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_epics.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_job_workflows.tsx" => "compact chat tool-card result summary",
-    "app/frontend/routes/chat/tool_cards/list_open_prs.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_proposals.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_ref_movement_actions.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_repositories.tsx" => "compact chat tool-card result summary",

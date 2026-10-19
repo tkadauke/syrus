@@ -64,13 +64,24 @@ module Mcp::Tools
         {
           number: pull_request.number,
           title: pull_request.title,
+          url: pull_request.html_url,
           head_ref: pull_request.head&.ref,
+          head_url: branch_url(pull_request.head),
           base_ref: pull_request.base&.ref,
+          base_url: branch_url(pull_request.base),
           mergeable: pull_request.mergeable,
           draft: pull_request.draft == true,
           created_at: pull_request.created_at&.iso8601,
           updated_at: pull_request.updated_at&.iso8601
         }
+      end
+
+      def branch_url(branch)
+        repository_url = branch&.repo&.html_url
+        ref = branch&.ref
+        return unless repository_url.present? && ref.present?
+
+        "#{repository_url}/tree/#{ref}"
       end
     end
   end
