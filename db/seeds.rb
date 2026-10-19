@@ -24,8 +24,7 @@ end
 # but not a comprehensive fixture factory. Future agents may add one or two
 # targeted rows when a UI surface is otherwise impossible to exercise, but avoid
 # broad scenario dumps that slow previews or obscure real empty-state behavior.
-if Rails.env.development?
-  begin
+development_preview_seed = lambda do
   preview_settings = AppSetting.current
   preview_settings.update!(beta_mode_enabled: true) unless preview_settings.beta_mode_enabled?
 
@@ -971,6 +970,11 @@ if Rails.env.development?
       chat_session: demo_chat
     )
   end
+end
+
+if Rails.env.development?
+  begin
+    development_preview_seed.call
   rescue StandardError => e
     warn "[seeds] skipping development preview fixtures: #{e.class}: #{e.message}"
   end
