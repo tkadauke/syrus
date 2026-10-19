@@ -416,6 +416,18 @@ one scope atomically. Repository and Job payloads include inherited rule
 context so an editor can show the account defaults, and for Jobs the
 repository overrides, that would apply underneath the current scope.
 
+Chat agents use `read_provider_routing_rules` for the same ordered scoped
+state, inherited rules, registry choices, active holds, and a revision
+fingerprint. `explain_provider_routing` traces Job, repository, and user scope
+precedence with disabled skips and condition evidence, and calls out an
+explicit Job provider pin before reporting the winning route or hold.
+`mutate_provider_routing_rules` accepts create, update, enable/disable, delete,
+and reorder operations as one batch. It previews and validates the complete
+state against the supplied revision, then creates a human-readable pending
+action; the batch is checked again and applied transactionally only after the
+operator confirms it. User scope always means the current chat user, so these
+tools never accept an arbitrary user id.
+
 Rules are owned by a user even when they are scoped to a repository or a Job.
 Within each user, repository, or Job scope they have an explicit `position`;
 the resolver walks rules in order and uses the first matching rule, with
