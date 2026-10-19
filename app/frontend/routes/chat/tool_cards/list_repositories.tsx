@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Surface } from "../../../components/ui"
-import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
+import { displayValue, EmptyState, EntityReference } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 type RepositoryRow = {
@@ -121,6 +121,15 @@ function InputSummary({ context }: { context: ToolCardContext }) {
   )
 }
 
+function MobileField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs font-medium text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="break-all font-mono text-xs text-gray-900 dark:text-gray-100">{value}</dd>
+    </div>
+  )
+}
+
 function renderExpanded(context: ToolCardContext) {
   if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
   const result = parseResult(context)
@@ -137,11 +146,11 @@ function renderExpanded(context: ToolCardContext) {
               <Surface className="min-w-0 space-y-2 text-xs" key={row.id} padding="sm">
                 <RepositoryLink row={row} />
                 <dl className="grid min-w-0 grid-cols-2 gap-2">
-                  <Row label="Owner" value={row.owner || "—"} />
-                  <Row label="Name" value={row.name || "—"} />
-                  <Row label="Default branch" value={row.defaultBranch || "—"} />
-                  <Row label="Epic policy" value={row.epicDependencyPolicy || "—"} />
-                  <Row label="Created" value={row.createdAt || "—"} />
+                  <MobileField label="Owner" value={row.owner || "—"} />
+                  <MobileField label="Name" value={row.name || "—"} />
+                  <MobileField label="Default branch" value={row.defaultBranch || "—"} />
+                  <MobileField label="Epic policy" value={row.epicDependencyPolicy || "—"} />
+                  <MobileField label="Created" value={row.createdAt || "—"} />
                 </dl>
               </Surface>
             ))}

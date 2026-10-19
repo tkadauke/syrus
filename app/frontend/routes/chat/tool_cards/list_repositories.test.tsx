@@ -75,9 +75,25 @@ describe("list_repositories tool card", () => {
   })
 
   it("uses stacked mobile rows and a fixed wrapping desktop table without overflow containers", () => {
-    const parsedResult = { repositories: [{ id: 1, slug: "acme/a-very-long-repository-name" }], pagination: {} }
+    const parsedResult = {
+      repositories: [
+        {
+          id: 1,
+          slug: "acme/a-very-long-repository-name",
+          owner: "acme-with-a-long-owner-name",
+          name: "a-very-long-repository-name-without-truncation",
+          default_branch: "a-long-default-branch",
+          epic_dependency_policy: "independent",
+          created_at: "2026-09-03T15:41:22Z"
+        }
+      ],
+      pagination: {}
+    }
     const { container } = render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
-    expect(container.querySelector(".sm\\:hidden")).toBeInTheDocument()
+    const mobileRows = container.querySelector(".sm\\:hidden")
+    expect(mobileRows).toBeInTheDocument()
+    expect(mobileRows?.querySelectorAll("dd.break-all")).toHaveLength(5)
+    expect(mobileRows?.querySelector(".truncate")).not.toBeInTheDocument()
     expect(container.querySelector("table")).toHaveClass("hidden", "table-fixed", "sm:table")
     expect(container.querySelector(".overflow-x-auto")).not.toBeInTheDocument()
   })
