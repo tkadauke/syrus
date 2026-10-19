@@ -292,6 +292,41 @@ describe("chat helper tool cards", () => {
 })
 
 describe("chat helper tool rendering integration", () => {
+  it("renders the rename_chat pending card through the live ToolGroup path", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "rename_chat",
+      summary_label: "Renaming chat",
+      outcome_label: "Running",
+      collapsed_by_default: false,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "rename_chat",
+          raw_name: "mcp__syrus-chat-sidecar__rename_chat",
+          detail: "",
+          display_label: "Rename chat",
+          progress_label: "Thinking",
+          raw_payload: {},
+          result_body: "",
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+    const summary = screen.getAllByText("Renaming chat").map((element) => element.closest("summary")).find(Boolean)
+    expect(summary).not.toBeUndefined()
+    if (!summary) return
+    fireEvent.click(summary)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Requested title")).toBeInTheDocument()
+    expect(screen.getByText("Not provided.")).toBeInTheDocument()
+  })
+
   it("keeps helper cards collapsed by default and preserves raw details when expanded", () => {
     const resultBody = JSON.stringify({ goal_id: 9, status: "completed", reason: "done" })
     const item: ChatToolGroupItem = {

@@ -750,7 +750,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? <ToolResultBody call={call} /> : null}
               {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
@@ -785,6 +785,10 @@ function informativeDetail(detail: string) {
 // there are no per-tool branches here.
 function callHasExpandedCard(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call)) != null
+}
+
+function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
+  return pluginToolCardRendererFor(toolCardName(call))?.renderWhilePending === true
 }
 
 function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) {

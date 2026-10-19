@@ -71,6 +71,7 @@ function TitleField({ label, value }: { label: string; value: string | null }) {
 
 const renameChatToolCard: ToolCardRenderer = {
   toolName: "rename_chat",
+  renderWhilePending: true,
   collapsedSummary,
   renderExpanded
 }
