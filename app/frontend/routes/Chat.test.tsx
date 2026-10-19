@@ -1801,9 +1801,11 @@ describe("chat composer dictation", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
+          })
+        )
       }
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
       return Promise.resolve(jsonResponse(payload))
