@@ -1318,6 +1318,97 @@ RSpec.describe "Mcp::Tools admin tools" do
     repair_plan = payload.fetch(:items).first.fetch(:repair_plan)
     expect(repair_plan).to include(target_type: "Run", target_id: run.id)
     expect(repair_plan.fetch(:action)).to match(/\Amark_worker_died/)
+    expect(payload.fetch(:pagination)).to include(
+      page: 1,
+      per: 50,
+      total_pages: 1,
+      has_next_page: false,
+      has_previous_page: false
+    )
+    expect(payload.dig(:pagination, :total_items)).to be >= 1
+  end
+
+  it "paginates stuck Jobs with bounded inputs and stable ordering" do
+    items = 205.times.map do |index|
+      {
+        "kind" => "kind_#{index % 3}",
+        "job_id" => index + 1,
+        "workflow_id" => nil,
+        "run_id" => nil,
+        "detail" => "item #{index + 1}"
+      }
+    end.reverse
+    snapshot = Admin::StuckItemsCache::Snapshot.new(items: items, captured_at: Time.current)
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
+    expect(Admin::StuckItems).not_to receive(:all)
+
+    first = payload_for(call_tool(admin_session, "admin_stuck_jobs", { per: 1_000 }))
+    second = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 2, per: 100 }))
+
+    expect(first.fetch(:items).size).to eq(100)
+    expect(first.fetch(:pagination)).to include(
+      page: 1,
+      per: 100,
+      total_items: 205,
+      total_pages: 3,
+      has_next_page: true,
+      has_previous_page: false
+    )
+    expect(second.fetch(:pagination)).to include(page: 2, has_next_page: true, has_previous_page: true)
+    expect(first.fetch(:items).map { |item| item.fetch(:job_id) } & second.fetch(:items).map { |item| item.fetch(:job_id) }).to be_empty
+    expect(first.fetch(:items).map { |item| [ item.fetch(:kind), item.fetch(:job_id) ] }).to eq(
+      first.fetch(:items).map { |item| [ item.fetch(:kind), item.fetch(:job_id) ] }.sort
+    )
+  end
+
+  it "returns bounded metadata for empty and out-of-range stuck Job pages" do
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(items: [], captured_at: Time.current)
+    )
+
+    empty = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 999, per: 0 }))
+
+    expect(empty.fetch(:items)).to be_empty
+    expect(empty.fetch(:pagination)).to eq(
+      page: 1,
+      per: 1,
+      total_items: 0,
+      total_pages: 1,
+      has_next_page: false,
+      has_previous_page: false
+    )
+
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(
+        items: 2.times.map { |index| { "kind" => "stuck", "job_id" => index + 1 } },
+        captured_at: Time.current
+      )
+    )
+    out_of_range = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 999, per: 1 }))
+    expect(out_of_range.fetch(:items).map { |item| item.fetch(:job_id) }).to eq([ 2 ])
+    expect(out_of_range.fetch(:pagination)).to include(page: 2, total_pages: 2, has_previous_page: true)
+  end
+
+  it "keeps a large stuck set response below the subprocess output-line limit" do
+    large_detail = "x" * 2_000
+    items = 1_000.times.map do |index|
+      { "kind" => "large_set", "job_id" => index + 1, "detail" => large_detail }
+    end
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(items: items, captured_at: Time.current)
+    )
+
+    response = call_tool(admin_session, "admin_stuck_jobs", { per: 100 })
+
+    expect(response.to_json.bytesize).to be < ProcessRunner::MAX_OUTPUT_LINE_BYTES
+    expect(payload_for(response).fetch(:pagination)).to include(total_items: 1_000, total_pages: 10)
+  end
+
+  it "advertises bounded stuck Job pagination inputs" do
+    schema = Mcp::Tools::AdminStuckJobsTool.input_schema.instance_variable_get(:@schema)
+
+    expect(schema.dig(:properties, :page)).to include(type: "integer")
+    expect(schema.dig(:properties, :per)).to include(type: "integer")
   end
 
   it "returns the GitHub App installation diagnostic for admins" do
