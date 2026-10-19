@@ -219,7 +219,7 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByRole("button", { name: "Open actual-file" })).toBeInTheDocument()
   })
 
-  it("renders embed links as safe external anchors and text content as markdown", () => {
+  it("renders embed links as safe external anchors with a local domain preview", () => {
     const { unmount } = render(
       <>
         {drawEmbedToolCard.renderExpanded(
@@ -229,9 +229,62 @@ describe("whiteboard element-action tool cards", () => {
     )
     const link = screen.getByRole("link", { name: "https://example.com/embed" })
     expect(link).toHaveAttribute("target", "_blank")
-    expect(link).toHaveAttribute("rel", "noreferrer")
+    expect(link).toHaveAttribute("rel", "noreferrer noopener")
+    expect(screen.getByLabelText("Embed preview for example.com")).toBeInTheDocument()
+    expect(screen.getAllByText("example.com").length).toBeGreaterThan(0)
     unmount()
 
+    render(
+      <>
+        {drawEmbedToolCard.renderExpanded(
+          context({ input: { link: "javascript:alert(1)", x: 1, y: 2, width: 3, height: 4 }, parsedResult: { id: "embed-2", version: 1 } })
+        )}
+      </>
+    )
+    expect(screen.queryByRole("link")).not.toBeInTheDocument()
+    expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument()
+    expect(screen.getByText("Not a safe HTTP(S) URL")).toBeInTheDocument()
+  })
+
+  it("renders every embed field from a wrapped result and wraps long URLs", () => {
+    const longUrl = `https://example.com/${"long-segment".repeat(20)}`
+    render(
+      <>
+        {drawEmbedToolCard.renderExpanded(
+          context({
+            input: { type: "iframe", link: longUrl, x: 11, y: 22, width: 640, height: 360 },
+            parsedResult: { result: { id: "wrapped-embed", version: 9 } }
+          })
+        )}
+      </>
+    )
+    expect(screen.getByRole("link", { name: longUrl })).toHaveClass("break-all", "min-w-0")
+    for (const value of ["iframe", "11", "22", "640", "360", "wrapped-embed", "v9"]) expect(screen.getByText(value)).toBeInTheDocument()
+  })
+
+  it("renders embed empty and failure states", () => {
+    const { unmount } = render(<>{drawEmbedToolCard.renderExpanded(context({ toolName: "draw_embed" }))}</>)
+    expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
+    unmount()
+
+    render(
+      <>
+        {drawEmbedToolCard.renderExpanded(
+          context({
+            toolName: "draw_embed",
+            input: { link: "https://example.com", x: 1, y: 2, width: 3, height: 4 },
+            resultError: true,
+            resultBody: "Link could not be embedded",
+            parsedResult: { message: "Link could not be embedded" }
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("Drew embed failed")).toBeInTheDocument()
+    expect(screen.getByText("Link could not be embedded")).toBeInTheDocument()
+  })
+
+  it("renders text content as markdown", () => {
     render(
       <>
         {drawTextToolCard.renderExpanded(
