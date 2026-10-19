@@ -115,4 +115,33 @@ describe("EntityReference", () => {
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
   })
+
+  it.each([
+    [{ kind: "wakeup", id: 1 }, "WAKEUP-1", null],
+    [{ kind: "scheduled_task", id: 2 }, "TASK-2", "/scheduled_tasks/2"],
+    [{ kind: "preview_panel", id: "panel-3" }, "panel-3", null],
+    [{ kind: "memory", id: 4 }, "MEMORY-4", null],
+    [{ kind: "insight", id: 5 }, "INSIGHT-5", "/s/INSIGHT-5"],
+    [{ kind: "theme", id: 6 }, "THEME-6", null],
+    [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", null],
+    [{ kind: "whiteboard_snapshot", id: 8 }, "SNAPSHOT-8", null]
+  ] as Array<[ComponentProps<typeof EntityReference>, string, string | null]>)(
+    "renders the %s entity kind with its label and route",
+    (reference, label, href) => {
+      renderReference(reference)
+
+      if (href) expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
+      else expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument()
+      expect(screen.getByText(label)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: `Copy ${label} to clipboard` })).toBeInTheDocument()
+    }
+  )
+
+  it.each(["wakeup", "scheduled_task", "preview_panel", "memory", "insight", "theme", "walkthrough", "whiteboard_snapshot"] as ComponentProps<
+    typeof EntityReference
+  >["kind"][])("returns null for a %s reference without an id", (kind) => {
+    const { container } = renderReference({ kind })
+
+    expect(container).toBeEmptyDOMElement()
+  })
 })
