@@ -54,12 +54,18 @@ export function MarkdownPreview({
 
   if (empty) return emptyState
 
-  const lineClampStyle = {
-    display: "-webkit-box",
-    overflow: "hidden",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: Math.max(1, maxLines)
-  } as CSSProperties
+  // Source truncation and visual wrapping are deliberately coupled: a clamp
+  // is only safe when the expansion control is present. Otherwise a paragraph
+  // that merely wraps on a narrow card could hide content with no way to open
+  // it, even though it is below the source character/line limits.
+  const lineClampStyle: CSSProperties | undefined = truncated.truncated
+    ? {
+        display: "-webkit-box",
+        overflow: "hidden",
+        WebkitBoxOrient: "vertical",
+        WebkitLineClamp: Math.max(1, maxLines)
+      }
+    : undefined
   const dialogLabel = modalLabel || title || t("show_more")
 
   return (
