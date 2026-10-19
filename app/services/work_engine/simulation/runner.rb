@@ -293,6 +293,7 @@ module WorkEngine
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
           when "cycle_queued_run_job" then cycle_queued_run_job!(value)
+          when "reroute_host_rejected_run" then reroute_host_rejected_run!(value)
           when "wake" then wake_jobs_event!(tick, value)
           else raise ArgumentError, "unknown simulation event action #{key.inspect}"
           end
@@ -592,7 +593,7 @@ module WorkEngine
           )
         end
         delete_solid_queue_jobs_for_run!(run)
-        queue_job = SolidQueue::Job.create!(
+        SolidQueue::Job.create!(
           class_name: "RunJob",
           queue_name: queue_name,
           priority: attrs.fetch("priority", 10),
@@ -609,6 +610,56 @@ module WorkEngine
         end
         workflow.update_columns(updated_at: now) if workflow
         events << "cycled RunJob for #{run.slug} on #{queue_name}"
+      end
+
+      def reroute_host_rejected_run!(value)
+        attrs = value.to_h
+        run = queued_run_for_event!(attrs)
+        run.job.repository.update!(distributed_workflow_dag_enabled: true)
+        run.step.update!(placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+        rejecting_hostname = attrs.fetch("rejecting_hostname")
+        target_hostname = attrs.fetch("target_hostname")
+        shared_storage_key = attrs.fetch("worker_storage_key", "shared-storage")
+        ensure_worker_live!(rejecting_hostname, shared_storage_key)
+        ensure_worker_live!(target_hostname, shared_storage_key)
+        record_simulated_worker_health!(rejecting_hostname, shared_storage_key, critical: true)
+        record_simulated_worker_health!(target_hostname, shared_storage_key, critical: false)
+        admission = RunHostAdmission::Decision.new(
+          action: "defer",
+          reason: attrs.fetch("reason", "local_worker_pressure_critical"),
+          delay: RunHostAdmission::RETRY_DELAY,
+          details: { "hostname" => rejecting_hostname, "worker_storage_key" => shared_storage_key }
+        )
+        routing = DistributedRunAdmissionRouter.call(run: run, admission: admission)
+        raise "simulation expected a worker-specific reroute, got #{routing.inspect}" unless routing.reroute?
+
+        delete_solid_queue_jobs_for_run!(run)
+        queue_job = SolidQueue::Job.create!(
+          class_name: "RunJob",
+          queue_name: routing.queue_name,
+          priority: run.solid_queue_priority,
+          arguments: { "arguments" => [ run.id ] },
+          scheduled_at: Time.current,
+          created_at: Time.current,
+          updated_at: Time.current
+        )
+        events << "admission rerouted #{run.step.kind}:#{run.step.details.to_h['name']} from #{rejecting_hostname} to #{routing.details['routed_worker']} on #{routing.queue_name}"
+      end
+
+      def record_simulated_worker_health!(hostname, storage_key, critical:)
+        WorkerHostHealthSample.create!(
+          hostname: hostname,
+          role: "worker",
+          version: "simulation",
+          worker_storage_key: storage_key,
+          observed_at: Time.current,
+          cpu_used_percent: 5,
+          memory_used_percent: 10,
+          data_root_used_percent: 10,
+          cpu_pressure_some: critical ? 55 : 0,
+          cpu_pressure_full: critical ? 6 : 0,
+          raw_metrics: {}
+        )
       end
 
       def simulation_repository
@@ -1167,6 +1218,7 @@ module WorkEngine
           instance.last_heartbeat_at = Time.current
           instance.finished_at = nil
           instance.outcome = nil
+          instance.capabilities = { "os" => [ "linux" ], "arch" => [ "amd64" ] }
           instance.save!
         end
         return unless defined?(SolidQueue::Process)
@@ -1175,7 +1227,13 @@ module WorkEngine
           process.hostname = hostname
           process.kind = "worker"
           process.pid ||= simulated_pid_for_hostname(hostname)
-          process.metadata = { "queues" => [ "runs", "merges", Workflow.resume_queue_name(storage_key) ] }
+          process.metadata = {
+            "queues" => [
+              "runs", "merges", Workflow.resume_queue_name(storage_key),
+              WorkerStorageIdentity.dispatch_queue_name(hostname: hostname)
+            ],
+            "capabilities" => { "os" => [ "linux" ], "arch" => [ "amd64" ] }
+          }
           process.last_heartbeat_at = Time.current
           process.save!
         end

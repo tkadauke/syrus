@@ -35,7 +35,7 @@ RSpec.describe DistributedRunAdmissionRouter do
     {
       "hostname" => hostname,
       "worker_storage_key" => storage_key,
-      "queues" => [ "runs", "resume-#{storage_key}" ],
+      "queues" => [ "runs", "resume-#{storage_key}", "worker-#{hostname}" ],
       "eligible" => eligible
     }
   end
@@ -64,13 +64,37 @@ RSpec.describe DistributedRunAdmissionRouter do
     decision = described_class.call(run: run, admission: admission)
 
     expect(decision).to be_reroute
-    expect(decision.queue_name).to eq("resume-storage-b")
+    expect(decision.queue_name).to eq("worker-worker-b")
     expect(decision.delay).to be_nil
     expect(decision.details).to include(
       "rejecting_worker" => "worker-a",
       "routed_worker" => "worker-b",
       "routing_decision" => "healthy_alternative"
     )
+  end
+
+  it "uses a hostname-specific queue when eligible workers share storage" do
+    resolver_with(worker("worker-a", "shared"), worker("worker-b", "shared"))
+    sample("worker-a", cpu_pressure_some: 55, cpu_pressure_full: 6)
+    sample("worker-b")
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-b")
+    expect(decision.queue_name).not_to eq("resume-shared")
+  end
+
+  it "does not claim a targeted reroute when an alternative lacks its worker queue" do
+    alternative = worker("worker-b", "shared")
+    alternative["queues"] = %w[runs resume-shared]
+    resolver_with(worker("worker-a", "shared"), alternative)
+    sample("worker-a", cpu_pressure_some: 55, cpu_pressure_full: 6)
+    sample("worker-b")
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).not_to be_reroute
   end
 
   it "filters out workers that do not satisfy the Run's capabilities" do

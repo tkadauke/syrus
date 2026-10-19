@@ -10,6 +10,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     closed_job_active_work_unit
     codex_overload_initial_retries
     cross_epic_approved_parent_waits_for_merge
+    distributed_grader_admission_reroute_collects
     epic_chain_waits_for_operator_approval
     epic_dependency_waits_for_upstream_epic
     epic_merge_train_after_approval_events
@@ -240,6 +241,22 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(grade_steps.distinct.pluck(:loop_id)).to eq([ "grade-loop" ])
     expect(grade_steps.distinct.pluck(:iteration)).to eq([ 2 ])
     expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
+  end
+
+  it "reroutes a pressured distributed grader on shared storage and completes collection" do
+    result = run_scenario("distributed_grader_admission_reroute_collects")
+
+    expect(result).to be_success, <<~MESSAGE
+      events:
+      #{result.events.join("\n")}
+      stuck:
+      #{result.stuck_reasons.join("\n")}
+    MESSAGE
+    expect(result.events.join("\n")).to include(
+      "admission rerouted grader:lint from worker-pressured to worker-idle on worker-worker-idle",
+      "grader_collect -> {\"status\" => \"success\""
+    )
+    expect(Job.find(result.job_ids.first)).to be_implemented
   end
 
   it "rebuilds a terminal bundle train even when the poisoned workflow still owns runtime" do
