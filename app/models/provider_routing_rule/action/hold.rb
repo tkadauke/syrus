@@ -1,6 +1,5 @@
 class ProviderRoutingRule::Action::Hold < ProviderRoutingRule::Action
   RESUMPTION_MODES = ProviderRoutingHold::RESUMPTION_MODES
-
   def hold? = true
 
   def serialize
