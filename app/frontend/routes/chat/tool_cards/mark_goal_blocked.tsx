@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { displayValue, EmptyState, EntityReference, Row, SectionLabel } from "../toolCardUi"
 import { ErrorCard, MalformedCard, OptionalReason, StatusCard, successOrError } from "../chatHelperToolCard"
 
@@ -14,7 +15,7 @@ type GoalResult = {
 }
 
 function parseGoalResult(context: ToolCardContext) {
-  return successOrError<GoalResult>(context, "Goal blocked transition failed.", (parsed) => {
+  return successOrError<GoalResult>(context, i18n.t("chat:tool_card_goal_blocked_failed"), (parsed) => {
     const goalId = displayValue(parsed.goal_id)
     const status = displayValue(parsed.status)
     if (!goalId || !status) return null
@@ -55,11 +56,11 @@ function detailValue(value: unknown) {
 }
 
 function Details({ details }: { details: Record<string, unknown> | null }) {
-  if (!details || Object.keys(details).length === 0) return <EmptyState>No structured blocked details were provided.</EmptyState>
+  if (!details || Object.keys(details).length === 0) return <EmptyState>{i18n.t("chat:tool_card_goal_blocked_no_details")}</EmptyState>
 
   return (
     <details className="min-w-0 rounded border border-border bg-surface px-2 py-1 sm:col-span-2">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted">Blocked details</summary>
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:tool_card_goal_blocked_details")}</summary>
       <dl className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
         {Object.entries(details).map(([key, value]) => (
           <div className="min-w-0" key={key}>
@@ -74,50 +75,54 @@ function Details({ details }: { details: Record<string, unknown> | null }) {
 
 function collapsedSummary(context: ToolCardContext) {
   const parsed = parseGoalResult(context)
-  if (parsed.kind === "error") return "Goal blocked transition failed"
+  if (parsed.kind === "error") return i18n.t("chat:tool_card_goal_blocked_failed")
   if (parsed.kind === "malformed")
-    return requestIsPending(context) ? "Goal blocked transition pending" : "Goal blocked transition returned an unexpected response"
-  return `Goal #${parsed.data.goalId} -> ${parsed.data.status}`
+    return requestIsPending(context) ? i18n.t("chat:tool_card_goal_blocked_pending") : i18n.t("chat:tool_card_goal_blocked_unexpected")
+  return i18n.t("chat:tool_card_goal_transition_summary", { goalId: parsed.data.goalId, status: parsed.data.status })
 }
 
 function renderExpanded(context: ToolCardContext) {
   const parsed = parseGoalResult(context)
-  if (parsed.kind === "error") return <ErrorCard title="Goal blocked transition" message={parsed.message} />
+  const title = i18n.t("chat:tool_card_goal_blocked_transition")
+  if (parsed.kind === "error") return <ErrorCard title={title} message={parsed.message} />
   if (parsed.kind === "malformed") {
     if (requestIsPending(context)) {
       return (
-        <StatusCard title="Goal blocked transition" status="pending">
+        <StatusCard title={title} status="pending">
           <OptionalReason reason={inputReason(context)} />
           <Details details={inputDetails(context)} />
-          <EmptyState>Waiting for the goal transition to finish.</EmptyState>
+          <EmptyState>{i18n.t("chat:tool_card_goal_blocked_waiting")}</EmptyState>
         </StatusCard>
       )
     }
-    return <MalformedCard title="Goal blocked transition" />
+    return <MalformedCard title={title} />
   }
 
   const reason = parsed.data.reason || inputReason(context)
   const details = parsed.data.details || inputDetails(context)
-  const previousStatus = parsed.data.previousStatus || "unknown"
+  const previousStatus = parsed.data.previousStatus || i18n.t("chat:tool_card_unknown_status")
 
   return (
-    <StatusCard title="Goal blocked transition" status={parsed.data.status}>
+    <StatusCard title={title} status={parsed.data.status}>
       <dl className="grid gap-1 sm:grid-cols-2">
         <div className="min-w-0">
-          <SectionLabel>Goal</SectionLabel>
+          <SectionLabel>{i18n.t("chat:tool_card_goal")}</SectionLabel>
           {parsed.data.chatSessionId ? (
             <EntityReference
               href={parsed.data.chatPath}
               id={parsed.data.chatSessionId}
               kind="chat"
-              label={`Goal #${parsed.data.goalId}${parsed.data.chatTitle ? ` · ${parsed.data.chatTitle}` : ""}`}
+              label={i18n.t("chat:tool_card_goal_chat_label", {
+                goalId: parsed.data.goalId,
+                chatTitle: parsed.data.chatTitle ? ` · ${parsed.data.chatTitle}` : ""
+              })}
             />
           ) : (
             <div className="break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">#{parsed.data.goalId}</div>
           )}
         </div>
-        <Row label="Transition" value={`${previousStatus} -> ${parsed.data.status}`} />
-        <OptionalReason reason={reason} title="Blocked reason" />
+        <Row label={i18n.t("chat:tool_card_transition")} value={`${previousStatus} -> ${parsed.data.status}`} />
+        <OptionalReason reason={reason} title={i18n.t("chat:tool_card_goal_blocked_reason")} />
         <Details details={details} />
       </dl>
     </StatusCard>

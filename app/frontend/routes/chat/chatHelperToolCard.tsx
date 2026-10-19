@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../i18n"
 import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import type { MarkdownLinkHandler } from "../../lib/Markdown"
@@ -147,11 +148,19 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
   )
 }
 
-export function OptionalReason({ reason, onLinkClick, title = "Reason" }: { reason: string | null; onLinkClick?: MarkdownLinkHandler; title?: string }) {
+export function OptionalReason({ reason, onLinkClick, title }: { reason: string | null; onLinkClick?: MarkdownLinkHandler; title?: string }) {
   if (!reason) return null
   return (
     <div className="min-w-0 sm:col-span-2">
-      <MarkdownPreview linkifySlugs linkifyUrls maxChars={500} maxLines={4} onLinkClick={onLinkClick} text={reason} title={title} />
+      <MarkdownPreview
+        linkifySlugs
+        linkifyUrls
+        maxChars={500}
+        maxLines={4}
+        onLinkClick={onLinkClick}
+        text={reason}
+        title={title || i18n.t("chat:tool_card_reason")}
+      />
     </div>
   )
 }
