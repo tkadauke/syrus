@@ -5,7 +5,20 @@ import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatShellCommandResult, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
+import {
+  createChatBookmark,
+  createChatMessagePin,
+  deleteChatMessagePin,
+  fetchSourceFileContent,
+  sourceFileUrl,
+  type ChatMessageItem,
+  type ChatPayload,
+  type ChatRenderItem,
+  type ChatShellCommandResult,
+  type ChatStructuredTool,
+  type ChatSystemMessage,
+  type ChatToolGroupItem
+} from "../../api/chats"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -23,7 +36,16 @@ import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { NO_ARGUMENTS_SENTINEL, TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
+import {
+  NO_ARGUMENTS_SENTINEL,
+  TOOL_RESULT_PREVIEW_LINE_CHARS,
+  isPlainObject,
+  normalizedToolCardParsedResult,
+  normalizedToolName,
+  parseJsonText,
+  typedToolResult,
+  type TypedToolResult
+} from "./toolRendering"
 import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardRendererFor } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
@@ -31,16 +53,39 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
 
-
-
-
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
 // group / structured-tool / system-message renderers. ChatMessage, ImageLightbox,
 // and ToolGroup are the entry points the message stream renders. Depends only on
 // leaf modules and shared UI imports; unused header imports were pruned.
 
-export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry, onSelectWorkspaceTab }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void; onSelectWorkspaceTab?: () => void }) {
+export const ChatMessage = memo(function ChatMessage({
+  animateIn = false,
+  item,
+  payload,
+  pendingActionIds,
+  prefix,
+  queryKey,
+  readOnly = false,
+  retryText = null,
+  retrying = false,
+  onNotice,
+  onRetry,
+  onSelectWorkspaceTab
+}: {
+  animateIn?: boolean
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  pendingActionIds: Set<number>
+  prefix: string
+  queryKey: ChatQueryKey
+  readOnly?: boolean
+  retryText?: string | null
+  retrying?: boolean
+  onNotice: (message: string | null) => void
+  onRetry?: (text: string) => void
+  onSelectWorkspaceTab?: () => void
+}) {
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -76,7 +121,10 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             <div className="flex items-center justify-end gap-2 text-xs text-gray-500 dark:text-gray-400" data-testid="cross-chat-bridge-chip">
               <span aria-hidden="true">🔗</span>
               <Link className="underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
-                {t("cross_chat_bridge_link", { id: item.cross_chat_bridge.counterpart_chat_session_id, title: item.cross_chat_bridge.counterpart_chat_title || t("new_title") })}
+                {t("cross_chat_bridge_link", {
+                  id: item.cross_chat_bridge.counterpart_chat_session_id,
+                  title: item.cross_chat_bridge.counterpart_chat_title || t("new_title")
+                })}
               </Link>
             </div>
           ) : null}
@@ -98,8 +146,12 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
         <div className="space-y-3">
           <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
           <MessageImageAttachments attachments={item.attachments} />
-          {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} /> : null}
-          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
+          {!readOnly && item.proposal ? (
+            <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
+          ) : null}
+          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? (
+            <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} />
+          ) : null}
         </div>
         {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
       </SharedMessageRenderer>
@@ -130,7 +182,21 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 // The common outer message rhythm for both the live chat and read-only Run
 // transcripts. Behavior (actions, retries, navigation) stays with each caller;
 // this component owns only the responsive presentation around chat surfaces.
-export function SharedMessageRenderer({ animateClass = "", as = "article", children, id, readOnly = false, testId }: { animateClass?: string; as?: "article" | "li"; children: ReactNode; id?: string; readOnly?: boolean; testId?: string }) {
+export function SharedMessageRenderer({
+  animateClass = "",
+  as = "article",
+  children,
+  id,
+  readOnly = false,
+  testId
+}: {
+  animateClass?: string
+  as?: "article" | "li"
+  children: ReactNode
+  id?: string
+  readOnly?: boolean
+  testId?: string
+}) {
   const Component = as
   return (
     <Component
@@ -172,7 +238,9 @@ function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "
   return [
     humanMessageBubbleClass(item, payload).replace("whitespace-pre-wrap", "whitespace-normal"),
     isCurrentUserBubble(item, payload) ? "chat-prose-invert" : null
-  ].filter(Boolean).join(" ")
+  ]
+    .filter(Boolean)
+    .join(" ")
 }
 
 function isCurrentUserBubble(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
@@ -196,9 +264,7 @@ export function shouldRenderUserMarkdown(text: string) {
   const lines = normalized.split("\n")
   if (hasMarkdownTable(lines)) return true
 
-  const signalLineIndexes = lines
-    .map((line, index) => userMarkdownBlockSignal(line) ? index : null)
-    .filter((index): index is number => index !== null)
+  const signalLineIndexes = lines.map((line, index) => (userMarkdownBlockSignal(line) ? index : null)).filter((index): index is number => index !== null)
 
   if (new Set(signalLineIndexes).size >= 2) return true
   return signalLineIndexes.length > 0 && /\n\s*\n/.test(normalized)
@@ -223,14 +289,27 @@ function isMarkdownTableDivider(line: string) {
   return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line)
 }
 
-export function ChatAssistantMarkdownSurface({ compact = false, text, onLinkClick }: { compact?: boolean; text: string; onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void }) {
+export function ChatAssistantMarkdownSurface({
+  compact = false,
+  text,
+  onLinkClick
+}: {
+  compact?: boolean
+  text: string
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+}) {
   const compactClass = compact
     ? "rounded border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
     : "px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900"
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
-      <Markdown className="chat-prose break-words text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100" text={text} linkifyUrls onLinkClick={onLinkClick} />
+      <Markdown
+        className="chat-prose break-words text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100"
+        text={text}
+        linkifyUrls
+        onLinkClick={onLinkClick}
+      />
     </div>
   )
 }
@@ -271,8 +350,8 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           name={lightboxImage.name || "Image attachment"}
           nextSrc={nextLightboxImage ? attachmentDataUrl(nextLightboxImage) : null}
           onClose={() => setLightboxImageIndex(null)}
-          onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
-          onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
+          onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
           previousSrc={previousLightboxImage ? attachmentDataUrl(previousLightboxImage) : null}
           src={attachmentDataUrl(lightboxImage)}
         />
@@ -322,7 +401,20 @@ type ImageLightboxProps = {
 const LIGHTBOX_INITIAL_CONTROLS_MS = 2_000
 const LIGHTBOX_SWIPE_THRESHOLD_PX = 48
 
-export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = false, hasNext = false, previousSrc = null, nextSrc = null, imageIndex = 0, imageCount = 1, onPrevious, onNext }: ImageLightboxProps) {
+export function ImageLightbox({
+  name,
+  onClose,
+  src,
+  extraAction,
+  hasPrevious = false,
+  hasNext = false,
+  previousSrc = null,
+  nextSrc = null,
+  imageIndex = 0,
+  imageCount = 1,
+  onPrevious,
+  onNext
+}: ImageLightboxProps) {
   const { t } = useT("chat")
   const showNavigation = Boolean(onPrevious && onNext && (hasPrevious || hasNext))
   const [desktopControlsVisible, setDesktopControlsVisible] = useState(true)
@@ -385,9 +477,7 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
     if (deltaX > 0 && hasPrevious) onPrevious?.()
   }
 
-  const controlsVisibilityClass = desktopControlsVisible
-    ? "md:pointer-events-auto md:opacity-100"
-    : "md:pointer-events-none md:opacity-0"
+  const controlsVisibilityClass = desktopControlsVisible ? "md:pointer-events-auto md:opacity-100" : "md:pointer-events-none md:opacity-0"
   const mobileImageWidthClass = showNavigation ? "max-w-[calc(100vw-5rem)]" : "max-w-[calc(100vw-2rem)]"
 
   return (
@@ -402,7 +492,10 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
         onMouseLeave={hideDesktopControls}
         role="dialog"
       >
-        <div className={`absolute right-2 top-2 z-10 flex items-center gap-2 opacity-100 transition-opacity duration-150 ${controlsVisibilityClass}`} aria-label="Image preview controls">
+        <div
+          className={`absolute right-2 top-2 z-10 flex items-center gap-2 opacity-100 transition-opacity duration-150 ${controlsVisibilityClass}`}
+          aria-label="Image preview controls"
+        >
           {extraAction ? (
             <button
               className="rounded bg-white/90 px-2 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -452,18 +545,19 @@ export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = f
           onTouchEnd={handleTouchEnd}
           onTouchStart={handleTouchStart}
         >
-          {hasPrevious && previousSrc ? <img aria-hidden="true" alt="" className="absolute left-0 h-full w-10 object-cover opacity-70" src={previousSrc} /> : null}
+          {hasPrevious && previousSrc ? (
+            <img aria-hidden="true" alt="" className="absolute left-0 h-full w-10 object-cover opacity-70" src={previousSrc} />
+          ) : null}
           {hasNext && nextSrc ? <img aria-hidden="true" alt="" className="absolute right-0 h-full w-10 object-cover opacity-70" src={nextSrc} /> : null}
           <img alt={name} className={`relative z-[1] max-h-[calc(100dvh-5rem)] ${mobileImageWidthClass} object-contain`} src={src} />
         </div>
         {showNavigation && imageCount > 1 ? (
-          <div aria-label="Image carousel position" className="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1 md:hidden">
+          <div
+            aria-label="Image carousel position"
+            className="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1 md:hidden"
+          >
             {Array.from({ length: imageCount }).map((_, index) => (
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 rounded-full ${index === imageIndex ? "bg-white" : "bg-white/45"}`}
-                key={index}
-              />
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${index === imageIndex ? "bg-white" : "bg-white/45"}`} key={index} />
             ))}
           </div>
         ) : null}
@@ -491,7 +585,9 @@ export function resolveWorkspaceFileLink(href: string, payload: ChatPayload): Wo
   const pathname = workspacePathname(href)
   if (!pathname) return null
 
-  const match = pathname.match(new RegExp(`^/(?:[^/]+/)*\\.syrus/chat-workspaces/${payload.chat.id}/repositories/${escapeRegExp(owner)}/${escapeRegExp(repo)}/(.+)$`))
+  const match = pathname.match(
+    new RegExp(`^/(?:[^/]+/)*\\.syrus/chat-workspaces/${payload.chat.id}/repositories/${escapeRegExp(owner)}/${escapeRegExp(repo)}/(.+)$`)
+  )
   if (!match) return null
 
   const decoded = safeDecode(match[1])
@@ -567,12 +663,21 @@ export function shouldAnimateMessageEntrance(messageId: number | null | undefine
   return messageId > initialMaxId
 }
 
-
 // Hover-revealed toolbar for a message bubble: timestamp, copy, pin toggle,
 // and the bookmark form. A single wrapper so the pin and bookmark controls
 // share one hover/visibility group instead of each managing its own
 // absolutely-positioned overlay (which would stack and overlap).
-function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function MessageActions({
+  item,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
 
@@ -593,16 +698,32 @@ function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<C
           {formatMessageTimestamp(item.created_at)}
         </time>
       ) : null}
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={handleCopy} type="button">
+      <button
+        className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={handleCopy}
+        type="button"
+      >
         {copied ? "Copied!" : "Copy"}
       </button>
       {item.pinnable ? <PinControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      {item.bookmarkable ? <BookmarkControl item={item} payload={payload} queryKey={queryKey} open={bookmarkFormOpen} onOpenChange={setBookmarkFormOpen} onNotice={onNotice} /> : null}
+      {item.bookmarkable ? (
+        <BookmarkControl item={item} payload={payload} queryKey={queryKey} open={bookmarkFormOpen} onOpenChange={setBookmarkFormOpen} onNotice={onNotice} />
+      ) : null}
     </div>
   )
 }
 
-function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function PinControl({
+  item,
+  payload,
+  queryKey,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -612,7 +733,7 @@ function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatR
   const pinned = pinsQuery.data?.pins.some((pin) => pin.chat_message_id === item.id) ?? false
 
   const togglePin = useMutation({
-    mutationFn: () => pinned ? deleteChatMessagePin(pinsPath, item.id) : createChatMessagePin(pinsPath, item.id),
+    mutationFn: () => (pinned ? deleteChatMessagePin(pinsPath, item.id) : createChatMessagePin(pinsPath, item.id)),
     onSuccess: () => {
       onNotice(null)
       void queryClient.invalidateQueries({ queryKey: pinsQueryKey })
@@ -635,7 +756,21 @@ function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatR
   )
 }
 
-function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; open: boolean; onOpenChange: (open: boolean) => void; onNotice: (message: string | null) => void }) {
+function BookmarkControl({
+  item,
+  payload,
+  queryKey,
+  open,
+  onOpenChange,
+  onNotice
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  queryKey: ChatQueryKey
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -658,19 +793,30 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 
   return (
     <div className="relative" ref={menuRef}>
-      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => onOpenChange(!open)} type="button">
+      <button
+        className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={() => onOpenChange(!open)}
+        type="button"
+      >
         Bookmark
       </button>
       {open ? (
-        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+        <form
+          className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          onSubmit={submit}
+        >
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
             Label
             <Input className="mt-1" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
           </label>
           {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
           <div className="flex justify-end gap-2">
-            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => onOpenChange(false)} type="button">{t("cancel")}</button>
-            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">{t("save")}</button>
+            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => onOpenChange(false)} type="button">
+              {t("cancel")}
+            </button>
+            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">
+              {t("save")}
+            </button>
           </div>
         </form>
       ) : null}
@@ -704,7 +850,23 @@ function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResu
   )
 }
 
-export function ChatCommandOutputSurface({ command, compact = false, emptyLabel, exitStatus, outcome, output, testId = "shell-command-card" }: { command: string; compact?: boolean; emptyLabel: string; exitStatus?: number | null; outcome?: string | null; output?: string | null; testId?: string }) {
+export function ChatCommandOutputSurface({
+  command,
+  compact = false,
+  emptyLabel,
+  exitStatus,
+  outcome,
+  output,
+  testId = "shell-command-card"
+}: {
+  command: string
+  compact?: boolean
+  emptyLabel: string
+  exitStatus?: number | null
+  outcome?: string | null
+  output?: string | null
+  testId?: string
+}) {
   const { t } = useT("chat")
   const outcomeTone = (outcome && SHELL_COMMAND_OUTCOME_TONE[outcome]) || "bg-gray-700/40 text-gray-300"
   const paddingClass = compact ? "px-3 py-2" : "px-3 py-2"
@@ -714,12 +876,18 @@ export function ChatCommandOutputSurface({ command, compact = false, emptyLabel,
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid={testId}>
       <div className="flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-1.5 text-xs">
-        <span aria-hidden="true" className="shrink-0 text-gray-500">$</span>
+        <span aria-hidden="true" className="shrink-0 text-gray-500">
+          $
+        </span>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-200">{command}</span>
         {exitStatus != null ? <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: exitStatus })}</span> : null}
-        {outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${outcome}`)}</span> : null}
+        {outcome ? (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${outcome}`)}</span>
+        ) : null}
       </div>
-      <pre className={`${maxHeightClass} ${paddingClass} min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]`}>
+      <pre
+        className={`${maxHeightClass} ${paddingClass} min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed [overflow-wrap:anywhere]`}
+      >
         {outputText ? <AnsiText text={outputText} /> : <span className="italic text-gray-500">{emptyLabel}</span>}
       </pre>
     </div>
@@ -729,18 +897,34 @@ export function ChatCommandOutputSurface({ command, compact = false, emptyLabel,
 export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroupItem }) {
   const [open, setOpen] = useState(false)
 
-  const details = item.calls.map((call) => [toolCardAwareResultSummary(call), informativeDetail(call.detail)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.calls
+    .map((call) => [toolCardAwareResultSummary(call), informativeDetail(call.detail)].filter(Boolean).join(" · "))
+    .filter(Boolean)
+    .join(", ")
   const summary = item.summary_label || item.tool
-  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
+  const outcome =
+    item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+      <summary
+        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+        onClick={(event) => {
+          event.preventDefault()
+          setOpen((value) => !value)
+        }}
+      >
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
-        <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
+        <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
+          {outcome}
+        </Pill>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
-        {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
+        {item.calls.length > 1 ? (
+          <Pill className="ml-auto text-xs" tone="neutral">
+            {item.calls.length}
+          </Pill>
+        ) : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => {
@@ -748,10 +932,21 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
           const resultSummary = toolCardAwareResultSummary(call)
           return (
             <div key={call.message_id}>
-              <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
+              <div className="break-words font-mono text-gray-700 dark:text-gray-300">
+                {call.display_label || item.tool}
+                {detail ? `(${detail})` : ""}
+              </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
-              {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
+              {expanded ? (
+                <RawToolDetails
+                  payload={{
+                    name: call.raw_name,
+                    input: call.raw_payload,
+                    result: call.result_json !== undefined ? call.result_json : call.result_body || null
+                  }}
+                />
+              ) : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
@@ -830,7 +1025,7 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
 
   return {
     toolName: toolCardName(call),
-    input: isPlainObject(call.raw_payload) ? redactToolCardValue(call.raw_payload) as Record<string, unknown> : {},
+    input: isPlainObject(call.raw_payload) ? (redactToolCardValue(call.raw_payload) as Record<string, unknown>) : {},
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
@@ -847,9 +1042,7 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
   switch (result.type) {
     case "success_row":
       return (
-        <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
-          {redactToolCardText(result.label)}
-        </div>
+        <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">{redactToolCardText(result.label)}</div>
       )
   }
 }
@@ -867,7 +1060,9 @@ function RawToolDetails({ payload }: { payload: unknown }) {
       </summary>
       {open ? (
         <div className="mt-1 space-y-2">
-          <Text as="div" variant="caption" tone="muted">Secret-like values are redacted before display and copy.</Text>
+          <Text as="div" variant="caption" tone="muted">
+            Secret-like values are redacted before display and copy.
+          </Text>
           <CodeSurface code={rawText} copyLabel="Copy" lang="json" />
         </div>
       ) : null}
@@ -878,7 +1073,12 @@ function RawToolDetails({ payload }: { payload: unknown }) {
 function HighlightedToolResult({ code, detail, error }: { code: string; detail: string; error: boolean }) {
   const language = toolResultLanguage(detail)
   const lang = language && !error && !hasLongLine(code) ? language : null
-  if (!lang) return <CodeSurface className={`mt-1 ${error ? "border-danger-border" : ""}`} code={code} maxHeightClassName="max-h-72">{code}</CodeSurface>
+  if (!lang)
+    return (
+      <CodeSurface className={`mt-1 ${error ? "border-danger-border" : ""}`} code={code} maxHeightClassName="max-h-72">
+        {code}
+      </CodeSurface>
+    )
   return <CodeSurface className={`mt-1 ${error ? "border-danger-border" : ""}`} code={code} lang={lang} maxHeightClassName="max-h-72" />
 }
 
@@ -898,21 +1098,55 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
   const argumentSummary = tool?.argument_summary ? redactToolCardText(tool.argument_summary) : null
   const resultSummary = tool?.result_summary ? redactToolCardText(tool.result_summary) : null
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+    <details
+      className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      open={open}
+    >
+      <summary
+        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100"
+        onClick={(event) => {
+          event.preventDefault()
+          setOpen((value) => !value)
+        }}
+      >
         <span className="text-gray-400 dark:text-gray-500">▸</span>
         <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
-        {outcome ? <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : "neutral"}>{outcome}</Pill> : null}
+        {outcome ? (
+          <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : "neutral"}>
+            {outcome}
+          </Pill>
+        ) : null}
         {argumentSummary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{argumentSummary}</span> : null}
         {resultSummary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</span> : null}
-        {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
+        {tool?.proposal_id ? (
+          <span className="text-gray-600 dark:text-gray-400">
+            Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}
+          </span>
+        ) : null}
       </summary>
-      {open ? <div className="px-3 pb-3"><RawToolDetails payload={{ name: tool?.raw_name || tool?.name || name, input: tool?.raw_payload || null, result: tool?.payload || fallback }} /></div> : null}
+      {open ? (
+        <div className="px-3 pb-3">
+          <RawToolDetails payload={{ name: tool?.raw_name || tool?.name || name, input: tool?.raw_payload || null, result: tool?.payload || fallback }} />
+        </div>
+      ) : null}
     </details>
   )
 }
 
-export function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
+export function SystemMessage({
+  item,
+  prefix,
+  retryText,
+  retrying = false,
+  onRetry
+}: {
+  item: ChatSystemMessage
+  prefix: string
+  retryText?: string | null
+  retrying?: boolean
+  onRetry?: (text: string) => void
+}) {
   const { t } = useT("chat")
   const [expanded, setExpanded] = useState(false)
   const canRetry = item.tone === "error" && Boolean(retryText) && Boolean(onRetry)
@@ -924,7 +1158,10 @@ export function SystemMessage({ item, prefix, retryText, retrying = false, onRet
   if (item.prominent) {
     return (
       <div className="flex justify-center">
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
+        <div
+          className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`}
+          role={item.tone === "error" ? "alert" : "status"}
+        >
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           <div className="mt-2 flex items-center gap-3">
@@ -934,7 +1171,12 @@ export function SystemMessage({ item, prefix, retryText, retrying = false, onRet
               </Link>
             ) : null}
             {canRetry ? (
-              <button className="inline-block font-medium underline hover:no-underline disabled:opacity-60" disabled={retrying} onClick={handleRetry} type="button">
+              <button
+                className="inline-block font-medium underline hover:no-underline disabled:opacity-60"
+                disabled={retrying}
+                onClick={handleRetry}
+                type="button"
+              >
                 {retrying ? t("system_message_retrying") : t("system_message_retry")}
               </button>
             ) : null}
@@ -948,7 +1190,9 @@ export function SystemMessage({ item, prefix, retryText, retrying = false, onRet
     <div className="flex flex-col items-center justify-center gap-1">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 flex-1 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
+        <span className="min-w-0 flex-1 truncate" data-testid="system-message-summary">
+          {linkifySlugs(item.body, { jobStyle: "copyable" })}
+        </span>
         {item.cta ? (
           <Link className="min-w-0 max-w-[45%] shrink truncate font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
@@ -970,7 +1214,10 @@ export function SystemMessage({ item, prefix, retryText, retrying = false, onRet
         </button>
       </div>
       {expanded ? (
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} data-testid="system-message-details">
+        <div
+          className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`}
+          data-testid="system-message-details"
+        >
           {item.body_format === "markdown" ? (
             <Markdown className="break-words leading-relaxed" text={item.body} linkifyUrls />
           ) : (
