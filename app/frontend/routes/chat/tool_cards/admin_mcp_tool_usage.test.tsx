@@ -32,12 +32,8 @@ const POPULATED_PAYLOAD = {
     { surface: "chat", calls: 30, errors: 2, error_rate: 0.0667 },
     { surface: "workflow", calls: 12, errors: 1, error_rate: 0.0833 }
   ],
-  provider_breakdown: [
-    { provider: "codex", calls: 42, errors: 3, error_rate: 0.0714 }
-  ],
-  server_breakdown: [
-    { server_name: "syrus-chat-sidecar", calls: 42, errors: 3, error_rate: 0.0714 }
-  ],
+  provider_breakdown: [{ provider: "codex", calls: 42, errors: 3, error_rate: 0.0714 }],
+  server_breakdown: [{ server_name: "syrus-chat-sidecar", calls: 42, errors: 3, error_rate: 0.0714 }],
   sidecar_mode_breakdown: [
     { sidecar_mode: "persistent", calls: 35, errors: 2, error_rate: 0.0571 },
     { sidecar_mode: "stdio", calls: 7, errors: 1, error_rate: 0.1429 }
@@ -269,10 +265,26 @@ describe("admin_mcp_tool_usage tool card", () => {
   })
 
   it("shows active filters in the expanded card", () => {
-    render(<>{adminMcpToolUsageToolCard.renderExpanded(context({
-      input: { surface: "workflow", window: "7d", since: "2h", start: "start-value", end: "end-value", limit: 10, recent_limit: 5, tool: "read_job", server: "sidecar" },
-      parsedResult: POPULATED_PAYLOAD
-    }))}</>)
+    render(
+      <>
+        {adminMcpToolUsageToolCard.renderExpanded(
+          context({
+            input: {
+              surface: "workflow",
+              window: "7d",
+              since: "2h",
+              start: "start-value",
+              end: "end-value",
+              limit: 10,
+              recent_limit: 5,
+              tool: "read_job",
+              server: "sidecar"
+            },
+            parsedResult: POPULATED_PAYLOAD
+          })
+        )}
+      </>
+    )
 
     expect(screen.getAllByText("tool: read_job")).toHaveLength(2)
     expect(screen.getByText("server: syrus-chat-sidecar")).toBeInTheDocument()
@@ -319,7 +331,7 @@ describe("admin_mcp_tool_usage tool card", () => {
 
     expect(screen.getByText("Volume priorities")).toBeInTheDocument()
     const rawText = rawDetails.querySelector("pre")?.textContent || ""
-    expect(rawText).toContain("\"input\"")
+    expect(rawText).toContain('"input"')
     expect(rawText).toContain("admin_clear_github_cache")
     expect(rawText).not.toContain("input-secret-123456")
     expect(rawText).toContain("[redacted]")
