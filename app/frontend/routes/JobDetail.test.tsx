@@ -2012,7 +2012,10 @@ describe("JobDetailView", () => {
     const fetchSpy = vi.spyOn(window, "fetch")
     const payload = jobPayload({
       job: {
-        ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "placement_confirmation",
+        ...baseJob(),
+        state: "triaging",
+        summary_state: "triaging",
+        triaging_reason: "placement_confirmation",
         placement_recommendation: {
           profile: "macos_desktop",
           capabilities: { os: ["macos"], arch: ["arm64"] },
@@ -2259,19 +2262,25 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start chat" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/start_chat", expect.objectContaining({
-        body: JSON.stringify({ message: "Please explain what is blocked." }),
-        method: "POST"
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/start_chat",
+        expect.objectContaining({
+          body: JSON.stringify({ message: "Please explain what is blocked." }),
+          method: "POST"
+        })
+      )
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/9")
     })
   })
 
   it("disables the discussion chat prompt actions while creation is pending", async () => {
     let resolveStartChat: (response: Response) => void = () => {}
-    vi.spyOn(window, "fetch").mockImplementation(() => new Promise((resolve) => {
-      resolveStartChat = resolve
-    }))
+    vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStartChat = resolve
+        })
+    )
     const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
 
     renderJobDetail(payload)
@@ -2679,25 +2688,37 @@ describe("JobDetailView", () => {
 
   it("renders retry and acknowledge controls for a failed post-implementation review", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Review retry enqueued." }))
-    renderJobDetail(jobPayload({
-      workflows: [workflow({ id: 8, steps: [step({
-        id: 13,
-        kind: "post_implementation_review",
-        display_name: "Post-implementation review",
-        warnings: [{
-          id: 5,
-          kind: "post_implementation_review_failed",
-          severity: "medium",
-          title: "Post-implementation review did not produce notes",
-          evidence: { required_mcp_tools: ["submit_review_notes"] },
-          suggested_prompt: null,
-          state: "pending",
-          created_job_id: null,
-          created_at: null
-        }]
-      })] })],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 8,
+            steps: [
+              step({
+                id: 13,
+                kind: "post_implementation_review",
+                display_name: "Post-implementation review",
+                warnings: [
+                  {
+                    id: 5,
+                    kind: "post_implementation_review_failed",
+                    severity: "medium",
+                    title: "Post-implementation review did not produce notes",
+                    evidence: { required_mcp_tools: ["submit_review_notes"] },
+                    suggested_prompt: null,
+                    state: "pending",
+                    created_job_id: null,
+                    created_at: null
+                  }
+                ]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Post-implementation review/ }))
     const warningTitle = screen.getByText("Post-implementation review did not produce notes")
@@ -2708,10 +2729,7 @@ describe("JobDetailView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry review" }))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/workflow_warnings/5/retry_review",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/workflow_warnings/5/retry_review", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -2719,25 +2737,37 @@ describe("JobDetailView", () => {
     ["retry_succeeded", "Resolved after successful retry"],
     ["skipped", "Acknowledged and skipped"]
   ])("renders a %s post-implementation review as resolved without actions", (resolution, label) => {
-    renderJobDetail(jobPayload({
-      workflows: [workflow({ id: 8, steps: [step({
-        id: 13,
-        kind: "post_implementation_review",
-        display_name: "Post-implementation review",
-        warnings: [{
-          id: 5,
-          kind: "post_implementation_review_failed",
-          severity: "medium",
-          title: "Post-implementation review did not produce notes",
-          evidence: { resolution, resolved_at: "2026-10-15T12:00:00Z" },
-          suggested_prompt: null,
-          state: "dismissed",
-          created_job_id: null,
-          created_at: null
-        }]
-      })] })],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows" })
+    renderJobDetail(
+      jobPayload({
+        workflows: [
+          workflow({
+            id: 8,
+            steps: [
+              step({
+                id: 13,
+                kind: "post_implementation_review",
+                display_name: "Post-implementation review",
+                warnings: [
+                  {
+                    id: 5,
+                    kind: "post_implementation_review_failed",
+                    severity: "medium",
+                    title: "Post-implementation review did not produce notes",
+                    evidence: { resolution, resolved_at: "2026-10-15T12:00:00Z" },
+                    suggested_prompt: null,
+                    state: "dismissed",
+                    created_job_id: null,
+                    created_at: null
+                  }
+                ]
+              })
+            ]
+          })
+        ],
+        workflows_pagination: workflowPagination(1)
+      }),
+      { activeTab: "workflows" }
+    )
 
     fireEvent.click(screen.getByRole("button", { name: /Post-implementation review/ }))
 
@@ -3261,11 +3291,13 @@ describe("JobDetailRoute", () => {
       if (path === "/api/v1/app/jobs/1/workflows") return Promise.resolve(jsonResponse(workflowsPayload))
       if (path === "/api/v1/app/jobs/1/approve") {
         approved = true
-        return Promise.resolve(jsonResponse({
-          message: "Job approved.",
-          job: { id: 1, state: "approved", summary_state: "approved" },
-          actions: approvedActions
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            message: "Job approved.",
+            job: { id: 1, state: "approved", summary_state: "approved" },
+            actions: approvedActions
+          })
+        )
       }
       return Promise.reject(new Error(`unexpected fetch ${path}`))
     })
@@ -5067,10 +5099,7 @@ describe("Job Detail keyboard shortcuts", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1/retry_implementation",
-        expect.objectContaining({ method: "POST", body: JSON.stringify({}) })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry_implementation", expect.objectContaining({ method: "POST", body: JSON.stringify({}) }))
     })
   })
 
