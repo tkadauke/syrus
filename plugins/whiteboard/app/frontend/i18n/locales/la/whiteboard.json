@@ -12,6 +12,7 @@
   "tool_field_type": "Typus",
   "tool_field_width": "Latitudo",
   "tool_field_height": "Altitudo",
+  "tool_field_id": "ID elementi",
   "tool_field_from": "Ab",
   "tool_field_to": "Ad",
   "tool_field_label": "Titulus",

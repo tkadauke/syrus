@@ -12,6 +12,7 @@
   "tool_field_type": "Typ",
   "tool_field_width": "Breite",
   "tool_field_height": "Hoehe",
+  "tool_field_id": "Element-ID",
   "tool_field_from": "Von",
   "tool_field_to": "Zu",
   "tool_field_label": "Label",

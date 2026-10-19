@@ -41,6 +41,7 @@ const INPUT_FIELDS: { key: string; label: string }[] = [
   { key: "y", label: "Y" },
   { key: "width", label: "tool_field_width" },
   { key: "height", label: "tool_field_height" },
+  { key: "id", label: "tool_field_id" },
   { key: "from_id", label: "tool_field_from" },
   { key: "to_id", label: "tool_field_to" },
   { key: "label", label: "tool_field_label" },
@@ -68,11 +69,14 @@ function inputDetails(input: Record<string, unknown> | undefined) {
 
   return INPUT_FIELDS.flatMap(({ key, label }) => {
     const raw = input[key]
-    const value = Array.isArray(raw)
-      ? t("tool_points_count", { count: raw.length })
-      : typeof raw === "boolean"
-        ? t(raw ? "tool_yes" : "tool_no")
-        : displayValue(raw)
+    const value =
+      key === "points" && Array.isArray(raw)
+        ? t("tool_points_count", { count: raw.length })
+        : Array.isArray(raw)
+          ? raw.map(String).join(", ")
+          : typeof raw === "boolean"
+            ? t(raw ? "tool_yes" : "tool_no")
+            : displayValue(raw)
     return value ? [{ key, label: label.length === 1 ? label : t(label), value }] : []
   })
 }
