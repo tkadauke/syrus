@@ -128,7 +128,8 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending",
     label: "Attachment pending",
-    input: { slug: "tkadauke/syrus" }
+    input: { slug: "tkadauke/syrus" },
+    resultBody: ""
   }
 ]
 
