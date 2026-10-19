@@ -4079,6 +4079,14 @@ describe("ArtifactsTab", () => {
     expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "27")
     fireEvent.keyDown(screen.getByRole("slider"), { key: "End" })
     expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "100")
+    expect(screen.getByTestId("visual-before-layer")).toHaveStyle({ clipPath: "inset(0 0 0 100%)" })
+    expect(screen.getByTestId("visual-comparison-handle")).toHaveClass("left-[clamp(1.625rem,var(--comparison-position),calc(100%_-_1.625rem))]")
+    expect(screen.getByTestId("visual-comparison-handle")).toHaveStyle({ "--comparison-position": "100%" })
+
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "Home" })
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "0")
+    expect(screen.getByTestId("visual-before-layer")).toHaveStyle({ clipPath: "inset(0 0 0 0%)" })
+    expect(screen.getByTestId("visual-comparison-handle")).toHaveStyle({ "--comparison-position": "0%" })
   })
 
   it("opens a preview on tap and cycles labeled images with controls, keyboard, and swipe", () => {
