@@ -161,6 +161,37 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.queryByText("After")).not.toBeInTheDocument()
     expect(screen.getByText("rejected")).toBeInTheDocument()
     expect(screen.getByText("Approval rejected.")).toBeInTheDocument()
+    expect(approveJobCard.collapsedSummary?.(rejected)).toBe("Approve Job rejected · JOB-47")
+  })
+
+  it("uses terminal live outcomes in collapsed summaries", () => {
+    const pending = context("approve_job", {
+      input: { job_id: 49 },
+      parsedResult: { pending_action_id: 12, state: "pending", message: "Awaiting confirmation." }
+    })
+    const livePendingAction = {
+      id: 12,
+      action: "approve_job",
+      label: "Approve Job",
+      detail: null,
+      app_confirm_path: "/confirm",
+      app_reject_path: "/reject"
+    }
+    const failed = context("approve_job", {
+      ...pending,
+      livePendingAction: { ...livePendingAction, state: "failed", execution_error: "Approval execution failed." }
+    })
+    const cancelled = context("approve_job", {
+      ...pending,
+      livePendingAction: { ...livePendingAction, state: "cancelled", reason: "Approval cancelled." }
+    })
+
+    expect(approveJobCard.collapsedSummary?.(failed)).toBe("Approve Job failed · JOB-49")
+    expect(approveJobCard.collapsedSummary?.(cancelled)).toBe("Approve Job cancelled · JOB-49")
+
+    render(<>{approveJobCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("failed").parentElement).toHaveClass("bg-danger-surface")
+    expect(screen.getByText("Approval execution failed.")).toBeInTheDocument()
   })
 
   it("shows the executed transition from a live pending action snapshot", () => {
@@ -240,7 +271,7 @@ describe("Job and Epic maintenance tool cards", () => {
     })
 
     expect(approveJobCard.collapsedSummary?.(approve)).toBe("Approval requested · 3 JOBs · pending group #5")
-    expect(unapproveJobCard.collapsedSummary?.(unapprove)).toBe("Unapproval requested · 2 JOBs · pending group #6")
+    expect(unapproveJobCard.collapsedSummary?.(unapprove)).toBe("Unapprove Job rejected · 2 JOBs")
   })
 
   it("renders archive, backlog, and start Epic transitions", () => {

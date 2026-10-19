@@ -179,9 +179,10 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const pendingId = pendingIdFromResult
   const pendingGroupId = firstValue(result.pending_action_group_id)
   const memberCount = numberValue(result.member_count)
-  const failed = context.resultError || displayValue(frozenResult.error) != null
+  const reportedFailure = context.resultError || displayValue(frozenResult.error) != null
   const message = errorMessage(context) || firstValue(liveMatch?.execution_error, liveMatch?.reason, result.message)
-  const state = firstValue(liveMatch?.state, failed ? "failed" : null, result.state, result.new_state, pendingId ? "pending" : "success") || "success"
+  const state = firstValue(liveMatch?.state, reportedFailure ? "failed" : null, result.state, result.new_state, pendingId ? "pending" : "success") || "success"
+  const failed = reportedFailure || state === "failed"
   const transitionSucceeded = !pendingId || ["confirmed", "executed", "succeeded", "success"].includes(state)
   const hasNewState = transitionSucceeded && displayValue(result.new_state) != null
   const hasRecognizedResult = [
@@ -238,17 +239,21 @@ export function jobEpicMaintenanceCollapsedSummary(context: ToolCardContext) {
   if (!card) return null
 
   const target = targetSummary(card)
-  const awaitingConfirmation = !card.hasNewState && Boolean(card.pendingGroupId || card.pendingId || card.state === "pending")
+  const awaitingConfirmation = ["queued", "pending", "confirming"].includes(card.state)
   const action = card.failed
     ? `${card.definition.actionLabel} failed`
     : awaitingConfirmation && card.definition.pendingVerb
       ? card.definition.pendingVerb
-      : card.definition.verb
-  const pending = card.pendingGroupId
-    ? `pending group #${card.pendingGroupId}`
-    : card.pendingId
-      ? `pending #${card.pendingId}`
-      : null
+      : ["rejected", "cancelled", "canceled"].includes(card.state)
+        ? `${card.definition.actionLabel} ${card.state}`
+        : card.definition.verb
+  const pending = awaitingConfirmation
+    ? card.pendingGroupId
+      ? `pending group #${card.pendingGroupId}`
+      : card.pendingId
+        ? `pending #${card.pendingId}`
+        : null
+    : null
   return [action, target, pending].filter(Boolean).join(" · ")
 }
 
