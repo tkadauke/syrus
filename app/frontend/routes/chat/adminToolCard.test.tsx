@@ -24,7 +24,7 @@ describe("admin tool card table", () => {
   it("adds mobile labels, wrapping, prominence, and touch targets when opted in", () => {
     render(
       <Table responsive>
-        <THead columns={["Run", "Message"]} />
+        <THead columns={["Run", "GitHub installation ID"]} />
         <TBody>
           <tr>
             <Td mono primary>
@@ -42,7 +42,9 @@ describe("admin tool card table", () => {
     expect(primaryCell).toHaveAttribute("data-label", "Run")
     expect(primaryCell).toHaveTextContent("RunRUN-1")
     expect(primaryCell).toHaveClass("font-semibold")
-    expect(screen.getByText("A long diagnostic message")).toHaveClass("whitespace-normal", "break-words")
+    const diagnosticCell = screen.getByText("A long diagnostic message").closest("td")
+    expect(diagnosticCell).toHaveClass("whitespace-normal", "break-words")
+    expect(diagnosticCell?.querySelector(":scope > span")).toHaveClass("min-w-0", "whitespace-normal", "break-words", "[overflow-wrap:anywhere]")
     expect(screen.getByRole("link", { name: "RUN-1" }).closest("td")).toHaveClass("[&_a]:min-h-11")
   })
 })

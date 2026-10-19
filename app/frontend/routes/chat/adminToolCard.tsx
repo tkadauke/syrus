@@ -116,6 +116,11 @@ const RESPONSIVE_CELL_CLASSES = [
   "[&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center sm:[&_a]:min-h-0"
 ].join(" ")
 
+const RESPONSIVE_LABEL_CLASSES = [
+  "min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]",
+  "text-2xs font-medium uppercase leading-tight tracking-wide text-text-muted sm:hidden"
+].join(" ")
+
 export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean }) {
   const header = Children.toArray(children).find((child) => isValidElement<{ columns: string[] }>(child) && child.type === THead)
   const columns = isValidElement<{ columns: string[] }>(header) ? header.props.columns : []
@@ -208,7 +213,7 @@ export function Td({
       data-label={responsiveLabel ?? undefined}
       title={title}
     >
-      {responsiveLabel ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{responsiveLabel}</span> : null}
+      {responsiveLabel ? <span className={RESPONSIVE_LABEL_CLASSES}>{responsiveLabel}</span> : null}
       {children}
     </DataTable.Cell>
   )
