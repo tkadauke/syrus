@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
@@ -23,10 +27,10 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an empty state for whitespace-only text", () => {
+    render(<MarkdownPreview emptyLabel="Nothing was written." text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText("Nothing was written.")).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
@@ -41,5 +45,15 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("honors a character limit and offers a modal copy action", () => {
+    const text = "Long content ".repeat(20)
+    render(<MarkdownPreview maxChars={20} text={text} title="Notes" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Notes" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy Notes" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
   })
 })
