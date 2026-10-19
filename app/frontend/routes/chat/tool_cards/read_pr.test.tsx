@@ -73,6 +73,25 @@ describe("read_pr tool card", () => {
     expect(screen.getByText("Diff truncated — 588,820 bytes omitted")).toBeInTheDocument()
   })
 
+  it("decodes Git-quoted changed paths and uses rename destinations", () => {
+    const diff = [
+      'diff --git "a/lib/caf\\303\\251.rb" "b/lib/caf\\303\\251.rb"',
+      'diff --git "a/old\\tname.rb" "b/new\\tname.rb"',
+      "similarity index 100%",
+      'rename from "old\\tname.rb"',
+      'rename to "new\\tname.rb"'
+    ].join("\n")
+    const parsedResult = {
+      pr: { number: 7, state: "open", html_url: "https://github.com/tkadauke/syrus/pull/7", diff: { text: diff, truncated: false, bytes: diff.length } }
+    }
+
+    render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByRole("link", { name: "lib/café.rb" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/7/files")
+    expect(screen.getByRole("link", { name: "new\tname.rb" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/7/files")
+    expect(screen.queryByText("old\tname.rb")).not.toBeInTheDocument()
+  })
+
   it("shows explicit empty body and empty diff states", () => {
     const parsedResult = { pr: { number: 7, title: "Empty", body: "", state: "open", diff: { text: "", truncated: false, bytes: 0 } } }
     render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)

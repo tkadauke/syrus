@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
+import { changedFilePathsFromUnifiedDiff } from "../../../components/diff/diffRendering"
 import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 import { MarkdownPreview } from "../toolCardMarkdown"
@@ -70,17 +71,6 @@ function repositoryFromPrUrl(prUrl: string | null) {
   return match ? { url: match[1], slug: match[2] } : null
 }
 
-function changedFiles(diff: string) {
-  return Array.from(
-    new Set(
-      diff.split("\n").flatMap((line) => {
-        const match = line.match(/^diff --git a\/(.+) b\/(.+)$/)
-        return match ? [match[2]] : []
-      })
-    )
-  )
-}
-
 function collapsedSummary(context: ToolCardContext) {
   const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
   if (failureSummary) return failureSummary
@@ -95,6 +85,7 @@ function renderExpanded(context: ToolCardContext) {
 
   const pr = parsePr(context)
   if (!pr) return null
+  const changedFiles = pr.diff ? changedFilePathsFromUnifiedDiff(pr.diff.text) : []
 
   return (
     <CardShell>
@@ -120,11 +111,11 @@ function renderExpanded(context: ToolCardContext) {
                 <span>Diff truncated{pr.diff.omittedBytes != null ? ` — ${pr.diff.omittedBytes.toLocaleString()} bytes omitted` : ""}</span>
               ) : null}
             </div>
-            {changedFiles(pr.diff.text).length > 0 ? (
+            {changedFiles.length > 0 ? (
               <div className="min-w-0">
                 <SectionLabel>Changed files</SectionLabel>
                 <ul className="mt-1 space-y-1">
-                  {changedFiles(pr.diff.text).map((path) => (
+                  {changedFiles.map((path) => (
                     <li className="min-w-0 break-all text-xs" key={path}>
                       {pr.htmlUrl ? <InternalLink href={`${pr.htmlUrl}/files`}>{path}</InternalLink> : path}
                     </li>

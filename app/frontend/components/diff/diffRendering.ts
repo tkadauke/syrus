@@ -53,6 +53,56 @@ export function splitLines(text: string): string[] {
   return rawLines
 }
 
+export function changedFilePathsFromUnifiedDiff(diff: string): string[] {
+  const paths = splitLines(diff).flatMap((line) => {
+    if (!line.startsWith("diff --git ")) return []
+    const header = line.slice("diff --git ".length)
+    const unquoted = header.match(/^a\/(.+) b\/(.+)$/)
+    if (unquoted) return [unquoted[2]]
+
+    const source = readQuotedGitPath(header, 0)
+    if (!source) return []
+    const destination = readQuotedGitPath(header, source.end)
+    return destination?.path.startsWith("b/") ? [destination.path.slice(2)] : []
+  })
+  return Array.from(new Set(paths))
+}
+
+function readQuotedGitPath(value: string, start: number): { path: string; end: number } | null {
+  let index = start
+  while (value[index] === " ") index += 1
+  if (value[index] !== '"') return null
+
+  const bytes: number[] = []
+  const encoder = new TextEncoder()
+  index += 1
+  while (index < value.length && value[index] !== '"') {
+    if (value[index] !== "\\") {
+      const character = String.fromCodePoint(value.codePointAt(index)!)
+      bytes.push(...encoder.encode(character))
+      index += character.length
+      continue
+    }
+
+    index += 1
+    const octal = value.slice(index).match(/^[0-7]{1,3}/)?.[0]
+    if (octal) {
+      bytes.push(Number.parseInt(octal, 8))
+      index += octal.length
+      continue
+    }
+
+    const escaped = value[index]
+    if (escaped == null) return null
+    const decoded = ({ a: "\x07", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v", "\\": "\\", '"': '"' } as Record<string, string>)[escaped] ?? escaped
+    bytes.push(...encoder.encode(decoded))
+    index += 1
+  }
+
+  if (value[index] !== '"') return null
+  return { path: new TextDecoder().decode(Uint8Array.from(bytes)), end: index + 1 }
+}
+
 // The one non-`+`/`-`/leading-space/`@@`/`diff --git` line unified diffs are
 // expected to contain: git (and most patch producers) emit this immediately
 // after the last line of a hunk when that line has no trailing newline in
