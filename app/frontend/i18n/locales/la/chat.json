@@ -657,5 +657,18 @@
   "tool_card_open_prs_mergeable": "coniungibilis",
   "tool_card_open_prs_conflicts": "conflictus",
   "tool_card_open_prs_empty": "Nullae petitiones extrahendi inventae sunt.",
-  "tool_card_open_prs_error": "Petitiones extrahendi enumerari non potuerunt."
+  "tool_card_open_prs_error": "Petitiones extrahendi enumerari non potuerunt.",
+  "tool_card_classify_pr_failed": "Classificatio postulationis extrahendae defecit",
+  "tool_card_classify_pr_failed_recovery": "Repositorium et numerum postulationis inspice, deinde iterum conare.",
+  "tool_card_classify_pr_empty": "Nulla classificatio postulationis extrahendae reddita est.",
+  "tool_card_classify_pr_fork": "furca",
+  "tool_card_classify_pr_same_repo": "idem repositorium",
+  "tool_card_classify_pr_marker_badge": "nota: {{kind}}",
+  "tool_card_classify_pr_disabled": "Classificatio intermissa est.",
+  "tool_card_classify_pr_disabled_detail": "Hoc repositorium nunc postulationes extrahendas non classificat.",
+  "tool_card_classify_pr_repository": "Repositorium",
+  "tool_card_classify_pr_head_repository": "Repositorium capitis",
+  "tool_card_classify_pr_head_ref": "Relatio capitis",
+  "tool_card_classify_pr_base_ref": "Relatio basis",
+  "tool_card_classify_pr_marker_details": "Singula notae"
 }
