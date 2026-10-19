@@ -1507,10 +1507,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
           <dd>{proposal.provider_setting}</dd>
         </div>
       ) : null}
-      <div>
-        <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_priority")}</dt>
-        <dd className="capitalize">{proposal.priority || "medium"}</dd>
-      </div>
+      {proposalCreatesJob(proposal) ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_priority")}</dt>
+          <dd className="capitalize">{proposal.priority || "medium"}</dd>
+        </div>
+      ) : null}
       {capabilitiesText ? (
         <div>
           <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_capabilities")}</dt>
