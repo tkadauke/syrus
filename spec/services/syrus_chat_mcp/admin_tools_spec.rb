@@ -1732,6 +1732,30 @@ RSpec.describe "Mcp::Tools admin tools" do
     end
   end
 
+  it "redacts secrets from nested worker health metrics" do
+    secret = "ghp_recognizableWorkerHealthSecret123456"
+    InstanceVersion.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: 10.seconds.ago
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
+      raw_metrics: { "probe_command" => "authorization=#{secret}", "nested" => { "output" => secret } }
+    )
+
+    response = call_tool(admin_session, "read_worker_health", { hostname: "syrus-worker-secret", sample_limit_per_host: 1 })
+    serialized = JSON.generate(payload_for(response))
+
+    expect(serialized).to include(CommandRedactor::REDACTED)
+    expect(serialized).not_to include(secret)
+  end
+
   def solid_queue_job(class_name:, queue_name:)
     SolidQueue::Job.create!(
       class_name: class_name,

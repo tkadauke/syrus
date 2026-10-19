@@ -138,6 +138,7 @@ function WorkerDetails({ worker }: { worker: Obj }) {
             ["Capability diagnostics", worker.capability_diagnostics],
             ["Sample capabilities", sample?.capabilities],
             ["Sample diagnostics", sample?.capability_diagnostics],
+            ["Worker trend", worker.trend],
             ["Raw metrics", sample?.raw_metrics]
           ].map(([label, value]) => (
             <div key={String(label)}>
