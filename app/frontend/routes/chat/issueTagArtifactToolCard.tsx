@@ -410,9 +410,7 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
       {artifact.preview ? (
         <div>
           <SectionLabel>Preview</SectionLabel>
-          <pre className={ARTIFACT_PREVIEW_CLASS}>
-            {artifact.preview}
-          </pre>
+          <pre className={ARTIFACT_PREVIEW_CLASS}>{artifact.preview}</pre>
         </div>
       ) : null}
     </CardShell>
