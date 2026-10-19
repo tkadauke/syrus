@@ -171,6 +171,23 @@ module App
       end
     end
 
+    def placement_recommendation_json
+      recommendation = @job.placement_recommendation
+      return nil if recommendation.blank?
+
+      workflow = OpenStruct.new(
+        trigger_kind: "initial", planned_execution_capabilities: recommendation["capabilities"],
+        worker_storage_key: nil, worker_hostname: nil, job: @job
+      )
+      step = OpenStruct.new(placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, details: {})
+      recommendation.merge(
+        "compatible_worker_available" => !RunQueueResolver.resolve_candidate(workflow: workflow, step: step).blocked?
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[JobDetailPayload] placement availability unavailable for #{@job.slug}: #{e.class}: #{e.message}")
+      recommendation
+    end
+
     def job_json
       job_detail_dependencies
       workflow_agent_provider = PerformanceLogging.phase("job_detail.job.workflow_agent_provider", job_id: @job.id) { @job.workflow_agent_provider }
@@ -221,6 +238,7 @@ module App
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
+        placement_recommendation: placement_recommendation_json,
         provider_routing_options: provider_routing_options_json(@user),
         provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
         inherited_provider_routing_context: provider_routing_inherited_context_json(

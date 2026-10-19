@@ -25,6 +25,13 @@ RSpec.describe "planned execution placement" do
     app/services/planned_execution_params.rb
   ].freeze
 
+  it "keeps ingestion recommendations separate from active planned execution" do
+    source = Rails.root.join("app/services/ingestion_classifier.rb").read
+
+    expect(source).to include('job.placement_recommendation = result.placement_recommendation')
+    expect(source).not_to include('source: "classifier"')
+  end
+
   # The words the old matcher keyed on. Any of them next to a capability
   # decision means prose is steering placement again.
   PLATFORM_WORDS = %w[

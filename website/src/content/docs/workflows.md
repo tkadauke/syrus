@@ -266,6 +266,13 @@ Planned Step kinds include
 readiness check before an expensive implementation run. That is a roadmap
 item, not a current template step.
 
+GitHub issue ingestion defaults undeclared work to Linux. The classifier can
+recommend a validated macOS desktop or iOS/Xcode profile from issue prose, but
+that recommendation does not become an execution constraint until an operator
+reviews it. The Job remains in triage, where Accept shows the exact suggested
+capabilities and lets the operator confirm them or explicitly use Linux.
+Bulk acceptance skips Jobs awaiting this placement decision.
+
 ## Template Selection
 
 Syrus chooses the template from the trigger kind:

@@ -310,7 +310,10 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
 // decision someone can actually make.
 export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) {
   const { t } = useT("jobs")
-  if (job.triaging_reason !== "classifier_uncertain" && job.triaging_reason !== "proposed_job") return null
+  if (!["classifier_uncertain", "placement_confirmation", "proposed_job"].includes(job.triaging_reason || "")) return null
+  if (job.triaging_reason === "placement_confirmation") {
+    return <Notice title={t("placement_confirmation_title")} tone="warning"><Text as="p" tone="warning">{t("placement_confirmation_body")}</Text></Notice>
+  }
   const proposed = job.triaging_reason === "proposed_job"
 
   return (

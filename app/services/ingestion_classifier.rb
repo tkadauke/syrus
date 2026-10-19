@@ -9,7 +9,7 @@ class IngestionClassifier
   DUPLICATE_TEXT_BYTES = 20_000
   DUPLICATE_TOKEN_LIMIT = 400
 
-  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :planned_execution, :raw_output, :spawned_process_id, :error) do
+  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :placement_recommendation, :raw_output, :spawned_process_id, :error) do
     def success? = error.nil?
     def invalid? = invalid_kind.present?
   end
@@ -142,13 +142,13 @@ class IngestionClassifier
       invalid_kind: kind,
       reason: invalid["reason"].to_s.strip.presence,
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
-      planned_execution: planned_execution_attributes(parsed["planned_execution"]),
+      placement_recommendation: placement_recommendation_attributes(parsed["placement_recommendation"]),
       raw_output: raw_output,
       spawned_process_id: spawned_process_id,
       error: nil
     )
-  rescue ArgumentError
-    failure("epic_id must be an integer or null", raw_output: raw_output, spawned_process_id: spawned_process_id)
+  rescue ArgumentError => e
+    failure(e.message, raw_output: raw_output, spawned_process_id: spawned_process_id)
   end
 
   def apply(result)
@@ -158,8 +158,10 @@ class IngestionClassifier
       if result.invalid?
         invalidate!(result)
       else
-        apply_planned_execution!(result)
-        if job.may_advance_after_triage?
+        apply_placement!(result)
+        if job.triaging_reason_placement_confirmation?
+          # Advisory placement requires an operator decision before execution.
+        elsif job.may_advance_after_triage?
           job.advance_after_triage!
         else
           mark_uncertain(advance_after_triage_refused_reason)
@@ -175,15 +177,15 @@ class IngestionClassifier
       "validity=#{job.validity}, triaging_reason=#{job.triaging_reason}"
   end
 
-  def apply_planned_execution!(result)
-    requirement =
-      if result.planned_execution.present?
-        PlannedExecutionRequirement.new(**result.planned_execution.merge(source: "classifier").symbolize_keys)
-      else
-        PlannedExecutionPlanner.for_job(job)
-      end
+  def apply_placement!(result)
+    requirement = PlannedExecutionPlanner.for_job(job)
     requirement.assign_to(job)
-    job.save! if job.planned_execution_changed?
+    if result.placement_recommendation.present? && requirement.source == "defaulted" && result.placement_recommendation["profile"] != "linux"
+      job.placement_recommendation = result.placement_recommendation
+      job.placement_recommendation_status = "pending"
+      job.triaging_reason = "placement_confirmation"
+    end
+    job.save! if job.changed?
   rescue StandardError => e
     Rails.logger.warn("[IngestionClassifier] planned execution classification failed for #{job.slug}: #{e.class}: #{e.message}")
     PlannedExecutionPlanner.for_job(job).assign_to(job)
@@ -240,7 +242,7 @@ class IngestionClassifier
       invalid_kind: result.invalid_kind,
       reason: result.reason,
       evidence_urls: result.evidence_urls,
-      planned_execution: result.planned_execution
+      placement_recommendation: result.placement_recommendation
     }
   end
 
@@ -389,23 +391,25 @@ class IngestionClassifier
       invalid_kind: nil,
       reason: nil,
       evidence_urls: [],
-      planned_execution: nil,
+      placement_recommendation: nil,
       raw_output: raw_output,
       spawned_process_id: spawned_process_id,
       error: reason
     )
   end
 
-  def planned_execution_attributes(value)
+  def placement_recommendation_attributes(value)
     return nil unless value.is_a?(Hash)
+    profile = ExecutionProfile.fetch(value["profile"])
+    explanation = value["explanation"].to_s.strip
+    raise ArgumentError, "placement recommendation explanation is required" if explanation.blank?
 
-    capabilities = value["capabilities"]
-    return nil unless capabilities.is_a?(Hash) && capabilities.present?
+    confidence = value["confidence"]
+    confidence = Float(confidence) if confidence.present?
+    raise ArgumentError, "placement recommendation confidence must be between 0 and 1" if confidence && !confidence.between?(0, 1)
 
-    {
-      project_label: value["project_label"],
-      target_label: value["target_label"],
-      capabilities: capabilities
-    }
+    { "profile" => profile.name, "capabilities" => profile.capabilities,
+      "explanation" => explanation, "confidence" => confidence,
+      "provenance" => "ingestion_classifier" }.compact
   end
 end

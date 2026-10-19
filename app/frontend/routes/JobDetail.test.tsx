@@ -2008,6 +2008,35 @@ describe("JobDetailView", () => {
     })
   })
 
+  it("reviews a placement recommendation without changing the job when cancelled", () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    const payload = jobPayload({
+      job: {
+        ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "placement_confirmation",
+        placement_recommendation: {
+          profile: "macos_desktop",
+          capabilities: { os: ["macos"], arch: ["arm64"] },
+          explanation: "Requires Electron packaging.",
+          provenance: "ingestion_classifier"
+        }
+      }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_accept_triage: true, can_reject_triage: true },
+      paths: { ...payload.paths, app_accept_triage_path: "/api/v1/app/jobs/1/accept_triage" }
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+    expect(screen.getByRole("dialog", { name: "Confirm execution placement" })).toBeInTheDocument()
+    expect(screen.getByText("os: macos · arch: arm64")).toBeInTheDocument()
+    expect(screen.getByText("Requires Electron packaging.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByRole("dialog", { name: "Confirm execution placement" })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it("hides the triage decision for a job the classifier is still working on", () => {
     const payload = jobPayload({
       job: { ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "classifier_pending" }

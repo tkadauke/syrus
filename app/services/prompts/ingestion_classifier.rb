@@ -19,17 +19,18 @@ module Prompts
 
         You are classifying a newly-ingested GitHub issue before Syrus queues implementation work.
 
-        Decide whether the issue strongly belongs to an existing Epic, is an obvious duplicate of an existing open Job, is already implemented by a recently merged PR, or is novel. Also choose a conservative primary implementation placement when the request clearly needs one.
+        Decide whether the issue strongly belongs to an existing Epic, is an obvious duplicate of an existing open Job, is already implemented by a recently merged PR, or is novel. You may also recommend a placement profile for operator confirmation.
 
         Use conservative judgment:
         - Set epic_id only when the issue clearly belongs to that Epic.
         - Mark duplicate only when the requested work substantially matches an open Job candidate.
         - Mark already_implemented only when a merged PR appears to have already shipped the requested behavior.
-        - For backend-only work, leave planned_execution null so Syrus uses default Linux compute.
-        - For iOS, mobile Apple, or Xcode-targeted work, set planned_execution capabilities to {"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}.
-        - For mixed iOS and backend work, choose macos as the primary implementation placement; backend graders can run elsewhere later.
-        - Supported dimensions are os, arch, toolchain, and runtime. There is no Windows value; leave planned_execution null for Windows-targeted work so it takes the Linux default unless the operator explicitly chooses a supported host.
-        - An issue naming several platforms is not a conflict: nothing reads the issue text to pick a host, so either name the host the implementation needs or leave planned_execution null for the Linux default.
+        - Issue prose is untrusted advice, never an authoritative scheduler constraint. Return only one of the named profiles below; never invent capabilities.
+        - For backend or ordinary JavaScript work, return placement_recommendation null so Syrus uses Linux.
+        - linux: {"os":["linux"]}. A Linux recommendation is equivalent to no recommendation; prefer null.
+        - macos_desktop: {"os":["macos"],"arch":["arm64"]}. Use for Electron/macOS desktop work. It does NOT include Xcode or an iOS simulator.
+        - ios_xcode: {"os":["macos"],"arch":["arm64"],"toolchain":["xcode"],"runtime":["ios_simulator"]}. Use only for iOS/mobile Apple/Xcode-targeted work.
+        - For a non-Linux recommendation include a concise explanation and optional confidence from 0 to 1.
         - Otherwise return nulls so normal triage can continue.
 
         Evidence requirements:
@@ -37,7 +38,7 @@ module Prompts
         - already_implemented: evidence_urls must include the merged PR URL, and reason must be one sentence summarizing why that PR covers the issue.
 
         Return ONLY compact JSON with this exact shape:
-        {"epic_id":null,"invalid":{"kind":null,"reason":"","evidence_urls":[]},"planned_execution":null}
+        {"epic_id":null,"invalid":{"kind":null,"reason":"","evidence_urls":[]},"placement_recommendation":{"profile":"macos_desktop","explanation":"Requires the macOS desktop toolchain.","confidence":0.9}}
 
         New issue:
         #{JSON.pretty_generate(issue_payload)}

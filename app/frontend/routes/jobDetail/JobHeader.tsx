@@ -88,6 +88,7 @@ export function ChatBubbleIcon() {
 export function HeaderActions({ payload, command, onToggleFeedbackPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; onToggleFeedbackPanel: () => void; onApprove?: () => void }) {
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
+  const [placementOpen, setPlacementOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
   const actions = headerActions(payload, t)
   const [primaryKey] = primaryHeaderActionKeys(payload, actions)
@@ -132,7 +133,9 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   }
 
   function handleActionClick(action: HeaderAction) {
-    if (action.key === "approve" && onApprove) {
+    if (action.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation") {
+      setPlacementOpen(true)
+    } else if (action.key === "approve" && onApprove) {
       onApprove()
     } else if (action.key === "retry_with") {
       openRetryDialog(action)
@@ -170,6 +173,8 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
                 {primaryAction.label}
               </button>
             )
+            : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation"
+              ? <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementOpen(true)} type="button">{primaryAction.label}</button>
             : primaryAction.key === "retry_with"
               ? (
                 <button
@@ -218,7 +223,52 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
           payload={payload}
         />
       ) : null}
+      {placementOpen && payload.job.placement_recommendation && pathsForPlacement(payload) ? (
+        <PlacementConfirmationDialog
+          command={command}
+          onClose={() => setPlacementOpen(false)}
+          path={pathsForPlacement(payload)!}
+          recommendation={payload.job.placement_recommendation}
+        />
+      ) : null}
     </>
+  )
+}
+
+function pathsForPlacement(payload: JobDetailPayload) {
+  return payload.paths.app_accept_triage_path
+}
+
+function PlacementConfirmationDialog({ command, onClose, path, recommendation }: {
+  command: ReturnType<typeof useJobCommand>
+  onClose: () => void
+  path: string
+  recommendation: NonNullable<JobDetailPayload["job"]["placement_recommendation"]>
+}) {
+  const { t } = useT("jobs")
+  const capabilities = Object.entries(recommendation.capabilities).map(([key, values]) => `${key}: ${values.join(", ")}`).join(" · ")
+  const decide = (placement_decision: "suggested" | "linux") => command.mutate(
+    { method: "post", path, body: { placement_decision } },
+    { onSuccess: () => onClose() }
+  )
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <section aria-labelledby="placement-confirmation-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog" aria-modal="true">
+        <h2 className="text-lg font-semibold" id="placement-confirmation-title">{t("placement_confirmation_title")}</h2>
+        <dl className="mt-4 space-y-3 text-sm">
+          <div><dt className="font-medium">{t("placement_profile")}</dt><dd>{recommendation.profile}</dd></div>
+          <div><dt className="font-medium">{t("placement_capabilities")}</dt><dd className="font-mono text-xs">{capabilities}</dd></div>
+          <div><dt className="font-medium">{t("placement_explanation")}</dt><dd>{recommendation.explanation}</dd></div>
+          {recommendation.compatible_worker_available != null ? <div><dt className="font-medium">{t("placement_worker")}</dt><dd>{t(recommendation.compatible_worker_available ? "placement_worker_available" : "placement_worker_unavailable")}</dd></div> : null}
+        </dl>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button onClick={onClose} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={command.isPending} onClick={() => decide("linux")} variant="secondary">{t("accept_using_linux")}</Button>
+          <Button disabled={command.isPending} onClick={() => decide("suggested")} variant="primary">{t("accept_suggested_placement")}</Button>
+        </div>
+      </section>
+    </div>, document.body
   )
 }
 

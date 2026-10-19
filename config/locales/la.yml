@@ -308,6 +308,7 @@ la:
       move_to_backlog_unavailable: "%{slug} in acervum moveri non potest postquam opus runtime, recognitio, descensus, aut creatio PR incepta est."
       moved_to_backlog: "Opus in acervum motum est."
       not_awaiting_triage: "%{slug} trianam non exspectat."
+      placement_decision_required: "Locum propositum aut Linux elige antequam opus accipias."
       accepted: "Opus acceptum est."
       rejected: "Opus reiectum est."
       retry_enqueued: "Fluxus iterationis in ordinem positus est."

@@ -341,6 +341,7 @@ en:
       move_to_backlog_unavailable: "%{slug} cannot move to backlog after runtime work, review, landing, or PR creation has started."
       moved_to_backlog: "Job moved to backlog."
       not_awaiting_triage: "%{slug} is not awaiting triage."
+      placement_decision_required: "Choose the suggested placement or Linux before accepting this Job."
       accepted: "Job accepted."
       rejected: "Job rejected."
       retry_enqueued: "Retry workflow enqueued."

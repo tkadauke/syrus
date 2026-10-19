@@ -308,6 +308,7 @@ de:
       move_to_backlog_unavailable: "%{slug} kann nicht ins Backlog verschoben werden, nachdem Laufzeitarbeit, Review, Landing oder PR-Erstellung gestartet wurde."
       moved_to_backlog: "Aufgabe ins Backlog verschoben."
       not_awaiting_triage: "%{slug} wartet nicht auf Triage."
+      placement_decision_required: "Wähle vor der Annahme den vorgeschlagenen Ausführungsort oder Linux."
       accepted: "Aufgabe akzeptiert."
       rejected: "Aufgabe abgelehnt."
       retry_enqueued: "Wiederholungs-Workflow eingereiht."

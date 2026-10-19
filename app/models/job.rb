@@ -47,7 +47,7 @@ class Job < ApplicationRecord
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
-  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain proposed_job ].freeze
+  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain placement_confirmation proposed_job ].freeze
   APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so urgent (-10) runs before high (0), medium (10),
@@ -79,6 +79,7 @@ class Job < ApplicationRecord
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   belongs_to :linked_chat, class_name: "ChatSession", optional: true
+  belongs_to :placement_recommendation_decided_by_user, class_name: "User", optional: true
   has_many :job_approvals, dependent: :destroy
   has_many :pr_links, class_name: "JobPrLink", dependent: :destroy
   has_many :pr_review_comments, dependent: :destroy
@@ -904,8 +905,19 @@ class Job < ApplicationRecord
   # A person looked at the issue and said "yes, work on this". The classifier's
   # opinion (or lack of one) stops mattering at that point, so the uncertainty
   # is cleared rather than carried into execution.
-  def accept_triage!
+  def accept_triage!(placement_decision: nil, by_user: nil)
     return false unless awaiting_triage_decision?
+
+    if triaging_reason_placement_confirmation?
+      return false unless %w[suggested linux].include?(placement_decision.to_s)
+
+      profile_name = placement_decision.to_s == "suggested" ? placement_recommendation.to_h.fetch("profile") : "linux"
+      profile = ExecutionProfile.fetch(profile_name)
+      PlannedExecutionRequirement.new(capabilities: profile.capabilities, source: "operator").assign_to(self)
+      self.placement_recommendation_status = placement_decision.to_s == "suggested" ? "accepted" : "rejected"
+      self.placement_recommendation_decided_at = Time.current
+      self.placement_recommendation_decided_by_user = by_user
+    end
 
     next_reason = triaging_reason_proposed_job? ? "proposed_job" : "classifier_pending"
     update!(triaging_reason: next_reason, triaging_uncertainty_reason: nil)
@@ -925,7 +937,7 @@ class Job < ApplicationRecord
   end
 
   def awaiting_triage_decision?
-    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_proposed_job?)
+    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_placement_confirmation? || triaging_reason_proposed_job?)
   end
 
   def ready_for_execution?

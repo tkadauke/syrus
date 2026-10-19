@@ -326,6 +326,20 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     let(:proposed) do
       Factories.job_record(repository: repo, issue_number: nil, kind: "direct", state: "triaging", triaging_reason: "proposed_job")
     end
+    let(:placement) do
+      Factories.job_record(repository: repo, issue_number: 71).tap do |record|
+        record.update!(
+          state: "triaging", triaging_reason: "placement_confirmation",
+          placement_recommendation_status: "pending",
+          placement_recommendation: {
+            "profile" => "macos_desktop",
+            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
+            "explanation" => "Requires Electron packaging.",
+            "provenance" => "ingestion_classifier"
+          }
+        )
+      end
+    end
 
     it "queues the job for work when accepted" do
       post app_job_path(uncertain, "accept_triage"), as: :json
@@ -342,6 +356,33 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(proposed.reload).to be_queued
       expect(proposed.triaging_reason).to eq("proposed_job")
       expect(proposed.workflows).to be_present
+    end
+
+    it "requires an explicit placement decision" do
+      post app_job_path(placement, "accept_triage"), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(placement.reload).to be_triaging
+      expect(placement.workflows).to be_empty
+    end
+
+    it "atomically accepts the suggested placement before creating the workflow" do
+      post app_job_path(placement, "accept_triage"), params: { placement_decision: "suggested" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(placement.reload).to be_queued
+      expect(placement).to have_attributes(placement_recommendation_status: "accepted", planned_execution_source: "operator")
+      expect(placement.planned_execution_capabilities).to eq("os" => [ "macos" ], "arch" => [ "arm64" ])
+      expect(placement.workflows.sole.planned_execution_capabilities).to eq(placement.planned_execution_capabilities)
+    end
+
+    it "accepts using Linux without treating the Job as rejected" do
+      post app_job_path(placement, "accept_triage"), params: { placement_decision: "linux" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(placement.reload).to be_queued
+      expect(placement).to have_attributes(placement_recommendation_status: "rejected", planned_execution_source: "operator")
+      expect(placement.planned_execution_capabilities).to eq("os" => [ "linux" ])
     end
 
     # `cancelled`, not one of the successful reasons: rejecting an unclear

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_041214) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1785,6 +1785,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.datetime "approval_withdrawn_at"
     t.string "landing_failure_code"
     t.datetime "branch_cleanup_attempted_at"
+    t.json "placement_recommendation"
+    t.string "placement_recommendation_status"
+    t.datetime "placement_recommendation_decided_at"
+    t.integer "placement_recommendation_decided_by_user_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -1810,6 +1814,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.index ["needs_attention"], name: "index_jobs_on_needs_attention"
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
+    t.index ["placement_recommendation_decided_by_user_id"], name: "index_jobs_on_placement_recommendation_decided_by_user_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
     t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"

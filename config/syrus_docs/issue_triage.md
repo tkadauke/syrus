@@ -76,8 +76,20 @@ When a classifier result or exhausted retry budget reaches
 
 ## Accept and Reject
 
-The Job page shows two buttons while `triaging_reason` is
-`classifier_uncertain` or `proposed_job`, and only then:
+The Job page shows Accept and Reject while `triaging_reason` is
+`classifier_uncertain`, `placement_confirmation`, or `proposed_job`.
+
+Issue prose never declares scheduler placement. The ingestion classifier may
+recommend one of the validated `linux`, `macos_desktop`, or `ios_xcode`
+profiles. A non-Linux recommendation is stored separately from the active
+`planned_execution`, and the Job remains in `placement_confirmation`. Accept
+opens a review dialog with the exact capabilities and explanation. The
+operator must either accept the suggestion or choose Linux; both choices are
+recorded with operator provenance before the initial Workflow is created.
+Cancel changes nothing, while Reject still closes the entire Job. Bulk Accept
+skips these Jobs so it cannot silently choose placement. Repository
+configuration and other structured declarations remain authoritative and do
+not require this confirmation.
 
 - **Accept** (`POST /api/v1/app/jobs/:job_id/accept_triage`) — "yes, work on
   this". Clears the uncertainty and advances the Job the same way a successful

@@ -197,7 +197,7 @@ RSpec.describe IngestionClassifier do
     expect(attempt.error).to include("could not advance")
   end
 
-  it "persists a classifier-selected planned execution requirement before queueing" do
+  it "holds a non-Linux recommendation for operator confirmation without changing active placement" do
     job = Job.create!(
       user: user,
       repository: repository,
@@ -209,30 +209,25 @@ RSpec.describe IngestionClassifier do
     classify(job, {
       "epic_id" => nil,
       "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] },
-      "planned_execution" => {
-        "project_label" => "iOS",
-        "target_label" => "//ios:app",
-        "capabilities" => {
-          "os" => [ "macos" ],
-          "arch" => [ "arm64" ],
-          "toolchain" => [ "xcode" ],
-          "runtime" => [ "ios_simulator" ]
-        }
+      "placement_recommendation" => {
+        "profile" => "ios_xcode",
+        "explanation" => "The issue changes an Xcode iOS target.",
+        "confidence" => 0.95
       }
     })
 
-    expect(job.reload.planned_execution_json).to include(
-      "project_label" => "iOS",
-      "target_label" => "//ios:app",
+    expect(job.reload).to have_attributes(state: "triaging", triaging_reason: "placement_confirmation")
+    expect(job.planned_execution_json).to include("capabilities" => { "os" => [ "linux" ] }, "source" => "defaulted")
+    expect(job.placement_recommendation).to include(
+      "profile" => "ios_xcode",
       "capabilities" => {
         "os" => [ "macos" ],
         "arch" => [ "arm64" ],
         "toolchain" => [ "xcode" ],
         "runtime" => [ "ios_simulator" ]
-      },
-      "source" => "classifier"
+      }, "provenance" => "ingestion_classifier"
     )
-    expect(job.state).to eq("queued")
+    expect(job.runs).to be_empty
   end
 
   # Naming several platforms used to strand the Job in triage, because
@@ -252,11 +247,31 @@ RSpec.describe IngestionClassifier do
     classify(job, {
       "epic_id" => nil,
       "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] },
-      "planned_execution" => nil
+      "placement_recommendation" => nil
     })
 
     expect(job.reload).not_to be_triaging
     expect(job.planned_execution_capabilities).to eq("os" => [ "linux" ])
+  end
+
+  it "keeps an authoritative structured placement and bypasses recommendation confirmation" do
+    job = Job.create!(
+      user: user, repository: repository, issue_number: 143,
+      planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "node" ] },
+      planned_execution_source: "explicit"
+    )
+
+    classify(job, {
+      "epic_id" => nil,
+      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] },
+      "placement_recommendation" => {
+        "profile" => "ios_xcode", "explanation" => "Issue prose mentions Xcode."
+      }
+    })
+
+    expect(job.reload).to be_queued
+    expect(job.planned_execution_capabilities).to eq("os" => [ "linux" ], "runtime" => [ "node" ])
+    expect(job.placement_recommendation).to be_nil
   end
 
   it "marks classifier failures as uncertain without queueing the job" do

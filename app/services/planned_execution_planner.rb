@@ -24,7 +24,9 @@ class PlannedExecutionPlanner
   def call
     existing = PlannedExecutionRequirement.from_record(job)
     # Anything already carrying a non-default source was declared by someone --
-    # the agent, an operator, the ingestion classifier -- and is authoritative.
+    # the agent, an operator, or repository configuration -- and is authoritative.
+    # Legacy classifier-sourced rows remain authoritative for compatibility;
+    # new ingestion recommendations are stored separately for confirmation.
     return existing unless existing.source == "defaulted"
 
     declared_repository_requirement || existing
