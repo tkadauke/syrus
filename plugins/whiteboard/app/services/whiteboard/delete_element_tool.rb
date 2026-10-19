@@ -20,8 +20,11 @@ module Whiteboard
 
         args = { "id" => id }
         result = Canvas.mutate(server_context.fetch(:chat_session), tool_name, args) do |elements|
+          element = elements.find { |candidate| candidate["id"] == id }
+          label_id = Array(element&.fetch("boundElements", nil)).find { |bound| bound["type"] == "text" }&.fetch("id", nil)
+          label = elements.find { |candidate| candidate["id"] == label_id }&.fetch("text", nil)
           Canvas.remove_element!(elements, id)
-          { id: id }
+          { id: id, type: element&.fetch("type", nil), label: label }.compact
         end
 
         Mcp::Tools.success(result)
