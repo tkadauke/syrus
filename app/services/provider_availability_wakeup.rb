@@ -42,6 +42,15 @@ class ProviderAvailabilityWakeup
   end
 
   def provider_paused_workflows
-    @provider_paused_workflows ||= work_unit_workflows.uniq(&:id)
+    @provider_paused_workflows ||= (work_unit_workflows + routing_hold_workflows).uniq(&:id)
+  end
+
+  def routing_hold_workflows
+    ProviderRoutingHold
+      .automatic
+      .joins(workflow: :job)
+      .where(workflows: { user_id: user.id, state: %w[queued running] })
+      .includes(:workflow)
+      .map(&:workflow)
   end
 end

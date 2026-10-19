@@ -76,7 +76,7 @@ module ProviderRouting
       end
     end
 
-    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current, released_hold_rule_ids: [])
       new(
         job: job,
         task_key: task_key,
@@ -85,7 +85,8 @@ module ProviderRouting
         original_candidate: original_candidate,
         reason: reason,
         availability: availability,
-        now: now
+        now: now,
+        released_hold_rule_ids: released_hold_rule_ids
       ).call
     end
 
@@ -93,7 +94,7 @@ module ProviderRouting
       ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level)
     end
 
-    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, original_candidate: nil, reason: nil, availability: nil, now: Time.current, released_hold_rule_ids: [])
       @job = job
       @task_key = task_key
       @trigger = trigger
@@ -102,6 +103,7 @@ module ProviderRouting
       @reason = reason
       @availability = availability
       @now = now
+      @released_hold_rule_ids = released_hold_rule_ids
     end
 
     def call
@@ -137,7 +139,7 @@ module ProviderRouting
 
     private
 
-    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :original_candidate, :reason, :availability, :now
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :original_candidate, :reason, :availability, :now, :released_hold_rule_ids
 
     def candidates
       @candidates ||= if routing_resolution.held?
@@ -148,7 +150,7 @@ module ProviderRouting
     end
 
     def routing_resolution
-      @routing_resolution ||= ProviderRouting::Resolver.resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
+      @routing_resolution ||= ProviderRouting::Resolver.resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, released_hold_rule_ids: released_hold_rule_ids)
     end
 
     def user = job.owner_user || job.user

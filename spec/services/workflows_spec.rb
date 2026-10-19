@@ -131,6 +131,11 @@ RSpec.describe Workflows do
         "routing_resolution" => include("decision" => include("status" => "held", "failure" => false))
       )
       expect(workflow.artifact("agent_provider_routing_decision")).not_to have_key("selected_provider")
+      expect(workflow.provider_routing_holds.active.sole).to have_attributes(
+        provider_routing_rule_id: ProviderRoutingRule.last.id,
+        resumption_mode: "manual",
+        reason: "Await operator approval"
+      )
       expect(App::ProviderAvailability).not_to have_received(:for_user)
     end
 
