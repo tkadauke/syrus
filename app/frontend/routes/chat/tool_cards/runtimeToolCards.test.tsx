@@ -145,6 +145,7 @@ describe("Runtime tool cards", () => {
       session_payload: session({
         workspace_ref: workspaceRef,
         metadata: { deployment_url: "https://runtime.example.test/a/very/long/path", enabled: false },
+        latest_frame_url: "/runtime/7/frame?size=large",
         last_error: lastError,
         active_agent_input_lease: null
       })
@@ -154,6 +155,7 @@ describe("Runtime tool cards", () => {
 
     expect(screen.getByRole("link", { name: "Runtime #7" })).toHaveAttribute("href", "/runtime/7/stream")
     expect(screen.getByRole("link", { name: "Stream" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("link", { name: "Latest frame" })).toHaveAttribute("href", "/runtime/7/frame?size=large")
     expect(screen.getByRole("link", { name: "Latest frame" })).toHaveClass("min-h-11", "break-all")
     expect(screen.getByText(workspaceRef)).toHaveClass("break-words")
     expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-words")
@@ -163,7 +165,10 @@ describe("Runtime tool cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Latest frame" }))
     const dialog = screen.getByRole("dialog", { name: "Runtime latest frame preview" })
     expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getByAltText("Latest frame for Runtime #7")).toHaveAttribute("src", "/runtime/7/frame")
+    expect(within(dialog).getByAltText("Latest frame for Runtime #7")).toHaveAttribute(
+      "src",
+      "/runtime/7/frame?size=large&latest_frame_at=2026-09-10T12%3A00%3A05Z"
+    )
   })
 
   it("shows boolean status failures and falls back to the input session id", () => {

@@ -627,6 +627,14 @@ function safeImageUrl(url: string | null) {
   return safeRuntimeUrl(url)
 }
 
+function latestFrameSource(session: RuntimeSession) {
+  const latestFrameUrl = safeImageUrl(session.latestFrameUrl)
+  if (!latestFrameUrl || !session.latestFrameAt || latestFrameUrl.startsWith("data:image/")) return latestFrameUrl
+
+  const separator = latestFrameUrl.includes("?") ? "&" : "?"
+  return `${latestFrameUrl}${separator}latest_frame_at=${encodeURIComponent(session.latestFrameAt)}`
+}
+
 function SafeLinks({ session }: { session: RuntimeSession }) {
   const links: Array<readonly [string, string]> = []
   const streamUrl = session.streamUrl ? safeRuntimeUrl(session.streamUrl) : null
@@ -692,6 +700,8 @@ function RuntimeId({ id, href }: { id: string; href?: string | null }) {
 }
 
 function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
+  const frameSource = latestFrameSource(session)
+
   return (
     <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
       <div className="flex flex-wrap items-center gap-2">
@@ -707,14 +717,14 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
       </div>
       <div className="mt-2 space-y-2">
         <SafeLinks session={session} />
-        {safeImageUrl(session.latestFrameUrl) ? (
+        {frameSource ? (
           <MediaPreviewShell
             item={{
               title: "Latest frame",
               subtitle: session.latestFrameAt,
-              src: safeImageUrl(session.latestFrameUrl),
+              src: frameSource,
               alt: `Latest frame for Runtime #${session.id}`,
-              actions: [{ label: "Open", href: safeImageUrl(session.latestFrameUrl) }],
+              actions: [{ label: "Open", href: frameSource }],
               meta: [
                 { label: "Runtime", value: session.id },
                 { label: "Captured", value: session.latestFrameAt }
