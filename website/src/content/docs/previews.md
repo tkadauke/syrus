@@ -114,6 +114,13 @@ have their top edge visible. Saved evidence records the subject rectangle,
 visible fraction, and scroll position so reviewers can verify what the
 screenshot was meant to show.
 
+If every screenshot shows an authentication, missing-credentials, or error
+wall, Syrus surfaces a blocked-evidence warning on the review instead of
+treating those captures as proof that the changed screen works. The same soft
+warning appears when a reviewer skips because the preview environment cannot
+reach the intended screen. The review does not hard-fail the workflow, but the
+operator can see that the visual evidence was inconclusive.
+
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
 `.syrus.yml`, and their seed notes are shown when that project preview is one

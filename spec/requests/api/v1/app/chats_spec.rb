@@ -2209,6 +2209,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   it "returns the chat data payload with raw messages" do
+    user.update!(chat_provider: "codex", codex_api_key: "sk-test")
     sign_in_as(user)
     document = repository.repository_documents.create!(
       user: user,
@@ -2253,6 +2254,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("chat", "agent_busy")).to eq(false)
     expect(body.dig("chat", "turn_retry_state")).to be_nil
     expect(body["chat_available"]).to eq(true)
+    expect(body["chat_provider_display_name"]).to eq("Codex")
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
     expect(body["turn_retry_state"]).to be_nil
