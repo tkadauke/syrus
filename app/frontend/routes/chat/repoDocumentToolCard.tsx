@@ -196,11 +196,13 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
   const body = displayValue(context.input?.body)
   const documentId =
     displayValue(context.input?.document_id) || displayValue(context.input?.id) || displayValue(document.document_id) || displayValue(document.id)
+  const messageTitle =
+    action === "delete" && pending.kind !== "dry_run_evidence" ? pending.message?.match(/delete\s+document\s+["“]([^"”]+)["”]/i)?.[1]?.trim() || null : null
 
   return {
     action,
     pending,
-    title: displayValue(context.input?.title) || displayValue(document.title) || displayValue(live?.resource_title),
+    title: displayValue(context.input?.title) || displayValue(document.title) || displayValue(live?.resource_title) || messageTitle,
     documentId,
     repositoryId: displayValue(context.input?.repository_id) || displayValue(document.repository_id),
     repositorySlug:
@@ -211,7 +213,11 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
     body,
     contentType: displayValue(context.input?.content_type) || displayValue(document.content_type) || (body != null ? "text/markdown" : null),
     sizeBytes: numberValue(document.size_bytes) ?? numberValue(document.byte_size) ?? (body == null ? null : new TextEncoder().encode(body).length),
-    documentUrl: displayValue(document.url) || displayValue(document.file_path) || displayValue(live?.resource_url)
+    documentUrl:
+      displayValue(document.url) ||
+      displayValue(document.file_path) ||
+      displayValue(live?.resource_url) ||
+      (documentId ? `/api/v1/app/repository_documents/${encodeURIComponent(documentId)}/file` : null)
   }
 }
 
