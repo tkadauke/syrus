@@ -131,6 +131,18 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "JOB-4048 (running)" })
   })
 
+  it("normalizes differently shaped search_syrus_docs envelopes and tool names before card dispatch", () => {
+    const payload = { query: "queues", count: 1, results: [{ title: "Queues", score: 1, text: "Queue docs" }] }
+    const bodies = [
+      ["mcp__syrus-chat-sidecar__search_syrus_docs", { content: [{ type: "text", text: JSON.stringify(payload) }] }],
+      ["syrus-chat-sidecar.search_syrus_docs", { structured_content: payload }]
+    ] as const
+
+    for (const [name, envelope] of bodies) {
+      expect(toolResultPresentation(name, JSON.stringify(envelope))).toMatchObject({ kind: "text", summary: '"queues" - 1 hit' })
+    }
+  })
+
   it("prioritizes a core-registered card's collapsed summary over the generic list heuristic", () => {
     // list_chat_media's card lives under routes/chat/tool_cards/  —
     // this proves the registered card wins over the blind generic guess.
