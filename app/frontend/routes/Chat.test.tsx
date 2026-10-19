@@ -27,17 +27,22 @@ import { __resetInFlightComposerDraftsForTests } from "./chat/inFlightComposerDr
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import type { ChatPayload } from "../api/chats"
 
-const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
+const actionCableSubscriptions: Array<{
+  params: Record<string, string | number>
+  mixin: { connected?: () => void; received: (data: unknown) => void }
+  perform: ReturnType<typeof vi.fn>
+  unsubscribe: ReturnType<typeof vi.fn>
+}> = []
+const dictationBatchRequests: FakeDictationXMLHttpRequest[] = []
 
 vi.mock("@rails/actioncable", () => ({
   createConsumer: () => ({
     subscriptions: {
       create: (params: Record<string, string | number>, mixin: { connected?: () => void; received: (data: unknown) => void }) => {
-        actionCableSubscriptions.push({ params, mixin })
-        return {
-          perform: vi.fn(),
-          unsubscribe: vi.fn()
-        }
+        const perform = vi.fn()
+        const unsubscribe = vi.fn()
+        actionCableSubscriptions.push({ params, mixin, perform, unsubscribe })
+        return { perform, unsubscribe }
       }
     }
   })
@@ -70,6 +75,7 @@ beforeEach(() => {
 
 afterEach(() => {
   actionCableSubscriptions.length = 0
+  dictationBatchRequests.length = 0
   setSlugReferenceRegistryForTests(null)
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
@@ -1736,6 +1742,89 @@ describe("chat composer dictation", () => {
     })
 
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
+    expect(dictationBatchRequests).toHaveLength(1)
+    const calls = dictationSubscription()?.perform.mock.calls || []
+    expect(calls.filter(([, payload]) => payload?.type === "stop")).toHaveLength(0)
+  })
+
+  it("preserves progressive text when stream finalization and batch fallback fail", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ streaming: true, batch: true }), { batchError: true })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Keep" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
+    await act(async () => {
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "partial words", final: false })
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
+    })
+
+    expect(await screen.findByText("model unavailable")).toBeInTheDocument()
+    expect(textarea).toHaveValue("Keep partial words")
+    expect(dictationBatchRequests).toHaveLength(1)
+  })
+
+  it("does not abort an in-flight batch fallback when the stream tears down", async () => {
+    const requests: ControlledDictationXMLHttpRequest[] = []
+    class ControlledDictationXMLHttpRequest {
+      responseType = ""
+      response: unknown = null
+      status = 0
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onabort: (() => void) | null = null
+      aborted = false
+      constructor() {
+        requests.push(this)
+      }
+      open() {}
+      setRequestHeader() {}
+      send() {}
+      abort() {
+        this.aborted = true
+        this.onabort?.()
+      }
+      respond(text: string) {
+        this.status = 200
+        this.response = { transcript: { text, source: "backend_batch", confidence: null } }
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", ControlledDictationXMLHttpRequest)
+    installMediaRecorderMock()
+    mockAudioPermission()
+    const payload = chatPayloadWithDictation({ streaming: true, batch: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
+        }))
+      }
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(jsonResponse(payload))
+    })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
+    await act(async () => {
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
+    })
+    await waitFor(() => expect(requests).toHaveLength(1))
+
+    await act(async () => dictationSubscription()?.mixin.received({ type: "done" }))
+    expect(requests[0].aborted).toBe(false)
+    await act(async () => requests[0].respond("fallback survived teardown"))
+
+    expect(textarea).toHaveValue("fallback survived teardown")
+    expect(requests).toHaveLength(1)
   })
 
   it("waits for the terminal recorder chunk before final batch transcription", async () => {
@@ -1802,6 +1891,58 @@ describe("chat composer dictation", () => {
 
     expect(await screen.findByText("No speech detected.")).toBeInTheDocument()
     expect(textarea).toHaveValue("Keep this")
+    expect(dictationBatchRequests).toHaveLength(0)
+  })
+
+  it("handles repeated short, long, and rapid-stop cycles without duplicate uploads", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }), { batchText: "dictated" })
+    const now = vi.spyOn(Date, "now")
+    now.mockReturnValue(1_000)
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    const shortStop = await screen.findByRole("button", { name: "Stop dictation" })
+    now.mockReturnValue(3_000)
+    fireEvent.click(shortStop)
+    await screen.findByRole("button", { name: "Start dictation" })
+
+    now.mockReturnValue(10_000)
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    const longStop = await screen.findByRole("button", { name: "Stop dictation" })
+    now.mockReturnValue(21_000)
+    fireEvent.click(longStop)
+    await waitFor(() => expect(dictationBatchRequests).toHaveLength(2))
+
+    const longForm = dictationBatchRequests[1].body as FormData
+    expect(longForm.get("duration_seconds")).toBe("11")
+
+    class RapidStopMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        this.ondataavailable?.({ data: new Blob(["tiny"], { type: "audio/webm" }) } as BlobEvent)
+        this.onstop?.()
+      }
+    }
+    vi.stubGlobal("MediaRecorder", RapidStopMediaRecorder)
+    fireEvent.click(await screen.findByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+    await screen.findByText("No speech detected.")
+
+    expect(dictationBatchRequests).toHaveLength(2)
+    expect(screen.queryByText("Dictation failed.")).not.toBeInTheDocument()
   })
 
   it("keeps browser speech recognition active after backend batch transcription fails", async () => {
@@ -7675,6 +7816,7 @@ class FakeDictationXMLHttpRequest {
   response: unknown = null
   status = 0
   headers: Record<string, string> = {}
+  body: XMLHttpRequestBodyInit | null = null
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
@@ -7693,7 +7835,8 @@ class FakeDictationXMLHttpRequest {
     this.headers[name] = value
   }
 
-  send(_body: XMLHttpRequestBodyInit | null) {
+  send(body: XMLHttpRequestBodyInit | null) {
+    this.body = body
     this.status = this.batchError ? 502 : 200
     this.response = this.batchError
       ? { error: { code: "speech_to_text_transcription_failed", message: "model unavailable" } }
@@ -7716,6 +7859,7 @@ function fakeDictationXMLHttpRequestClass(transcriptText: string, batchError = f
   return class extends FakeDictationXMLHttpRequest {
     constructor() {
       super(transcriptText, batchError)
+      dictationBatchRequests.push(this)
     }
   }
 }
