@@ -1,4 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
+import { intlLocale } from "@app/lib/relativeTime"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { Badge, displayValue, EmptyState, EntityReference, InternalLink, StatePill } from "../toolCardUi"
 
@@ -47,25 +49,34 @@ function prRows(context: ToolCardContext): PrRow[] | null {
 }
 
 function queryLabel(context: ToolCardContext) {
-  return `${displayValue(context.input?.state) || "open"} · limit ${displayValue(context.input?.limit) || "20"}`
+  return i18n.t("chat:tool_card_open_prs_query", { state: stateLabel(context), limit: displayValue(context.input?.limit) || "20" })
+}
+
+function stateLabel(context: ToolCardContext) {
+  const state = displayValue(context.input?.state) || "open"
+  return i18n.t(`chat:tool_card_open_prs_state_${state}`, { defaultValue: state })
 }
 
 function errorMessage(context: ToolCardContext) {
   if (!context.resultError) return null
   if (isPlainObject(context.parsedResult)) return displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message)
-  return displayValue(context.resultBody) || "Unable to list pull requests."
+  return displayValue(context.resultBody) || i18n.t("chat:tool_card_open_prs_error")
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const error = errorMessage(context)
   if (error) return error
   const rows = prRows(context)
-  return rows ? `${rows.length} pull request${rows.length === 1 ? "" : "s"} · ${queryLabel(context)}` : null
+  return rows ? i18n.t("chat:tool_card_open_prs_summary", { count: rows.length, query: queryLabel(context) }) : null
 }
 
 function MergeabilityBadge({ mergeable }: { mergeable: boolean | null }) {
-  if (mergeable === null) return <StatePill state="checking" tone="neutral" />
-  return mergeable ? <StatePill state="mergeable" tone="success" /> : <StatePill state="conflicts" tone="failure" />
+  if (mergeable === null) return <StatePill state={i18n.t("chat:tool_card_open_prs_checking")} tone="neutral" />
+  return mergeable ? (
+    <StatePill state={i18n.t("chat:tool_card_open_prs_mergeable")} tone="success" />
+  ) : (
+    <StatePill state={i18n.t("chat:tool_card_open_prs_conflicts")} tone="failure" />
+  )
 }
 
 function RefLink({ label, url }: { label: string | null; url: string | null }) {
@@ -78,8 +89,8 @@ function Timestamp({ value }: { value: string | null }) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return <>{value}</>
   return (
-    <time dateTime={value} title={date.toLocaleString()}>
-      {date.toLocaleDateString(undefined, { dateStyle: "medium" })}
+    <time dateTime={value} title={date.toLocaleString(intlLocale())}>
+      {date.toLocaleDateString(intlLocale(), { dateStyle: "medium" })}
     </time>
   )
 }
@@ -93,16 +104,26 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1 text-xs text-text-muted">
-        <span>Filter:</span>
-        <Badge>{displayValue(context.input?.state) || "open"}</Badge>
-        <span>Limit:</span>
+        <span>{i18n.t("chat:tool_card_open_prs_filter")}:</span>
+        <Badge>{stateLabel(context)}</Badge>
+        <span>{i18n.t("chat:tool_card_open_prs_limit")}:</span>
         <Badge>{displayValue(context.input?.limit) || "20"}</Badge>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>No pull requests found.</EmptyState>
+        <EmptyState>{i18n.t("chat:tool_card_open_prs_empty")}</EmptyState>
       ) : (
         <Table responsive>
-          <THead columns={["PR", "Title", "Refs", "Draft", "Mergeability", "Created", "Updated"]} />
+          <THead
+            columns={[
+              i18n.t("chat:tool_card_open_prs_pr"),
+              i18n.t("chat:tool_card_open_prs_title"),
+              i18n.t("chat:tool_card_open_prs_refs"),
+              i18n.t("chat:tool_card_open_prs_draft"),
+              i18n.t("chat:tool_card_open_prs_mergeability"),
+              i18n.t("chat:tool_card_open_prs_created"),
+              i18n.t("chat:tool_card_open_prs_updated")
+            ]}
+          />
           <TBody>
             {rows.map((row) => (
               <tr key={row.key}>
@@ -115,7 +136,7 @@ function renderExpanded(context: ToolCardContext) {
                 <Td mono wrap>
                   <RefLink label={row.headRef} url={row.headUrl} /> → <RefLink label={row.baseRef} url={row.baseUrl} />
                 </Td>
-                <Td>{row.draft ? <Badge>draft</Badge> : "—"}</Td>
+                <Td>{row.draft ? <Badge>{i18n.t("chat:tool_card_open_prs_draft")}</Badge> : "—"}</Td>
                 <Td>
                   <MergeabilityBadge mergeable={row.mergeable} />
                 </Td>
@@ -149,7 +170,7 @@ export const examples = [
           title: "Add dark mode toggle to the settings page",
           url: "https://github.com/acme/widgets/pull/41",
           head_ref: "feature/dark-mode",
-          head_url: "https://github.com/acme/widgets/tree/feature/dark-mode",
+          head_url: "https://github.com/acme/widgets/tree/feature%2Fdark-mode",
           base_ref: "main",
           base_url: "https://github.com/acme/widgets/tree/main",
           mergeable: true,
@@ -162,7 +183,7 @@ export const examples = [
           title: "WIP: rework pagination heuristics with a title long enough to demonstrate wrapping",
           url: "https://github.com/acme/widgets/pull/38",
           head_ref: "feature/pagination",
-          head_url: "https://github.com/acme/widgets/tree/feature/pagination",
+          head_url: "https://github.com/acme/widgets/tree/feature%2Fpagination",
           base_ref: "main",
           base_url: "https://github.com/acme/widgets/tree/main",
           mergeable: null,

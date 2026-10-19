@@ -451,6 +451,11 @@ tools are scoped to the current Run's repository through the Run context's
 allowed repository IDs. They do not expose Jobs or GitHub data from other
 repositories and do not add write capability.
 
+`list_open_prs` accepts `state` (`open`, `closed`, or `merged`) and a bounded
+`limit`. Each result includes the PR number, title, draft and mergeability
+state, head/base refs, creation and update timestamps, plus `url`, `head_url`,
+and `base_url` links suitable for opening the PR and its branch refs on GitHub.
+
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
 usage instead of relying solely on reactive error-text classification. It makes a
