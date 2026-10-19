@@ -614,5 +614,18 @@
     "chat_session": "Chatsitzung",
     "run_id": "Run-ID",
     "current_message_id": "Aktuelle Nachrichten-ID"
-  }
+  },
+  "tool_card_classify_pr_failed": "Klassifizierung des Pull Requests fehlgeschlagen",
+  "tool_card_classify_pr_failed_recovery": "Repository und Pull-Request-Nummer prüfen und erneut versuchen.",
+  "tool_card_classify_pr_empty": "Keine Details zur Pull-Request-Klassifizierung zurückgegeben.",
+  "tool_card_classify_pr_fork": "Fork",
+  "tool_card_classify_pr_same_repo": "gleiches Repository",
+  "tool_card_classify_pr_marker_badge": "Marker: {{kind}}",
+  "tool_card_classify_pr_disabled": "Klassifizierung deaktiviert.",
+  "tool_card_classify_pr_disabled_detail": "Dieses Repository klassifiziert derzeit keine Pull Requests.",
+  "tool_card_classify_pr_repository": "Repository",
+  "tool_card_classify_pr_head_repository": "Head-Repository",
+  "tool_card_classify_pr_head_ref": "Head-Ref",
+  "tool_card_classify_pr_base_ref": "Basis-Ref",
+  "tool_card_classify_pr_marker_details": "Marker-Details"
 }
