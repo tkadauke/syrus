@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import { ToolGroup } from "../MessageCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import askUserQuestionToolCard from "./ask_user_question"
 import markGoalBlockedToolCard from "./mark_goal_blocked"
 import markGoalCompletedToolCard from "./mark_goal_completed"
-import pinChatToolCard from "./pin_chat"
+import pinChatToolCard, { examples as pinChatExamples } from "./pin_chat"
 import renameChatToolCard from "./rename_chat"
 import suggestNextStepToolCard from "./suggest_next_step"
 import unpinChatToolCard from "./unpin_chat"
@@ -89,12 +90,15 @@ describe("chat helper tool cards", () => {
   })
 
   it("renders chat pinning state changes", () => {
-    const pinned = { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." }
+    const pinned = { session_id: 42, title: "Release planning", pinned: true, position: 2, message: "Chat pinned." }
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: pinned }))).toBe("Chat pinned.")
-    render(<>{pinChatToolCard.renderExpanded(context("pin_chat", { parsedResult: pinned }))}</>)
+    const { container } = render(<>{pinChatToolCard.renderExpanded(context("pin_chat", { input: { chat_session_id: 42 }, parsedResult: pinned }))}</>)
     expect(screen.getByText("Chat pin")).toBeInTheDocument()
     expect(screen.getByText("pinned")).toBeInTheDocument()
-    expect(screen.getByText("Release planning")).toBeInTheDocument()
+    expect(screen.getAllByText("CHAT-42").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "Release planning" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("2")).toBeInTheDocument()
+    expect(container.querySelector(".break-words")).toHaveTextContent("Release planning")
 
     const unpinned = { session_id: 42, title: "Release planning", pinned: false, message: "Chat unpinned." }
     expect(unpinChatToolCard.collapsedSummary?.(context("unpin_chat", { parsedResult: unpinned }))).toBe("Chat unpinned.")
@@ -103,8 +107,56 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("unpinned")).toBeInTheDocument()
   })
 
+  it("renders pending and empty pin results with their requested target", () => {
+    const pending = context("pin_chat", { input: { chat_session_id: 87 } })
+    expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat...")
+    render(<>{pinChatToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("CHAT-87")).toBeInTheDocument()
+  })
+
+  it("renders authorization errors without exposing an unrelated chat", () => {
+    const denied = context("pin_chat", {
+      input: { chat_session_id: 99 },
+      parsedResult: { error: "not_authorized" },
+      resultBody: JSON.stringify({ error: "not_authorized" }),
+      resultError: true
+    })
+    expect(pinChatToolCard.collapsedSummary?.(denied)).toBe("Chat pin failed")
+    render(<>{pinChatToolCard.renderExpanded(denied)}</>)
+    expect(screen.getByText("not_authorized")).toBeInTheDocument()
+    expect(screen.queryByText("CHAT-99")).not.toBeInTheDocument()
+  })
+
+  it("uses normalized tool names and result envelopes across providers", () => {
+    const payload = { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." }
+    const codexEnvelope = { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__pin_chat")).toBe("pin_chat")
+    expect(
+      pinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("mcp__syrus-chat-sidecar__pin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(codexEnvelope)
+        })
+      )
+    ).toBe("Chat pinned.")
+    expect(
+      pinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("syrus-chat-sidecar.pin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(payload)
+        })
+      )
+    ).toBe("Chat pinned.")
+  })
+
+  it("publishes catalog examples for explicit, pending, and authorization states", () => {
+    expect(pinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "not_authorized"])
+  })
+
   it("renders missing payload fields as malformed cards instead of throwing", () => {
-    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe("Next-step suggestion returned an unexpected response")
+    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe(
+      "Next-step suggestion returned an unexpected response"
+    )
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: { session_id: 42 } }))).toBe("Chat pin returned an unexpected response")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
@@ -120,20 +172,22 @@ describe("chat helper tool rendering integration", () => {
       summary_label: "Goal #9 -> completed",
       outcome_label: "Done",
       collapsed_by_default: true,
-      calls: [{
-        message_id: 1,
-        tool_name: "mark_goal_completed",
-        raw_name: "mark_goal_completed",
-        detail: "done",
-        display_label: "Mark goal completed",
-        progress_label: "Thinking",
-        raw_payload: { reason: "done" },
-        result_body: resultBody,
-        result_json: { goal_id: 9, status: "completed", reason: "done" },
-        result_error: false,
-        result_kind: "record",
-        result_summary: "Goal #9 -> completed"
-      }]
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "mark_goal_completed",
+          raw_name: "mark_goal_completed",
+          detail: "done",
+          display_label: "Mark goal completed",
+          progress_label: "Thinking",
+          raw_payload: { reason: "done" },
+          result_body: resultBody,
+          result_json: { goal_id: 9, status: "completed", reason: "done" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Goal #9 -> completed"
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)
