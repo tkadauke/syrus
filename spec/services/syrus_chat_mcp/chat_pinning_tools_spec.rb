@@ -51,6 +51,7 @@ RSpec.describe "chat pinning MCP tools" do
     expect(response[:result][:isError]).to be_falsey
     expect(payload).to include(
       session_id: chat_session.id,
+      title: "Current chat",
       pinned: false,
       message: "Chat unpinned."
     )
@@ -97,6 +98,16 @@ RSpec.describe "chat pinning MCP tools" do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to include("not_authorized")
+  end
+
+  it "does not disclose a missing chat when unpinning" do
+    chat_session.update!(pinned: true)
+
+    response = call_tool("unpin_chat", chat_session_id: ChatSession.maximum(:id).to_i + 100)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("not_authorized")
+    expect(chat_session.reload.pinned?).to be(true)
   end
 
   it "denies hidden and deleted chat sessions" do

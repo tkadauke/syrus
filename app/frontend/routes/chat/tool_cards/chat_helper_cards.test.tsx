@@ -12,7 +12,7 @@ import markGoalCompletedToolCard from "./mark_goal_completed"
 import pinChatToolCard, { examples as pinChatExamples } from "./pin_chat"
 import renameChatToolCard from "./rename_chat"
 import suggestNextStepToolCard from "./suggest_next_step"
-import unpinChatToolCard from "./unpin_chat"
+import unpinChatToolCard, { examples as unpinChatExamples } from "./unpin_chat"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   const resultBody = overrides.resultBody ?? ""
@@ -284,6 +284,43 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("unpinned")).toBeInTheDocument()
   })
 
+  it("renders an explicit unpin target and linked, wrapping result details", () => {
+    const unpinned = { session_id: 43, title: "A release-planning title long enough to wrap", pinned: false, message: "Chat unpinned." }
+    const { container } = render(
+      <>{unpinChatToolCard.renderExpanded(context("unpin_chat", { input: { chat_session_id: 43 }, parsedResult: unpinned }))}</>
+    )
+
+    expect(screen.getByText("Requested target")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "CHAT-43" })).toHaveLength(2)
+    expect(screen.getByRole("link", { name: unpinned.title })).toHaveAttribute("href", "/chats/43")
+    expect(container.querySelector(".break-words")).toHaveTextContent(unpinned.title)
+    expect(screen.getByText("Unpinned")).toBeInTheDocument()
+    expect(screen.getByText("Chat unpinned.")).toBeInTheDocument()
+  })
+
+  it("renders pending, empty, and authorization outcomes for unpin", () => {
+    const pending = context("unpin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
+    expect(unpinChatToolCard.collapsedSummary?.(pending)).toBe("Unpinning chat...")
+    const { rerender } = render(<>{unpinChatToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByRole("link", { name: "CHAT-87" })).toHaveAttribute("href", "/chats/87")
+
+    const empty = context("unpin_chat", { input: { chat_session_id: 87 }, resultSettled: true })
+    expect(unpinChatToolCard.collapsedSummary?.(empty)).toBe("Chat unpin returned an unexpected response")
+    rerender(<>{unpinChatToolCard.renderExpanded(empty)}</>)
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+
+    const denied = context("unpin_chat", {
+      input: { chat_session_id: 99 },
+      parsedResult: { error: "not_authorized" },
+      resultBody: JSON.stringify({ error: "not_authorized" }),
+      resultError: true
+    })
+    expect(unpinChatToolCard.collapsedSummary?.(denied)).toBe("Chat unpin failed")
+    rerender(<>{unpinChatToolCard.renderExpanded(denied)}</>)
+    expect(screen.getByText("not_authorized")).toBeInTheDocument()
+    expect(screen.queryByText("CHAT-99")).not.toBeInTheDocument()
+  })
+
   it("renders an unsettled pin call as pending with its requested target", () => {
     const pending = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
     expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat...")
@@ -333,10 +370,28 @@ describe("chat helper tool cards", () => {
         })
       )
     ).toBe("Chat pinned.")
+
+    const unpinnedPayload = { session_id: 42, title: "Release planning", pinned: false, message: "Chat unpinned." }
+    const unpinEnvelope = { content: [{ type: "text", text: JSON.stringify(unpinnedPayload) }], structured_content: null }
+    expect(
+      unpinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("mcp__syrus-chat-sidecar__unpin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(unpinEnvelope)
+        })
+      )
+    ).toBe("Chat unpinned.")
+    expect(
+      unpinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("syrus-chat-sidecar.unpin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(unpinnedPayload)
+        })
+      )
+    ).toBe("Chat unpinned.")
   })
 
   it("publishes catalog examples for explicit, pending, empty, and authorization states", () => {
     expect(pinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "empty_result", "not_authorized"])
+    expect(unpinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "empty_result", "not_authorized"])
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
@@ -344,6 +399,11 @@ describe("chat helper tool cards", () => {
       "Next-step suggestion returned an unexpected response"
     )
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: { session_id: 42 } }))).toBe("Chat pin returned an unexpected response")
+    expect(
+      unpinChatToolCard.collapsedSummary?.(
+        context("unpin_chat", { parsedResult: { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." } })
+      )
+    ).toBe("Chat unpin returned an unexpected response")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
   })

@@ -10,14 +10,14 @@ type ChatPinResult = {
   position: number | null
 }
 
-function parseChatPin(context: ToolCardContext, fallbackError: string) {
+function parseChatPin(context: ToolCardContext, fallbackError: string, expectedPinned: boolean) {
   if (!context.resultError && context.resultSettled === false) return { kind: "pending" as const }
 
   return successOrError<ChatPinResult>(context, fallbackError, (parsed) => {
     const sessionId = displayValue(parsed.session_id)
     const title = displayValue(parsed.title)
     const message = displayValue(parsed.message)
-    if (!sessionId || !title || typeof parsed.pinned !== "boolean" || !message) return null
+    if (!sessionId || !title || parsed.pinned !== expectedPinned || !message) return null
     const position = numberValue(parsed.position ?? parsed.pinned_position)
     return { sessionId, title, pinned: parsed.pinned, message, position }
   })
@@ -53,14 +53,14 @@ export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRe
   return {
     toolName,
     collapsedSummary(context) {
-      const parsed = parseChatPin(context, `${errorSummary}.`)
+      const parsed = parseChatPin(context, `${errorSummary}.`, expectedPinned)
       if (parsed.kind === "error") return errorSummary
       if (parsed.kind === "malformed") return malformedSummary
       if (parsed.kind === "pending") return expectedPinned ? "Pinning chat..." : "Unpinning chat..."
       return parsed.data.message
     },
     renderExpanded(context) {
-      const parsed = parseChatPin(context, `${errorSummary}.`)
+      const parsed = parseChatPin(context, `${errorSummary}.`, expectedPinned)
       if (parsed.kind === "error") return <ErrorCard title={title} message={errorMessage(context, parsed.message)} />
       if (parsed.kind === "malformed") return <MalformedCard title={title} />
       if (parsed.kind === "pending") {
