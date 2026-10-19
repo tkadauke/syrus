@@ -226,6 +226,7 @@ function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
     target_epic_label: null,
     route_to_backlog: false,
     route_label: "Start normally",
+    priority: "medium",
     app_update_path: "/api/v1/app/chats/122/proposals/17",
     app_confirm_path: "/api/v1/app/chats/122/proposals/17/confirm",
     app_reject_path: "/api/v1/app/chats/122/proposals/17/reject",
@@ -387,6 +388,13 @@ describe("PendingActionCard", () => {
 })
 
 describe("ProposalCard layout", () => {
+  it("shows the requested Job priority", () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", priority: "urgent" }))
+
+    expect(screen.getByText("Priority")).toBeInTheDocument()
+    expect(screen.getByText("urgent")).toBeInTheDocument()
+  })
+
   it("places the slug before dependencies and above the title", () => {
     renderProposalCard(proposal({
       title: "Search cards",

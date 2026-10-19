@@ -416,6 +416,7 @@
   "proposal_investigation_label": "Untersuchung",
   "proposal_investigation_value": "Nur lesend, kein PR erwartet",
   "proposal_provider": "Provider",
+  "proposal_priority": "Priorität",
   "proposal_provider_default": "Standard",
   "proposal_capabilities": "Fähigkeiten",
   "aria_confirm_proposal_to_backlog": "Vorschlag für Backlog bestätigen",

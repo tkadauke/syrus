@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_053736) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_142912) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -644,6 +644,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_053736) do
     t.json "planned_execution_capabilities"
     t.string "planned_execution_source"
     t.json "dependency_requirements"
+    t.string "priority", default: "medium", null: false
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
