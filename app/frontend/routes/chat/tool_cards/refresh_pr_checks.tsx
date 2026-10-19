@@ -147,6 +147,8 @@ function NextActionHint({ card }: { card: RefreshCard }) {
   return <div className="text-text-secondary">Next: verify the PR and provider state, then refresh again if the result still looks incomplete.</div>
 }
 
+const CHECK_NAME_WRAP_CLASS = "min-w-0 break-words [overflow-wrap:anywhere]"
+
 function CheckList({ checks }: { checks: CheckRow[] }) {
   return (
     <ul className="space-y-1">
@@ -155,7 +157,7 @@ function CheckList({ checks }: { checks: CheckRow[] }) {
           <div className="flex min-w-0 flex-wrap items-center gap-1">
             {check.detailsUrl ? (
               <a
-                className="break-words font-mono font-medium text-brand hover:underline dark:text-brand-emphasis [overflow-wrap:anywhere]"
+                className={`${CHECK_NAME_WRAP_CLASS} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`}
                 href={check.detailsUrl}
                 rel="noreferrer"
                 target="_blank"
@@ -163,7 +165,7 @@ function CheckList({ checks }: { checks: CheckRow[] }) {
                 {check.name}
               </a>
             ) : (
-              <span className="font-mono font-medium text-text-primary">{check.name}</span>
+              <span className={`${CHECK_NAME_WRAP_CLASS} font-mono font-medium text-text-primary`}>{check.name}</span>
             )}
             {check.provider ? <Badge>{check.provider}</Badge> : null}
             {check.conclusion ? <StatePill state={check.conclusion} /> : null}
@@ -216,6 +218,7 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={card.jobId} kind="job" label={`JOB-${card.jobId}`} slug={card.slug} />
+        {card.slug ? <span className="min-w-0 break-words font-mono text-text-secondary [overflow-wrap:anywhere]">({card.slug})</span> : null}
         {card.prNumber ? (
           <EntityReference id={card.prNumber} kind="pull_request" prUrl={repositoryUrl ? `${repositoryUrl}/pull/${card.prNumber}` : null} />
         ) : null}
