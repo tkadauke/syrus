@@ -1,6 +1,6 @@
 # Emergency Land
 
-Emergency land is an incident-response escape hatch for Coding Mode. It lets a repository admin land the active Coding Mode Job branch immediately after explicit operator confirmation.
+Emergency land is an incident-response escape hatch for Coding Mode. It can submit the active clean, committed checkout directly, creating its audit Job and immutable pushed branch without dispatching normal automation, or land an eligible existing Job branch.
 
 ## Availability
 
@@ -23,9 +23,9 @@ The repository owner gets that membership through the existing owner-membership 
 
 The `emergency_land` MCP tool never merges code immediately. It creates a `ChatPendingAction` with `action: "emergency_land"` for the operator to confirm or decline in chat.
 
-The pending-action UI renders with warning styling and states the consequence explicitly: Syrus graders, adversarial review, and visual review are skipped, and the PR is about to be merged directly through GitHub. Confirmation re-checks the feature flag, Coding Mode state, linked Job, branch validity, and repository-admin permission before landing.
+The pending-action UI renders with warning styling and states the consequence explicitly: Syrus graders, adversarial review, and visual review are skipped, and the PR is about to be merged directly through GitHub. Confirmation re-checks the feature flag, Coding Mode session, branch validity, repository access, and repository-admin permission before landing.
 
-Emergency land is mutually exclusive with the normal `complete_implement_step` handoff for the same Job. If either pending action already exists, the other path refuses to create a competing confirmation.
+Emergency land is mutually exclusive with the normal `complete_implement_step` handoff for the same Job. Direct submission captures and verifies the checkout HEAD only after confirmation and rejects dirty worktrees, the wrong active branch, empty diffs, or an unverifiable push. Existing Jobs may be in `implemented`, `approved`, `failed`, `queued`, or `coding` when they have a trustworthy recorded branch and no active runtime work.
 
 ## What It Skips
 
@@ -44,7 +44,8 @@ It does not skip GitHub or repository mechanics:
 - Syrus still opens a normal pull request with `PullRequestOpener` if the Job has no PR yet.
 - Syrus merges through GitHub's merge API rather than pushing directly to the default branch.
 - GitHub branch protection, mergeability, required checks, repository permissions, and merge conflicts still apply.
-- The Job branch must already have pushed commits ahead of the repository default branch.
+- Existing Job branches must already have pushed commits ahead of the repository default branch. Direct checkout submission publishes an immutable emergency branch at the captured HEAD.
+- Unsatisfied dependencies, active runtime work, and branches shared by multiple open Jobs are refused.
 
 ## Audit Trail
 
@@ -53,6 +54,8 @@ Successful emergency lands close the Job with `closure_reason: "emergency_landed
 - `emergency_landed_at`
 - `emergency_landed_by_user_id`
 - `emergency_landed_by_membership_tier`
+- `emergency_land_source_sha`
+- `emergency_land_skipped_controls` (graders, adversarial review, visual review, admission control, and the normal workflow worker queue)
 
 Operators can audit usage from the Job detail page, which shows the closure reason plus the confirming user, membership tier, and timestamp. Admins can also query the admin Jobs API with:
 

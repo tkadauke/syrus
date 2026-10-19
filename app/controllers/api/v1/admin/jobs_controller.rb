@@ -277,6 +277,8 @@ module Api
             emergency_landed_at: job.emergency_landed_at,
             emergency_landed_by_user_id: job.emergency_landed_by_user_id,
             emergency_landed_by_membership_tier: job.emergency_landed_by_membership_tier,
+            emergency_land_source_sha: job.emergency_land_source_sha,
+            emergency_land_skipped_controls: job.emergency_land_skipped_controls,
             created_at:     job.created_at,
             updated_at:     job.updated_at
           }
@@ -310,6 +312,8 @@ module Api
             emergency_landed_at: job.emergency_landed_at,
             emergency_landed_by_user_id: job.emergency_landed_by_user_id,
             emergency_landed_by_membership_tier: job.emergency_landed_by_membership_tier,
+            emergency_land_source_sha: job.emergency_land_source_sha,
+            emergency_land_skipped_controls: job.emergency_land_skipped_controls,
             runaway_protection: job.runaway_protection,
             failure_count: job.failure_count,
             repository: {

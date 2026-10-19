@@ -53,16 +53,31 @@ RSpec.describe Mcp::Tools::EmergencyLandTool do
     expect(EmergencyLand::Lander).not_to have_received(:land)
   end
 
-  it "stores a supplied branch_name on the pending action instead of mutating the Job immediately" do
+  it "creates a direct checkout confirmation without requiring a pre-existing Job" do
+    allow(ChatWorkspace).to receive(:coding_checkout_snapshot).with(chat_session, repository)
+      .and_return(current_branch: "incident-fix")
+
+    response = call_tool(title: "Restore service", description: "Fix the incident")
+    result = payload(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    action = ChatPendingAction.find(result[:pending_action_id])
+    expect(action.payload).to include(
+      "job_id" => nil,
+      "repository_id" => repository.id,
+      "branch_name" => "incident-fix",
+      "title" => "Restore service",
+      "description" => "Fix the incident"
+    )
+  end
+
+  it "rejects replacing an existing Job's recorded branch" do
     job = Factories.job_record(user: owner, repository: repository, state: "coding",
                                linked_chat_id: chat_session.id, branch_name: "syrus/stale", pr_number: nil)
 
     response = call_tool(job_id: job.id, branch_name: "syrus/pushed-incident-fix")
-    result = payload(response)
-
-    expect(response.dig(:result, :isError)).to be_falsey
-    pending_action = ChatPendingAction.find(result[:pending_action_id])
-    expect(pending_action.payload["branch_name"]).to eq("syrus/pushed-incident-fix")
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("must match")
     expect(job.reload.branch_name).to eq("syrus/stale")
   end
 
@@ -87,7 +102,7 @@ RSpec.describe Mcp::Tools::EmergencyLandTool do
                                linked_chat_id: chat_session.id, branch_name: "syrus/incident", pr_number: nil)
     existing = chat_session.pending_actions.create!(
       action: "emergency_land",
-      payload: { "chat_session_id" => chat_session.id, "job_id" => job.id, "branch_name" => "syrus/incident" },
+      payload: { "chat_session_id" => chat_session.id, "job_id" => job.id, "repository_id" => repository.id, "branch_name" => "syrus/incident" },
       requested_by: "agent"
     )
 

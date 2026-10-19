@@ -72,6 +72,8 @@ RSpec.describe EmergencyLand::Lander do
       expect(job.emergency_landed_at).to be_present
       expect(job.emergency_landed_by_user_id).to eq(owner.id)
       expect(job.emergency_landed_by_membership_tier).to eq("admin")
+      expect(job.emergency_land_source_sha).to eq("headsha123")
+      expect(job.emergency_land_skipped_controls).to eq(%w[graders adversarial_review visual_review admission_control normal_worker_queue])
     end
 
     it "reuses an already-open PR instead of opening a duplicate" do
@@ -130,22 +132,22 @@ RSpec.describe EmergencyLand::Lander do
       expect(result.message).to match(/admin permission/i)
     end
 
-    it "refuses when the Job is not in coding state" do
+    it "accepts implemented as an eligible branch-backed state and continues validation" do
       job.update!(state: "implemented")
 
       result = described_class.land(job: job, user: owner, client: client)
 
       expect(result).to be_refused
-      expect(result.message).to match(/coding mode/i)
+      expect(result.message).to match(/no pushed commits/i)
     end
 
-    it "refuses when the linked chat is not in Coding Mode" do
+    it "does not require Coding Mode takeover for an existing branch-backed Job" do
       chat_session.update!(mode: "planning")
 
       result = described_class.land(job: job, user: owner, client: client)
 
       expect(result).to be_refused
-      expect(result.message).to match(/coding mode/i)
+      expect(result.message).to match(/no pushed commits/i)
     end
 
     it "refuses when the workspace has no pushed commits ahead of the default branch" do
@@ -187,6 +189,20 @@ RSpec.describe EmergencyLand::Lander do
       expect(result).to be_refused
       expect(result.message).to match(/not mergeable/i)
       expect(job.reload).to be_coding
+    end
+
+    it "retires queued zero-run ownership instead of requiring Coding Mode takeover" do
+      workflow = instance_double(Workflow, queued?: true, runs: instance_double(ActiveRecord::Associations::CollectionProxy, exists?: false))
+      unit = instance_double(WorkUnit, workflow: workflow, running?: false, active?: true)
+      allow(WorkUnits::Ownership).to receive(:active_units_for_job).with(job).and_return([ unit ])
+      allow(WorkUnits::WorkflowCancellation).to receive(:cancel!)
+      allow(unit).to receive(:preempt!)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result.message).to match(/no pushed commits/i)
+      expect(WorkUnits::WorkflowCancellation).to have_received(:cancel!).with(workflow, hash_including(reason: "emergency_land_superseded"))
+      expect(unit).to have_received(:preempt!).with(reason: "emergency_land_superseded")
     end
   end
 
