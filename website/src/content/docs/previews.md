@@ -103,8 +103,11 @@ graders.
 
 When the reviewed UI is below the fold, screenshot submission can identify a
 subject by CSS selector or by its exact browser snapshot ref. Syrus waits for
-that element to become visible and centers it before capturing, so the saved
-evidence shows the interface under review.
+that element to become visible and centers it before capturing. By default, at
+least half of the subject must intersect the viewport; taller subjects must
+have their top edge visible. Saved evidence records the subject rectangle,
+visible fraction, and scroll position so reviewers can verify what the
+screenshot was meant to show.
 
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
