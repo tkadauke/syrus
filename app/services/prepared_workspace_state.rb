@@ -10,9 +10,11 @@ class PreparedWorkspaceState
   end
 
   def commands
-    Array(JSON.parse(marker_path.read)["commands"])
-  rescue Errno::ENOENT, JSON::ParserError, TypeError
-    []
+    Array(payload&.fetch("commands", nil))
+  end
+
+  def prepared_for?(expected_commands)
+    payload.present? && (Array(expected_commands) - commands).empty?
   end
 
   def record!(commands)
@@ -26,9 +28,16 @@ class PreparedWorkspaceState
       file.fsync
       File.rename(file.path, marker_path)
     end
+    @payload = nil
   end
 
   private
+
+  def payload
+    @payload ||= JSON.parse(marker_path.read)
+  rescue Errno::ENOENT, JSON::ParserError, TypeError
+    nil
+  end
 
   def marker_path
     @workspace_path.join(MARKER)
