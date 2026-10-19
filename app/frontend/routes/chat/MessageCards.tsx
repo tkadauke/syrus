@@ -739,7 +739,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
@@ -839,7 +839,7 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCallSettled(call: ChatToolGroupItem["calls"][number]) {
-  return call.result_settled === true || call.result_body !== ""
+  return call.result_settled === true || call.result_error || call.result_body !== ""
 }
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
