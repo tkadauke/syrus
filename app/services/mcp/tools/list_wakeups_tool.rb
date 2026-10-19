@@ -31,7 +31,10 @@ module Mcp::Tools
           id: wakeup.id,
           fire_at: wakeup.fire_at.iso8601,
           delay_remaining_minutes: delay_remaining_minutes(wakeup.fire_at),
-          prompt_preview: wakeup.prompt.to_s.each_char.first(PROMPT_PREVIEW_LENGTH).join
+          prompt_preview: wakeup.prompt.to_s.each_char.first(PROMPT_PREVIEW_LENGTH).join,
+          prompt: wakeup.prompt.to_s,
+          state: wakeup.state,
+          chat_id: wakeup.chat_session_id
         }
       end
 
