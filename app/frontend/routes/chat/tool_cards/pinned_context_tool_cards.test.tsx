@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, type ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import removePinnedContextToolCard from "./remove_pinned_context"
 import updatePinnedContextToolCard from "./update_pinned_context"
 
@@ -78,12 +79,23 @@ describe("pinned context tool cards", () => {
     expect(screen.getByText("Pinned context is empty.")).toBeInTheDocument()
   })
 
-  it("renders removed pinned context state", () => {
+  it.each([
+    ["direct result", "remove_pinned_context", (payload: Record<string, unknown>) => payload],
+    ["sidecar-prefixed result", "syrus-chat-sidecar.remove_pinned_context", (payload: Record<string, unknown>) => payload],
+    [
+      "Codex MCP envelope",
+      "mcp__syrus-chat-sidecar__remove_pinned_context",
+      (payload: Record<string, unknown>) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null, isError: false })
+    ]
+  ])("normalizes and dispatches removed pinned context from a %s", (_label, rawToolName, wrapResult) => {
     const removedContext = `${Array.from({ length: 12 }, (_, index) => `Line ${index + 1}`).join("\n")}\n**JOB-42** https://example.test/runbook`
-    const parsedResult = { chat_id: 9, pinned_context: null, removed_pinned_context: removedContext, message: "Pinned context removed." }
+    const payload = { chat_id: 9, pinned_context: null, removed_pinned_context: removedContext, message: "Pinned context removed." }
+    const parsedResult = normalizedToolCardParsedResult(wrapResult(payload))
+    const cardContext = context(normalizedToolName(rawToolName), { parsedResult, resultBody: JSON.stringify(wrapResult(payload)) })
 
-    expect(removePinnedContextToolCard.collapsedSummary?.(context("remove_pinned_context", { parsedResult }))).toBe("Pinned context removed.")
-    render(<>{removePinnedContextToolCard.renderExpanded(context("mcp__syrus__remove_pinned_context", { parsedResult }))}</>)
+    expect(parsedResult).toEqual(payload)
+    expect(pluginToolCardCollapsedSummary(cardContext)).toBe("Pinned context removed.")
+    render(<>{pluginToolCardExpandedBody(cardContext)}</>)
 
     expect(screen.getByText("removed")).toBeInTheDocument()
     expect(screen.getByText("Pinned context removed.")).toBeInTheDocument()
