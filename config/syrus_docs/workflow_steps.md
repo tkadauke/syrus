@@ -214,7 +214,12 @@ Operators can also manage ordered routing rules from the app surfaces that own
 each scope: Agent Settings shows "My default routing", repository settings show
 "My routing for this repository" with inherited user rules, and Job detail shows
 "Routing for this job" with inherited repository/user rules plus the resolver
-explanation for the provider that would be chosen for future work.
+explanation for the provider that would be chosen for future work. Each surface
+keeps disabled rules visible in their stable position, supports inline enablement
+and complete-list reordering, and offers route-to-provider or hold-work actions.
+Disabled rules are skipped and the first enabled matching rule wins. Hold actions
+show their reason and manual, condition-based, or timed resumption policy; Job
+detail also shows active holds and their next wake where applicable.
 
 `agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
 `SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as

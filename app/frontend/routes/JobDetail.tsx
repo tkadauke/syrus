@@ -1260,6 +1260,17 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
           </div>
         ) : null}
       </div>
+      {(payload.job.active_provider_routing_holds || []).map((hold) => (
+        <div className="mt-3 rounded border border-warning-border bg-warning-subtle p-3" key={hold.id}>
+          <p className="text-xs font-medium uppercase tracking-wide text-warning-text">{t("routing_active_hold")}</p>
+          <p className="mt-1 text-sm text-text-primary">{hold.reason}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {hold.resumption_mode === "until_time" && hold.next_reevaluation_at
+              ? t("routing_hold_wakes_at", { time: new Date(hold.next_reevaluation_at).toLocaleString() })
+              : t(`routing_hold_${hold.resumption_mode}`)}
+          </p>
+        </div>
+      ))}
       <ProviderRoutingRulesEditor
         basePath={`/api/v1/app/jobs/${payload.job.id}/provider_routing_rules`}
         description={t("routing_job_panel_description")}

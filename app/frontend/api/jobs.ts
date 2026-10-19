@@ -99,6 +99,7 @@ export type JobRecord = {
   provider_routing_rules?: ProviderRoutingRule[]
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
   provider_routing_resolution?: ProviderRoutingResolution | null
+  active_provider_routing_holds?: ProviderRoutingHold[]
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
@@ -203,6 +204,16 @@ export type ProviderRoutingResolution = {
     candidates?: ProviderRoutingCandidate[]
     [key: string]: unknown
   } | null
+}
+
+export type ProviderRoutingHold = {
+  id: number
+  workflow_id: number
+  provider_routing_rule_id?: number | null
+  reason: string
+  resumption_mode: "manual" | "when_conditions_clear" | "until_time"
+  next_reevaluation_at?: string | null
+  created_at: string
 }
 
 export type JobClassificationAttempt = {
