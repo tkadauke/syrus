@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
@@ -23,10 +26,21 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
+  it("renders an empty state for empty or whitespace-only text", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(container).toHaveTextContent("No content provided.")
+  })
+
+  it("honors maxChars, links URLs, and copies the full text from the modal", () => {
+    const text = `See https://example.test/${"long".repeat(100)}`
+    render(<MarkdownPreview linkifyUrls maxChars={30} text={text} title="Runbook" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByRole("link")).toHaveAttribute("href", expect.stringContaining("https://example.test/"))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy Runbook" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
