@@ -70,13 +70,13 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-2">
-        <EntityReference id={result.id} kind="repository" repositorySlug={result.slug} slug={result.slug} />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <EntityReference id={result.id} kind="repository" repositorySlug={result.slug} slug={result.slug} touchTarget />
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.id ? (
           <DetailRow label="Repository ID">
-            <EntityReference id={result.id} kind="repository" label={result.id} repositorySlug={result.slug} slug={result.slug} />
+            <EntityReference id={result.id} kind="repository" label={result.id} repositorySlug={result.slug} touchTarget />
           </DetailRow>
         ) : null}
         {result.defaultBranch ? <DetailRow label="Default branch">{result.defaultBranch}</DetailRow> : null}
