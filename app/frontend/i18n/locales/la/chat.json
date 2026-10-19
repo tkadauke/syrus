@@ -576,5 +576,19 @@
   "card_preview_pending_one": "{{count}} pendens",
   "card_preview_pending_other": "{{count}} pendentia",
   "tool_card_diff_page_only_stats": "Numeri mutationum ad hanc paginam tantum pertinent.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines",
+  "daemon_invocation_context": {
+    "summary": "contextus invocationis: {{surface}}{{identity}}",
+    "summary_denied": "contextus invocationis negatus: {{error}}",
+    "ok": "Bene",
+    "denied": "Negatum",
+    "surface": "Ambitus",
+    "role": "Munus",
+    "tier": "Gradus",
+    "provider": "Provisor",
+    "job": "Opus",
+    "chat_session": "Sessio colloquii",
+    "run_id": "ID cursus",
+    "current_message_id": "ID nuntii praesentis"
+  }
 }
