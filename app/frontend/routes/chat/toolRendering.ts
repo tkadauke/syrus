@@ -350,7 +350,16 @@ export function typedToolResult(name: string, body: string, error = false): Type
 export function normalizedToolCardParsedResult(parsed: unknown): unknown {
   if (!isPlainObject(parsed)) return parsed
 
-  if (parsed.structured_content != null) return parsed.structured_content
+  if (parsed.structured_content != null) {
+    const content = parsed.content
+    const preservesBinaryContent = Array.isArray(content) && content.some((item) => isPlainObject(item) && item.type !== "text")
+    if (!preservesBinaryContent) return parsed.structured_content
+
+    if (!isPlainObject(parsed.structured_content)) return { structured_content: parsed.structured_content, content }
+
+    const structuredBlocks = Array.isArray(parsed.structured_content.content) ? parsed.structured_content.content : []
+    return { ...parsed.structured_content, content: [...content, ...structuredBlocks] }
+  }
 
   const content = parsed.content
   if (!Array.isArray(content)) return parsed
