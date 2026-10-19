@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolResultPresentation } from "../toolRendering"
 import listJobsToolCard from "./list_jobs"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -18,8 +19,18 @@ describe("list_jobs tool card", () => {
     expect(listJobsToolCard.toolName).toBe("list_jobs")
   })
 
+  it("is selected for an MCP-prefixed tool name", () => {
+    const body = JSON.stringify({ jobs: [{ id: 1, state: "open" }] })
+    expect(toolResultPresentation("mcp__syrus-chat-sidecar__list_jobs", body)).toMatchObject({ summary: "1 Job" })
+  })
+
   it("summarizes the collapsed row with a Job count", () => {
-    const parsedResult = { jobs: [{ id: 1, state: "open" }, { id: 2, state: "closed" }] }
+    const parsedResult = {
+      jobs: [
+        { id: 1, state: "open" },
+        { id: 2, state: "closed" }
+      ]
+    }
     expect(listJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 Jobs")
   })
 
@@ -31,7 +42,7 @@ describe("list_jobs tool card", () => {
       ]
     }
 
-    render(<>{listJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
+    render(<>{listJobsToolCard.renderExpanded(context({ input: { state: "open", label: "syrus:skip-prepare", limit: 10 }, parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
@@ -40,6 +51,20 @@ describe("list_jobs tool card", () => {
     expect(screen.getByRole("link", { name: "JOB-4049" })).toHaveAttribute("href", "/jobs/4049")
     expect(screen.getByText("Fix bug")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Copy tkadauke/syrus to clipboard" })).toHaveLength(2)
+    expect(screen.getByText(/Showing 2, limit 10/)).toHaveTextContent("Label: syrus:skip-prepare")
+  })
+
+  it.each([
+    [[{ id: 1, state: "open" }]],
+    [{ structured_content: { jobs: [{ id: 1, state: "open" }] } }],
+    [{ content: [{ type: "text", text: JSON.stringify({ jobs: [{ id: 1, state: "open" }] }) }] }]
+  ])("accepts alternate result envelopes", (parsedResult) => {
+    expect(listJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 Job")
+  })
+
+  it("renders tool errors instead of treating them as malformed data", () => {
+    render(<>{listJobsToolCard.renderExpanded(context({ resultBody: "Error: unavailable", resultError: true }))}</>)
+    expect(screen.getByText("Error: unavailable")).toBeInTheDocument()
   })
 
   it("renders a friendly empty state for a well-formed empty list", () => {

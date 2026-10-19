@@ -1,5 +1,7 @@
-import { isPlainObject } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { DataTable } from "../../components/ui"
+import { Table, TBody, Td, THead } from "./adminToolCard"
+import { MarkdownPreview } from "./toolCardMarkdown"
 import { EmptyState, EntityReference, StatePill } from "./toolCardUi"
 
 // Shared dense-table rendering for the list_jobs and search_jobs tool cards
@@ -17,6 +19,15 @@ export type JobRow = {
   repositorySlug: string | null
   prNumber: string | null
   priority: string | null
+  kind: string | null
+  issueNumber: string | null
+  branchName: string | null
+  closureReason: string | null
+  agentProvider: string | null
+  jobProviderSetting: string | null
+  goalId: string | null
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 function displayValue(value: unknown): string | null {
@@ -38,8 +49,57 @@ export function parseJobRow(value: unknown): JobRow | null {
     state,
     repositorySlug: displayValue(value.repository_slug),
     prNumber: displayValue(value.pr_number),
-    priority: displayValue(value.priority)
+    priority: displayValue(value.priority),
+    kind: displayValue(value.kind),
+    issueNumber: displayValue(value.issue_number),
+    branchName: displayValue(value.branch_name),
+    closureReason: displayValue(value.closure_reason),
+    agentProvider: displayValue(value.agent_provider),
+    jobProviderSetting: displayValue(value.job_provider_setting),
+    goalId: isPlainObject(value.goal_provenance) ? displayValue(value.goal_provenance.chat_goal_id) : null,
+    createdAt: displayValue(value.created_at),
+    updatedAt: displayValue(value.updated_at)
   }
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+export function jobResult(context: ToolCardContext, key: "jobs" | "results"): unknown[] | null {
+  let value = context.parsedResult
+  if (isPlainObject(value) && value.structured_content != null) value = value.structured_content
+  if (isPlainObject(value) && Array.isArray(value.content)) {
+    const first = value.content[0]
+    if (isPlainObject(first) && typeof first.text === "string") value = parseJson(first.text)
+  }
+  if (Array.isArray(value)) return value
+  return isPlainObject(value) && Array.isArray(value[key]) ? value[key] : null
+}
+
+export function resultErrorMessage(context: ToolCardContext): string | null {
+  if (!context.resultError) return null
+  if (typeof context.parsedResult === "string") return context.parsedResult
+  if (isPlainObject(context.parsedResult)) return displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message) || context.resultBody
+  return context.resultBody || "The Jobs request failed."
+}
+
+function githubUrl(slug: string, suffix = "") {
+  const path = slug.split("/").filter(Boolean).map(encodeURIComponent).join("/")
+  return path ? `https://github.com/${path}${suffix}` : null
+}
+
+function detail(label: string, value: string | null) {
+  return value ? (
+    <div>
+      <span className="text-text-subtle">{label}: </span>
+      {value}
+    </div>
+  ) : null
 }
 
 export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage: string }) {
@@ -48,29 +108,63 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
   }
 
   return (
-    <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Job</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Title</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">State</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Repository</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">PR</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Priority</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
+    <Table responsive>
+      <THead columns={["Job", "Title", "State", "Repository", "Source", "Execution", "Lifecycle"]} />
+      <TBody>
         {rows.map((row) => (
           <DataTable.Row key={row.key}>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs"><EntityReference id={row.key} kind="job" /></DataTable.Cell>
-            <DataTable.Cell className="max-w-[16rem] truncate px-2 py-1 text-xs" title={row.title}>{row.title}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs"><StatePill state={row.state} /></DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.repositorySlug ? <EntityReference kind="repository" slug={row.repositorySlug} /> : "—"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">{row.prNumber ? <EntityReference id={row.prNumber} kind="pull_request" prUrl={row.repositorySlug ? `https://github.com/${row.repositorySlug}/pull/${row.prNumber}` : null} /> : "—"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs capitalize">{row.priority || "—"}</DataTable.Cell>
+            <Td>
+              <EntityReference id={row.key} kind="job" />
+            </Td>
+            <Td maxWidth wrap>
+              <MarkdownPreview maxLines={3} text={row.title} />
+            </Td>
+            <Td wrap>
+              <StatePill state={row.state} />
+              {row.closureReason ? <div className="mt-1 text-text-muted">{row.closureReason}</div> : null}
+            </Td>
+            <Td wrap>
+              {row.repositorySlug ? <EntityReference href={githubUrl(row.repositorySlug)} kind="repository" repositorySlug={row.repositorySlug} /> : "—"}
+            </Td>
+            <Td wrap>
+              {detail("Kind", row.kind)}
+              {detail("Issue", row.issueNumber ? `#${row.issueNumber}` : null)}
+              {row.prNumber ? (
+                <div>
+                  <EntityReference
+                    id={row.prNumber}
+                    kind="pull_request"
+                    prUrl={row.repositorySlug ? githubUrl(row.repositorySlug, `/pull/${encodeURIComponent(row.prNumber)}`) : null}
+                  />
+                </div>
+              ) : null}
+              {row.branchName && row.repositorySlug ? (
+                <div>
+                  <span className="text-text-subtle">Branch: </span>
+                  <EntityReference
+                    href={githubUrl(row.repositorySlug, `/tree/${encodeURIComponent(row.branchName)}`)}
+                    kind="repository"
+                    label={row.branchName}
+                    slug={row.branchName}
+                  />
+                </div>
+              ) : (
+                detail("Branch", row.branchName)
+              )}
+            </Td>
+            <Td wrap>
+              {detail("Priority", row.priority)}
+              {detail("Agent", row.agentProvider)}
+              {detail("Setting", row.jobProviderSetting)}
+              {detail("Goal", row.goalId ? `#${row.goalId}` : null)}
+            </Td>
+            <Td wrap>
+              {detail("Created", row.createdAt)}
+              {detail("Updated", row.updatedAt)}
+            </Td>
           </DataTable.Row>
         ))}
-      </DataTable.Body>
-    </DataTable.Root>
+      </TBody>
+    </Table>
   )
 }
