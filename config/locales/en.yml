@@ -343,6 +343,7 @@ en:
       moved_to_backlog: "Job moved to backlog."
       not_awaiting_triage: "%{slug} is not awaiting triage."
       accepted: "Job accepted."
+      placement_decision_required: "Choose the suggested placement or Linux before accepting this Job."
       rejected: "Job rejected."
       retry_enqueued: "Retry workflow enqueued."
       retry_enqueued_with_provider: "Retry workflow enqueued with %{provider}."

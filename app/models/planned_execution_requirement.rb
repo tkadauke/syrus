@@ -1,5 +1,5 @@
 class PlannedExecutionRequirement
-  SOURCES = %w[defaulted inferred explicit prompt classifier operator].freeze
+  SOURCES = %w[defaulted inferred explicit prompt classifier operator operator_confirmed].freeze
   DEFAULT_CAPABILITIES = { "os" => [ "linux" ] }.freeze
 
   attr_reader :project_label, :target_label, :capabilities, :source
