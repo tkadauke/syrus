@@ -473,6 +473,7 @@ export type ChatToolGroupCall = {
   result_error: boolean
   result_kind: ChatToolResultKind
   result_summary: string
+  context_calls?: ChatToolContextCall[]
   summary_metadata?: ChatToolSummaryMetadata
   // Live current state of the ChatPendingAction this call's tool_use
   // message is anchored to (ChatPendingAction::anchor_to_tool_call! always
@@ -485,6 +486,8 @@ export type ChatToolGroupCall = {
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]
 }
+
+export type ChatToolContextCall = { tool_name: string; input: unknown; result: unknown }
 
 export type ChatToolGroupItem = {
   type: "tool_group"

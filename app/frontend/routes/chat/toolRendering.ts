@@ -6,7 +6,7 @@
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
 import { isPlainObject } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
-import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
+import type { ChatToolContextCall, ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
@@ -370,7 +370,7 @@ export function normalizedToolCardParsedResult(parsed: unknown): unknown {
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown): ToolResultPresentation {
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown, contextCalls: ChatToolContextCall[] = []): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
   const cardParsed = normalizedToolCardParsedResult(parsed)
@@ -385,7 +385,12 @@ export function toolResultPresentation(name: string, body: string, error = false
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    parsedResult: redactToolCardValue(cardParsed)
+    parsedResult: redactToolCardValue(cardParsed),
+    priorCalls: contextCalls.map((call) => ({
+      toolName: normalizedToolName(call.tool_name),
+      input: (isPlainObject(call.input) ? redactToolCardValue(call.input) : {}) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(normalizedToolCardParsedResult(call.result))
+    }))
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 

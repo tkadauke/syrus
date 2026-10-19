@@ -453,6 +453,21 @@ describe("renderChatMessages tool grouping", () => {
     expect(call.result_summary).toBe("Cancel requested · JOB-44 · pending #7")
   })
 
+  it("carries earlier draw results into a later delete card summary", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_draw", toolName: "draw_shape", input: { type: "diamond", label: "Decision" } }),
+      toolResult(2, { toolUseId: "tu_draw", content: JSON.stringify({ id: "shape-1", label_id: "text-1", version: 1 }) }),
+      toolUse(3, { toolUseId: "tu_delete", toolName: "delete_element", input: { id: "shape-1" } }),
+      toolResult(4, { toolUseId: "tu_delete", content: JSON.stringify({ id: "shape-1", version: 2 }) })
+    ])
+
+    const deleteCall = group(items[1]).calls[0]
+    expect(deleteCall.context_calls).toEqual([
+      { tool_name: "draw_shape", input: { type: "diamond", label: "Decision" }, result: { id: "shape-1", label_id: "text-1", version: 1 } }
+    ])
+    expect(deleteCall.result_summary).toBe("Deleted element (diamond) · shape-1")
+  })
+
   // ChatPendingAction::anchor_to_tool_call! always anchors onto the
   // tool_use message (and actively strips pending_action_id off every
   // other message, including the paired tool_result) -- so that's the

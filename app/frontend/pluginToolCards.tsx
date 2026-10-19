@@ -28,6 +28,8 @@ export type ToolCardContext = {
   resultError: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Earlier settled calls, normalized and redacted like the current call.
+  priorCalls?: ToolCardPriorCall[]
   // Current state of the ChatPendingAction this tool call created, read
   // fresh off the owning tool_use message on every payload fetch (that's
   // where ChatPendingAction::anchor_to_tool_call! anchors it, not the
@@ -39,6 +41,8 @@ export type ToolCardContext = {
   // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
 }
+
+export type ToolCardPriorCall = { toolName: string; input: Record<string, unknown>; parsedResult: unknown }
 
 export type ToolCardRenderer = {
   toolName: string
@@ -84,6 +88,7 @@ export type ToolCardExample = {
   // `job` key"). Omit when the label already says it all.
   description?: string
   input?: Record<string, unknown>
+  priorCalls?: ToolCardPriorCall[]
   // Provide exactly one of resultBody/parsedResult. resultBody is the raw
   // result text a real tool_result would carry (already JSON-encoded where
   // relevant); parsedResult is a convenience for authors who'd rather write
@@ -132,6 +137,7 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
   return {
     toolName,
     input: example.input,
+    priorCalls: example.priorCalls,
     resultBody,
     resultError: example.resultError ?? false,
     parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
