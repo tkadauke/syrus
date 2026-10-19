@@ -56,7 +56,18 @@ function collapsedSummary(context: ToolCardContext) {
   const result = parseResult(context)
   if (!result) return null
 
-  return result.message || `Submit coding changes${result.branch ? ` for ${result.branch}` : ""} (${result.state})`
+  return result.message ? markdownSummary(result.message) : `Submit coding changes${result.branch ? ` for ${result.branch}` : ""} (${result.state})`
+}
+
+function markdownSummary(text: string) {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/(^|\s)#{1,6}\s+/gm, "$1")
+    .replace(/(^|\n)\s*(?:>|[-+*]|\d+[.)])\s+/g, "$1")
+    .replace(/(`{1,3}|\*\*|__|~~|[*_])/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function WrappingValue({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
