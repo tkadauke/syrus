@@ -1,29 +1,38 @@
 const REDACTED = "[redacted]"
 
-const SENSITIVE_KEY_PATTERN = /(^|[_-])(access[_-]?token|api[_-]?key|apikey|authorization|auth[_-]?token|bearer|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)([_-]|$)/i
-const INLINE_SECRET_KEY_PATTERN = "(?:accessToken|access[_-]?token|apiKey|api[_-]?key|apikey|clientSecret|client[_-]?secret|credential|idToken|id[_-]?token|password|refreshToken|refresh[_-]?token|secret|sessionToken|session[_-]?token|token)"
-const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN = "[A-Za-z0-9_-]*(?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)[A-Za-z0-9_-]*"
+const SENSITIVE_KEY_PATTERN =
+  /(^|[_-])(access[_-]?token|api[_-]?key|apikey|authorization|auth[_-]?token|bearer|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)([_-]|$)/i
+const INLINE_SECRET_KEY_PATTERN =
+  "(?:accessToken|access[_-]?token|apiKey|api[_-]?key|apikey|clientSecret|client[_-]?secret|credential|idToken|id[_-]?token|password|refreshToken|refresh[_-]?token|secret|sessionToken|session[_-]?token|token)"
+const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN =
+  "[A-Za-z0-9_-]*(?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)[A-Za-z0-9_-]*"
 
 export function redactToolCardValue(value: unknown): unknown {
   if (typeof value === "string") return redactToolCardText(value)
   if (Array.isArray(value)) return value.map((item) => redactToolCardValue(item))
   if (!isPlainObject(value)) return value
 
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
-    key,
-    sensitiveKey(key) ? REDACTED : redactToolCardValue(entry)
-  ]))
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sensitiveKey(key) ? REDACTED : redactToolCardValue(entry)]))
 }
 
 export function redactToolCardText(text: string): string {
   return text
+    .replace(/-----BEGIN [^-\r\n]+ PRIVATE KEY-----[\s\S]*?-----END [^-\r\n]+ PRIVATE KEY-----/gi, REDACTED)
+    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:)[^\s/@]+(@)/gi, `$1${REDACTED}$2`)
+    .replace(/(\s-u\s+[^\s:]+:)([^\s]+)/g, `$1${REDACTED}`)
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, `$1${REDACTED}`)
     .replace(new RegExp(`(["'])(${INLINE_SECRET_KEY_PATTERN})\\1(\\s*:\\s*)(["'])[^"']{6,}\\4`, "gi"), `$1$2$1$3$4${REDACTED}$4`)
-    .replace(new RegExp(`(?<![A-Za-z])(${INLINE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\\\n\\r])*"|'(?:\\\\.|[^'\\\\\\n\\r])*'|[^\\s,;}{]+)`, "gi"), (_match, key, separator, value) => {
-      const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : ""
+    .replace(
+      new RegExp(
+        `(?<![A-Za-z])(${INLINE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\\\n\\r])*"|'(?:\\\\.|[^'\\\\\\n\\r])*'|[^\\s,;}{]+)`,
+        "gi"
+      ),
+      (_match, key, separator, value) => {
+        const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : ""
 
-      return `${key}${separator}${quote}${REDACTED}${quote}`
-    })
+        return `${key}${separator}${quote}${REDACTED}${quote}`
+      }
+    )
     .replace(/\b(gh[pousr]_[A-Za-z0-9_]{20,})\b/g, REDACTED)
     .replace(/\b(sk-[A-Za-z0-9_-]{20,})\b/g, REDACTED)
     .replace(/\b[A-Za-z0-9._-]*(?:credential|password|secret|token)[A-Za-z0-9._-]{6,}\b(?!\s*[:=])/gi, REDACTED)
