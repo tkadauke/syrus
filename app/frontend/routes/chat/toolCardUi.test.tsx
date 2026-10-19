@@ -148,7 +148,6 @@ describe("EntityReference", () => {
     expect(entityReferenceHref({ kind: "pull_request", id: 88, prUrl: "//evil.example/pull/88" })).toBeNull()
     expect(entityReferenceHref({ kind: "issue", id: 12, href: "data:text/html,unsafe" })).toBeNull()
   })
-
   it.each([
     [{ kind: "wakeup", id: 1 }, "WAKEUP-1", null],
     [{ kind: "scheduled_task", id: 2 }, "TASK-2", "/scheduled_tasks/2"],
