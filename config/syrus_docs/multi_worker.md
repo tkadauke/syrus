@@ -64,8 +64,16 @@ selected developer directory, Xcode version and build version,
 command-line-tool usability, available iOS simulator runtimes, and a bounded
 sample of available simulator devices. Historical health samples keep the
 capability snapshot that was true when the sample was recorded. `admin_version`
-is intentionally limited to the request handler and live instance version
-fields.
+is intentionally limited to the request handler and a compact live-instance
+roster. Each instance entry includes its database ID, hostname, role, version,
+start and heartbeat timestamps, and the latest data-root usage snapshot
+(health level, used percentage, reporting hostname, path, available and total
+bytes, and observation time). When `SYRUS_GITHUB_REPO` identifies the running
+source repository, the result also includes its GitHub URL so the chat card can
+link each revision to its commit. The responsive card marks the instance that
+handled the request and makes hostnames and revisions copyable; mixed revisions
+remain called out during rolling deploys. Use `read_worker_health` for the
+larger capability, probe, and historical-health payloads.
 
 External worker pools can set `SYRUS_WORKER_POOL_NAME` to a stable
 operator-facing name such as `macos-xcode`. Syrus records that value in worker

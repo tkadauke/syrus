@@ -1073,6 +1073,14 @@ short command, streams a long-running command, connects a command pipeline,
 or manages a background service. Each child remains visible as a spawned
 process with its owning Job or Workflow, redacted command, heartbeat, timeout,
 operator-cancellation state, exit status, and final outcome.
+
+The running-version result renders as a responsive instance roster in chat.
+It identifies the request handler, shows instance IDs and complete data-root
+capacity details, and keeps hostnames and revisions copyable on narrow screens.
+When the deployment declares its source GitHub repository, revisions link to
+their commits. A mixed-version notice remains visible while a rolling deploy
+has old and new revisions serving at the same time.
+
 The same worker health data is visible
 from the Workers tab as a per-host chart dashboard with current status,
 quick/custom time ranges, and recent trends for CPU, load, memory, disk, CPU
