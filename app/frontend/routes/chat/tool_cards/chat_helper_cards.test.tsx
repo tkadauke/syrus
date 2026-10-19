@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import { ToolGroup } from "../MessageCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import askUserQuestionToolCard from "./ask_user_question"
 import markGoalBlockedToolCard from "./mark_goal_blocked"
 import markGoalCompletedToolCard from "./mark_goal_completed"
@@ -78,14 +79,79 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("goal is not active")).toBeInTheDocument()
   })
 
-  it("renders rename_chat old and new titles when available", () => {
+  it("renders rename_chat input and result fields with a linked chat and wrapping titles", () => {
     const parsedResult = { session_id: 42, previous_title: "Old title", title: "Release planning" }
 
     expect(renameChatToolCard.collapsedSummary?.(context("rename_chat", { parsedResult }))).toBe('Renamed "Old title" -> "Release planning"')
-    render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult }))}</>)
+    render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { input: { name: "Release planning" }, parsedResult }))}</>)
 
     expect(screen.getAllByText("Old title").length).toBeGreaterThan(0)
     expect(screen.getByText("Release planning")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("Release planning")).toHaveClass("break-words")
+  })
+
+  it("shows the requested and stored titles when the stored title was shortened", () => {
+    const requestedName = "r".repeat(125)
+    const storedTitle = "r".repeat(120)
+
+    render(
+      <>
+        {renameChatToolCard.renderExpanded(
+          context("rename_chat", {
+            input: { name: requestedName },
+            parsedResult: { session_id: 42, previous_title: null, title: storedTitle }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Requested title")).toBeInTheDocument()
+    expect(screen.getByText(requestedName)).toHaveClass("whitespace-pre-wrap", "break-words")
+    expect(screen.getByText("Stored title")).toBeInTheDocument()
+    expect(screen.getByText(storedTitle)).toHaveClass("whitespace-pre-wrap", "break-words")
+  })
+
+  it.each([
+    ["name is required", { name: "" }],
+    ["name must be 120 characters or fewer", { name: "x".repeat(121) }]
+  ])("renders rename_chat validation errors through ErrorCard: %s", (message, input) => {
+    const errorContext = context("rename_chat", { input, resultBody: message, resultError: true })
+
+    expect(renameChatToolCard.collapsedSummary?.(errorContext)).toBe("Chat rename failed")
+    render(<>{renameChatToolCard.renderExpanded(errorContext)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+  })
+
+  it("renders pending and empty rename_chat calls without inventing result fields", () => {
+    const pending = context("rename_chat", { input: {} })
+
+    expect(renameChatToolCard.collapsedSummary?.(pending)).toBe("Renaming chat")
+    render(<>{renameChatToolCard.renderExpanded(pending)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Not provided.")).toBeInTheDocument()
+    expect(screen.queryByText("Stored title")).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["mcp__syrus-chat-sidecar__rename_chat", { structured_content: { session_id: 42, previous_title: "Old", title: "New" } }],
+    [
+      "syrus-chat-sidecar.rename_chat",
+      { content: [{ type: "text", text: JSON.stringify({ session_id: 42, previous_title: "Old", title: "New" }) }], structured_content: null }
+    ]
+  ])("renders normalized provider envelope %s", (rawName, envelope) => {
+    const normalizedContext = context(normalizedToolName(rawName), {
+      input: { name: "New" },
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(normalizedContext.toolName).toBe("rename_chat")
+    render(<>{renameChatToolCard.renderExpanded(normalizedContext)}</>)
+    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("New")).toBeInTheDocument()
   })
 
   it("renders chat pinning state changes", () => {
@@ -104,7 +170,9 @@ describe("chat helper tool cards", () => {
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
-    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe("Next-step suggestion returned an unexpected response")
+    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe(
+      "Next-step suggestion returned an unexpected response"
+    )
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: { session_id: 42 } }))).toBe("Chat pin returned an unexpected response")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
@@ -120,20 +188,22 @@ describe("chat helper tool rendering integration", () => {
       summary_label: "Goal #9 -> completed",
       outcome_label: "Done",
       collapsed_by_default: true,
-      calls: [{
-        message_id: 1,
-        tool_name: "mark_goal_completed",
-        raw_name: "mark_goal_completed",
-        detail: "done",
-        display_label: "Mark goal completed",
-        progress_label: "Thinking",
-        raw_payload: { reason: "done" },
-        result_body: resultBody,
-        result_json: { goal_id: 9, status: "completed", reason: "done" },
-        result_error: false,
-        result_kind: "record",
-        result_summary: "Goal #9 -> completed"
-      }]
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "mark_goal_completed",
+          raw_name: "mark_goal_completed",
+          detail: "done",
+          display_label: "Mark goal completed",
+          progress_label: "Thinking",
+          raw_payload: { reason: "done" },
+          result_body: resultBody,
+          result_json: { goal_id: 9, status: "completed", reason: "done" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Goal #9 -> completed"
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)
