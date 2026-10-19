@@ -16,7 +16,7 @@ describe("parseRefMovementCore", () => {
       target_repository: "upstream/syrus",
       target_inferred: true,
       mode: "auto",
-      grade_phases: [ "review", "landing" ]
+      grade_phases: ["review", "landing"]
     })
 
     expect(core).toEqual({
@@ -31,12 +31,13 @@ describe("parseRefMovementCore", () => {
       targetRepository: "upstream/syrus",
       targetInferred: true,
       mode: "auto",
-      gradePhases: [ "review", "landing" ]
+      gradePhases: ["review", "landing"]
     })
   })
 
-  it("returns null when required fields are missing", () => {
-    expect(parseRefMovementCore({ action_name: "send_job_upstream", state: "dispatched" })).toBeNull()
+  it("keeps partial action payloads renderable", () => {
+    expect(parseRefMovementCore({ state: "pending" })).toMatchObject({ actionId: null, actionName: null, state: "pending" })
+    expect(parseRefMovementCore({})).toBeNull()
     expect(parseRefMovementCore("not json")).toBeNull()
   })
 })
@@ -64,15 +65,30 @@ describe("RefMovementCoreFields", () => {
       target_kind: "branch",
       target_ref: "main",
       mode: "auto",
-      grade_phases: [ "review" ]
+      grade_phases: ["review"]
     })!
 
     render(<RefMovementCoreFields core={core} />)
 
     expect(screen.getByText("send_job_upstream")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
     expect(screen.getByText("dispatched")).toBeInTheDocument()
     expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
     expect(screen.getByText("review")).toBeInTheDocument()
+  })
+
+  it("renders blocked reasons as markdown with a bounded preview", () => {
+    const core = parseRefMovementCore({
+      ref_movement_action_id: 9,
+      action_name: "send_job_upstream",
+      state: "blocked",
+      blocked_reason: `Fix **delivery policy** first.\n${"More context. ".repeat(120)}`
+    })!
+
+    render(<RefMovementCoreFields core={core} />)
+
+    expect(screen.getByText("delivery policy").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 })
