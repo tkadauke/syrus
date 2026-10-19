@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
@@ -28,6 +29,18 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
     resultError: false,
     parsedResult: {},
     ...overrides
+  }
+}
+
+function livePendingAction(id: number, state: ChatPendingActionState): ChatPendingActionInline {
+  return {
+    id,
+    state,
+    action: "approve_job",
+    label: "Approve Job",
+    detail: null,
+    app_confirm_path: `/pending_actions/${id}/confirm`,
+    app_reject_path: `/pending_actions/${id}/reject`
   }
 }
 
@@ -118,12 +131,19 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { pending_action_id: 9, state: "rejected", message: "Feedback poll rejected." }
     })
 
-    render(<>{rebaseJobCard.renderExpanded(canceled)}{pollJobFeedbackCard.renderExpanded(rejected)}</>)
+    render(
+      <>
+        {rebaseJobCard.renderExpanded(canceled)}
+        {pollJobFeedbackCard.renderExpanded(rejected)}
+      </>
+    )
 
     expect(screen.getByText("canceled")).toBeInTheDocument()
     expect(screen.getByText("Rebase canceled by operator.")).toBeInTheDocument()
     expect(screen.getByText("rejected")).toBeInTheDocument()
     expect(screen.getByText("Feedback poll rejected.")).toBeInTheDocument()
+    expect(screen.queryByText("pending #8")).not.toBeInTheDocument()
+    expect(screen.queryByText("pending #9")).not.toBeInTheDocument()
   })
 
   it("renders dependency add and remove details for Job and Epic targets", () => {
@@ -137,7 +157,12 @@ describe("Job and Epic maintenance tool cards", () => {
     })
 
     expect(addJobDependencyCard.collapsedSummary?.(addJob)).toBe("Dependency added · JOB-50")
-    render(<>{addJobDependencyCard.renderExpanded(addJob)}{removeEpicDependencyCard.renderExpanded(removeEpic)}</>)
+    render(
+      <>
+        {addJobDependencyCard.renderExpanded(addJob)}
+        {removeEpicDependencyCard.renderExpanded(removeEpic)}
+      </>
+    )
 
     expect(screen.getAllByText("JOB-49").length).toBeGreaterThan(0)
     expect(screen.getByText("deployment_stage")).toBeInTheDocument()
@@ -162,7 +187,12 @@ describe("Job and Epic maintenance tool cards", () => {
     const approve = context("approve_job", { parsedResult: { job_id: 52, previous_state: "implemented", new_state: "approved" } })
     const unapprove = context("unapprove_job", { parsedResult: { job_id: 52, previous_state: "approved", new_state: "implemented" } })
 
-    render(<>{approveJobCard.renderExpanded(approve)}{unapproveJobCard.renderExpanded(unapprove)}</>)
+    render(
+      <>
+        {approveJobCard.renderExpanded(approve)}
+        {unapproveJobCard.renderExpanded(unapprove)}
+      </>
+    )
 
     expect(screen.getByText("Approve Job")).toBeInTheDocument()
     expect(screen.getByText("Unapprove Job")).toBeInTheDocument()
@@ -180,23 +210,62 @@ describe("Job and Epic maintenance tool cards", () => {
     })
 
     expect(approveJobCard.collapsedSummary?.(approve)).toBe("Approval requested · 3 JOBs · pending group #5")
-    expect(unapproveJobCard.collapsedSummary?.(unapprove)).toBe("Unapproval requested · 2 JOBs · pending group #6")
+    expect(unapproveJobCard.collapsedSummary?.(unapprove)).toBe("Unapprove Job rejected · 2 JOBs")
+  })
+
+  it.each([
+    ["rejected", "Approve Job rejected · 2 JOBs"],
+    ["cancelled", "Approve Job cancelled · 2 JOBs"],
+    ["failed", "Approve Job failed · 2 JOBs"]
+  ] as const)("uses the terminal live %s outcome in the collapsed summary", (state, summary) => {
+    const ctx = context("approve_job", {
+      input: { job_ids: [53, 54] },
+      parsedResult: {
+        pending_action_group_id: 5,
+        pending_action_id: 18,
+        state: "pending",
+        member_count: 2,
+        message: "Approve 2 Jobs?"
+      },
+      livePendingAction: livePendingAction(18, state)
+    })
+
+    expect(approveJobCard.collapsedSummary?.(ctx)).toBe(summary)
+  })
+
+  it("does not show a frozen pending result's new state before live execution", () => {
+    const pending = context("approve_job", {
+      input: { job_id: 53 },
+      parsedResult: { pending_action_id: 18, state: "pending", previous_state: "implemented", new_state: "approved" },
+      livePendingAction: livePendingAction(18, "pending")
+    })
+    const confirmed = { ...pending, livePendingAction: livePendingAction(18, "confirmed") }
+
+    render(<>{approveJobCard.renderExpanded(pending)}</>)
+    expect(screen.queryByText("After")).not.toBeInTheDocument()
+
+    render(<>{approveJobCard.renderExpanded(confirmed)}</>)
+    expect(screen.getByText("After")).toBeInTheDocument()
   })
 
   it("renders archive, backlog, and start Epic transitions", () => {
     render(
       <>
         {startEpicCard.renderExpanded(context("start_epic", { parsedResult: { epic_id: 60, previous_state: "ready", new_state: "in_progress" } }))}
-        {moveEpicToBacklogCard.renderExpanded(context("move_epic_to_backlog", { parsedResult: { epic_id: 61, previous_state: "ready", new_state: "backlog" } }))}
-        {archiveEpicCard.renderExpanded(context("archive_epic", {
-          input: { epic_id: 62 },
-          parsedResult: {
-            pending_action_id: 17,
-            pending_confirmation_id: 17,
-            state: "pending",
-            message: "Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed."
-          }
-        }))}
+        {moveEpicToBacklogCard.renderExpanded(
+          context("move_epic_to_backlog", { parsedResult: { epic_id: 61, previous_state: "ready", new_state: "backlog" } })
+        )}
+        {archiveEpicCard.renderExpanded(
+          context("archive_epic", {
+            input: { epic_id: 62 },
+            parsedResult: {
+              pending_action_id: 17,
+              pending_confirmation_id: 17,
+              state: "pending",
+              message: "Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed."
+            }
+          })
+        )}
       </>
     )
 
@@ -214,7 +283,9 @@ describe("Job and Epic maintenance tool cards", () => {
       <>
         {updateJobCard.renderExpanded(context("update_job", { parsedResult: { job_id: 70, title: "New title", description: "New body", state: "open" } }))}
         {updateEpicCard.renderExpanded(context("update_epic", { parsedResult: { epic_id: 71, title: "New Epic", state: "ready" } }))}
-        {removeJobFromEpicCard.renderExpanded(context("remove_job_from_epic", { parsedResult: { job_id: 72, removed_from_epic_id: 73, removed_from_epic_title: "Old Epic" } }))}
+        {removeJobFromEpicCard.renderExpanded(
+          context("remove_job_from_epic", { parsedResult: { job_id: 72, removed_from_epic_id: 73, removed_from_epic_title: "Old Epic" } })
+        )}
       </>
     )
 
@@ -233,7 +304,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { pending_action_group_id: 3, pending_action_id: 16, state: "pending", member_count: 2, message: "Approve 2 Jobs?" }
     })
 
-    render(<>{closeJobSuccessfullyCard.renderExpanded(close)}{approveJobCard.renderExpanded(bulk)}</>)
+    render(
+      <>
+        {closeJobSuccessfullyCard.renderExpanded(close)}
+        {approveJobCard.renderExpanded(bulk)}
+      </>
+    )
 
     expect(screen.getByText("no_changes")).toBeInTheDocument()
     expect(screen.getByText("2 JOBs")).toBeInTheDocument()
