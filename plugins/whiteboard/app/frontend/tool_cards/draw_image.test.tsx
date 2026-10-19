@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import i18n from "i18next"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import drawImageCard, { examples } from "./draw_image"
@@ -62,5 +63,28 @@ describe("draw_image tool card", () => {
     render(<>{drawImageCard.renderExpanded(context())}</>)
     expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
     expect(examples.map((example) => example.id)).toEqual(["image_preview", "pending", "failure"])
+  })
+
+  it("localizes image metadata and actions", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const dataUrl = "data:image/png;base64,AA=="
+      render(
+        <>
+          {drawImageCard.renderExpanded(
+            context({
+              input: { data_url: dataUrl, mime_type: "image/png", width: 20, height: 10, x: 1, y: 2 },
+              parsedResult: { id: "image-1", file_id: "file-1", version: 2 }
+            })
+          )}
+        </>
+      )
+      fireEvent.click(screen.getByRole("button", { name: "Open file-1" }))
+      expect(screen.getByRole("link", { name: "Herunterladen" })).toBeInTheDocument()
+      for (const label of ["Element-ID", "Version", "Datei-ID", "MIME-Typ", "Ungefaehre Groesse", "Abmessungen", "Position"])
+        expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 })

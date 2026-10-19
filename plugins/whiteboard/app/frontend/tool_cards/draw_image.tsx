@@ -40,7 +40,7 @@ function DrawImageCard({ context }: { context: ToolCardContext }) {
   const title = result.fileId ?? inputFileId ?? t("tool_image")
   const details = [
     [t("tool_field_mime_type"), mimeType],
-    ["Size", size],
+    [t("tool_field_approx_size"), size],
     [t("tool_field_file_id"), inputFileId],
     ["X", x],
     ["Y", y],
@@ -80,15 +80,15 @@ function DrawImageCard({ context }: { context: ToolCardContext }) {
                 alt: t("tool_image"),
                 badge: mimeType,
                 subtitle: size,
-                actions: [{ label: "Download", href: src, download: true }],
+                actions: [{ label: t("tool_download"), href: src, download: true }],
                 meta: [
-                  { label: "Element ID", value: result.id, copyValue: result.id },
-                  { label: "Version", value: result.version == null ? null : String(result.version) },
-                  { label: "File ID", value: result.fileId ?? inputFileId, copyValue: result.fileId ?? inputFileId },
-                  { label: "MIME type", value: mimeType },
-                  { label: "Approx. size", value: size },
-                  { label: "Dimensions", value: width && height ? `${width} × ${height}` : (width ?? height) },
-                  { label: "Position", value: x && y ? `${x}, ${y}` : (x ?? y) }
+                  { label: t("tool_field_id"), value: result.id, copyValue: result.id },
+                  { label: t("tool_field_version"), value: result.version == null ? null : String(result.version) },
+                  { label: t("tool_field_file_id"), value: result.fileId ?? inputFileId, copyValue: result.fileId ?? inputFileId },
+                  { label: t("tool_field_mime_type"), value: mimeType },
+                  { label: t("tool_field_approx_size"), value: size },
+                  { label: t("tool_field_dimensions"), value: width && height ? `${width} × ${height}` : (width ?? height) },
+                  { label: t("tool_field_position"), value: x && y ? `${x}, ${y}` : (x ?? y) }
                 ]
               }
             }
