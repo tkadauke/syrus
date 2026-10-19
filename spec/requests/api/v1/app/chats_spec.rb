@@ -6477,6 +6477,36 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id)
   end
 
+  it "includes the created repository document result for a confirmed pending action" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "create_repo_document",
+      requested_by: "agent",
+      payload: { "repository_id" => repository.id, "title" => "Runbook", "body" => "# Ship safely" }
+    )
+
+    expect(action.confirm!).to be(true)
+    document = action.reload.result
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "resource_title" => "Runbook",
+        "resource_url" => "/api/v1/app/repository_documents/#{document.id}/file",
+        "document" => include(
+          "id" => document.id,
+          "repository_id" => repository.id,
+          "repository_slug" => repository.slug,
+          "content_type" => "text/markdown",
+          "size_bytes" => 13,
+          "url" => "/api/v1/app/repository_documents/#{document.id}/file"
+        )
+      )
+    )
+  end
+
   it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
