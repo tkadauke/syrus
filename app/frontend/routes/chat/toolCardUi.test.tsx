@@ -6,7 +6,11 @@ import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, 
 
 describe("toolCardUi CardShell", () => {
   it("cannot define a wider minimum width than its chat column", () => {
-    render(<CardShell><div>Card contents</div></CardShell>)
+    render(
+      <CardShell>
+        <div>Card contents</div>
+      </CardShell>
+    )
 
     expect(screen.getByText("Card contents").parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
   })
@@ -46,7 +50,9 @@ describe("EntityReference", () => {
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
-    [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"]
+    [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"],
+    [{ kind: "cluster", id: 7 }, "Cluster 7", "/k8s_clusters/7"],
+    [{ kind: "namespace", label: "default", clusterId: 7 }, "default", "/k8s_clusters/7"]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string]>)("links %s references", (reference, label, href) => {
     renderReference(reference)
 

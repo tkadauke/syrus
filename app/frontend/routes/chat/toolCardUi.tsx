@@ -134,7 +134,8 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
-export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal"
+export type ToolCardEntityKind =
+  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal" | "cluster" | "namespace"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -146,6 +147,7 @@ export type EntityReferenceProps = {
   workflowId?: number | string | null
   repositoryId?: number | string | null
   repositorySlug?: string | null
+  clusterId?: number | string | null
   prUrl?: string | null
   className?: string
   wrap?: "break" | "nowrap"
@@ -219,7 +221,23 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
-  proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
+  proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  cluster: {
+    label: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return compactEntityValue(reference.label) ?? (id ? `Cluster ${id}` : null)
+    },
+    href: idHref("/k8s_clusters"),
+    copyValue: slugCopyValue
+  },
+  namespace: {
+    label: (reference) => compactEntityValue(reference.label) ?? compactEntityValue(reference.slug),
+    href: (reference) => {
+      const clusterId = compactEntityValue(reference.clusterId)
+      return clusterId ? `/k8s_clusters/${clusterId}` : "/k8s_clusters"
+    },
+    copyValue: slugCopyValue
+  }
 }
 
 export function entityReferenceLabel(reference: EntityReferenceProps): string | null {
