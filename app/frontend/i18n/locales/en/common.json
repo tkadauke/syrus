@@ -178,6 +178,7 @@
     "start": "Start",
     "error": "Could not start the Epic."
   },
+  "copy_text": "Copy text",
   "copy": {
     "copy_to_clipboard": "Copy {{slug}} to clipboard",
     "copied": "Copied",

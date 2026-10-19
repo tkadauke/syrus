@@ -178,6 +178,7 @@
     "start": "Starten",
     "error": "Epic konnte nicht gestartet werden."
   },
+  "copy_text": "Text kopieren",
   "copy": {
     "copy_to_clipboard": "{{slug}} in die Zwischenablage kopieren",
     "copied": "Kopiert",
