@@ -2682,6 +2682,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_155621) do
     t.json "trigger", null: false
     t.json "conditions", null: false
     t.json "action", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["job_id"], name: "index_provider_routing_rules_on_job_id"
     t.index ["repository_id"], name: "index_provider_routing_rules_on_repository_id"
     t.index ["scope_type", "scope_id", "position"], name: "idx_provider_routing_rules_scope_position_unique", unique: true
