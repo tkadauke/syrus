@@ -1,11 +1,13 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
-import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 type RebasePlan = {
   jobId: string | null
   slug: string | null
+  repositorySlug: string | null
   state: string | null
   branchName: string | null
   currentBase: string | null
@@ -30,6 +32,10 @@ type ForceRebaseCard = {
   memberCount: number | null
   message: string | null
   reason: string | null
+  executionStatus: string | null
+  executionError: string | null
+  pendingActionHref: string | null
+  pendingGroupHref: string | null
   plans: RebasePlan[]
 }
 
@@ -68,6 +74,7 @@ function parsePlan(value: unknown): RebasePlan | null {
   return {
     jobId,
     slug: displayValue(value.slug),
+    repositorySlug: displayValue(value.repository_slug),
     state: displayValue(value.state),
     branchName: displayValue(value.branch_name),
     currentBase: displayValue(value.current_base),
@@ -115,8 +122,18 @@ function parseForceRebase(context: ToolCardContext): ForceRebaseCard | null {
     memberCount: typeof parsed.member_count === "number" ? parsed.member_count : null,
     message: displayValue(parsed.message),
     reason: live?.reason || displayValue(parsed.reason),
+    executionStatus: displayValue(live?.execution_status) || displayValue(parsed.execution_status),
+    executionError: displayValue(live?.execution_error) || displayValue(parsed.execution_error),
+    pendingActionHref: pendingActionLink(live?.app_confirm_path, pendingActionId, "pending-action"),
+    pendingGroupHref: pendingActionLink(live?.app_confirm_path, pendingGroupId, "pending-action-group"),
     plans
   }
+}
+
+function pendingActionLink(path: string | null | undefined, id: string | null, anchor: string) {
+  if (!path || !id) return null
+  const match = path.match(/\/chats\/(\d+)\/pending_/)
+  return match ? `/chats/${match[1]}#${anchor}-${id}` : null
 }
 
 function targetLabel(plan: RebasePlan) {
@@ -159,17 +176,22 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function PlanSummary({ plan }: { plan: RebasePlan }) {
+  const encodedBranch = plan.branchName?.split("/").map(encodeURIComponent).join("/")
+  const branchUrl = plan.repositorySlug && encodedBranch ? `https://github.com/${plan.repositorySlug}/tree/${encodedBranch}` : null
+  const prUrl = plan.repositorySlug && plan.prNumber ? `https://github.com/${plan.repositorySlug}/pull/${plan.prNumber}` : null
+
   return (
     <div className="rounded border border-border bg-surface px-2 py-1">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <span className="font-mono font-semibold text-text-primary">{targetLabel(plan)}</span>
+        <EntityReference id={plan.jobId} kind="job" label={plan.slug ? `JOB-${plan.jobId} (${plan.slug})` : null} slug={plan.slug} />
+        {plan.prNumber ? <EntityReference id={plan.prNumber} kind="pull_request" prUrl={prUrl} /> : null}
         {plan.workflowTriggerKind ? <Badge>{plan.workflowTriggerKind}</Badge> : null}
         {noOpLabel(plan) ? <Badge>{noOpLabel(plan)}</Badge> : null}
       </div>
       <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-        {plan.branchName ? <Row label="Branch" value={plan.branchName} /> : null}
-        {plan.currentBase ? <Row label="Current base" value={plan.currentBase} /> : null}
-        {plan.targetBase ? <Row label="Target base" value={plan.targetBase} /> : null}
+        {plan.branchName ? <WrappedValue href={branchUrl} label="Branch" value={plan.branchName} /> : null}
+        {plan.currentBase ? <WrappedValue label="Current base" value={plan.currentBase} /> : null}
+        {plan.targetBase ? <WrappedValue label="Target base" value={plan.targetBase} /> : null}
         {plan.commitsBehind ? <Row label="Commits behind" value={plan.commitsBehind} /> : null}
         {plan.checksState ? <Row label="Checks" value={plan.checksState} /> : null}
         {plan.mergeableState ? <Row label="Mergeability" value={plan.mergeableState} /> : null}
@@ -181,7 +203,7 @@ function PlanSummary({ plan }: { plan: RebasePlan }) {
       {plan.expectedLandingImpact ? (
         <div className="mt-2">
           <SectionLabel>Expected downstream workflow</SectionLabel>
-          <div className="mt-0.5 text-text-secondary">{plan.expectedLandingImpact}</div>
+          <MarkdownPreview maxLines={3} modalLabel="Expected downstream workflow" text={plan.expectedLandingImpact} />
         </div>
       ) : null}
       {plan.warnings.length > 0 ? (
@@ -196,6 +218,43 @@ function PlanSummary({ plan }: { plan: RebasePlan }) {
       ) : null}
     </div>
   )
+}
+
+function WrappedValue({ href, label, value }: { href?: string | null; label: string; value: string }) {
+  const text = <span className="break-all font-mono text-xs [overflow-wrap:anywhere]">{value}</span>
+  return (
+    <div className="min-w-0">
+      <SectionLabel>{label}</SectionLabel>
+      {href ? (
+        <a className="text-brand hover:underline dark:text-brand-emphasis" href={href} rel="noreferrer" target="_blank">
+          {text}
+        </a>
+      ) : (
+        text
+      )}
+    </div>
+  )
+}
+
+function PendingReference({ href, label }: { href: string | null; label: string }) {
+  return (
+    <Badge>
+      {href ? (
+        <a className="font-mono text-brand hover:underline" href={href}>
+          {label}
+        </a>
+      ) : (
+        label
+      )}
+    </Badge>
+  )
+}
+
+function outcomeLabel(card: ForceRebaseCard) {
+  if (card.executionError || card.state === "failed") return "failed"
+  if (card.state === "confirmed") return "executed"
+  if (card.state === "confirming" || card.state === "queued" || ["queued", "running"].includes(card.executionStatus || "")) return "confirmed"
+  return card.state === "pending" ? "pending" : card.state
 }
 
 function RetryGuidance({ card }: { card: ForceRebaseCard }) {
@@ -221,8 +280,9 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} />
         <span className="font-mono font-semibold text-text-primary">Force rebase</span>
-        {card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
-        {card.pendingActionId ? <Badge>pending #{card.pendingActionId}</Badge> : null}
+        <Badge>outcome: {outcomeLabel(card)}</Badge>
+        {card.pendingGroupId ? <PendingReference href={card.pendingGroupHref} label={`group #${card.pendingGroupId}`} /> : null}
+        {card.pendingActionId ? <PendingReference href={card.pendingActionHref} label={`pending #${card.pendingActionId}`} /> : null}
         {card.memberCount != null ? (
           <Badge>
             {card.memberCount} {card.memberCount === 1 ? "action" : "actions"}
@@ -230,12 +290,20 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
       </div>
 
-      {card.message ? <div className="text-text-secondary">{card.message}</div> : null}
+      {card.message ? <MarkdownPreview maxLines={3} modalLabel="Force rebase message" text={card.message} /> : null}
 
       {card.reason ? (
         <div>
           <SectionLabel>Audit reason</SectionLabel>
-          <div className="mt-0.5 text-text-secondary">{card.reason}</div>
+          <MarkdownPreview maxLines={3} modalLabel="Full audit reason" text={card.reason} />
+        </div>
+      ) : null}
+
+      {card.executionStatus || card.executionError ? (
+        <div>
+          <SectionLabel>Execution outcome</SectionLabel>
+          {card.executionStatus ? <StatePill state={card.executionStatus} /> : null}
+          {card.executionError ? <div className="mt-1 break-words text-danger-text [overflow-wrap:anywhere]">{card.executionError}</div> : null}
         </div>
       ) : null}
 
@@ -281,6 +349,7 @@ const requestedPlan = {
   workflow_trigger_kind: "rebase",
   bypass_front_of_queue: true,
   expected_landing_impact: "successful rebase will retry landing immediately",
+  repository_slug: "tkadauke/syrus",
   warnings: ["failing_or_pending_checks", "dirty_mergeability", "behind_base", "not_front_of_queue"]
 }
 
@@ -297,6 +366,12 @@ export const examples: ToolCardExample[] = [
       message: "Force rebase for repair-ci? Target base: main.",
       plan: requestedPlan
     }
+  },
+  {
+    id: "executed_live_action",
+    label: "Executed pending-action snapshot",
+    input: { job_id: 4222, reason: "Bypass queue position." },
+    parsedResult: { pending_action_id: 77, state: "confirmed", plan: requestedPlan }
   },
   {
     id: "already_current_noop",

@@ -98,6 +98,7 @@ describe("PendingActionGroupCard", () => {
   it("renders the group label and reveals its member targets on expand", () => {
     renderGroupCard(pendingActionGroup())
 
+    expect(document.getElementById("pending-action-group-7")).toBeInTheDocument()
     expect(screen.getByText("Reopen job (2)")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "JOB-262" })).not.toBeInTheDocument()
 
@@ -349,6 +350,7 @@ describe("PendingActionCard", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Pending action dismissed." }))
     const { onNotice } = renderCard(pendingAction())
 
+    expect(document.getElementById("pending-action-501")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Dismiss failed action" }))
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Pending action dismissed."))
