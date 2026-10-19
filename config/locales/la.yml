@@ -250,6 +250,7 @@ la:
       no_preview_configured: "Huic repositorio nulla praevisio configurata est."
 
     speech_to_text:
+      audio_too_small: "Dictatio brevior est quam ut transcribatur."
       backend_batch_unavailable: "Transcriptio fasciculorum in tergo non configurata est."
       backend_streaming_unavailable: "Transcriptio fluentis in tergo non configurata est."
       missing_file: "Adiunge fasciculum soni."

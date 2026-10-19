@@ -22,6 +22,7 @@ export type SpeechToTextStreamConfig = {
 
 export const MAX_TRANSCRIPTION_DURATION_SECONDS = 120
 export const MAX_TRANSCRIPTION_BYTES = 10 * 1024 * 1024
+export const MIN_TRANSCRIPTION_BYTES = 256
 export const TRANSCRIPTION_AUDIO_CONTENT_TYPES = [
   "audio/webm",
   "audio/mp4",
@@ -44,6 +45,13 @@ export function transcribeChatAudio(input: {
   prompt?: string
   signal?: AbortSignal
 }): Promise<{ transcript: SpeechToTextTranscript }> {
+  return transcribeChatAudioAttempt(input, 0)
+}
+
+function transcribeChatAudioAttempt(
+  input: Parameters<typeof transcribeChatAudio>[0],
+  attempt: number
+): Promise<{ transcript: SpeechToTextTranscript }> {
   return new Promise((resolve, reject) => {
     const form = new FormData()
     form.append("file", input.file, input.filename)
@@ -64,10 +72,15 @@ export function transcribeChatAudio(input: {
         resolve(xhr.response as { transcript: SpeechToTextTranscript })
       } else {
         const payload = xhr.response as { error?: { code?: string; message?: string } } | null
-        reject(new ApiError(payload?.error?.message || `Transcription failed with ${xhr.status}`, {
+        const error = new ApiError(payload?.error?.message || `Transcription failed with ${xhr.status}`, {
           status: xhr.status,
           code: payload?.error?.code
-        }))
+        })
+        if (attempt === 0 && (xhr.status === 503 || xhr.status === 504) && !input.signal?.aborted) {
+          transcribeChatAudioAttempt(input, 1).then(resolve, reject)
+        } else {
+          reject(error)
+        }
       }
     }
     xhr.onerror = () => reject(new ApiError("Transcription failed - check your connection.", { status: 0 }))

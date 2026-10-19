@@ -16,7 +16,8 @@ RSpec.describe WhisperStt::Provider do
       audio: audio,
       content_type: content_type,
       language: language,
-      prompt: prompt
+      prompt: prompt,
+      correlation_id: "request-123"
     )
   end
 
@@ -119,6 +120,15 @@ RSpec.describe WhisperStt::Provider do
     expect {
       described_class.new.transcribe_batch(request)
     }.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "model unavailable")
+  end
+
+  it "preserves daemon input failures as invalid audio" do
+    stub_request(:post, "#{endpoint}/inference")
+      .to_return(status: 422, body: { error: "invalid audio" }.to_json)
+
+    expect {
+      described_class.new.transcribe_batch(request)
+    }.to raise_error(ChatSpeechToText::Providers::InvalidAudio, "invalid audio")
   end
 
   it "maps daemon timeouts to the existing backend timeout message" do

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -77,7 +78,12 @@ func NewService(config Config) *Service {
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Log only method/status-independent routing metadata; bodies, audio, and transcript text never enter logs.
-	log.Printf("whisper gateway: %s %s", r.Method, routeName(r.URL.Path))
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = newID()
+	}
+	w.Header().Set("X-Request-ID", requestID)
+	log.Printf("whisper gateway ingress: request_id=%s method=%s route=%s", requestID, r.Method, routeName(r.URL.Path))
 	defer func() {
 		if recover() != nil {
 			writeError(w, protocolError{500, "internal server error"})
@@ -146,17 +152,25 @@ func (s *Service) proxy(w http.ResponseWriter, r *http.Request) error {
 	}
 	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, s.config.Upstream+"/inference", bytes.NewReader(body))
 	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
+	req.Header.Set("X-Request-ID", w.Header().Get("X-Request-ID"))
+	log.Printf("whisper gateway upstream: request_id=%s method=POST route=/inference", w.Header().Get("X-Request-ID"))
 	response, err := s.client.Do(req)
 	if err != nil {
-		return protocolError{502, "transcription backend failed"}
+		return upstreamError(err)
 	}
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		return protocolError{502, "transcription backend failed"}
+		return protocolError{503, "transcription backend unavailable"}
 	}
 	if response.StatusCode >= 400 {
-		return protocolError{response.StatusCode, "transcription backend failed"}
+		if response.StatusCode == http.StatusGatewayTimeout {
+			return protocolError{504, "transcription backend timed out"}
+		}
+		if response.StatusCode >= 500 {
+			return protocolError{503, "transcription backend unavailable"}
+		}
+		return protocolError{response.StatusCode, "transcription request rejected"}
 	}
 	w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
 	w.WriteHeader(response.StatusCode)
@@ -316,11 +330,14 @@ func (u *upstreamTranscriber) Transcribe(ctx context.Context, session *session, 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	response, err := u.service.client.Do(req)
 	if err != nil {
-		return "", protocolError{502, "transcription backend failed"}
+		return "", upstreamError(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return "", protocolError{502, "transcription backend failed"}
+		if response.StatusCode == http.StatusGatewayTimeout {
+			return "", protocolError{504, "transcription backend timed out"}
+		}
+		return "", protocolError{503, "transcription backend unavailable"}
 	}
 	var payload struct {
 		Text string `json:"text"`
@@ -329,6 +346,16 @@ func (u *upstreamTranscriber) Transcribe(ctx context.Context, session *session, 
 		return "", protocolError{502, "transcription backend failed"}
 	}
 	return strings.TrimSpace(payload.Text), nil
+}
+
+func upstreamError(err error) protocolError {
+	if err == context.DeadlineExceeded {
+		return protocolError{504, "transcription backend timed out"}
+	}
+	if value, ok := err.(net.Error); ok && value.Timeout() {
+		return protocolError{504, "transcription backend timed out"}
+	}
+	return protocolError{503, "transcription backend unavailable"}
 }
 func wavBytes(pcm []byte) []byte {
 	result := make([]byte, 44+len(pcm))

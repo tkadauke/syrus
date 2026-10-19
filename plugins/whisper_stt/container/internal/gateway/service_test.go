@@ -181,11 +181,13 @@ func TestDisconnectAndServiceShutdownCloseSessions(t *testing.T) {
 }
 
 func TestHealthAndBatchProxy(t *testing.T) {
+	var upstreamRequestID string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.WriteHeader(200)
 			return
 		}
+		upstreamRequestID = r.Header.Get("X-Request-ID")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"text":"ok"}`))
 	}))
@@ -196,9 +198,44 @@ func TestHealthAndBatchProxy(t *testing.T) {
 	if status != 200 || payload["capabilities"].(map[string]any)["streaming"] != true {
 		t.Fatalf("health=%d %v", status, payload)
 	}
-	status, payload = request(t, s, "POST", "/inference", []byte("multipart"))
+	r := httptest.NewRequest("POST", "/inference", bytes.NewReader([]byte("multipart")))
+	r.ContentLength = int64(len("multipart"))
+	r.Header.Set("X-Request-ID", "request-123")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	status = w.Code
+	_ = json.Unmarshal(w.Body.Bytes(), &payload)
 	if status != 200 || payload["text"] != "ok" {
 		t.Fatalf("proxy=%d %v", status, payload)
+	}
+	if upstreamRequestID != "request-123" || w.Header().Get("X-Request-ID") != "request-123" {
+		t.Fatalf("request correlation upstream=%q response=%q", upstreamRequestID, w.Header().Get("X-Request-ID"))
+	}
+}
+
+func TestBatchProxyMapsUpstreamFailures(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		upstreamStatus int
+		wantStatus     int
+	}{
+		{"timeout", http.StatusGatewayTimeout, http.StatusGatewayTimeout},
+		{"unavailable", http.StatusBadGateway, http.StatusServiceUnavailable},
+		{"invalid input", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.upstreamStatus)
+			}))
+			defer upstream.Close()
+			s := NewService(Config{Upstream: upstream.URL})
+			defer s.Close()
+
+			status, _ := request(t, s, "POST", "/inference", []byte("multipart"))
+			if status != test.wantStatus {
+				t.Fatalf("status=%d want=%d", status, test.wantStatus)
+			}
+		})
 	}
 }
 

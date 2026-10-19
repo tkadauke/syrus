@@ -250,6 +250,7 @@ de:
       no_preview_configured: "Für dieses Repository ist keine Preview konfiguriert."
 
     speech_to_text:
+      audio_too_small: "Die Aufnahme ist zu kurz für eine Transkription."
       backend_batch_unavailable: "Backend-Batch-Transkription ist nicht konfiguriert."
       backend_streaming_unavailable: "Backend-Streaming-Transkription ist nicht konfiguriert."
       missing_file: "Bitte füge eine Audiodatei an."

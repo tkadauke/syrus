@@ -756,7 +756,10 @@ Final text is committed once without disturbing text already in the composer.
 The browser retains the complete recording and automatically retries backend
 batch transcription if streaming fails; disabled or unavailable providers use
 the browser's built-in speech recognition where supported, with the same
-interim replacement behavior.
+interim replacement behavior. Empty or extremely short recordings are not
+uploaded. A final batch request is retried once only when the backend is
+unavailable or times out; input errors are not retried, and existing or
+progressive composer text remains intact when transcription fails.
 Once the current chat session has a pending or confirmed proposal, or a Job
 directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
 section at the top lists this chat's own pending Job and Epic proposals, each

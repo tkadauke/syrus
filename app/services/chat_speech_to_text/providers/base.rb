@@ -1,11 +1,14 @@
 module ChatSpeechToText
   module Providers
-    TranscriptionRequest = Data.define(:audio, :content_type, :language, :prompt)
+    TranscriptionRequest = Data.define(:audio, :content_type, :language, :prompt, :correlation_id)
     TranscriptionResult = Data.define(:text, :segments, :provider, :confidence)
     StreamingRequest = Data.define(:content_type, :language, :prompt, :on_delta, :on_error, :on_complete)
     StreamingDelta = Data.define(:text, :final, :confidence)
 
     class TranscriptionError < StandardError; end
+    class InvalidAudio < TranscriptionError; end
+    class TranscriptionTimeout < TranscriptionError; end
+    class TranscriptionUnavailable < TranscriptionError; end
 
     class Base
       def streaming?
