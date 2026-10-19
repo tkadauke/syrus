@@ -43,8 +43,14 @@ export function parseTestIdentityRef(value: unknown): TestIdentityRef | null {
 }
 
 export function TestIdentityLink({ test }: { test: TestIdentityRef }) {
-  if (test.appPath) return <InternalLink href={test.appPath}>{test.name}</InternalLink>
-  return <span className="break-words font-medium text-text-primary">{test.name}</span>
+  if (test.appPath) {
+    return (
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+        <InternalLink href={test.appPath}>{test.name}</InternalLink>
+      </span>
+    )
+  }
+  return <span className="min-w-0 break-words font-medium text-text-primary [overflow-wrap:anywhere]">{test.name}</span>
 }
 
 export function parseReasons(value: unknown, key: string): string[] {
