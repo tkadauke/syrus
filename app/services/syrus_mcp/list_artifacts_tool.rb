@@ -33,7 +33,7 @@ module SyrusMcp
         workflow = find_workflow_in_scope(workflow_id, run)
         return Mcp::Tools.invalid("workflow_id is outside this repository scope") unless workflow
 
-        Mcp::Tools.success(workflow_id: workflow.id, artifacts: artifact_summaries(workflow))
+        Mcp::Tools.success(workflow_id: workflow.id, job_id: workflow.job_id, artifacts: artifact_summaries(workflow))
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::ListArtifactsTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
