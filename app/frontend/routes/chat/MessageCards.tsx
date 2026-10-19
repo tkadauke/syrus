@@ -834,7 +834,8 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
-    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
+    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
+    livePendingActionGroup: redactToolCardValue(call.pending_action_group ?? null) as ChatToolGroupItem["calls"][number]["pending_action_group"]
   }
 }
 

@@ -113,6 +113,20 @@ describe("buildMessageStreamItems pending action groups", () => {
     )
 
     expect(result.map((item) => item.type)).toEqual([ "message", "tool_group", "pending_action_group", "message" ])
+    expect(group(toolItems[0]).calls[0].pending_action_group).toMatchObject({ id: 7, state: "pending" })
+  })
+
+  it("refreshes and clears a tool call's live pending action group", () => {
+    const toolItems = renderChatMessages([
+      toolUse(10, { toolUseId: "tu_retry", toolName: "admin_retry_step", input: { workflow_ids: [ 1, 2 ] } }),
+      toolResult(11, { toolUseId: "tu_retry" })
+    ])
+
+    buildMessageStreamItems(toolItems, [], [ pendingActionGroup({ state: "rejected", chat_message_id: 10, reason: "Unsafe batch" }) ])
+    expect(group(toolItems[0]).calls[0].pending_action_group).toMatchObject({ id: 7, state: "rejected", reason: "Unsafe batch" })
+
+    buildMessageStreamItems(toolItems, [], [])
+    expect(group(toolItems[0]).calls[0].pending_action_group).toBeNull()
   })
 
   it("renders a group once when multiple anchors are inside the same tool group", () => {

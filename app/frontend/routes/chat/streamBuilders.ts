@@ -261,6 +261,7 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
 }
 
 export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[], pendingActionGroups: ChatPendingActionGroup[] = []): ChatStreamItem[] {
+  clearPendingActionGroups(items)
   if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
 
   const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
@@ -285,6 +286,7 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
     const streamItem: ChatStreamItem = { type: "pending_action_group", pendingActionGroup: group }
     const anchorIds = [ group.chat_message_id, ...group.members.map((member) => member.chat_message_id) ].filter((id): id is number => id != null)
     const uniqueAnchorIds = Array.from(new Set(anchorIds))
+    for (const messageId of uniqueAnchorIds) attachPendingActionGroup(items, messageId, group)
     if (uniqueAnchorIds.length === 0) {
       unanchoredItems.push(streamItem)
     } else {
@@ -320,6 +322,26 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
   result.push(...unanchoredItems)
 
   return result
+}
+
+function clearPendingActionGroups(items: ChatRenderItem[]) {
+  for (const item of items) {
+    if (item.type !== "tool_group") continue
+    for (const call of item.calls) {
+      call.pending_action_group = null
+      if (call.nested) clearPendingActionGroups(call.nested)
+    }
+  }
+}
+
+function attachPendingActionGroup(items: ChatRenderItem[], messageId: number, group: ChatPendingActionGroup) {
+  for (const item of items) {
+    if (item.type !== "tool_group") continue
+    for (const call of item.calls) {
+      if (call.message_id === messageId) call.pending_action_group = group
+      if (call.nested) attachPendingActionGroup(call.nested, messageId, group)
+    }
+  }
 }
 
 export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[] {

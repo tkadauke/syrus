@@ -1,17 +1,35 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ChatPendingActionInline } from "../../api/chats"
+import type { ChatPendingActionGroup, ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
 import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 
-function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+function context(
+  parsedResult: unknown,
+  livePendingAction: ChatPendingActionInline | null = null,
+  livePendingActionGroup: ChatPendingActionGroup | null = null
+): ToolCardContext {
   return {
     toolName: "some_pending_action_tool",
     resultBody: "",
     resultError: false,
     parsedResult,
-    livePendingAction
+    livePendingAction,
+    livePendingActionGroup
+  }
+}
+
+function liveActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): ChatPendingActionGroup {
+  return {
+    id: 88,
+    label: "Retry steps (3)",
+    state: "confirmed",
+    members: [],
+    app_confirm_path: "/api/v1/app/chats/1/pending_action_groups/88/confirm",
+    app_reject_path: "/api/v1/app/chats/1/pending_action_groups/88/reject",
+    app_dismiss_path: "/api/v1/app/chats/1/pending_action_groups/88",
+    ...overrides
   }
 }
 
@@ -247,6 +265,18 @@ describe("pending action tool card: bulk shape", () => {
 
     expect(screen.getByText("Group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
+  })
+
+  it("prefers the matching live group's resolved state and reason", () => {
+    const result = parsePendingActionResult(context(bulkPayload, null, liveActionGroup({ state: "rejected", reason: "Unsafe to retry together." })))
+
+    expect(result).toMatchObject({ kind: "bulk", groupId: "88", state: "rejected", reason: "Unsafe to retry together." })
+  })
+
+  it("ignores a live pending action group with a different id", () => {
+    const result = parsePendingActionResult(context(bulkPayload, null, liveActionGroup({ id: 99, state: "rejected" })))
+
+    expect(result).toMatchObject({ kind: "bulk", groupId: "88", state: "pending", reason: null })
   })
 })
 
