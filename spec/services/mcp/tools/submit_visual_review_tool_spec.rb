@@ -21,7 +21,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, prompt: "Review /credential_store.")
   end
 
-  def add_visual_screenshot(target_run, path:, title:)
+  def add_visual_screenshot(target_run, path:, title:, text: nil)
     target_run.workflow.set_artifact!("typed_artifacts", [
       {
         "type" => "visual_review_screenshot_run_#{target_run.id}_1",
@@ -37,7 +37,8 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
             "url" => "http://127.0.0.1:3000#{path}",
             "path" => path,
             "title" => title
-          }
+          },
+          "text" => text
         }
       }
     ])
@@ -180,6 +181,27 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
 
     expect(response).not_to be_error
     expect(credential_run.workflow.reload.artifact("visual_review_iterations").last).to include("verdict" => "skipped")
+  end
+
+  it "preserves a blocked-evidence classification after screenshot text is stripped" do
+    chat_job = Factories.job(issue_title: "Review chat", issue_body: "Review /chats/1.")
+    chat_run = visual_run_for(chat_job)
+    add_visual_screenshot(
+      chat_run,
+      path: "/chats/1",
+      title: "Chat",
+      text: "Codex credentials are required."
+    )
+
+    described_class.call(
+      critique: "The chat layout looks correct.",
+      verdict: "approved",
+      server_context: { run: chat_run }
+    )
+
+    iteration = chat_run.workflow.reload.artifact("visual_review_iterations").last
+    expect(iteration["blocked_evidence_reason"]).to include("credentials")
+    expect(iteration.fetch("artifacts").first).not_to have_key("text")
   end
 
   it "allows approval when the intended surface is itself sign-in" do

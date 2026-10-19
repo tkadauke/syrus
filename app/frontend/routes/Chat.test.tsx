@@ -858,6 +858,15 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(unavailableShell).toHaveStyle({ paddingTop: "calc(var(--mobile-chat-app-header-height,0px) + 44px + 0.75rem)" })
     expect(screen.queryByTestId("mobile-chat-route-shell")).not.toBeInTheDocument()
   })
+
+  it("names the effective non-Claude provider in the unavailable-chat notice", async () => {
+    mockChatRouteFetch(chatPayload({}, { chat_available: false, chat_provider_display_name: "Codex" }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Codex credentials are required.")).toBeInTheDocument()
+    expect(screen.getByText(/Chat uses Codex/)).toBeInTheDocument()
+  })
 })
 
 describe("chat message tail refetch", () => {
@@ -7983,6 +7992,7 @@ function chatPayload(
       ...overrides.chat
     },
     chat_available: true,
+    chat_provider_display_name: "Claude",
     turn_in_flight: false,
     agent_busy: false,
     switching_provider: false,

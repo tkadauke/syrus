@@ -165,6 +165,17 @@ warning evidence includes `review_kind`, `reason`, `run_id`, and `step_id`.
 When the corresponding `.syrus.yml` block sets `required: true`, the workflow
 fails instead of recording this warning.
 
+## Visual review blocked evidence
+
+A visual review that reaches a verdict can still record a `kind:
+"visual_review_blocked_evidence"` warning when every captured screenshot is
+an authentication, credentials, or error wall, or when the reviewer submits a
+`skipped` verdict because the preview environment blocked access to the
+intended surface. The review remains a soft outcome rather than failing the
+workflow, but the warning keeps the missing evidence visible on the Job and
+Workflow instead of presenting the review as unqualified success. Its evidence
+includes the reason, submitted verdict, Run id, and Step id.
+
 ## Skipped target CI failures
 
 `PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when

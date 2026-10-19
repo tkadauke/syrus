@@ -47,6 +47,7 @@ module ChatSerialization
             .merge(agent_activity: agent_activity)
         end,
         chat_available: Current.user.chat_available?,
+        chat_provider_display_name: AgentProviders.for(chat_session.effective_chat_provider).display_name,
         turn_in_flight: turn_in_flight,
         agent_busy: agent_busy,
         agent_activity: agent_activity,

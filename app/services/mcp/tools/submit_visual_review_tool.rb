@@ -46,7 +46,14 @@ module Mcp::Tools
         iterations = Array(workflow.artifact("visual_review_iterations"))
         artifact_evidence = visual_artifacts_for_run(workflow, run)
         artifacts = artifact_evidence.map { |artifact| artifact.except("text") }
-        iterations << {
+        blocked_evidence_reason = VisualReviewEvidenceGuard.blocked_evidence_reason(
+          job: run.job,
+          artifacts: artifact_evidence,
+          verdict: normalized_verdict,
+          critique: normalized_critique,
+          prompt: run.prompt
+        )
+        iteration = {
           "iteration" => run.step.iteration,
           "step_id" => run.step_id,
           "run_id" => run.id,
@@ -54,6 +61,8 @@ module Mcp::Tools
           "verdict" => normalized_verdict,
           "artifacts" => artifacts
         }
+        iteration["blocked_evidence_reason"] = blocked_evidence_reason if blocked_evidence_reason.present?
+        iterations << iteration
         workflow.set_artifact!("visual_review_iterations", iterations)
         ReviewFindingEvents.record(
           workflow: workflow,
