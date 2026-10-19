@@ -47,6 +47,8 @@ const POPULATED_PAYLOAD = {
     { authority: "workspace", calls: 12, errors: 1, error_rate: 0.0833 }
   ],
   startup_timing: {
+    window: { start: "2026-09-01T00:00:00Z", end: "2026-09-08T00:00:00Z" },
+    filters: { provider: "codex", server_name: "syrus-chat-sidecar" },
     turns_observed: 6,
     stalled_turns: 1,
     phase_latency: [{ phase: "mcp_startup", count: 5, avg_ms: 120.4, p50_ms: 100, p95_ms: 220, max_ms: 240 }]
@@ -217,6 +219,9 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("ignore for now")).toBeInTheDocument()
     expect(screen.getByText(/worker-chat/)).toBeInTheDocument()
     expect(screen.getByText("Startup timing")).toBeInTheDocument()
+    expect(screen.getByText("Window: 2026-09-01T00:00:00Z to 2026-09-08T00:00:00Z")).toBeInTheDocument()
+    expect(screen.getByText("Provider: codex")).toBeInTheDocument()
+    expect(screen.getByText("Server: syrus-chat-sidecar")).toBeInTheDocument()
     expect(screen.getByText("mcp startup")).toBeInTheDocument()
     expect(screen.getByText(/Input: 1\.0 KB/)).toBeInTheDocument()
     expect(screen.getByText(/Result: 2\.0 KB/)).toBeInTheDocument()
@@ -233,7 +238,13 @@ describe("admin_mcp_tool_usage tool card", () => {
       server_breakdown: [],
       sidecar_mode_breakdown: [],
       authority_breakdown: [],
-      startup_timing: { turns_observed: 0, stalled_turns: 0, phase_latency: [] },
+      startup_timing: {
+        window: { start: "2026-09-01T00:00:00Z", end: "2026-09-08T00:00:00Z" },
+        filters: { provider: null, server_name: null },
+        turns_observed: 0,
+        stalled_turns: 0,
+        phase_latency: []
+      },
       unused_advertised_tools: [],
       custom_card_gaps: {
         ranked_gaps: [],
@@ -252,17 +263,20 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("No high-error tools in this window.")).toBeInTheDocument()
     expect(screen.getByText("No missing or weak card gaps in this window.")).toBeInTheDocument()
     expect(screen.getAllByText("No card coverage gaps in this bucket.").length).toBe(4)
+    expect(screen.getByText("Provider: all")).toBeInTheDocument()
+    expect(screen.getByText("Server: all")).toBeInTheDocument()
     expect(screen.getByText("No recent calls found.")).toBeInTheDocument()
   })
 
   it("shows active filters in the expanded card", () => {
     render(<>{adminMcpToolUsageToolCard.renderExpanded(context({
-      input: { window: "7d", since: "2h", start: "start-value", end: "end-value", limit: 10, recent_limit: 5, tool: "read_job", server: "sidecar" },
+      input: { surface: "workflow", window: "7d", since: "2h", start: "start-value", end: "end-value", limit: 10, recent_limit: 5, tool: "read_job", server: "sidecar" },
       parsedResult: POPULATED_PAYLOAD
     }))}</>)
 
     expect(screen.getAllByText("tool: read_job")).toHaveLength(2)
     expect(screen.getByText("server: syrus-chat-sidecar")).toBeInTheDocument()
+    expect(screen.getByText("surface: workflow")).toBeInTheDocument()
     expect(screen.getByText("window: 7d")).toBeInTheDocument()
     expect(screen.getByText("since: 2h")).toBeInTheDocument()
     expect(screen.getByText("start: start-value")).toBeInTheDocument()
