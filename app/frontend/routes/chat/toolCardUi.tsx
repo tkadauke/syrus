@@ -40,7 +40,7 @@ export function durationLabel(startedAt: unknown, finishedAt: unknown): string |
   return label === "-" ? null : label
 }
 
-type Tone = "success" | "failure" | "warning" | "info" | "neutral"
+export type Tone = "success" | "failure" | "warning" | "info" | "neutral"
 
 const TONE_TO_SEMANTIC_TONE: Record<Tone, SemanticTone> = {
   success: "success",
