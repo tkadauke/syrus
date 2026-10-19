@@ -665,6 +665,7 @@ RSpec.describe CodexInvocation do
       Dir.mktmpdir do |home|
         Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
         allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+        allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot).and_return({})
         PerformanceLogging::Store.clear!
         chat_session = ChatSession.create!(user: Factories.user)
         Thread.current[:syrus_current_chat_session] = chat_session
