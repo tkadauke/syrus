@@ -26,6 +26,8 @@ class PreviewPreparation
       run_command!(phase, command)
     end
 
+    record_local_setup!
+
     {
       "project_id" => @project_id,
       "commands" => commands.map(&:last),
@@ -46,13 +48,20 @@ class PreviewPreparation
     @commands ||= begin
       raise Error.new("no preview command configured", details: { "reason" => "no_preview_configured" }) unless source
 
-      already_prepared = Array(@workflow&.artifact("prepared_workspace").to_h["commands"])
+      workflow_prepared = Array(@workflow&.artifact("prepared_workspace").to_h["commands"])
+      locally_prepared = PreparedWorkspaceState.new(@workspace_path).commands
+      already_prepared = workflow_prepared & locally_prepared
       setup = Array(source.setup_commands).reject { |command| already_prepared.include?(command) }
       [
         *setup.map { |command| [ "setup", command ] },
         *([ [ "seed", source.seed_command ] ] if source.seed_command.present?)
       ]
     end
+  end
+
+  def record_local_setup!
+    prepared = PreparedWorkspaceState.new(@workspace_path)
+    prepared.record!((prepared.commands + Array(source.setup_commands)).uniq)
   end
 
   def run_command!(phase, command)

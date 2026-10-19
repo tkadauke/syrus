@@ -1,7 +1,8 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe PreviewPreparation do
-  let(:workspace_path) { "/tmp/preview-workspace" }
+  let(:workspace_path) { @workspace_path.to_s }
   let(:workflow) { instance_double(Workflow) }
   let(:source) do
     PreviewCommandSource::Config.new(
@@ -29,13 +30,33 @@ RSpec.describe PreviewPreparation do
   end
 
   before do
+    @workspace_path = Pathname.new(Dir.mktmpdir("preview-workspace"))
     allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: "web").and_return(double(resolve: source))
     allow(workflow).to receive(:artifact).with("prepared_workspace").and_return({
       "commands" => [ "bundle install", "npm ci" ]
     })
   end
 
-  it "does not repeat setup commands already completed by the workflow prepare step" do
+  after { FileUtils.rm_rf(@workspace_path) }
+
+  it "runs setup commands when only the workflow artifact claims they were prepared" do
+    expect(ProcessRunner).to receive(:new).ordered.with(hash_including(
+      command: [ "bash", "-c", "bundle install" ]
+    )).and_return(double(run: result))
+    expect(ProcessRunner).to receive(:new).ordered.with(hash_including(
+      command: [ "bash", "-c", "npm ci" ]
+    )).and_return(double(run: result))
+    expect(ProcessRunner).to receive(:new).ordered.with(hash_including(
+      command: [ "bash", "-c", "bin/seed" ]
+    )).and_return(double(run: result))
+
+    preparation = described_class.new(workspace_path, project_id: "web", workflow: workflow).call
+
+    expect(preparation["commands"]).to eq([ "bundle install", "npm ci", "bin/seed" ])
+  end
+
+  it "does not repeat setup commands recorded in this workspace" do
+    PreparedWorkspaceState.new(workspace_path).record!([ "bundle install", "npm ci" ])
     expect(ProcessRunner).to receive(:new).once.with(hash_including(
       command: [ "bash", "-c", "bin/seed" ],
       kind: "preview",
@@ -47,7 +68,19 @@ RSpec.describe PreviewPreparation do
     expect(preparation["commands"]).to eq([ "bin/seed" ])
   end
 
+  it "still runs preview setup commands that do not overlap workflow prepare" do
+    allow(workflow).to receive(:artifact).with("prepared_workspace").and_return({ "commands" => [ "bundle install" ] })
+    non_overlapping_source = source.with(setup_commands: [ "bin/setup-preview" ])
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: "web").and_return(double(resolve: non_overlapping_source))
+
+    expect(ProcessRunner).to receive(:new).ordered.with(hash_including(command: [ "bash", "-c", "bin/setup-preview" ])).and_return(double(run: result))
+    expect(ProcessRunner).to receive(:new).ordered.with(hash_including(command: [ "bash", "-c", "bin/seed" ])).and_return(double(run: result))
+
+    described_class.new(workspace_path, project_id: "web", workflow: workflow).call
+  end
+
   it "returns structured failure evidence for a timed-out seed" do
+    PreparedWorkspaceState.new(workspace_path).record!([ "bundle install", "npm ci" ])
     allow(ProcessRunner).to receive(:new).and_return(double(run: result(exit_status: nil, timed_out: true)))
 
     expect {
@@ -56,7 +89,8 @@ RSpec.describe PreviewPreparation do
       expect(error.details).to include(
         "reason" => "preview_seed_failed",
         "phase" => "seed",
-        "timed_out" => true
+        "timed_out" => true,
+        "output_tail" => ""
       )
     }
   end
