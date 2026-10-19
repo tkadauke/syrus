@@ -12,6 +12,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 const plan = {
   epic_id: 91,
   slug: "stacked-delivery",
+  repository_slug: "tkadauke/syrus",
   strategy: "dependency_topology",
   branch_order: [
     {
@@ -71,7 +72,7 @@ describe("restack_epic tool card", () => {
     const envelope = { content: [{ type: "text", text: JSON.stringify({ plan }) }], structured_content: null }
     const parsedResult = normalizedToolCardParsedResult(envelope)
     const cardContext = context({
-      input: { epic_id: 91, dry_run: true, reason: "Repair **stack topology**.", repository_slug: "tkadauke/syrus" },
+      input: { epic_id: 91, dry_run: true, reason: "Repair **stack topology**." },
       parsedResult
     })
 
@@ -133,6 +134,7 @@ describe("restack_epic tool card", () => {
     render(<>{restackEpicToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /EPIC-91/ })).toHaveAttribute("href", "/epics/91")
     expect(screen.getByText("pending #812")).toBeInTheDocument()
     expect(screen.getByText("after review")).toBeInTheDocument()
     expect(screen.getByText(/full plan is stored with the pending action/i)).toBeInTheDocument()

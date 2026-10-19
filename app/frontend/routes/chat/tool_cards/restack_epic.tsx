@@ -126,8 +126,7 @@ function parseRestack(context: ToolCardContext): RestackCard | null {
     pendingActionId,
     reason: live?.reason || displayValue(parsed.reason) || displayValue(context.input?.reason),
     message: displayValue(parsed.message),
-    repositorySlug:
-      plan?.repositorySlug || displayValue(parsed.repository_slug) || displayValue(context.input?.repository_slug) || displayValue(context.input?.repo_slug)
+    repositorySlug: plan?.repositorySlug || displayValue(parsed.repository_slug)
   }
 }
 
@@ -228,12 +227,13 @@ function renderExpanded(context: ToolCardContext) {
   if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
   const card = parseRestack(context)
   if (!card) return null
+  const epicId = card.plan?.epicId || displayValue(context.input?.epic_id)
 
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="font-semibold text-text-primary">Restack epic</span>
-        {card.plan ? <EntityReference id={card.plan.epicId} kind="epic" label={`EPIC-${card.plan.epicId}`} slug={card.plan.slug} /> : null}
+        {epicId ? <EntityReference id={epicId} kind="epic" label={`EPIC-${epicId}`} slug={card.plan?.slug} /> : null}
         {card.plan?.slug ? <span className="break-words text-xs text-text-secondary [overflow-wrap:anywhere]">{card.plan.slug}</span> : null}
         <StatePill state={card.state} />
         {card.kind === "pending" && card.pendingActionId ? <Badge>pending #{card.pendingActionId}</Badge> : null}
@@ -293,6 +293,7 @@ export default restackEpicToolCard
 const examplePlan = {
   epic_id: 91,
   slug: "stacked-delivery",
+  repository_slug: "tkadauke/syrus",
   strategy: "dependency_topology",
   branch_order: [
     {
@@ -344,7 +345,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "dry_run",
     label: "Dry-run restack plan",
-    input: { epic_id: 91, dry_run: true, repository_slug: "tkadauke/syrus" },
+    input: { epic_id: 91, dry_run: true },
     parsedResult: { plan: examplePlan }
   },
   {

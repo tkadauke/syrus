@@ -768,6 +768,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     plan = payload_for(response).fetch(:plan)
 
     expect(response.dig(:result, :isError)).to be_falsey
+    expect(plan.fetch(:repository_slug)).to eq(repository.slug)
     expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:job_id) }).to eq([ root.id, child.id ])
     expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:target_base) }).to eq([ repository.default_branch, root.branch_name ])
     expect(plan.fetch(:actions).map { |entry| entry.fetch(:job_id) }).to eq([ child.id ])

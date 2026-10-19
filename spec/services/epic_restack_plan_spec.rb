@@ -27,6 +27,7 @@ RSpec.describe EpicRestackPlan do
     plan = described_class.for(epic)
     order = plan.fetch("branch_order")
 
+    expect(plan.fetch("repository_slug")).to eq(repository.slug)
     expect(order.map { |entry| entry.fetch("job_id") }).to eq([ root.id, middle.id, leaf.id ])
     expect(order.map { |entry| entry.fetch("target_base") }).to eq([
       repository.default_branch,

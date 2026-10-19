@@ -13,6 +13,7 @@ class EpicRestackPlan
     {
       "epic_id" => @epic.id,
       "slug" => @epic.slug,
+      "repository_slug" => @epic.repository.slug,
       "strategy" => "dependency_topology",
       "branch_order" => branch_order,
       "actions" => actions,
