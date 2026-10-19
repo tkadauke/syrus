@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { ErrorCard, StatusCard } from "../chatHelperToolCard"
+import { StatusCard } from "../chatHelperToolCard"
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill } from "../toolCardUi"
 
@@ -158,10 +158,15 @@ function parseEpic(context: ToolCardContext): EpicCard | null {
   }
 }
 
+function requestedEpicId(context: ToolCardContext) {
+  return displayValue(context.input?.id) || displayValue(context.input?.epic_id)
+}
+
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Failed to read Epic"
+  const requestedId = requestedEpicId(context)
+  if (context.resultError) return requestedId ? `Failed to read EPIC-${requestedId}` : "Failed to read Epic"
   const epic = parseEpic(context)
-  if (!epic) return context.parsedResult == null && !context.resultBody ? "Reading Epic…" : null
+  if (!epic) return context.parsedResult == null && !context.resultBody ? `Reading ${requestedId ? `EPIC-${requestedId}` : "Epic"}…` : null
   return `${epic.displayNumber}: ${epic.title}`
 }
 
@@ -179,11 +184,21 @@ function TextTruncationNote({ value }: { value: TruncatedText }) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ErrorCard title="Read Epic" message={displayValue(context.resultBody) || "The Epic could not be read."} />
+  const requestedId = requestedEpicId(context)
+  if (context.resultError)
+    return (
+      <StatusCard title="Read Epic" status="failed">
+        {requestedId ? <EntityReference id={requestedId} kind="epic" /> : null}
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {displayValue(context.resultBody) || "The Epic could not be read."}
+        </div>
+      </StatusCard>
+    )
   const epic = parseEpic(context)
   if (!epic)
     return context.parsedResult != null || context.resultBody ? null : (
       <StatusCard title="Read Epic" status="pending">
+        {requestedId ? <EntityReference id={requestedId} kind="epic" /> : null}
         <EmptyState>Waiting for the Epic result.</EmptyState>
       </StatusCard>
     )
