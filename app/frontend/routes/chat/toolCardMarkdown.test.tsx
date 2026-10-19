@@ -1,6 +1,26 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+
+beforeEach(() =>
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+)
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -27,6 +47,32 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders a requested empty state for blank content", () => {
+    render(<MarkdownPreview emptyLabel="No proposal content." text="  " />)
+
+    expect(screen.getByText("No proposal content.")).toBeInTheDocument()
+  })
+
+  it("uses maxChars and forwards URL, slug, and click handling to both views", () => {
+    const onLinkClick = vi.fn()
+    const text = `See https://example.test/details and JOB-42. ${"tail ".repeat(20)}`
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={50} onLinkClick={onLinkClick} text={text} />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test/details" }))
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/details", expect.anything())
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByRole("link", { name: "https://example.test/details" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "JOB-42" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Copy Show more" })).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
