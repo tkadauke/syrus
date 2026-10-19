@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { KeyboardEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
@@ -6,7 +6,7 @@ import { ChevronIcon } from "./ChevronIcon"
 import { Modal } from "./Modal"
 import { PanelMessage } from "./PanelMessage"
 import { Select } from "./Select"
-import { DataTable, Form, Pill, Surface } from "./ui"
+import { Checkbox, DataTable, Form, Pill, Surface } from "./ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
 import {
@@ -30,11 +30,15 @@ type DraftRule = {
   name: string
   triggerKey: string
   workflowTriggerKinds: string[]
+  actionType: "route" | "hold"
   actionStrategy: string
   candidates: ProviderRoutingCandidate[]
+  holdReason: string
+  resumptionMode: string
+  resumeAt: string
 }
 
-type DraftErrors = Partial<Record<"name" | "trigger" | "candidates", string>>
+type DraftErrors = Partial<Record<"name" | "trigger" | "candidates" | "holdReason" | "resumeAt", string>>
 
 export type RoutingRulesPanelProps = {
   description: string
@@ -44,6 +48,7 @@ export type RoutingRulesPanelProps = {
   onCreateRule: (input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
   onDeleteRule: (rule: ProviderRoutingRule) => Promise<unknown> | unknown
   onReorderRules: (ids: number[]) => void
+  onToggleRule?: (rule: ProviderRoutingRule, enabled: boolean) => Promise<unknown> | unknown
   onUpdateRule: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
   options?: ProviderRoutingOptions
   reorderError?: unknown
@@ -83,6 +88,9 @@ export function ProviderRoutingRulesEditor({
   onSaved?: (payload: ProviderRoutingRulesPayload) => void
 }) {
   const queryClient = useQueryClient()
+  const [displayRules, setDisplayRules] = useState(rules || [])
+
+  useEffect(() => setDisplayRules(rules || []), [rules])
 
   const save = useMutation({
     mutationFn: ({ rule, input }: { rule?: ProviderRoutingRule; input: ProviderRoutingRuleInput }) =>
@@ -100,12 +108,19 @@ export function ProviderRoutingRulesEditor({
     }
   })
   const reorder = useMutation({
-    mutationFn: (ids: number[]) => reorderProviderRoutingRules(basePath, ids),
+    mutationFn: ({ ids }: { ids: number[]; previousRules: ProviderRoutingRule[] }) => reorderProviderRoutingRules(basePath, ids),
     onSuccess: (payload) => {
       onSaved?.(payload)
       void queryClient.invalidateQueries({ queryKey })
-    }
+    },
+    onError: (_error, variables) => setDisplayRules(variables.previousRules)
   })
+
+  function reorderOptimistically(ids: number[]) {
+    const previousRules = displayRules
+    setDisplayRules(ids.map((id) => displayRules.find((rule) => rule.id === id)).filter((rule): rule is ProviderRoutingRule => Boolean(rule)))
+    reorder.mutate({ ids, previousRules })
+  }
 
   return (
     <RoutingRulesPanel
@@ -115,12 +130,13 @@ export function ProviderRoutingRulesEditor({
       inheritedContext={inheritedContext}
       onCreateRule={(input) => save.mutateAsync({ input })}
       onDeleteRule={(rule) => destroy.mutateAsync(rule)}
-      onReorderRules={(ids) => reorder.mutate(ids)}
+      onReorderRules={reorderOptimistically}
+      onToggleRule={(rule, enabled) => save.mutateAsync({ rule, input: ruleToInput(rule, { enabled }) })}
       onUpdateRule={(rule, input) => save.mutateAsync({ rule, input })}
       options={options}
       reorderError={reorder.error}
       reorderPending={reorder.isPending}
-      rules={rules}
+      rules={displayRules}
       saveError={save.error}
       saving={save.isPending}
       title={title}
@@ -136,6 +152,7 @@ export function RoutingRulesPanel({
   onCreateRule,
   onDeleteRule,
   onReorderRules,
+  onToggleRule,
   onUpdateRule,
   options,
   reorderError,
@@ -223,7 +240,9 @@ export function RoutingRulesPanel({
           <p className="mt-1 text-xs text-text-secondary">{description}</p>
           <p className="mt-1 text-xs font-medium text-text-primary">{t("provider_routing.first_match_wins")}</p>
         </div>
-        <Button onClick={openNewRule} size="sm">{t("provider_routing.new_rule")}</Button>
+        <Button onClick={openNewRule} size="sm">
+          {t("provider_routing.new_rule")}
+        </Button>
       </div>
 
       {routingRules.length > 0 || inheritedRows.length > 0 ? (
@@ -234,6 +253,7 @@ export function RoutingRulesPanel({
             onDuplicate={duplicate}
             onEdit={edit}
             onMove={move}
+            onToggle={onToggleRule}
             options={routingOptions}
             reorderPending={reorderPending}
             rules={routingRules}
@@ -285,6 +305,7 @@ function RulesTable({
   onDuplicate,
   onEdit,
   onMove,
+  onToggle,
   options,
   readOnly = false,
   reorderPending = false,
@@ -297,6 +318,7 @@ function RulesTable({
   onDuplicate?: (rule: ProviderRoutingRule) => void
   onEdit?: (rule: ProviderRoutingRule) => void
   onMove?: (rule: ProviderRoutingRule, direction: -1 | 1) => void
+  onToggle?: (rule: ProviderRoutingRule, enabled: boolean) => void
   options: ProviderRoutingOptions
   readOnly?: boolean
   reorderPending?: boolean
@@ -320,7 +342,7 @@ function RulesTable({
       </DataTable.Header>
       <DataTable.Body className="divide-y divide-border">
         {rules.map((rule, index) => (
-          <DataTable.Row className={readOnly ? "bg-surface-subtle/50" : "bg-surface"} key={rule.id}>
+          <DataTable.Row className={`${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`} key={rule.id}>
             <DataTable.Cell className="whitespace-nowrap align-top">
               <div className="flex items-center gap-1">
                 <span className="w-6 text-xs font-medium text-text-secondary">{index + 1}</span>
@@ -351,30 +373,68 @@ function RulesTable({
               </div>
             </DataTable.Cell>
             <DataTable.Cell className="min-w-44 align-top">
-              <div className="font-medium text-text-primary">{ruleName(rule, t)}</div>
+              <div className="flex items-center gap-2">
+                {!readOnly ? (
+                  <Checkbox
+                    aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
+                    checked={rule.enabled !== false}
+                    className="h-4 w-4 accent-brand"
+                    onChange={(event) => {
+                      void onToggle?.(rule, event.target.checked)
+                    }}
+                  />
+                ) : null}
+                <div className="font-medium text-text-primary">{ruleName(rule, t)}</div>
+                {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
+              </div>
               <div className="mt-1 text-xs text-text-secondary">{taskKeyLabel(rule.task_key, t)}</div>
             </DataTable.Cell>
             <DataTable.Cell className="min-w-56 align-top">
               <div className="flex flex-wrap gap-1.5">
-                <Pill tone="info" wrap>{triggerLabel(rule.trigger, options, t)}</Pill>
-                {conditionPills(rule, options, t).map((label) => <Pill key={label} tone="neutral" wrap>{label}</Pill>)}
+                <Pill tone="info" wrap>
+                  {triggerLabel(rule.trigger, options, t)}
+                </Pill>
+                {conditionPills(rule, options, t).map((label) => (
+                  <Pill key={label} tone="neutral" wrap>
+                    {label}
+                  </Pill>
+                ))}
               </div>
             </DataTable.Cell>
             <DataTable.Cell className="min-w-64 align-top text-xs text-text-secondary">
-              <div className="font-medium text-text-primary">{actionStrategyLabel(actionStrategy(rule), options, t)}</div>
-              <ol className="mt-1 list-decimal space-y-1 pl-4">
-                {ruleCandidates(rule).map((candidate, candidateIndex) => (
-                  <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
-                ))}
-              </ol>
+              <div className="font-medium text-text-primary">{actionLabel(rule, options, t)}</div>
+              {rule.action?.type === "hold" ? (
+                <div className="mt-1">{holdSummary(rule.action, t)}</div>
+              ) : (
+                <ol className="mt-1 list-decimal space-y-1 pl-4">
+                  {ruleCandidates(rule).map((candidate, candidateIndex) => (
+                    <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
+                  ))}
+                </ol>
+              )}
             </DataTable.Cell>
             <DataTable.Cell align="right" className="align-top">
               <div className="flex justify-end gap-2">
-                {readOnly ? <Pill tone="neutral">{t("provider_routing.read_only")}</Pill> : (
+                {readOnly ? (
+                  <Pill tone="neutral">{t("provider_routing.read_only")}</Pill>
+                ) : (
                   <>
-                    <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">{t("provider_routing.edit")}</Button>
-                    <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">{t("provider_routing.duplicate")}</Button>
-                    <Button disabled={destroyPending} onClick={() => { void onDelete?.(rule) }} size="sm" variant="danger">{t("provider_routing.delete")}</Button>
+                    <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">
+                      {t("provider_routing.edit")}
+                    </Button>
+                    <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">
+                      {t("provider_routing.duplicate")}
+                    </Button>
+                    <Button
+                      disabled={destroyPending}
+                      onClick={() => {
+                        void onDelete?.(rule)
+                      }}
+                      size="sm"
+                      variant="danger"
+                    >
+                      {t("provider_routing.delete")}
+                    </Button>
                   </>
                 )}
               </div>
@@ -427,7 +487,7 @@ function RuleEditorModal({
   function updateCandidate(index: number, candidate: ProviderRoutingCandidate) {
     onUpdate({
       ...currentDraft,
-      candidates: currentDraft.candidates.map((item, itemIndex) => itemIndex === index ? candidate : item)
+      candidates: currentDraft.candidates.map((item, itemIndex) => (itemIndex === index ? candidate : item))
     })
   }
 
@@ -467,14 +527,22 @@ function RuleEditorModal({
           <Form.Field error={errors.trigger}>
             <Form.Label required>{t("provider_routing.trigger")}</Form.Label>
             <Form.Select onChange={(event) => onUpdate({ ...currentDraft, triggerKey: event.target.value })} value={currentDraft.triggerKey}>
-              {triggerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {triggerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Form.Select>
             <Form.ErrorText />
           </Form.Field>
           <Form.Field>
             <Form.Label>{t("provider_routing.action_type")}</Form.Label>
-            <Form.Select onChange={(event) => onUpdate({ ...currentDraft, actionStrategy: event.target.value })} value={currentDraft.actionStrategy}>
-              {actionStrategyOptions(options).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            <Form.Select
+              onChange={(event) => onUpdate({ ...currentDraft, actionType: event.target.value as "route" | "hold" })}
+              value={currentDraft.actionType}
+            >
+              <option value="route">{t("provider_routing.action_route")}</option>
+              <option value="hold">{t("provider_routing.action_hold")}</option>
             </Form.Select>
           </Form.Field>
         </div>
@@ -490,37 +558,90 @@ function RuleEditorModal({
             value={currentDraft.workflowTriggerKinds}
           >
             {(options.conditions?.workflow_trigger_kinds || []).map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </Form.Select>
           <Form.HelpText>{t("provider_routing.workflow_conditions_help")}</Form.HelpText>
         </Form.Field>
 
-        <div className="space-y-2">
-          <div>
-            <div className="text-sm font-medium text-text-primary">{t("provider_routing.provider_candidates")}</div>
-            <p className="mt-1 text-xs text-text-secondary">{t("provider_routing.provider_candidates_help")}</p>
+        {currentDraft.actionType === "route" ? (
+          <div className="space-y-3">
+            <Form.Field>
+              <Form.Label>{t("provider_routing.routing_strategy")}</Form.Label>
+              <Form.Select onChange={(event) => onUpdate({ ...currentDraft, actionStrategy: event.target.value })} value={currentDraft.actionStrategy}>
+                {actionStrategyOptions(options).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Field>
+            <div>
+              <div className="text-sm font-medium text-text-primary">{t("provider_routing.provider_candidates")}</div>
+              <p className="mt-1 text-xs text-text-secondary">{t("provider_routing.provider_candidates_help")}</p>
+            </div>
+            {currentDraft.candidates.map((candidate, index) => (
+              <RoutingCandidateRow
+                candidate={candidate}
+                key={index}
+                onChange={(next) => updateCandidate(index, next)}
+                onRemove={() => onUpdate({ ...currentDraft, candidates: currentDraft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
+                options={options}
+                removable={currentDraft.candidates.length > 1}
+                t={t}
+              />
+            ))}
+            {errors.candidates ? (
+              <p className="text-xs font-medium text-danger-text" role="alert">
+                {errors.candidates}
+              </p>
+            ) : null}
+            <Button
+              onClick={() => onUpdate({ ...currentDraft, candidates: [...currentDraft.candidates, emptyCandidate(options)] })}
+              size="sm"
+              variant="secondary"
+            >
+              {t("provider_routing.add_candidate")}
+            </Button>
           </div>
-          {currentDraft.candidates.map((candidate, index) => (
-            <RoutingCandidateRow
-              candidate={candidate}
-              key={index}
-              onChange={(next) => updateCandidate(index, next)}
-              onRemove={() => onUpdate({ ...currentDraft, candidates: currentDraft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
-              options={options}
-              removable={currentDraft.candidates.length > 1}
-              t={t}
-            />
-          ))}
-          {errors.candidates ? <p className="text-xs font-medium text-danger-text" role="alert">{errors.candidates}</p> : null}
-          <Button onClick={() => onUpdate({ ...currentDraft, candidates: [...currentDraft.candidates, emptyCandidate(options)] })} size="sm" variant="secondary">
-            {t("provider_routing.add_candidate")}
-          </Button>
-        </div>
+        ) : (
+          <div className="space-y-3">
+            <Form.Field error={errors.holdReason}>
+              <Form.Label required>{t("provider_routing.hold_reason")}</Form.Label>
+              <Form.Input onChange={(event) => onUpdate({ ...currentDraft, holdReason: event.target.value })} value={currentDraft.holdReason} />
+              <Form.ErrorText />
+            </Form.Field>
+            <Form.Field>
+              <Form.Label>{t("provider_routing.resumption_policy")}</Form.Label>
+              <Form.Select onChange={(event) => onUpdate({ ...currentDraft, resumptionMode: event.target.value })} value={currentDraft.resumptionMode}>
+                <option value="manual">{t("provider_routing.resume_manual")}</option>
+                <option value="when_conditions_clear">{t("provider_routing.resume_conditions_clear")}</option>
+                <option value="until_time">{t("provider_routing.resume_at_time")}</option>
+              </Form.Select>
+            </Form.Field>
+            {currentDraft.resumptionMode === "until_time" ? (
+              <Form.Field error={errors.resumeAt}>
+                <Form.Label required>{t("provider_routing.resume_time")}</Form.Label>
+                <Form.Input
+                  onChange={(event) => onUpdate({ ...currentDraft, resumeAt: event.target.value })}
+                  type="datetime-local"
+                  value={currentDraft.resumeAt}
+                />
+                <Form.ErrorText />
+              </Form.Field>
+            ) : null}
+          </div>
+        )}
 
         <Form.Actions>
-          <Button onClick={onClose} variant="secondary">{t("provider_routing.cancel")}</Button>
-          <Button disabled={saving} onClick={onSave}>{currentDraft.id ? t("provider_routing.save_rule") : t("provider_routing.create_rule")}</Button>
+          <Button onClick={onClose} variant="secondary">
+            {t("provider_routing.cancel")}
+          </Button>
+          <Button disabled={saving} onClick={onSave}>
+            {currentDraft.id ? t("provider_routing.save_rule") : t("provider_routing.create_rule")}
+          </Button>
         </Form.Actions>
       </div>
     </Modal>
@@ -545,19 +666,45 @@ function RoutingCandidateRow({
   const provider = providerOption(options, candidate.provider)
   return (
     <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_auto]">
-      <Select aria-label={t("provider_routing.provider")} onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })} value={candidate.provider}>
+      <Select
+        aria-label={t("provider_routing.provider")}
+        onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })}
+        value={candidate.provider}
+      >
         {options.agent_providers.length === 0 ? <option value=""></option> : null}
-        {options.agent_providers.map((option) => <option disabled={option.configured === false} key={option.value} value={option.value}>{option.label}</option>)}
+        {options.agent_providers.map((option) => (
+          <option disabled={option.configured === false} key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </Select>
-      <Select aria-label={t("provider_routing.model")} onChange={(event) => onChange({ ...candidate, model: event.target.value || null })} value={candidate.model || ""}>
+      <Select
+        aria-label={t("provider_routing.model")}
+        onChange={(event) => onChange({ ...candidate, model: event.target.value || null })}
+        value={candidate.model || ""}
+      >
         <option value="">{t("provider_routing.provider_default_model")}</option>
-        {(provider?.models || []).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+        {(provider?.models || []).map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.label}
+          </option>
+        ))}
       </Select>
-      <Select aria-label={t("provider_routing.effort")} onChange={(event) => onChange({ ...candidate, effort_level: event.target.value || null })} value={candidate.effort_level || ""}>
+      <Select
+        aria-label={t("provider_routing.effort")}
+        onChange={(event) => onChange({ ...candidate, effort_level: event.target.value || null })}
+        value={candidate.effort_level || ""}
+      >
         <option value="">{t("provider_routing.default_effort")}</option>
-        {options.effort_levels.map((effort) => <option key={effort.value} value={effort.value}>{effortLabel(effort.value, effort.label, t)}</option>)}
+        {options.effort_levels.map((effort) => (
+          <option key={effort.value} value={effort.value}>
+            {effortLabel(effort.value, effort.label, t)}
+          </option>
+        ))}
       </Select>
-      <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">{t("provider_routing.remove")}</Button>
+      <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">
+        {t("provider_routing.remove")}
+      </Button>
     </div>
   )
 }
@@ -587,8 +734,12 @@ function emptyDraft(options: ProviderRoutingOptions): DraftRule {
     name: "",
     triggerKey: "default",
     workflowTriggerKinds: [],
+    actionType: "route",
     actionStrategy: actionStrategyOptions(options)[0]?.value || "fallback_order",
-    candidates: [emptyCandidate(options)]
+    candidates: [emptyCandidate(options)],
+    holdReason: "",
+    resumptionMode: "manual",
+    resumeAt: ""
   }
 }
 
@@ -598,8 +749,15 @@ function draftFromRule(rule: ProviderRoutingRule, options: ProviderRoutingOption
     name: ruleName(rule, () => "Default routing"),
     triggerKey: triggerToKey(rule.trigger),
     workflowTriggerKinds: stringList(rule.conditions?.workflow_trigger_kind),
+    actionType: rule.action?.type === "hold" ? "hold" : "route",
     actionStrategy: actionStrategy(rule),
-    candidates: ruleCandidates(rule).length > 0 ? ruleCandidates(rule) : [emptyCandidate(options)]
+    candidates: ruleCandidates(rule).length > 0 ? ruleCandidates(rule) : [emptyCandidate(options)],
+    holdReason: typeof rule.action?.reason === "string" ? rule.action.reason : "",
+    resumptionMode:
+      typeof rule.action?.resumption === "object" && rule.action.resumption
+        ? String((rule.action.resumption as Record<string, unknown>).mode || "manual")
+        : "manual",
+    resumeAt: holdResumeAt(rule.action)
   }
 }
 
@@ -607,7 +765,9 @@ function validateDraft(draft: DraftRule, t: (key: string, options?: Record<strin
   const errors: DraftErrors = {}
   if (!draft.name.trim()) errors.name = t("provider_routing.validation_name")
   if (!draft.triggerKey) errors.trigger = t("provider_routing.validation_trigger")
-  if (!draft.candidates.some((candidate) => candidate.provider)) errors.candidates = t("provider_routing.validation_candidates")
+  if (draft.actionType === "route" && !draft.candidates.some((candidate) => candidate.provider)) errors.candidates = t("provider_routing.validation_candidates")
+  if (draft.actionType === "hold" && !draft.holdReason.trim()) errors.holdReason = t("provider_routing.validation_hold_reason")
+  if (draft.actionType === "hold" && draft.resumptionMode === "until_time" && !draft.resumeAt) errors.resumeAt = t("provider_routing.validation_resume_time")
   return errors
 }
 
@@ -616,22 +776,56 @@ function draftToInput(draft: DraftRule): ProviderRoutingRuleInput {
   const trigger = keyToTrigger(draft.triggerKey)
   const conditions: ProviderRoutingConditions = {}
   if (draft.workflowTriggerKinds.length > 0) conditions.workflow_trigger_kind = draft.workflowTriggerKinds
-  const action: ProviderRoutingAction = { strategy: draft.actionStrategy, candidates, name: draft.name.trim() }
+  const action: ProviderRoutingAction =
+    draft.actionType === "hold"
+      ? {
+          type: "hold",
+          name: draft.name.trim(),
+          reason: draft.holdReason.trim(),
+          resumption: { mode: draft.resumptionMode, ...(draft.resumptionMode === "until_time" ? { at: new Date(draft.resumeAt).toISOString() } : {}) }
+        }
+      : { type: "route", strategy: draft.actionStrategy, candidates, name: draft.name.trim() }
 
   return {
     task_key: taskKeyForTrigger(trigger),
     trigger,
     conditions,
     action,
-    candidates
+    candidates: draft.actionType === "route" ? candidates : []
   }
+}
+
+function ruleToInput(rule: ProviderRoutingRule, overrides: Partial<ProviderRoutingRuleInput> = {}): ProviderRoutingRuleInput {
+  return {
+    task_key: rule.task_key,
+    enabled: rule.enabled !== false,
+    trigger: rule.trigger,
+    conditions: rule.conditions || {},
+    action: rule.action,
+    candidates: rule.candidates,
+    ...overrides
+  }
+}
+
+function holdResumeAt(action?: ProviderRoutingAction) {
+  const value = typeof action?.resumption === "object" && action.resumption ? (action.resumption as Record<string, unknown>).at : null
+  if (!value) return ""
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return ""
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
 function triggerSelectOptions(options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string, selectedKey?: string) {
   const registryOptions = [
     { value: "default", label: t("provider_routing.trigger_default") },
-    ...(options.triggers?.step_kinds || []).map((option) => ({ value: `step:${option.value}`, label: t("provider_routing.trigger_step", { label: option.label }) })),
-    ...(options.triggers?.chat_roles || []).map((option) => ({ value: `chat_role:${option.value}`, label: t("provider_routing.trigger_chat_role", { label: option.label }) }))
+    ...(options.triggers?.step_kinds || []).map((option) => ({
+      value: `step:${option.value}`,
+      label: t("provider_routing.trigger_step", { label: option.label })
+    })),
+    ...(options.triggers?.chat_roles || []).map((option) => ({
+      value: `chat_role:${option.value}`,
+      label: t("provider_routing.trigger_chat_role", { label: option.label })
+    }))
   ]
   if (selectedKey?.startsWith("legacy_task:") && !registryOptions.some((option) => option.value === selectedKey)) {
     const taskKey = selectedKey.slice("legacy_task:".length)
@@ -642,10 +836,12 @@ function triggerSelectOptions(options: ProviderRoutingOptions, t: (key: string, 
 }
 
 function actionStrategyOptions(options: ProviderRoutingOptions) {
-  return options.action_strategies?.length ? options.action_strategies : [
-    { value: "fallback_order", label: "Fallback order" },
-    { value: "weighted", label: "Weighted" }
-  ]
+  return options.action_strategies?.length
+    ? options.action_strategies
+    : [
+        { value: "fallback_order", label: "Fallback order" },
+        { value: "weighted", label: "Weighted" }
+      ]
 }
 
 function keyToTrigger(key: string): ProviderRoutingTrigger {
@@ -690,9 +886,14 @@ function taskKeyLabel(taskKey: string, t: (key: string, options?: Record<string,
   return taskKey === "default" ? t("provider_routing.default_task_key") : taskKey
 }
 
-function triggerLabel(trigger: ProviderRoutingTrigger | undefined, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
+function triggerLabel(
+  trigger: ProviderRoutingTrigger | undefined,
+  options: ProviderRoutingOptions,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
   if (trigger?.type === "step") return t("provider_routing.trigger_step", { label: optionLabel(options.triggers?.step_kinds, trigger.kind) || trigger.kind })
-  if (trigger?.type === "chat_role") return t("provider_routing.trigger_chat_role", { label: optionLabel(options.triggers?.chat_roles, trigger.role) || trigger.role })
+  if (trigger?.type === "chat_role")
+    return t("provider_routing.trigger_chat_role", { label: optionLabel(options.triggers?.chat_roles, trigger.role) || trigger.role })
   if (trigger?.type === "legacy_task") return t("provider_routing.trigger_legacy_task", { taskKey: trigger.task_key })
   return t("provider_routing.trigger_default")
 }
@@ -700,15 +901,17 @@ function triggerLabel(trigger: ProviderRoutingTrigger | undefined, options: Prov
 function conditionPills(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
   const labels: string[] = []
   const workflowKinds = stringList(rule.conditions?.workflow_trigger_kind)
-  workflowKinds.forEach((kind) => labels.push(t("provider_routing.workflow_condition_pill", { label: optionLabel(options.conditions?.workflow_trigger_kinds, String(kind)) || String(kind) })))
-  Object.keys(rule.conditions || {}).filter((key) => key !== "workflow_trigger_kind").forEach((key) => labels.push(key))
+  workflowKinds.forEach((kind) =>
+    labels.push(t("provider_routing.workflow_condition_pill", { label: optionLabel(options.conditions?.workflow_trigger_kinds, String(kind)) || String(kind) }))
+  )
+  Object.keys(rule.conditions || {})
+    .filter((key) => key !== "workflow_trigger_kind")
+    .forEach((key) => labels.push(key))
   return labels
 }
 
 function stringList(value: unknown) {
-  return (Array.isArray(value) ? value : value == null ? [] : [value])
-    .map((entry) => String(entry).trim())
-    .filter(Boolean)
+  return (Array.isArray(value) ? value : value == null ? [] : [value]).map((entry) => String(entry).trim()).filter(Boolean)
 }
 
 function optionLabel(options: Array<{ value: string; label: string }> | undefined, value: string) {
@@ -719,6 +922,22 @@ function actionStrategyLabel(strategy: string, options: ProviderRoutingOptions, 
   return optionLabel(actionStrategyOptions(options), strategy) || t(`provider_routing.action_strategies.${strategy}`, { defaultValue: strategy })
 }
 
+function actionLabel(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
+  return rule.action?.type === "hold"
+    ? t("provider_routing.action_hold")
+    : t("provider_routing.route_summary", { strategy: actionStrategyLabel(actionStrategy(rule), options, t) })
+}
+
+function holdSummary(action: ProviderRoutingAction, t: (key: string, options?: Record<string, unknown>) => string) {
+  const resumption = typeof action.resumption === "object" && action.resumption ? (action.resumption as Record<string, unknown>) : {}
+  const mode = String(resumption.mode || "manual")
+  const policy =
+    mode === "until_time" && resumption.at
+      ? t("provider_routing.resume_at_summary", { time: new Date(String(resumption.at)).toLocaleString() })
+      : t(`provider_routing.resume_${mode}`, { defaultValue: mode })
+  return `${String(action.reason || t("provider_routing.hold_default_reason"))} · ${policy}`
+}
+
 function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
   const provider = providerOption(options, candidate.provider)
   const model = provider?.models.find((entry) => entry.id === candidate.model)
@@ -726,8 +945,12 @@ function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRo
   return [
     provider?.label || candidate.provider,
     model ? model.label : candidate.model,
-    candidate.effort_level ? t("provider_routing.effort_candidate", { effort: effortLabel(candidate.effort_level, effort?.label || candidate.effort_level, t) }) : null
-  ].filter(Boolean).join(" / ")
+    candidate.effort_level
+      ? t("provider_routing.effort_candidate", { effort: effortLabel(candidate.effort_level, effort?.label || candidate.effort_level, t) })
+      : null
+  ]
+    .filter(Boolean)
+    .join(" / ")
 }
 
 function effortLabel(value: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
