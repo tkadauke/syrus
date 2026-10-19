@@ -201,6 +201,12 @@ saved commits onto that Job branch, then hand off with
 `complete_implement_step`. `submit_coding_changes` is for new chat-authored
 work; it refuses branches that already belong to a Syrus Job because accepting
 one would create a new Job rather than update the existing one.
+An explicit branch names the branch that worker-side capture must later find in
+the selected repository's chat checkout; confirmation-time capture rejects a
+missing checkout, a different active branch, a dirty tree, or no committed
+changes. Normal submissions wait for operator confirmation. When the active
+Chat Goal has automatic Job submission enabled, Syrus queues that confirmation
+immediately instead.
 
 Coding Mode chats also get a set of generic `runtime_*` tools for working
 with a live Runtime Session — a dev server, browser, or other running

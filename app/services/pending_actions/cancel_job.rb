@@ -5,7 +5,8 @@ module PendingActions
     repairs_job!
 
     def execute
-      raise ArgumentError, "#{action_job.slug} is already closed; reopen it first if more work is required" if action_job.closed?
+      eligibility = JobCancellationEligibility.call(job: action_job)
+      raise ArgumentError, eligibility.message unless eligibility.eligible?
 
       progress!("Cancelling active work for #{action_job.slug}...")
       action_job.cancel_active_runs_and_close!("cancelled")
