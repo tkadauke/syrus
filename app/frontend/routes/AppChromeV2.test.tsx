@@ -1342,6 +1342,11 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
       })
 
       const header = screen.getByTestId("mobile-app-header")
+      expect(header).toHaveClass(
+        "pt-[calc(0.75rem+env(safe-area-inset-top))]",
+        "before:h-[env(safe-area-inset-top)]",
+        "before:bg-gray-950"
+      )
       expect(header).toHaveStyle({ transform: "translateY(-0px)" })
 
       fireEvent.scroll(screen.getByTestId("chat-message-stream"), { target: { scrollTop: 100 } })
