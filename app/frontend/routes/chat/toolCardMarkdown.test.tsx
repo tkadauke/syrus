@@ -113,6 +113,24 @@ describe("MarkdownPreview", () => {
     expect(within(dialog).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
   })
 
+  it.each([
+    ["mobile", 320],
+    ["desktop", 960]
+  ])("does not visually clamp untruncated text at %s width", (_viewport, width) => {
+    const text = "Responsive paragraph content. ".repeat(35)
+    render(
+      <div style={{ width }}>
+        <MarkdownPreview maxChars={2_400} maxLines={6} text={text} />
+      </div>
+    )
+
+    const preview = screen.getByTestId("markdown-preview-content")
+    expect(preview).toHaveTextContent(text.trim())
+    expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
+    expect(preview.style.overflow).toBe("")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 
