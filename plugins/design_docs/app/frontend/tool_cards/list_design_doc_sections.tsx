@@ -36,6 +36,8 @@ function parseSection(value: unknown): DesignDocSection | null {
   const startOffset = numberValue(value.start_offset)
   const endOffset = numberValue(value.end_offset)
   if (!text || level == null || startOffset == null || endOffset == null) return null
+  if (!Number.isInteger(level) || level < 1 || level > 6) return null
+  if (!Number.isInteger(startOffset) || startOffset < 0 || !Number.isInteger(endOffset) || endOffset < startOffset) return null
   return { text, level, startOffset, endOffset }
 }
 

@@ -92,6 +92,24 @@ describe("list_design_doc_sections tool card", () => {
     expect(listDesignDocSectionsToolCard.collapsedSummary?.(context({ parsedResult: malformed }))).toBe("DOC-34: 2 sections")
   })
 
+  it.each([
+    ["fractional heading level", { text: "Fractional", level: 2.5, start_offset: 43, end_offset: 50 }],
+    ["heading level below one", { text: "Too shallow", level: 0, start_offset: 43, end_offset: 50 }],
+    ["heading level above six", { text: "Too deep", level: 7, start_offset: 43, end_offset: 50 }],
+    ["negative start offset", { text: "Negative start", level: 2, start_offset: -1, end_offset: 50 }],
+    ["negative end offset", { text: "Negative end", level: 2, start_offset: 0, end_offset: -1 }],
+    ["fractional start offset", { text: "Fractional start", level: 2, start_offset: 43.5, end_offset: 50 }],
+    ["fractional end offset", { text: "Fractional end", level: 2, start_offset: 43, end_offset: 50.5 }],
+    ["reversed offset range", { text: "Reversed", level: 2, start_offset: 50, end_offset: 43 }]
+  ])("counts a %s row as malformed", (_description, invalidSection) => {
+    const malformed = { ...payload, sections: [...payload.sections, invalidSection] }
+    render(<>{listDesignDocSectionsToolCard.renderExpanded(context({ parsedResult: malformed }))}</>)
+
+    expect(screen.getByRole("status")).toHaveTextContent("Skipped 1 malformed section row.")
+    expect(screen.queryByText(invalidSection.text)).not.toBeInTheDocument()
+    expect(listDesignDocSectionsToolCard.collapsedSummary?.(context({ parsedResult: malformed }))).toBe("DOC-34: 2 sections")
+  })
+
   it("renders dedicated empty, pending, and error states", () => {
     const { rerender } = render(<>{listDesignDocSectionsToolCard.renderExpanded(context({ parsedResult: { ...payload, sections: [] } }))}</>)
     expect(screen.getByText("No headings found.")).toBeInTheDocument()
