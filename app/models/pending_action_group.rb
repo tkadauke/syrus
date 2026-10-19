@@ -93,13 +93,13 @@ class PendingActionGroup < ApplicationRecord
       if member.confirmed?
         payload = member.payload.to_h
         label = payload["spawned_chat_title"].presence || payload["prompt"].to_s.truncate(60)
-        "CHAT-#{payload['spawned_chat_id']} (#{payload['spawned_chat_provider']}): #{label}"
+        "CHAT-#{payload['spawned_chat_id']} (#{payload['spawned_chat_provider']}), thread_id: #{payload['bridge_thread_id']}: #{label}"
       else
         label = member.payload.to_h["title"].presence || member.payload.to_h["prompt"].to_s.truncate(60)
         "Failed: #{label} — #{member.execution_error}"
       end
     end
-    ([ "Spawn chats confirmation result:" ] + lines).join("\n")
+    ([ "Spawn chats confirmation result:", "Message a spawned chat with send_chat_message(thread_id: ...)." ] + lines).join("\n")
   end
 
   def confirm_member(member, user:)
