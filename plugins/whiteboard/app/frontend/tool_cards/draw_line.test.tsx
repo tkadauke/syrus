@@ -53,6 +53,33 @@ describe("draw_line tool card", () => {
     expect(screen.getByText("v9")).toBeInTheDocument()
   })
 
+  it("renders object-form points accepted by the draw_line contract", () => {
+    render(
+      <>
+        {drawLineCard.renderExpanded(
+          context({
+            input: {
+              x: 10,
+              y: 20,
+              points: [
+                { x: 0, y: 5 },
+                { x: 40, y: 25 },
+                { x: 80, y: 10 }
+              ]
+            },
+            parsedResult: { id: "object-points-line", version: 3 }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getAllByText("3 points").length).toBeGreaterThan(0)
+    expect(screen.getByText("(0, 5) → (80, 10)")).toBeInTheDocument()
+    const disclosure = screen.getByText("Points · 3 points").closest("details")
+    expect(disclosure).not.toBeNull()
+    expect(within(disclosure!).getByText("2. (40, 25)")).toBeInTheDocument()
+  })
+
   it("uses the shared failure card and handles empty and malformed results", () => {
     const failed = context({
       input: { x: 1, y: 2, points: [] },

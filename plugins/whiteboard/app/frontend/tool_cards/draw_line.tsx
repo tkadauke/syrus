@@ -9,9 +9,8 @@ type Point = [number, number]
 function pointsFrom(input: Record<string, unknown>): Point[] {
   if (!Array.isArray(input.points)) return []
   return input.points.flatMap((point) => {
-    if (!Array.isArray(point)) return []
-    const x = numberValue(point[0])
-    const y = numberValue(point[1])
+    const x = numberValue(Array.isArray(point) ? point[0] : isPlainObject(point) ? point.x : null)
+    const y = numberValue(Array.isArray(point) ? point[1] : isPlainObject(point) ? point.y : null)
     return x != null && y != null ? [[x, y] as Point] : []
   })
 }
