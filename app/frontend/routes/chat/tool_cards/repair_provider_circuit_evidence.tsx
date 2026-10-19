@@ -1,23 +1,13 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import { pendingActionToolCard } from "../pendingActionToolCard"
 
-// Pending-action tool card (the pending-action tool-card work). All of the parsing and
-// presentation lives in ../pendingActionToolCard so the whole family stays
-// consistent; this file only binds it to one MCP tool name.
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const repairProviderCircuitEvidenceToolCard: ToolCardRenderer = {
-  toolName: "repair_provider_circuit_evidence",
-  collapsedSummary,
-  renderExpanded
-}
+const repairProviderCircuitEvidenceToolCard = pendingActionToolCard("repair_provider_circuit_evidence", {
+  inputFields: [
+    { key: "evidence_type", format: "badge" },
+    { key: "evidence_id", format: "badge" },
+    { key: "evidence_ids", label: "Evidence ids", format: "list" },
+    { key: "repair_status", format: "badge" },
+    { key: "reason", format: "markdown" }
+  ]
+})
 
 export default repairProviderCircuitEvidenceToolCard
