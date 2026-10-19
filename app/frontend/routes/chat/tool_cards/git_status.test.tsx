@@ -48,7 +48,7 @@ describe("git_status tool card", () => {
 
   it("shows explicit error and missing-result states", () => {
     const failed = context({ resultError: true, resultBody: "Local Mode daemon is not connected" })
-    expect(gitStatusToolCard.collapsedSummary?.(failed)).toBe("Git status failed")
+    expect(gitStatusToolCard.collapsedSummary?.(failed)).toBe("Git status unavailable: Local Mode daemon is not connected")
     render(<>{gitStatusToolCard.renderExpanded(failed)}</>)
     expect(screen.getByText("Git status unavailable: Local Mode daemon is not connected")).toBeInTheDocument()
 
