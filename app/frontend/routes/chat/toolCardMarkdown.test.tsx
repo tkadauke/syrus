@@ -77,6 +77,21 @@ describe("MarkdownPreview", () => {
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
+  it("preserves disabled slug linking in the expanded modal", () => {
+    const text = `See JOB-42 for details. ${"Additional prose. ".repeat(30)}`
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs={false} maxChars={40} text={text} />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("link", { name: /JOB-42/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).queryByRole("link", { name: /JOB-42/ })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/See JOB-42 for details/)).toBeInTheDocument()
+  })
+
   it("shows a caller-supplied empty state and copies complete modal text", () => {
     const text = "Long content. ".repeat(100)
     const { rerender } = render(<MarkdownPreview emptyState={<span>No prose supplied.</span>} text="  " />)
