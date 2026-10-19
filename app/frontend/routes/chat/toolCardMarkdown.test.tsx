@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -27,6 +27,38 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("can render an empty state for blank text", () => {
+    render(<MarkdownPreview emptyState="No comment supplied." text="  " />)
+
+    expect(screen.getByText("No comment supplied.")).toBeInTheDocument()
+  })
+
+  it("honors a character limit and copies the complete text from the modal", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    const text = "Complete comment text that is longer than the compact preview."
+    render(<MarkdownPreview maxChars={18} modalLabel="Full comment" text={text} title="Comment" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Full comment" })).getByRole("button", { name: "Copy Comment" }))
+
+    expect(writeText).toHaveBeenCalledWith(text)
+  })
+
+  it("passes URL, slug, and link-click behavior to both preview renderers", () => {
+    const onLinkClick = vi.fn()
+    const text = `See DOC-20 and https://example.test/path ${"long ".repeat(40)}`
+    render(<MarkdownPreview linkifyUrls maxChars={60} onLinkClick={onLinkClick} text={text} />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("DOC-20")
+    fireEvent.click(within(screen.getByTestId("markdown-preview-content")).getByRole("link", { name: "https://example.test/path" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const link = within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/path" })
+    fireEvent.click(link)
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
+    expect(onLinkClick).toHaveBeenCalledWith((link as HTMLAnchorElement).href, expect.anything())
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
