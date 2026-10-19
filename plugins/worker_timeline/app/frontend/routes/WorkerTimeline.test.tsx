@@ -447,8 +447,8 @@ describe("WorkerTimeline macro view", () => {
     })
   })
 
-  it("renders saved-folder navigation and saves the current expression as a folder", async () => {
-    const calls = setupFetchMock({
+  it("leaves saved-folder navigation to the application sidebar", async () => {
+    setupFetchMock({
       active_smart_folder_id: 7,
       smart_folders: [
         {
@@ -468,14 +468,9 @@ describe("WorkerTimeline macro view", () => {
     })
     renderTimeline("/worker_timeline?smart_folder_id=7")
 
-    expect(await screen.findByRole("link", { name: /Running here/ })).toHaveAttribute("href", "/worker_timeline?smart_folder_id=7")
-    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-    fireEvent.click(screen.getByRole("button", { name: "Job type list" }))
-    fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
-    fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "Worker failures" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
-
-    await waitFor(() => expect(calls).toContain("/api/v1/app/smart_folders"))
+    expect(await screen.findByText("runs")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Worker Timeline smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /Running here/ })).not.toBeInTheDocument()
   })
 
   it("offers top-level suggested filters from worker timeline deep search", async () => {
