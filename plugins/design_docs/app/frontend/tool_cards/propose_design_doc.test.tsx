@@ -29,7 +29,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 const input = {
-  title: "New Doc",
+  title: "Proposal input title",
   markdown: `# Proposed body\n\nSee JOB-42 and https://example.test/details. ${"More context. ".repeat(100)}`,
   visibility: "public",
   repository_ids: [41, "42"],
@@ -41,7 +41,7 @@ const parsedResult = {
   design_doc: {
     id: 42,
     doc_ref: "DOC-42",
-    title: "New Doc",
+    title: "Created result title",
     visibility: "private",
     state: "draft",
     current_version_number: 3,
@@ -64,7 +64,7 @@ describe("propose_design_doc tool card", () => {
 
   it("summarizes and renders every proposal input plus the created document metadata", () => {
     const cardContext = context({ input, parsedResult })
-    expect(proposeDesignDocToolCard.collapsedSummary?.(cardContext)).toBe("Created DOC-42 — New Doc")
+    expect(proposeDesignDocToolCard.collapsedSummary?.(cardContext)).toBe("Created DOC-42 — Created result title")
     renderCard(cardContext)
 
     expect(screen.getByText("Created")).toBeInTheDocument()
@@ -72,7 +72,9 @@ describe("propose_design_doc tool card", () => {
     expect(screen.getByText("v3")).toBeInTheDocument()
     expect(screen.getByText("draft")).toBeInTheDocument()
     expect(screen.getByText("private")).toBeInTheDocument()
-    expect(screen.getByText("New Doc")).toBeInTheDocument()
+    expect(screen.getByText("Created result title")).toBeInTheDocument()
+    expect(screen.getByText("Proposed title")).toBeInTheDocument()
+    expect(screen.getByText("Proposal input title")).toBeInTheDocument()
     expect(screen.getByText("public")).toBeInTheDocument()
     expect(screen.getByText("7, 8")).toBeInTheDocument()
     expect(screen.getByText("placement").tagName).toBe("STRONG")
@@ -109,23 +111,36 @@ describe("propose_design_doc tool card", () => {
   })
 
   it("renders pending and styled error states", () => {
-    expect(proposeDesignDocToolCard.collapsedSummary?.(context())).toBe("Proposing design doc")
-    const { rerender } = render(<MemoryRouter>{proposeDesignDocToolCard.renderExpanded(context())}</MemoryRouter>)
+    const pendingContext = context({ input })
+    expect(proposeDesignDocToolCard.collapsedSummary?.(pendingContext)).toBe("Proposing design doc")
+    const { rerender } = render(<MemoryRouter>{proposeDesignDocToolCard.renderExpanded(pendingContext)}</MemoryRouter>)
     expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Proposal input title")).toBeInTheDocument()
+    expect(screen.getByText("Proposed body")).toBeInTheDocument()
+    expect(screen.getByText("public")).toBeInTheDocument()
+    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository 41" })).toHaveAttribute("href", "/repositories/41")
+    expect(screen.getByText("placement").tagName).toBe("STRONG")
 
-    const errorContext = context({ resultBody: "Repository not attached to this chat context", resultError: true })
+    const errorContext = context({ input, resultBody: "Repository not attached to this chat context", resultError: true })
     expect(proposeDesignDocToolCard.collapsedSummary?.(errorContext)).toBe("Could not propose design doc")
     rerender(<MemoryRouter>{proposeDesignDocToolCard.renderExpanded(errorContext)}</MemoryRouter>)
     expect(screen.getByRole("alert")).toHaveTextContent("Repository not attached to this chat context")
     expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Proposal input title")).toBeInTheDocument()
+    expect(screen.getByText("Proposed body")).toBeInTheDocument()
+    expect(screen.getByText("public")).toBeInTheDocument()
+    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository 42" })).toHaveAttribute("href", "/repositories/42")
+    expect(screen.getByText("placement").tagName).toBe("STRONG")
   })
 
   it("accepts normalized structured-content and text MCP envelopes", () => {
     const structured = normalizedToolCardParsedResult({ structured_content: parsedResult })
     const textEnvelope = normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(parsedResult) }] })
 
-    expect(proposeDesignDocToolCard.collapsedSummary?.(context({ parsedResult: structured }))).toBe("Created DOC-42 — New Doc")
-    expect(proposeDesignDocToolCard.collapsedSummary?.(context({ parsedResult: textEnvelope }))).toBe("Created DOC-42 — New Doc")
+    expect(proposeDesignDocToolCard.collapsedSummary?.(context({ parsedResult: structured }))).toBe("Created DOC-42 — Created result title")
+    expect(proposeDesignDocToolCard.collapsedSummary?.(context({ parsedResult: textEnvelope }))).toBe("Created DOC-42 — Created result title")
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
-import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
-import { DesignDocErrorCard, DesignDocHeader, DesignDocPendingCard, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { DesignDocHeader, parseDesignDocSummary, t, type DesignDocSummary } from "../designDocToolCard"
 
 type RepositoryReference = { id: number; label: string }
 type CollaboratorReference = { id: number | null; label: string }
@@ -12,6 +12,14 @@ type ProposeDesignDoc = {
   repositories: RepositoryReference[]
   collaborators: CollaboratorReference[]
   version: number | null
+}
+type ProposalInput = {
+  title: string
+  markdown: string
+  changeSummary: string
+  repositoryIds: number[]
+  collaboratorIds: number[]
+  visibility: string | null
 }
 
 function repositoryReferences(value: unknown): RepositoryReference[] {
@@ -57,6 +65,18 @@ function inputIds(value: unknown): number[] {
   return value.map(numberValue).filter((id): id is number => id != null)
 }
 
+function proposalInput(context: ToolCardContext): ProposalInput {
+  const input = isPlainObject(context.input) ? context.input : {}
+  return {
+    title: typeof input.title === "string" ? input.title : "",
+    markdown: typeof input.markdown === "string" ? input.markdown : "",
+    changeSummary: typeof input.change_summary === "string" ? input.change_summary : "",
+    repositoryIds: inputIds(input.repository_ids),
+    collaboratorIds: inputIds(input.collaborator_user_ids),
+    visibility: displayValue(input.visibility)
+  }
+}
+
 function collapsedSummary(context: ToolCardContext) {
   if (context.resultError) return t("tool_propose_error_summary")
   if (!context.resultBody && context.parsedResult == null) return t("tool_propose_pending_summary")
@@ -77,21 +97,59 @@ function renderRepositoryList(repositories: RepositoryReference[]) {
   )
 }
 
+function ProposalInputDetails({ proposal }: { proposal: ProposalInput }) {
+  return (
+    <div className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface p-2">
+      <Row label={t("tool_proposed_title")} value={proposal.title || t("tool_untitled_design_doc")} />
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+        {proposal.visibility ? <Row label={t("visibility")} value={proposal.visibility} /> : null}
+        {proposal.collaboratorIds.length > 0 ? <Row label={t("tool_collaborators")} value={proposal.collaboratorIds.join(", ")} /> : null}
+      </div>
+      {renderRepositoryList(proposal.repositoryIds.map((id) => ({ id, label: t("tool_repository_number", { id }) })))}
+      <MarkdownPreview
+        emptyLabel={t("tool_no_change_summary")}
+        linkifyUrls
+        maxChars={320}
+        maxLines={2}
+        text={proposal.changeSummary}
+        title={t("tool_summary")}
+      />
+      <MarkdownPreview emptyLabel={t("tool_no_proposed_content")} linkifyUrls maxChars={960} text={proposal.markdown} title={t("tool_proposed_content")} />
+    </div>
+  )
+}
+
 function renderExpanded(context: ToolCardContext) {
+  const proposal = proposalInput(context)
   if (context.resultError) {
-    return <DesignDocErrorCard message={displayValue(context.resultBody) ?? t("tool_unknown_error")} title={t("tool_propose_title")} />
+    return (
+      <CardShell>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-text-primary">{t("tool_propose_title")}</span>
+          <StatePill state="failed" />
+        </div>
+        <div className="rounded-[var(--radius-panel)] border border-danger/30 bg-danger/10 px-2 py-1 text-danger-text" role="alert">
+          {displayValue(context.resultBody) ?? t("tool_unknown_error")}
+        </div>
+        <ProposalInputDetails proposal={proposal} />
+      </CardShell>
+    )
   }
-  if (!context.resultBody && context.parsedResult == null) return <DesignDocPendingCard title={t("tool_propose_title")} />
+  if (!context.resultBody && context.parsedResult == null) {
+    return (
+      <CardShell>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-text-primary">{t("tool_propose_title")}</span>
+          <StatePill state="pending" />
+        </div>
+        <EmptyState>{t("tool_pending")}</EmptyState>
+        <ProposalInputDetails proposal={proposal} />
+      </CardShell>
+    )
+  }
 
   const result = proposeDesignDoc(context)
   if (!result) return null
-
-  const input = isPlainObject(context.input) ? context.input : {}
-  const proposedMarkdown = typeof input.markdown === "string" ? input.markdown : ""
-  const changeSummary = typeof input.change_summary === "string" ? input.change_summary : ""
-  const inputRepositoryIds = inputIds(input.repository_ids)
-  const collaboratorIds = inputIds(input.collaborator_user_ids)
-  const visibility = displayValue(input.visibility)
 
   return (
     <CardShell>
@@ -101,13 +159,7 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <DesignDocHeader doc={result.summary} />
       <div className="break-words text-sm font-medium text-text-primary">{result.summary.title}</div>
-      <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-        {visibility ? <Row label={t("visibility")} value={visibility} /> : null}
-        {collaboratorIds.length > 0 ? <Row label={t("tool_collaborators")} value={collaboratorIds.join(", ")} /> : null}
-      </div>
-      {renderRepositoryList(inputRepositoryIds.map((id) => ({ id, label: t("tool_repository_number", { id }) })))}
-      <MarkdownPreview emptyLabel={t("tool_no_change_summary")} linkifyUrls maxChars={320} maxLines={2} text={changeSummary} title={t("tool_summary")} />
-      <MarkdownPreview emptyLabel={t("tool_no_proposed_content")} linkifyUrls maxChars={960} text={proposedMarkdown} title={t("tool_proposed_content")} />
+      <ProposalInputDetails proposal={proposal} />
       <div className="border-t border-border pt-2">
         <MarkdownPreview emptyLabel={t("tool_no_created_content")} linkifyUrls maxChars={960} text={result.markdown} title={t("tool_created_content")} />
       </div>

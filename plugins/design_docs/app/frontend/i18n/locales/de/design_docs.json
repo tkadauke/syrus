@@ -205,6 +205,7 @@
   "tool_propose_error_summary": "Designdokument konnte nicht vorgeschlagen werden",
   "tool_propose_pending_summary": "Designdokument wird vorgeschlagen",
   "tool_proposed_content": "Vorgeschlagener Inhalt",
+  "tool_proposed_title": "Vorgeschlagener Titel",
   "tool_created_content": "Erstellter Inhalt",
   "tool_no_proposed_content": "Kein vorgeschlagener Inhalt angegeben.",
   "tool_no_created_content": "Das erstellte Designdokument hat keinen Inhalt.",

@@ -205,6 +205,7 @@
   "tool_propose_error_summary": "Documentum consilii proponi non potuit",
   "tool_propose_pending_summary": "Documentum consilii proponitur",
   "tool_proposed_content": "Contentum propositum",
+  "tool_proposed_title": "Titulus propositus",
   "tool_created_content": "Contentum creatum",
   "tool_no_proposed_content": "Nullum contentum propositum datum est.",
   "tool_no_created_content": "Documentum creatum contentum non habet.",
