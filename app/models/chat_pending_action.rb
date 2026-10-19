@@ -216,6 +216,7 @@ class ChatPendingAction < ApplicationRecord
 
     update_confirmation_progress!("running", command.execution_label)
     record = command.execute
+    return true if record.equal?(PendingActions::Base::DEFERRED_CONFIRMATION)
 
     if command.repair_action?
       update_confirmation_progress!("running", "Capturing after snapshot...")
@@ -224,22 +225,27 @@ class ChatPendingAction < ApplicationRecord
 
     record_repair_admin_action!(record) if command.repair_action?
     repair_outcome = command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied"
-    updates = {
-      state: "confirmed",
-      confirmed_at: Time.current,
-      execution_status: repair_outcome,
-      execution_step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.",
-      execution_error: nil,
-      execution_finished_at: Time.current
-    }
-    updates[:result] = record if record
-    update!(updates)
+    complete_confirmation!(record, outcome: repair_outcome,
+      step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.")
     true
   rescue StandardError => e
     fail_confirmation!(e)
     raise if raise_on_error
 
     false
+  end
+
+  def complete_confirmation!(record = nil, outcome: "applied", step: "Applied.")
+    updates = {
+      state: "confirmed",
+      confirmed_at: Time.current,
+      execution_status: outcome,
+      execution_step: step,
+      execution_error: nil,
+      execution_finished_at: Time.current
+    }
+    updates[:result] = record if record
+    update!(updates)
   end
 
   def update_confirmation_progress!(status, step)
