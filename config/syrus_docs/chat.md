@@ -840,7 +840,11 @@ with optional titles, configured chat providers, and accessible repository
 slugs. Syrus validates the entire request first and shows one grouped
 confirmation; rejecting it creates nothing. Confirmation creates each chat
 independently, starts its first agent turn through the normal message path,
-and posts every resulting `CHAT-<id>` back into the originating chat. A
+pre-opens a zero-hop bridge thread from the originating chat with a coordination
+budget of `ChatBridgeThread::SPAWN_MAX_HOPS` (50), and posts every resulting
+`CHAT-<id>` and bridge `thread_id` back into the originating chat. The agent can
+then use `send_chat_message(thread_id: ...)` from the confirmation-triggered
+turn without repeating the spawned chat's initial prompt. A
 failure in one member is reported alongside the successfully created chats
 instead of rolling the batch back.
 
