@@ -40,6 +40,7 @@ module App
         title: proposal_title(proposal),
         state: proposal.state,
         anchor_message_id: anchor_message_id(proposal),
+        dependency_ids: proposal.dependency_edges.map(&:depends_on_id),
         active_children_count: proposal.epic? ? proposal.active_child_proposals.count : nil,
         created_at: proposal.created_at&.iso8601
       }

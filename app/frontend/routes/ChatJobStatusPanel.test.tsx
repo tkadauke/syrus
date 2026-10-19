@@ -595,6 +595,7 @@ function pendingProposal(overrides: Partial<ChatJobStatusPendingProposal> = {}):
     title: "Survey aqueduct route",
     state: "proposed",
     anchor_message_id: 42,
+    dependency_ids: [],
     active_children_count: null,
     created_at: "2026-05-30T12:00:00.000Z",
     ...overrides
@@ -702,6 +703,40 @@ describe("ChatJobStatusPanel pending proposals", () => {
     expect(JSON.parse(String(postCalls[0][1]?.body))).toEqual({ route_to_backlog: false })
     expect(String(postCalls[1][0])).toContain("/chats/8/proposals/2/confirm")
     expect(JSON.parse(String(postCalls[1][1]?.body))).toEqual({ start: true })
+  })
+
+  it("confirms selected dependencies before their dependents", async () => {
+    const confirmed = new Set<number>()
+    const postOrder: number[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") {
+        const proposalId = Number(String(input).match(/proposals\/(\d+)\/confirm/)?.[1])
+        postOrder.push(proposalId)
+        if (proposalId === 2 && !confirmed.has(1)) confirmed.add(1)
+        if (confirmed.has(proposalId)) {
+          return Promise.resolve(jsonResponse({ error: { message: "Proposal is already confirmed." } }, 422))
+        }
+        confirmed.add(proposalId)
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      }
+      return Promise.resolve(
+        jsonResponse({
+          pending_proposals: [
+            pendingProposal({ id: 2, title: "Build on the foundation", dependency_ids: [1] }),
+            pendingProposal({ id: 1, title: "Lay the foundation" })
+          ],
+          items: []
+        })
+      )
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all proposals" }))
+    fireEvent.click(screen.getByRole("button", { name: "Implement" }))
+
+    await waitFor(() => expect(postOrder).toEqual([1, 2]))
+    await waitFor(() => expect(screen.queryByTestId("proposal-bulk-actions")).not.toBeInTheDocument())
+    expect(screen.queryByText("Could not update all selected proposals.")).not.toBeInTheDocument()
   })
 
   it("routes selected Job proposals to backlog", async () => {
