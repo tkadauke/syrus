@@ -678,8 +678,10 @@ image), or `preview_panel_version:ID` (a preview panel mockup's published
 source files, see `preview_panels.md`; `show_preview`'s response includes
 `version_id`). `list_chat_media` lists the refs currently available in the
 session and includes chat-scoped image file paths for inline thumbnail preview
-in the operator transcript; the refs remain the stable values to pass back to
-proposal and feedback tools. The `ChatMediaRef` format is shared across
+in the operator transcript. Its transcript card links image sources and saved
+snapshots, opens every media kind in the shared full preview, and displays
+scalar context supplied by registered media sources. The refs remain the
+stable values to pass back to proposal and feedback tools. The `ChatMediaRef` format is shared across
 proposal and feedback validation so a malformed or out-of-session ref is
 rejected consistently.
 
