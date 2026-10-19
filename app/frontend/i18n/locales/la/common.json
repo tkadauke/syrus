@@ -9,6 +9,7 @@
   "copy_content": "Describe contentum",
   "copy_markdown": "Markdown exscribe",
   "empty_file": "Fasciculus vacuus.",
+  "markdown_preview_empty": "Nullum contentum datum est.",
   "show_less": "Ostende minus",
   "text_preview": {
     "earlier_lines_one": "… {{count}} linea prior",

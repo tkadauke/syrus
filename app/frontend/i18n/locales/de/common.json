@@ -9,6 +9,7 @@
   "copy_content": "Inhalt kopieren",
   "copy_markdown": "Markdown kopieren",
   "empty_file": "Leere Datei.",
+  "markdown_preview_empty": "Kein Inhalt angegeben.",
   "show_less": "Weniger anzeigen",
   "text_preview": {
     "earlier_lines_one": "… {{count}} frühere Zeile",

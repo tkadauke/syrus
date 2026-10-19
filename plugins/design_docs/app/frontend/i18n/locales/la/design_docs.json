@@ -187,5 +187,18 @@
   "tool_section_count_other": "{{doc}}: {{count}} sectiones",
   "tool_sections": "Sectiones",
   "tool_no_sections": "Nulli tituli inventi.",
-  "tool_untitled_design_doc": "Documentum consilii sine titulo"
+  "tool_untitled_design_doc": "Documentum consilii sine titulo",
+  "tool_archived": "In archivum relatum",
+  "tool_immediate": "Statim",
+  "tool_archive_requested": "Archivatio petita",
+  "tool_confirmation_required": "Confirmatio necessaria",
+  "tool_state_transition": "Transitus status",
+  "tool_reason": "Causa",
+  "tool_confirmation_reason": "Causa confirmationis",
+  "tool_no_archive_reason": "Nulla causa archivandi data est.",
+  "tool_no_confirmation_reason": "Nulla causa confirmationis data est.",
+  "tool_design_doc_id": "ID documenti consilii",
+  "tool_archive_failed": "Documentum consilii in archivum referri non potuit",
+  "tool_archive_error_summary": "Archivatio defecit: {{message}}",
+  "tool_archived_summary": "{{doc}} in archivum relatum — {{title}}"
 }
