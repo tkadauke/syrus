@@ -77,12 +77,18 @@ RSpec.describe "Mcp::Tools wakeup management tools" do
   end
 
   it "cancels a pending wakeup and the fire job exits cleanly" do
-    wakeup = create_wakeup(chat_session: chat_session, fire_at: 5.minutes.from_now)
+    fire_at = 5.minutes.from_now
+    wakeup = create_wakeup(chat_session: chat_session, fire_at: fire_at, prompt: "Check the deployment status.")
 
     response = call_tool("cancel_wakeup", wakeup_id: wakeup.id)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to eq(cancelled: true, wakeup_id: wakeup.id)
+    expect(response_payload(response)).to eq(
+      cancelled: true,
+      wakeup_id: wakeup.id,
+      prompt: "Check the deployment status.",
+      fire_at: fire_at.iso8601
+    )
     expect(wakeup.reload).to be_cancelled
     expect(ChatSession::WakeupTurn).not_to receive(:new)
 

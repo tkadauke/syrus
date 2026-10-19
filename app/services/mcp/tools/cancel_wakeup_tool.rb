@@ -26,7 +26,12 @@ module Mcp::Tools
 
         wakeup.update!(state: "cancelled")
 
-        Mcp::Tools.success(cancelled: true, wakeup_id: wakeup.id)
+        Mcp::Tools.success(
+          cancelled: true,
+          wakeup_id: wakeup.id,
+          prompt: wakeup.prompt,
+          fire_at: wakeup.fire_at.iso8601
+        )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
