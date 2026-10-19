@@ -24,8 +24,7 @@ module Admin
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
-      "cancel_coding_checkout" => "generic",
-      "open_in_coding_mode" => "generic",
+      "credential_store_ssh_exec" => "generic",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic"
     }.freeze
