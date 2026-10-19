@@ -135,7 +135,27 @@ export function InternalLink({ href, children }: { href: string; children: React
 }
 
 export type ToolCardEntityKind =
-  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
+  | "job"
+  | "epic"
+  | "design_doc"
+  | "chat"
+  | "run"
+  | "workflow"
+  | "pull_request"
+  | "artifact"
+  | "repository"
+  | "proposal"
+  | "wakeup"
+  | "scheduled_task"
+  | "preview_panel"
+  | "memory"
+  | "insight"
+  | "theme"
+  | "walkthrough"
+  | "whiteboard_snapshot"
+  | "cluster"
+  | "namespace"
+  | "node"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -222,6 +242,21 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  wakeup: { label: (reference) => prefixedEntityLabel("WAKEUP", reference.id), href: noHref, copyValue: slugCopyValue },
+  scheduled_task: { label: (reference) => prefixedEntityLabel("TASK", reference.id), href: idHref("/scheduled_tasks"), copyValue: slugCopyValue },
+  preview_panel: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: noHref, copyValue: slugCopyValue },
+  insight: {
+    label: (reference) => prefixedEntityLabel("INSIGHT", reference.id),
+    href: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `/s/INSIGHT-${id}` : null
+    },
+    copyValue: slugCopyValue
+  },
+  theme: { label: (reference) => prefixedEntityLabel("THEME", reference.id), href: noHref, copyValue: slugCopyValue },
+  walkthrough: { label: (reference) => prefixedEntityLabel("WALKTHROUGH", reference.id), href: noHref, copyValue: slugCopyValue },
+  whiteboard_snapshot: { label: (reference) => prefixedEntityLabel("SNAPSHOT", reference.id), href: noHref, copyValue: slugCopyValue },
   cluster: { label: (reference) => compactEntityValue(reference.id), href: idHref("/k8s_clusters") },
   namespace: { label: (reference) => displayValue(reference.label), href: idHref("/k8s_clusters") },
   node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue }
