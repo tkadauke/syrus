@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
-import { CardShell, displayValue, EmptyState, EntityReference, InternalLink, numberValue, Row, SectionLabel } from "@app/routes/chat/toolCardUi"
+import { CardShell, displayValue, EmptyState, EntityReference, InternalLink, numberValue, SectionLabel } from "@app/routes/chat/toolCardUi"
 import {
   formatFailureRate,
   formatMs,
@@ -62,6 +62,15 @@ type Card = {
   relatedRuns: RunJobRef[]
   relatedJobs: RunJobRef[]
   includeFailures: boolean | null
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="whitespace-pre-wrap break-all font-mono text-xs text-text-primary">{value}</dd>
+    </div>
+  )
 }
 
 function parseRepository(value: unknown): RepositoryRef | null {
@@ -228,7 +237,11 @@ function renderError(context: ToolCardContext) {
       <div className="break-words rounded bg-danger-surface px-2 py-1 text-danger-text">
         {message ?? displayValue(context.resultBody) ?? t("tool_unknown_error")}
       </div>
-      {id ? <Row label={t("tool_test_id")} value={id} /> : null}
+      {id ? (
+        <dl>
+          <DetailRow label={t("tool_test_id")} value={id} />
+        </dl>
+      ) : null}
     </CardShell>
   )
 }
@@ -252,17 +265,17 @@ function renderExpanded(context: ToolCardContext) {
           {card.test.filePath ? href ? <InternalLink href={href}>{card.test.filePath}</InternalLink> : card.test.filePath : null}
         </div>
       ) : null}
-      <dl className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
-        <Row label={t("tool_test_id")} value={card.test.id} />
-        {card.test.fingerprint ? <Row label={t("tool_fingerprint")} value={card.test.fingerprint} /> : null}
-        <Row label={t("tool_col_failure_rate")} value={formatFailureRate(card.test.failureRate)} />
-        <Row label={t("tool_avg_duration")} value={formatMs(card.test.avgDurationMs)} />
-        <Row label={t("tool_last_duration")} value={formatMs(card.test.lastDurationMs)} />
-        <Row label={t("tool_last_seen")} value={card.test.lastSeenAt ?? "—"} />
-        <Row label={t("tool_last_failed")} value={card.test.lastFailedAt ?? "—"} />
-        <Row label={t("tool_last_passed")} value={card.test.lastPassedAt ?? "—"} />
+      <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+        <DetailRow label={t("tool_test_id")} value={card.test.id} />
+        {card.test.fingerprint ? <DetailRow label={t("tool_fingerprint")} value={card.test.fingerprint} /> : null}
+        <DetailRow label={t("tool_col_failure_rate")} value={formatFailureRate(card.test.failureRate)} />
+        <DetailRow label={t("tool_avg_duration")} value={formatMs(card.test.avgDurationMs)} />
+        <DetailRow label={t("tool_last_duration")} value={formatMs(card.test.lastDurationMs)} />
+        <DetailRow label={t("tool_last_seen")} value={card.test.lastSeenAt ?? "—"} />
+        <DetailRow label={t("tool_last_failed")} value={card.test.lastFailedAt ?? "—"} />
+        <DetailRow label={t("tool_last_passed")} value={card.test.lastPassedAt ?? "—"} />
         {card.test.recentTotalCount != null ? (
-          <Row
+          <DetailRow
             label={t("tool_recent_record")}
             value={t("tool_recent_record_value", {
               failed: card.test.recentFailedCount ?? 0,
@@ -271,7 +284,7 @@ function renderExpanded(context: ToolCardContext) {
             })}
           />
         ) : null}
-        {card.includeFailures != null ? <Row label={t("tool_include_failures")} value={card.includeFailures ? t("tool_yes") : t("tool_no")} /> : null}
+        {card.includeFailures != null ? <DetailRow label={t("tool_include_failures")} value={card.includeFailures ? t("tool_yes") : t("tool_no")} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_runtime")}</SectionLabel>
@@ -320,10 +333,10 @@ function renderExpanded(context: ToolCardContext) {
                       <RefLink target={entry.run} />
                       <RefLink target={entry.job} />
                     </div>
-                    <dl className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
-                      {entry.graderName ? <Row label={t("tool_setting_grader_name")} value={entry.graderName} /> : null}
+                    <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {entry.graderName ? <DetailRow label={t("tool_setting_grader_name")} value={entry.graderName} /> : null}
                       {entry.totalCount != null ? (
-                        <Row
+                        <DetailRow
                           label={t("tool_test_run_counts")}
                           value={t("tool_test_run_counts_value", {
                             passed: entry.passedCount ?? 0,
@@ -334,7 +347,7 @@ function renderExpanded(context: ToolCardContext) {
                           })}
                         />
                       ) : null}
-                      {entry.runDurationMs != null ? <Row label={t("tool_test_run_duration")} value={formatMs(entry.runDurationMs)} /> : null}
+                      {entry.runDurationMs != null ? <DetailRow label={t("tool_test_run_duration")} value={formatMs(entry.runDurationMs)} /> : null}
                     </dl>
                     {entry.failure ? <FailurePreview failure={entry.failure} /> : null}
                   </>
