@@ -392,7 +392,7 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
       {items.map((item) =>
         item.type === "tool_group" ? (
           <SharedMessageRenderer key={renderItemKey(item)} readOnly>
-            <ToolGroup item={item} />
+            <ToolGroup chatSessionId={payload.chat.id} item={item} />
           </SharedMessageRenderer>
         ) : (
           <ChatMessage
@@ -1129,7 +1129,7 @@ function MessageStream({
               <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
               <SharedMessageRenderer key={renderItemKey(item)}>
-                <ToolGroup item={item} />
+                <ToolGroup chatSessionId={payload.chat.id} item={item} />
               </SharedMessageRenderer>
             ) : (
               <ChatMessage
