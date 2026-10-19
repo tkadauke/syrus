@@ -6,6 +6,7 @@
   },
   "loading": "Oneratur...",
   "show_more": "Ostende plus",
+  "markdown_preview": { "copy": "Describe", "copied": "Descriptum", "empty": "Nulla descriptio praebita est." },
   "show_less": "Ostende minus",
   "workflows": "Cursus operum",
   "file_preview": {

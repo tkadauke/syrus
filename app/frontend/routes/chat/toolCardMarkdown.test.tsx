@@ -23,10 +23,20 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an explicit empty state for whitespace-only text", () => {
+    render(<MarkdownPreview emptyState="Nothing written yet." text={"  \n\t "} />)
+    expect(screen.getByText("Nothing written yet.")).toBeInTheDocument()
+  })
 
-    expect(container).toBeEmptyDOMElement()
+  it("honors maxChars, linkifies URLs and slugs, and copies the full text from the modal", () => {
+    const text = `See https://example.test and JOB-42. ${"More words. ".repeat(20)}`
+    render(<MarkdownPreview linkifyUrls maxChars={30} text={text} />)
+
+    expect(screen.getByRole("link", { name: "https://example.test" })).toHaveAttribute("href", "https://example.test")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = within(screen.getByRole("dialog"))
+    expect(dialog.getByText(/JOB-42/)).toBeInTheDocument()
+    expect(dialog.getByRole("button", { name: "Copy" })).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
