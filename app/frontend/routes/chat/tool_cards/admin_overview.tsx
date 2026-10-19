@@ -1,191 +1,405 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
-import { HealthPill, parseWorkerHealthCounts, type WorkerHealthCounts } from "../adminToolCard"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
+import { MarkdownPreview, TextPreview } from "../toolCardMarkdown"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { formatBytesLarge, formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_overview (the tool-card work). The tool
-// echoes a handful of top-level rollup counts plus a much larger nested
-// `overview` object (rate limits, provider circuits, worker health, ...);
-// this card surfaces the counts and the notable red/yellow entries from
-// that nested object (open provider circuits, blocked GitHub API users,
-// unhealthy workers) and leaves the rest to the "Raw details" disclosure.
-type QueueSummary = { active: number | null; pending: number | null; failed: number | null }
+type Obj = Record<string, unknown>
+const obj = (v: unknown): Obj | null => (isPlainObject(v) ? v : null)
+const list = (v: unknown): Obj[] => (Array.isArray(v) ? v.filter(isPlainObject) : [])
+const words = (v: unknown) => (Array.isArray(v) ? v.flatMap((x) => (displayValue(x) ? [displayValue(x)!] : [])) : [])
+const countMap = (v: unknown) => Object.fromEntries(Object.entries(obj(v) ?? {}).flatMap(([k, n]) => (numberValue(n) == null ? [] : [[k, numberValue(n)!]])))
 
-type ProviderCircuitRow = { key: string; provider: string; reason: string | null; retryAfter: string | null; model: string | null }
-
-type BlockedUserRow = { key: string; email: string | null; reason: string | null }
-
-type OverviewCard = {
-  totalUsers: number | null
-  activeRepositories: number | null
-  openJobs: number | null
-  runningWorkflows: number | null
-  queueSummary: QueueSummary
-  lowRateLimitCount: number
-  blockedUsers: BlockedUserRow[]
-  openProviderCircuits: ProviderCircuitRow[]
-  workerHealth: WorkerHealthCounts | null
-}
-
-function parseQueueSummary(value: unknown): QueueSummary {
-  if (!isPlainObject(value)) return { active: null, pending: null, failed: null }
-  return { active: numberValue(value.active), pending: numberValue(value.pending), failed: numberValue(value.failed) }
-}
-
-function parseProviderCircuit(value: unknown, index: number): ProviderCircuitRow | null {
-  if (!isPlainObject(value)) return null
-  if (value.open !== true) return null
-  const provider = displayValue(value.provider)
-  if (!provider) return null
-
+function parse(context: ToolCardContext) {
+  const root = obj(context.parsedResult),
+    overview = obj(root?.overview)
+  if (!root || !overview) return null
+  const active = obj(overview.active_runs) ?? {},
+    queued = obj(overview.queued_runs) ?? {},
+    failed = obj(overview.recent_failures_24h) ?? {}
+  const health = obj(overview.worker_health) ?? {},
+    queue = obj(root.queue_summary) ?? {}
   return {
-    key: `${provider}-${index}`,
-    provider,
-    reason: displayValue(value.reason),
-    retryAfter: displayValue(value.retry_after),
-    model: displayValue(value.model)
-  }
-}
-
-function parseBlockedUser(value: unknown, index: number): BlockedUserRow | null {
-  if (!isPlainObject(value)) return null
-  return {
-    key: `${displayValue(value.id) ?? index}`,
-    email: displayValue(value.email),
-    reason: displayValue(value.reason)
-  }
-}
-
-function parseOverview(context: ToolCardContext): OverviewCard | null {
-  const parsed = context.parsedResult
-  if (!isPlainObject(parsed)) return null
-  if (typeof parsed.total_users !== "number" && !isPlainObject(parsed.queue_summary)) return null
-
-  const overview = isPlainObject(parsed.overview) ? parsed.overview : {}
-  const rateLimits = Array.isArray(overview.github_rate_limits) ? overview.github_rate_limits : []
-  const blockedUsers = Array.isArray(overview.github_api_blocked_users)
-    ? overview.github_api_blocked_users.flatMap((user, index) => { const row = parseBlockedUser(user, index); return row ? [row] : [] })
-    : []
-  const openProviderCircuits = Array.isArray(overview.provider_circuits)
-    ? overview.provider_circuits.flatMap((circuit, index) => { const row = parseProviderCircuit(circuit, index); return row ? [row] : [] })
-    : []
-
-  return {
-    totalUsers: numberValue(parsed.total_users),
-    activeRepositories: numberValue(parsed.active_repositories),
-    openJobs: numberValue(parsed.open_jobs),
-    runningWorkflows: numberValue(parsed.running_workflows),
-    queueSummary: parseQueueSummary(parsed.queue_summary),
-    lowRateLimitCount: rateLimits.length,
-    blockedUsers,
-    openProviderCircuits,
-    workerHealth: parseWorkerHealthCounts(overview.worker_health)
+    root,
+    overview,
+    queue: {
+      active: numberValue(active.total) ?? numberValue(queue.active),
+      pending: numberValue(queued.total) ?? numberValue(queue.pending),
+      failed: numberValue(failed.total) ?? numberValue(queue.failed)
+    },
+    activeByTrigger: countMap(active.by_trigger),
+    failedByTrigger: countMap(failed.by_trigger),
+    rates: list(overview.github_rate_limits),
+    blocked: list(overview.github_api_blocked_users),
+    circuits: list(overview.provider_circuits),
+    workers: list(health.current),
+    disks: [...(obj(overview.data_root_disk_usage) ? [obj(overview.data_root_disk_usage)!] : []), ...list(overview.worker_data_root_usages)],
+    capture: obj(overview.agent_session_capture_rate),
+    storage: obj(overview.active_storage),
+    stalled: obj(overview.stalled_classifier_jobs),
+    workerSummary: obj(overview.workers),
+    recurring: obj(overview.recurring),
+    admission: obj(overview.resource_admission)
   }
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const card = parseOverview(context)
+  if (context.resultError) return "Admin overview failed"
+  const card = parse(context)
   if (!card) return null
-
-  const parts = [
-    card.openJobs != null ? `${card.openJobs} open Job${card.openJobs === 1 ? "" : "s"}` : null,
-    card.runningWorkflows != null ? `${card.runningWorkflows} running` : null,
-    card.queueSummary.failed != null ? `${card.queueSummary.failed} failed (24h)` : null
-  ].filter(Boolean)
-
-  return parts.length > 0 ? parts.join(", ") : "Admin overview"
+  const jobs = numberValue(card.root.open_jobs),
+    workflows = numberValue(card.root.running_workflows)
+  return (
+    [
+      jobs == null ? null : `${jobs} open Job${jobs === 1 ? "" : "s"}`,
+      workflows == null ? null : `${workflows} running`,
+      card.queue.failed == null ? null : `${card.queue.failed} failed (24h)`
+    ]
+      .filter(Boolean)
+      .join(", ") || "Admin overview"
+  )
 }
 
-function StatTile({ label, value }: { label: string; value: number | null }) {
+function Stat({ label, value, href }: { label: string; value: string | number | null; href?: string }) {
+  const body = (
+    <>
+      <div className="text-2xs font-semibold uppercase text-text-muted">{label}</div>
+      <div className="font-mono text-sm text-text-primary">{value ?? "—"}</div>
+    </>
+  )
   return (
-    <div className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
-      <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{value ?? "—"}</div>
+    <div className="rounded border border-border bg-surface px-2 py-1">
+      {href ? (
+        <a className="block hover:underline" href={href}>
+          {body}
+        </a>
+      ) : (
+        body
+      )}
+    </div>
+  )
+}
+
+function TriggerCounts({ label, counts }: { label: string; counts: Record<string, number> }) {
+  const entries = Object.entries(counts)
+  return (
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {entries.length ? (
+          entries.map(([key, value]) => (
+            <Badge key={key}>
+              {key}: {value}
+            </Badge>
+          ))
+        ) : (
+          <span className="text-xs text-text-muted">None</span>
+        )}
+      </div>
     </div>
   )
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const card = parseOverview(context)
+  if (context.resultError)
+    return (
+      <CardShell>
+        <EmptyState>{context.resultBody || "Admin overview failed."}</EmptyState>
+      </CardShell>
+    )
+  const card = parse(context)
   if (!card) return null
-
-  const hasNotable = card.openProviderCircuits.length > 0 || card.blockedUsers.length > 0 || card.lowRateLimitCount > 0 || (card.workerHealth && card.workerHealth.worst !== "ok")
+  const currentWorkers = card.workers.map((worker, index) => {
+    const health = obj(worker.health) ?? {}
+    return {
+      key: `${displayValue(worker.hostname) ?? index}-${index}`,
+      hostname: displayValue(worker.hostname),
+      role: displayValue(worker.role),
+      stale: worker.stale === true,
+      level: parseHealthLevel(health.level),
+      reasons: words(health.reasons),
+      heartbeat: displayValue(worker.last_heartbeat_at)
+    }
+  })
+  const unhealthy = currentWorkers.filter((worker) => worker.stale || worker.level !== "ok")
+  const allHealthy = !card.circuits.length && !card.rates.length && !card.blocked.length && !unhealthy.length && (numberValue(card.stalled?.total) ?? 0) === 0
+  const captureRate = numberValue(card.capture?.rate)
 
   return (
     <CardShell>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile label="Users" value={card.totalUsers} />
-        <StatTile label="Active repos" value={card.activeRepositories} />
-        <StatTile label="Open Jobs" value={card.openJobs} />
-        <StatTile label="Running Workflows" value={card.runningWorkflows} />
+        <Stat label="Users" value={numberValue(card.root.total_users)} href="/admin/users" />
+        <Stat label="Active repos" value={numberValue(card.root.active_repositories)} />
+        <Stat label="Open Jobs" value={numberValue(card.root.open_jobs)} href="/dashboard/jobs" />
+        <Stat label="Running Workflows" value={numberValue(card.root.running_workflows)} href="/admin/activity" />
       </div>
-      <dl className="grid gap-1 sm:grid-cols-3">
-        <Row label="Queue active" value={String(card.queueSummary.active ?? "—")} />
-        <Row label="Queue pending" value={String(card.queueSummary.pending ?? "—")} />
-        <Row label="Queue failed (24h)" value={String(card.queueSummary.failed ?? "—")} />
-      </dl>
-      {hasNotable ? (
-        <div className="space-y-2">
-          <SectionLabel>Notable</SectionLabel>
-          {card.workerHealth && card.workerHealth.worst !== "ok" ? (
-            <div className="flex items-center gap-2">
-              <HealthPill level={card.workerHealth.worst} />
-              <span className="text-gray-600 dark:text-gray-300">
-                {card.workerHealth.byLevel.critical + card.workerHealth.byLevel.warning} of {card.workerHealth.total} workers need attention
-              </span>
-            </div>
-          ) : null}
-          {card.openProviderCircuits.length > 0 ? (
-            <div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">Open provider circuits</div>
-              <ul className="mt-1 space-y-1">
-                {card.openProviderCircuits.map((circuit) => (
-                  <li className="flex flex-wrap items-center gap-2" key={circuit.key}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Active Runs" value={card.queue.active} href="/admin/queue/active" />
+        <Stat label="Pending Runs" value={card.queue.pending} href="/admin/queue/pending" />
+        <Stat label="Failed Runs (24h)" value={card.queue.failed} href="/admin/queue/failed" />
+        <Stat
+          label="Workers"
+          value={card.workerSummary?.unreachable === true ? "unreachable" : (numberValue(card.workerSummary?.total) ?? currentWorkers.length)}
+          href="/admin/queue/workers"
+        />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <TriggerCounts label="Active by trigger" counts={card.activeByTrigger} />
+        <TriggerCounts label="Failures by trigger (24h)" counts={card.failedByTrigger} />
+      </div>
+      {allHealthy ? <EmptyState>All provider, GitHub, classifier, and worker health checks are healthy.</EmptyState> : null}
+
+      {card.circuits.length ? (
+        <div>
+          <SectionLabel>Open provider circuits</SectionLabel>
+          <div className="mt-1 space-y-2">
+            {card.circuits.map((circuit, index) => {
+              const provider = displayValue(circuit.provider) ?? "unknown",
+                usage = obj(circuit.usage_limit) ?? obj(circuit.decision),
+                evidenceRecord = obj(circuit.evidence)
+              const evidence = list(circuit.evidence_records).length + list(circuit.runs).length + (evidenceRecord ? 1 : 0)
+              return (
+                <div className="rounded border border-danger-border bg-danger-surface p-2" key={`${provider}-${index}`}>
+                  <div className="flex flex-wrap items-center gap-2">
                     <StatePill state="open" tone="failure" />
-                    <span className="font-mono text-gray-700 dark:text-gray-300">{circuit.provider}</span>
-                    {circuit.model ? <Badge>{circuit.model}</Badge> : null}
-                    {circuit.reason ? <span className="text-gray-500 dark:text-gray-400">{circuit.reason}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {card.blockedUsers.length > 0 ? (
-            <div>
-              <div className="text-2xs text-gray-500 dark:text-gray-400">GitHub API blocked users ({card.blockedUsers.length})</div>
-              <ul className="mt-1 space-y-1">
-                {card.blockedUsers.map((user) => (
-                  <li className="flex flex-wrap items-center gap-2" key={user.key}>
-                    <span className="font-mono text-gray-700 dark:text-gray-300">{user.email ?? "—"}</span>
-                    {user.reason ? <span className="text-gray-500 dark:text-gray-400">{user.reason}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {card.lowRateLimitCount > 0 ? (
-            <div className="text-gray-600 dark:text-gray-300">{card.lowRateLimitCount} user{card.lowRateLimitCount === 1 ? "" : "s"} under 10% GitHub rate limit</div>
-          ) : null}
+                    <span className="font-mono text-text-primary">{provider}</span>
+                    {displayValue(circuit.model) ? <Badge>{displayValue(circuit.model)}</Badge> : null}
+                    <span className="ml-auto text-xs">
+                      <InternalLink href="/admin">Admin overview</InternalLink>
+                    </span>
+                  </div>
+                  {displayValue(circuit.reason) ? <MarkdownPreview maxLines={3} text={displayValue(circuit.reason)!} title="Reason" /> : null}
+                  <dl className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-4">
+                    <Row label="Retry after" value={displayValue(circuit.retry_after) ?? "—"} />
+                    <Row label="Failures" value={String(numberValue(circuit.failure_count) ?? "—")} />
+                    <Row label="Jobs" value={String(numberValue(circuit.job_count) ?? "—")} />
+                    <Row label="Evidence" value={String(evidence)} />
+                  </dl>
+                  {displayValue(circuit.signature) ? <TextPreview maxLines={2} text={displayValue(circuit.signature)!} title="Signature" /> : null}
+                  {circuit.usage_limit === true ? (
+                    <Row label="Usage limit" value="exhausted" />
+                  ) : usage ? (
+                    <Row label="Usage limit" value={displayValue(usage.message) ?? displayValue(usage.reason) ?? displayValue(usage.kind) ?? "present"} />
+                  ) : null}
+                  {evidenceRecord ? (
+                    <Row
+                      label="Evidence"
+                      value={
+                        [
+                          displayValue(evidenceRecord.source),
+                          displayValue(evidenceRecord.status),
+                          displayValue(evidenceRecord.model),
+                          displayValue(evidenceRecord.observed_at),
+                          numberValue(evidenceRecord.run_id) == null ? null : `RUN-${numberValue(evidenceRecord.run_id)}`
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "present"
+                      }
+                    />
+                  ) : null}
+                  <div className="mt-1 text-xs text-text-muted">
+                    Inspect with <code>inspect_provider_circuit</code>.
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       ) : null}
+
+      <Disclosure label="GitHub rate limits and blocked users">
+        {card.rates.length ? (
+          <>
+            <SectionLabel>Low rate limits</SectionLabel>
+            <Table responsive>
+              <THead columns={["User", "Remaining", "Limit", "Resource"]} />
+              <TBody>
+                {card.rates.map((rate, index) => (
+                  <tr key={`${displayValue(rate.email) ?? index}-${index}`}>
+                    <Td primary>{displayValue(rate.email) ?? "—"}</Td>
+                    <Td mono>{numberValue(rate.remaining) ?? "—"}</Td>
+                    <Td mono>{numberValue(rate.limit) ?? "—"}</Td>
+                    <Td>{displayValue(rate.resource) ?? "—"}</Td>
+                  </tr>
+                ))}
+              </TBody>
+            </Table>
+          </>
+        ) : (
+          <EmptyState>No users have low GitHub rate limits.</EmptyState>
+        )}
+        {card.blocked.length ? (
+          <>
+            <SectionLabel>Blocked users</SectionLabel>
+            <Table responsive>
+              <THead columns={["User", "Blocked", "Reason", "Rate limit", "Reset", "Observed"]} />
+              <TBody>
+                {card.blocked.map((user, index) => {
+                  const rate = obj(user.rate_limit) ?? {},
+                    id = numberValue(user.id)
+                  return (
+                    <tr key={`${id ?? index}-${index}`}>
+                      <Td primary>
+                        {id ? (
+                          <InternalLink href={`/admin/users/${id}`}>{displayValue(user.email) ?? `User ${id}`}</InternalLink>
+                        ) : (
+                          (displayValue(user.email) ?? "—")
+                        )}
+                      </Td>
+                      <Td mono>{displayValue(user.blocked_at) ?? "—"}</Td>
+                      <Td wrap>{displayValue(user.reason) ?? "—"}</Td>
+                      <Td mono>
+                        {numberValue(rate.remaining) ?? "—"} / {numberValue(rate.limit) ?? "—"} {displayValue(rate.resource) ?? ""}
+                      </Td>
+                      <Td mono>{displayValue(rate.reset_at) ?? "—"}</Td>
+                      <Td mono>{displayValue(rate.observed_at) ?? "—"}</Td>
+                    </tr>
+                  )
+                })}
+              </TBody>
+            </Table>
+          </>
+        ) : (
+          <EmptyState>No GitHub API blocked users.</EmptyState>
+        )}
+      </Disclosure>
+
+      <Disclosure label="Workers and host health">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <InternalLink href="/admin/queue/workers">Open worker detail</InternalLink>
+          <span className="text-text-muted">
+            {unhealthy.length} unhealthy or stale of {currentWorkers.length} reported hosts
+          </span>
+        </div>
+        {currentWorkers.length ? (
+          <Table responsive>
+            <THead columns={["Host", "Role", "Health", "Reasons", "Heartbeat"]} />
+            <TBody>
+              {currentWorkers.map((worker) => (
+                <tr key={worker.key}>
+                  <Td mono primary>
+                    <InternalLink href="/admin/queue/workers">{worker.hostname ?? "unknown"}</InternalLink>
+                  </Td>
+                  <Td>{worker.role ?? "—"}</Td>
+                  <Td>
+                    <HealthPill level={worker.level} />
+                    {worker.stale ? " stale" : ""}
+                  </Td>
+                  <Td wrap>{worker.reasons.join("; ") || "—"}</Td>
+                  <Td mono>{worker.heartbeat ?? "—"}</Td>
+                </tr>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState>No per-host worker health was reported.</EmptyState>
+        )}
+      </Disclosure>
+
+      <Disclosure label="Storage, capture, classifier, and schedules">
+        <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <Row
+            label="Agent session capture"
+            value={
+              captureRate == null
+                ? `${numberValue(card.capture?.captured) ?? 0} / ${numberValue(card.capture?.total) ?? 0}`
+                : `${formatPercent(captureRate * 100)} (${numberValue(card.capture?.captured) ?? 0} / ${numberValue(card.capture?.total) ?? 0})`
+            }
+          />
+          <Row
+            label="Active Storage"
+            value={
+              card.storage?.available === true
+                ? `available · ${displayValue(card.storage.service) ?? "service unknown"}`
+                : `unavailable · ${displayValue(card.storage?.message) ?? displayValue(card.storage?.error_class) ?? "unknown error"}`
+            }
+          />
+          <Row label="Stalled classifier Jobs" value={String(numberValue(card.stalled?.total) ?? 0)} />
+          <Row label="Recurring tasks" value={card.recurring?.unreachable === true ? "unreachable" : String(numberValue(card.recurring?.count) ?? 0)} />
+        </dl>
+        {displayValue(card.stalled?.oldest_job_path) ? (
+          <div className="mt-1 text-xs">
+            <InternalLink href={displayValue(card.stalled?.oldest_job_path)!}>Open oldest stalled classifier Job</InternalLink>
+          </div>
+        ) : null}
+        {list(card.recurring?.overdue).length ? (
+          <div className="mt-1 text-xs text-warning-text">
+            Overdue:{" "}
+            {list(card.recurring?.overdue)
+              .map((item) => displayValue(item.key))
+              .filter(Boolean)
+              .join(", ")}
+          </div>
+        ) : null}
+        {card.disks.length ? (
+          <Table responsive>
+            <THead columns={["Host", "Path", "Used", "Available", "Total", "Level", "Observed"]} />
+            <TBody>
+              {card.disks.map((disk, index) => (
+                <tr key={`${displayValue(disk.hostname) ?? "local"}-${index}`}>
+                  <Td mono primary>
+                    {displayValue(disk.hostname) ?? "local"}
+                  </Td>
+                  <Td mono wrap>
+                    {displayValue(disk.path) ?? "—"}
+                  </Td>
+                  <Td mono>{formatPercent(numberValue(disk.used_percent))}</Td>
+                  <Td mono>{formatBytesLarge(numberValue(disk.available_bytes))}</Td>
+                  <Td mono>{formatBytesLarge(numberValue(disk.total_bytes))}</Td>
+                  <Td>{displayValue(disk.level) ? <StatePill state={displayValue(disk.level)!} /> : "—"}</Td>
+                  <Td mono>{displayValue(disk.observed_at) ?? "—"}</Td>
+                </tr>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState>No data-root disk usage was reported.</EmptyState>
+        )}
+      </Disclosure>
+
+      <Disclosure label="Resource admission">
+        <div className="mb-2 text-xs">
+          <InternalLink href="/admin/resource_admission">Open resource admission diagnostics</InternalLink>
+        </div>
+        {card.admission ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {["delayed_work", "active_consumers", "recent_top_consumers", "low_confidence_profiles", "admission_overrides"].map((key) => (
+              <Stat key={key} label={key.replace(/_/g, " ")} value={list(card.admission?.[key]).length} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState>Resource admission diagnostics were not returned.</EmptyState>
+        )}
+      </Disclosure>
     </CardShell>
   )
 }
 
-const adminOverviewToolCard: ToolCardRenderer = {
-  toolName: "admin_overview",
-  collapsedSummary,
-  renderExpanded
-}
-
+const adminOverviewToolCard: ToolCardRenderer = { toolName: "admin_overview", collapsedSummary, renderExpanded }
 export default adminOverviewToolCard
 
-// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
-// pluginToolCards.tsx's ToolCardExample. "Fleet needs attention" is
-// deliberately large (a dozen workers plus rate limits, blocked users, and
-// an open provider circuit) — admin_overview's real payload nests all of
-// worker health, GitHub rate limits, and provider circuits under one
-// `overview` key, so this is the representative "large result" fixture for
-// the catalog's large-result coverage.
+const healthyOverview = {
+  active_runs: { total: 1, by_trigger: { initial: 1 } },
+  queued_runs: { total: 2 },
+  recent_failures_24h: { total: 0, by_trigger: {} },
+  github_rate_limits: [],
+  github_api_blocked_users: [],
+  provider_circuits: [],
+  agent_session_capture_rate: { total: 8, captured: 8, rate: 1 },
+  data_root_disk_usage: null,
+  active_storage: { available: true, service: "local" },
+  stalled_classifier_jobs: { total: 0 },
+  worker_data_root_usages: [],
+  workers: { total: 2, stale: 0 },
+  recurring: { count: 7 },
+  resource_admission: { delayed_work: [], active_consumers: [], recent_top_consumers: [], low_confidence_profiles: [], admission_overrides: [] },
+  worker_health: {
+    current: [
+      { hostname: "worker-1", health: { level: "ok" } },
+      { hostname: "worker-2", health: { level: "ok" } }
+    ]
+  }
+}
 export const examples = [
   {
     id: "healthy_fleet",
@@ -196,18 +410,13 @@ export const examples = [
       open_jobs: 3,
       running_workflows: 1,
       queue_summary: { active: 1, pending: 2, failed: 0 },
-      overview: {
-        github_rate_limits: [],
-        github_api_blocked_users: [],
-        provider_circuits: [],
-        worker_health: { current: [ { health: { level: "ok" } }, { health: { level: "ok" } } ] }
-      }
+      overview: healthyOverview
     }
   },
   {
     id: "fleet_needs_attention",
     label: "Fleet needs attention (large result)",
-    description: "Twelve workers plus rate limits, blocked users, and an open provider circuit -- exercises the card's \"Notable\" section and the Raw details disclosure with a genuinely large payload.",
+    description: "Provider, GitHub, storage, and worker diagnostics with a long circuit reason.",
     parsedResult: {
       total_users: 41,
       active_repositories: 19,
@@ -215,22 +424,65 @@ export const examples = [
       running_workflows: 9,
       queue_summary: { active: 9, pending: 23, failed: 4 },
       overview: {
-        github_rate_limits: [
-          { user: "alice", remaining_percent: 6 },
-          { user: "bob", remaining_percent: 8 }
-        ],
+        ...healthyOverview,
+        active_runs: { total: 9, by_trigger: { initial: 5, retry: 4 } },
+        recent_failures_24h: { total: 4, by_trigger: { initial: 3, retry: 1 } },
+        github_rate_limits: [{ email: "alice@example.com", remaining: 60, limit: 5000, resource: "core" }],
         github_api_blocked_users: [
-          { id: 12, email: "alice@example.com", reason: "secondary rate limit" },
-          { id: 44, email: "carol@example.com", reason: "token revoked" }
+          {
+            id: 12,
+            email: "alice@example.com",
+            blocked_at: "2026-10-18T20:00:00Z",
+            reason: "secondary rate limit",
+            rate_limit: { remaining: 0, limit: 5000, resource: "core", reset_at: "2026-10-19T01:00:00Z" }
+          }
         ],
         provider_circuits: [
-          { open: true, provider: "claude", model: "claude-sonnet-5", reason: "5 consecutive 529s", retry_after: "2026-09-16T21:10:00Z" }
+          {
+            provider: "codex",
+            model: "gpt-6",
+            reason: "Repeated provider failures while starting agent sessions.\n\nRetry after the provider window resets.",
+            retry_after: "2026-10-19T01:10:00Z",
+            signature: "rate_limit:requests",
+            failure_count: 5,
+            job_count: 3,
+            evidence_records: [{ id: 1 }]
+          }
         ],
+        agent_session_capture_rate: { total: 50, captured: 44, rate: 0.88 },
+        active_storage: { available: false, error_class: "Timeout", message: "storage probe timed out" },
+        stalled_classifier_jobs: { total: 2, oldest_job_path: "/jobs/stalled-job" },
+        worker_data_root_usages: [
+          {
+            hostname: "worker-1",
+            path: "/data",
+            used_percent: 91,
+            available_bytes: 9000000,
+            total_bytes: 100000000,
+            level: "warning",
+            observed_at: "2026-10-19T00:00:00Z"
+          }
+        ],
+        workers: { total: 2, stale: 1 },
+        recurring: { count: 7, overdue: [{ key: "poll_repositories" }] },
+        resource_admission: {
+          delayed_work: [{ workflow_id: 2 }],
+          active_consumers: [{ run_id: 3 }],
+          recent_top_consumers: [],
+          low_confidence_profiles: [{ id: 4 }],
+          admission_overrides: []
+        },
         worker_health: {
-          current: Array.from({ length: 12 }, (_, index) => ({
-            hostname: `syrus-worker-${index}`,
-            health: { level: index < 2 ? "critical" : index < 5 ? "warning" : "ok" }
-          }))
+          current: [
+            {
+              hostname: "worker-1",
+              role: "runs",
+              stale: true,
+              last_heartbeat_at: "2026-10-18T23:55:00Z",
+              health: { level: "critical", reasons: ["heartbeat stale"] }
+            },
+            { hostname: "worker-2", role: "runs", health: { level: "ok", reasons: [] } }
+          ]
         }
       }
     }
