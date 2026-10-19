@@ -385,6 +385,7 @@ export function toolResultPresentation(name: string, body: string, error = false
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
+    resultSettled: true,
     parsedResult: redactToolCardValue(cardParsed)
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
