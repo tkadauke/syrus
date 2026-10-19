@@ -1,14 +1,19 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, EmptyState } from "../toolCardUi"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { Table, TBody, Td, THead } from "../adminToolCard"
+import { Badge, displayValue, EmptyState, EntityReference } from "../toolCardUi"
 
-// Core-owned tool card for list_delivery_tracks (the tool-card work).
 type TrackRow = {
   name: string
   isDefault: boolean
   branch: string | null
   reviewGradePhase: string | null
   landingGradePhase: string | null
+  ciFailureGradePhase: string | null
+  branchHealthGradePhase: string | null
+  afterLandingSyncTo: string | null
 }
+
+type DeliveryTracksResult = { repository: string | null; rows: TrackRow[] }
 
 function parseRow(value: unknown): TrackRow | null {
   if (!isPlainObject(value)) return null
@@ -20,63 +25,138 @@ function parseRow(value: unknown): TrackRow | null {
     isDefault: value.default === true,
     branch: displayValue(value.branch),
     reviewGradePhase: displayValue(value.review_grade_phase),
-    landingGradePhase: displayValue(value.landing_grade_phase)
+    landingGradePhase: displayValue(value.landing_grade_phase),
+    ciFailureGradePhase: displayValue(value.ci_failure_grade_phase),
+    branchHealthGradePhase: displayValue(value.branch_health_grade_phase),
+    afterLandingSyncTo: displayValue(value.after_landing_sync_to)
   }
 }
 
-function parseRows(context: ToolCardContext): TrackRow[] | null {
+function parseResult(context: ToolCardContext): DeliveryTracksResult | null {
   const parsed = context.parsedResult
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.tracks)) return null
+  if (context.resultError || !isPlainObject(parsed) || !Array.isArray(parsed.tracks)) return null
 
-  return parsed.tracks.flatMap((item) => {
-    const row = parseRow(item)
-    return row ? [row] : []
-  })
+  return {
+    repository: displayValue(parsed.repository),
+    rows: parsed.tracks.flatMap((item) => {
+      const row = parseRow(item)
+      return row ? [row] : []
+    })
+  }
+}
+
+function githubUrl(repository: string, path = "") {
+  return `https://github.com/${repository}${path}`
+}
+
+function BranchReference({ branch, repository }: { branch: string | null; repository: string | null }) {
+  if (!branch) return <>—</>
+  if (!repository) return <span className="font-mono">{branch}</span>
+
+  return (
+    <a
+      className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis"
+      href={githubUrl(repository, `/tree/${encodeURIComponent(branch)}`)}
+    >
+      {branch}
+    </a>
+  )
+}
+
+function TrackReference({ name, repository, rows }: { name: string | null; repository: string | null; rows: TrackRow[] }) {
+  if (!name) return <>—</>
+  const targetBranch = rows.find((row) => row.name === name)?.branch
+  if (!repository || !targetBranch) return <span className="font-mono">{name}</span>
+
+  return (
+    <a
+      className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis"
+      href={githubUrl(repository, `/tree/${encodeURIComponent(targetBranch)}`)}
+      title={`${name} track (${targetBranch})`}
+    >
+      {name}
+    </a>
+  )
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const rows = parseRows(context)
-  if (!rows) return null
-  return `${rows.length} delivery track${rows.length === 1 ? "" : "s"}`
+  const result = parseResult(context)
+  if (!result) return null
+  return `${result.rows.length} delivery track${result.rows.length === 1 ? "" : "s"}`
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const rows = parseRows(context)
-  if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No delivery tracks configured.</EmptyState>
+  const result = parseResult(context)
+  if (!result) return null
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Track</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Branch</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Review phase</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Landing phase</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.name}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">
-                <span className="flex items-center gap-1">{row.name}{row.isDefault ? <Badge>default</Badge> : null}</span>
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.branch || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.reviewGradePhase || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.landingGradePhase || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {result.repository ? (
+        <div className="text-xs text-text-muted">
+          Repository: <EntityReference href={githubUrl(result.repository)} kind="repository" repositorySlug={result.repository} wrap="nowrap" />
+        </div>
+      ) : null}
+      {result.rows.length === 0 ? (
+        <EmptyState>No delivery tracks configured.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["Track", "Branch", "Review phase", "Landing phase", "CI failure phase", "Branch health phase", "After landing sync"]} />
+          <TBody>
+            {result.rows.map((row) => (
+              <tr key={row.name}>
+                <Td mono primary>
+                  <span className="flex flex-wrap items-center gap-1">
+                    {row.name}
+                    {row.isDefault ? <Badge>default</Badge> : null}
+                  </span>
+                </Td>
+                <Td>
+                  <BranchReference branch={row.branch} repository={result.repository} />
+                </Td>
+                <Td>{row.reviewGradePhase || "—"}</Td>
+                <Td>{row.landingGradePhase || "—"}</Td>
+                <Td>{row.ciFailureGradePhase || "—"}</Td>
+                <Td>{row.branchHealthGradePhase || "—"}</Td>
+                <Td>
+                  <TrackReference name={row.afterLandingSyncTo} repository={result.repository} rows={result.rows} />
+                </Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
     </div>
   )
 }
 
-const listDeliveryTracksToolCard: ToolCardRenderer = {
-  toolName: "list_delivery_tracks",
-  collapsedSummary,
-  renderExpanded
-}
+const listDeliveryTracksToolCard: ToolCardRenderer = { toolName: "list_delivery_tracks", collapsedSummary, renderExpanded }
 
 export default listDeliveryTracksToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "all_delivery_phases",
+    label: "All delivery phases and branch links",
+    parsedResult: {
+      repository: "tkadauke/syrus",
+      tracks: [
+        {
+          name: "default",
+          default: true,
+          branch: "develop",
+          review_grade_phase: "review",
+          landing_grade_phase: "landing",
+          ci_failure_grade_phase: "ci_failure",
+          branch_health_grade_phase: "branch_health"
+        },
+        { name: "hotfix", default: false, branch: "main", after_landing_sync_to: "default" }
+      ]
+    }
+  },
+  {
+    id: "no_delivery_tracks",
+    label: "No delivery tracks",
+    description: "The attached repository has no configured delivery tracks.",
+    parsedResult: { repository: "tkadauke/syrus", tracks: [] }
+  }
+]
