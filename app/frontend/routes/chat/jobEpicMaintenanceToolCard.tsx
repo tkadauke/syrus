@@ -116,16 +116,13 @@ function dependencyLabel(context: ToolCardContext, result: Record<string, unknow
 
 function dependencyList(definition: MaintenanceToolDefinition, result: Record<string, unknown>) {
   if (definition.subjectKind === "epic") return compactList(result.depends_on).map((id) => `EPIC-${id}`)
-  return [
-    ...compactList(result.depends_on_job_ids).map((id) => `JOB-${id}`),
-    ...compactList(result.depends_on_epic_ids).map((id) => `EPIC-${id}`)
-  ]
+  return [...compactList(result.depends_on_job_ids).map((id) => `JOB-${id}`), ...compactList(result.depends_on_epic_ids).map((id) => `EPIC-${id}`)]
 }
 
-function buildRows(context: ToolCardContext, result: Record<string, unknown>) {
+function buildRows(context: ToolCardContext, result: Record<string, unknown>, transitionExecuted = true) {
   const rows: DetailRow[] = []
   pushRow(rows, "Before", result.previous_state)
-  pushRow(rows, "After", result.new_state)
+  if (transitionExecuted) pushRow(rows, "After", result.new_state)
   pushRow(rows, "Previous priority", result.previous_priority)
   pushRow(rows, "New priority", result.new_priority)
   pushRow(rows, "Title", result.title)
@@ -149,9 +146,13 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const pendingId = firstValue(result.pending_action_id, result.pending_confirmation_id)
   const pendingGroupId = firstValue(result.pending_action_group_id)
   const memberCount = numberValue(result.member_count)
-  const failed = context.resultError
+  const livePendingAction = context.livePendingAction
+  const liveMatch = livePendingAction && displayValue(livePendingAction.id) === pendingId ? livePendingAction : null
+  const state =
+    firstValue(liveMatch?.state, result.state, result.new_state, context.resultError ? "failed" : null, pendingId ? "pending" : "success") || "success"
+  const failed = context.resultError || state === "failed"
   const message = errorMessage(context) || displayValue(result.message)
-  const state = firstValue(result.state, result.new_state, failed ? "failed" : null, pendingId ? "pending" : "success") || "success"
+  const transitionExecuted = (!pendingId && !pendingGroupId) || state === "confirmed"
   const hasRecognizedResult = [
     "job_id",
     "epic_id",
@@ -186,10 +187,10 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     pendingGroupId,
     memberCount,
     state,
-    hasNewState: displayValue(result.new_state) != null,
+    hasNewState: transitionExecuted && displayValue(result.new_state) != null,
     failed,
     message,
-    rows: buildRows(context, result),
+    rows: buildRows(context, result, transitionExecuted),
     dependencies: dependencyList(definition, result)
   }
 }
@@ -200,42 +201,64 @@ function targetSummary(card: MaintenanceCard) {
   return null
 }
 
+function isAwaitingState(state: string) {
+  return state === "pending" || state === "confirming" || state === "queued"
+}
+
 export function jobEpicMaintenanceCollapsedSummary(context: ToolCardContext) {
   const card = parseJobEpicMaintenanceResult(context)
   if (!card) return null
 
   const target = targetSummary(card)
-  const awaitingConfirmation = !card.hasNewState && Boolean(card.pendingGroupId || card.pendingId || card.state === "pending")
+  const awaitingConfirmation = isAwaitingState(card.state)
+  const terminalWithoutExecution = ["rejected", "cancelled", "canceled"].includes(card.state)
   const action = card.failed
     ? `${card.definition.actionLabel} failed`
-    : awaitingConfirmation && card.definition.pendingVerb
-      ? card.definition.pendingVerb
-      : card.definition.verb
-  const pending = card.pendingGroupId
-    ? `pending group #${card.pendingGroupId}`
-    : card.pendingId
-      ? `pending #${card.pendingId}`
-      : null
+    : terminalWithoutExecution
+      ? `${card.definition.actionLabel} ${card.state}`
+      : awaitingConfirmation && card.definition.pendingVerb
+        ? card.definition.pendingVerb
+        : card.definition.verb
+  const pending = !awaitingConfirmation
+    ? null
+    : card.pendingGroupId
+      ? `pending group #${card.pendingGroupId}`
+      : card.pendingId
+        ? `pending #${card.pendingId}`
+        : null
   return [action, target, pending].filter(Boolean).join(" · ")
 }
 
 export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
   const target = targetSummary(card)
+  const awaitingConfirmation = isAwaitingState(card.state)
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} tone={card.failed ? "failure" : undefined} />
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.definition.actionLabel}</span>
-        {card.targetId ? <Badge><EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge> : target ? <Badge>{target}</Badge> : null}
-        {card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
-        {card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
-        {card.memberCount != null ? <Badge>{card.memberCount} {card.memberCount === 1 ? "action" : "actions"}</Badge> : null}
+        {card.targetId ? (
+          <Badge>
+            <EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
+          </Badge>
+        ) : target ? (
+          <Badge>{target}</Badge>
+        ) : null}
+        {awaitingConfirmation && card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
+        {awaitingConfirmation && card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
+        {card.memberCount != null ? (
+          <Badge>
+            {card.memberCount} {card.memberCount === 1 ? "action" : "actions"}
+          </Badge>
+        ) : null}
       </div>
       {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {card.rows.map((row) => <Row key={`${row.label}-${row.value}`} label={row.label} value={row.value} />)}
+          {card.rows.map((row) => (
+            <Row key={`${row.label}-${row.value}`} label={row.label} value={row.value} />
+          ))}
         </dl>
       ) : null}
       {card.dependencies.length > 0 ? (
