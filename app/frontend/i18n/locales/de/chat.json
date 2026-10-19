@@ -555,5 +555,18 @@
   "card_preview_pending_one": "{{count}} ausstehend",
   "card_preview_pending_other": "{{count}} ausstehend",
   "tool_card_diff_page_only_stats": "Die Änderungszahlen gelten nur für diese Seite.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs",
+  "tool_card_list_tags_loading": "Tags werden geladen",
+  "tool_card_list_tags_error_summary": "Tags konnten nicht aufgelistet werden",
+  "tool_card_list_tags_empty_summary": "Keine Tags",
+  "tool_card_list_tags_count_one": "{{count}} Tag",
+  "tool_card_list_tags_count_other": "{{count}} Tags",
+  "tool_card_list_tags_empty": "Keine Tags gefunden.",
+  "tool_card_list_tags_label": "Tags",
+  "tool_card_list_tags_total_one": "{{count}} insgesamt",
+  "tool_card_list_tags_total_other": "{{count}} insgesamt",
+  "tool_card_list_tags_job_count_one": "{{count}} Job",
+  "tool_card_list_tags_job_count_other": "{{count}} Jobs",
+  "tool_card_list_tags_error_title": "Tags auflisten",
+  "tool_card_list_tags_error_fallback": "Tags konnten nicht geladen werden."
 }

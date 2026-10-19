@@ -555,5 +555,18 @@
   "card_preview_pending_one": "{{count}} pendens",
   "card_preview_pending_other": "{{count}} pendentia",
   "tool_card_diff_page_only_stats": "Numeri mutationum ad hanc paginam tantum pertinent.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines",
+  "tool_card_list_tags_loading": "Notae onerantur",
+  "tool_card_list_tags_error_summary": "Notae enumerari non potuerunt",
+  "tool_card_list_tags_empty_summary": "Nullae notae",
+  "tool_card_list_tags_count_one": "{{count}} nota",
+  "tool_card_list_tags_count_other": "{{count}} notae",
+  "tool_card_list_tags_empty": "Nullae notae inventae.",
+  "tool_card_list_tags_label": "Notae",
+  "tool_card_list_tags_total_one": "{{count}} in summa",
+  "tool_card_list_tags_total_other": "{{count}} in summa",
+  "tool_card_list_tags_job_count_one": "{{count}} opus",
+  "tool_card_list_tags_job_count_other": "{{count}} opera",
+  "tool_card_list_tags_error_title": "Notas enumera",
+  "tool_card_list_tags_error_fallback": "Notae onerari non potuerunt."
 }

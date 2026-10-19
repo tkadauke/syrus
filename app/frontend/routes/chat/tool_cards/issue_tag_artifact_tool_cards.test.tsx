@@ -110,6 +110,10 @@ describe("issue, tag, and artifact tool cards", () => {
     rerender(<>{listTagsToolCard.renderExpanded(failed)}</>)
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Unable to load tags")).toBeInTheDocument()
+
+    rerender(<>{listTagsToolCard.renderExpanded(context("list_tags", { resultError: true }))}</>)
+    expect(screen.getByText("List tags")).toBeInTheDocument()
+    expect(screen.getByText("Unable to list tags.")).toBeInTheDocument()
   })
 
   it("renders create input and result details without an empty affected-Jobs section", () => {

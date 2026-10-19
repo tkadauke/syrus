@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../i18n"
+import { useT } from "../../hooks/useT"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { formatRelativeDate } from "../../lib/relativeTime"
@@ -171,10 +173,12 @@ function tagRows(context: ToolCardContext): TagRow[] | null {
 }
 
 export function tagListSummary(context: ToolCardContext) {
-  if (context.resultError) return "Could not list tags"
+  if (context.resultError) return i18n.t("chat:tool_card_list_tags_error_summary")
   const rows = tagRows(context)
-  if (!rows) return context.parsedResult == null && context.resultBody === "" ? "Loading tags" : null
-  return rows.length === 0 ? "No tags" : `${rows.length} tag${rows.length === 1 ? "" : "s"}`
+  if (!rows) return context.parsedResult == null && context.resultBody === "" ? i18n.t("chat:tool_card_list_tags_loading") : null
+  return rows.length === 0
+    ? i18n.t("chat:tool_card_list_tags_empty_summary")
+    : i18n.t("chat:tool_card_list_tags_count", { count: rows.length })
 }
 
 const TAG_PALETTE: Record<string, { backgroundColor: string; color: string }> = {
@@ -211,13 +215,14 @@ function TagChip({ tag }: { tag: TagRow }) {
 }
 
 export function TagListCard({ rows }: { rows: TagRow[] }) {
-  if (rows.length === 0) return <EmptyState>No tags found.</EmptyState>
+  const { t } = useT("chat")
+  if (rows.length === 0) return <EmptyState>{t("tool_card_list_tags_empty")}</EmptyState>
 
   return (
     <CardShell>
       <div className="flex items-center justify-between gap-2">
-        <SectionLabel>Tags</SectionLabel>
-        <span className="text-2xs text-gray-500 dark:text-gray-400">{rows.length} total</span>
+        <SectionLabel>{t("tool_card_list_tags_label")}</SectionLabel>
+        <span className="text-2xs text-gray-500 dark:text-gray-400">{t("tool_card_list_tags_total", { count: rows.length })}</span>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {rows.map((tag, index) => {
@@ -229,7 +234,7 @@ export function TagListCard({ rows }: { rows: TagRow[] }) {
                 {tag.color ? <span className="font-mono text-2xs text-gray-500 dark:text-gray-400">{tag.color}</span> : null}
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-1 sm:max-w-3/5 sm:justify-end">
-                <span className="mr-1 text-2xs text-gray-500 dark:text-gray-400">{jobIds.length} {jobIds.length === 1 ? "Job" : "Jobs"}</span>
+                <span className="mr-1 text-2xs text-gray-500 dark:text-gray-400">{t("tool_card_list_tags_job_count", { count: jobIds.length })}</span>
                 {jobIds.map((id) => <Badge key={id}><EntityReference id={id} kind="job" /></Badge>)}
               </div>
             </div>
@@ -241,7 +246,9 @@ export function TagListCard({ rows }: { rows: TagRow[] }) {
 }
 
 export function renderTagList(context: ToolCardContext): ReactNode | null {
-  if (context.resultError) return <ErrorCard title="List tags" message={context.resultBody || "Unable to list tags."} />
+  if (context.resultError) {
+    return <ErrorCard title={i18n.t("chat:tool_card_list_tags_error_title")} message={context.resultBody || i18n.t("chat:tool_card_list_tags_error_fallback")} />
+  }
   const rows = tagRows(context)
   if (rows) return <TagListCard rows={rows} />
   if (context.parsedResult == null && context.resultBody === "") {
