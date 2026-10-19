@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "i18next"
 import drawFreedrawToolCard, { examples } from "./draw_freedraw"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -33,7 +34,7 @@ describe("draw_freedraw tool card", () => {
     expect(screen.getByText("3 points")).toBeInTheDocument()
     for (const value of ["12", "34", "0.2, 0.6, 0.9", "4", "#123456", "No"]) expect(screen.getByText(value)).toBeInTheDocument()
     expect(screen.getByLabelText("#123456")).toHaveStyle({ backgroundColor: "#123456" })
-    const preview = screen.getByRole("img", { name: "Freehand path preview" })
+    const preview = screen.getByRole("img", { name: "Drew freehand path: Points" })
     expect(preview).toHaveAttribute("viewBox", "0 0 160 64")
     expect(preview.querySelector("path")?.getAttribute("d")).toMatch(/^M[\d.]+ [\d.]+ L[\d.]+ [\d.]+ L[\d.]+ [\d.]+$/)
   })
@@ -46,7 +47,7 @@ describe("draw_freedraw tool card", () => {
 
     expect(screen.getByText("10000 points")).toBeInTheDocument()
     expect(container.querySelectorAll("svg path")).toHaveLength(1)
-    expect(screen.getByRole("img", { name: "Freehand path preview" })).toHaveAttribute("data-preview-point-count", "128")
+    expect(screen.getByRole("img", { name: "Drew freehand path: Points" })).toHaveAttribute("data-preview-point-count", "128")
     expect(container.querySelector("svg path")?.getAttribute("d")?.match(/[ML]/g)).toHaveLength(128)
   })
 
@@ -115,5 +116,31 @@ describe("draw_freedraw tool card", () => {
   it("provides provider-agnostic catalog examples", () => {
     expect(examples.map((example) => example.id)).toEqual(["pressure_stroke", "pending", "element_limit"])
     expect(examples.every((example) => example.sourceType === "generic")).toBe(true)
+  })
+
+  it("localizes the path preview's accessible name", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      render(
+        <>
+          {drawFreedrawToolCard.renderExpanded(
+            context({
+              input: {
+                x: 0,
+                y: 0,
+                points: [
+                  [0, 0],
+                  [1, 1]
+                ]
+              },
+              parsedResult: { id: "localized", version: 1 }
+            })
+          )}
+        </>
+      )
+      expect(screen.getByRole("img", { name: "Freihandpfad gezeichnet: Punkte" })).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 })
