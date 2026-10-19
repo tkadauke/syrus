@@ -364,6 +364,14 @@ is treated as satisfied for that workflow so later rules can route it. Admin
 releases and exceptional overrides require a reason and retain the actor, time,
 and release kind. Holds apply only at admission and never interrupt an existing
 Run or provider process.
+Usage conditions read the selected provider unless `usage.provider` names a
+provider explicitly. They may match `usage.states` and numeric
+`remaining_percent_less_than`, `remaining_percent_less_than_or_equal_to`,
+`remaining_percent_greater_than`, or
+`remaining_percent_greater_than_or_equal_to` predicates. The recorded condition
+evidence includes the provider, state, remaining percentage, observation time,
+and individual predicate results. Provider-availability change events bypass a
+hold's timer dedupe entry so recovered usage is reconsidered immediately.
 Job detail serializes the same resolver explanation so operators can see which
 scope or rule selected the currently resolved provider without opening a run
 artifact.

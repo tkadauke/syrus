@@ -49,6 +49,28 @@ RSpec.describe ProviderRouting::HoldReevaluator do
     expect(workflow.reload.artifact("agent_provider_routing_decision").dig("routing_resolution", "matched_rule", "id")).to eq(second.id)
   end
 
+  it "clears a conditions hold after provider usage recovers" do
+    availability = { usage: { remaining_percent: 5.0, observed_at: Time.current.iso8601 } }
+    allow(App::ProviderAvailability).to receive(:for_user) { availability }
+    ProviderRoutingRule.create!(
+      scope_type: "repository", scope_id: job.repository_id, position: 1, task_key: "initial", candidates: [],
+      conditions: { usage: { provider: "claude", remaining_percent_less_than: 10 } },
+      action: { type: "hold", resumption: { mode: "when_conditions_clear" } }
+    )
+    ProviderRoutingRule.create!(
+      scope_type: "repository", scope_id: job.repository_id, position: 2, task_key: "initial",
+      candidates: [ { provider: "claude" } ]
+    )
+    workflow = Workflows::Initial.instantiate(job: job)
+    expect(workflow.provider_routing_holds.active.sole.condition_evidence.dig("conditions", "usage", "actual", "remaining_percent")).to eq(5.0)
+
+    availability = { usage: { remaining_percent: 50.0, observed_at: Time.current.iso8601 } }
+
+    expect(described_class.call(workflow: workflow, step: workflow.first_step)).to be(true)
+    expect(workflow.provider_routing_holds.active).to be_empty
+    expect(workflow.reload.artifact("agent_provider_routing_decision").dig("routing_resolution", "matched_rule", "position")).to eq(2)
+  end
+
   it "releases once under concurrent operator requests and records the actor and reason" do
     rule = ProviderRoutingRule.create!(
       scope_type: "repository", scope_id: job.repository_id, task_key: "initial", candidates: [],
@@ -58,10 +80,31 @@ RSpec.describe ProviderRouting::HoldReevaluator do
     hold = workflow.provider_routing_holds.active.sole
 
     expect {
-      2.times { ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved") }
+      ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved")
     }.to have_enqueued_job(WorkflowPhaseAdmissionJob).once
 
     expect(hold.reload).to have_attributes(status: "released", released_by_user: job.user, release_reason: "Approved", release_kind: "manual")
     expect(workflow.reload.artifact("released_provider_routing_hold_rule_ids")).to include(rule.id)
+  end
+
+  it "finishes the wake when release is retried after enqueue failure" do
+    rule = ProviderRoutingRule.create!(
+      scope_type: "repository", scope_id: job.repository_id, task_key: "initial", candidates: [],
+      action: { type: "hold", resumption: { mode: "manual" } }
+    )
+    workflow = Workflows::Initial.instantiate(job: job)
+    hold = workflow.provider_routing_holds.active.sole
+    allow(WorkflowPhaseAdmissionJob).to receive(:enqueue_once).and_raise("queue unavailable")
+
+    expect {
+      ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved")
+    }.to raise_error("queue unavailable")
+    expect(hold.reload).to have_attributes(status: "released", release_reason: "Approved")
+    expect(workflow.reload.artifact("released_provider_routing_hold_rule_ids")).to include(rule.id)
+
+    allow(WorkflowPhaseAdmissionJob).to receive(:enqueue_once).and_return(true)
+    ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved")
+
+    expect(WorkflowPhaseAdmissionJob).to have_received(:enqueue_once).with(workflow.id, nil, force: true).twice
   end
 end

@@ -854,7 +854,9 @@ their matched scope, reason, condition evidence, and resumption policy. They can
 resume when their conditions clear, at a configured time, or after an audited
 admin release or override; every wake evaluates the ordered routing rules again.
 Because routing admission happens before Run creation, a hold never interrupts
-an already-running provider process.
+an already-running provider process. Usage-based rules can match provider state
+or remaining-capacity thresholds, and fresh provider evidence wakes matching
+holds immediately rather than waiting for their safety timer.
 Existing workflow pins are not rewritten.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
