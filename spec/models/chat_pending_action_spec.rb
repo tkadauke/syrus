@@ -332,6 +332,21 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(workflow.first_step.runs.count).to eq(1)
   end
 
+  it "validates explicit retry modes and the refresh_base audit reason" do
+    job = direct_job
+    invalid_mode = chat_session.pending_actions.build(
+      action: "retry_job", payload: { "job_id" => job.id, "mode" => "surprise" }
+    )
+    missing_reason = chat_session.pending_actions.build(
+      action: "retry_job", payload: { "job_id" => job.id, "mode" => "refresh_base" }
+    )
+
+    expect(invalid_mode).not_to be_valid
+    expect(invalid_mode.errors[:payload].join).to include("mode must be one of")
+    expect(missing_reason).not_to be_valid
+    expect(missing_reason.errors[:payload]).to include("reason is required for refresh_base")
+  end
+
   it "confirms a retry_job action without an attached repository" do
     admin_chat = ChatSession.create!(user: user, title: "Ops", pinned: true)
     job = direct_job

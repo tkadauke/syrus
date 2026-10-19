@@ -162,6 +162,17 @@ pending-confirmation path as the other six tools, since batching several
 approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
 
+`retry_job` accepts an explicit retry mode for both single and grouped calls.
+Use `auto` (the default) for the existing smart retry without changing the
+base, `failed_step` to rerun the failed step or grader loop against the same
+immutable source snapshot, `implementation` to begin a fresh implementation
+attempt from the Job's current effective base, and `refresh_base` to restore a
+published mutation checkpoint onto the current effective base. Base refresh
+requires an audit `reason`. Syrus preflights every selected Job before showing
+one confirmation, includes checkpoint and base details in that confirmation,
+and orders grouped retries upstream-first. Members still report outcomes
+independently; a later failure does not roll back an earlier successful start.
+
 `approve_job` uses the same approval-blocking runtime-work policy as the Job
 detail approve button, dashboard bulk approval, and app lifecycle endpoint. A
 Job can be approved while only non-mutating maintenance/QA work is active

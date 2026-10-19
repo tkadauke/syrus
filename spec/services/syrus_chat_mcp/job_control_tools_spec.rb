@@ -612,6 +612,54 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job_two.workflows.where(trigger_kind: "retry")).to be_empty
   end
 
+  it "preflights and serializes an explicit implementation retry" do
+    job = make_retryable_job
+
+    response = call_tool("retry_job", job_id: job.id, mode: "implementation")
+    body = payload(response)
+    pending = chat_session.pending_actions.find(body.fetch(:pending_action_id))
+
+    expect(body).to include(message: "Implementation Job retry requires operator confirmation.")
+    expect(pending.payload).to include(
+      "job_id" => job.id,
+      "mode" => "implementation",
+      "preflight" => include("base_ref" => job.effective_base_branch)
+    )
+  end
+
+  it "requires an audit reason for refresh_base before creating a confirmation" do
+    job = make_retryable_job
+
+    response = call_tool("retry_job", job_id: job.id, mode: "refresh_base")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("reason is required")
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
+  it "orders a bulk retry upstream-first and records each Job's preflight" do
+    upstream = make_retryable_job
+    dependent = make_retryable_job(issue_number: 43)
+    dependent.dependencies.create!(depends_on_job: upstream, satisfaction_mode: "success", source: "manual")
+
+    response = call_tool("retry_job", job_ids: [ dependent.id, upstream.id ], mode: "implementation")
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(group.chat_pending_actions.order(:id).map { |action| action.payload["job_id"] }).to eq([ upstream.id, dependent.id ])
+    expect(body.fetch(:preflight).map { |entry| entry.fetch(:job_id) }).to eq([ upstream.id, dependent.id ])
+  end
+
+  it "rejects an unknown retry mode without creating a confirmation" do
+    job = make_retryable_job
+
+    response = call_tool("retry_job", job_id: job.id, mode: "surprise")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("not one of")
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
   it "rejects retry_job job_ids up front as a whole when any target job is ineligible" do
     eligible_job = make_retryable_job
     ineligible_job = make_retryable_job(issue_number: 43, landing_failure_reason: "merge conflict")

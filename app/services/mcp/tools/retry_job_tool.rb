@@ -22,6 +22,9 @@ module Mcp::Tools
       call creates pending action(s), not Jobs, Workflows, or WorkUnits. On
       confirmation, it creates a retry Workflow/WorkUnit and submits it through
       normal admission control and worker-queue routing.
+      Modes are: auto (compatible smart retry), failed_step (same source
+      snapshot), implementation (fresh implementation attempt from the
+      effective base), and refresh_base (checkpoint-aware base refresh).
     DESC
 
     input_schema(
@@ -31,28 +34,42 @@ module Mcp::Tools
           type: "array",
           items: { type: "integer" },
           description: "Multiple Syrus Job ids to retry as one grouped pending action."
-        }
+        },
+        mode: { type: "string", enum: RetryJobs::Mode::MODES.keys, description: "Retry mode (defaults to auto)." },
+        source_workflow_id: { type: "integer", description: "Optional failed Workflow to use for failed_step or refresh_base." },
+        reason: { type: "string", description: "Required operator-facing audit reason for refresh_base." }
       }
     )
 
     class << self
-      def call(job_id: nil, job_ids: nil, server_context:)
+      def call(job_id: nil, job_ids: nil, mode: "auto", source_workflow_id: nil, reason: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
 
         jobs = ids.map { |id| find_job!(id) }
+        selection = RetryJobs::Selection.call(jobs)
+        return Mcp::Tools.invalid(selection.error) unless selection.success?
+        jobs = selection.jobs
+
+        mode_class = RetryJobs::Mode.for(mode)
+        preflights = jobs.to_h do |job|
+          result = mode_class.new(job: job, source_workflow_id: source_workflow_id, reason: reason).preflight
+          [ job.id, result ]
+        end
+        ineligible = jobs.filter_map do |job|
+          result = preflights.fetch(job.id)
+          "#{job.slug}: #{result.message}" unless result.eligible?
+        end
+        return Mcp::Tools.invalid("Cannot retry #{ineligible.size} of #{jobs.size} Jobs - #{ineligible.join('; ')}") if ineligible.any?
 
         unless bulk
           job = jobs.first
-          eligibility = RetryWorkflowEligibility.call(job: job)
-          return Mcp::Tools.invalid(eligibility.message) unless eligibility.eligible?
-
           pending_action = create_pending_action_for_current_message!(
             server_context,
             chat_session,
             action: "retry_job",
-            payload: { "job_id" => job.id },
+            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id)),
             requested_by: "agent"
           )
 
@@ -60,24 +77,37 @@ module Mcp::Tools
             pending_confirmation_id: pending_action.id,
             pending_action_id: pending_action.id,
             state: pending_action.state,
-            message: "Job retry requires operator confirmation."
+            message: mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation.",
+            preflight: preflights.fetch(job.id).details
           )
         end
-
-        ineligible_messages = jobs.filter_map do |job|
-          eligibility = RetryWorkflowEligibility.call(job: job)
-          "#{job.slug}: #{eligibility.message}" unless eligibility.eligible?
-        end
-        return Mcp::Tools.invalid("Cannot retry #{ineligible_messages.size} of #{jobs.size} Jobs - #{ineligible_messages.join('; ')}") if ineligible_messages.any?
 
         group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          member_attributes: jobs.map { |job| { action: "retry_job", payload: { "job_id" => job.id }, requested_by: "agent" } }
+          member_attributes: jobs.map do |job|
+            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id)), requested_by: "agent" }
+          end,
+          reason: reason.to_s.strip.presence
         )
-        bulk_action_response(group: group, message: "Retry #{jobs.size} Jobs?")
+        message = mode.to_s == "auto" ? "Retry #{jobs.size} Jobs?" : "#{mode.to_s.humanize} retry #{jobs.size} Jobs?"
+        bulk_action_response(group: group, message: message,
+          extra: { mode: mode, preflight: jobs.map { |job| { job_id: job.id, job_slug: job.slug, **preflights.fetch(job.id).details } } })
+      rescue ArgumentError => e
+        Mcp::Tools.invalid(e.message)
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      end
+
+      private
+
+      def retry_payload(job, mode, source_workflow_id, reason, preflight)
+        payload = { "job_id" => job.id }
+        payload["mode"] = mode.to_s unless mode.to_s == "auto"
+        payload["source_workflow_id"] = preflight.details["source_workflow_id"] || source_workflow_id if source_workflow_id.present? || preflight.details["source_workflow_id"]
+        payload["reason"] = reason.to_s.strip if reason.present?
+        payload["preflight"] = preflight.details if preflight.details.present?
+        payload
       end
     end
   end
