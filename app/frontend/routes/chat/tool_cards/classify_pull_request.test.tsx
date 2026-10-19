@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import classifyPullRequestToolCard from "./classify_pull_request"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
@@ -64,6 +65,24 @@ describe("classify_pull_request tool card", () => {
     render(<>{classifyPullRequestToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByText("Classification disabled")).toBeInTheDocument()
     expect(screen.getByText("No marker found.")).toBeInTheDocument()
+  })
+
+  it("renders card presentation strings in the active locale", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const parsedResult = {
+        repository: "tkadauke/syrus",
+        pr_number: 42,
+        classification: "external_unknown",
+        evidence: { head_repository: "tkadauke/syrus-fork", classification_enabled: false }
+      }
+      render(<>{classifyPullRequestToolCard.renderExpanded(context({ parsedResult }))}</>)
+      expect(screen.getByText("Klassifizierung deaktiviert")).toBeInTheDocument()
+      expect(screen.getByText("Quell-Repository")).toBeInTheDocument()
+      expect(screen.getByText("Kein Marker gefunden.")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it.each([

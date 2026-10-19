@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { Notice } from "../../../components/ui"
+import i18n from "../../../i18n"
 import { isPlainObject } from "../../../toolCardParsing"
 import { Badge, CardShell, Disclosure, displayValue, EntityReference, SectionLabel } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
@@ -16,14 +17,16 @@ type ClassifyResult = {
   classificationEnabled: boolean | null
 }
 
-const failureConfig: ToolFailureConfig = {
-  title: "PR classification",
-  attempted: (context) => {
-    const prNumber = stringFromInput(context, ["pr_number", "pull_request_number", "number"])
-    return prNumber ? `Classify PR #${prNumber}` : "Classify pull request"
-  },
-  retrySafety: "caution",
-  recovery: "Check that a repository is attached and that the pull request exists, then retry."
+function failureConfig(): ToolFailureConfig {
+  return {
+    title: i18n.t("chat:tool_card_classify_pr_failure_title"),
+    attempted: (context) => {
+      const prNumber = stringFromInput(context, ["pr_number", "pull_request_number", "number"])
+      return prNumber ? i18n.t("chat:tool_card_classify_pr_attempted_with_number", { prNumber }) : i18n.t("chat:tool_card_classify_pr_attempted")
+    },
+    retrySafety: "caution",
+    recovery: i18n.t("chat:tool_card_classify_pr_recovery")
+  }
 }
 
 function parseResult(context: ToolCardContext): ClassifyResult | null {
@@ -83,14 +86,14 @@ function RepositoryDetail({ label, repository }: { label: string; repository: st
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
+  const failureSummary = toolFailureCollapsedSummary(context, failureConfig())
   if (failureSummary) return failureSummary
   const result = parseResult(context)
-  return result ? `PR #${result.prNumber}: ${result.classification}` : null
+  return result ? i18n.t("chat:tool_card_classify_pr_summary", { prNumber: result.prNumber, classification: result.classification }) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (toolFailureDetected(context)) return <ToolFailureSummaryCard config={failureConfig()} context={context} />
   const result = parseResult(context)
   if (!result) return null
   const headRepository = result.headRepository || result.repository
@@ -100,27 +103,33 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={result.prNumber} kind="pull_request" prUrl={githubUrl(result.repository, `/pull/${result.prNumber}`)} />
         <Badge>{result.classification}</Badge>
-        {result.forkPr != null ? <Badge>{result.forkPr ? "fork" : "same-repo"}</Badge> : null}
+        {result.forkPr != null ? (
+          <Badge>{result.forkPr ? i18n.t("chat:tool_card_classify_pr_fork") : i18n.t("chat:tool_card_classify_pr_same_repository")}</Badge>
+        ) : null}
       </div>
       {result.classificationEnabled === false ? (
-        <Notice title="Classification disabled" tone="warning">
-          Repository classification is disabled, so this result may not be used to route the pull request.
+        <Notice title={i18n.t("chat:tool_card_classify_pr_disabled_title")} tone="warning">
+          {i18n.t("chat:tool_card_classify_pr_disabled_body")}
         </Notice>
       ) : null}
       <dl className="grid gap-2 sm:grid-cols-2">
-        <RepositoryDetail label="Repository" repository={result.repository} />
-        {result.headRepository ? <RepositoryDetail label="Head repository" repository={result.headRepository} /> : null}
-        {result.headRef ? <LinkedDetail href={branchUrl(headRepository, result.headRef)} label="Head ref" value={result.headRef} /> : null}
-        {result.baseRef ? <LinkedDetail href={branchUrl(result.repository, result.baseRef)} label="Base ref" value={result.baseRef} /> : null}
+        <RepositoryDetail label={i18n.t("chat:tool_card_classify_pr_repository")} repository={result.repository} />
+        {result.headRepository ? <RepositoryDetail label={i18n.t("chat:tool_card_classify_pr_head_repository")} repository={result.headRepository} /> : null}
+        {result.headRef ? (
+          <LinkedDetail href={branchUrl(headRepository, result.headRef)} label={i18n.t("chat:tool_card_classify_pr_head_ref")} value={result.headRef} />
+        ) : null}
+        {result.baseRef ? (
+          <LinkedDetail href={branchUrl(result.repository, result.baseRef)} label={i18n.t("chat:tool_card_classify_pr_base_ref")} value={result.baseRef} />
+        ) : null}
       </dl>
       {result.marker ? (
-        <Disclosure label="Provenance marker">
+        <Disclosure label={i18n.t("chat:tool_card_classify_pr_marker")}>
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">{JSON.stringify(result.marker, null, 2)}</pre>
         </Disclosure>
       ) : (
         <div>
-          <SectionLabel>Provenance marker</SectionLabel>
-          <div className="text-xs text-text-muted">No marker found.</div>
+          <SectionLabel>{i18n.t("chat:tool_card_classify_pr_marker")}</SectionLabel>
+          <div className="text-xs text-text-muted">{i18n.t("chat:tool_card_classify_pr_no_marker")}</div>
         </div>
       )}
     </CardShell>
@@ -133,7 +142,7 @@ export default classifyPullRequestToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "classified_job_export",
-    label: "Classified job export",
+    label: i18n.t("chat:tool_card_classify_pr_example_classified"),
     input: { pr_number: 42 },
     parsedResult: {
       repository: "tkadauke/syrus",
@@ -151,7 +160,7 @@ export const examples: ToolCardExample[] = [
   },
   {
     id: "classification_disabled",
-    label: "Classification disabled",
+    label: i18n.t("chat:tool_card_classify_pr_example_disabled"),
     input: { pr_number: 84 },
     parsedResult: {
       repository: "acme/widgets",
@@ -167,5 +176,11 @@ export const examples: ToolCardExample[] = [
       }
     }
   },
-  { id: "pull_request_not_found", label: "Pull request not found", input: { pr_number: 999 }, resultBody: "pull request not found: #999", resultError: true }
+  {
+    id: "pull_request_not_found",
+    label: i18n.t("chat:tool_card_classify_pr_example_not_found"),
+    input: { pr_number: 999 },
+    resultBody: "pull request not found: #999",
+    resultError: true
+  }
 ]
