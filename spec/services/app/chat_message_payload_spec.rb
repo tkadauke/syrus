@@ -44,6 +44,28 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:text)).to eq("")
   end
 
+  it "includes spawned chat ids in a confirmed spawn-chats action outcome" do
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        { action: "spawn_chat", payload: { "prompt" => "First", "batch_size" => 2 } },
+        { action: "spawn_chat", payload: { "prompt" => "Second", "batch_size" => 2 } }
+      ]
+    )
+    anchor = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "spawn_chats", tool_use_id: "spawn-1", pending_action: anchor,
+      content: { "type" => "tool_use", "id" => "spawn-1", "name" => "spawn_chats", "input" => {} }
+    )
+    group.chat_pending_actions.order(:id).each_with_index do |action, index|
+      action.update!(payload: action.payload.merge("spawned_chat_id" => 101 + index), state: "confirmed")
+    end
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
+  end
+
   it "includes sidechain + parent_tool_use_id for a subagent's nested tool call" do
     message = chat.messages.create!(
       role: "tool_use", tool_name: "Read", tool_use_id: "sub1",
