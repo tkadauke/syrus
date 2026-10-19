@@ -11,9 +11,18 @@ module Mcp::Tools
     tool_name "emergency_land"
 
     description <<~DESC
-      Skips Syrus's grader, adversarial-review, and visual-review pipeline
-      entirely and lands the change immediately by opening (if needed) and
-      merging the PR. This is an incident-response escape hatch, not a normal
+      For the Job already linked to this Coding Mode chat, request
+      an emergency landing. The Job must be in `coding`, the caller must have
+      repository-admin permission, and the emergency_land feature must be on.
+      This creates only a pending action: no Job, Workflow, or WorkUnit is
+      created and nothing enters admission control or the worker queue. If the
+      operator confirms, Syrus rechecks every precondition, records the supplied
+      already-pushed branch on that same Job (or uses its recorded branch), then
+      opens a PR if needed and asks GitHub to merge it directly. It cannot land
+      an arbitrary captured or local-only branch. It does not require or read
+      the current local checkout; linkage and the pushed Job branch are the
+      controlling preconditions. Confirmation skips Syrus's
+      grader, adversarial-review, and visual-review pipeline. This is not a normal
       handoff path. Call it ONLY when the operator has explicitly and
       unambiguously asked for an emergency or urgent land in this turn, such as
       "emergency land this now" or "skip review and land". Never call this
@@ -82,15 +91,8 @@ module Mcp::Tools
       end
 
       def validate_request(chat_session:, job:, branch_name:)
-        return Mcp::Tools.invalid("Emergency land is not enabled on this instance.") unless Feature.emergency_land_enabled?
-        return Mcp::Tools.invalid("emergency_land is only available in Coding Mode chat sessions.") unless chat_session.coding?
-        return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).") unless job.coding?
-        return Mcp::Tools.invalid("#{job.slug} is not linked to this chat session.") unless job.linked_chat_id == chat_session.id
-        return Mcp::Tools.invalid("Emergency land requires repository admin permissions.") unless EmergencyLand::Permission.granted?(user: chat_session.user, repository: job.repository)
-        return Mcp::Tools.invalid("branch_name is not a valid branch name.") if branch_name.present? && !GitBranchName.valid?(branch_name)
-        return Mcp::Tools.invalid("branch_name is required because this Job does not have a pushed branch recorded.") if branch_name.blank? && job.branch_name.blank?
-
-        nil
+        eligibility = EmergencyLand::Eligibility.call(chat_session: chat_session, job: job, branch_name: branch_name)
+        Mcp::Tools.invalid(eligibility.message) unless eligibility.eligible?
       end
 
       def pending_landing_action_for(chat_session, job)
