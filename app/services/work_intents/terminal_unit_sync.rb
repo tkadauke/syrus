@@ -5,6 +5,7 @@ module WorkIntents
       Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       Workflow::SUPERSEDED_BY_REBASE_REASON,
       WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+      WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
       "operator_cancelled",
       "job_approved"
     ].freeze
