@@ -231,6 +231,7 @@ module App
           user_id: @job.effective_owner_id
         ),
         provider_routing_resolution: provider_routing_resolution_json,
+        active_provider_routing_holds: active_provider_routing_holds_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -315,6 +316,24 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
+    end
+
+    def active_provider_routing_holds_json
+      ProviderRoutingHold.active
+        .joins(:workflow)
+        .where(workflows: { job_id: @job.id })
+        .order(:created_at)
+        .map do |hold|
+          {
+            id: hold.id,
+            workflow_id: hold.workflow_id,
+            provider_routing_rule_id: hold.provider_routing_rule_id,
+            reason: hold.reason,
+            resumption_mode: hold.resumption_mode,
+            next_reevaluation_at: hold.next_reevaluation_at&.iso8601,
+            created_at: hold.created_at.iso8601
+          }
+        end
     end
 
     def provider_routing_resolution_json
