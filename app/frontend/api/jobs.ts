@@ -871,7 +871,17 @@ export type JobRun = {
 }
 
 export type JobRunQueueWait = {
-  kind: "ready_waiting_for_slot" | "ready_no_consumer" | "concurrency_blocked" | "scheduled" | "claimed_not_started" | "no_run_job" | "no_live_workers" | "start_blocked" | "host_admission_deferred" | "unknown"
+  kind:
+    | "ready_waiting_for_slot"
+    | "ready_no_consumer"
+    | "concurrency_blocked"
+    | "scheduled"
+    | "claimed_not_started"
+    | "no_run_job"
+    | "no_live_workers"
+    | "start_blocked"
+    | "host_admission_deferred"
+    | "unknown"
   details: {
     queue_name?: string
     live_worker_count?: number
