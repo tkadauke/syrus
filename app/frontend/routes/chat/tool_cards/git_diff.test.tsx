@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "../toolRendering"
 import gitDiffToolCard from "./git_diff"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -48,6 +49,27 @@ describe("git_diff tool card", () => {
 
     render(<>{gitDiffToolCard.renderExpanded(context({ parsedResult: { diff: manyFiles } }))}</>)
     expect(screen.getByText(/50 files/)).toBeInTheDocument()
+    expect(screen.getByText("Showing first 300 of 350 lines.")).toBeInTheDocument()
+    expect(screen.queryByText("diff --git a/file49.rb b/file49.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show full diff" }))
+    expect(screen.getByText("diff --git a/file49.rb b/file49.rb")).toBeInTheDocument()
+  })
+
+  it("renders daemon failures with recovery guidance", () => {
+    render(<>{gitDiffToolCard.renderExpanded(context({ toolName: "mcp__local__git_diff", resultBody: "Local daemon not connected.", parsedResult: "Local daemon not connected." }))}</>)
+    expect(screen.getByText(/Connect or restart the local daemon/)).toBeInTheDocument()
+  })
+
+  it("accepts payloads normalized from content text and structured content envelopes", () => {
+    const envelopes = [
+      { content: [{ type: "text", text: JSON.stringify({ diff: SMALL_DIFF }) }] },
+      { structured_content: { diff: SMALL_DIFF }, content: [] }
+    ]
+    for (const envelope of envelopes) {
+      const parsedResult = normalizedToolCardParsedResult(envelope)
+      expect(gitDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("+1 -0 across 1 file")
+    }
   })
 
   it("falls back to null for a malformed payload", () => {
