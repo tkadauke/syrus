@@ -88,7 +88,7 @@ function renderExpanded(context: ToolCardContext) {
             <tr className="grid min-w-0 grid-cols-1 gap-2 p-3 md:table-row md:p-0" key={row.id}>
               <td className="min-w-0 md:px-2 md:py-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-1">
-                  <EntityReference id={row.id} kind="wakeup" />
+                  <EntityReference chatId={row.chatId} id={row.id} kind="wakeup" />
                   {row.state ? <StatePill state={row.state} /> : null}
                   {row.chatId ? <EntityReference id={row.chatId} kind="chat" /> : null}
                 </div>
