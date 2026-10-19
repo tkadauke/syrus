@@ -25,6 +25,8 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
 }
 
+export type TextPreviewProps = MarkdownPreviewProps
+
 type TruncatedMarkdown = { preview: string; truncated: boolean }
 
 // Tool-card prose primitive: compact light markdown on the card, with the
@@ -76,6 +78,72 @@ export function MarkdownPreview({ text, maxLines = DEFAULT_MAX_LINES, title, mod
       </Modal>
     </div>
   )
+}
+
+// Tool-card raw-text primitive: preserve command output and logs on the card,
+// while keeping the complete, copy-friendly text available in a dialog.
+export function TextPreview({ text, maxLines = DEFAULT_MAX_LINES, title, modalLabel }: TextPreviewProps) {
+  const { t } = useT("common")
+  const [open, setOpen] = useState(false)
+  const empty = !text.trim()
+  const truncated = useMemo(() => truncateText(text, maxLines), [text, maxLines])
+
+  if (empty) return null
+
+  const safeMaxLines = Math.max(1, maxLines)
+  const lineClampStyle = {
+    display: "-webkit-box",
+    overflow: "hidden",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: safeMaxLines
+  } as CSSProperties
+  const dialogLabel = modalLabel || title || t("show_more")
+
+  return (
+    <div className="min-w-0 max-w-full overflow-hidden">
+      {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
+      <pre
+        className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
+        data-testid="text-preview-content"
+        style={lineClampStyle}
+      >
+        {truncated.preview}
+        {truncated.truncated ? "…" : null}
+      </pre>
+      {truncated.truncated ? (
+        <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
+          {t("show_more")}
+        </Button>
+      ) : null}
+      <Modal
+        backdropClassName="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+        className={MODAL_PANEL_CLASS}
+        label={dialogLabel}
+        onClose={() => setOpen(false)}
+        open={open}
+      >
+        <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+          <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-text-primary">{title || dialogLabel}</h2>
+          <button aria-label={t("close")} className={CLOSE_BUTTON_CLASS} onClick={() => setOpen(false)} type="button">
+            <CloseIcon />
+          </button>
+        </header>
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto px-4 py-3">
+          <pre className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{text}</pre>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+export function truncateText(text: string, maxLines: number): TruncatedMarkdown {
+  const normalized = text.replace(/\r\n?/g, "\n")
+  const lines = normalized.split("\n")
+  const safeMaxLines = Math.max(1, maxLines)
+  const lineCutoff = lines.length > safeMaxLines ? lines.slice(0, safeMaxLines).join("\n").length : normalized.length
+  const cutoff = Math.min(lineCutoff, safeMaxLines * APPROXIMATE_CHARS_PER_LINE, normalized.length)
+
+  return cutoff === normalized.length ? { preview: normalized, truncated: false } : { preview: normalized.slice(0, cutoff), truncated: true }
 }
 
 export function truncateMarkdown(text: string, maxLines: number): TruncatedMarkdown {

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -41,5 +41,44 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+})
+
+describe("TextPreview", () => {
+  it("renders short text with whitespace preserved and no expansion button", () => {
+    render(<TextPreview text={"first line\n  indented line"} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("whitespace-pre-wrap", "font-mono")
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("first line\n  indented line", { normalizeWhitespace: false })
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("opens and closes a modal containing the complete long text", () => {
+    const text = Array.from({ length: 10 }, (_, index) => `log line ${index + 1}`).join("\n")
+    render(<TextPreview maxLines={3} modalLabel="Full command output" text={text} title="Command output" />)
+
+    expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("log line 10")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full command output" })
+    expect(dialog.querySelector("pre")).toHaveTextContent(text, { normalizeWhitespace: false })
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog", { name: "Full command output" })).not.toBeInTheDocument()
+  })
+
+  it("renders nothing for empty or whitespace-only text", () => {
+    const { container } = render(<TextPreview text={"  \n\t "} />)
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("truncates and safely wraps a very long single line", () => {
+    const text = "x".repeat(500)
+    render(<TextPreview maxLines={2} text={text} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText(text)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
   })
 })
