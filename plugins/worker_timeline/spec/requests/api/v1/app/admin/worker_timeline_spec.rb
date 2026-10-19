@@ -419,6 +419,76 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       expect(worker.fetch("status_reasons")).not_to include("capacity exceeded")
     end
 
+    # Regression: capacity was read from `thread_pool_size`, a key SolidQueue
+    # has never written -- it records `pool_size`. Every pool therefore
+    # resolved to nil, was clamped to 1, and a host running pools of 3 and 5
+    # threads reported a capacity of 2. The fixtures in this file used the
+    # wrong key too, so the specs agreed with the code and both disagreed with
+    # production.
+    it "reads pool capacity from the key SolidQueue actually writes" do
+      enable_plugin!
+      sign_in_as(admin)
+      solid_queue_process(hostname: "worker-pools", pid: 130, metadata: { "queues" => "runs", "pool_size" => 3 })
+      solid_queue_process(hostname: "worker-pools", pid: 131, metadata: { "queues" => "merges", "pool_size" => 5 })
+      create_health_sample(hostname: "worker-pools", worker_storage_key: "storage-pools", cpu_used_percent: 10, memory_used_percent: 20, io_pressure_some: 1)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      worker = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }.fetch("worker-pools")
+      expect(worker.dig("occupancy", "total")).to eq(8)
+    end
+
+    # An unreadable pool size used to become a capacity of 1, which quietly
+    # turned "I could not read this" into an overload claim.
+    it "does not claim a host is over capacity when the pool size is unreadable" do
+      enable_plugin!
+      sign_in_as(admin)
+      j = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Unknown pool")
+      wf = Workflow.create!(job: j, trigger_kind: "main_grader", state: "running", started_at: 9.minutes.ago,
+                            worker_hostname: "worker-unknown", worker_storage_key: "storage-unknown")
+      st = wf.steps.create!(kind: "grader", position: 1, state: "running", started_at: 8.minutes.ago)
+      # Two distinct Runs, so occupancy is 2 and the old clamp-to-1 capacity
+      # would have read as over capacity.
+      2.times do |index|
+        run = Run.create!(job: j, user: admin, step: st, trigger_kind: "main_grader", agent_provider: "codex",
+                          state: "running", started_at: 7.minutes.ago)
+        SpawnedProcess.create!(kind: "grader", command: "bin/rspec #{index}", hostname: "worker-unknown",
+                               pid: 2100 + index, started_at: 6.minutes.ago, run: run, workflow: wf)
+      end
+      solid_queue_process(hostname: "worker-unknown", pid: 140, metadata: { "queues" => "runs" })
+      create_health_sample(hostname: "worker-unknown", worker_storage_key: "storage-unknown", cpu_used_percent: 12, memory_used_percent: 25, io_pressure_some: 1)
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      worker = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }.fetch("worker-unknown")
+      expect(worker.fetch("status")).to eq("busy")
+      expect(worker.fetch("status_reasons")).not_to include("capacity exceeded")
+    end
+
+    # Regression: a Workflow assigned to a host but not executing anything was
+    # counted as an occupied thread. A burst of Jobs pins many running
+    # Workflows to a host while only a few Runs execute cluster-wide, so five
+    # of six hosts read "overloaded" at flat CPU and memory.
+    it "counts assigned-but-waiting workflows as busy, not as occupied capacity" do
+      enable_plugin!
+      sign_in_as(admin)
+      solid_queue_process(hostname: "worker-waiting", pid: 150, metadata: { "queues" => "runs", "pool_size" => 2 })
+      create_health_sample(hostname: "worker-waiting", worker_storage_key: "storage-waiting", cpu_used_percent: 8, memory_used_percent: 22, io_pressure_some: 1)
+      4.times do |index|
+        waiting_job = Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Waiting #{index}")
+        Workflow.create!(job: waiting_job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago,
+                         worker_hostname: "worker-waiting", worker_storage_key: "storage-waiting")
+      end
+
+      get "/api/v1/app/admin/worker_timeline/live"
+
+      worker = parse_body.fetch("workers").index_by { |w| w.fetch("hostname") }.fetch("worker-waiting")
+      expect(worker.dig("occupancy", "used")).to eq(0)
+      expect(worker.dig("occupancy", "slots")).to eq(4)
+      expect(worker.fetch("status")).not_to eq("overloaded")
+      expect(worker.fetch("status_reasons")).not_to include("capacity exceeded")
+    end
+
     # The raw count is still worth showing; it just is not an occupancy figure.
     it "still reports how many slots those processes occupy" do
       enable_plugin!

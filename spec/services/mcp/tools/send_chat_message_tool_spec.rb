@@ -122,6 +122,24 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       expect(wakeup.chat_session).to eq(target_chat)
     end
 
+    it "lets the spawning chat use a pre-opened thread from a control-event-triggered turn" do
+      message = automated_message(origin_chat, requested_by: "pending_action_group_confirmation")
+
+      response = call(chat_session: origin_chat, current_message: message, text: "More instructions", thread_id: thread.id)
+
+      expect(response.error?).to be_falsey
+      expect(ChatWakeup.sole.chat_session).to eq(target_chat)
+
+      fresh_response = call(
+        chat_session: origin_chat,
+        current_message: message,
+        text: "Open another thread",
+        target_chat_session_id: ChatSession.create!(user: user).id
+      )
+      expect(fresh_response).to be_error
+      expect(fresh_response.content.first[:text]).to include("operator's own message")
+    end
+
     it "delivers a reply from the target chat back to the origin chat, even from an automated turn" do
       message = automated_message(target_chat, requested_by: "cross_chat")
 
