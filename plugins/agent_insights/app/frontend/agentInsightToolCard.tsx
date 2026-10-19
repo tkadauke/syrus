@@ -1,7 +1,9 @@
 import type { ReactNode } from "react"
-import { CopyableSlug } from "@app/components/CopyableSlug"
+import i18n from "i18next"
 import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components/ui"
+import { useT } from "@app/hooks/useT"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
+import { MarkdownPreview, type MarkdownPreviewProps } from "@app/routes/chat/toolCardMarkdown"
 import {
   Badge,
   CardShell,
@@ -12,8 +14,7 @@ import {
   InternalLink,
   numberValue,
   SectionLabel,
-  StatePill,
-  truncateLines
+  StatePill
 } from "@app/routes/chat/toolCardUi"
 
 export type InsightRef = {
@@ -104,10 +105,12 @@ export function parseInsight(value: unknown): AgentInsight | null {
     confidence: numberValue(value.confidence),
     state: displayValue(value.state),
     proposalType: displayValue(value.proposal_type),
-    evidence: Array.isArray(value.evidence) ? value.evidence.flatMap((entry, index) => {
-      const evidence = parseEvidence(entry, index)
-      return evidence ? [evidence] : []
-    }) : [],
+    evidence: Array.isArray(value.evidence)
+      ? value.evidence.flatMap((entry, index) => {
+          const evidence = parseEvidence(entry, index)
+          return evidence ? [evidence] : []
+        })
+      : [],
     suggestedPrompt: typeof value.suggested_prompt === "string" ? value.suggested_prompt : null,
     memorySuggestion: typeof value.memory_suggestion === "string" ? value.memory_suggestion : null,
     staleMemoryText: typeof value.stale_memory_text === "string" ? value.stale_memory_text : null,
@@ -127,7 +130,16 @@ export function parseInsight(value: unknown): AgentInsight | null {
 }
 
 export function insightRows(context: ToolCardContext): AgentInsight[] | null {
-  const parsed = context.parsedResult
+  let root = context.parsedResult
+  if (isPlainObject(root) && root.structured_content != null) root = root.structured_content
+  if (isPlainObject(root) && Array.isArray(root.content) && isPlainObject(root.content[0]) && typeof root.content[0].text === "string") {
+    try {
+      root = JSON.parse(root.content[0].text)
+    } catch {
+      // Preserve the malformed envelope so the generic renderer can show it.
+    }
+  }
+  const parsed = isPlainObject(root) && isPlainObject(root.data) ? root.data : root
   if (!isPlainObject(parsed) || !Array.isArray(parsed.insights)) return null
 
   return parsed.insights.flatMap((entry) => {
@@ -146,18 +158,23 @@ export function insightListSummary(context: ToolCardContext): string | null {
   const rows = insightRows(context)
   if (!rows) return null
 
-  return `${rows.length} insight${rows.length === 1 ? "" : "s"}`
+  return i18n.t(`agent_insights:${rows.length === 1 ? "insight_count" : "insight_count_plural"}`, { count: rows.length })
 }
 
 function SeverityBadge({ severity }: { severity: string | null }) {
   if (!severity) return null
   const tone = severity === "high" ? "danger" : severity === "medium" ? "warning" : "neutral"
-  return <Pill className="text-2xs font-semibold uppercase" tone={tone}>{severity}</Pill>
+  return (
+    <Pill className="text-2xs font-semibold uppercase" tone={tone}>
+      {severity}
+    </Pill>
+  )
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number | null }) {
+  const { t } = useT("agent_insights")
   if (confidence == null) return null
-  return <Badge>{Math.round(confidence * 100)}% confidence</Badge>
+  return <Badge>{t("confidence", { pct: Math.round(confidence * 100) })}</Badge>
 }
 
 function RefLink({ target }: { target: InsightRef | null }) {
@@ -174,7 +191,7 @@ function RefLink({ target }: { target: InsightRef | null }) {
 }
 
 function InsightIdReference({ id }: { id: string }) {
-  return <CopyableSlug className="text-xs normal-case" slug={`INSIGHT-${id}`} />
+  return <EntityReference id={id} kind="insight" slug={`INSIGHT-${id}`} wrap="nowrap" />
 }
 
 function RepositoryReference({ repository }: { repository: InsightRef }) {
@@ -191,18 +208,17 @@ function RepositoryReference({ repository }: { repository: InsightRef }) {
   )
 }
 
-function TextPreview({ text, maxLines = 4 }: { text: string; maxLines?: number }) {
-  const { preview, truncated, totalLines } = truncateLines(text, maxLines)
-  return (
-    <div className="space-y-1">
-      <Text as="div" className="whitespace-pre-wrap break-words">{preview}</Text>
-      {truncated ? (
-        <Disclosure label={`Show full text (${totalLines} lines)`}>
-          <div className="whitespace-pre-wrap break-words">{text}</div>
-        </Disclosure>
-      ) : null}
-    </div>
-  )
+export function TextPreview(props: MarkdownPreviewProps) {
+  return <MarkdownPreview linkifySlugs linkifyUrls maxLines={4} {...props} />
+}
+
+export function InsightRefList({ insightIds = [], jobIds = [], memoryIds = [] }: { insightIds?: string[]; jobIds?: string[]; memoryIds?: string[] }) {
+  const refs = [
+    ...insightIds.map((id) => <EntityReference id={id} key={`insight-${id}`} kind="insight" wrap="nowrap" />),
+    ...jobIds.map((id) => <EntityReference id={id} key={`job-${id}`} kind="job" wrap="nowrap" />),
+    ...memoryIds.map((id) => <EntityReference id={id} key={`memory-${id}`} kind="memory" wrap="nowrap" />)
+  ]
+  return refs.length ? <div className="flex min-w-0 flex-wrap gap-2">{refs}</div> : null
 }
 
 function EvidenceRow({ entry }: { entry: EvidenceItem }) {
@@ -216,19 +232,24 @@ function EvidenceRow({ entry }: { entry: EvidenceItem }) {
 }
 
 function EvidenceList({ evidence }: { evidence: EvidenceItem[] }) {
-  if (evidence.length === 0) return <Text muted>No evidence attached.</Text>
+  const { t } = useT("agent_insights")
+  if (evidence.length === 0) return <Text muted>{t("tool_no_evidence")}</Text>
 
   const visible = evidence.slice(0, 5)
   const hidden = evidence.slice(5)
   return (
     <Surface className="mt-1 space-y-1" padding="sm" variant="inset">
       <ul className="space-y-1">
-        {visible.map((entry) => <EvidenceRow entry={entry} key={entry.key} />)}
+        {visible.map((entry) => (
+          <EvidenceRow entry={entry} key={entry.key} />
+        ))}
       </ul>
       {hidden.length > 0 ? (
-        <Disclosure label={`Show remaining evidence (${hidden.length})`}>
+        <Disclosure label={t("tool_show_remaining_evidence", { count: hidden.length })}>
           <ul className="space-y-1">
-            {hidden.map((entry) => <EvidenceRow entry={entry} key={entry.key} />)}
+            {hidden.map((entry) => (
+              <EvidenceRow entry={entry} key={entry.key} />
+            ))}
           </ul>
         </Disclosure>
       ) : null}
@@ -237,11 +258,12 @@ function EvidenceList({ evidence }: { evidence: EvidenceItem[] }) {
 }
 
 function ActionSections({ insight }: { insight: AgentInsight }) {
+  const { t } = useT("agent_insights")
   const sections: ReactNode[] = []
   if (insight.suggestedPrompt) {
     sections.push(
       <div key="prompt">
-        <SectionLabel>Recommended action</SectionLabel>
+        <SectionLabel>{t("tool_recommended_action")}</SectionLabel>
         <TextPreview text={insight.suggestedPrompt} />
       </div>
     )
@@ -249,7 +271,7 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
   if (insight.memorySuggestion) {
     sections.push(
       <div key="memory">
-        <SectionLabel>Memory suggestion</SectionLabel>
+        <SectionLabel>{t("tool_memory_suggestion")}</SectionLabel>
         <TextPreview text={insight.memorySuggestion} />
       </div>
     )
@@ -257,8 +279,10 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
   if (insight.staleMemoryText || insight.staleMemoryEvidence) {
     sections.push(
       <div key="stale-memory">
-        <SectionLabel>Memory retirement</SectionLabel>
-        {insight.targetMemoryId ? <div className="font-mono text-gray-600 dark:text-gray-300">Memory #{insight.targetMemoryId}</div> : null}
+        <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
+        {insight.targetMemoryId ? (
+          <div className="font-mono text-gray-600 dark:text-gray-300">{t("tool_memory_id", { id: insight.targetMemoryId })}</div>
+        ) : null}
         {insight.staleMemoryText ? <TextPreview text={insight.staleMemoryText} maxLines={2} /> : null}
         {insight.staleMemoryEvidence ? <TextPreview text={insight.staleMemoryEvidence} /> : null}
       </div>
@@ -269,22 +293,47 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
 }
 
 export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
+  const { t } = useT("agent_insights")
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <Text as="span" variant="heading-sm">{insight.title}</Text>
+        <Text as="span" variant="heading-sm">
+          {insight.title}
+        </Text>
         {insight.state ? <StatePill state={insight.state} /> : null}
         <SeverityBadge severity={insight.severity} />
         {insight.category ? <Badge>{insight.category.replace(/_/g, " ")}</Badge> : null}
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        <DescriptionList.Item label="Insight ID"><InsightIdReference id={insight.id} /></DescriptionList.Item>
-        {insight.proposalType ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Proposal">{insight.proposalType.replace(/_/g, " ")}</DescriptionList.Item> : null}
-        {insight.repository?.slug ? <DescriptionList.Item label="Repository"><RepositoryReference repository={insight.repository} /></DescriptionList.Item> : null}
-        {insight.createdAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Created">{insight.createdAt}</DescriptionList.Item> : null}
-        {insight.updatedAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Updated">{insight.updatedAt}</DescriptionList.Item> : null}
-        {insight.retiredAt ? <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label="Retired">{insight.retiredAt}</DescriptionList.Item> : null}
+        <DescriptionList.Item label={t("tool_insight_id")}>
+          <InsightIdReference id={insight.id} />
+        </DescriptionList.Item>
+        {insight.proposalType ? (
+          <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_proposal")}>
+            {insight.proposalType.replace(/_/g, " ")}
+          </DescriptionList.Item>
+        ) : null}
+        {insight.repository?.slug ? (
+          <DescriptionList.Item label={t("col_repository")}>
+            <RepositoryReference repository={insight.repository} />
+          </DescriptionList.Item>
+        ) : null}
+        {insight.createdAt ? (
+          <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("col_created")}>
+            {insight.createdAt}
+          </DescriptionList.Item>
+        ) : null}
+        {insight.updatedAt ? (
+          <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_updated")}>
+            {insight.updatedAt}
+          </DescriptionList.Item>
+        ) : null}
+        {insight.retiredAt ? (
+          <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("col_retired")}>
+            {insight.retiredAt}
+          </DescriptionList.Item>
+        ) : null}
       </DescriptionList.Root>
       <div className="flex flex-wrap gap-2">
         <RefLink target={insight.job} />
@@ -294,16 +343,24 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
       <ActionSections insight={insight} />
       {insight.retiredReason ? (
         <div>
-          <SectionLabel>Retirement outcome</SectionLabel>
+          <SectionLabel>{t("tool_retirement_outcome")}</SectionLabel>
           <TextPreview text={insight.retiredReason} />
           <div className="mt-1 flex flex-wrap gap-2 text-gray-500 dark:text-gray-400">
-            {insight.supersededByInsightId ? <span className="inline-flex items-center gap-1">Superseded by <InsightIdReference id={insight.supersededByInsightId} /></span> : null}
-            {insight.supersededByJobId ? <span className="inline-flex items-center gap-1">Superseded by <EntityReference id={insight.supersededByJobId} kind="job" wrap="nowrap" /></span> : null}
+            {insight.supersededByInsightId ? (
+              <span className="inline-flex items-center gap-1">
+                {t("tool_superseded_by")} <InsightIdReference id={insight.supersededByInsightId} />
+              </span>
+            ) : null}
+            {insight.supersededByJobId ? (
+              <span className="inline-flex items-center gap-1">
+                {t("tool_superseded_by")} <EntityReference id={insight.supersededByJobId} kind="job" wrap="nowrap" />
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}
       <div>
-        <SectionLabel>Evidence</SectionLabel>
+        <SectionLabel>{t("tool_evidence")}</SectionLabel>
         <EvidenceList evidence={insight.evidence} />
       </div>
     </CardShell>
@@ -311,52 +368,107 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
 }
 
 export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
-  if (rows.length === 0) return <EmptyState>No insights match this query.</EmptyState>
+  const { t } = useT("agent_insights")
+  if (rows.length === 0) return <EmptyState>{t("tool_list_empty")}</EmptyState>
 
   return (
-    <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Insight</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">State</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Severity</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Source</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Repository</DataTable.HeadCell>
-          <DataTable.HeadCell className="px-2 py-1 text-2xs">Updated</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
+    <>
+      <div className="mt-1 space-y-2 sm:hidden">
         {rows.map((row) => (
-          <DataTable.Row key={row.id}>
-            <DataTable.Cell className="max-w-[24rem] px-2 py-1">
-              <div className="flex flex-wrap items-center gap-1">
-                <Text as="div" variant="heading-sm">{row.title}</Text>
-                <InsightIdReference id={row.id} />
-              </div>
-              {row.summary ? <Text as="div" className="mt-0.5 line-clamp-2" variant="caption" tone="muted">{row.summary}</Text> : null}
-              <div className="flex flex-wrap gap-1 pt-1">
-                {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
-                {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
-                <ConfidenceBadge confidence={row.confidence} />
-              </div>
-            </DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1">{row.state ? <StatePill state={row.state} /> : "-"}</DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1"><SeverityBadge severity={row.severity} /></DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1">
-              <div className="flex flex-col gap-1">
-                <RefLink target={row.sourceWorkflow} />
-                <RefLink target={row.sourceRun} />
-                {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
-              </div>
-            </DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">
-              {row.repository ? <RepositoryReference repository={row.repository} /> : "-"}
-            </DataTable.Cell>
-            <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs text-text-muted">{row.updatedAt ?? row.createdAt ?? "-"}</DataTable.Cell>
-          </DataTable.Row>
+          <Surface className="min-w-0 space-y-2 overflow-hidden" key={row.id} padding="sm" variant="inset">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <Text as="div" className="min-w-0 break-words" variant="heading-sm">
+                {row.title}
+              </Text>
+              <InsightIdReference id={row.id} />
+              {row.state ? <StatePill state={row.state} /> : null}
+              <SeverityBadge severity={row.severity} />
+            </div>
+            {row.summary ? <TextPreview maxChars={320} maxLines={2} text={row.summary} /> : null}
+            <div className="flex min-w-0 flex-wrap gap-1">
+              {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
+              {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+              <ConfidenceBadge confidence={row.confidence} />
+            </div>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <RefLink target={row.sourceWorkflow} />
+              <RefLink target={row.sourceRun} />
+              {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
+              {row.repository ? <RepositoryReference repository={row.repository} /> : null}
+            </div>
+            <Text as="div" className="break-all font-mono" variant="caption" tone="muted">
+              {row.updatedAt ?? row.createdAt ?? "-"}
+            </Text>
+          </Surface>
         ))}
-      </DataTable.Body>
-    </DataTable.Root>
+      </div>
+      <div className="hidden min-w-0 sm:block">
+        <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1 max-w-full">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("tool_col_insight")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("col_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("col_severity")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("tool_col_source")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("col_repository")}</DataTable.HeadCell>
+              <DataTable.HeadCell className="px-2 py-1 text-2xs">{t("tool_updated")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {rows.map((row) => (
+              <DataTable.Row key={row.id}>
+                <DataTable.Cell className="max-w-[24rem] px-2 py-1">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Text as="div" variant="heading-sm">
+                      {row.title}
+                    </Text>
+                    <InsightIdReference id={row.id} />
+                  </div>
+                  {row.summary ? <TextPreview maxChars={320} maxLines={2} text={row.summary} /> : null}
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
+                    {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+                    <ConfidenceBadge confidence={row.confidence} />
+                  </div>
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap px-2 py-1">{row.state ? <StatePill state={row.state} /> : "-"}</DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap px-2 py-1">
+                  <SeverityBadge severity={row.severity} />
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap px-2 py-1">
+                  <div className="flex flex-col gap-1">
+                    <RefLink target={row.sourceWorkflow} />
+                    <RefLink target={row.sourceRun} />
+                    {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
+                  </div>
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">
+                  {row.repository ? <RepositoryReference repository={row.repository} /> : "-"}
+                </DataTable.Cell>
+                <DataTable.Cell className="whitespace-nowrap px-2 py-1 font-mono text-xs text-text-muted">
+                  {row.updatedAt ?? row.createdAt ?? "-"}
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
+      </div>
+    </>
+  )
+}
+
+export function InsightErrorCard({ message }: { message: string }) {
+  const { t } = useT("agent_insights")
+  return (
+    <CardShell>
+      <div className="flex items-center gap-2">
+        <SectionLabel>{t("admin_eyebrow")}</SectionLabel>
+        <Pill tone="danger">{t("tool_failed")}</Pill>
+      </div>
+      <Text className="break-words" tone="danger">
+        {message}
+      </Text>
+    </CardShell>
   )
 }
 
@@ -364,7 +476,7 @@ export function parseOutcome(context: ToolCardContext) {
   if (isPlainObject(context.parsedResult)) {
     const ids = Array.isArray(context.parsedResult.insight_ids) ? context.parsedResult.insight_ids : []
     const firstId = ids.length > 0 ? displayValue(ids[0]) : null
-    const message = displayValue(context.parsedResult.message) ?? "Insight mutation requested."
+    const message = displayValue(context.parsedResult.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
     return {
       id: firstId,
       message,
@@ -389,19 +501,41 @@ export function parseOutcome(context: ToolCardContext) {
   }
 }
 
-export function OutcomeBody({ outcome, label }: { outcome: NonNullable<ReturnType<typeof parseOutcome>>; label: string }) {
+export function OutcomeCard({ context, label }: { context: ToolCardContext; label: string }) {
+  const { t } = useT("agent_insights")
+  const outcome = parseOutcome(context)
+  if (!outcome) return null
+  const live = context.livePendingAction
   return (
     <CardShell>
       <SectionLabel>{label}</SectionLabel>
       <Text>{outcome.message}</Text>
+      {live ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <StatePill state={live.state} />
+          <Text muted>{live.detail ?? live.label}</Text>
+        </div>
+      ) : null}
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        {outcome.targetInsightId ? <DescriptionList.Item label="Insight"><InsightIdReference id={outcome.targetInsightId} /></DescriptionList.Item> : null}
-        {outcome.supersededByInsightId ? <DescriptionList.Item label="Superseding insight"><InsightIdReference id={outcome.supersededByInsightId} /></DescriptionList.Item> : null}
-        {outcome.supersededByJobId ? <DescriptionList.Item label="Superseding job"><EntityReference id={outcome.supersededByJobId} kind="job" wrap="nowrap" /></DescriptionList.Item> : null}
+        {outcome.targetInsightId ? (
+          <DescriptionList.Item label={t("tool_insight")}>
+            <InsightIdReference id={outcome.targetInsightId} />
+          </DescriptionList.Item>
+        ) : null}
+        {outcome.supersededByInsightId ? (
+          <DescriptionList.Item label={t("tool_superseding_insight")}>
+            <InsightIdReference id={outcome.supersededByInsightId} />
+          </DescriptionList.Item>
+        ) : null}
+        {outcome.supersededByJobId ? (
+          <DescriptionList.Item label={t("tool_superseding_job")}>
+            <EntityReference id={outcome.supersededByJobId} kind="job" wrap="nowrap" />
+          </DescriptionList.Item>
+        ) : null}
       </DescriptionList.Root>
       {outcome.reason ? (
         <div>
-          <SectionLabel>Reason</SectionLabel>
+          <SectionLabel>{t("tool_reason")}</SectionLabel>
           <TextPreview text={outcome.reason} />
         </div>
       ) : null}
