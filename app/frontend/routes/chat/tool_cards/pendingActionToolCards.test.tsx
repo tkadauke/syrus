@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import retryJobCard from "./retry_job"
+import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"
@@ -46,6 +47,7 @@ import reconcileJobStateCard from "./reconcile_job_state"
 // excludes *.test.tsx from its card glob, so it is never discovered.
 const CARDS: Array<[string, ToolCardRenderer]> = [
   ["retry_job", retryJobCard],
+  ["base_refresh_retry_job", baseRefreshRetryJobCard],
   ["run_visual_review", runVisualReviewCard],
   ["delegate_issue", delegateIssueCard],
   ["check_job_mergeability", checkJobMergeabilityCard],
@@ -86,8 +88,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(33)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(33)
+    expect(CARDS).toHaveLength(34)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(34)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
