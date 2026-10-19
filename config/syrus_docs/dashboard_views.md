@@ -196,7 +196,9 @@ The resolver records `agent_provider_routing_decision` with a
 results, and final route-or-hold action. Disabled rules remain ordered but are
 skipped during matching. For a route action, it records the initial Workflow
 provider/model/effort candidate; provider availability can then skip
-unavailable candidates before the first Run starts.
+unavailable candidates before the first Run starts. A hold action leaves the
+Workflow queued without creating a Run and is reported as a non-failure held
+decision rather than provider exhaustion.
 If an unstarted workflow automatically moves from one candidate to another, it
 also records `provider_failover_decision`. Dashboard rows, Job detail,
 repository Job rows, and Workflow cards show the original unavailable provider

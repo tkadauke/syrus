@@ -108,6 +108,8 @@ module WorkUnits
     end
 
     def self.not_started_reason_for(workflow)
+      return StepDispatcher::PROVIDER_ROUTING_HOLD_REASON if StepDispatcher.provider_routing_held?(workflow)
+
       start_block = WorkUnits::StartBlock.for(workflow)
       start_block.data[:reason] ||
         start_block.reason ||
