@@ -485,6 +485,9 @@ export type ChatToolGroupCall = {
   // undefined until the tool_use message is processed, null once settled
   // if the call never created a pending action.
   pending_action?: ChatPendingActionInline | null
+  // Live group anchored through this tool-use message. Populated while the
+  // message stream combines rendered calls with pending_action_groups.
+  pending_action_group?: ChatPendingActionGroup | null
   // Nested subagent tool-call groups spawned by this call (e.g. an Agent/Task
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]

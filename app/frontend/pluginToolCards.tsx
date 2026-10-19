@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { ChatPendingActionInline } from "./api/chats"
+import type { ChatPendingActionGroup, ChatPendingActionInline } from "./api/chats"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -45,6 +45,10 @@ export type ToolCardContext = {
   // (catalog fixtures, the admin transcript viewer); a card should fall
   // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
+  // Current state of the ChatPendingActionGroup anchored to this tool call.
+  // Bulk tool results are frozen at call time just like single actions, so
+  // cards use this live payload to show later confirmation/rejection state.
+  livePendingActionGroup?: ChatPendingActionGroup | null
 }
 
 export type ToolCardRenderer = {

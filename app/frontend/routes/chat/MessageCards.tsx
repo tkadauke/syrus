@@ -1044,7 +1044,8 @@ export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSe
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     chatSessionId,
-    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
+    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
+    livePendingActionGroup: redactToolCardValue(call.pending_action_group ?? null) as ChatToolGroupItem["calls"][number]["pending_action_group"]
   }
 }
 
