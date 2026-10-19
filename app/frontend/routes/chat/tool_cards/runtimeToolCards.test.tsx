@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
+import { redactToolCardValue } from "../../../toolCardSecurity"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
 import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
@@ -135,6 +136,93 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("expired")).toBeInTheDocument()
     expect(screen.getByText("coding_mode_chat:8")).toBeInTheDocument()
     expect(screen.getByText("2026-09-10T11:59:00Z")).toBeInTheDocument()
+  })
+
+  it("renders the complete status payload with wrapping, safe links, a frame preview, and long errors", () => {
+    const workspaceRef = "workspace/with/a/very/long/path/that/must/wrap/instead/of/overflowing/on/mobile"
+    const lastError = "The browser process exited unexpectedly.\nRestart the preview after checking its logs."
+    const parsedResult = {
+      session_payload: session({
+        workspace_ref: workspaceRef,
+        metadata: { deployment_url: "https://runtime.example.test/a/very/long/path", enabled: false },
+        last_error: lastError,
+        active_agent_input_lease: null
+      })
+    }
+
+    render(<>{runtimeStatusToolCard.renderExpanded(context("runtime_status", { parsedResult: redactToolCardValue(parsedResult) }))}</>)
+
+    expect(screen.getByRole("link", { name: "Runtime #7" })).toHaveAttribute("href", "/runtime/7/stream")
+    expect(screen.getByRole("link", { name: "Stream" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("link", { name: "Latest frame" })).toHaveClass("min-h-11", "break-all")
+    expect(screen.getByText(workspaceRef)).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("no lease")).toBeInTheDocument()
+    expect(screen.getByText("Last error")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Latest frame" }))
+    const dialog = screen.getByRole("dialog", { name: "Runtime latest frame preview" })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByAltText("Latest frame for Runtime #7")).toHaveAttribute("src", "/runtime/7/frame")
+  })
+
+  it("shows boolean status failures and falls back to the input session id", () => {
+    const toolContext = context("runtime_status", {
+      input: { session_id: 91 },
+      parsedResult: { error: true, content: [{ type: "text", text: "runtime provider unavailable" }] }
+    })
+
+    expect(runtimeStatusToolCard.collapsedSummary?.(toolContext)).toBe("Runtime status failed")
+    render(<>{runtimeStatusToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("Runtime #91")).toBeInTheDocument()
+    expect(screen.getByText("runtime provider unavailable")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["runtime_status", (payload: unknown) => payload],
+    ["mcp__syrus-chat-sidecar__runtime_status", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["syrus-chat-sidecar.runtime_status", (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null })]
+  ])("normalizes %s status envelopes through the real redacted ToolGroup path", (rawName, envelope) => {
+    const payload = { session_payload: session({ id: 23, metadata: { api_token: "secret-value-that-must-not-render" } }) }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime status",
+      calls: [
+        {
+          message_id: 23,
+          tool_name: "Runtime status",
+          raw_name: rawName,
+          detail: "session_id: 23",
+          display_label: "Runtime status",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 23 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/Runtime #23: running/)).toBeInTheDocument()
+    expandToolGroup("Runtime status")
+    expect(screen.getByText("Runtime #23", { selector: "a" })).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
+  })
+
+  it("renders an otherwise empty status result from its input session id", () => {
+    const toolContext = context("runtime_status", { input: { session_id: 92 }, parsedResult: {} })
+
+    expect(runtimeStatusToolCard.collapsedSummary?.(toolContext)).toBe("Runtime #92: unknown, no active agent lease")
+    render(<>{runtimeStatusToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("Runtime #92")).toBeInTheDocument()
+    expect(screen.getByText("no lease")).toBeInTheDocument()
   })
 
   it("summarizes a started Runtime session with state, command details, and URL", () => {
