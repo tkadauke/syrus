@@ -65,6 +65,7 @@ class ChatPendingAction < ApplicationRecord
     repair_provider_circuit_evidence
     clear_provider_circuit
     wake_provider_admission
+    mutate_provider_routing_rules
     local_tool_call
     spawn_chat
     accept_insights

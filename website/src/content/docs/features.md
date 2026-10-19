@@ -863,6 +863,11 @@ an already-running provider process. Usage-based rules can match provider state
 or remaining-capacity thresholds, and fresh provider evidence wakes matching
 holds immediately rather than waiting for their safety timer.
 Existing workflow pins are not rewritten.
+Chat agents can inspect those same user, repository, and Job rule sets, explain
+the effective first-match decision, and prepare atomic rule changes for operator
+confirmation. Every change requires the latest rule-set revision, displays a
+before/after summary, and is rechecked when confirmed so a stale request cannot
+overwrite newer edits.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
 workspace remains available, retry or rebuild landing workflows for landing
