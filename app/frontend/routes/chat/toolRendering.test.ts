@@ -119,6 +119,18 @@ describe("toolPresentation", () => {
 })
 
 describe("toolResultPresentation", () => {
+  it("normalizes a prefixed list_files Codex envelope before card dispatch", () => {
+    const result = toolResultPresentation(
+      "mcp__syrus-chat-sidecar__list_files",
+      JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify({ files: [{ name: "README.md", is_dir: false }] }) }],
+        structured_content: null
+      })
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "1 item" })
+  })
+
   it("normalizes a Codex MCP envelope with JSON text before custom-card summary dispatch", () => {
     const result = toolResultPresentation(
       "read_job",
