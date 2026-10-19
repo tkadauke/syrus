@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import listRepositoriesToolCard from "./list_repositories"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -34,22 +35,68 @@ describe("list_repositories tool card", () => {
     expect(screen.getByText("No repositories found.")).toBeInTheDocument()
   })
 
-  it("renders a table row per repository and the pagination footer", () => {
+  it("renders every repository field, input filters, and complete pagination", () => {
     const parsedResult = {
       repositories: [
-        { id: 1, slug: "tkadauke/syrus", owner: "tkadauke", name: "syrus", default_branch: "main", epic_dependency_policy: "linear" }
+        {
+          id: 1,
+          slug: "tkadauke/syrus",
+          owner: "tkadauke",
+          name: "syrus",
+          default_branch: "main",
+          epic_dependency_policy: "linear",
+          created_at: "2026-01-08T12:30:00Z"
+        }
       ],
-      pagination: { page: 2, per_page: 20, total_count: 21, total_pages: 2, has_next_page: false }
+      pagination: { page: 2, per_page: 20, total_count: 41, total_pages: 3, has_next_page: true }
     }
 
-    render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
+    render(<>{listRepositoriesToolCard.renderExpanded(context({ input: { page: 2, per_page: 20 }, parsedResult }))}</>)
 
-    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/1")
-    fireEvent.click(screen.getByRole("button", { name: "Copy tkadauke/syrus to clipboard" }))
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "/repositories/1")
+    fireEvent.click(screen.getAllByRole("button", { name: "Copy tkadauke/syrus to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("tkadauke/syrus")
-    expect(screen.getByText("main")).toBeInTheDocument()
-    expect(screen.getByText("linear")).toBeInTheDocument()
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument()
+    for (const value of ["tkadauke", "syrus", "main", "linear", "2026-01-08T12:30:00Z"]) {
+      expect(screen.getAllByText(value).length).toBeGreaterThan(0)
+    }
+    expect(screen.getByText("Requested: page 2 · 20 per page")).toBeInTheDocument()
+    expect(screen.getByText("Page 2 of 3 · 20 per page · 41 total · More pages available")).toBeInTheDocument()
+  })
+
+  it("links to the provider URL when the payload supplies one", () => {
+    const parsedResult = {
+      repositories: [{ id: 1, slug: "tkadauke/syrus", html_url: "https://github.com/tkadauke/syrus" }],
+      pagination: { page: 1, per_page: 20, total_count: 1, total_pages: 1, has_next_page: false }
+    }
+    render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+  })
+
+  it("uses stacked mobile rows and a fixed wrapping desktop table without overflow containers", () => {
+    const parsedResult = { repositories: [{ id: 1, slug: "acme/a-very-long-repository-name" }], pagination: {} }
+    const { container } = render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(container.querySelector(".sm\\:hidden")).toBeInTheDocument()
+    expect(container.querySelector("table")).toHaveClass("hidden", "table-fixed", "sm:table")
+    expect(container.querySelector(".overflow-x-auto")).not.toBeInTheDocument()
+  })
+
+  it("renders result errors with the shared failure presentation", () => {
+    const toolContext = context({ input: { page: 4 }, resultError: true, resultBody: "Repository service unavailable" })
+    expect(listRepositoriesToolCard.collapsedSummary?.(toolContext)).toBe("Repository list failed: Repository service unavailable")
+    render(<>{listRepositoriesToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("Repository list failed")).toBeInTheDocument()
+    expect(screen.getByText("Repository service unavailable")).toBeInTheDocument()
+    expect(screen.getByText("page 4")).toBeInTheDocument()
+  })
+
+  it("renders equivalent Claude and Codex MCP envelopes after shared normalization", () => {
+    const payload = { repositories: [{ id: 7, slug: "acme/widgets" }], pagination: { total_count: 1 } }
+    const codexEnvelope = { content: [{ type: "text", text: JSON.stringify(payload) }] }
+
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__list_repositories")).toBe("list_repositories")
+    expect(normalizedToolName("syrus-chat-sidecar.list_repositories")).toBe("list_repositories")
+    expect(listRepositoriesToolCard.collapsedSummary?.(context({ parsedResult: payload }))).toBe("1 repository")
+    expect(listRepositoriesToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(codexEnvelope) }))).toBe("1 repository")
   })
 
   it("falls back to null for a malformed payload", () => {
