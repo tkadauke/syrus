@@ -59,6 +59,21 @@ describe("MarkdownPreview", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("Review JOB-42"))
   })
 
+  it("offers expansion when responsive line clamping causes rendered overflow", () => {
+    const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(32)
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(80)
+    const text = "This summary is below the character cutoff but wraps beyond two lines inside a narrow card."
+
+    render(<MarkdownPreview maxChars={320} maxLines={2} text={text} />)
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText(text)).toBeInTheDocument()
+
+    clientHeight.mockRestore()
+    scrollHeight.mockRestore()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 

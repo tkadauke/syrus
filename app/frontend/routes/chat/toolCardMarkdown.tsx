@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Modal } from "../../components/Modal"
@@ -49,8 +49,32 @@ export function MarkdownPreview({
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
   const [open, setOpen] = useState(false)
+  const [renderedOverflow, setRenderedOverflow] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const empty = !text.trim()
   const truncated = useMemo(() => truncateMarkdown(text, maxLines, maxChars), [text, maxChars, maxLines])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (!preview || empty) {
+      setRenderedOverflow(false)
+      return
+    }
+
+    const measure = () => {
+      setRenderedOverflow(preview.clientHeight > 0 && preview.scrollHeight > preview.clientHeight + 1)
+    }
+
+    measure()
+    window.addEventListener("resize", measure)
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    observer?.observe(preview)
+
+    return () => {
+      window.removeEventListener("resize", measure)
+      observer?.disconnect()
+    }
+  }, [empty, maxLines, text, truncated.preview])
 
   if (empty) return emptyState
 
@@ -65,11 +89,16 @@ export function MarkdownPreview({
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
-      <div className="break-words text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="markdown-preview-content" style={lineClampStyle}>
+      <div
+        className="break-words text-xs text-text-muted [overflow-wrap:anywhere]"
+        data-testid="markdown-preview-content"
+        ref={previewRef}
+        style={lineClampStyle}
+      >
         {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick })}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated ? (
+      {truncated.truncated || renderedOverflow ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
