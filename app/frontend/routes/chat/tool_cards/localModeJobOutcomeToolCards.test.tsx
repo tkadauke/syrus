@@ -14,6 +14,8 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["create_coding_job", createCodingJobCard]
 ]
 
+const LEGACY_FALLBACK_CARDS = CARDS.filter(([name]) => name !== "cancel_local_mode")
+
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "", resultBody: "", resultError: false, parsedResult: null, ...overrides }
 }
@@ -25,9 +27,19 @@ describe("Local Mode job-outcome tool card family", () => {
     for (const [name, card] of CARDS) expect(card.toolName).toBe(name)
   })
 
-  it.each(CARDS)("%s falls back to null for a malformed payload", (_name, card) => {
+  it.each(LEGACY_FALLBACK_CARDS)("%s falls back to null for a malformed payload", (_name, card) => {
     expect(card.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(card.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
+  })
+
+  it("cancel_local_mode owns its malformed and empty states", () => {
+    const malformed = context({ input: { job_id: 42 }, parsedResult: { oops: true } })
+    expect(cancelLocalModeCard.collapsedSummary?.(malformed)).toBe("No outcome returned for JOB-42")
+    expect(cancelLocalModeCard.renderExpanded(malformed)).not.toBeNull()
+
+    const empty = context()
+    expect(cancelLocalModeCard.collapsedSummary?.(empty)).toBe("No job outcome returned")
+    expect(cancelLocalModeCard.renderExpanded(empty)).not.toBeNull()
   })
 
   it.each(CARDS)("%s summarizes and wires through a well-formed payload", (_name, card) => {
