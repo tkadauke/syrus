@@ -15,6 +15,7 @@ module SyrusMcp
     MAX_IMAGE_BYTES = 10.megabytes
     ALLOWED_CONTENT_TYPES = %w[image/png image/jpeg image/webp].freeze
     DEFAULT_CONTENT_TYPE = "image/png"
+    DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION = 0.5
     EXTENSIONS = { "image/png" => "png", "image/jpeg" => "jpg", "image/webp" => "webp" }.freeze
 
     description <<~DESC
@@ -55,6 +56,10 @@ module SyrusMcp
           type: "string",
           description: "Optional subject to bring into view before capturing the current browser. Pass either an exact browser_snapshot ref such as 'e12' or a CSS selector such as '[data-testid=results]'."
         },
+        minimum_subject_visible_fraction: {
+          type: "number",
+          description: "Minimum fraction of the subject area that must be visible in the viewport, from 0 through 1. Defaults to 0.5. Subjects taller than the viewport instead require their top edge to be visible."
+        },
         content_type: {
           type: "string",
           description: "Image MIME type. One of image/png, image/jpeg, image/webp. Defaults from image_path extension, else image/png."
@@ -64,7 +69,7 @@ module SyrusMcp
     )
 
     class << self
-      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, subject: nil, content_type: nil)
+      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, subject: nil, minimum_subject_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION, content_type: nil)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_visual_artifact)
@@ -78,7 +83,10 @@ module SyrusMcp
         return Mcp::Tools.invalid("title is required") if artifact_title.empty?
         return Mcp::Tools.invalid(image_source[:error]) if image_source[:error]
 
-        captured = read_image_data(image_source, run)
+        minimum_visible_fraction = normalize_minimum_visible_fraction(minimum_subject_visible_fraction)
+        return Mcp::Tools.invalid("minimum_subject_visible_fraction must be a number from 0 through 1") if minimum_visible_fraction.nil?
+
+        captured = read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
         return Mcp::Tools.invalid(captured[:error]) if captured[:error]
 
         image_data = captured.fetch(:data)
@@ -156,7 +164,7 @@ module SyrusMcp
         { kind: :current_browser, source: "current_browser", subject: subject_text.presence }
       end
 
-      def read_image_data(image_source, run)
+      def read_image_data(image_source, run, minimum_visible_fraction:)
         case image_source[:kind]
         when :base64
           data = decode_image(image_source[:value])
@@ -171,16 +179,28 @@ module SyrusMcp
 
           { data: File.binread(path), source: image_source[:source] }
         when :current_browser
-          capture_current_browser(run, image_source[:subject])
+          capture_current_browser(run, image_source[:subject], minimum_visible_fraction: minimum_visible_fraction)
         else
           { error: "image_path, image_base64, or capture_current_browser is required" }
         end
       end
 
-      def capture_current_browser(run, subject = nil)
+      def capture_current_browser(run, subject = nil, minimum_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION)
+        subject_metadata = {}
         if subject.present?
           scrolled = scroll_subject_into_view(run, subject)
           return scrolled if scrolled[:error]
+
+          visibility = subject_visibility(scrolled, minimum_visible_fraction: minimum_visible_fraction)
+          return { error: subject_visibility_error(subject, visibility[:fraction]) } unless visibility[:satisfied]
+
+          subject_metadata = {
+            "subject" => subject,
+            "subject_visible_fraction" => visibility[:fraction],
+            "subject_rect" => scrolled.fetch(:rect),
+            "scroll_position" => scrolled.fetch(:scroll_position),
+            "viewport" => scrolled.fetch(:viewport)
+          }
         end
 
         response = call_browser_tool(run, "browser_screenshot", {})
@@ -196,7 +216,7 @@ module SyrusMcp
           data: data,
           source: "current_browser",
           content_type: image[:mimeType].presence || image[:mime_type].presence || DEFAULT_CONTENT_TYPE,
-          metadata: current_browser_metadata(run)
+          metadata: current_browser_metadata(run).deep_merge(subject_metadata)
         }
       end
 
@@ -216,7 +236,11 @@ module SyrusMcp
               element.scrollIntoView({ block: "center", inline: "nearest" });
               await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 100)));
               rect = element.getBoundingClientRect();
-              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+              return {
+                rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+                scrollPosition: { x: window.scrollX, y: window.scrollY }
+              };
             }
           JS
         else
@@ -240,7 +264,11 @@ module SyrusMcp
               element.scrollIntoView({ block: "center", inline: "nearest" });
               await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 100)));
               const rect = element.getBoundingClientRect();
-              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+              return {
+                rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+                scrollPosition: { x: window.scrollX, y: window.scrollY }
+              };
             }
           JS
         end
@@ -251,16 +279,58 @@ module SyrusMcp
         return { error: "visual artifact subject could not be brought into view: #{tool_error_text(response)}" } if response.nil? || response.error?
 
         text = response.content.find { |block| block.is_a?(Hash) && block[:type] == "text" }&.dig(:text)
-        rect = parse_browser_evaluate_json(text)
-        return { error: "visual artifact subject did not return an element rectangle" } unless rect.is_a?(Hash) && rect["width"].present? && rect["height"].present?
+        result = parse_browser_evaluate_json(text)
+        rect = result["rect"] if result.is_a?(Hash)
+        viewport = result["viewport"] if result.is_a?(Hash)
+        scroll_position = result["scrollPosition"] if result.is_a?(Hash)
+        unless valid_dimensions?(rect) && valid_dimensions?(viewport) && scroll_position.is_a?(Hash)
+          return { error: "visual artifact subject did not return its rectangle, viewport, and scroll position" }
+        end
 
-        { rect: rect }
+        { rect: rect, viewport: viewport, scroll_position: scroll_position.slice("x", "y") }
       rescue JSON::ParserError, TypeError => e
         { error: "visual artifact subject returned an invalid element rectangle: #{e.message}" }
       end
 
       def browser_snapshot_ref?(subject)
         subject.match?(/\Ae\d+\z/)
+      end
+
+      def normalize_minimum_visible_fraction(value)
+        fraction = Float(value)
+        fraction if fraction.between?(0.0, 1.0)
+      rescue ArgumentError, TypeError
+        nil
+      end
+
+      def valid_dimensions?(value)
+        value.is_a?(Hash) && value["width"].to_f.positive? && value["height"].to_f.positive?
+      end
+
+      def subject_visibility(scrolled, minimum_visible_fraction:)
+        rect = scrolled.fetch(:rect)
+        viewport = scrolled.fetch(:viewport)
+        width = rect.fetch("width").to_f
+        height = rect.fetch("height").to_f
+        viewport_width = viewport.fetch("width").to_f
+        viewport_height = viewport.fetch("height").to_f
+        left = rect.fetch("x").to_f
+        top = rect.fetch("y").to_f
+        intersection_width = [ [ left + width, viewport_width ].min - [ left, 0 ].max, 0 ].max
+        intersection_height = [ [ top + height, viewport_height ].min - [ top, 0 ].max, 0 ].max
+        fraction = ((intersection_width * intersection_height) / (width * height)).round(4)
+        satisfied = if height > viewport_height
+          top.between?(0, viewport_height - Float::EPSILON) && intersection_width.positive?
+        else
+          fraction >= minimum_visible_fraction
+        end
+
+        { fraction: fraction, satisfied: satisfied }
+      end
+
+      def subject_visibility_error(subject, fraction)
+        percentage = (fraction * 100).round
+        "subject #{subject.inspect} is only #{percentage}% visible; scroll or resize and retry"
       end
 
       def current_browser_metadata(run)
@@ -378,6 +448,10 @@ module SyrusMcp
         {}.tap do |payload|
           payload["page"] = page if page.present?
           payload["viewport"] = normalize_viewport(viewport) if viewport.present?
+          payload["subject"] = metadata["subject"] if metadata["subject"].present?
+          payload["subject_visible_fraction"] = metadata["subject_visible_fraction"] if metadata.key?("subject_visible_fraction")
+          payload["subject_rect"] = metadata["subject_rect"] if metadata["subject_rect"].is_a?(Hash)
+          payload["scroll_position"] = metadata["scroll_position"] if metadata["scroll_position"].is_a?(Hash)
         end
       end
 

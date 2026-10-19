@@ -297,7 +297,10 @@ The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`,
 image-capable sibling of `submit_artifact`. The preferred path is
 `capture_current_browser: true` (also the default when no image input is
 provided), which captures the active MCP browser session and stamps page
-provenance. The tool still accepts `image_path` for an existing screenshot
+provenance. A supplied `subject` is scrolled into view and must have at least
+half its area in the viewport by default before capture; the artifact records
+the subject rectangle, visible fraction, and scroll position. The tool still
+accepts `image_path` for an existing screenshot
 file inside the workflow workspace or `image_base64` when image bytes are
 already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists the image as
 an ActiveStorage blob on the current Workflow, and records a `typed_artifacts`

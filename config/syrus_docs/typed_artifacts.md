@@ -195,9 +195,25 @@ Rendered as a single after screenshot (`:image_diff` renderer). Payload written 
     "width": 1440,
     "height": 900,
     "device_scale_factor": 1
+  },
+  "subject": "[data-testid=credential-list]",
+  "subject_visible_fraction": 1.0,
+  "subject_rect": {
+    "x": 120,
+    "y": 180,
+    "width": 960,
+    "height": 420
+  },
+  "scroll_position": {
+    "x": 0,
+    "y": 640
   }
 }
 ```
+
+When a subject is supplied, capture is rejected unless at least half of its
+area is inside the viewport by default. Callers may configure that fraction;
+subjects taller than the viewport instead require their top edge to be visible.
 
 ### `visual_diff_comparison`
 
