@@ -20,7 +20,6 @@ module Admin
       "assign_job_to_epic" => "generic",
       "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
-      "get_spending" => "deferred",
       "manual_agentic_run" => "generic",
       "cancel_coding_checkout" => "generic",
       "credential_store_ssh_exec" => "generic",

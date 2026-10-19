@@ -388,6 +388,8 @@ RSpec.describe "chat MCP custom-card coverage inventory" do
       end
 
     expect(explicit_tool_names & registered_tool_names).to eq([])
+    expect(registered_tool_names).to include("get_spending")
+    expect(explicit_tool_names).not_to include("get_spending")
   end
 
   def advertised_chat_contexts
