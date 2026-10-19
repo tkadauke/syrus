@@ -35,7 +35,7 @@ describe("pinned context tool cards", () => {
     expect(screen.getByText("updated")).toBeInTheDocument()
     expect(screen.getByText("31")).toBeInTheDocument()
     expect(screen.getByText(String(parsedResult.pinned_context.length))).toBeInTheDocument()
-    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-9" })).toHaveAttribute("href", "/chats/9")
     expect(screen.getByText("12")).toBeInTheDocument()
     expect(screen.getByText("Context preview")).toBeInTheDocument()
     expect(screen.getByText(/Line 1: remember/)).toBeInTheDocument()
@@ -70,8 +70,9 @@ describe("pinned context tool cards", () => {
   it("renders pending and empty states", () => {
     const pending = context("update_pinned_context", { input: { content: "Incoming" } })
     expect(updatePinnedContextToolCard.collapsedSummary?.(pending)).toBe("Updating pinned context")
-    render(<>{updatePinnedContextToolCard.renderExpanded(pending)}</>)
+    render(<>{updatePinnedContextToolCard.renderPending?.(pending)}</>)
     expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Incoming")).toBeInTheDocument()
 
     render(<>{updatePinnedContextToolCard.renderExpanded(context("update_pinned_context", { parsedResult: { pinned_context: "", message: "Cleared." } }))}</>)
     expect(screen.getByText("Pinned context is empty.")).toBeInTheDocument()

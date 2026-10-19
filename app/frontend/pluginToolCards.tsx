@@ -61,6 +61,8 @@ export type ToolCardRenderer = {
   // regardless of which body renders (see MessageCards.tsx ToolGroup),
   // and the row itself stays collapsed by default .
   renderExpanded: (context: ToolCardContext) => ReactNode | null
+  // Optional body for a call that has not produced a result yet.
+  renderPending?: (context: ToolCardContext) => ReactNode | null
 }
 
 // Which provider's raw result shape a fixture simulates. Both providers
@@ -236,4 +238,16 @@ export function pluginToolCardCollapsedSummary(context: ToolCardContext): string
 
 export function pluginToolCardExpandedBody(context: ToolCardContext): ReactNode | null {
   return renderToolCard(pluginToolCardRendererFor(context.toolName), context)
+}
+
+export function pluginToolCardPendingBody(context: ToolCardContext): ReactNode | null {
+  const renderer = pluginToolCardRendererFor(context.toolName)
+  if (!renderer?.renderPending) return null
+
+  try {
+    return renderer.renderPending(context) ?? null
+  } catch (error) {
+    logCardError("renderPending", context.toolName, error)
+    return null
+  }
 }
