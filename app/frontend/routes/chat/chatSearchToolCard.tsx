@@ -451,6 +451,7 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
                     <EntityReference id={job.id} kind="job" slug={job.slug} />
                     {job.title ? <span className="break-words text-text-secondary">{job.title}</span> : null}
                     {job.state ? <StatePill state={job.state} /> : null}
+                    {job.repository ? <EntityReference kind="repository" repositoryId={job.repositoryId} repositorySlug={job.repository} /> : null}
                   </span>
                 ))}
               </div>
