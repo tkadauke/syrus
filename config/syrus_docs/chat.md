@@ -479,6 +479,16 @@ uses `delay_minutes` for short relative reminders within 24 hours, or `fire_at`
 with an absolute UTC ISO 8601 timestamp for specific dates/times and longer
 one-shot reminders.
 
+The agent can inspect pending one-shot wakeups with `list_wakeups` and cancel
+one with `cancel_wakeup`. A successful cancellation returns the wakeup ID,
+stored prompt, and original `fire_at` timestamp so the transcript card retains
+the context of what was cancelled. The card presents the wakeup as a copyable
+`WAKEUP-<id>` entity reference and wraps long prompts on narrow screens. If the
+ID is missing, belongs to another chat, or is no longer pending, the tool
+returns `wakeup not found or not pending` and the transcript renders that as a
+dedicated error state. Tool-card payloads still pass through the shared
+redaction boundary before rendering.
+
 ## Coding Mode existing-Job takeover
 
 Coding Mode exposes `open_in_coding_mode(job_id)` to let a chat agent take over

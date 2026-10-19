@@ -929,7 +929,10 @@ so the wakeup and any follow-up action remain part of the transcript. The
 agent can schedule short relative wakeups with `delay_minutes`, or schedule a
 specific absolute UTC time with `fire_at` in ISO 8601 form for calendar dates
 and longer reminders. It can list pending wakeups for the current chat and
-cancel any that are no longer needed.
+cancel any that are no longer needed. A cancellation card identifies the
+wakeup and, when available, shows its scheduled time and prompt so the
+transcript preserves what was cancelled. Attempts to cancel an unknown or
+already-fired wakeup appear as an explicit error instead of raw tool output.
 
 The chat agent can also send a message to another one of the same operator's
 chat sessions, opening a bounded, visibly-marked message thread and waking the
