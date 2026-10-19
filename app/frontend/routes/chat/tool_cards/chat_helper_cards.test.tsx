@@ -41,18 +41,6 @@ beforeEach(() => {
       pluginPreviewComponent: null
     },
     {
-      prefix: "DOC",
-      type: "design_doc",
-      displayLabel: "Design Doc",
-      copyable: true,
-      linkable: true,
-      previewAvailable: false,
-      linkifiesGeneratedText: true,
-      hrefTemplate: "/design_docs/:id",
-      mobileInteractionHints: {},
-      pluginPreviewComponent: null
-    },
-    {
       prefix: "CHAT",
       type: "chat",
       displayLabel: "Chat",
