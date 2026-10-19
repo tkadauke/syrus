@@ -98,9 +98,7 @@ function renderRepositoryList(repositories: RepositoryReference[]) {
 }
 
 function ProposalInputDetails({ proposal, collaborators = [] }: { proposal: ProposalInput; collaborators?: CollaboratorReference[] }) {
-  const proposedCollaborators = collaborators.filter(
-    (collaborator) => collaborator.id != null && proposal.collaboratorIds.includes(collaborator.id)
-  )
+  const proposedCollaborators = collaborators.filter((collaborator) => collaborator.id != null && proposal.collaboratorIds.includes(collaborator.id))
 
   return (
     <div className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface p-2">

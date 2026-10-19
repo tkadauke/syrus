@@ -47,11 +47,7 @@ const parsedResult = {
     current_version_number: 3,
     markdown: `# Created body\n\nThe complete result for DOC-42. ${"Result details. ".repeat(100)}`,
     repositories: [{ id: 41, slug: "acme/widgets" }],
-    collaborators: [
-      { id: 7, name: "Ada", email_address: "ada@example.com" },
-      { id: 8, name: " ", email_address: "grace@example.com" },
-      { id: 9 }
-    ]
+    collaborators: [{ id: 7, name: "Ada", email_address: "ada@example.com" }, { id: 8, name: " ", email_address: "grace@example.com" }, { id: 9 }]
   },
   note: "For later changes, use **suggest_design_doc_change**."
 }
