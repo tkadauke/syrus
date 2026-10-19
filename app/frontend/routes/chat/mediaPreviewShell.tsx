@@ -28,6 +28,11 @@ export type MediaPreviewItem = {
   previewChildren?: ReactNode
 }
 
+const MOBILE_MODAL_CLASS = "relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white shadow-lg dark:bg-gray-900"
+const DESKTOP_MODAL_CLASS = "sm:h-auto sm:w-[min(960px,100vw-2rem)] sm:rounded"
+const MODAL_ACTION_CLASS = "inline-flex min-h-11 items-center rounded border border-gray-200 px-3 py-2 text-2xs font-semibold uppercase"
+const MODAL_ACTION_TONE_CLASS = "text-gray-600 hover:border-brand/50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+
 export function MediaPreviewShell({
   item,
   thumbnailClassName = "w-56",
@@ -91,11 +96,11 @@ function MediaPreviewModal({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-0 sm:p-4" onClick={onClose} role="presentation">
       <section
         aria-label={modalLabel}
         aria-modal="true"
-        className="relative flex max-h-full w-[min(960px,100vw-2rem)] flex-col overflow-hidden rounded bg-white shadow-lg dark:bg-gray-900"
+        className={`${MOBILE_MODAL_CLASS} ${DESKTOP_MODAL_CLASS}`}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
@@ -106,7 +111,7 @@ function MediaPreviewModal({
           </div>
           <button
             aria-label="Close media preview"
-            className="rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
             onClick={onClose}
             type="button"
           >
@@ -168,7 +173,7 @@ function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
   if (action.copyValue) {
     return (
       <button
-        className="rounded border border-gray-200 px-2 py-1 text-2xs font-semibold uppercase text-gray-600 hover:border-brand/50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+        className={`${MODAL_ACTION_CLASS} ${MODAL_ACTION_TONE_CLASS}`}
         onClick={() => copy(action.copyValue ?? "")}
         title={copied ? "Copied" : action.label}
         type="button"
@@ -182,7 +187,7 @@ function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
 
   return (
     <a
-      className="rounded border border-gray-200 px-2 py-1 text-2xs font-semibold uppercase text-gray-600 hover:border-brand/50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+      className={`${MODAL_ACTION_CLASS} ${MODAL_ACTION_TONE_CLASS}`}
       download={action.download ? true : undefined}
       href={action.href}
       rel="noreferrer"

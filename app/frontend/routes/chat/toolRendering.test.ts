@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { NO_ARGUMENTS_SENTINEL, fullResultBody, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
+import { NO_ARGUMENTS_SENTINEL, fullResultBody, normalizedToolCardContentBlocks, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -284,6 +284,18 @@ describe("normalizedToolCardParsedResult", () => {
     const payload = { content: [{ type: "image", data: "abc123" }], structured_content: null }
 
     expect(normalizedToolCardParsedResult(payload)).toBe(payload)
+  })
+})
+
+describe("normalizedToolCardContentBlocks", () => {
+  it("extracts direct, MCP-wrapped, structured, Codex, and Muse content blocks", () => {
+    const image = { type: "image", data: "abc123", mimeType: "image/png" }
+
+    expect(normalizedToolCardContentBlocks([image])).toEqual([image])
+    expect(normalizedToolCardContentBlocks({ content: [image] })).toEqual([image])
+    expect(normalizedToolCardContentBlocks({ structured_content: { content: [image] } })).toEqual([image])
+    expect(normalizedToolCardContentBlocks({ output: { content: [image] } })).toEqual([image])
+    expect(normalizedToolCardContentBlocks({ payload: { result: { content: [image] } } })).toEqual([image])
   })
 })
 
