@@ -97,12 +97,13 @@ RSpec.describe ProcessRunner, :ci_only do
     ).run
 
     expect(result).to be_success
-    expect(fragments.join + complete_lines.join).to eq(payload)
+    expect(fragments.join).to eq(payload)
+    expect(complete_lines).to be_empty
     expect(fragments.map(&:bytesize)).to eq([
       described_class::MAX_OUTPUT_LINE_BYTES,
-      described_class::MAX_OUTPUT_LINE_BYTES
+      described_class::MAX_OUTPUT_LINE_BYTES,
+      17
     ])
-    expect(complete_lines.map(&:bytesize)).to eq([ 17 ])
   end
 
   it "captures bounded, distinct stdout and stderr while writing stdin" do
