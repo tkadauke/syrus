@@ -2278,6 +2278,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       accepted = Factories.job_record(repository: repo, issue_number: 12)
       proposed = Factories.job_record(repository: repo, issue_number: nil, kind: "direct", issue_title: "Proposed from investigation")
       skipped = Factories.job_record(repository: repo, issue_number: 13)
+      placement = Factories.job_record(repository: repo, issue_number: 14)
       accepted.update_columns(
         state: "triaging",
         triaging_reason: "classifier_uncertain",
@@ -2285,10 +2286,11 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
       proposed.update_columns(state: "triaging", triaging_reason: "proposed_job")
       skipped.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+      placement.update_columns(state: "triaging", triaging_reason: "placement_confirmation", placement_recommendation_status: "pending")
       allow(AppEvents).to receive(:broadcast)
 
       post "/api/v1/app/dashboard/jobs/bulk",
-           params: { job_ids: [ accepted.id, proposed.id, skipped.id ], bulk_action: "accept_triage" },
+           params: { job_ids: [ accepted.id, proposed.id, skipped.id, placement.id ], bulk_action: "accept_triage" },
            as: :json
 
       expect(response).to have_http_status(:ok)
@@ -2297,9 +2299,10 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(proposed.reload).to be_queued
       expect(proposed.triaging_reason).to eq("proposed_job")
       expect(skipped.reload).to be_triaging
-      expect(parse_body["message"]).to eq("Accepted 2 jobs for work. Skipped 1 job.")
+      expect(placement.reload).to be_triaging
+      expect(parse_body["message"]).to eq("Accepted 2 jobs for work. Skipped 2 jobs.")
       expect(parse_body["affected_job_ids"]).to eq([ accepted.id, proposed.id ])
-      expect(parse_body["skipped_job_ids"]).to eq([ skipped.id ])
+      expect(parse_body["skipped_job_ids"]).to contain_exactly(skipped.id, placement.id)
       expect(AppEvents).to have_received(:broadcast).with(
         user: user,
         type: "updated",

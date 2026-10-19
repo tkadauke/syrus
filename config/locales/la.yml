@@ -310,6 +310,7 @@ la:
       moved_to_backlog: "Opus in acervum motum est."
       not_awaiting_triage: "%{slug} trianam non exspectat."
       accepted: "Opus acceptum est."
+      placement_decision_required: "Antequam hoc opus accipias, locum suasum aut Linux elige."
       rejected: "Opus reiectum est."
       retry_enqueued: "Fluxus iterationis in ordinem positus est."
       retry_enqueued_with_provider: "Fluxus iterationis cum %{provider} in ordinem positus est."

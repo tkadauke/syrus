@@ -114,6 +114,13 @@ set an explicit planned execution requirement, and the chat proposal tools
 require one. Capabilities are declared, never guessed from the request text: a
 Job created without them runs on the repository's `.syrus.yml` project
 capabilities when it declares any, and the ordinary Linux default otherwise.
+During GitHub issue ingestion, the classifier may store an advisory named
+profile recommendation, but it cannot write that recommendation into active
+placement. Non-Linux recommendations remain in triage until an operator either
+confirms the suggested capabilities or chooses Linux. The macOS desktop
+profile does not imply Xcode or an iOS simulator; those capabilities belong
+only to the distinct iOS/Xcode profile. Dashboard bulk acceptance skips Jobs
+that require this individual placement decision.
 Supported dimensions are `os`, `arch`, `toolchain`, and `runtime`. `os` accepts
 `linux` or `macos`; the other dimensions accept normalized tokens such as
 `arm64`, `xcode`, and `ios_simulator`.
