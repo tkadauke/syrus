@@ -300,7 +300,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       title: "M3 proposals",
       description: "Make proposal review atomic.",
       state: "proposed",
-      kind: "epic"
+      kind: "epic",
+      depends_on_job_ids: [ prerequisite_job.id ]
     )
     expect(payload.fetch(:child_jobs)).to include(
       include(
@@ -1446,6 +1447,10 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       snapshot_kind: "manual",
       element_count: 0
     )
+    image = Document.new(kind: "file", attachable: user, user: user, content_type: "image/png", filename: "layout.png")
+    image.file.attach(io: StringIO.new("pixels"), filename: "layout.png", content_type: "image/png")
+    image.save!
+    ChatAttachment.create!(chat_session: chat_session, attachable: image, suppress_header_broadcast: true)
 
     response = call_tool(
       epic: { slug: "media-epic", title: "Media Epic", description: "Attach media to jobs.", target_repo: repository.slug },
@@ -1455,7 +1460,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           target_repo: repository.slug,
           title: "Job with media",
           description: "Attach the whiteboard.",
-          media: [ "snapshot:#{snapshot.id}" ]
+          media: [ "snapshot:#{snapshot.id}", "chat_image:#{image.id}" ]
         },
         {
           slug: "no-media-job",
@@ -1470,8 +1475,17 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(response[:result][:isError]).to be_falsey
     media_job = chat_session.proposals.find_by!(slug: "media-job")
     no_media_job = chat_session.proposals.find_by!(slug: "no-media-job")
-    expect(media_job.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
+    expect(media_job.media_ids).to eq([ "snapshot:#{snapshot.id}", "chat_image:#{image.id}" ])
     expect(no_media_job.media_ids).to eq([])
+    expect(response_payload(response).fetch(:child_jobs).first.fetch(:media_previews)).to include(
+      include(id: "snapshot:#{snapshot.id}", kind: "snapshot", name: "Board snapshot"),
+      include(
+        id: "chat_image:#{image.id}",
+        kind: "chat_image",
+        filename: "layout.png",
+        file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{image.id}/file"
+      )
+    )
   end
 
   describe "tool schema descriptions" do

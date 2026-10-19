@@ -14,6 +14,7 @@ import {
 
 type Execution = { project: string | null; target: string | null; capabilities: string | null; source: string | null }
 type MaterializedJob = { id: string; title: string | null; state: string | null }
+type Media = { ref: string; title: string; subtitle: string | null; src: string | null; badge: string }
 type Child = {
   id: string | null
   slug: string
@@ -28,7 +29,7 @@ type Child = {
   requirements: string[]
   execution: Execution | null
   goalId: string | null
-  media: string[]
+  media: Media[]
   materialized: MaterializedJob | null
 }
 type Outcome = {
@@ -41,6 +42,7 @@ type Outcome = {
   targetEpicLabel: string | null
   proposals: string[]
   epics: string[]
+  jobs: string[]
   goalId: string | null
   children: Child[]
 }
@@ -95,6 +97,28 @@ function requirements(value: unknown) {
   })
 }
 
+function media(value: unknown, previewsValue: unknown): Media[] {
+  const previews = Array.isArray(previewsValue) ? previewsValue.filter(object) : []
+  const byRef = new Map(
+    previews.flatMap((preview) => {
+      const ref = displayValue(preview.id)
+      return ref ? [[ref, preview] as const] : []
+    })
+  )
+  return strings(value).map((ref) => {
+    const preview = byRef.get(ref)
+    const badge = displayValue(preview?.kind) || ref.split(":")[0]?.replace(/_/g, " ") || "media"
+    const path = displayValue(preview?.file_path) || displayValue(preview?.image_url)
+    return {
+      ref,
+      title: displayValue(preview?.filename) || displayValue(preview?.name) || ref,
+      subtitle: displayValue(preview?.content_type) || displayValue(preview?.created_at),
+      src: path && (path.startsWith("/") || path.startsWith("data:image/")) ? path : null,
+      badge
+    }
+  })
+}
+
 function parseChildren(value: unknown): Child[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -117,7 +141,7 @@ function parseChildren(value: unknown): Child[] {
         requirements: requirements(item.dependency_requirements),
         execution: execution(item.planned_execution),
         goalId: goalId(item.goal_provenance),
-        media: strings(item.media ?? item.media_ids),
+        media: media(item.media ?? item.media_ids, item.media_previews),
         materialized: materialized(item.materialized)
       }
     ]
@@ -141,6 +165,7 @@ function parse(context: ToolCardContext): Outcome | null {
     targetEpicLabel: object(value.target_epic) ? displayValue(value.target_epic.label) : null,
     proposals: [...new Set([...strings(value.depends_on_proposal_slugs), ...dependencies.filter((token) => !/^epic:\d+$/.test(token))])],
     epics: dependencies.flatMap((token) => token.match(/^epic:(\d+)$/)?.[1] || []),
+    jobs: strings(value.depends_on_job_ids),
     goalId: goalId(value.goal_provenance),
     children: parseChildren(value.child_jobs)
   }
@@ -244,10 +269,18 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
             <div>
               <SectionLabel>Media</SectionLabel>
               <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {child.media.map((ref) => (
+                {child.media.map((item) => (
                   <MediaPreviewShell
-                    item={{ title: ref, fallbackLabel: ref.split(":")[0]?.replace(/_/g, " ") || "Media", actions: [{ label: "Copy ID", copyValue: ref }] }}
-                    key={ref}
+                    item={{
+                      title: item.title,
+                      subtitle: item.subtitle,
+                      src: item.src,
+                      alt: item.title,
+                      badge: item.badge,
+                      fallbackLabel: item.badge,
+                      actions: [{ label: "Copy ID", copyValue: item.ref }]
+                    }}
+                    key={item.ref}
                     thumbnailClassName="w-full"
                   />
                 ))}
@@ -306,7 +339,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         <div className="min-w-0 sm:col-span-2">
           <SectionLabel>Epic dependencies</SectionLabel>
-          <Dependencies epics={outcome.epics} jobs={[]} proposals={outcome.proposals} />
+          <Dependencies epics={outcome.epics} jobs={outcome.jobs} proposals={outcome.proposals} />
         </div>
       </dl>
       <div>
@@ -340,6 +373,7 @@ export const examples: ToolCardExample[] = [
       description: "Coordinate the **release** work.",
       state: "proposed",
       depends_on: ["epic:7"],
+      depends_on_job_ids: [6],
       child_jobs: [
         {
           id: 43,
@@ -359,7 +393,16 @@ export const examples: ToolCardExample[] = [
           state: "proposed",
           target_repo: "acme/widgets",
           depends_on: ["prepare-release"],
-          media: ["snapshot:9"],
+          media: ["chat_image:9"],
+          media_previews: [
+            {
+              id: "chat_image:9",
+              kind: "chat_image",
+              filename: "release.png",
+              content_type: "image/png",
+              file_path: "/api/v1/app/chats/1/media/chat_images/9/file"
+            }
+          ],
           planned_execution: { capabilities: { os: ["linux"] } }
         }
       ]
