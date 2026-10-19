@@ -1514,6 +1514,32 @@ describe("tool result rendering", () => {
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
   })
 
+  it("lets standalone structured tool error summaries shrink and wrap on mobile", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 12,
+      role: "tool_use",
+      text: "Local Mode daemon is not connected",
+      bookmarkable: false,
+      tool: {
+        name: "git_status",
+        raw_name: "mcp__syrus-chat-sidecar__git_status",
+        display_label: "Git status",
+        argument_summary: "",
+        raw_payload: {},
+        result_kind: "error",
+        result_summary: "Git status unavailable: Local Mode daemon is not connected",
+        payload: { error: "Local Mode daemon is not connected" },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    })
+
+    const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
+    expect(summary).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
+    expect(summary).not.toHaveClass("shrink-0")
+  })
+
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
     // list_design_docs's card lives entirely under
     // plugins/design_docs/app/frontend/tool_cards/ — this
