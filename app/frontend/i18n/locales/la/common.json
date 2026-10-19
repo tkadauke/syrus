@@ -7,6 +7,8 @@
   "loading": "Oneratur...",
   "show_more": "Ostende plus",
   "copy_content": "Describe contentum",
+  "copy_markdown": "Markdown exscribe",
+  "empty_file": "Fasciculus vacuus.",
   "show_less": "Ostende minus",
   "text_preview": {
     "earlier_lines_one": "… {{count}} linea prior",
