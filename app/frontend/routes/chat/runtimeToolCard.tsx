@@ -103,7 +103,7 @@ type RuntimeCard =
   | { kind: "artifact"; artifact: RuntimeArtifact }
   | { kind: "acquire"; lease: RuntimeLease | null; error: string | null; raw: unknown }
   | { kind: "release"; released: RuntimeLease[]; error: string | null; raw: unknown }
-  | { kind: "error"; action: string; message: string }
+  | { kind: "error"; action: string; message: string; sessionId?: string | null }
 
 const INPUT_VALUE_PREVIEW_LIMIT = 80
 
@@ -437,7 +437,7 @@ function errorMessage(context: ToolCardContext): string | null {
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
   const error = errorMessage(context)
-  if (error) return { kind: "error", action: context.toolName, message: error }
+  if (error) return { kind: "error", action: context.toolName, message: error, sessionId: displayValue(context.input?.session_id) }
 
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -455,7 +455,17 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   }
 
   if (context.toolName === "runtime_status") {
-    const session = parseSession(parsed)
+    const statusPayload = isPlainObject(parsed.session_payload) ? parsed.session_payload : parsed
+    const sessionId = firstDisplayValue(statusPayload.id, context.input?.session_id)
+    if (parsed.error === true) {
+      return {
+        kind: "error",
+        action: context.toolName,
+        message: firstDisplayValue(parsed.message, parsed.error_message, contentText(parsed.content), statusPayload.last_error) ?? "Runtime status failed",
+        sessionId
+      }
+    }
+    const session = parseSession({ ...statusPayload, id: sessionId })
     return session ? { kind: "status", session, raw: parsed } : null
   }
 
@@ -592,7 +602,7 @@ function MetadataRows({ values }: { values: Record<string, unknown> }) {
       <SectionLabel>Metadata</SectionLabel>
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
-          <Row key={key} label={key} value={displayValue(value) ?? String(value)} />
+          <Row key={key} label={key} value={displayValue(value) ?? String(value)} wrap />
         ))}
       </div>
     </div>
@@ -631,7 +641,13 @@ function SafeLinks({ session }: { session: RuntimeSession }) {
       <SectionLabel>URLs</SectionLabel>
       <div className="mt-1 flex flex-wrap gap-2">
         {links.map(([label, url]) => (
-          <a className="font-mono text-brand hover:underline dark:text-brand-emphasis" href={url} key={label}>
+          <a
+            className="inline-flex min-h-11 max-w-full items-center break-all font-mono text-brand hover:underline dark:text-brand-emphasis"
+            href={url}
+            key={label}
+            rel="noreferrer"
+            target="_blank"
+          >
             {label}
           </a>
         ))}
@@ -647,15 +663,15 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
     <div className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={lease.state ?? "unknown"} tone={stateToneForLease(lease)} />
-        <span className="font-mono text-gray-700 dark:text-gray-300">
+        <span className="break-words font-mono text-gray-700 dark:text-gray-300">
           {title} #{lease.id}
         </span>
         {lease.owner ? <Badge>{lease.owner}</Badge> : null}
         {lease.mode ? <Badge>{lease.mode}</Badge> : null}
       </div>
       <div className="mt-2 grid gap-1 sm:grid-cols-2">
-        {lease.ownerRef ? <Row label="Owner ref" value={lease.ownerRef} /> : null}
-        {lease.reason ? <Row label="Reason" value={lease.reason} /> : null}
+        {lease.ownerRef ? <Row label="Owner ref" value={lease.ownerRef} wrap /> : null}
+        {lease.reason ? <Row label="Reason" value={lease.reason} wrap /> : null}
         {lease.acquiredAt ? <Row label="Acquired" value={lease.acquiredAt} /> : null}
         {lease.expiresAt ? <Row label="Expires" value={lease.expiresAt} /> : null}
         {lease.cancellable != null ? <Row label="Cancellable" value={lease.cancellable ? "yes" : "no"} /> : null}
@@ -664,27 +680,50 @@ function LeaseDetails({ lease, title = "Control" }: { lease: RuntimeLease | null
   )
 }
 
+function RuntimeId({ id, href }: { id: string; href?: string | null }) {
+  const label = `Runtime #${id}`
+  return href ? (
+    <a className="break-words font-mono text-brand hover:underline dark:text-brand-emphasis" href={href} rel="noreferrer" target="_blank">
+      {label}
+    </a>
+  ) : (
+    <span className="break-words font-mono text-gray-900 dark:text-gray-100">{label}</span>
+  )
+}
+
 function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
   return (
     <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={session.state ?? "unknown"} />
-        <span className="font-mono text-gray-900 dark:text-gray-100">Runtime #{session.id}</span>
+        <RuntimeId href={session.streamUrl ? safeRuntimeUrl(session.streamUrl) : null} id={session.id} />
         {session.primary ? <Badge>primary</Badge> : null}
         {session.displayName ? <span className="text-gray-600 dark:text-gray-300">{session.displayName}</span> : null}
       </div>
       <div className="mt-2 grid gap-1 sm:grid-cols-3">
         {session.providerKey ? <Row label="Provider" value={session.providerKey} /> : null}
-        {session.workspaceRef ? <Row label="Workspace" value={session.workspaceRef} /> : null}
+        {session.workspaceRef ? <Row label="Workspace" value={session.workspaceRef} wrap /> : null}
         {session.latestFrameAt ? <Row label="Latest frame at" value={session.latestFrameAt} /> : null}
       </div>
       <div className="mt-2 space-y-2">
         <SafeLinks session={session} />
-        {session.lastError ? (
-          <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {session.lastError}
-          </div>
+        {safeImageUrl(session.latestFrameUrl) ? (
+          <MediaPreviewShell
+            item={{
+              title: "Latest frame",
+              subtitle: session.latestFrameAt,
+              src: safeImageUrl(session.latestFrameUrl),
+              alt: `Latest frame for Runtime #${session.id}`,
+              actions: [{ label: "Open", href: safeImageUrl(session.latestFrameUrl) }],
+              meta: [
+                { label: "Runtime", value: session.id },
+                { label: "Captured", value: session.latestFrameAt }
+              ]
+            }}
+            modalLabel="Runtime latest frame preview"
+          />
         ) : null}
+        {session.lastError ? <LargeTextPreview label="Last error" text={session.lastError} /> : null}
         <div>
           <SectionLabel>Control owner</SectionLabel>
           <div className="mt-1">
@@ -723,9 +762,10 @@ function RawRuntimeDetails({ value }: { value: unknown }) {
   )
 }
 
-function RuntimeErrorCard({ message }: { message: string }) {
+function RuntimeErrorCard({ message, sessionId }: { message: string; sessionId?: string | null }) {
   return (
     <CardShell>
+      {sessionId ? <RuntimeId id={sessionId} /> : null}
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{message}</div>
     </CardShell>
   )
@@ -1001,7 +1041,7 @@ function renderExpanded(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
 
-  if (card.kind === "error") return <RuntimeErrorCard message={card.message} />
+  if (card.kind === "error") return <RuntimeErrorCard message={card.message} sessionId={card.sessionId} />
 
   if (card.kind === "sessions") {
     return (
