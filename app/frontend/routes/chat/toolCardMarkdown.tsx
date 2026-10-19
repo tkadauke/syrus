@@ -113,7 +113,7 @@ export function MarkdownPreview({
         {truncated.truncated ? "…" : null}
       </div>
       {truncated.truncated ? (
-        <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
+        <Button className="mt-2 min-h-11 sm:min-h-0" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
       ) : null}
