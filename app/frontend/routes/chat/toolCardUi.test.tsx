@@ -6,7 +6,11 @@ import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, 
 
 describe("toolCardUi CardShell", () => {
   it("cannot define a wider minimum width than its chat column", () => {
-    render(<CardShell><div>Card contents</div></CardShell>)
+    render(
+      <CardShell>
+        <div>Card contents</div>
+      </CardShell>
+    )
 
     expect(screen.getByText("Card contents").parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
   })
