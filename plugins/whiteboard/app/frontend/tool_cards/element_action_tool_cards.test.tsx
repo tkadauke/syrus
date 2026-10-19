@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { setSlugReferenceRegistryForTests } from "@app/lib/slugReferenceRegistry"
 import clearCanvasToolCard from "./clear_canvas"
 import deleteElementToolCard from "./delete_element"
@@ -146,28 +146,27 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByLabelText("#ffcc00")).toHaveStyle({ backgroundColor: "#ffcc00" })
   })
 
-  it("shows a frame name, bounds, contained elements, id, and version with wrapping-safe layout", () => {
+  it("shows the supported frame name, bounds, id, and version with wrapping-safe layout", () => {
     const input = {
       type: "magicframe",
       name: "Release overview",
       x: 14,
       y: 24,
       width: 320,
-      height: 180,
-      element_ids: ["shape-with-a-very-long-id", "text-2"]
+      height: 180
     }
 
     render(<>{drawFrameToolCard.renderExpanded(context({ toolName: "draw_frame", input, parsedResult: { id: "frame-1", version: 6 } }))}</>)
 
-    for (const value of ["Release overview", "14", "24", "320", "180", "shape-with-a-very-long-id", "text-2", "frame-1", "v6"])
-      expect(screen.getByText(value)).toBeInTheDocument()
-    expect(screen.getByText("shape-with-a-very-long-id")).toHaveClass("break-all")
-    expect(screen.getByText("shape-with-a-very-long-id").parentElement).toHaveClass("flex-wrap")
+    for (const value of ["Release overview", "14", "24", "320", "180", "frame-1", "v6"]) expect(screen.getByText(value)).toBeInTheDocument()
+    expect(screen.getByText("Release overview")).toHaveClass("break-all")
+    expect(screen.getByText("Release overview").parentElement?.parentElement).toHaveClass("flex-wrap")
+    expect(screen.getByText("frame-1")).toHaveClass("break-all")
   })
 
-  it("accepts a frame label and wrapped provider-agnostic result envelope", () => {
+  it("accepts a frame name and wrapped provider-agnostic result envelope", () => {
     const parsedResult = { result: { id: "wrapped-frame", version: 3 } }
-    const input = { label: "System map", x: 0, y: 0, width: 800, height: 600 }
+    const input = { name: "System map", x: 0, y: 0, width: 800, height: 600 }
 
     expect(drawFrameToolCard.collapsedSummary?.(context({ toolName: "draw_frame", input, parsedResult }))).toBe("Drew frame · wrapped-frame")
     render(<>{drawFrameToolCard.renderExpanded(context({ toolName: "draw_frame", input, parsedResult }))}</>)
@@ -177,11 +176,28 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByText("v3")).toBeInTheDocument()
   })
 
-  it("provides catalog examples for full, wrapped, failed, and empty frame results", () => {
-    expect(drawFrameExamples.map(({ id }) => id)).toEqual(["named_frame_with_children", "wrapped_result", "invalid_bounds", "pending"])
+  it("renders catalog examples for full, wrapped, failed, and empty frame results", () => {
+    expect(drawFrameExamples.map(({ id }) => id)).toEqual(["named_frame", "wrapped_result", "invalid_bounds", "pending"])
     expect(drawFrameExamples.every(({ sourceType }) => sourceType === "generic")).toBe(true)
-    expect(drawFrameExamples.find(({ id }) => id === "invalid_bounds")).toMatchObject({ resultError: true })
-    expect(drawFrameExamples.find(({ id }) => id === "pending")).toMatchObject({ resultBody: "" })
+
+    const failure = toolCardContextForExample(
+      "draw_frame",
+      drawFrameExamples.find(({ id }) => id === "invalid_bounds")!
+    )
+    expect(drawFrameToolCard.collapsedSummary?.(failure)).toBe("Drew frame failed: width must be greater than zero")
+    const { unmount } = render(<>{drawFrameToolCard.renderExpanded(failure)}</>)
+    expect(screen.getByText("Drew frame failed")).toBeInTheDocument()
+    expect(screen.getByText("width must be greater than zero")).toBeInTheDocument()
+    expect(screen.getByText("Check the canvas for a partial edit before retrying.")).toBeInTheDocument()
+    unmount()
+
+    const pending = toolCardContextForExample(
+      "draw_frame",
+      drawFrameExamples.find(({ id }) => id === "pending")!
+    )
+    expect(drawFrameToolCard.collapsedSummary?.(pending)).toBe("Drew frame pending")
+    render(<>{drawFrameToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
   })
 
   it("shows type-aware line and freehand details", () => {
