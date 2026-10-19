@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ChatPendingActionInline } from "./api/chats"
+import type { MarkdownLinkHandler } from "./lib/Markdown"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -23,6 +24,9 @@ export type ToolCardContext = {
   // Tool call arguments. Only populated where the caller already has them
   // (the expanded chat card); collapsed-summary dispatch does not carry it.
   input?: Record<string, unknown>
+  // Chat surfaces provide their Markdown link interceptor so card prose can
+  // open workspace files in the same preview used by assistant messages.
+  onLinkClick?: MarkdownLinkHandler
   // Raw tool result text, before any JSON parsing.
   resultBody: string
   resultError: boolean

@@ -46,7 +46,8 @@ import {
   typedToolResult,
   type TypedToolResult
 } from "./toolRendering"
-import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardPendingBody, pluginToolCardRendererFor } from "../../pluginToolCards"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardRendererFor, type ToolCardContext } from "../../pluginToolCards"
+import { pluginToolCardPendingBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -894,8 +895,21 @@ export function ChatCommandOutputSurface({
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chatSessionId?: number | string; item: ChatToolGroupItem }) {
+export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload }: { chatSessionId?: number | string; item: ChatToolGroupItem; payload?: ChatPayload }) {
   const [open, setOpen] = useState(false)
+  const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
+
+  function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (!payload) return
+    const resolved = resolveWorkspaceFileLink(href, payload)
+    if (resolved) {
+      event.preventDefault()
+      setSourcePreview(resolved)
+      return
+    }
+
+    if (workspaceHrefLooksLocal(href)) event.preventDefault()
+  }
 
   const details = item.calls
     .map((call) => [toolCardAwareResultSummary(call), informativeDetail(call.detail)].filter(Boolean).join(" · "))
@@ -938,7 +952,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
-                <ToolResultBody call={call} chatSessionId={chatSessionId} />
+                <ToolResultBody call={call} chatSessionId={chatSessionId} onLinkClick={payload ? handleMarkdownLink : undefined} />
               ) : expanded ? (
                 pluginToolCardPendingBody(toolCardContext(call, chatSessionId))
               ) : null}
@@ -954,7 +968,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} payload={payload} />
                   ))}
                 </div>
               ) : null}
@@ -962,6 +976,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
           )
         })}
       </div>
+      {sourcePreview && payload ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
   )
 })
@@ -990,7 +1005,7 @@ function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call))?.renderWhilePending === true
 }
 
-function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["calls"][number]; chatSessionId?: number | string }) {
+function ToolResultBody({ call, chatSessionId, onLinkClick }: { call: ChatToolGroupItem["calls"][number]; chatSessionId?: number | string; onLinkClick?: ToolCardContext["onLinkClick"] }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -1008,7 +1023,7 @@ function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["call
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, onLinkClick))
   if (pluginBody != null) return <>{pluginBody}</>
 
   // Registered cards may have a useful in-flight view derived entirely from
@@ -1033,12 +1048,13 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSessionId?: number | string) {
+export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSessionId?: number | string, onLinkClick?: ToolCardContext["onLinkClick"]): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
     toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? (redactToolCardValue(call.raw_payload) as Record<string, unknown>) : {},
+    onLinkClick,
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
     resultSettled: toolCallSettled(call),
