@@ -267,13 +267,14 @@ RSpec.describe Whiteboard::ChatToolSet do
     expect(label).to include("x" => 195.0, "y" => 92.5, "containerId" => arrow_id)
   end
 
-  it "delete_element removes the element" do
-    id = payload(draw_shape).fetch(:id)
+  it "delete_element removes the element and returns its display context" do
+    id = payload(draw_shape(type: "diamond", label: "Decision")).fetch(:id)
     expect_canvas_broadcast
 
     response = call_tool("delete_element", id: id)
 
     expect(response.error?).to be_falsey
+    expect(payload(response)).to include(id: id, type: "diamond", label: "Decision", version: 2)
     expect(Whiteboard::Board.for(chat_session.reload).elements).to be_empty
   end
 
