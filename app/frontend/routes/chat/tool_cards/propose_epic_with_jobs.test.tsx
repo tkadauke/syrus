@@ -37,6 +37,7 @@ describe("propose_epic_with_jobs tool card", () => {
       kind: "epic",
       target_epic: { id: 292, number: 292, label: "the pending-action tool-card work" },
       depends_on: ["prep-work", "epic:8"],
+      depends_on_job_ids: [15],
       child_jobs: [
         {
           id: 11,
@@ -49,7 +50,16 @@ describe("propose_epic_with_jobs tool card", () => {
           dependency_requirements: [{ job_id: 12, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "staging" }],
           planned_execution: { target_label: "//:test", capabilities: { os: ["linux"] } },
           provider: "codex",
-          media: ["snapshot:42"],
+          media: ["chat_image:42"],
+          media_previews: [
+            {
+              id: "chat_image:42",
+              kind: "chat_image",
+              filename: "layout.png",
+              content_type: "image/png",
+              file_path: "/api/v1/app/chats/5/media/chat_images/42/file"
+            }
+          ],
           materialized: { kind: "job", job_id: 99, job_title: "Core proposal cards", job_state: "running" }
         },
         {
@@ -70,10 +80,11 @@ describe("propose_epic_with_jobs tool card", () => {
     expect(screen.getByText("Tier 2 cards")).toBeInTheDocument()
     expect(screen.getByText("complete").tagName).toBe("STRONG")
     expect(screen.getByRole("link", { name: "EPIC-8" })).toHaveAttribute("href", "/epics/8")
+    expect(screen.getByRole("link", { name: "JOB-15" })).toHaveAttribute("href", "/jobs/15")
     expect(screen.getAllByRole("link", { name: "JOB-12" }).length).toBeGreaterThan(0)
     expect(screen.getByText("Planned execution").parentElement).toHaveTextContent("target: //:test · os:linux")
     expect(screen.getByText("JOB-12 — deployment stage · stage: staging")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Open snapshot:42" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "layout.png" })).toHaveAttribute("src", "/api/v1/app/chats/5/media/chat_images/42/file")
     expect(screen.getByRole("link", { name: "Core proposal cards" })).toHaveAttribute("href", "/jobs/99")
     expect(screen.getByText("No description provided.")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Copy core-proposal-cards to clipboard" }).length).toBeGreaterThan(0)
