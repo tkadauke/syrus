@@ -138,7 +138,6 @@ export function PendingPinnedContextCard({ content }: { content: string | null }
     </CardShell>
   )
 }
-
 export function pinnedContextIdentifiers(parsed: Record<string, unknown>) {
   return {
     chatId: displayValue(parsed.chat_id) || displayValue(parsed.chat_session_id),

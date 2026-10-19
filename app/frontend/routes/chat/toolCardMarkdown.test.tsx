@@ -25,6 +25,9 @@ beforeEach(() => {
 afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
