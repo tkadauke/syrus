@@ -2,6 +2,11 @@ import { isPlainObject } from "@app/pluginToolCards"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
+const ERROR_MESSAGE_CLASS = [
+  "whitespace-pre-wrap break-words rounded-[var(--radius-panel)] border border-danger/30",
+  "bg-danger/10 px-2 py-1 text-danger-text [overflow-wrap:anywhere]"
+].join(" ")
+
 // Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
 // / read_design_doc, propose_design_doc, suggest_design_doc_change,
 // and comment_on_design_doc all echo a design_doc summary (list_payload or
@@ -58,7 +63,7 @@ export function DesignDocErrorCard({ message, title }: { message: string; title:
         <span className="font-medium text-text-primary">{title}</span>
         <StatePill state="failed" />
       </div>
-      <div className="rounded-[var(--radius-panel)] border border-danger/30 bg-danger/10 px-2 py-1 text-danger-text" role="alert">
+      <div className={ERROR_MESSAGE_CLASS} role="alert">
         {message}
       </div>
     </CardShell>

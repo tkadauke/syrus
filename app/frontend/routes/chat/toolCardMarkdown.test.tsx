@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -27,6 +27,32 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("can render a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState="No details provided" text="  " />)
+    expect(screen.getByText("No details provided")).toBeInTheDocument()
+  })
+
+  it("supports a character bound and copies complete text from the modal", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    const text = "A complete sentence with more content than the compact preview."
+    render(<MarkdownPreview maxChars={20} text={text} title="Details" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Details" }))
+    expect(writeText).toHaveBeenCalledWith(text)
+  })
+
+  it("passes URL linking and click handling to compact and modal markdown", () => {
+    const onLinkClick = vi.fn((_, event) => event.preventDefault())
+    render(<MarkdownPreview linkifyUrls maxChars={37} onLinkClick={onLinkClick} text="Visit https://example.test/docs for many more details" />)
+
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test/docs" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/docs" }))
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

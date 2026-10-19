@@ -50,9 +50,9 @@ export function PlainText({ className, text, linkifyUrls = false, onLinkClick, s
 // clamp. Headings render bold instead of as header elements. Light inline
 // emphasis (bold/italic/inline code) still renders via the same inline
 // tokenizer `Markdown` uses; math rendering is skipped.
-export function renderLightMarkdown(text: string, options: { linkifySlugs?: boolean } = {}): ReactNode[] {
+export function renderLightMarkdown(text: string, options: Pick<RenderInlineOptions, "linkifySlugs" | "linkifyUrls" | "onLinkClick" | "slugTone"> = {}): ReactNode[] {
   const flattened = flattenLightMarkdown(text)
-  return renderInline(flattened, { linkifySlugs: options.linkifySlugs, renderMath: false })
+  return renderInline(flattened, { ...options, renderMath: false })
 }
 
 function flattenLightMarkdown(text: string): string {
