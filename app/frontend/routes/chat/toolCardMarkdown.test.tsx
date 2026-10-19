@@ -117,12 +117,16 @@ describe("MarkdownPreview", () => {
 
   it("linkifies URLs and slugs in previews and offers modal copy for character-limited content", () => {
     const text = `See JOB-42 and https://example.test/details. ${"More details. ".repeat(30)}`
-    render(<MarkdownPreview linkifySlugs linkifyUrls maxChars={60} text={text} title="Description" />)
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={60} text={text} title="Description" />
+      </MemoryRouter>
+    )
 
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
     expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Description to clipboard" })).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

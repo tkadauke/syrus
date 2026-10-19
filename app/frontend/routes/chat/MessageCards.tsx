@@ -11,6 +11,7 @@ import {
   deleteChatMessagePin,
   fetchSourceFileContent,
   sourceFileUrl,
+  type ChatMediaPayload,
   type ChatMessageItem,
   type ChatPayload,
   type ChatRenderItem,
@@ -903,14 +904,16 @@ export function ChatCommandOutputSurface({
 export const ToolGroup = memo(function ToolGroup({
   chatSessionId,
   item,
-  payload
+  payload,
+  chatMedia
 }: {
   chatSessionId?: number | string
   item: ChatToolGroupItem
   payload?: ChatPayload
+  chatMedia?: ChatMediaPayload
 }) {
   const [open, setOpen] = useState(false)
-  const presentation = payload ? { chatId: payload.chat.id, previewPanels: payload.preview_panels } : undefined
+  const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
 
   const details = item.calls
     .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
@@ -971,6 +974,7 @@ export const ToolGroup = memo(function ToolGroup({
                   {call.nested.map((nestedGroup) => (
                     <ToolGroup
                       chatSessionId={chatSessionId}
+                      chatMedia={chatMedia}
                       item={nestedGroup}
                       payload={payload}
                       key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}

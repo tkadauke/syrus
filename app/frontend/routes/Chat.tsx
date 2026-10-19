@@ -63,6 +63,7 @@ import {
   patchChatGoal,
   updateScratchpadItem,
   fetchChat,
+  fetchChatMedia,
   fetchChatBookmarks,
   fetchChatMessages,
   fetchChatSearchMessages,
@@ -620,6 +621,13 @@ function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: Ch
   return merged
 }
 
+function toolGroupReferencesMedia(group: ChatToolGroupItem): boolean {
+  return group.calls.some((call) => {
+    const media = call.raw_payload && typeof call.raw_payload === "object" ? (call.raw_payload as Record<string, unknown>).media : null
+    return (Array.isArray(media) && media.length > 0) || (call.nested?.some((nestedGroup) => toolGroupReferencesMedia(nestedGroup)) ?? false)
+  })
+}
+
 function MessageStream({
   bookmarkTarget,
   contextFindOpenerRef,
@@ -683,6 +691,11 @@ function MessageStream({
     () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)),
     [visibleItems, payload.pending_actions, pendingActionGroups]
   )
+  const toolCardMedia = useQuery({
+    queryKey: ["chat_media", String(payload.chat.id)],
+    queryFn: () => fetchChatMedia(payload.chat.id),
+    enabled: streamItems.some((item) => item.type === "tool_group" && toolGroupReferencesMedia(item))
+  })
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
@@ -1130,7 +1143,7 @@ function MessageStream({
               <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
               <SharedMessageRenderer key={renderItemKey(item)}>
-                <ToolGroup chatSessionId={payload.chat.id} item={item} payload={payload} />
+                <ToolGroup chatMedia={toolCardMedia.data} chatSessionId={payload.chat.id} item={item} payload={payload} />
               </SharedMessageRenderer>
             ) : (
               <ChatMessage
