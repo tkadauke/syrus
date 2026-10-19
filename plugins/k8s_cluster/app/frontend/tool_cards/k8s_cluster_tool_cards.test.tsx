@@ -377,12 +377,22 @@ describe("Kubernetes cluster tool cards", () => {
     })
     expect(namespacesToolCard.renderExpanded(listContext)).not.toBeNull()
 
-    render(<>{namespacesToolCard.renderExpanded(context({ toolName: "k8s_cluster_namespaces", parsedResult: { available: true, namespaces: [] } }))}</>)
+    const emptyContext = context({
+      toolName: "k8s_cluster_namespaces",
+      input: { cluster_id: 7 },
+      parsedResult: { available: true, generated_at: "2026-09-30T12:00:00Z", namespaces: [] }
+    })
+    const empty = render(<>{namespacesToolCard.renderExpanded(emptyContext)}</>)
     expect(screen.getByText("No namespaces returned.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    empty.unmount()
 
     const errorContext = context({ toolName: "k8s_cluster_namespaces", input: { cluster_id: 7, name: "missing" }, resultBody: "Error: Namespace not found", resultError: true, parsedResult: null })
     render(<>{namespacesToolCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("Namespace not found")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("link", { name: "missing" })).toHaveAttribute("href", "/k8s_clusters/7")
   })
 
   it("renders overview totals and metrics-unavailable warnings without dumping raw JSON", () => {

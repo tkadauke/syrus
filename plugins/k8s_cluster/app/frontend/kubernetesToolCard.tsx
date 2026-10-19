@@ -279,10 +279,8 @@ function renderExpanded(context: ToolCardContext) {
   if (card.errorMessage) {
     return (
       <CardShell>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatePill state={t("tool_card_error")} tone="failure" />
-          <span className="text-xs font-medium text-text-primary">{card.scope}</span>
-        </div>
+        <ScopeDetail card={card} />
+        <StatePill state={t("tool_card_error")} tone="failure" />
         <Notice tone="danger">{card.errorMessage}</Notice>
       </CardShell>
     )
@@ -290,7 +288,13 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "overview" && card.overview) return <OverviewBody card={card} overview={card.overview} />
   if (card.kind === "pod_logs") return <PodLogsBody card={card} />
-  if (card.rows.length === 0) return <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+  if (card.rows.length === 0)
+    return (
+      <CardShell>
+        <SummaryStrip card={card} />
+        <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+      </CardShell>
+    )
 
   const columns = columnsFor(card.kind)
   return (
