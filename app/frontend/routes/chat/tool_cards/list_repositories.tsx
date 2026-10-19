@@ -82,7 +82,22 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function RepositoryLink({ row }: { row: RepositoryRow }) {
-  return <EntityReference href={row.url} kind="repository" repositoryId={row.id} repositorySlug={row.slug} slug={row.slug} />
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <EntityReference kind="repository" repositoryId={row.id} repositorySlug={row.slug} slug={row.slug} />
+      {row.url ? (
+        <a
+          aria-label={`Open ${row.slug} on GitHub`}
+          className="shrink-0 text-2xs font-medium text-brand hover:underline dark:text-brand-emphasis"
+          href={row.url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub
+        </a>
+      ) : null}
+    </div>
+  )
 }
 
 function PaginationSummary({ result }: { result: ListRepositoriesResult }) {
