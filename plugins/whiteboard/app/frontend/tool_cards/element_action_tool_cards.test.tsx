@@ -87,7 +87,6 @@ const CARDS: { card: ToolCardRenderer; action: string; input: Record<string, unk
     input: { data_url: "data:image/png;base64,AA==", mime_type: "image/png", file_id: "input-file", x: 16, y: 26, width: 120, height: 90 },
     expectedDetails: ["image/png", "input-file", "16", "26", "120", "90"]
   },
-  { card: moveElementToolCard, action: "Moved element", input: { id: "move-me", x: 17, y: 27 }, expectedDetails: ["move-me", "17", "27"] },
   { card: deleteElementToolCard, action: "Deleted element", input: { id: "delete-me" }, expectedDetails: ["delete-me"] }
 ]
 
@@ -288,5 +287,70 @@ describe("whiteboard element-action tool cards", () => {
     expect(drawShapeToolCard.collapsedSummary?.(context())).toBe("Drew shape pending")
     render(<>{drawShapeToolCard.renderExpanded(context())}</>)
     expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
+  })
+})
+
+describe("move_element tool card", () => {
+  it("summarizes and renders a coordinate move with its computed delta", () => {
+    const toolContext = context({
+      toolName: "move_element",
+      input: { id: "shape-1", x: 240, y: 120 },
+      parsedResult: { id: "shape-1", x: 240, y: 120, previous_x: 100, previous_y: 80, version: 3 }
+    })
+
+    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · to (240, 120) · v3")
+    render(<>{moveElementToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("shape-1")).toHaveClass("min-w-0", "break-all")
+    expect(screen.getByText("(240, 120)")).toBeInTheDocument()
+    expect(screen.getByText("(100, 80)")).toBeInTheDocument()
+    expect(screen.getByText("(140, 40)")).toBeInTheDocument()
+    expect(screen.getByText("v3")).toBeInTheDocument()
+    expect(screen.getByText("Position").closest("dl")).toHaveClass("sm:grid-cols-2")
+  })
+
+  it("derives from/to ids from a wrapped result without call input", () => {
+    const toolContext = context({
+      toolName: "move_element",
+      parsedResult: { result: { from_id: "shape-1", to_id: "frame-2", delta_x: -20, delta_y: 15, version: 4 } }
+    })
+
+    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · to frame-2 · v4")
+    render(<>{moveElementToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("shape-1")).toBeInTheDocument()
+    expect(screen.getByText("frame-2")).toBeInTheDocument()
+    expect(screen.getByText("(-20, 15)")).toBeInTheDocument()
+    expect(screen.getByText("v4")).toBeInTheDocument()
+  })
+
+  it("falls back to expanded input fields when the result only returns id/version", () => {
+    const toolContext = context({ toolName: "move_element", input: { id: "shape-2", x: 17, y: 27 }, parsedResult: { id: "shape-2", version: 5 } })
+
+    expect(moveElementToolCard.collapsedSummary?.(context({ toolName: "move_element", parsedResult: { id: "shape-2", version: 5 } }))).toBe(
+      "Moved element · shape-2 · v5"
+    )
+    render(<>{moveElementToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("(17, 27)")).toBeInTheDocument()
+  })
+
+  it("renders unknown-element failures and empty results", () => {
+    const failure = context({
+      toolName: "move_element",
+      input: { id: "missing", x: 10, y: 20 },
+      resultError: true,
+      resultBody: "Unknown element: missing",
+      parsedResult: { message: "Unknown element: missing", retryable: false }
+    })
+    expect(moveElementToolCard.collapsedSummary?.(failure)).toBe("Moved element failed: Unknown element: missing")
+    const { unmount } = render(<>{moveElementToolCard.renderExpanded(failure)}</>)
+    expect(screen.getByText("Moved element missing")).toBeInTheDocument()
+    expect(screen.getByText("Unknown element: missing")).toBeInTheDocument()
+    unmount()
+
+    const empty = context({ toolName: "move_element", parsedResult: {} })
+    expect(moveElementToolCard.collapsedSummary?.(empty)).toBe("Moved element returned no element")
+    render(<>{moveElementToolCard.renderExpanded(empty)}</>)
+    expect(screen.getByText("Result did not include an element ID")).toBeInTheDocument()
   })
 })
