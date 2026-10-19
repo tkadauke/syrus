@@ -89,21 +89,21 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
 
 describe("buildMessageStreamItems pending action groups", () => {
   it("anchors a group to the message that produced it", () => {
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: 1 }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [], [pendingActionGroup({ chat_message_id: 1 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action_group"])
   })
 
   it("appends an unanchored group at the end of the stream", () => {
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: null }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [], [pendingActionGroup({ chat_message_id: null })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action_group"])
   })
 
   it("appends a group whose anchor message was never rendered", () => {
-    const result = buildMessageStreamItems([], [], [ pendingActionGroup({ chat_message_id: 42 }) ])
+    const result = buildMessageStreamItems([], [], [pendingActionGroup({ chat_message_id: 42 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["pending_action_group"])
   })
 
   it("anchors a group below a rendered tool group through a member message id", () => {
@@ -112,17 +112,17 @@ describe("buildMessageStreamItems pending action groups", () => {
       toolResult(11, { toolUseId: "tu_reopen" })
     ])
     const result = buildMessageStreamItems(
-      [ assistantMessage(1), ...toolItems, assistantMessage(2) ],
+      [assistantMessage(1), ...toolItems, assistantMessage(2)],
       [],
       [
         pendingActionGroup({
           chat_message_id: null,
-          members: [ { id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 } ]
+          members: [{ id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 }]
         })
       ]
     )
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "tool_group", "pending_action_group", "message" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "tool_group", "pending_action_group", "message"])
   })
 
   it("renders a group once when multiple anchors are inside the same tool group", () => {
@@ -131,17 +131,17 @@ describe("buildMessageStreamItems pending action groups", () => {
       toolResult(11, { toolUseId: "tu_reopen" })
     ])
     const result = buildMessageStreamItems(
-      [ ...toolItems ],
+      [...toolItems],
       [],
       [
         pendingActionGroup({
           chat_message_id: 10,
-          members: [ { id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 } ]
+          members: [{ id: 501, label: "Reopen JOB-262", state: "pending", chat_message_id: 10 }]
         })
       ]
     )
 
-    expect(result.map((item) => item.type)).toEqual([ "tool_group", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["tool_group", "pending_action_group"])
   })
 
   it("interleaves pending actions and pending action groups anchored to the same message", () => {
@@ -158,9 +158,9 @@ describe("buildMessageStreamItems pending action groups", () => {
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/9"
     }
 
-    const result = buildMessageStreamItems([ assistantMessage(1) ], [ action ], [ pendingActionGroup({ chat_message_id: 1 }) ])
+    const result = buildMessageStreamItems([assistantMessage(1)], [action], [pendingActionGroup({ chat_message_id: 1 })])
 
-    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action", "pending_action_group" ])
+    expect(result.map((item) => item.type)).toEqual(["message", "pending_action", "pending_action_group"])
   })
 })
 
@@ -309,7 +309,7 @@ describe("renderChatMessages tool grouping", () => {
       toolUse(1, { toolUseId: "tu_navigate", toolName: "browser_navigate", input: { url: "http://evil.example.com" } }),
       toolResult(2, {
         toolUseId: "tu_navigate",
-        content: "Error: Navigation to \"http://evil.example.com\" was blocked",
+        content: 'Error: Navigation to "http://evil.example.com" was blocked',
         isError: true
       })
     ])
@@ -326,9 +326,7 @@ describe("renderChatMessages tool grouping", () => {
       toolUse(1, { toolUseId: "tu_screenshot", toolName: "browser_screenshot", input: {} }),
       toolResult(2, {
         toolUseId: "tu_screenshot",
-        content: [
-          { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
-        ]
+        content: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }]
       })
     ])
 
@@ -617,7 +615,13 @@ describe("renderChatMessages tool grouping", () => {
       toolUse(1, { toolUseId: "tu_agent", toolName: "Task", input: { prompt: "investigate" } }),
       toolUse(2, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "app/models/job.rb" }, sidechain: true, parent_tool_use_id: "tu_agent" }),
       toolResult(3, { toolUseId: "tu_read", content: "class Job < ApplicationRecord", sidechain: true, parent_tool_use_id: "tu_agent" }),
-      toolUse(4, { toolUseId: "tu_bash", toolName: "Bash", input: { command: "bin/rspec spec/models/job_spec.rb" }, sidechain: true, parent_tool_use_id: "tu_agent" }),
+      toolUse(4, {
+        toolUseId: "tu_bash",
+        toolName: "Bash",
+        input: { command: "bin/rspec spec/models/job_spec.rb" },
+        sidechain: true,
+        parent_tool_use_id: "tu_agent"
+      }),
       toolResult(5, { toolUseId: "tu_bash", content: "1 example, 0 failures", sidechain: true, parent_tool_use_id: "tu_agent" }),
       toolResult(6, { toolUseId: "tu_agent", content: "Job model looks correct" })
     ])
@@ -674,10 +678,7 @@ describe("renderChatMessages tool grouping", () => {
 // reworded constant would have filled chat with failed-looking bash cards
 // while both sides' tests passed, because they hardcoded the same literals.
 describe("renderChatMessages benign cleanup suppression", () => {
-  function cleanupResult(
-    id: number,
-    options: { toolUseId: string; text: string; benign?: boolean }
-  ): ChatMessageItem {
+  function cleanupResult(id: number, options: { toolUseId: string; text: string; benign?: boolean }): ChatMessageItem {
     const content: Record<string, unknown> = {
       type: "tool_result",
       tool_use_id: options.toolUseId,
@@ -725,26 +726,24 @@ describe("renderChatMessages benign cleanup suppression", () => {
   // rather than inside a group, so assert the row itself is gone -- counting
   // groups here would pass whether or not it was suppressed.
   it("suppresses a standalone benign cleanup with no matching tool_use", () => {
-    const items = renderChatMessages([
-      cleanupResult(1, { toolUseId: "tu_missing", text: "Closed for a reason invented next year.", benign: true })
-    ])
+    const items = renderChatMessages([cleanupResult(1, { toolUseId: "tu_missing", text: "Closed for a reason invented next year.", benign: true })])
 
     expect(items).toHaveLength(0)
   })
 
   // Every transcript already stored carries prose and no flag, so history has
   // to keep rendering clean without it.
-  it.each([
-    "Agent turn ended before this tool returned.",
-    "Cancelled by operator before this tool returned."
-  ])("suppresses the unflagged legacy row %s", (text) => {
-    const items = renderChatMessages([
-      toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
-      cleanupResult(2, { toolUseId: "tu_1", text })
-    ])
+  it.each(["Agent turn ended before this tool returned.", "Cancelled by operator before this tool returned."])(
+    "suppresses the unflagged legacy row %s",
+    (text) => {
+      const items = renderChatMessages([
+        toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
+        cleanupResult(2, { toolUseId: "tu_1", text })
+      ])
 
-    expect(toolGroups(items)).toHaveLength(0)
-  })
+      expect(toolGroups(items)).toHaveLength(0)
+    }
+  )
 
   it("keeps an unflagged legacy failure row visible", () => {
     const items = renderChatMessages([

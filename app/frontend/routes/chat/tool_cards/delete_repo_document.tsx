@@ -42,7 +42,7 @@ export const examples: ToolCardExample[] = [
     parsedResult: {
       pending_action_id: 502,
       state: "pending",
-      message: "Delete document \"Old notes\"? This affects **shared context**.",
+      message: 'Delete document "Old notes"? This affects **shared context**.',
       reason: "Requested in [cleanup notes](https://example.test/cleanup)."
     }
   },
