@@ -1044,6 +1044,11 @@ export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSe
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     chatSessionId,
+    priorCalls: (call.context_calls || []).map((priorCall) => ({
+      toolName: normalizedToolName(priorCall.tool_name),
+      input: (isPlainObject(priorCall.input) ? redactToolCardValue(priorCall.input) : {}) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(normalizedToolCardParsedResult(priorCall.result))
+    })),
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
   }
 }
