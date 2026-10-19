@@ -15,14 +15,26 @@ function LocationProbe() {
 
 function renderSidebar(
   chats: ChatNavRecord[],
-  options: { availableAgents?: ChatsIndexPayload["available_agents"]; availableChatTypes?: ChatsIndexPayload["available_chat_types"]; featureFlags?: Record<string, boolean>; groups?: ChatGroupRecord[]; onCloseDrawer?: () => void; onStartChat?: (repositoryId?: number | null) => void; prefix?: string; renderOptions?: Parameters<typeof render>[1] } = {}
+  options: {
+    availableAgents?: ChatsIndexPayload["available_agents"]
+    availableChatTypes?: ChatsIndexPayload["available_chat_types"]
+    featureFlags?: Record<string, boolean>
+    groups?: ChatGroupRecord[]
+    onCloseDrawer?: () => void
+    onStartChat?: (repositoryId?: number | null) => void
+    prefix?: string
+    renderOptions?: Parameters<typeof render>[1]
+  } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-    available_agents: options.availableAgents,
-    available_chat_types: options.availableChatTypes,
-    groups: options.groups ?? [chatGroup({ chats })]
-  }))
+  queryClient.setQueryData<ChatsIndexPayload>(
+    ["chats", "recent"],
+    chatsIndexPayload({
+      available_agents: options.availableAgents,
+      available_chat_types: options.availableChatTypes,
+      groups: options.groups ?? [chatGroup({ chats })]
+    })
+  )
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -141,20 +153,17 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
   it("highlights a chat as active when the URL matches /chats/:id", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active Chat", chat_path: "/chats/42" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active Chat", chat_path: "/chats/42" })] })]
+      })
+    )
 
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/chats/42"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -227,14 +236,18 @@ describe("RecentChatsSidebar settings", () => {
         return Promise.resolve(jsonResponse({ chats: [], has_more: false }))
       }
       if (path.startsWith("/api/v1/app/chats")) {
-        return Promise.resolve(jsonResponse(chatsIndexPayload({
-          groups: [
-            chatGroup({
-              chats: [chatNav({ id: 10, title: "First" })],
-              has_more: true
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [chatNav({ id: 10, title: "First" })],
+                  has_more: true
+                })
+              ]
             })
-          ]
-        })))
+          )
+        )
       }
 
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
@@ -243,13 +256,7 @@ describe("RecentChatsSidebar settings", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter initialEntries={["/"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -342,14 +349,17 @@ describe("RecentChatsSidebar settings", () => {
   })
 
   it("preserves saved chat type grouping and filters while available chat types load", async () => {
-    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({
-      status: "active",
-      group_by: "chat_type",
-      chat_types: ["agent"],
-      sort_by: "last_activity",
-      show_empty_groups: true,
-      per_group: 10
-    }))
+    window.localStorage.setItem(
+      SIDEBAR_SETTINGS_KEY,
+      JSON.stringify({
+        status: "active",
+        group_by: "chat_type",
+        chat_types: ["agent"],
+        sort_by: "last_activity",
+        show_empty_groups: true,
+        per_group: 10
+      })
+    )
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_chat_types: ["agent", "group"] })))
 
     renderSidebar([], { availableChatTypes: ["agent", "group"] })
@@ -368,7 +378,9 @@ describe("RecentChatsSidebar settings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Recent chats settings" }))
     const menu = await screen.findByTestId("recent-chats-settings-menu")
-    const chatTypeMenuItem = within(menu).getAllByRole("button").find((button) => button.textContent?.startsWith("Chat type"))
+    const chatTypeMenuItem = within(menu)
+      .getAllByRole("button")
+      .find((button) => button.textContent?.startsWith("Chat type"))
     expect(chatTypeMenuItem).toBeTruthy()
     fireEvent.click(chatTypeMenuItem as HTMLElement)
 
@@ -394,14 +406,17 @@ describe("RecentChatsSidebar settings", () => {
   })
 
   it("falls back from saved agent grouping when only one chat agent is configured", async () => {
-    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({
-      status: "active",
-      group_by: "agent",
-      chat_types: [],
-      sort_by: "last_activity",
-      show_empty_groups: true,
-      per_group: 10
-    }))
+    window.localStorage.setItem(
+      SIDEBAR_SETTINGS_KEY,
+      JSON.stringify({
+        status: "active",
+        group_by: "agent",
+        chat_types: [],
+        sort_by: "last_activity",
+        show_empty_groups: true,
+        per_group: 10
+      })
+    )
     const availableAgents = [{ value: "claude", label: "Claude" }]
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_agents: availableAgents })))
 
@@ -417,14 +432,17 @@ describe("RecentChatsSidebar settings", () => {
   })
 
   it("falls back from saved chat type grouping when the feature is no longer visible", async () => {
-    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({
-      status: "active",
-      group_by: "chat_type",
-      chat_types: ["external"],
-      sort_by: "last_activity",
-      show_empty_groups: true,
-      per_group: 10
-    }))
+    window.localStorage.setItem(
+      SIDEBAR_SETTINGS_KEY,
+      JSON.stringify({
+        status: "active",
+        group_by: "chat_type",
+        chat_types: ["external"],
+        sort_by: "last_activity",
+        show_empty_groups: true,
+        per_group: 10
+      })
+    )
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ available_chat_types: ["agent"] })))
 
     renderSidebar([], { availableChatTypes: ["agent"] })
@@ -478,19 +496,23 @@ describe("RecentChatsSidebar settings", () => {
       return 1
     })
     vi.stubGlobal("cancelAnimationFrame", vi.fn())
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({
-      groups: [
-        chatGroup({
-          key: "date-2026-06-26",
-          label: "Jun 26, 2026",
-          group_by: "date",
-          group_value: "2026-06-26",
-          chats: [chatNav({ id: 2, title: "Older chat" })]
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        chatsIndexPayload({
+          groups: [
+            chatGroup({
+              key: "date-2026-06-26",
+              label: "Jun 26, 2026",
+              group_by: "date",
+              group_value: "2026-06-26",
+              chats: [chatNav({ id: 2, title: "Older chat" })]
+            })
+          ],
+          groups_has_more: false,
+          groups_next_offset: null
         })
-      ],
-      groups_has_more: false,
-      groups_next_offset: null
-    })))
+      )
+    )
     const scrollContainer = document.createElement("div")
     scrollContainer.style.overflowY = "auto"
     Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1000 })
@@ -500,30 +522,27 @@ describe("RecentChatsSidebar settings", () => {
 
     try {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-        groups: [
-          chatGroup({
-            key: "date-2026-06-27",
-            label: "Today",
-            group_by: "date",
-            group_value: "2026-06-27",
-            chats: [chatNav({ id: 1, title: "Recent chat" })]
-          })
-        ],
-        groups_has_more: true,
-        groups_next_offset: 24
-      }))
+      queryClient.setQueryData<ChatsIndexPayload>(
+        ["chats", "recent"],
+        chatsIndexPayload({
+          groups: [
+            chatGroup({
+              key: "date-2026-06-27",
+              label: "Today",
+              group_by: "date",
+              group_value: "2026-06-27",
+              chats: [chatNav({ id: 1, title: "Recent chat" })]
+            })
+          ],
+          groups_has_more: true,
+          groups_next_offset: 24
+        })
+      )
 
       render(
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={["/"]}>
-            <RecentChatsSidebar
-              featureFlags={{}}
-              onCloseDrawer={() => {}}
-              onNotice={() => {}}
-              prefix=""
-              userPresent
-            />
+            <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
           </MemoryRouter>
         </QueryClientProvider>,
         { container: scrollContainer }
@@ -544,19 +563,23 @@ describe("RecentChatsSidebar settings", () => {
       return 1
     })
     vi.stubGlobal("cancelAnimationFrame", vi.fn())
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({
-      groups: [
-        chatGroup({
-          key: "date-2026-06-26",
-          label: "Jun 26, 2026",
-          group_by: "date",
-          group_value: "2026-06-26",
-          chats: [chatNav({ id: 2, title: "Older chat" })]
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        chatsIndexPayload({
+          groups: [
+            chatGroup({
+              key: "date-2026-06-26",
+              label: "Jun 26, 2026",
+              group_by: "date",
+              group_value: "2026-06-26",
+              chats: [chatNav({ id: 2, title: "Older chat" })]
+            })
+          ],
+          groups_has_more: false,
+          groups_next_offset: null
         })
-      ],
-      groups_has_more: false,
-      groups_next_offset: null
-    })))
+      )
+    )
     const desktopScrollContainer = document.createElement("div")
     desktopScrollContainer.style.overflowY = "auto"
     Object.defineProperty(desktopScrollContainer, "scrollHeight", { configurable: true, value: 1000 })
@@ -566,51 +589,39 @@ describe("RecentChatsSidebar settings", () => {
 
     try {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-        groups: [
-          chatGroup({
-            key: "date-2026-06-27",
-            label: "Today",
-            group_by: "date",
-            group_value: "2026-06-27",
-            chats: [chatNav({ id: 1, title: "Recent chat" })]
-          })
-        ],
-        groups_has_more: true,
-        groups_next_offset: 24
-      }))
+      queryClient.setQueryData<ChatsIndexPayload>(
+        ["chats", "recent"],
+        chatsIndexPayload({
+          groups: [
+            chatGroup({
+              key: "date-2026-06-27",
+              label: "Today",
+              group_by: "date",
+              group_value: "2026-06-27",
+              chats: [chatNav({ id: 1, title: "Recent chat" })]
+            })
+          ],
+          groups_has_more: true,
+          groups_next_offset: 24
+        })
+      )
 
       const renderSidebars = (includeMobile: boolean) => (
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={["/"]}>
             <div data-testid="desktop-sidebar">
-              <RecentChatsSidebar
-                featureFlags={{}}
-                onCloseDrawer={() => {}}
-                onNotice={() => {}}
-                prefix=""
-                userPresent
-              />
+              <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
             </div>
             {includeMobile ? (
               <div data-testid="mobile-drawer">
-                <RecentChatsSidebar
-                  featureFlags={{}}
-                  onCloseDrawer={() => {}}
-                  onNotice={() => {}}
-                  prefix=""
-                  userPresent
-                />
+                <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
               </div>
             ) : null}
           </MemoryRouter>
         </QueryClientProvider>
       )
 
-      const { rerender } = render(
-        renderSidebars(false),
-        { container: desktopScrollContainer }
-      )
+      const { rerender } = render(renderSidebars(false), { container: desktopScrollContainer })
 
       expect(await within(screen.getByTestId("desktop-sidebar")).findByText("Older chat")).toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -640,30 +651,27 @@ describe("RecentChatsSidebar settings", () => {
 
     try {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-        groups: [
-          chatGroup({
-            key: "date-2026-06-27",
-            label: "Today",
-            group_by: "date",
-            group_value: "2026-06-27",
-            chats: [chatNav({ id: 1, title: "Recent chat" })]
-          })
-        ],
-        groups_has_more: true,
-        groups_next_offset: 24
-      }))
+      queryClient.setQueryData<ChatsIndexPayload>(
+        ["chats", "recent"],
+        chatsIndexPayload({
+          groups: [
+            chatGroup({
+              key: "date-2026-06-27",
+              label: "Today",
+              group_by: "date",
+              group_value: "2026-06-27",
+              chats: [chatNav({ id: 1, title: "Recent chat" })]
+            })
+          ],
+          groups_has_more: true,
+          groups_next_offset: 24
+        })
+      )
 
       render(
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={["/"]}>
-            <RecentChatsSidebar
-              featureFlags={{}}
-              onCloseDrawer={() => {}}
-              onNotice={() => {}}
-              prefix=""
-              userPresent
-            />
+            <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
           </MemoryRouter>
         </QueryClientProvider>,
         { container: scrollContainer }
@@ -722,10 +730,32 @@ describe("RecentChatsSidebar goal marker", () => {
 
 describe("RecentChatsSidebar action and marker slot", () => {
   it("renders Job combinations without an unread dot and shows the indicator popover", () => {
-    renderSidebar([chatNav({ unread: true, turn_in_flight: true, active_goal: chatGoal({ prompt: "Ship the sidebar" }), pending_proposal_count: 2, scratchpad_items_count: 3, job_summary: { active_count: 2, outcome: "failed", jobs: [
-      { id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", started_at: new Date(Date.now() - 120_000).toISOString(), app_path: "/jobs/41", epic: { id: 9, slug: "EPIC-9", completed: 2, total: 5 } },
-      { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
-    ] } })])
+    renderSidebar([
+      chatNav({
+        unread: true,
+        turn_in_flight: true,
+        active_goal: chatGoal({ prompt: "Ship the sidebar" }),
+        pending_proposal_count: 2,
+        scratchpad_items_count: 3,
+        job_summary: {
+          active_count: 2,
+          outcome: "failed",
+          jobs: [
+            {
+              id: 41,
+              slug: "JOB-41",
+              state: "running",
+              step: "implement",
+              group: "running",
+              started_at: new Date(Date.now() - 120_000).toISOString(),
+              app_path: "/jobs/41",
+              epic: { id: 9, slug: "EPIC-9", completed: 2, total: 5 }
+            },
+            { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
+          ]
+        }
+      })
+    ])
     expect(screen.getByText("Chat")).toHaveClass("font-semibold")
     expect(screen.getByTestId("job-running-marker")).toBeInTheDocument()
     expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
@@ -744,9 +774,15 @@ describe("RecentChatsSidebar action and marker slot", () => {
   it("keeps the portaled popover interactive across pointer and focus transitions", () => {
     vi.useFakeTimers()
     try {
-      renderSidebar([chatNav({ job_summary: { active_count: 1, outcome: null, jobs: [
-        { id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }
-      ] } })])
+      renderSidebar([
+        chatNav({
+          job_summary: {
+            active_count: 1,
+            outcome: null,
+            jobs: [{ id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }]
+          }
+        })
+      ])
       const reference = screen.getByTestId("job-running-marker").parentElement!
       fireEvent.mouseEnter(reference)
       const popover = screen.getByTestId("recent-chat-indicator-popover")
@@ -789,14 +825,32 @@ describe("RecentChatsSidebar action and marker slot", () => {
   })
 
   it("rolls Job activity and worst outcome into a collapsed group", () => {
-    renderSidebar([], { groups: [chatGroup({ key: "repository-7", label: "acme/widgets", chats: [
-      chatNav({ id: 1, job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] } }),
-      chatNav({ id: 2, job_summary: { active_count: 2, outcome: "failed", jobs: [
-        { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
-        { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },
-        { id: 3, slug: "JOB-3", state: "failed", group: "failed", app_path: "/jobs/3" }
-      ] } })
-    ] })] })
+    renderSidebar([], {
+      groups: [
+        chatGroup({
+          key: "repository-7",
+          label: "acme/widgets",
+          chats: [
+            chatNav({
+              id: 1,
+              job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] }
+            }),
+            chatNav({
+              id: 2,
+              job_summary: {
+                active_count: 2,
+                outcome: "failed",
+                jobs: [
+                  { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
+                  { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },
+                  { id: 3, slug: "JOB-3", state: "failed", group: "failed", app_path: "/jobs/3" }
+                ]
+              }
+            })
+          ]
+        })
+      ]
+    })
     fireEvent.click(screen.getByRole("button", { name: /acme\/widgets/i }))
     expect(screen.getByTestId("job-running-marker")).toBeInTheDocument()
     expect(screen.getByTestId("job-failed-marker")).toBeInTheDocument()
@@ -899,7 +953,9 @@ describe("RecentChatsSidebar drag-over blink and navigate", () => {
     // Leave the row entirely (relatedTarget is null — cursor left the element)
     fireEvent.dragLeave(chatRow, { relatedTarget: null })
 
-    act(() => { vi.advanceTimersByTime(1000) })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
 
     // Location stays at "/" because navigation was cancelled
     expect(screen.getByTestId("location")).toHaveTextContent("/")
@@ -917,7 +973,9 @@ describe("RecentChatsSidebar drag-over blink and navigate", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/")
 
-    act(() => { vi.advanceTimersByTime(1000) })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
 
     expect(screen.getByTestId("location")).toHaveTextContent("/chats/1")
     expect(closeSpy).toHaveBeenCalledTimes(1)
@@ -939,8 +997,15 @@ describe("RecentChatsSidebar auto-scroll during drag", () => {
 
   it("dragover near the top triggers scrollBy upward", () => {
     vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
-      top: 0, bottom: 300, left: 0, right: 200, height: 300, width: 200,
-      x: 0, y: 0, toJSON: vi.fn()
+      top: 0,
+      bottom: 300,
+      left: 0,
+      right: 200,
+      height: 300,
+      width: 200,
+      x: 0,
+      y: 0,
+      toJSON: vi.fn()
     } as DOMRect)
     // JSDOM does not implement scrollBy as an own property; define it so it can be observed.
     const scrollBy = vi.fn()
@@ -953,23 +1018,21 @@ describe("RecentChatsSidebar auto-scroll during drag", () => {
       return 1
     })
 
-    renderSidebar(
-      [chatNav({ id: 1, title: "Scroll Target" })],
-      { renderOptions: { container: scrollContainer } }
-    )
+    renderSidebar([chatNav({ id: 1, title: "Scroll Target" })], { renderOptions: { container: scrollContainer } })
 
     const nav = screen.getByRole("navigation", { name: "Recent chats" })
     // JSDOM does not implement DragEvent, so fireEvent.dragOver produces an event
     // whose clientY is undefined. Dispatch a MouseEvent (type "dragover") instead:
     // React's onDragOver intercepts it identically and MouseEvent correctly carries clientY.
     // clientY: 30 → relY = 30 - rect.top (0) = 30, which is < 60 (top edge zone)
-    nav.parentElement!.dispatchEvent(
-      new MouseEvent("dragover", { bubbles: true, cancelable: true, clientY: 30 })
-    )
+    nav.parentElement!.dispatchEvent(new MouseEvent("dragover", { bubbles: true, cancelable: true, clientY: 30 }))
 
     // Invoke the captured RAF callback once to trigger one scrollBy call
     expect(capturedCallback).not.toBeNull()
-    if (capturedCallback) act(() => { (capturedCallback as FrameRequestCallback)(0) })
+    if (capturedCallback)
+      act(() => {
+        ;(capturedCallback as FrameRequestCallback)(0)
+      })
 
     expect(scrollBy).toHaveBeenCalledWith(0, -8)
   })
@@ -994,7 +1057,7 @@ describe("RecentChatsSidebar mark-as-read/unread label", () => {
 })
 
 describe("RecentChatsSidebar group chat ownership", () => {
-  it("hides shared pin and delete actions from non-owner participants" , () => {
+  it("hides shared pin and delete actions from non-owner participants", () => {
     renderSidebar([chatNav({ id: 1, title: "Shared chat", conversation_kind: "group", current_user_id: 2, user_id: 1 })])
 
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Shared chat" }))
@@ -1009,21 +1072,18 @@ describe("RecentChatsSidebar group chat ownership", () => {
 describe("RecentChatsSidebar bookmarks menu", () => {
   function renderWithBookmarks(bookmarks: ChatBookmark[], chatId = 1) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
+      })
+    )
     queryClient.setQueryData(["chats", String(chatId), ""], { bookmarks } as unknown as ChatPayload)
 
     return render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -1075,20 +1135,17 @@ describe("RecentChatsSidebar overflow menu slug", () => {
     const fetchSpy = vi.spyOn(window, "fetch")
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
-      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Roadmap sync" })] })]
-    }))
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Roadmap sync" })] })]
+      })
+    )
 
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/"]}>
-          <RecentChatsSidebar
-            featureFlags={{}}
-            onCloseDrawer={() => {}}
-            onNotice={() => {}}
-            prefix=""
-            userPresent
-          />
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
         </MemoryRouter>
       </QueryClientProvider>
     )
