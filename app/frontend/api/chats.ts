@@ -436,6 +436,7 @@ export type ChatPendingActionInline = {
   after_snapshot?: Record<string, unknown>
   resource_title?: string
   resource_url?: string
+  document?: ChatPendingActionDocument
   app_confirm_path: string
   app_reject_path: string
   app_cancel_path?: string
@@ -529,9 +530,20 @@ export type ChatPendingAction = {
   chat_message_id?: number | null
   resource_title?: string
   resource_url?: string
+  document?: ChatPendingActionDocument
   app_confirm_path: string
   app_reject_path: string
   app_cancel_path: string
+}
+
+export type ChatPendingActionDocument = {
+  id: number
+  title: string
+  repository_id?: number | null
+  repository_slug?: string | null
+  content_type?: string | null
+  size_bytes?: number | null
+  url?: string | null
 }
 
 export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"

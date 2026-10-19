@@ -159,22 +159,37 @@ describe("repository document tool cards", () => {
     expect(screen.getByText("No document body provided.")).toBeInTheDocument()
   })
 
-  it("links a completed document when normalized result data makes it known", () => {
-    const parsedResult = {
-      pending_action_id: 504,
-      state: "succeeded",
-      message: "Created.",
+  it("links a completed document from the live serialized pending-action result", () => {
+    const parsedResult = { pending_action_id: 504, state: "pending", message: "Create Runbook?" }
+    const livePendingAction = {
+      id: 504,
+      action: "create_repo_document",
+      state: "confirmed" as const,
+      label: "Create document Runbook",
+      detail: "title: Runbook",
+      execution_status: "applied",
       document: {
         id: 22,
         title: "Runbook",
+        repository_id: 7,
         repository_slug: "tkadauke/syrus",
         content_type: "text/markdown",
         size_bytes: 2048,
-        file_path: "/api/v1/app/repository_documents/22/file"
-      }
+        url: "/api/v1/app/repository_documents/22/file"
+      },
+      resource_title: "Runbook",
+      resource_url: "/api/v1/app/repository_documents/22/file",
+      app_confirm_path: "/confirm",
+      app_reject_path: "/reject"
     }
 
-    render(<>{createRepoDocumentToolCard.renderExpanded(context("create_repo_document", { input: { repository_id: 7, body: "# Runbook" }, parsedResult }))}</>)
+    render(
+      <>
+        {createRepoDocumentToolCard.renderExpanded(
+          context("create_repo_document", { input: { repository_id: 7, body: "# Runbook" }, parsedResult, livePendingAction })
+        )}
+      </>
+    )
 
     expect(screen.getByRole("link", { name: "Runbook" })).toHaveAttribute("href", "/api/v1/app/repository_documents/22/file")
     expect(screen.getByText("2.0 KB")).toBeInTheDocument()
