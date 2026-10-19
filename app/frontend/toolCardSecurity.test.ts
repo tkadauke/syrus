@@ -62,6 +62,7 @@ describe("toolCardSecurity", () => {
 
   it("redacts bare secret-like values from compact detail strings", () => {
     expect(redactToolCardText("plugin-input-secret-123456")).toBe("[redacted]")
+    expect(redactToolCardText("MYSECRETTOKENVALUE")).toBe("[redacted]")
   })
 
   it("preserves non-string and diagnostic metadata under sensitive-looking keys", () => {
@@ -149,13 +150,11 @@ describe("toolCardSecurity", () => {
       redactToolCardValue({
         key_names: ["DATABASE_PASSWORD_VALUE", "API_TOKEN_NAME"],
         resource_name: "application-secret-config",
-        detail: "DATABASE_PASSWORD_VALUE",
         output: "DATABASE_PASSWORD_VALUE=hunter2-secret"
       })
     ).toEqual({
       key_names: ["DATABASE_PASSWORD_VALUE", "API_TOKEN_NAME"],
       resource_name: "application-secret-config",
-      detail: "DATABASE_PASSWORD_VALUE",
       output: "DATABASE_PASSWORD_VALUE=[redacted]"
     })
   })
