@@ -19,6 +19,7 @@ module Mcp::Tools
           repository: {
             id: repository.id,
             slug: repository.slug,
+            url: "https://github.com/#{repository.slug}",
             default_branch: info.fetch(:default_branch),
             trigger_label: repository.trigger_label,
             agent_provider: repository.effective_agent_provider,
