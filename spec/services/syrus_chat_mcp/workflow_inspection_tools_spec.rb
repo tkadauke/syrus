@@ -198,6 +198,7 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       payload = response_payload(response)
 
       expect(response[:result][:isError]).to be_falsey
+      expect(payload[:job_id]).to eq(job.id)
       expect(payload[:artifacts].size).to eq(1)
       expect(payload[:artifacts].first).to include(title: "Homepage after fix", content_type: "image/png")
     end

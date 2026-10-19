@@ -14,7 +14,7 @@ RSpec.describe SyrusMcp::ListArtifactsTool do
     response = described_class.call(workflow_id: run.workflow_id, server_context: { run: run })
 
     expect(response).not_to be_error
-    expect(payload_from(response)).to eq(workflow_id: run.workflow_id, artifacts: [])
+    expect(payload_from(response)).to eq(workflow_id: run.workflow_id, job_id: run.job_id, artifacts: [])
   end
 
   it "accepts a run_id-only sidecar context" do
@@ -22,6 +22,7 @@ RSpec.describe SyrusMcp::ListArtifactsTool do
 
     expect(response).not_to be_error
     expect(payload_from(response)[:workflow_id]).to eq(run.workflow_id)
+    expect(payload_from(response)[:job_id]).to eq(run.job_id)
   end
 
   it "lists a visual artifact submitted via submit_visual_artifact, including image fields" do

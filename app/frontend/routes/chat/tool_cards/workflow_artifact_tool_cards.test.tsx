@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listArtifactsToolCard from "./list_artifacts"
 import readArtifactToolCard from "./read_artifact"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -33,6 +34,7 @@ describe("workflow artifact tool cards", () => {
   it("renders artifact metadata for multiple typed artifacts", () => {
     const parsedResult = {
       workflow_id: 28622,
+      job_id: 7706,
       artifacts: [
         {
           type: "visual_review_screenshot_1",
@@ -42,7 +44,11 @@ describe("workflow artifact tool cards", () => {
           run_id: 144524,
           step_id: 223959,
           iteration: 1,
-          image_url: "/api/v1/app/workflows/28622/visual_artifact?type=visual_review_screenshot_1"
+          image_url: "/api/v1/app/workflows/28622/visual_artifact?type=visual_review_screenshot_1",
+          source: "playwright",
+          captured_at: "2026-10-18T12:30:00Z",
+          page: "/dashboard",
+          viewport: "1280x720"
         },
         {
           type: "rails_schema_erd",
@@ -61,14 +67,53 @@ describe("workflow artifact tool cards", () => {
     expect(listArtifactsToolCard.collapsedSummary?.(toolContext)).toBe("2 artifacts")
     render(<>{listArtifactsToolCard.renderExpanded(toolContext)}</>)
 
-    expect(screen.getByText("visual_review_screenshot_1")).toHaveClass("whitespace-nowrap")
-    expect(screen.getByText("Homepage after fix")).toBeInTheDocument()
-    expect(screen.getByText("image/png")).toBeInTheDocument()
-    expect(screen.getByText("200.0 KB")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Copy RUN-144524 to clipboard" })).toBeInTheDocument()
-    expect(screen.getByText("STEP-223959")).toBeInTheDocument()
-    expect(screen.getByText("rails_schema_erd")).toBeInTheDocument()
-    expect(screen.getByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WF-28622" })).toHaveAttribute("href", "/jobs/7706?tab=workflows#workflow-28622")
+    expect(screen.getAllByText("visual_review_screenshot_1")).not.toHaveLength(0)
+    expect(screen.getAllByText("Homepage after fix")).not.toHaveLength(0)
+    expect(screen.getAllByText("image/png")).not.toHaveLength(0)
+    expect(screen.getAllByText("200.0 KB")).not.toHaveLength(0)
+    expect(screen.getAllByRole("link", { name: "RUN-144524" })[0]).toHaveAttribute("href", "/jobs/7706?tab=workflows#workflow-28622")
+    expect(screen.getAllByRole("link", { name: "STEP-223959" })[0]).toHaveAttribute("href", "/jobs/7706?tab=workflows#workflow-28622")
+    expect(screen.getAllByText("playwright")).not.toHaveLength(0)
+    expect(screen.getAllByText("2026-10-18T12:30:00Z")).not.toHaveLength(0)
+    expect(screen.getAllByText("/dashboard")).not.toHaveLength(0)
+    expect(screen.getAllByText("1280x720")).not.toHaveLength(0)
+    expect(screen.getAllByText("rails_schema_erd")).not.toHaveLength(0)
+    expect(screen.getAllByText("Schema ERD")).not.toHaveLength(0)
+
+    const thumbnails = screen.getAllByRole("button", { name: "Open Homepage after fix" })
+    expect(thumbnails[0]).toHaveClass("min-w-24")
+    fireEvent.click(thumbnails[0])
+    expect(screen.getByRole("dialog", { name: "Homepage after fix" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Open" })[0]).toHaveAttribute("href", parsedResult.artifacts[0].image_url)
+  })
+
+  it("renders pending and error states", () => {
+    const pending = context("list_artifacts")
+    expect(listArtifactsToolCard.collapsedSummary?.(pending)).toBe("Listing artifacts…")
+    const { unmount } = render(<>{listArtifactsToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("Waiting for artifacts…")).toBeInTheDocument()
+    unmount()
+
+    const failure = context("list_artifacts", { resultError: true, resultBody: "Workflow was not found." })
+    expect(listArtifactsToolCard.collapsedSummary?.(failure)).toBe("Failed to list artifacts")
+    render(<>{listArtifactsToolCard.renderExpanded(failure)}</>)
+    expect(screen.getByText("Workflow was not found.")).toBeInTheDocument()
+  })
+
+  it("renders normalized provider envelopes and names", () => {
+    const payload = { workflow_id: 9, job_id: 4, artifacts: [{ type: "same" }, { type: "same" }] }
+    const envelopes = [
+      payload,
+      { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null },
+      { content: [], structured_content: payload }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolContext = context(normalizedToolName("mcp__provider__list_artifacts"), { parsedResult: normalizedToolCardParsedResult(envelope) })
+      expect(toolContext.toolName).toBe("list_artifacts")
+      expect(listArtifactsToolCard.collapsedSummary?.(toolContext)).toBe("2 artifacts")
+    }
   })
 
   it("falls back to the generic renderer for a malformed list_artifacts payload", () => {

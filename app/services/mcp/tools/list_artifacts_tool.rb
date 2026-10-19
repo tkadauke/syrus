@@ -24,7 +24,7 @@ module Mcp::Tools
       def call(workflow_id:, server_context:)
         workflow = find_workflow!(workflow_id)
 
-        Mcp::Tools.success(workflow_id: workflow.id, artifacts: artifact_summaries(workflow))
+        Mcp::Tools.success(workflow_id: workflow.id, job_id: workflow.job_id, artifacts: artifact_summaries(workflow))
       end
 
       private
