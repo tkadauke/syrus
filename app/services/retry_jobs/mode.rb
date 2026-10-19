@@ -31,6 +31,8 @@ module RetryJobs
       raise NotImplementedError
     end
 
+    def group_confirmation_strategy = "independent"
+
     protected
 
     attr_reader :job, :source_workflow_id, :reason

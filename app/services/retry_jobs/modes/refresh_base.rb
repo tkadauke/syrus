@@ -17,6 +17,8 @@ module RetryJobs
       def execute
         BaseRefreshRetryEnqueuer.call(job: job, source_workflow: source_workflow, reason: reason)
       end
+
+      def group_confirmation_strategy = "dependency_sequenced"
     end
   end
 end

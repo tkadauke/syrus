@@ -161,8 +161,11 @@ attempt from the Job's current effective base, and `refresh_base` to restore a
 published mutation checkpoint onto the current effective base. Base refresh
 requires an audit `reason`. Syrus preflights every selected Job before showing
 one confirmation, includes checkpoint and base details in that confirmation,
-and orders grouped retries upstream-first. Members still report outcomes
-independently; a later failure does not roll back an earlier successful start.
+and durably sequences grouped base refreshes upstream-first. A dependent
+refresh remains waiting until every selected upstream refresh workflow
+succeeds; an upstream failure fails that dependent without launching it.
+Members still report outcomes independently, and a later failure does not
+roll back an earlier successful refresh.
 
 `approve_job` uses the same approval-blocking runtime-work policy as the Job
 detail approve button, dashboard bulk approval, and app lifecycle endpoint. A

@@ -85,6 +85,8 @@ module PendingActions
       "Running #{self.class.action_key.to_s.humanize(capitalize: false)}..."
     end
 
+    def group_confirmation_strategy = "independent"
+
     def repair_action?
       false
     end

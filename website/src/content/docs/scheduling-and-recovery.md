@@ -89,8 +89,9 @@ base refresh. `failed_step` keeps the failed workflow's immutable source,
 `implementation` starts fresh from the current effective base, and
 `refresh_base` restores a published checkpoint onto that base and requires an
 audit reason. A multi-Job request is preflighted as a whole, confirmed once,
-and launched in dependency order; each Job keeps its own success or failure
-outcome.
+and launched in dependency order. A selected dependent waits for its upstream
+refresh workflow to succeed and is not launched if that upstream refresh
+fails. Each Job keeps its own success or failure outcome.
 
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
