@@ -5,7 +5,7 @@ import { MarkdownPreview } from "./toolCardMarkdown"
 const PINNED_PREVIEW_LINES = 8
 const PINNED_PREVIEW_CHARS = 800
 
-type PinnedContextResult = { kind: "updated"; message: string | null; content: string } | { kind: "removed"; message: string | null }
+type PinnedContextResult = { kind: "updated"; message: string | null; content: string } | { kind: "removed"; message: string | null; content: string | null }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -20,17 +20,14 @@ export function parsePinnedContextResult(context: ToolCardContext): PinnedContex
   if (!isPlainObject(parsed) || !("pinned_context" in parsed)) return null
 
   const message = messageValue(parsed.message)
-  if (parsed.pinned_context == null) return { kind: "removed", message }
+  if (parsed.pinned_context == null) {
+    const removedContent = parsed.removed_pinned_context
+    if (removedContent != null && typeof removedContent !== "string") return null
+    return { kind: "removed", message, content: removedContent ?? null }
+  }
   if (typeof parsed.pinned_context !== "string") return null
 
   return { kind: "updated", message, content: parsed.pinned_context }
-}
-
-export function pinnedContextSummary(context: ToolCardContext) {
-  const result = parsePinnedContextResult(context)
-  if (!result) return null
-  if (context.resultError) return result.message || "Pinned context update failed"
-  return result.message || (result.kind === "updated" ? "Pinned context updated" : "Pinned context removed")
 }
 
 export function PinnedContextCard({
@@ -53,7 +50,26 @@ export function PinnedContextCard({
           <StatePill state={error ? "failed" : "removed"} tone={error ? "failure" : "success"} />
           <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
         </div>
+        {chatId ? (
+          <div className="min-w-0">
+            <SectionLabel>Chat</SectionLabel>
+            <EntityReference id={chatId} kind="chat" />
+          </div>
+        ) : null}
         {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
+        {result.content != null ? (
+          <div>
+            <SectionLabel>Removed context</SectionLabel>
+            <MarkdownPreview
+              emptyLabel="Removed pinned context was empty."
+              linkifyUrls
+              maxChars={PINNED_PREVIEW_CHARS}
+              maxLines={PINNED_PREVIEW_LINES}
+              modalLabel="Removed pinned context"
+              text={result.content}
+            />
+          </div>
+        ) : null}
       </CardShell>
     )
   }
