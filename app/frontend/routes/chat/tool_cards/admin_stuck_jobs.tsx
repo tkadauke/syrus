@@ -193,72 +193,76 @@ function StuckJobsCard({ context }: { context: ToolCardContext }) {
           {t("admin_stuck_jobs.page_position", { page, totalPages })}
         </p>
       ) : null}
-      <Table responsive>
-        <THead columns={["job", "workflow", "run", "severity", "diagnostic", "timing", "repair_plan"].map((key) => t(`admin_stuck_jobs.${key}`))} />
-        <TBody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <Td primary wrap>
-                <div className="space-y-1">
-                  <EntityReference
-                    href={row.jobPath}
-                    id={row.jobId}
-                    kind="job"
-                    label={row.jobId ? `JOB-${row.jobId}${row.title ? ` — ${row.title}` : ""}` : row.title}
-                  />
-                  <LabeledValue label={t("admin_stuck_jobs.record_id")} value={row.id} mono />
-                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.state} />
-                  <LabeledValue label={t("admin_stuck_jobs.job_state")} value={row.jobState} />
-                </div>
-              </Td>
-              <Td wrap>
-                <div className="space-y-1">
-                  <EntityReference href={row.workflowPath} id={row.workflowId} jobId={row.jobId} kind="workflow" />
-                  <LabeledValue label={t("admin_stuck_jobs.slug")} value={row.workflowSlug} mono />
-                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.workflowState} />
-                  <LabeledValue label={t("admin_stuck_jobs.trigger")} value={row.workflowTriggerKind} />
-                </div>
-              </Td>
-              <Td wrap>
-                <div className="space-y-1">
-                  <EntityReference id={row.runId} jobId={row.jobId} kind="run" workflowId={row.workflowId} />
-                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.runState} />
-                  <LabeledValue label={t("admin_stuck_jobs.step")} value={row.stepKind} />
-                  <LabeledValue label={t("admin_stuck_jobs.transcript")} value={row.hasTranscript} />
-                </div>
-              </Td>
-              <Td wrap>
-                <div className="space-y-1">
-                  {row.severity ? <StatePill state={row.severity} /> : "—"}
-                  <LabeledValue label={t("admin_stuck_jobs.reconciler")} value={row.reconcilerSeverity} />
-                  <div>{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</div>
-                </div>
-              </Td>
-              <Td wrap>
-                <div className="min-w-0 space-y-1.5">
-                  <Badge>{row.kind.replace(/_/g, " ")}</Badge>
-                  {row.detail ? (
-                    <MarkdownPreview maxLines={4} text={row.detail} title={t("admin_stuck_jobs.detail")} />
-                  ) : (
-                    <LabeledValue label={t("admin_stuck_jobs.detail")} value={null} />
-                  )}
-                  <LabeledValue label={t("admin_stuck_jobs.issue")} value={row.issue} mono />
-                </div>
-              </Td>
-              <Td wrap>
-                <div className="space-y-1">
-                  <LabeledValue label={t("admin_stuck_jobs.age")} value={row.ageLabel} />
-                  <LabeledValue label={t("admin_stuck_jobs.seconds")} value={row.ageSeconds} mono />
-                  <LabeledValue label={t("admin_stuck_jobs.heartbeat")} value={row.lastHeartbeatAt} mono />
-                </div>
-              </Td>
-              <Td wrap>
-                <RepairPlan execution={row.repairExecution} plan={row.repairPlan} />
-              </Td>
-            </tr>
-          ))}
-        </TBody>
-      </Table>
+      <div className="pb-24 sm:pb-0">
+        <Table responsive="container">
+          <THead columns={["job", "workflow", "run", "severity", "diagnostic", "timing", "repair_plan"].map((key) => t(`admin_stuck_jobs.${key}`))} />
+          <TBody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <Td primary wrap>
+                  <div className="space-y-1">
+                    <EntityReference
+                      href={row.jobPath}
+                      id={row.jobId}
+                      kind="job"
+                      label={row.jobId ? `JOB-${row.jobId}${row.title ? ` — ${row.title}` : ""}` : row.title}
+                    />
+                    <LabeledValue label={t("admin_stuck_jobs.record_id")} value={row.id} mono />
+                    <LabeledValue label={t("admin_stuck_jobs.state")} value={row.state} />
+                    <LabeledValue label={t("admin_stuck_jobs.job_state")} value={row.jobState} />
+                  </div>
+                </Td>
+                <Td wrap>
+                  <div className="space-y-1">
+                    <EntityReference href={row.workflowPath} id={row.workflowId} jobId={row.jobId} kind="workflow" />
+                    <LabeledValue label={t("admin_stuck_jobs.slug")} value={row.workflowSlug} mono />
+                    <LabeledValue label={t("admin_stuck_jobs.state")} value={row.workflowState} />
+                    <LabeledValue label={t("admin_stuck_jobs.trigger")} value={row.workflowTriggerKind} />
+                  </div>
+                </Td>
+                <Td wrap>
+                  <div className="space-y-1">
+                    <EntityReference id={row.runId} jobId={row.jobId} kind="run" workflowId={row.workflowId} />
+                    <LabeledValue label={t("admin_stuck_jobs.state")} value={row.runState} />
+                    <LabeledValue label={t("admin_stuck_jobs.step")} value={row.stepKind} />
+                    <LabeledValue label={t("admin_stuck_jobs.transcript")} value={row.hasTranscript} />
+                  </div>
+                </Td>
+                <Td wrap>
+                  <div className="space-y-1">
+                    {row.severity ? <StatePill state={row.severity} /> : "—"}
+                    <LabeledValue label={t("admin_stuck_jobs.reconciler")} value={row.reconcilerSeverity} />
+                    <div>{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</div>
+                  </div>
+                </Td>
+                <Td wrap>
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="min-w-0 [&>span]:max-w-full [&>span]:whitespace-normal [&>span]:break-words">
+                      <Badge>{row.kind.replace(/_/g, " ")}</Badge>
+                    </div>
+                    {row.detail ? (
+                      <MarkdownPreview maxLines={4} text={row.detail} title={t("admin_stuck_jobs.detail")} />
+                    ) : (
+                      <LabeledValue label={t("admin_stuck_jobs.detail")} value={null} />
+                    )}
+                    <LabeledValue label={t("admin_stuck_jobs.issue")} value={row.issue} mono />
+                  </div>
+                </Td>
+                <Td wrap>
+                  <div className="space-y-1">
+                    <LabeledValue label={t("admin_stuck_jobs.age")} value={row.ageLabel} />
+                    <LabeledValue label={t("admin_stuck_jobs.seconds")} value={row.ageSeconds} mono />
+                    <LabeledValue label={t("admin_stuck_jobs.heartbeat")} value={row.lastHeartbeatAt} mono />
+                  </div>
+                </Td>
+                <Td wrap>
+                  <RepairPlan execution={row.repairExecution} plan={row.repairPlan} />
+                </Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      </div>
     </CardShell>
   )
 }
