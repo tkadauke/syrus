@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import i18n from "i18next"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -84,9 +84,31 @@ export function MarkdownPreview({
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
   const [open, setOpen] = useState(false)
+  const [visuallyClipped, setVisuallyClipped] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
   const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (!preview || truncated.truncated) {
+      setVisuallyClipped(false)
+      return
+    }
+
+    const measure = () => setVisuallyClipped(preview.scrollHeight > preview.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure)
+      return () => window.removeEventListener("resize", measure)
+    }
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(preview)
+    return () => observer.disconnect()
+  }, [maxLines, normalized, truncated.truncated])
 
   if (!normalized) {
     if (emptyState !== undefined) return <>{emptyState}</>
@@ -107,12 +129,13 @@ export function MarkdownPreview({
       <div
         className={["break-words text-xs text-text-muted [overflow-wrap:anywhere]", className].filter(Boolean).join(" ")}
         data-testid="markdown-preview-content"
+        ref={previewRef}
         style={lineClampStyle}
       >
         {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated ? (
+      {truncated.truncated || visuallyClipped ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
