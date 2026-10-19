@@ -849,7 +849,12 @@ provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Rules can
 be disabled without losing their ordered position, and a matching hold action
 stops first-match evaluation and leaves the workflow queued without launching a
-Run or treating the decision as provider failure.
+Run or treating the decision as provider failure. Holds are durable and retain
+their matched scope, reason, condition evidence, and resumption policy. They can
+resume when their conditions clear, at a configured time, or after an audited
+admin release or override; every wake evaluates the ordered routing rules again.
+Because routing admission happens before Run creation, a hold never interrupts
+an already-running provider process.
 Existing workflow pins are not rewritten.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its

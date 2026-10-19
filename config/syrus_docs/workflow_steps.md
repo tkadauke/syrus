@@ -353,6 +353,17 @@ provider outright, the same as before. Workflow creation records the chosen
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+When that action is a hold, Syrus also creates a durable
+`ProviderRoutingHold` before workflow admission. The record captures the
+matched rule and scope, condition evidence, operator-facing reason, resumption
+mode, and next reevaluation time. `when_conditions_clear` holds are reconsidered
+after provider evidence changes and on a bounded timer, `until_time` holds wake
+at their configured time, and `manual` holds wait for an admin release. A wake
+reruns the ordered rules from the most specific scope; the released hold rule
+is treated as satisfied for that workflow so later rules can route it. Admin
+releases and exceptional overrides require a reason and retain the actor, time,
+and release kind. Holds apply only at admission and never interrupt an existing
+Run or provider process.
 Job detail serializes the same resolver explanation so operators can see which
 scope or rule selected the currently resolved provider without opening a run
 artifact.
