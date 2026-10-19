@@ -502,7 +502,6 @@ module WorkEngine
           run.update_columns(updates)
           run.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
           run.update_columns(updated_at: parse_optional_time(config["updated_at"])) if config["updated_at"].present?
-          create_run_transition!(run, config["transition"]) if config["transition"]
           create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic
@@ -543,17 +542,6 @@ module WorkEngine
           end
           create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
         end
-      end
-
-      def create_run_transition!(run, config)
-        StateTransition.create!(
-          subject: run,
-          from_state: config.fetch("from_state", "queued"),
-          to_state: config.fetch("to_state", run.state),
-          event_name: config.fetch("event_name", "cancel"),
-          source: config.fetch("source", "reconciler"),
-          metadata: config.fetch("metadata", {})
-        )
       end
 
       def create_host_admission_deferral!(workflow, run, config)
