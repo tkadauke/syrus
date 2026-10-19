@@ -16,6 +16,7 @@ module Admin
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
     TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)/
     EXPLICIT_CARD_STATUSES = {
+      "withdraw_pending_action" => "generic",
       "retire_terminal_work_unit" => "generic",
       "assign_job_to_epic" => "generic",
       "force_fail_job" => "generic",
