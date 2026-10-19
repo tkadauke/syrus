@@ -4,8 +4,10 @@ import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { CopyIcon } from "../../components/CopyableSlug"
 import { Modal } from "../../components/Modal"
+import { CodeSurface } from "../../components/ui"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
+import type { HighlighterLanguageId } from "../../lib/highlighter"
 import { Markdown, renderLightMarkdown, type MarkdownLinkHandler } from "../../lib/Markdown"
 
 const DEFAULT_MAX_LINES = 6
@@ -24,6 +26,7 @@ const CLOSE_BUTTON_CLASS = [
 export type MarkdownPreviewProps = {
   text: string | null | undefined
   className?: string
+  copyLabel?: string
   emptyLabel?: string
   linkifySlugs?: boolean
   linkifyUrls?: boolean
@@ -36,7 +39,11 @@ export type MarkdownPreviewProps = {
   slugHrefFallbacks?: Record<string, string>
 }
 
-export type TextPreviewProps = Omit<MarkdownPreviewProps, "text"> & { text: string; truncate?: TextTruncationMode }
+export type TextPreviewProps = Omit<MarkdownPreviewProps, "text"> & {
+  text: string
+  lang?: HighlighterLanguageId | null
+  truncate?: TextTruncationMode
+}
 
 export type TextTruncationMode = "head" | "tail" | "headTail"
 
@@ -52,6 +59,7 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 // complete Markdown renderer available in a dialog only when content is cut.
 export function MarkdownPreview({
   className,
+  copyLabel,
   emptyLabel,
   emptyState,
   linkifySlugs = true,
@@ -110,7 +118,7 @@ export function MarkdownPreview({
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
           <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-text-primary">{title || dialogLabel}</h2>
           <button
-            aria-label={t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
+            aria-label={copyLabel ?? t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
             className={CLOSE_BUTTON_CLASS}
             onClick={() => copy(completeText)}
             title={copied ? t("copy.copied") : t("copy.copy", { slug: title || dialogLabel })}
@@ -139,7 +147,7 @@ export function MarkdownPreview({
 
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
-export function TextPreview({ text, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
+export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
@@ -153,9 +161,13 @@ export function TextPreview({ text, maxLines = DEFAULT_MAX_LINES, maxChars, titl
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
-      <pre className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="text-preview-content">
-        {truncated.preview}
-      </pre>
+      <CodeSurface
+        className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
+        code={truncated.preview}
+        data-testid="text-preview-content"
+        lang={lang}
+        maxHeightClassName="max-h-72"
+      />
       {truncated.truncated ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
@@ -183,8 +195,15 @@ export function TextPreview({ text, maxLines = DEFAULT_MAX_LINES, maxChars, titl
             <CloseIcon />
           </button>
         </header>
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto px-4 py-3">
-          <pre className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{text}</pre>
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+          <CodeSurface
+            className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
+            code={text}
+            lang={lang}
+            maxHeightClassName="max-h-none"
+          >
+            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{text}</code>}
+          </CodeSurface>
         </div>
       </Modal>
     </div>
@@ -257,10 +276,8 @@ export function truncateMarkdown(text: string, maxLines: number, maxChars?: numb
   }
 
   if (maxChars == null) {
-  if (maxChars == null) {
     const whitespace = normalized.slice(0, cutoff).search(/\s+\S*$/)
     if (whitespace > 0) cutoff = whitespace
-  }
   }
 
   return { preview: normalized.slice(0, cutoff).trimEnd(), truncated: true }
