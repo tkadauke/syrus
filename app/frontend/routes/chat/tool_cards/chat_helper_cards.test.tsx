@@ -133,6 +133,19 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("Question service unavailable.")).toBeInTheDocument()
   })
 
+  it("treats a present but malformed parsed result as malformed rather than pending", () => {
+    const malformed = context("ask_user_question", {
+      input: { questions: [{ question: "Which path?" }] },
+      parsedResult: { ok: true }
+    })
+
+    expect(askUserQuestionToolCard.collapsedSummary?.(malformed)).toBe("Question request returned an unexpected response")
+    render(<>{askUserQuestionToolCard.renderExpanded(malformed)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+    expect(screen.queryByText("Waiting for the question request to finish.")).not.toBeInTheDocument()
+  })
+
   it("renders suggest_next_step composer text and stored status", () => {
     const parsedResult = { session_id: 42, suggested_next_step: "Create an Epic from these findings" }
 

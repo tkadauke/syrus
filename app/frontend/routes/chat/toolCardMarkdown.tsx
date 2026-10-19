@@ -100,6 +100,7 @@ export function MarkdownPreview({
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
           <Markdown
             className="min-w-0 break-words [overflow-wrap:anywhere] text-text-primary"
+            linkifySlugs={linkifySlugs}
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             text={text}
