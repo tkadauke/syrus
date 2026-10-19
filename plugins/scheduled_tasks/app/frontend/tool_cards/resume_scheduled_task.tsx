@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard, t } from "../scheduledTaskToolCard"
+import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard, t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for resume_scheduled_task (the pending-action tool-card work).
 // Payload: { scheduled_task_id, label, enabled: true }.
@@ -14,20 +14,13 @@ function renderExpanded(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)
   if (!outcome) return null
 
-  return (
-    <ScheduledTaskOutcomeCard
-      detail={t("tool_resumed_detail")}
-      outcome={outcome}
-      pill={t("tool_resumed")}
-      tone="success"
-    />
-  )
+  return <ScheduledTaskOutcomeCard detail={t("tool_resumed_detail")} outcome={outcome} pill={t("tool_resumed")} tone="success" />
 }
 
-const resumeScheduledTaskToolCard: ToolCardRenderer = {
+const resumeScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "resume_scheduled_task",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default resumeScheduledTaskToolCard

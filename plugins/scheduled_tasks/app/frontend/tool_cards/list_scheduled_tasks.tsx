@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
 import { Badge, EmptyState, EntityReference, StatePill } from "@app/routes/chat/toolCardUi"
-import { FailureBadge, parseScheduledTask, type ScheduledTaskCard } from "../scheduledTaskToolCard"
+import { FailureBadge, parseScheduledTask, withScheduledTaskErrors, type ScheduledTaskCard } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for list_scheduled_tasks (the pending-action tool-card work).
 // Renders the repository's scheduled tasks as a compact schedule table
@@ -38,23 +38,39 @@ function renderExpanded(context: ToolCardContext) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_task")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_state")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_kind")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_cadence")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_next_fire")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_col_health")}</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_task")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_state")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_kind")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_cadence")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_next_fire")}
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              {t("tool_col_health")}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
           {tasks.map((task) => (
             <tr key={task.id}>
               <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={task.label}>
-                <EntityReference className="mr-1" href={`/scheduled_tasks/${task.id}`} kind="artifact" slug={`#${task.id}`} wrap="nowrap" /> {task.label}
+                <EntityReference className="mr-1" id={task.id} kind="scheduled_task" wrap="nowrap" /> {task.label}
               </td>
-              <td className="whitespace-nowrap px-2 py-1"><StatePill state={task.state} /></td>
+              <td className="whitespace-nowrap px-2 py-1">
+                <StatePill state={task.state} />
+              </td>
               <td className="whitespace-nowrap px-2 py-1">{task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : "—"}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={task.cadence ?? undefined}>{task.cadence || "—"}</td>
+              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={task.cadence ?? undefined}>
+                {task.cadence || "—"}
+              </td>
               <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{task.nextFireAt || task.fireAt || "—"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">
                 {task.consecutiveFailureCount > 0 ? <FailureBadge count={task.consecutiveFailureCount} /> : "—"}
@@ -67,11 +83,11 @@ function renderExpanded(context: ToolCardContext) {
   )
 }
 
-const listScheduledTasksToolCard: ToolCardRenderer = {
+const listScheduledTasksToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "list_scheduled_tasks",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default listScheduledTasksToolCard
 

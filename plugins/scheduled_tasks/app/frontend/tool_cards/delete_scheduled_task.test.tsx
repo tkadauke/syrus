@@ -21,16 +21,14 @@ describe("delete_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the deleted label and id", () => {
-    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe(
-      "Deleted 'Nightly main-branch health check' (#12)"
-    )
+    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe("Deleted 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the deleted outcome", () => {
     render(<>{deleteScheduledTaskToolCard.renderExpanded(context({ parsedResult: deleted }))}</>)
 
     expect(screen.getByText("deleted")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
     expect(screen.getByText("The task was removed and will never fire again.")).toBeInTheDocument()
   })

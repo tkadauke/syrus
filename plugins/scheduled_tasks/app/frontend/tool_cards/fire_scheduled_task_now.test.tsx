@@ -26,9 +26,7 @@ describe("fire_scheduled_task_now tool card", () => {
   })
 
   it("summarizes the collapsed row with the pending action id and state", () => {
-    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult: pendingAction }))).toBe(
-      "Fire now requested (#501, pending)"
-    )
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult: pendingAction }))).toBe("Fire now requested (#501, pending)")
   })
 
   it("renders the state, message, and pending action id", () => {
@@ -37,7 +35,7 @@ describe("fire_scheduled_task_now tool card", () => {
     expect(screen.getByText("Immediate fire requested")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("Fire scheduled task 12 immediately?")).toBeInTheDocument()
-    expect(screen.getByText("#501")).toBeInTheDocument()
+    expect(screen.getByText("ACTION-501")).toBeInTheDocument()
     expect(screen.getByText("The task does not fire until the operator confirms.")).toBeInTheDocument()
   })
 
@@ -46,15 +44,13 @@ describe("fire_scheduled_task_now tool card", () => {
 
     expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Copy #501 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy ACTION-501 to clipboard" })).toBeInTheDocument()
   })
 
   it("renders from pending_confirmation_id alone when pending_action_id is absent", () => {
     const parsedResult = { pending_confirmation_id: 777, state: "pending" }
 
-    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Fire now requested (#777, pending)"
-    )
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Fire now requested (#777, pending)")
   })
 
   it("falls back to null when the state is missing", () => {
