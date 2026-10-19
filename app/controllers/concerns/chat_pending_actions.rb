@@ -51,7 +51,7 @@ module ChatPendingActions
   end
 
   def pending_action_group_confirmed_notice(group)
-    group.confirmed_notice
+    group.confirmation_notice
   end
 
   def pending_action_group_rejected_notice(group)

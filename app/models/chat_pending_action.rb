@@ -197,9 +197,10 @@ class ChatPendingAction < ApplicationRecord
     end
   end
 
-  def execute_confirmation!(raise_on_error: false)
+  def execute_confirmation!(raise_on_error: false, finalize: true)
     should_execute = with_lock do
       return false unless confirming?
+      return false if !finalize && execution_status == "running"
 
       update_confirmation_progress!("running", "Starting pending action...")
       true
@@ -227,8 +228,17 @@ class ChatPendingAction < ApplicationRecord
 
     record_repair_admin_action!(record) if command.repair_action?
     repair_outcome = command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied"
-    complete_confirmation!(record, outcome: repair_outcome,
-      step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.")
+    if finalize
+      complete_confirmation!(record, outcome: repair_outcome,
+        step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.")
+    else
+      updates = {
+        execution_status: "waiting", execution_step: "Waiting for refresh workflow to finish...",
+        execution_error: nil
+      }
+      updates[:result] = record if record
+      update!(updates)
+    end
     true
   rescue StandardError => e
     fail_confirmation!(e)
@@ -248,6 +258,10 @@ class ChatPendingAction < ApplicationRecord
     }
     updates[:result] = record if record
     update!(updates)
+  end
+
+  def complete_sequenced_confirmation!
+    complete_confirmation!(outcome: "applied", step: "Refresh workflow succeeded.")
   end
 
   def update_confirmation_progress!(status, step)

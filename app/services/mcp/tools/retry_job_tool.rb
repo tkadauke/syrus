@@ -57,6 +57,7 @@ module Mcp::Tools
           result = mode_class.new(job: job, source_workflow_id: source_workflow_id, reason: reason).preflight
           [ job.id, result ]
         end
+        selected_job_ids = jobs.map(&:id)
         ineligible = jobs.filter_map do |job|
           result = preflights.fetch(job.id)
           "#{job.slug}: #{result.message}" unless result.eligible?
@@ -69,7 +70,7 @@ module Mcp::Tools
             server_context,
             chat_session,
             action: "retry_job",
-            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id)),
+            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids),
             requested_by: "agent"
           )
 
@@ -86,7 +87,7 @@ module Mcp::Tools
           server_context: server_context,
           chat_session: chat_session,
           member_attributes: jobs.map do |job|
-            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id)), requested_by: "agent" }
+            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids), requested_by: "agent" }
           end,
           reason: reason.to_s.strip.presence
         )
@@ -101,12 +102,15 @@ module Mcp::Tools
 
       private
 
-      def retry_payload(job, mode, source_workflow_id, reason, preflight)
+      def retry_payload(job, mode, source_workflow_id, reason, preflight, selected_job_ids)
         payload = { "job_id" => job.id }
         payload["mode"] = mode.to_s unless mode.to_s == "auto"
         payload["source_workflow_id"] = preflight.details["source_workflow_id"] || source_workflow_id if source_workflow_id.present? || preflight.details["source_workflow_id"]
         payload["reason"] = reason.to_s.strip if reason.present?
         payload["preflight"] = preflight.details if preflight.details.present?
+        if mode.to_s == "refresh_base"
+          payload["selected_upstream_job_ids"] = RetryJobs::Selection.selected_upstream_ids(job, selected_job_ids)
+        end
         payload
       end
     end

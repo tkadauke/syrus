@@ -11,11 +11,15 @@ module PendingActions
       result = mode.execute
       raise ArgumentError, result.error unless result.success?
 
-      nil
+      result.workflow
     end
 
     def execution_label
       "Creating retry workflow..."
+    end
+
+    def group_confirmation_strategy
+      RetryJobs::Mode.for(payload.fetch("mode", "auto")).new(job: action_job).group_confirmation_strategy
     end
 
     def validate_payload(errors)
