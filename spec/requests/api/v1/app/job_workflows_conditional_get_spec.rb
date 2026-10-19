@@ -2,7 +2,13 @@ require "rails_helper"
 
 RSpec.describe "App API job workflows conditional GET", type: :request do
   let(:user) { Factories.user }
-  let(:job) { Factories.job_with_run(user: user, repository: Factories.repository(user: user)) }
+  let(:job) do
+    Factories.job_with_run(
+      user: user,
+      repository: Factories.repository(user: user),
+      run_attrs: { state: "running" }
+    )
+  end
 
   before { sign_in_as(user) }
 
