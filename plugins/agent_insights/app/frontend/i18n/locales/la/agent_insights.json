@@ -140,5 +140,15 @@
   "tool_dismiss_many": "Perspectivas dimitte",
   "tool_dismiss_count": "{{count}} perspectivam dimitte",
   "tool_dismiss_count_plural": "{{count}} perspectivas dimitte",
-  "tool_reason": "Causa"
+  "tool_reason": "Causa",
+  "tool_outcome_fallback": "Mutatio perspectivae postulata est.",
+  "tool_submit_label": "Perspectiva servata",
+  "tool_submit_summary": "Perspectiva servata",
+  "tool_submit_summary_with_id": "Perspectiva #{{id}} servata",
+  "tool_update_label": "Eventus renovationis",
+  "tool_update_summary": "Perspectiva renovata",
+  "tool_update_summary_with_id": "Perspectiva #{{id}} renovata",
+  "tool_retire_label": "Eventus depositionis",
+  "tool_retire_summary": "Perspectiva deposita",
+  "tool_retire_summary_with_id": "Perspectiva #{{id}} deposita"
 }

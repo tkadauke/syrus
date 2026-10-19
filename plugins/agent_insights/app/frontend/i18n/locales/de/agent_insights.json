@@ -140,5 +140,15 @@
   "tool_dismiss_many": "Einblicke ablehnen",
   "tool_dismiss_count": "{{count}} Einblick ablehnen",
   "tool_dismiss_count_plural": "{{count}} Einblicke ablehnen",
-  "tool_reason": "Grund"
+  "tool_reason": "Grund",
+  "tool_outcome_fallback": "Änderung des Einblicks angefordert.",
+  "tool_submit_label": "Gespeicherter Einblick",
+  "tool_submit_summary": "Einblick gespeichert",
+  "tool_submit_summary_with_id": "Einblick #{{id}} gespeichert",
+  "tool_update_label": "Aktualisierungsergebnis",
+  "tool_update_summary": "Einblick aktualisiert",
+  "tool_update_summary_with_id": "Einblick #{{id}} aktualisiert",
+  "tool_retire_label": "Ergebnis der Zurückziehung",
+  "tool_retire_summary": "Einblick zurückgezogen",
+  "tool_retire_summary_with_id": "Einblick #{{id}} zurückgezogen"
 }

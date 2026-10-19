@@ -140,5 +140,15 @@
   "tool_dismiss_many": "Dismiss insights",
   "tool_dismiss_count": "Dismiss {{count}} insight",
   "tool_dismiss_count_plural": "Dismiss {{count}} insights",
-  "tool_reason": "Reason"
+  "tool_reason": "Reason",
+  "tool_outcome_fallback": "Insight mutation requested.",
+  "tool_submit_label": "Saved insight",
+  "tool_submit_summary": "Saved insight",
+  "tool_submit_summary_with_id": "Saved insight #{{id}}",
+  "tool_update_label": "Update outcome",
+  "tool_update_summary": "Updated insight",
+  "tool_update_summary_with_id": "Updated insight #{{id}}",
+  "tool_retire_label": "Retirement outcome",
+  "tool_retire_summary": "Retired insight",
+  "tool_retire_summary_with_id": "Retired insight #{{id}}"
 }

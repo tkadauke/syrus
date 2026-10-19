@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
@@ -383,8 +384,15 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
               <SeverityBadge severity={row.severity} />
             </div>
             {row.summary ? <TextPreview maxChars={320} maxLines={2} text={row.summary} /> : null}
+            <div className="flex min-w-0 flex-wrap gap-1">
+              {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
+              {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+              <ConfidenceBadge confidence={row.confidence} />
+            </div>
             <div className="flex min-w-0 flex-wrap gap-2">
-              <RefLink target={row.sourceWorkflow ?? row.sourceRun ?? row.job} />
+              <RefLink target={row.sourceWorkflow} />
+              <RefLink target={row.sourceRun} />
+              {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
               {row.repository ? <RepositoryReference repository={row.repository} /> : null}
             </div>
             <Text as="div" className="break-all font-mono" variant="caption" tone="muted">
@@ -457,7 +465,7 @@ export function parseOutcome(context: ToolCardContext) {
   if (isPlainObject(context.parsedResult)) {
     const ids = Array.isArray(context.parsedResult.insight_ids) ? context.parsedResult.insight_ids : []
     const firstId = ids.length > 0 ? displayValue(ids[0]) : null
-    const message = displayValue(context.parsedResult.message) ?? "Insight mutation requested."
+    const message = displayValue(context.parsedResult.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
     return {
       id: firstId,
       message,
@@ -480,38 +488,6 @@ export function parseOutcome(context: ToolCardContext) {
     supersededByInsightId: displayValue(context.input?.superseded_by_insight_id),
     supersededByJobId: displayValue(context.input?.superseded_by_job_id)
   }
-}
-
-export function OutcomeBody({ outcome, label }: { outcome: NonNullable<ReturnType<typeof parseOutcome>>; label: string }) {
-  return (
-    <CardShell>
-      <SectionLabel>{label}</SectionLabel>
-      <Text>{outcome.message}</Text>
-      <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        {outcome.targetInsightId ? (
-          <DescriptionList.Item label="Insight">
-            <InsightIdReference id={outcome.targetInsightId} />
-          </DescriptionList.Item>
-        ) : null}
-        {outcome.supersededByInsightId ? (
-          <DescriptionList.Item label="Superseding insight">
-            <InsightIdReference id={outcome.supersededByInsightId} />
-          </DescriptionList.Item>
-        ) : null}
-        {outcome.supersededByJobId ? (
-          <DescriptionList.Item label="Superseding job">
-            <EntityReference id={outcome.supersededByJobId} kind="job" wrap="nowrap" />
-          </DescriptionList.Item>
-        ) : null}
-      </DescriptionList.Root>
-      {outcome.reason ? (
-        <div>
-          <SectionLabel>Reason</SectionLabel>
-          <TextPreview text={outcome.reason} />
-        </div>
-      ) : null}
-    </CardShell>
-  )
 }
 
 export function OutcomeCard({ context, label }: { context: ToolCardContext; label: string }) {

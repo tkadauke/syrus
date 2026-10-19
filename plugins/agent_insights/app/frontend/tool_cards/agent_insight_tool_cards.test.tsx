@@ -1,9 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import i18n from "@app/i18n"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import listInsightsToolCard from "./list_insights"
 import readInsightToolCard from "./read_insight"
 import retireInsightToolCard from "./retire_insight"
+import submitInsightToolCard from "./submit_insight"
+import updateInsightToolCard from "./update_insight"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -76,7 +79,15 @@ describe("Agent Insights tool cards", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Copy INSIGHT-41 to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-41")
     expect(screen.getAllByRole("link", { name: "INSIGHT-41" })[0]).toHaveAttribute("href", "/s/INSIGHT-41")
-    expect(screen.getAllByText("Prepare failures cluster")[0].closest(".sm\\:hidden")).not.toBeNull()
+    const mobileList = screen.getAllByText("Prepare failures cluster")[0].closest(".sm\\:hidden")
+    expect(mobileList).not.toBeNull()
+    const mobileRow = within(mobileList!.firstElementChild as HTMLElement)
+    expect(mobileRow.getByText("repeated failure")).toBeInTheDocument()
+    expect(mobileRow.getByText("create job")).toBeInTheDocument()
+    expect(mobileRow.getByText("92% confidence")).toBeInTheDocument()
+    expect(mobileRow.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
+    expect(mobileRow.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    expect(mobileRow.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/repositories/3")
   })
 
   it("renders read_insight details with long evidence, recommended action, links, and retirement outcome", () => {
@@ -172,6 +183,20 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("confirmed")).toBeInTheDocument()
     expect(screen.getByText("Retirement requested.")).toBeInTheDocument()
     expect(screen.getByText("Retirement was confirmed by the operator.")).toBeInTheDocument()
+  })
+
+  it("localizes mutation summaries, labels, and fallback messages", async () => {
+    await i18n.changeLanguage("de")
+    const cardContext = context({ parsedResult: { insight_ids: [41] } })
+
+    expect(submitInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 gespeichert")
+    expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 aktualisiert")
+    expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 zurückgezogen")
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Ergebnis der Zurückziehung")).toBeInTheDocument()
+    expect(screen.getByText("Änderung des Einblicks angefordert.")).toBeInTheDocument()
+
+    await i18n.changeLanguage("en")
   })
 
   it("falls back to the generic renderer for malformed list and detail payloads", () => {
