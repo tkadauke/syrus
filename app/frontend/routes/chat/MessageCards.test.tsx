@@ -1317,6 +1317,34 @@ describe("tool result rendering", () => {
     })
   })
 
+  it("supplies live chat context so propose_job renders an attached image thumbnail", () => {
+    const result = { slug: "job-image-card", title: "Image card", body: "Use the screenshot.", kind: "job", state: "proposed" }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose job",
+      calls: [{
+        message_id: 2,
+        tool_name: "propose_job",
+        raw_name: "mcp__syrus-chat-sidecar__propose_job",
+        detail: "Image card",
+        display_label: "Propose job",
+        progress_label: "Proposing",
+        raw_payload: { title: "Image card", media: ["chat_image:77"] },
+        result_body: JSON.stringify(result),
+        result_json: result,
+        result_error: false,
+        result_kind: "record",
+        result_summary: ""
+      }],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} payload={makePayload()} />)
+    expandToolGroup("Propose job")
+
+    expect(screen.getByRole("img", { name: "chat_image:77" })).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file")
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
       content: [{ type: "text", text: JSON.stringify({

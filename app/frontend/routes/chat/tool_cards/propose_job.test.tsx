@@ -103,24 +103,56 @@ describe("propose_job tool card", () => {
     expect(screen.getByText(/deployment stage: production/)).toBeInTheDocument()
   })
 
-  it("renders input-only target, provider, placement, and media through shared thumbnails", () => {
+  it("resolves input media metadata into image, snapshot, and preview thumbnails", () => {
     const parsedResult = { slug: "fix-output", title: "Fix output", kind: "job", state: "proposed", body: "" }
     const input = {
       epic_id: 29,
       provider: "codex",
       planned_execution: { project_label: "Web", target_label: "//:frontend", capabilities: { os: ["linux"] } },
-      media: ["chat_image:77", "snapshot:42"]
+      media: ["chat_image:77", "snapshot:42", "preview_panel_version:101"]
+    }
+    const presentation: NonNullable<ToolCardContext["presentation"]> = {
+      chatId: 9,
+      chatMedia: {
+        snapshots: [{ id: 42, name: "Checkout sketch", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-18T12:00:00Z" }],
+        chat_images: [
+          { id: 77, title: "Mobile layout", filename: "mobile.png", content_type: "image/png", image_url: "/api/v1/app/chats/9/media/chat_images/77/file" }
+        ],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false
+      },
+      previewPanels: [
+        {
+          id: 5,
+          title: "Job card mockup",
+          file_count: 1,
+          url: "/preview/5",
+          visibility: "private",
+          app_visibility_path: "/api/preview/5/visibility",
+          app_export_path: "/api/preview/5/export",
+          app_file_base_path: "/api/v1/app/chats/9/preview_panels/5/files",
+          app_token_path: "/api/preview/5/token",
+          app_close_path: "/api/preview/5",
+          current_version_id: 101,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
+          versions: [{ id: 101, created_at: "2026-10-18T12:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" }]
+        }
+      ]
     }
 
-    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult, input }))}</>)
+    render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult, input, presentation }))}</>)
 
     expect(screen.getByText("No description provided.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-29" })).toHaveAttribute("href", "/epics/29")
     expect(screen.getByText("codex")).toBeInTheDocument()
     expect(screen.getByText(/project label: Web/)).toBeInTheDocument()
     expect(screen.getByText("os: linux")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Open chat_image:77" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Open snapshot:42" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Mobile layout" })).toHaveAttribute("src", "/api/v1/app/chats/9/media/chat_images/77/file")
+    expect(screen.getAllByText("Checkout sketch").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("6 whiteboard elements").length).toBeGreaterThan(0)
+    expect(screen.getByTitle("Job card mockup thumbnail")).toHaveAttribute("src", "/api/v1/app/chats/9/preview_panels/5/files/index.html?v=101&raw=1")
   })
 
   it("wraps long proposal titles inside the card instead of expanding the chat viewport", () => {

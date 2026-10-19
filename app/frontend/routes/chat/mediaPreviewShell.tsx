@@ -26,6 +26,7 @@ export type MediaPreviewItem = {
   actions?: MediaPreviewAction[]
   meta?: MediaPreviewMeta[]
   previewChildren?: ReactNode
+  thumbnailChildren?: ReactNode
 }
 
 export function MediaPreviewShell({
@@ -49,7 +50,9 @@ export function MediaPreviewShell({
         type="button"
       >
         <span className="block aspect-video w-full overflow-hidden bg-gray-100 dark:bg-gray-900">
-          {item.src ? (
+          {item.thumbnailChildren ? (
+            item.thumbnailChildren
+          ) : item.src ? (
             <img alt={item.alt ?? item.title} className="h-full w-full object-contain transition group-hover/media:scale-[1.02]" loading="lazy" src={item.src} />
           ) : (
             <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { ChatPendingActionInline } from "./api/chats"
+import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -38,6 +38,14 @@ export type ToolCardContext = {
   // (catalog fixtures, the admin transcript viewer); a card should fall
   // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
+  // Optional chat-owned presentation data. Live chat rendering supplies this
+  // separately from the redacted tool payload so cards can resolve opaque
+  // media references without changing the MCP response contract.
+  presentation?: {
+    chatId?: number | string
+    chatMedia?: ChatMediaPayload
+    previewPanels?: ChatPreviewPanel[]
+  }
 }
 
 export type ToolCardRenderer = {

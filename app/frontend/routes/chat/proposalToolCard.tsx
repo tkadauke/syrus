@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import type { ToolCardContext } from "../../pluginToolCards"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { MediaPreviewShell } from "./mediaPreviewShell"
@@ -38,11 +39,19 @@ export type ProposalOutcome = {
   plannedExecutionText: string | null
   capabilitiesText: string | null
   goalProvenanceText: string | null
-  media: string[]
+  media: ProposalMedia[]
   materialized: MaterializedOutcome
 }
 
 type DependencyRequirement = { target: string; mode: string; stage: string | null }
+type ProposalMedia = {
+  reference: string
+  title: string
+  detail: string
+  kind: "image" | "snapshot" | "preview"
+  src: string | null
+  previewKind: "image" | "frame" | "metadata"
+}
 
 function plannedExecutionCapabilitiesText(plannedExecution: unknown) {
   if (!isPlainObject(plannedExecution)) return null
@@ -105,7 +114,61 @@ function objectSummary(value: unknown): string | null {
     .join(" · ")
 }
 
-export function parseProposalOutcome(value: unknown, rawInput?: Record<string, unknown>): ProposalOutcome | null {
+function proposalMedia(references: string[], presentation?: ToolCardContext["presentation"]): ProposalMedia[] {
+  return references.map((reference) => {
+    const [kind, rawId] = reference.split(":", 2)
+    const id = Number(rawId)
+
+    if (kind === "chat_image") {
+      const image = presentation?.chatMedia?.chat_images.find((candidate) => candidate.id === id)
+      const derivedSrc =
+        presentation?.chatId && Number.isFinite(id) ? `/api/v1/app/chats/${encodeURIComponent(String(presentation.chatId))}/media/chat_images/${id}/file` : null
+      return {
+        reference,
+        title: image?.title || image?.filename || reference,
+        detail: image?.content_type || "Chat image",
+        kind: "image",
+        src: image?.image_url || image?.file_path || derivedSrc,
+        previewKind: image?.image_url || image?.file_path || derivedSrc ? "image" : "metadata"
+      }
+    }
+
+    if (kind === "snapshot") {
+      const snapshot = presentation?.chatMedia?.snapshots.find((candidate) => candidate.id === id)
+      return {
+        reference,
+        title: snapshot?.name || reference,
+        detail: snapshot ? `${snapshot.element_count} whiteboard element${snapshot.element_count === 1 ? "" : "s"}` : "Whiteboard snapshot",
+        kind: "snapshot",
+        src: null,
+        previewKind: "metadata"
+      }
+    }
+
+    if (kind === "preview_panel_version") {
+      const match = presentation?.previewPanels
+        ?.flatMap((panel) => panel.versions.map((version) => ({ panel, version })))
+        .find(({ version }) => version.id === id)
+      const src = match ? `${match.panel.app_file_base_path}/${encodeURIComponent(match.version.entry_path)}?v=${match.version.id}&raw=1` : null
+      return {
+        reference,
+        title: match?.panel.title || reference,
+        detail: match ? `Preview · ${match.version.entry_path}` : "Preview mockup",
+        kind: "preview",
+        src,
+        previewKind: match?.version.entry_viewer_kind === "image" ? "image" : src ? "frame" : "metadata"
+      }
+    }
+
+    return { reference, title: reference, detail: "Media attachment", kind: "image", src: null, previewKind: "metadata" }
+  })
+}
+
+export function parseProposalOutcome(
+  value: unknown,
+  rawInput?: Record<string, unknown>,
+  presentation?: ToolCardContext["presentation"]
+): ProposalOutcome | null {
   if (!isPlainObject(value)) return null
   const input = rawInput ?? {}
   const slug = displayValue(value.slug)
@@ -132,7 +195,7 @@ export function parseProposalOutcome(value: unknown, rawInput?: Record<string, u
     plannedExecutionText: objectSummary(value.planned_execution ?? input.planned_execution),
     capabilitiesText: plannedExecutionCapabilitiesText(value.planned_execution ?? input.planned_execution),
     goalProvenanceText: objectSummary(value.goal_provenance),
-    media: stringList(input.media),
+    media: proposalMedia(stringList(input.media), presentation),
     materialized: parseMaterialized(value.materialized)
   }
 }
@@ -294,15 +357,35 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         <div>
           <SectionLabel>Media</SectionLabel>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {proposal.media.map((reference) => (
+            {proposal.media.map((media) => (
               <MediaPreviewShell
                 item={{
-                  title: reference,
-                  fallbackLabel: reference.split(":", 1)[0].replace(/_/g, " "),
-                  badge: "attachment",
-                  actions: [{ label: "Copy reference", copyValue: reference }]
+                  title: media.title,
+                  subtitle: media.detail,
+                  src: media.previewKind === "image" ? media.src : null,
+                  alt: media.title,
+                  badge: media.kind,
+                  fallbackLabel: media.kind,
+                  thumbnailChildren:
+                    media.previewKind === "metadata" ? (
+                      <MediaMetadataPreview media={media} />
+                    ) : media.previewKind === "frame" && media.src ? (
+                      <iframe
+                        aria-label={`${media.title} thumbnail`}
+                        className="pointer-events-none h-full w-full bg-white"
+                        src={media.src}
+                        title={`${media.title} thumbnail`}
+                      />
+                    ) : undefined,
+                  previewChildren:
+                    media.previewKind === "metadata" ? (
+                      <MediaMetadataPreview media={media} />
+                    ) : media.previewKind === "frame" && media.src ? (
+                      <iframe className="h-[60dvh] w-full bg-white" src={media.src} title={media.title} />
+                    ) : undefined,
+                  actions: [...(media.src ? [{ label: "Open", href: media.src }] : []), { label: "Copy reference", copyValue: media.reference }]
                 }}
-                key={reference}
+                key={media.reference}
                 thumbnailClassName="w-full"
               />
             ))}
@@ -311,6 +394,16 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
       ) : null}
       <MaterializedOutcomeDetail materialized={proposal.materialized} />
     </CardShell>
+  )
+}
+
+function MediaMetadataPreview({ media }: { media: ProposalMedia }) {
+  return (
+    <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center text-text-muted">
+      <span className="text-2xs font-semibold uppercase">{media.kind}</span>
+      <span className="max-w-full break-words text-xs text-text-primary">{media.title}</span>
+      <span className="text-2xs">{media.detail}</span>
+    </span>
   )
 }
 
