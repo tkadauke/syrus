@@ -838,7 +838,7 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
       ) : null}
       {card.details ? (
         <Disclosure label="Inspection details">
-          <TextPreview text={card.details} truncate="headTail" />
+          <TextPreview modalLabel="Full inspection details" text={card.details} truncate="headTail" />
         </Disclosure>
       ) : (
         <EmptyState>No detailed inspection output was returned.</EmptyState>
@@ -863,7 +863,7 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
       ) : (
         <Disclosure label="Log preview">
           <FilterableList itemText={(entry) => entry} items={card.entries} placeholder="Filter log lines">
-            {(entries) => <TextPreview maxLines={40} text={entries.join("\n")} truncate="tail" />}
+            {(entries) => <TextPreview maxLines={40} modalLabel="Full Runtime logs" text={entries.join("\n")} truncate="tail" />}
           </FilterableList>
         </Disclosure>
       )}
