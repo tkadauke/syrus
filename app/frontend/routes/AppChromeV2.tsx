@@ -64,6 +64,7 @@ const SIDEBAR_SEGMENTED_NAV_CLASS = "inline-flex max-w-full flex-wrap overflow-h
 const SETTINGS_TRIGGER_BASE_CLASS = "flex min-w-0 items-center gap-2 rounded py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800"
 const COLOR_THEME_TRIGGER_CLASS = "flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-surface-raised"
 const MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT = 72
+const MOBILE_CHAT_APP_HEADER_BASE_TOP_PADDING = 12
 type MaintenanceSidebarState = { collapsed: boolean; hasTaskSnapshot: boolean; taskKeys: string[] }
 type RootVisualViewportMetrics = {
   height: number
@@ -340,9 +341,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const mobileChatTopInset = isMobileChatPage ? mobileChatContentHeaderHeight : 0
   const mobileChromeVisibleTopInset = isMobileLayeredChromePage ? Math.max(0, mobileChatAppHeaderHeight + mobileChatContentHeaderHeight - mobileChatHeaderOffset) : 0
   const mobileChatAppContentStyle = isMobileLayeredChromePage ? {
-    "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px`,
-    "--mobile-chrome-top-overlap-height": `${mobileChatAppHeaderHeight}px`,
-    "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
+    "--mobile-chat-app-header-height": `calc(${mobileChatAppHeaderHeight}px + env(safe-area-inset-top))`,
+    "--mobile-chrome-top-overlap-height": `calc(${mobileChatAppHeaderHeight}px + env(safe-area-inset-top))`,
+    "--mobile-chrome-visible-top-inset": mobileChatHeaderHidden ? "0px" : `calc(${mobileChromeVisibleTopInset}px + env(safe-area-inset-top))`
   } as CSSProperties : undefined
   const revealMobileChatHeader = useCallback(() => {
     setMobileChatHeaderOffset(0)
@@ -407,7 +408,12 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     const node = mobileAppHeaderRef.current
     if (!node || typeof ResizeObserver === "undefined") return
 
-    const updateHeight = () => setMobileChatAppHeaderHeight(Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, Math.round(node.getBoundingClientRect().height)))
+    const updateHeight = () => {
+      const paddingTop = Number.parseFloat(window.getComputedStyle(node).paddingTop)
+      const safeAreaInset = Number.isFinite(paddingTop) ? Math.max(0, paddingTop - MOBILE_CHAT_APP_HEADER_BASE_TOP_PADDING) : 0
+      const heightWithoutSafeArea = node.getBoundingClientRect().height - safeAreaInset
+      setMobileChatAppHeaderHeight(Math.max(MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT, Math.round(heightWithoutSafeArea)))
+    }
     updateHeight()
     const observer = new ResizeObserver(updateHeight)
     observer.observe(node)
@@ -676,7 +682,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           ref={mobileAppHeaderRef}
           style={mobileChatHeaderAutoHideActive ? {
             opacity: mobileChatHeaderHidden ? 0 : 1,
-            transform: `translateY(-${mobileChatHeaderOffset}px)`
+            transform: mobileChatHeaderHidden
+              ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
+              : `translateY(-${mobileChatHeaderOffset}px)`
           } : undefined}
         >
           <div className="flex min-w-0 items-center gap-2">

@@ -13,6 +13,7 @@ import type {
   WheelEvent as ReactWheelEvent
 } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
@@ -1166,15 +1167,16 @@ function MessageStream({
           {t("new_messages_button", { count: newMessageCount })}
         </button>
       ) : null}
-      {!isDesktop && mobileHeader.hidden ? (
+      {!isDesktop && mobileHeader.hidden ? createPortal(
         <div
-          className="pointer-events-none absolute inset-x-0 top-[calc(-1*env(safe-area-inset-top))] h-32 bg-gradient-to-b from-gray-950/80 via-gray-950/35 to-transparent backdrop-blur-md backdrop-saturate-150"
+          className="pointer-events-none fixed inset-x-0 top-0 z-10 h-32 bg-gradient-to-b from-gray-950/80 via-gray-950/35 to-transparent backdrop-blur-md backdrop-saturate-150"
           data-testid="mobile-chat-hidden-header-scrim"
           style={{
             WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 38%, rgba(0,0,0,0.72) 58%, rgba(0,0,0,0.28) 80%, transparent 100%)",
             maskImage: "linear-gradient(to bottom, black 0%, black 38%, rgba(0,0,0,0.72) 58%, rgba(0,0,0,0.28) 80%, transparent 100%)"
           }}
-        />
+        />,
+        document.body
       ) : null}
     </div>
   )
@@ -1657,7 +1659,9 @@ function MobileChatTopChrome({
         autoHideActive
           ? {
               opacity: hidden ? 0 : 1,
-              transform: `translateY(-${offset}px)`
+              transform: hidden
+                ? `translateY(calc(-${offset}px - env(safe-area-inset-top)))`
+                : `translateY(-${offset}px)`
             }
           : undefined
       }
