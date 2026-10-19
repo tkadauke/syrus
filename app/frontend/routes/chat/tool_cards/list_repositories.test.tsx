@@ -63,13 +63,15 @@ describe("list_repositories tool card", () => {
     expect(screen.getByText("Page 2 of 3 · 20 per page · 41 total · More pages available")).toBeInTheDocument()
   })
 
-  it("links to the provider URL when the payload supplies one", () => {
+  it("keeps the internal repository link and adds the provider URL when supplied", () => {
     const parsedResult = {
       repositories: [{ id: 1, slug: "tkadauke/syrus", html_url: "https://github.com/tkadauke/syrus" }],
       pagination: { page: 1, per_page: 20, total_count: 1, total_pages: 1, has_next_page: false }
     }
     render(<>{listRepositoriesToolCard.renderExpanded(context({ parsedResult }))}</>)
-    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "/repositories/1")
+    expect(screen.getAllByRole("link", { name: "Open tkadauke/syrus on GitHub" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getAllByRole("link", { name: "Open tkadauke/syrus on GitHub" })[0]).toHaveAttribute("target", "_blank")
   })
 
   it("uses stacked mobile rows and a fixed wrapping desktop table without overflow containers", () => {
