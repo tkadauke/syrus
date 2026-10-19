@@ -39,9 +39,13 @@ export type MarkdownPreviewProps = {
   slugHrefFallbacks?: Record<string, string>
 }
 
-export type TextPreviewProps = Omit<MarkdownPreviewProps, "text"> & {
+export type TextPreviewProps = {
   text: string
   lang?: HighlighterLanguageId | null
+  maxChars?: number
+  maxLines?: number
+  modalLabel?: string
+  title?: string
   truncate?: TextTruncationMode
 }
 
