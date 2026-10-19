@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -23,10 +23,10 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an empty state for whitespace-only text", () => {
+    render(<MarkdownPreview text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText("No content.")).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
@@ -41,5 +41,15 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("honors a character cap and forwards links to both renderers", () => {
+    const onLinkClick = vi.fn((_, event) => event.preventDefault())
+    render(<MarkdownPreview linkifyUrls maxChars={30} onLinkClick={onLinkClick} text={`Visit https://example.test and ${"details ".repeat(20)}`} />)
+
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy" })).toBeInTheDocument()
   })
 })
