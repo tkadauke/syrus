@@ -50,7 +50,10 @@ export function PlainText({ className, text, linkifyUrls = false, onLinkClick, s
 // clamp. Headings render bold instead of as header elements. Light inline
 // emphasis (bold/italic/inline code) still renders via the same inline
 // tokenizer `Markdown` uses; math rendering is skipped.
-export function renderLightMarkdown(text: string, options: Pick<RenderInlineOptions, "linkifySlugs" | "linkifyUrls" | "onLinkClick" | "slugTone"> = {}): ReactNode[] {
+export function renderLightMarkdown(
+  text: string,
+  options: Pick<RenderInlineOptions, "linkifySlugs" | "linkifyUrls" | "onLinkClick" | "slugTone"> = {}
+): ReactNode[] {
   const flattened = flattenLightMarkdown(text)
   return renderInline(flattened, { ...options, renderMath: false })
 }
@@ -189,12 +192,14 @@ function isFenceClose(line: string, markerLength: number) {
 function safeMarkdownPreview(text: string) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   let truncated = false
-  const preview = lines.map((line) => {
-    if (line.length <= MARKDOWN_SAFE_LINE_CHARS) return line
+  const preview = lines
+    .map((line) => {
+      if (line.length <= MARKDOWN_SAFE_LINE_CHARS) return line
 
-    truncated = true
-    return line.slice(0, MARKDOWN_SAFE_LINE_CHARS)
-  }).join("\n")
+      truncated = true
+      return line.slice(0, MARKDOWN_SAFE_LINE_CHARS)
+    })
+    .join("\n")
 
   return truncated ? `${preview}\n\n_One or more lines were truncated because they are too long to render safely._` : preview
 }
@@ -343,11 +348,35 @@ function renderTable(lines: string[], index: number, key: number, options: Rende
 
   return {
     nextIndex: index,
-    node: <MeasuredMarkdownTable columnHints={columnHints} fallbackWide={wide} headers={headers} key={`block-${key}`} measurementKey={tableMeasurementKey(headers, rows)} options={options} rows={rows} />
+    node: (
+      <MeasuredMarkdownTable
+        columnHints={columnHints}
+        fallbackWide={wide}
+        headers={headers}
+        key={`block-${key}`}
+        measurementKey={tableMeasurementKey(headers, rows)}
+        options={options}
+        rows={rows}
+      />
+    )
   }
 }
 
-function MeasuredMarkdownTable({ columnHints, fallbackWide, headers, measurementKey, options, rows }: { columnHints: TableColumnHint[]; fallbackWide: boolean; headers: string[]; measurementKey: string; options: RenderInlineOptions; rows: string[][] }) {
+function MeasuredMarkdownTable({
+  columnHints,
+  fallbackWide,
+  headers,
+  measurementKey,
+  options,
+  rows
+}: {
+  columnHints: TableColumnHint[]
+  fallbackWide: boolean
+  headers: string[]
+  measurementKey: string
+  options: RenderInlineOptions
+  rows: string[][]
+}) {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const tableRef = useRef<HTMLTableElement | null>(null)
   const [layout, setLayout] = useState<TableColumnLayout | null>(null)
@@ -355,7 +384,9 @@ function MeasuredMarkdownTable({ columnHints, fallbackWide, headers, measurement
     "chat-prose-table",
     layout?.wide || (!layout && fallbackWide) ? "chat-prose-table--wide" : "chat-prose-table--balanced",
     layout ? "chat-prose-table--measured" : null
-  ].filter(Boolean).join(" ")
+  ]
+    .filter(Boolean)
+    .join(" ")
 
   useLayoutEffect(() => {
     const wrapper = wrapperRef.current
@@ -367,7 +398,7 @@ function MeasuredMarkdownTable({ columnHints, fallbackWide, headers, measurement
       if (!available) return
 
       const nextLayout = allocateMarkdownTableColumns(measureMarkdownTableColumns(table, columnHints), available)
-      setLayout((previous) => sameTableLayout(previous, nextLayout) ? previous : nextLayout)
+      setLayout((previous) => (sameTableLayout(previous, nextLayout) ? previous : nextLayout))
     }
 
     measure()
@@ -509,7 +540,10 @@ function distributeByNeed(minWidths: number[], preferredWidths: number[], extra:
 
 function distributeByWeight(widths: number[], columns: TableColumnMeasurement[], extra: number) {
   const totalWeight = columns.reduce((sum, column) => sum + tableColumnWeight(column.kind), 0)
-  return roundedWidths(widths.map((width, index) => width + extra * (tableColumnWeight(columns[index].kind) / totalWeight)), sum(widths) + extra)
+  return roundedWidths(
+    widths.map((width, index) => width + extra * (tableColumnWeight(columns[index].kind) / totalWeight)),
+    sum(widths) + extra
+  )
 }
 
 function roundedWidths(widths: number[], targetTotal: number) {
@@ -520,7 +554,12 @@ function roundedWidths(widths: number[], targetTotal: number) {
 }
 
 function sameTableLayout(previous: TableColumnLayout | null, next: TableColumnLayout) {
-  return Boolean(previous && previous.wide === next.wide && previous.widths.length === next.widths.length && previous.widths.every((width, index) => width === next.widths[index]))
+  return Boolean(
+    previous &&
+    previous.wide === next.wide &&
+    previous.widths.length === next.widths.length &&
+    previous.widths.every((width, index) => width === next.widths[index])
+  )
 }
 
 function sum(values: number[]) {
@@ -711,7 +750,8 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
   }
 
   if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`, options))
-  if (nodes.length === 0) return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment> : text
+  if (nodes.length === 0)
+    return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment> : text
   return <Fragment key={key}>{nodes}</Fragment>
 }
 
@@ -758,7 +798,13 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     const href = safeHref(link[2])
     if (href) {
       return (
-        <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
+        <a
+          href={href}
+          key={key}
+          onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined}
+          rel="noreferrer"
+          target={externalHref(href) ? "_blank" : undefined}
+        >
           {renderInline(link[1], { ...options, linkifySlugs: false, linkifyUrls: false, renderMath: false })}
         </a>
       )
