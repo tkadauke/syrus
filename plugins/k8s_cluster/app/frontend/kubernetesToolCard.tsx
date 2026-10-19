@@ -340,7 +340,7 @@ function KubectlTextPreview({ label, text, truncation }: { label: string; text: 
     <div className="space-y-1">
       {truncation ? <StatePill state={truncationLabel(truncation)} tone="warning" /> : null}
       <Disclosure label={label}>
-        <TextPreview modalLabel={`${label} — full output`} text={text} truncate="headTail" />
+        <TextPreview text={text} truncate="headTail" />
       </Disclosure>
     </div>
   )
@@ -928,7 +928,7 @@ function PodLogsBody({ card }: { card: ParsedCard }) {
         <DetailRow label={t("logs_tail_lines_label")} value={String(lines.length)} />
       </div>
       <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
-        {(visibleLines) => <TextPreview maxLines={80} modalLabel={t("logs_pod_label")} text={visibleLines.join("\n")} truncate="tail" />}
+        {(visibleLines) => <TextPreview maxLines={80} text={visibleLines.join("\n")} truncate="tail" />}
       </FilterableList>
     </CardShell>
   )

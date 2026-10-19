@@ -149,7 +149,7 @@ function renderExpanded(context: ToolCardContext) {
                             <Td>{log.role || "—"}</Td>
                             <Td mono>{log.hostname || "—"}</Td>
                             <Td maxWidth title={log.message ?? undefined}>
-                              {log.message ? <TextPreview maxChars={MESSAGE_PREVIEW_CHARS} maxLines={2} modalLabel="Full operational log message" text={log.message} truncate="headTail" /> : "—"}
+                              {log.message ? <TextPreview maxChars={MESSAGE_PREVIEW_CHARS} maxLines={2} text={log.message} truncate="headTail" /> : "—"}
                             </Td>
                             <Td mono>
                               {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null]
