@@ -6,6 +6,13 @@ module RetryJobs
 
     def self.call(jobs) = new(jobs).call
 
+    def self.selected_upstream_ids(job, selected_job_ids)
+      JobDependency.resolved
+        .where(job_id: job.id, depends_on_job_id: selected_job_ids)
+        .order(:depends_on_job_id)
+        .pluck(:depends_on_job_id)
+    end
+
     def initialize(jobs)
       @jobs = jobs.index_by(&:id)
     end

@@ -30,6 +30,10 @@ class PendingActionGroup < ApplicationRecord
   end
 
   def confirm_all!(user: nil)
+    PendingActionGroups::Confirmation.for(self).confirm_all!(user: user)
+  end
+
+  def confirm_independently!(user: nil)
     raise ActiveRecord::RecordNotFound, "pending action group belongs to another user" if user && self.user != user
 
     should_confirm = with_lock do
@@ -44,6 +48,30 @@ class PendingActionGroup < ApplicationRecord
     update!(state: "confirmed", confirmed_at: Time.current)
     notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
     PendingActionGroups::ConfirmResult.new(group: self, member_results: member_results)
+  end
+
+  def start_group_confirmation!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action group belongs to another user" if user && self.user != user
+
+    with_lock do
+      return false unless pending?
+
+      update!(state: "confirming")
+      true
+    end
+  end
+
+  def finish_group_confirmation!
+    finished = with_lock do
+      next false unless confirming?
+
+      update!(state: "confirmed", confirmed_at: Time.current)
+      true
+    end
+    return false unless finished
+
+    notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
+    true
   end
 
   def reject_all!(user: nil)
@@ -80,6 +108,12 @@ class PendingActionGroup < ApplicationRecord
     return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
 
     "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
+  end
+
+  def confirmation_notice
+    return "Queued #{chat_pending_actions.count} pending actions for dependency-aware execution." if confirming?
+
+    confirmed_notice
   end
 
   def rejected_notice
