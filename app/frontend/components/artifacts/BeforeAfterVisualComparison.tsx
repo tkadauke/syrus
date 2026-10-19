@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { KeyboardEvent, PointerEvent } from "react"
+import type { CSSProperties, KeyboardEvent, PointerEvent } from "react"
 import type { BeforeAfterVisualImage } from "../../api/artifacts"
 import { useT } from "../../hooks/useT"
 import { CloseIcon } from "../CloseIcon"
@@ -13,9 +13,11 @@ type ComparisonProps = {
 
 const DRAG_THRESHOLD = 6
 const SWIPE_THRESHOLD = 40
+// Keep the 44px handle and its focus ring inside the clipped comparison frame
+// even when the actual divider reaches either image edge.
 const comparisonClasses = "relative isolate w-full cursor-pointer select-none overflow-hidden rounded border border-border bg-surface-subtle touch-none"
 const sliderClasses =
-  "absolute top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border-2 border-white bg-text-primary/80 text-sm font-bold text-surface shadow focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
+  "absolute left-[clamp(1.625rem,var(--comparison-position),calc(100%_-_1.625rem))] top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border-2 border-white bg-text-primary/80 text-sm font-bold text-surface shadow focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
 const modalClasses = "flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-surface shadow-2xl sm:h-[min(90dvh,60rem)] sm:w-[min(94dvw,80rem)] sm:rounded-lg"
 const navigationButtonClasses =
   "rounded border border-border px-3 py-2 text-sm text-text-primary hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-brand"
@@ -125,9 +127,10 @@ export function BeforeAfterVisualComparison({ before, after, title }: Comparison
           aria-valuemin={0}
           aria-valuenow={Math.round(position)}
           className={sliderClasses}
+          data-testid="visual-comparison-handle"
           onKeyDown={onSliderKeyDown}
           role="slider"
-          style={{ left: `${position}%` }}
+          style={{ "--comparison-position": `${position}%` } as CSSProperties}
           tabIndex={0}
         >
           <span aria-hidden="true">↔</span>
