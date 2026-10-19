@@ -37,7 +37,7 @@ function collaboratorReferences(value: unknown): CollaboratorReference[] {
   return value.flatMap((collaborator) => {
     if (!isPlainObject(collaborator)) return []
     const id = numberValue(collaborator.id)
-    const label = displayValue(collaborator.name) ?? displayValue(collaborator.login) ?? (id == null ? null : t("tool_collaborator_number", { id }))
+    const label = displayValue(collaborator.name) ?? displayValue(collaborator.email_address) ?? displayValue(collaborator.login)
     return label ? [{ id, label }] : []
   })
 }
@@ -97,13 +97,17 @@ function renderRepositoryList(repositories: RepositoryReference[]) {
   )
 }
 
-function ProposalInputDetails({ proposal }: { proposal: ProposalInput }) {
+function ProposalInputDetails({ proposal, collaborators = [] }: { proposal: ProposalInput; collaborators?: CollaboratorReference[] }) {
+  const collaboratorLabels = proposal.collaboratorIds.flatMap((id) => collaborators.find((collaborator) => collaborator.id === id)?.label ?? [])
+  const collaboratorValue =
+    collaboratorLabels.length > 0 ? collaboratorLabels.join(", ") : t("tool_selected_collaborators", { count: proposal.collaboratorIds.length })
+
   return (
     <div className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface p-2">
       <Row label={t("tool_proposed_title")} value={proposal.title || t("tool_untitled_design_doc")} />
       <div className="grid min-w-0 gap-2 sm:grid-cols-2">
         {proposal.visibility ? <Row label={t("visibility")} value={proposal.visibility} /> : null}
-        {proposal.collaboratorIds.length > 0 ? <Row label={t("tool_collaborators")} value={proposal.collaboratorIds.join(", ")} /> : null}
+        {proposal.collaboratorIds.length > 0 ? <Row label={t("tool_collaborators")} value={collaboratorValue} /> : null}
       </div>
       {renderRepositoryList(proposal.repositoryIds.map((id) => ({ id, label: t("tool_repository_number", { id }) })))}
       <MarkdownPreview
@@ -159,7 +163,7 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <DesignDocHeader doc={result.summary} />
       <div className="break-words text-sm font-medium text-text-primary">{result.summary.title}</div>
-      <ProposalInputDetails proposal={proposal} />
+      <ProposalInputDetails proposal={proposal} collaborators={result.collaborators} />
       <div className="border-t border-border pt-2">
         <MarkdownPreview emptyLabel={t("tool_no_created_content")} linkifyUrls maxChars={960} text={result.markdown} title={t("tool_created_content")} />
       </div>
