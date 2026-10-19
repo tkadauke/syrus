@@ -2,15 +2,16 @@ import type { ReactNode } from "react"
 import { linkifySlugs } from "@app/lib/linkifySlugs"
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
-import { CardShell, Badge, displayValue, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import { CardShell, Badge, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
 import { ElementFailureCard, elementActionSummary, elementFailureSummary, parseElementResult, t } from "../whiteboardToolCard"
 
-const URL_PATTERN = /https?:\/\/[^\s<]+[^\s<.,;:!?"')\]}]/gi
+const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
 const SLUG_PATTERN = /[A-Z]{2,}(?:_[A-Z0-9]+)*-\d+/g
 
 function linksIn(text: string): ReactNode[] {
-  const references = [...(text.match(URL_PATTERN) ?? []), ...(text.match(SLUG_PATTERN) ?? [])]
+  const urls = [...text.matchAll(URL_PATTERN)].map(([url]) => urlWithoutTrailingPunctuation(url)).filter((url) => url.length > 0)
+  const references = [...urls, ...(text.match(SLUG_PATTERN) ?? [])]
   return [...new Set(references)].map((reference) =>
     /^https?:\/\//i.test(reference) ? (
       <a className="break-all text-brand hover:underline" href={reference} key={reference} rel="noreferrer" target="_blank">
@@ -22,6 +23,25 @@ function linksIn(text: string): ReactNode[] {
       </span>
     )
   )
+}
+
+function urlWithoutTrailingPunctuation(url: string): string {
+  let end = url.length
+  while (end > 0 && /[.,!?;:]/.test(url[end - 1])) end -= 1
+
+  const pairs = [
+    ["(", ")"],
+    ["[", "]"],
+    ["{", "}"]
+  ] as const
+  for (const [opening, closing] of pairs) {
+    while (url[end - 1] === closing && count(url.slice(0, end), closing) > count(url.slice(0, end), opening)) end -= 1
+  }
+  return url.slice(0, end)
+}
+
+function count(value: string, character: string): number {
+  return value.split(character).length - 1
 }
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
@@ -51,7 +71,6 @@ function DrawTextCard({ context }: { context: ToolCardContext }) {
   const x = numberValue(input.x)
   const y = numberValue(input.y)
   const fontSize = numberValue(input.font_size)
-  const color = displayValue(input.color)
   const links = linksIn(content)
 
   return (
@@ -69,12 +88,6 @@ function DrawTextCard({ context }: { context: ToolCardContext }) {
         {x != null ? <Row label="X" value={String(x)} /> : null}
         {y != null ? <Row label="Y" value={String(y)} /> : null}
         {fontSize != null ? <Row label={t("tool_field_font_size")} value={String(fontSize)} /> : null}
-        {color ? (
-          <Detail label={t("tool_field_color")}>
-            <span aria-label={color} className="h-3 w-3 shrink-0 rounded-full border border-border" style={{ backgroundColor: color }} />
-            <span className="break-all font-mono">{color}</span>
-          </Detail>
-        ) : null}
         {links.length > 0 ? (
           <Detail label={t("tool_field_link")}>
             <span className="flex min-w-0 flex-col gap-1">{links}</span>
@@ -89,7 +102,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "formatted_text",
     label: "Literal text with links",
-    input: { content: "**Literal** canvas note for JOB-42: https://example.com/details", x: 40, y: 60, font_size: 24, color: "#7c3aed" },
+    input: { content: "**Literal** canvas note for JOB-42: https://example.com/details", x: 40, y: 60, font_size: 24 },
     parsedResult: { result: { id: "text-demo", version: 3 } }
   },
   { id: "empty", label: "Empty result", input: { content: "", x: 0, y: 0 }, parsedResult: {} },

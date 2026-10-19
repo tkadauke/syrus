@@ -294,12 +294,10 @@ describe("whiteboard element-action tool cards", () => {
         pluginPreviewComponent: null
       }
     ])
-    const content = `**Literal markdown** JOB-42 https://example.com/note\n${Array.from({ length: 6 }, (_, index) => `canvas line ${index + 1}`).join("\n")}`
+    const content = `**Literal markdown** JOB-42 https://example.com/Foo_(bar).\n${Array.from({ length: 6 }, (_, index) => `canvas line ${index + 1}`).join("\n")}`
     render(
       <MemoryRouter>
-        {drawTextToolCard.renderExpanded(
-          context({ input: { content, x: 12, y: 34, font_size: 24, color: "#7c3aed" }, parsedResult: { result: { id: "text-1", version: 5 } } })
-        )}
+        {drawTextToolCard.renderExpanded(context({ input: { content, x: 12, y: 34, font_size: 24 }, parsedResult: { result: { id: "text-1", version: 5 } } }))}
       </MemoryRouter>
     )
 
@@ -307,10 +305,10 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByText("v5")).toBeInTheDocument()
     expect(screen.getByTestId("text-preview-content")).toHaveTextContent("**Literal markdown**", { normalizeWhitespace: false })
     expect(screen.queryByText("Literal markdown", { selector: "strong" })).not.toBeInTheDocument()
-    for (const value of ["12", "34", "24", "#7c3aed"]) expect(screen.getByText(value)).toBeInTheDocument()
-    expect(screen.getByLabelText("#7c3aed")).toHaveStyle({ backgroundColor: "#7c3aed" })
+    for (const value of ["12", "34", "24"]) expect(screen.getByText(value)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
-    expect(screen.getByRole("link", { name: "https://example.com/note" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("link", { name: "https://example.com/Foo_(bar)" })).toHaveAttribute("href", "https://example.com/Foo_(bar)")
+    expect(screen.getByRole("link", { name: "https://example.com/Foo_(bar)" })).toHaveAttribute("target", "_blank")
 
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     expect(within(screen.getByRole("dialog", { name: "Content" })).getByText(/canvas line 6/)).toBeInTheDocument()
