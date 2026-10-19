@@ -106,6 +106,11 @@ before and after screenshots in a single responsive comparison. Drag the
 divider (or use its keyboard controls) to reveal either version, and tap the
 comparison to open a larger preview with labeled before/after navigation.
 
+When the reviewed UI is below the fold, screenshot submission can identify a
+subject by CSS selector or by its exact browser snapshot ref. Syrus waits for
+that element to become visible and centers it before capturing, so the saved
+evidence shows the interface under review.
+
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
 `.syrus.yml`, and their seed notes are shown when that project preview is one

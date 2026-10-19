@@ -54,11 +54,17 @@ Image-capable sibling of `submit_artifact`, for screenshots and other images. Sa
 | `type`                    | string  | yes      | Artifact type identifier (non-empty)                                  |
 | `title`                   | string  | yes      | Human-readable title (non-empty)                                      |
 | `capture_current_browser` | boolean | no       | Capture the current authenticated MCP browser page directly; this is also the default when all image inputs are omitted |
+| `subject`                 | string  | no       | Exact `browser_snapshot` ref (for example `e12`) or CSS selector to center before a current-browser capture |
 | `image_path`              | string  | no       | Path to an image file inside the workflow workspace, relative to the workspace root or absolute within it |
 | `image_base64`            | string  | no       | Base64-encoded image bytes, no `data:` URI prefix                     |
 | `content_type`            | string  | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults from the captured image, from `image_path` extension, or to `image/png` |
 
 Provide at most one of `capture_current_browser`, `image_path`, or `image_base64`; omitting all three captures the current browser. Agent-supplied file paths are resolved inside the workflow workspace and rejected if they point outside it.
+
+For current-browser captures, Syrus waits for an optional `subject` to become
+visible, centers it in the viewport, allows the page to settle briefly, and
+then captures the viewport. Omitting `subject` preserves the current scroll
+position.
 
 Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
 
