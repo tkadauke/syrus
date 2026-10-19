@@ -12,7 +12,8 @@ RSpec.describe Prompts::VisualDiff do
           "page" => {
             "path" => "/credential_store",
             "title" => "Credential Store"
-          }
+          },
+          "payload" => { "subject" => "[data-testid=credential-list]" }
         }
       ],
       baseline_type: VisualDiffSubmission::BASELINE_TYPE,
@@ -23,5 +24,8 @@ RSpec.describe Prompts::VisualDiff do
     expect(prompt).to include("Credential Store after change: /after.png")
     expect(prompt).to include('captured path "/credential_store"')
     expect(prompt).to include('captured title "Credential Store"')
+    expect(prompt).to include('subject: "[data-testid=credential-list]"')
+    expect(prompt).to include("exact same title and `subject` as the paired after screenshot")
+    expect(prompt).to include("Re-resolve a ref with `browser_snapshot` after navigation or `browser_resize`")
   end
 end
