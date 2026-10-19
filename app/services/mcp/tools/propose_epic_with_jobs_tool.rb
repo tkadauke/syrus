@@ -612,30 +612,55 @@ module Mcp::Tools
       end
 
       def payload_for(proposal)
+        media_previews = media_previews_for(proposal)
         {
           id: proposal.id,
           slug: proposal.slug,
+          title: proposal.title,
+          description: proposal.body,
           state: proposal.state,
           kind: proposal.kind,
           target_epic: Mcp::Tools.target_epic_payload(proposal),
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
+          depends_on_job_ids: proposal.depends_on_job_ids || [],
           goal_provenance: App::GoalProvenancePayload.for(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,
               slug: child.slug,
+              title: child.title,
+              description: child.body,
               state: child.state,
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
               dependency_requirements: child.dependency_requirements || [],
               provider_setting: child.provider_setting,
+              provider: child.provider_setting,
+              planned_execution: child.planned_execution_json,
+              media: child.media_ids || [],
+              media_previews: Array(child.media_ids).filter_map { |ref| media_previews[ref] },
               goal_provenance: App::GoalProvenancePayload.for(child),
-              depends_on: child.dependencies.order(:slug).pluck(:slug)
+              depends_on: child.dependencies.order(:slug).pluck(:slug),
+              materialized: Mcp::Tools.materialized_payload(child)
             }
           end
         }
+      end
+
+      def media_previews_for(proposal)
+        refs = proposal.child_proposals.flat_map { |child| Array(child.media_ids) }.uniq
+        refs.group_by { |ref| ChatMediaRef.split(ref).first }.each_with_object({}) do |(kind, kind_refs), previews|
+          source = ChatMediaSources.for_kind(kind)
+          next unless source
+
+          wanted = kind_refs.to_set
+          Array(source.list_chat_media(chat_session: proposal.chat_session)).each do |entry|
+            ref = entry[:id].to_s
+            previews[ref] = entry if wanted.include?(ref)
+          end
+        end
       end
 
       def job_scope_for(user)

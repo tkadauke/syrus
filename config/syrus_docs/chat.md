@@ -840,14 +840,18 @@ with optional titles, configured chat providers, and accessible repository
 slugs. Syrus validates the entire request first and shows one grouped
 confirmation; rejecting it creates nothing. Confirmation creates each chat
 independently, starts its first agent turn through the normal message path,
-and posts every resulting `CHAT-<id>` back into the originating chat. A
+pre-opens a zero-hop bridge thread from the originating chat with a coordination
+budget of `ChatBridgeThread::DEFAULT_MAX_HOPS` (100), and posts every resulting
+`CHAT-<id>` and bridge `thread_id` back into the originating chat. The agent can
+then use `send_chat_message(thread_id: ...)` from the confirmation-triggered
+turn without repeating the spawned chat's initial prompt. A
 failure in one member is reported alongside the successfully created chats
 instead of rolling the batch back.
 
 `ChatBridgeThread` tracks a bounded exchange between two of the same
 operator's chat sessions: `origin_chat_session`, `target_chat_session`,
 `opened_by_user`, an open/closed `state`, and `hop_count`/`max_hops`
-(default `ChatBridgeThread::DEFAULT_MAX_HOPS`, 6). A model validation
+(default `ChatBridgeThread::DEFAULT_MAX_HOPS`, 100). A model validation
 rejects a `target_chat_session` owned by a different user, since this
 feature is same-operator-only for now, any repository. `register_hop!`
 increments `hop_count` and auto-closes the thread once it reaches

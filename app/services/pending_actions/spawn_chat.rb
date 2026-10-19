@@ -15,10 +15,17 @@ module PendingActions
         title: payload["title"]
       ).call
       spawned = result.chat_session
+      bridge_thread = ChatBridgeThread.create!(
+        origin_chat_session: chat_session,
+        target_chat_session: spawned,
+        opened_by_user: user,
+        max_hops: ChatBridgeThread::DEFAULT_MAX_HOPS
+      )
       action.update!(payload: payload.merge(
         "spawned_chat_id" => spawned.id,
         "spawned_chat_provider" => spawned.chat_provider,
-        "spawned_chat_title" => spawned.title
+        "spawned_chat_title" => spawned.title,
+        "bridge_thread_id" => bridge_thread.id
       ))
       spawned
     end

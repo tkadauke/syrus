@@ -1,19 +1,8 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { BANNER_TONE_CLASSES, type BannerTone } from "../../components/StatusPill"
 import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
-import {
-  Badge,
-  CardShell,
-  Disclosure,
-  FilterableList,
-  LargeTextPreview,
-  PreviewTextBlock,
-  displayValue,
-  EmptyState,
-  Row,
-  SectionLabel,
-  StatePill
-} from "./toolCardUi"
+import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { TextPreview } from "./toolCardMarkdown"
 
 type RuntimeLease = {
   id: string
@@ -798,7 +787,9 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
         </div>
       ) : null}
       {card.details ? (
-        <LargeTextPreview label="Inspection details" text={card.details} />
+        <Disclosure label="Inspection details">
+          <TextPreview text={card.details} truncate="headTail" />
+        </Disclosure>
       ) : (
         <EmptyState>No detailed inspection output was returned.</EmptyState>
       )}
@@ -822,7 +813,7 @@ function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }
       ) : (
         <Disclosure label="Log preview">
           <FilterableList itemText={(entry) => entry} items={card.entries} placeholder="Filter log lines">
-            {(entries) => <PreviewTextBlock maxLines={40} text={entries.join("\n")} />}
+            {(entries) => <TextPreview maxLines={40} text={entries.join("\n")} truncate="tail" />}
           </FilterableList>
         </Disclosure>
       )}

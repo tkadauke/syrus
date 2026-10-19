@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, displayValue, Row, truncateLines } from "../toolCardUi"
+import { CardShell, Disclosure, displayValue, Row } from "../toolCardUi"
+import { TextPreview } from "../toolCardMarkdown"
 
 // Local Mode tool card for run_command (the tool-card work). A non-zero
 // exit code or `killed` is a normal successful tool call (the command ran,
@@ -29,20 +30,18 @@ function ExitCodeBadge({ result }: { result: RunCommandResult }) {
     return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">killed</span>
   }
 
-  const tone = result.exitCode === 0
-    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
-    : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200"
+  const tone =
+    result.exitCode === 0
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
+      : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200"
   return <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${tone}`}>exit {result.exitCode}</span>
 }
 
 function OutputSection({ label, output }: { label: string; output: string }) {
   if (!output) return null
-  const { preview, truncated, totalLines } = truncateLines(output, OUTPUT_LINE_LIMIT)
-
   return (
     <Disclosure label={label}>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-      {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {OUTPUT_LINE_LIMIT} of {totalLines} lines.</div> : null}
+      <TextPreview maxLines={OUTPUT_LINE_LIMIT} text={output} truncate="headTail" />
     </Disclosure>
   )
 }

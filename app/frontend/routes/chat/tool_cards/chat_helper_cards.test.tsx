@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import { ToolGroup } from "../MessageCards"
+import { normalizedToolCardParsedResult, normalizedToolName, parseJsonText } from "../toolRendering"
+import { setSlugReferenceRegistryForTests } from "../../../lib/slugReferenceRegistry"
 import askUserQuestionToolCard from "./ask_user_question"
 import markGoalBlockedToolCard from "./mark_goal_blocked"
 import markGoalCompletedToolCard from "./mark_goal_completed"
@@ -12,14 +15,47 @@ import suggestNextStepToolCard from "./suggest_next_step"
 import unpinChatToolCard from "./unpin_chat"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+  const resultBody = overrides.resultBody ?? ""
+  const rawParsed = overrides.parsedResult === undefined ? parseJsonText(resultBody) : overrides.parsedResult
   return {
-    toolName,
-    resultBody: "",
+    toolName: normalizedToolName(toolName),
+    resultBody,
     resultError: false,
-    parsedResult: null,
-    ...overrides
+    ...overrides,
+    parsedResult: normalizedToolCardParsedResult(rawParsed)
   }
 }
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    },
+    {
+      prefix: "CHAT",
+      type: "chat",
+      displayLabel: "Chat",
+      copyable: true,
+      linkable: false,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: null,
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+})
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("chat helper tool cards", () => {
   it("registers under the exact MCP tool names", () => {
@@ -52,6 +88,83 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("Careful")).toBeInTheDocument()
     expect(screen.getByText("multi-select")).toBeInTheDocument()
     expect(screen.getByText("free text")).toBeInTheDocument()
+    expect(screen.getByText("Question(s) recorded.")).toBeInTheDocument()
+  })
+
+  it("renders markdown, linked references, URLs, and touch-sized wrapping options", () => {
+    const input = {
+      questions: [
+        {
+          question: "Review **JOB-42** and DOC-7 at https://example.test/details?",
+          options: ["Discuss CHAT-9 at https://example.test/option/with/a/very/long/path/that/must/wrap/instead/of/overflowing"]
+        }
+      ]
+    }
+    render(
+      <MemoryRouter>
+        {askUserQuestionToolCard.renderExpanded(
+          context("ask_user_question", { input, parsedResult: { question_id: 17, message: "Waiting for **the operator**." } })
+        )}
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("JOB-42").closest("a")).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "DOC-7" })).toHaveAttribute("href", "/design_docs/7")
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    expect(screen.getByText("the operator").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Copy CHAT-9 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /https:\/\/example\.test\/option/ })).toHaveAttribute(
+      "href",
+      "https://example.test/option/with/a/very/long/path/that/must/wrap/instead/of/overflowing"
+    )
+    expect(screen.getByTestId("question-option")).toHaveClass("min-h-11", "w-full", "min-w-0", "max-w-full", "sm:w-auto")
+    expect(within(screen.getByTestId("question-option")).getByTestId("markdown-preview-content")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+  })
+
+  it("normalizes direct, result-body-only, and Codex-wrapped result envelopes", () => {
+    const payload = { question_id: 17, message: "Question(s) recorded." }
+    const contexts = [
+      context("ask_user_question", { parsedResult: payload }),
+      context("ask_user_question", { resultBody: JSON.stringify(payload) }),
+      context("mcp__syrus-chat-sidecar__ask_user_question", {
+        parsedResult: { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+      })
+    ]
+
+    for (const toolContext of contexts) {
+      expect(toolContext.toolName).toBe("ask_user_question")
+      expect(askUserQuestionToolCard.collapsedSummary?.(toolContext)).toBe("Question request #17 recorded")
+    }
+  })
+
+  it("renders pending, error, and empty-result states", () => {
+    const input = { questions: [{ question: "Which path?" }] }
+    const pending = context("ask_user_question", { input })
+    expect(askUserQuestionToolCard.collapsedSummary?.(pending)).toBe("Question request pending")
+    const { rerender } = render(<>{askUserQuestionToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Waiting for the question request to finish.")).toBeInTheDocument()
+
+    rerender(<>{askUserQuestionToolCard.renderExpanded(context("ask_user_question", { input, parsedResult: { question_id: 18, message: null } }))}</>)
+    expect(screen.getByText("No result message was included.")).toBeInTheDocument()
+
+    rerender(
+      <>{askUserQuestionToolCard.renderExpanded(context("ask_user_question", { input, resultBody: "Question service unavailable.", resultError: true }))}</>
+    )
+    expect(screen.getByText("Question service unavailable.")).toBeInTheDocument()
+  })
+
+  it("treats a present but malformed parsed result as malformed rather than pending", () => {
+    const malformed = context("ask_user_question", {
+      input: { questions: [{ question: "Which path?" }] },
+      parsedResult: { ok: true }
+    })
+
+    expect(askUserQuestionToolCard.collapsedSummary?.(malformed)).toBe("Question request returned an unexpected response")
+    render(<>{askUserQuestionToolCard.renderExpanded(malformed)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+    expect(screen.queryByText("Waiting for the question request to finish.")).not.toBeInTheDocument()
   })
 
   it("renders suggest_next_step composer text and stored status", () => {
@@ -104,7 +217,9 @@ describe("chat helper tool cards", () => {
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
-    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe("Next-step suggestion returned an unexpected response")
+    expect(suggestNextStepToolCard.collapsedSummary?.(context("suggest_next_step", { parsedResult: { session_id: 42 } }))).toBe(
+      "Next-step suggestion returned an unexpected response"
+    )
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: { session_id: 42 } }))).toBe("Chat pin returned an unexpected response")
     render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult: { session_id: 42 } }))}</>)
     expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
@@ -120,20 +235,22 @@ describe("chat helper tool rendering integration", () => {
       summary_label: "Goal #9 -> completed",
       outcome_label: "Done",
       collapsed_by_default: true,
-      calls: [{
-        message_id: 1,
-        tool_name: "mark_goal_completed",
-        raw_name: "mark_goal_completed",
-        detail: "done",
-        display_label: "Mark goal completed",
-        progress_label: "Thinking",
-        raw_payload: { reason: "done" },
-        result_body: resultBody,
-        result_json: { goal_id: 9, status: "completed", reason: "done" },
-        result_error: false,
-        result_kind: "record",
-        result_summary: "Goal #9 -> completed"
-      }]
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "mark_goal_completed",
+          raw_name: "mark_goal_completed",
+          detail: "done",
+          display_label: "Mark goal completed",
+          progress_label: "Thinking",
+          raw_payload: { reason: "done" },
+          result_body: resultBody,
+          result_json: { goal_id: 9, status: "completed", reason: "done" },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Goal #9 -> completed"
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)

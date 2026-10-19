@@ -20,6 +20,7 @@ RSpec.describe ChatBridgeThread do
     expect(thread.state).to eq("open")
     expect(thread).to be_open
     expect(thread.hop_count).to eq(0)
+    expect(described_class::DEFAULT_MAX_HOPS).to eq(100)
     expect(thread.max_hops).to eq(described_class::DEFAULT_MAX_HOPS)
   end
 

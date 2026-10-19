@@ -1,3 +1,4 @@
+import { Children, cloneElement, createContext, isValidElement, useContext } from "react"
 import type { ReactNode } from "react"
 import { DataTable } from "../../components/ui"
 import { displayValue, InternalLink, StatePill } from "./toolCardUi"
@@ -92,27 +93,122 @@ export function JobRefLink({ jobId }: { jobId: number | string | null }) {
   return <InternalLink href={`/jobs/${jobId}`}>JOB-{jobId}</InternalLink>
 }
 
-export function Table({ children }: { children: ReactNode }) {
-  return <DataTable.Root className="text-xs" density="compact" wrapperClassName="mt-1">{children}</DataTable.Root>
+type ResponsiveTableContextValue = {
+  columns: string[]
+  responsive: boolean
+}
+
+const ResponsiveTableContext = createContext<ResponsiveTableContextValue>({ columns: [], responsive: false })
+const ResponsiveCellLabelContext = createContext<string | null>(null)
+
+const RESPONSIVE_BODY_CLASSES = [
+  "block divide-y-0 space-y-2 bg-transparent",
+  "sm:table-row-group sm:divide-y sm:space-y-0 sm:bg-surface",
+  "[&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)]",
+  "[&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1",
+  "sm:[&>tr]:table-row sm:[&>tr]:h-[var(--data-table-row-min-height)]",
+  "sm:[&>tr]:rounded-none sm:[&>tr]:border-0 sm:[&>tr]:py-0"
+].join(" ")
+
+const RESPONSIVE_CELL_CLASSES = [
+  "grid min-w-0 grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)] items-start gap-3 px-3",
+  "sm:table-cell sm:px-2",
+  "[&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center sm:[&_a]:min-h-0"
+].join(" ")
+
+export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean }) {
+  const header = Children.toArray(children).find((child) => isValidElement<{ columns: string[] }>(child) && child.type === THead)
+  const columns = isValidElement<{ columns: string[] }>(header) ? header.props.columns : []
+
+  return (
+    <ResponsiveTableContext.Provider value={{ columns, responsive }}>
+      <DataTable.Root
+        className={responsive ? "block text-xs sm:table" : "text-xs"}
+        density="compact"
+        wrapperClassName={responsive ? "mt-1 overflow-visible sm:overflow-x-auto" : "mt-1"}
+      >
+        {children}
+      </DataTable.Root>
+    </ResponsiveTableContext.Provider>
+  )
 }
 
 export function THead({ columns }: { columns: string[] }) {
+  const { responsive } = useContext(ResponsiveTableContext)
   return (
-    <DataTable.Header>
+    <DataTable.Header className={responsive ? "hidden sm:table-header-group" : ""}>
       <DataTable.Row>
-        {columns.map((column) => <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column}>{column}</DataTable.HeadCell>)}
+        {columns.map((column) => (
+          <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column}>
+            {column}
+          </DataTable.HeadCell>
+        ))}
       </DataTable.Row>
     </DataTable.Header>
   )
 }
 
 export function TBody({ children }: { children: ReactNode }) {
-  return <DataTable.Body>{children}</DataTable.Body>
+  const { columns, responsive } = useContext(ResponsiveTableContext)
+  if (!responsive) return <DataTable.Body>{children}</DataTable.Body>
+
+  const labeledRows = Children.map(children, (row) => {
+    if (!isValidElement<{ children?: ReactNode }>(row)) return row
+
+    const cells = Children.toArray(row.props.children)
+    if (cells.length !== columns.length) {
+      throw new Error(`Responsive admin table row has ${cells.length} cells but ${columns.length} columns`)
+    }
+    if (cells.some((cell) => !isValidElement(cell) || cell.type !== Td)) {
+      throw new Error("Responsive admin table rows must contain only Td cells")
+    }
+
+    return cloneElement(
+      row,
+      undefined,
+      cells.map((cell, index) => (
+        <ResponsiveCellLabelContext.Provider key={index} value={columns[index]}>
+          {cell}
+        </ResponsiveCellLabelContext.Provider>
+      ))
+    )
+  })
+
+  return <DataTable.Body className={RESPONSIVE_BODY_CLASSES}>{labeledRows}</DataTable.Body>
 }
 
-export function Td({ children, mono = false, title, maxWidth }: { children: ReactNode; mono?: boolean; title?: string; maxWidth?: boolean }) {
+export function Td({
+  children,
+  maxWidth,
+  mono = false,
+  primary = false,
+  title,
+  wrap = false
+}: {
+  children: ReactNode
+  maxWidth?: boolean
+  mono?: boolean
+  primary?: boolean
+  title?: string
+  wrap?: boolean
+}) {
+  const { responsive } = useContext(ResponsiveTableContext)
+  const responsiveLabel = useContext(ResponsiveCellLabelContext)
+  const widthClass = maxWidth
+    ? wrap
+      ? "max-w-[16rem] whitespace-normal break-words"
+      : "max-w-[16rem] truncate"
+    : wrap
+      ? "whitespace-normal break-words"
+      : "whitespace-nowrap"
+
   return (
-    <DataTable.Cell className={`${maxWidth ? "max-w-[16rem] truncate" : "whitespace-nowrap"} ${mono ? "font-mono" : ""} px-2 py-1 text-xs`} title={title}>
+    <DataTable.Cell
+      className={`${widthClass} ${mono ? "font-mono" : ""} ${primary ? "font-semibold text-text-primary" : ""} ${responsive ? RESPONSIVE_CELL_CLASSES : "px-2"} py-1 text-xs`}
+      data-label={responsiveLabel ?? undefined}
+      title={title}
+    >
+      {responsiveLabel ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{responsiveLabel}</span> : null}
       {children}
     </DataTable.Cell>
   )
