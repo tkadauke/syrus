@@ -2,6 +2,8 @@ module PendingActions
   class CancelJob < Base
     action_key "cancel_job"
 
+    repairs_job!
+
     def execute
       progress!("Cancelling active work for #{action_job.slug}...")
       action_job.cancel_active_runs_and_close!("cancelled")

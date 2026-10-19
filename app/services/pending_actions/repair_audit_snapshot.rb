@@ -46,7 +46,29 @@ module PendingActions
         "mergeability" => mergeability_snapshot(job),
         "dependencies" => dependencies_snapshot(job),
         "landing_blocker" => landing_blocker_snapshot(job),
+        "runtime_ownership" => runtime_ownership_snapshot(job),
         "workflow" => workflow && workflow_snapshot(workflow)
+      }
+    end
+
+    def runtime_ownership_snapshot(job)
+      units = WorkUnit
+        .joins(:work_unit_members)
+        .where(work_unit_members: { job_id: job.id })
+        .includes(:work_intent, :work_unit_locks, :workflow)
+        .order(:id)
+
+      {
+        "work_units" => units.map do |unit|
+          {
+            "id" => unit.id,
+            "state" => unit.state,
+            "workflow_id" => unit.workflow_id,
+            "work_intent_id" => unit.work_intent_id,
+            "work_intent_state" => unit.work_intent&.state,
+            "active_lock_ids" => unit.work_unit_locks.select { |lock| lock.released_at.nil? }.map(&:id)
+          }
+        end
       }
     end
 
