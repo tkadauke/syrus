@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react"
+import { Children, cloneElement, createContext, isValidElement, useContext } from "react"
 import type { ReactNode } from "react"
 import { DataTable } from "../../components/ui"
 import { displayValue, InternalLink, StatePill } from "./toolCardUi"
@@ -93,7 +93,13 @@ export function JobRefLink({ jobId }: { jobId: number | string | null }) {
   return <InternalLink href={`/jobs/${jobId}`}>JOB-{jobId}</InternalLink>
 }
 
-const ResponsiveTableContext = createContext(false)
+type ResponsiveTableContextValue = {
+  columns: string[]
+  responsive: boolean
+}
+
+const ResponsiveTableContext = createContext<ResponsiveTableContextValue>({ columns: [], responsive: false })
+const ResponsiveCellLabelContext = createContext<string | null>(null)
 
 const RESPONSIVE_BODY_CLASSES = [
   "block divide-y-0 space-y-2 bg-transparent",
@@ -111,8 +117,11 @@ const RESPONSIVE_CELL_CLASSES = [
 ].join(" ")
 
 export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean }) {
+  const header = Children.toArray(children).find((child) => isValidElement<{ columns: string[] }>(child) && child.type === THead)
+  const columns = isValidElement<{ columns: string[] }>(header) ? header.props.columns : []
+
   return (
-    <ResponsiveTableContext.Provider value={responsive}>
+    <ResponsiveTableContext.Provider value={{ columns, responsive }}>
       <DataTable.Root
         className={responsive ? "block text-xs sm:table" : "text-xs"}
         density="compact"
@@ -125,7 +134,7 @@ export function Table({ children, responsive = false }: { children: ReactNode; r
 }
 
 export function THead({ columns }: { columns: string[] }) {
-  const responsive = useContext(ResponsiveTableContext)
+  const { responsive } = useContext(ResponsiveTableContext)
   return (
     <DataTable.Header className={responsive ? "hidden sm:table-header-group" : ""}>
       <DataTable.Row>
@@ -140,13 +149,36 @@ export function THead({ columns }: { columns: string[] }) {
 }
 
 export function TBody({ children }: { children: ReactNode }) {
-  const responsive = useContext(ResponsiveTableContext)
-  return <DataTable.Body className={responsive ? RESPONSIVE_BODY_CLASSES : ""}>{children}</DataTable.Body>
+  const { columns, responsive } = useContext(ResponsiveTableContext)
+  if (!responsive) return <DataTable.Body>{children}</DataTable.Body>
+
+  const labeledRows = Children.map(children, (row) => {
+    if (!isValidElement<{ children?: ReactNode }>(row)) return row
+
+    const cells = Children.toArray(row.props.children)
+    if (cells.length !== columns.length) {
+      throw new Error(`Responsive admin table row has ${cells.length} cells but ${columns.length} columns`)
+    }
+    if (cells.some((cell) => !isValidElement(cell) || cell.type !== Td)) {
+      throw new Error("Responsive admin table rows must contain only Td cells")
+    }
+
+    return cloneElement(
+      row,
+      undefined,
+      cells.map((cell, index) => (
+        <ResponsiveCellLabelContext.Provider key={index} value={columns[index]}>
+          {cell}
+        </ResponsiveCellLabelContext.Provider>
+      ))
+    )
+  })
+
+  return <DataTable.Body className={RESPONSIVE_BODY_CLASSES}>{labeledRows}</DataTable.Body>
 }
 
 export function Td({
   children,
-  label,
   maxWidth,
   mono = false,
   primary = false,
@@ -154,14 +186,14 @@ export function Td({
   wrap = false
 }: {
   children: ReactNode
-  label?: string
   maxWidth?: boolean
   mono?: boolean
   primary?: boolean
   title?: string
   wrap?: boolean
 }) {
-  const responsive = useContext(ResponsiveTableContext)
+  const { responsive } = useContext(ResponsiveTableContext)
+  const responsiveLabel = useContext(ResponsiveCellLabelContext)
   const widthClass = maxWidth
     ? wrap
       ? "max-w-[16rem] whitespace-normal break-words"
@@ -173,10 +205,10 @@ export function Td({
   return (
     <DataTable.Cell
       className={`${widthClass} ${mono ? "font-mono" : ""} ${primary ? "font-semibold text-text-primary" : ""} ${responsive ? RESPONSIVE_CELL_CLASSES : "px-2"} py-1 text-xs`}
-      data-label={responsive ? label : undefined}
+      data-label={responsiveLabel ?? undefined}
       title={title}
     >
-      {responsive && label ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{label}</span> : null}
+      {responsiveLabel ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{responsiveLabel}</span> : null}
       {children}
     </DataTable.Cell>
   )
