@@ -70,15 +70,22 @@ function parseJson(value: string): unknown {
   }
 }
 
-export function jobResult(context: ToolCardContext, key: "jobs" | "results"): unknown[] | null {
+export type JobResult = { items: unknown[]; total: number | null }
+
+export function jobResult(context: ToolCardContext, key: "jobs" | "results"): JobResult | null {
   let value = context.parsedResult
   if (isPlainObject(value) && value.structured_content != null) value = value.structured_content
   if (isPlainObject(value) && Array.isArray(value.content)) {
     const first = value.content[0]
     if (isPlainObject(first) && typeof first.text === "string") value = parseJson(first.text)
   }
-  if (Array.isArray(value)) return value
-  return isPlainObject(value) && Array.isArray(value[key]) ? value[key] : null
+  if (Array.isArray(value)) return { items: value, total: null }
+  if (!isPlainObject(value) || !Array.isArray(value[key])) return null
+
+  return {
+    items: value[key],
+    total: typeof value.total === "number" && Number.isFinite(value.total) ? value.total : null
+  }
 }
 
 export function resultErrorMessage(context: ToolCardContext): string | null {
