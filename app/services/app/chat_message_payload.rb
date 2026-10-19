@@ -74,7 +74,7 @@ module App
         records: messages,
         associations: [
           :chat_session,
-          :pending_action,
+          { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
       ).call
