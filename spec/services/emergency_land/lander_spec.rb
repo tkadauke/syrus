@@ -31,10 +31,15 @@ RSpec.describe EmergencyLand::Lander do
     allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: number))
   end
 
-  def stub_mergeable_pr(number: 9, mergeable: true, head_sha: "headsha123")
+  def stub_mergeable_pr(number: 9, mergeable: true, head_sha: "headsha123", head_ref: job.branch_name,
+    head_repository: repository.slug, base_ref: job.effective_base_branch)
     allow(client).to receive(:pull_request)
       .with("acme/widgets", number, bypass_cache: true)
-      .and_return(OpenStruct.new(mergeable: mergeable, head: OpenStruct.new(sha: head_sha)))
+      .and_return(OpenStruct.new(
+        mergeable: mergeable,
+        head: OpenStruct.new(sha: head_sha, ref: head_ref, repo: OpenStruct.new(full_name: head_repository)),
+        base: OpenStruct.new(ref: base_ref)
+      ))
   end
 
   def stub_merge(number: 9, merged: true, sha: "mergedsha123", expected_sha: "headsha123")
@@ -72,6 +77,8 @@ RSpec.describe EmergencyLand::Lander do
       expect(job.emergency_landed_at).to be_present
       expect(job.emergency_landed_by_user_id).to eq(owner.id)
       expect(job.emergency_landed_by_membership_tier).to eq("admin")
+      expect(job.emergency_land_source_sha).to eq("headsha123")
+      expect(job.emergency_land_skipped_controls).to eq(%w[graders adversarial_review visual_review admission_control normal_worker_queue])
     end
 
     it "reuses an already-open PR instead of opening a duplicate" do
@@ -84,6 +91,58 @@ RSpec.describe EmergencyLand::Lander do
 
       expect(result).to be_success
       expect(job.reload.pr_number).to eq(4)
+    end
+
+    it "refuses a stale PR number whose head does not match the Job branch" do
+      job.update!(pr_number: 4)
+      stub_ahead_commits
+      stub_mergeable_pr(number: 4, head_ref: "unrelated-branch")
+      expect(client).not_to receive(:merge_pull_request)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to include("expected main from acme/widgets:syrus/emergency-1")
+    end
+
+    it "refuses a PR whose head repository does not match the Job repository" do
+      job.update!(pr_number: 4)
+      stub_ahead_commits
+      stub_mergeable_pr(number: 4, head_repository: "acme/unrelated")
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to include("acme/unrelated:syrus/emergency-1")
+    end
+
+    it "refuses a PR whose base does not match the Job's effective base" do
+      job.update!(pr_number: 4)
+      stub_ahead_commits
+      stub_mergeable_pr(number: 4, base_ref: "release")
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_refused
+      expect(result.message).to include("targets release")
+    end
+
+    it "retires queued zero-run ownership only after safety validation passes" do
+      workflow = instance_double(Workflow, queued?: true, runs: instance_double(ActiveRecord::Associations::CollectionProxy, exists?: false))
+      unit = instance_double(WorkUnit, workflow: workflow, running?: false, active?: true)
+      allow(WorkUnits::Ownership).to receive(:active_units_for_job).with(job).and_return([ unit ], [ unit ], [ unit ], [])
+      allow(WorkUnits::WorkflowCancellation).to receive(:cancel!)
+      allow(unit).to receive(:preempt!)
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeable_pr(number: 9)
+      stub_merge(number: 9)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result).to be_success
+      expect(WorkUnits::WorkflowCancellation).to have_received(:cancel!).with(workflow, hash_including(reason: "emergency_land_superseded"))
+      expect(unit).to have_received(:preempt!).with(reason: "emergency_land_superseded")
     end
 
     it "records global_admin as the confirmer tier for a global admin with no repository membership" do
@@ -130,22 +189,22 @@ RSpec.describe EmergencyLand::Lander do
       expect(result.message).to match(/admin permission/i)
     end
 
-    it "refuses when the Job is not in coding state" do
+    it "accepts implemented as an eligible branch-backed state and continues validation" do
       job.update!(state: "implemented")
 
       result = described_class.land(job: job, user: owner, client: client)
 
       expect(result).to be_refused
-      expect(result.message).to match(/coding mode/i)
+      expect(result.message).to match(/no pushed commits/i)
     end
 
-    it "refuses when the linked chat is not in Coding Mode" do
+    it "does not require Coding Mode takeover for an existing branch-backed Job" do
       chat_session.update!(mode: "planning")
 
       result = described_class.land(job: job, user: owner, client: client)
 
       expect(result).to be_refused
-      expect(result.message).to match(/coding mode/i)
+      expect(result.message).to match(/no pushed commits/i)
     end
 
     it "refuses when the workspace has no pushed commits ahead of the default branch" do
@@ -187,6 +246,20 @@ RSpec.describe EmergencyLand::Lander do
       expect(result).to be_refused
       expect(result.message).to match(/not mergeable/i)
       expect(job.reload).to be_coding
+    end
+
+    it "does not retire queued zero-run ownership when a non-mutating safety check refuses landing" do
+      workflow = instance_double(Workflow, queued?: true, runs: instance_double(ActiveRecord::Associations::CollectionProxy, exists?: false))
+      unit = instance_double(WorkUnit, workflow: workflow, running?: false, active?: true)
+      allow(WorkUnits::Ownership).to receive(:active_units_for_job).with(job).and_return([ unit ])
+      allow(WorkUnits::WorkflowCancellation).to receive(:cancel!)
+      allow(unit).to receive(:preempt!)
+
+      result = described_class.land(job: job, user: owner, client: client)
+
+      expect(result.message).to match(/no pushed commits/i)
+      expect(WorkUnits::WorkflowCancellation).not_to have_received(:cancel!)
+      expect(unit).not_to have_received(:preempt!)
     end
   end
 

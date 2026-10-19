@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_053736) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_155621) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1785,6 +1785,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_053736) do
     t.datetime "approval_withdrawn_at"
     t.string "landing_failure_code"
     t.datetime "branch_cleanup_attempted_at"
+    t.string "emergency_land_source_sha"
+    t.json "emergency_land_skipped_controls"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
