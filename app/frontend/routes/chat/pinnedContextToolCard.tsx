@@ -1,12 +1,11 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { CardShell, Disclosure, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { CardShell, Row, SectionLabel, StatePill, displayValue } from "./toolCardUi"
+import { MarkdownPreview } from "./toolCardMarkdown"
 
 const PINNED_PREVIEW_LINES = 8
 const PINNED_PREVIEW_CHARS = 800
 
-type PinnedContextResult =
-  | { kind: "updated"; message: string | null; content: string }
-  | { kind: "removed"; message: string | null }
+type PinnedContextResult = { kind: "updated"; message: string | null; content: string } | { kind: "removed"; message: string | null }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -34,14 +33,19 @@ export function pinnedContextSummary(context: ToolCardContext) {
   return result.message || (result.kind === "updated" ? "Pinned context updated" : "Pinned context removed")
 }
 
-function concisePreview(content: string) {
-  const originalLines = content === "" ? 0 : content.split("\n").length
-  const clipped = content.length > PINNED_PREVIEW_CHARS ? `${content.slice(0, PINNED_PREVIEW_CHARS)}...` : content
-  const preview = truncateLines(clipped, PINNED_PREVIEW_LINES)
-  return { ...preview, totalLines: originalLines }
-}
-
-export function PinnedContextCard({ result, error = false }: { result: PinnedContextResult; error?: boolean }) {
+export function PinnedContextCard({
+  result,
+  error = false,
+  inputContent,
+  chatId,
+  pinnedContextId
+}: {
+  result: PinnedContextResult
+  error?: boolean
+  inputContent?: string | null
+  chatId?: string | null
+  pinnedContextId?: string | null
+}) {
   if (result.kind === "removed") {
     return (
       <CardShell>
@@ -54,7 +58,6 @@ export function PinnedContextCard({ result, error = false }: { result: PinnedCon
     )
   }
 
-  const { preview, truncated, totalLines } = concisePreview(result.content)
   const lineCount = result.content === "" ? 0 : result.content.split("\n").length
 
   return (
@@ -64,6 +67,8 @@ export function PinnedContextCard({ result, error = false }: { result: PinnedCon
         <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
+        {chatId ? <Row label="Chat" value={chatId} /> : null}
+        {pinnedContextId ? <Row label="Pinned context" value={pinnedContextId} /> : null}
         <Row label="Lines" value={String(lineCount)} />
         <Row label="Characters" value={String(result.content.length)} />
       </dl>
@@ -73,12 +78,36 @@ export function PinnedContextCard({ result, error = false }: { result: PinnedCon
           <div className="mt-0.5 text-gray-700 dark:text-gray-300">{result.message}</div>
         </div>
       ) : null}
-      <Disclosure label="Context preview">
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-        {truncated || result.content.length > PINNED_PREVIEW_CHARS ? (
-          <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing a concise preview of {totalLines} lines.</div>
-        ) : null}
-      </Disclosure>
+      {inputContent != null && inputContent !== result.content ? (
+        <div>
+          <SectionLabel>Requested context</SectionLabel>
+          <MarkdownPreview
+            linkifyUrls
+            maxChars={PINNED_PREVIEW_CHARS}
+            maxLines={PINNED_PREVIEW_LINES}
+            modalLabel="Requested pinned context"
+            text={inputContent}
+          />
+        </div>
+      ) : null}
+      <div>
+        <SectionLabel>Context preview</SectionLabel>
+        <MarkdownPreview
+          emptyLabel="Pinned context is empty."
+          linkifyUrls
+          maxChars={PINNED_PREVIEW_CHARS}
+          maxLines={PINNED_PREVIEW_LINES}
+          modalLabel="Pinned context"
+          text={result.content}
+        />
+      </div>
     </CardShell>
   )
+}
+
+export function pinnedContextIdentifiers(parsed: Record<string, unknown>) {
+  return {
+    chatId: displayValue(parsed.chat_id) || displayValue(parsed.chat_session_id),
+    pinnedContextId: displayValue(parsed.pinned_context_id) || displayValue(parsed.id)
+  }
 }

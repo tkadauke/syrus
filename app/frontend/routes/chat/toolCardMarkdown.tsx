@@ -8,7 +8,7 @@ import { CodeSurface } from "../../components/ui"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import type { HighlighterLanguageId } from "../../lib/highlighter"
-import { Markdown, renderLightMarkdown, type MarkdownLinkHandler } from "../../lib/Markdown"
+import { Markdown, renderLightMarkdown, type MarkdownLinkHandler, type SlugTone } from "../../lib/Markdown"
 
 const DEFAULT_MAX_LINES = 6
 const APPROXIMATE_CHARS_PER_LINE = 160
@@ -37,6 +37,7 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
   emptyState?: ReactNode
   slugHrefFallbacks?: Record<string, string>
+  slugTone?: SlugTone
 }
 
 export type TextPreviewProps = {
@@ -74,6 +75,7 @@ export function MarkdownPreview({
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
+  slugTone,
   text,
   title
 }: MarkdownPreviewProps) {
@@ -105,7 +107,7 @@ export function MarkdownPreview({
         data-testid="markdown-preview-content"
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
       {truncated.truncated ? (
@@ -142,6 +144,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
+            slugTone={slugTone}
             text={completeText}
           />
         </div>
