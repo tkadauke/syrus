@@ -309,6 +309,7 @@ de:
       moved_to_backlog: "Aufgabe ins Backlog verschoben."
       not_awaiting_triage: "%{slug} wartet nicht auf Triage."
       accepted: "Aufgabe akzeptiert."
+      placement_decision_required: "Wähle vor dem Annehmen dieser Aufgabe die vorgeschlagene Platzierung oder Linux."
       rejected: "Aufgabe abgelehnt."
       retry_enqueued: "Wiederholungs-Workflow eingereiht."
       retry_enqueued_with_provider: "Wiederholungs-Workflow mit %{provider} eingereiht."

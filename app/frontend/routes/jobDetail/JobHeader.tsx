@@ -5,6 +5,7 @@ import { useT } from "../../hooks/useT"
 import { Button } from "../../components/Button"
 import { Select } from "../../components/Select"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Modal } from "../../components/Modal"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { useShortcut } from "../../contexts/ShortcutsContext"
@@ -89,6 +90,7 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
+  const [placementConfirmationOpen, setPlacementConfirmationOpen] = useState(false)
   const actions = headerActions(payload, t)
   const [primaryKey] = primaryHeaderActionKeys(payload, actions)
   const primaryAction = actions.find((action) => action.key === primaryKey)
@@ -134,6 +136,8 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   function handleActionClick(action: HeaderAction) {
     if (action.key === "approve" && onApprove) {
       onApprove()
+    } else if (action.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation") {
+      setPlacementConfirmationOpen(true)
     } else if (action.key === "retry_with") {
       openRetryDialog(action)
     } else {
@@ -170,6 +174,12 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
                 {primaryAction.label}
               </button>
             )
+            : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation"
+              ? (
+                <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementConfirmationOpen(true)} type="button">
+                  {primaryAction.label}
+                </button>
+              )
             : primaryAction.key === "retry_with"
               ? (
                 <button
@@ -218,7 +228,58 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
           payload={payload}
         />
       ) : null}
+      {placementConfirmationOpen && payload.job.placement_recommendation ? (
+        <PlacementConfirmationModal
+          command={command}
+          onClose={() => setPlacementConfirmationOpen(false)}
+          path={payload.paths.app_accept_triage_path!}
+          recommendation={payload.job.placement_recommendation}
+        />
+      ) : null}
     </>
+  )
+}
+
+export function PlacementConfirmationModal({ command, onClose, path, recommendation }: {
+  command: ReturnType<typeof useJobCommand>
+  onClose: () => void
+  path: string
+  recommendation: NonNullable<JobDetailPayload["job"]["placement_recommendation"]>
+}) {
+  const { t } = useT("jobs")
+  const capabilities = Object.entries(recommendation.capabilities)
+    .map(([dimension, values]) => `${dimension}: ${values.join(", ")}`)
+    .join(" · ")
+  const availability = recommendation.compatible_worker_available == null
+    ? t("placement_worker_unknown")
+    : recommendation.compatible_worker_available
+      ? t("placement_worker_available")
+      : t("placement_worker_unavailable")
+
+  function accept(decision: "suggested" | "linux") {
+    command.mutate(
+      { method: "post", path, body: { placement_decision: decision } },
+      { onSuccess: () => onClose() }
+    )
+  }
+
+  return (
+    <Modal label={t("placement_confirmation_title")} onClose={onClose} open>
+      <div className="space-y-4 p-5">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("placement_confirmation_title")}</h2>
+          <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{recommendation.label}</p>
+          <p className="mt-1 font-mono text-xs text-gray-600 dark:text-gray-400">{capabilities}</p>
+        </div>
+        {recommendation.explanation ? <p className="text-sm text-gray-700 dark:text-gray-300">{recommendation.explanation}</p> : null}
+        <p className="text-sm text-gray-700 dark:text-gray-300">{availability}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button disabled={command.isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={command.isPending} onClick={() => accept("linux")} variant="secondary">{t("accept_using_linux")}</Button>
+          <Button disabled={command.isPending} onClick={() => accept("suggested")} variant="primary">{t("accept_suggested_placement")}</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -607,7 +668,7 @@ function RetryFeedbackDialog({ command, input, onClose, payload }: { command: Re
           </label>
           <textarea
             autoFocus
-            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            className="min-h-36 w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus:outline-brand"
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
             placeholder={t("retry_feedback_placeholder")}

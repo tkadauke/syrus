@@ -221,6 +221,7 @@ module App
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
+        placement_recommendation: placement_recommendation_json,
         provider_routing_options: provider_routing_options_json(@user),
         provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
         inherited_provider_routing_context: provider_routing_inherited_context_json(
@@ -1119,6 +1120,28 @@ module App
         rebase_agent_options: alternate_agent_options,
         retry_agent_options: @job.retry_with_agent_providers
       }
+    end
+
+    def placement_recommendation_json
+      recommendation = @job.placement_recommendation.to_h
+      return nil if recommendation.blank?
+
+      recommendation.merge(
+        "status" => @job.placement_recommendation_status,
+        "compatible_worker_available" => compatible_worker_available(recommendation["capabilities"])
+      )
+    end
+
+    def compatible_worker_available(capabilities)
+      workflow = Struct.new(:trigger_kind, :planned_execution_capabilities, :job, keyword_init: true).new(
+        trigger_kind: "initial", planned_execution_capabilities: capabilities, job: @job
+      )
+      step = Struct.new(:placement_policy, :details, keyword_init: true).new(
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, details: {}
+      )
+      !RunQueueResolver.resolve_candidate(workflow: workflow, step: step).blocked?
+    rescue StandardError
+      nil
     end
 
     def pr_checks_landing_blocker_overridable?
