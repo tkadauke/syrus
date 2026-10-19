@@ -298,7 +298,7 @@ describe("move_element tool card", () => {
       parsedResult: { id: "shape-1", x: 240, y: 120, previous_x: 100, previous_y: 80, version: 3 }
     })
 
-    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · to (240, 120) · v3")
+    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · To (240, 120) · v3")
     render(<>{moveElementToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByText("shape-1")).toHaveClass("min-w-0", "break-all")
@@ -306,7 +306,7 @@ describe("move_element tool card", () => {
     expect(screen.getByText("(100, 80)")).toBeInTheDocument()
     expect(screen.getByText("(140, 40)")).toBeInTheDocument()
     expect(screen.getByText("v3")).toBeInTheDocument()
-    expect(screen.getByText("Position").closest("dl")).toHaveClass("sm:grid-cols-2")
+    expect(screen.getByText("X / Y").closest("dl")).toHaveClass("sm:grid-cols-2")
   })
 
   it("derives from/to ids from a wrapped result without call input", () => {
@@ -315,7 +315,7 @@ describe("move_element tool card", () => {
       parsedResult: { result: { from_id: "shape-1", to_id: "frame-2", delta_x: -20, delta_y: 15, version: 4 } }
     })
 
-    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · to frame-2 · v4")
+    expect(moveElementToolCard.collapsedSummary?.(toolContext)).toBe("Moved element · shape-1 · To frame-2 · v4")
     render(<>{moveElementToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByText("shape-1")).toBeInTheDocument()

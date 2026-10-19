@@ -49,16 +49,20 @@ function coordinates(value: Point) {
 }
 
 function summary(result: MoveResult) {
-  const destination = result.targetId ? `to ${result.targetId}` : result.destination ? `to ${coordinates(result.destination)}` : null
+  const destination = result.targetId
+    ? `${t("tool_field_to")} ${result.targetId}`
+    : result.destination
+      ? `${t("tool_field_to")} ${coordinates(result.destination)}`
+      : null
   return [t("tool_action_moved_element"), result.id, destination, result.version == null ? null : `v${result.version}`].filter(Boolean).join(" · ")
 }
 
 function MoveElementCard({ result }: { result: MoveResult }) {
   const rows: CompactActionRow[] = []
-  if (result.targetId) rows.push({ label: "Destination", value: <span className="break-all font-mono">{result.targetId}</span> })
-  else if (result.destination) rows.push({ label: "Position", value: <span className="font-mono">{coordinates(result.destination)}</span> })
-  if (result.previous) rows.push({ label: "Previous position", value: <span className="font-mono">{coordinates(result.previous)}</span> })
-  if (result.delta) rows.push({ label: "Delta", value: <span className="font-mono">{coordinates(result.delta)}</span> })
+  if (result.targetId) rows.push({ label: t("tool_field_to"), value: <span className="break-all font-mono">{result.targetId}</span> })
+  else if (result.destination) rows.push({ label: "X / Y", value: <span className="font-mono">{coordinates(result.destination)}</span> })
+  if (result.previous) rows.push({ label: t("tool_field_from"), value: <span className="font-mono">{coordinates(result.previous)}</span> })
+  if (result.delta) rows.push({ label: "ΔX / ΔY", value: <span className="font-mono">{coordinates(result.delta)}</span> })
 
   return (
     <CompactActionCard
