@@ -1,11 +1,13 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
+import { TextPreview } from "../toolCardMarkdown"
 
 type UsageWindow = { start: string | null; end: string | null }
 type Totals = { calls: number; errors: number }
 type ToolRow = { key: string; toolName: string; serverName: string | null; calls: number; errors: number; errorRate: number }
 type BreakdownRow = { key: string; label: string; calls: number; errors: number; errorRate: number }
+type StartupTimingRow = { key: string; phase: string; count: number; avgMs: number | null; p50Ms: number | null; p95Ms: number | null; maxMs: number | null }
 type CardGapRow = {
   key: string
   toolName: string
@@ -34,14 +36,21 @@ type RecentCall = {
   status: string
   error: boolean
   errorSummary: string | null
-  links: Array<{ key: string; label: string; href: string }>
+  repositoryId: string | null
+  userId: string | null
+  inputBytes: number | null
+  resultBytes: number | null
+  startedAt: string | null
+  completedAt: string | null
+  links: Array<{ key: "job" | "workflow" | "run" | "chat"; id: string; href: string }>
 }
 
 type UsageCard = {
   unavailableMessage: string | null
   window: UsageWindow
   surface: string | null
-  filters: { toolName: string | null; serverName: string | null }
+  filters: Array<{ key: string; value: string }>
+  input: Array<{ key: string; value: string }>
   totals: Totals
   topTools: ToolRow[]
   errorRates: ToolRow[]
@@ -50,6 +59,7 @@ type UsageCard = {
   serverBreakdown: BreakdownRow[]
   sidecarModeBreakdown: BreakdownRow[]
   authorityBreakdown: BreakdownRow[]
+  startupTiming: { turnsObserved: number; stalledTurns: number; rows: StartupTimingRow[] }
   unusedAdvertisedTools: string[]
   customCardGaps: {
     rankedGaps: CardGapRow[]
@@ -136,8 +146,8 @@ function linkFor(row: Record<string, unknown>, key: "job" | "workflow" | "run" |
   if (!href) return null
 
   const id = displayValue(row[`${key}_id`])
-  const label = key === "job" && id ? `JOB-${id}` : key === "workflow" && id ? `WF-${id}` : key === "run" && id ? `RUN-${id}` : "Chat"
-  return { key, label, href }
+  if (!id) return null
+  return { key: key === "chat_session" ? "chat" as const : key, id, href }
 }
 
 function parseRecentCall(value: unknown, index: number): RecentCall | null {
@@ -164,13 +174,44 @@ function parseRecentCall(value: unknown, index: number): RecentCall | null {
     status,
     error: value.error === true,
     errorSummary: [displayValue(value.error_class), displayValue(value.error_message_summary)].filter(Boolean).join(": ") || null,
+    repositoryId: displayValue(value.repository_id),
+    userId: displayValue(value.user_id),
+    inputBytes: numberValue(value.input_bytes),
+    resultBytes: numberValue(value.result_bytes),
+    startedAt: displayValue(value.started_at),
+    completedAt: displayValue(value.completed_at),
     links
   }
 }
 
+function parseStartupTiming(value: unknown) {
+  const section = isPlainObject(value) ? value : {}
+  const rows = Array.isArray(section.phase_latency) ? section.phase_latency.flatMap((value, index) => {
+    if (!isPlainObject(value)) return []
+    const phase = displayValue(value.phase)
+    const count = numberValue(value.count)
+    if (!phase || count == null) return []
+    return [{ key: `${phase}-${index}`, phase, count, avgMs: numberValue(value.avg_ms), p50Ms: numberValue(value.p50_ms), p95Ms: numberValue(value.p95_ms), maxMs: numberValue(value.max_ms) }]
+  }) : []
+  return { turnsObserved: numberValue(section.turns_observed) ?? 0, stalledTurns: numberValue(section.stalled_turns) ?? 0, rows }
+}
+
+const INPUT_KEYS = ["window", "since", "start", "end", "limit", "recent_limit", "tool", "tool_name", "server", "server_name"] as const
+
+function parseInput(input: Record<string, unknown> | undefined) {
+  if (!input) return []
+  return INPUT_KEYS.flatMap((key) => {
+    const value = displayValue(input[key])
+    return value ? [{ key, value }] : []
+  })
+}
+
 function parseFilters(value: unknown) {
-  if (!isPlainObject(value)) return { toolName: null, serverName: null }
-  return { toolName: displayValue(value.tool_name), serverName: displayValue(value.server_name) }
+  if (!isPlainObject(value)) return []
+  return Object.entries(value).flatMap(([key, rawValue]) => {
+    const value = displayValue(rawValue)
+    return value ? [{ key, value }] : []
+  })
 }
 
 function parseCustomCardGaps(value: unknown) {
@@ -203,6 +244,7 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
     window: { start: displayValue(window.start), end: displayValue(window.end) },
     surface: displayValue(parsed.surface),
     filters: parseFilters(parsed.filters),
+    input: parseInput(context.input),
     totals: { calls: calls ?? 0, errors: errors ?? 0 },
     topTools: Array.isArray(parsed.top_tools) ? parsed.top_tools.flatMap((row, index) => { const parsedRow = parseToolRow(row, index); return parsedRow ? [parsedRow] : [] }) : [],
     errorRates: Array.isArray(parsed.error_rates) ? parsed.error_rates.flatMap((row, index) => { const parsedRow = parseToolRow(row, index); return parsedRow && parsedRow.errors > 0 ? [parsedRow] : [] }) : [],
@@ -211,6 +253,7 @@ function parseUsage(context: ToolCardContext): UsageCard | null {
     serverBreakdown: Array.isArray(parsed.server_breakdown) ? parsed.server_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "server_name", index); return parsedRow ? [parsedRow] : [] }) : [],
     sidecarModeBreakdown: Array.isArray(parsed.sidecar_mode_breakdown) ? parsed.sidecar_mode_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "sidecar_mode", index); return parsedRow ? [parsedRow] : [] }) : [],
     authorityBreakdown: Array.isArray(parsed.authority_breakdown) ? parsed.authority_breakdown.flatMap((row, index) => { const parsedRow = parseBreakdownRow(row, "authority", index); return parsedRow ? [parsedRow] : [] }) : [],
+    startupTiming: parseStartupTiming(parsed.startup_timing),
     unusedAdvertisedTools: Array.isArray(parsed.unused_advertised_tools) ? parsed.unused_advertised_tools.flatMap((tool) => { const name = displayValue(tool); return name ? [name] : [] }) : [],
     customCardGaps: parseCustomCardGaps(parsed.custom_card_gaps),
     recentCalls: Array.isArray(parsed.recent_calls) ? parsed.recent_calls.flatMap((row, index) => { const parsedRow = parseRecentCall(row, index); return parsedRow ? [parsedRow] : [] }) : []
@@ -250,7 +293,7 @@ function ToolRows({ heading, intent, rows }: { heading: string; intent: "volume"
       {rows.length === 0 ? (
         <EmptyState>{intent === "error" ? "No high-error tools in this window." : "No tool volume in this window."}</EmptyState>
       ) : (
-        <Table>
+        <Table responsive>
           <THead columns={["Tool", "Calls", "Errors", "Rate"]} />
           <TBody>
             {rows.map((row) => (
@@ -276,7 +319,7 @@ function BreakdownRows({ label, rows }: { label: string; rows: BreakdownRow[] })
   return (
     <div>
       <SectionLabel>{label}</SectionLabel>
-      <Table>
+      <Table responsive>
         <THead columns={[label, "Calls", "Errors", "Rate"]} />
         <TBody>
           {rows.map((row) => (
@@ -332,7 +375,7 @@ function RankedCardGaps({ rows }: { rows: CardGapRow[] }) {
       {rows.length === 0 ? (
         <EmptyState>No missing or weak card gaps in this window.</EmptyState>
       ) : (
-        <Table>
+        <Table responsive>
           <THead columns={["Tool", "Usage", "Owner", "Last used"]} />
           <TBody>
             {rows.map((row) => (
@@ -367,31 +410,73 @@ function RecentCalls({ calls }: { calls: RecentCall[] }) {
   if (calls.length === 0) return <EmptyState>No recent calls found.</EmptyState>
 
   return (
-    <Table>
-      <THead columns={["When", "Call", "Status", "Links"]} />
+    <Table responsive>
+      <THead columns={["Timing", "Call", "Status / error", "Size", "Entities"]} />
       <TBody>
         {calls.map((call) => (
           <tr key={call.key}>
-            <Td mono>{call.occurredAt || "-"}</Td>
-            <Td maxWidth title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
+            <Td mono wrap>
+              <div>Occurred: {call.occurredAt || "-"}</div>
+              <div>Started: {call.startedAt || "-"}</div>
+              <div>Completed: {call.completedAt || "-"}</div>
+            </Td>
+            <Td maxWidth wrap title={[call.serverName, call.toolName].filter(Boolean).join(".")}>
               <div className="font-medium text-gray-900 dark:text-gray-100">{call.toolName}</div>
               <div className="text-2xs text-gray-500 dark:text-gray-400">{[call.serverName || "-", call.surface, call.provider, call.sidecarMode, call.daemonWorkerId, call.authority].filter(Boolean).join(" / ")}</div>
             </Td>
-            <Td maxWidth title={call.errorSummary || undefined}>
+            <Td maxWidth wrap>
               <StatePill state={call.status} tone={call.error ? "failure" : "success"} />
-              {call.errorSummary ? <div className="mt-1 truncate text-2xs text-gray-500 dark:text-gray-400">{call.errorSummary}</div> : null}
+              {call.errorSummary ? <div className="mt-1"><TextPreview maxLines={3} modalLabel="Full error preview" text={call.errorSummary} /></div> : null}
             </Td>
-            <Td>
-              {call.links.length === 0 ? "—" : (
-                <div className="flex flex-wrap gap-1">
-                  {call.links.map((link) => <InternalLink href={link.href} key={link.key}>{link.label}</InternalLink>)}
-                </div>
-              )}
+            <Td mono>
+              <div>Input: {formatBytes(call.inputBytes)}</div>
+              <div>Result: {formatBytes(call.resultBytes)}</div>
+            </Td>
+            <Td wrap>
+              <div className="flex flex-wrap gap-2">
+                {call.links.map((link) => <EntityReference href={link.href} id={link.id} key={link.key} kind={link.key} />)}
+                {call.repositoryId ? <EntityReference id={call.repositoryId} kind="repository" label={`Repository ${call.repositoryId}`} repositoryId={call.repositoryId} /> : null}
+              </div>
+              {call.userId ? <div className="mt-1 font-mono text-2xs text-gray-500 dark:text-gray-400">User {call.userId}</div> : null}
+              {call.links.length === 0 && !call.repositoryId && !call.userId ? "—" : null}
             </Td>
           </tr>
         ))}
       </TBody>
     </Table>
+  )
+}
+
+function formatMs(value: number | null) {
+  return value == null ? "-" : `${Math.round(value)} ms`
+}
+
+function StartupTiming({ section }: { section: UsageCard["startupTiming"] }) {
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SectionLabel>Startup timing</SectionLabel>
+        <Badge>{section.turnsObserved} turns observed</Badge>
+        <Badge>{section.stalledTurns} stalled</Badge>
+      </div>
+      {section.rows.length === 0 ? <EmptyState>No MCP startup phases recorded in this window.</EmptyState> : (
+        <Table responsive>
+          <THead columns={["Phase", "Count", "Avg since start", "p50", "p95", "Max"]} />
+          <TBody>
+            {section.rows.map((row) => (
+              <tr key={row.key}>
+                <Td wrap>{row.phase.replaceAll("_", " ")}</Td>
+                <Td mono>{row.count}</Td>
+                <Td mono>{formatMs(row.avgMs)}</Td>
+                <Td mono>{formatMs(row.p50Ms)}</Td>
+                <Td mono>{formatMs(row.p95Ms)}</Td>
+                <Td mono>{formatMs(row.maxMs)}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </div>
   )
 }
 
@@ -402,14 +487,13 @@ function renderExpanded(context: ToolCardContext) {
   if (card.unavailableMessage) return <EmptyState>{card.unavailableMessage}</EmptyState>
 
   const rate = card.totals.calls > 0 ? card.totals.errors / card.totals.calls : 0
-  const filters = [card.filters.toolName ? `tool: ${card.filters.toolName}` : null, card.filters.serverName ? `server: ${card.filters.serverName}` : null].filter(Boolean)
-
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{card.surface || "all"} surface</Badge>
         {card.window.start && card.window.end ? <Badge>{card.window.start} to {card.window.end}</Badge> : null}
-        {filters.map((filter) => <Badge key={filter}>{filter}</Badge>)}
+        {card.filters.map((filter) => <Badge key={`result-${filter.key}`}>{filter.key === "tool_name" ? "tool" : filter.key === "server_name" ? "server" : filter.key.replaceAll("_", " ")}: {filter.value}</Badge>)}
+        {card.input.map((item) => <Badge key={item.key}>{item.key}: {item.value}</Badge>)}
       </div>
       <div className="grid grid-cols-3 gap-2">
         <StatTile label="Calls" value={card.totals.calls} tone="volume" />
@@ -422,7 +506,7 @@ function renderExpanded(context: ToolCardContext) {
         <ToolRows heading="Error priorities" intent="error" rows={card.errorRates} />
       </div>
       <RankedCardGaps rows={card.customCardGaps.rankedGaps} />
-      <div className="grid min-w-0 gap-2 lg:grid-cols-4">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <CardGapRows heading="Missing high-volume cards" rows={card.customCardGaps.highVolumeWithoutCustomCard} />
         <CardGapRows heading="Weak or missing error cards" rows={card.customCardGaps.highErrorWithWeakOrNoCustomCard} />
         <CardGapRows heading="Unused advertised tools" rows={card.customCardGaps.unusedAdvertisedTools} showVolume={false} />
@@ -443,6 +527,7 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         </div>
       ) : null}
+      <StartupTiming section={card.startupTiming} />
       <div>
         <SectionLabel>Recent calls</SectionLabel>
         <RecentCalls calls={card.recentCalls} />

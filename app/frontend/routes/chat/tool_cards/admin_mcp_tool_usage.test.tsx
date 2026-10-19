@@ -46,6 +46,11 @@ const POPULATED_PAYLOAD = {
     { authority: "operator_host", calls: 5, errors: 0, error_rate: 0 },
     { authority: "workspace", calls: 12, errors: 1, error_rate: 0.0833 }
   ],
+  startup_timing: {
+    turns_observed: 6,
+    stalled_turns: 1,
+    phase_latency: [{ phase: "mcp_startup", count: 5, avg_ms: 120.4, p50_ms: 100, p95_ms: 220, max_ms: 240 }]
+  },
   unused_advertised_tools: ["admin_clear_github_cache"],
   custom_card_gaps: {
     ranked_gaps: [
@@ -143,7 +148,13 @@ const POPULATED_PAYLOAD = {
       run_id: 133147,
       run_path: "/admin/runs/133147/transcript",
       chat_session_id: 12,
-      chat_path: "/chats/12"
+      chat_path: "/chats/12",
+      repository_id: 3,
+      user_id: 7,
+      input_bytes: 1024,
+      result_bytes: 2048,
+      started_at: "2026-09-08T11:59:58Z",
+      completed_at: "2026-09-08T12:00:00Z"
     }
   ]
 }
@@ -161,7 +172,7 @@ function toolGroup(payload: unknown): ChatToolGroupItem {
         detail: "surface=all",
         display_label: "Admin mcp tool usage",
         progress_label: "Reading",
-        raw_payload: { surface: "all" },
+        raw_payload: { surface: "all", api_token: "input-secret-123456" },
         result_body: body,
         result_json: payload,
         result_error: false,
@@ -205,6 +216,10 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByText("custom card next")).toBeInTheDocument()
     expect(screen.getByText("ignore for now")).toBeInTheDocument()
     expect(screen.getByText(/worker-chat/)).toBeInTheDocument()
+    expect(screen.getByText("Startup timing")).toBeInTheDocument()
+    expect(screen.getByText("mcp startup")).toBeInTheDocument()
+    expect(screen.getByText(/Input: 1\.0 KB/)).toBeInTheDocument()
+    expect(screen.getByText(/Result: 2\.0 KB/)).toBeInTheDocument()
   })
 
   it("renders empty windows without pretending the payload is malformed", () => {
@@ -218,6 +233,7 @@ describe("admin_mcp_tool_usage tool card", () => {
       server_breakdown: [],
       sidecar_mode_breakdown: [],
       authority_breakdown: [],
+      startup_timing: { turns_observed: 0, stalled_turns: 0, phase_latency: [] },
       unused_advertised_tools: [],
       custom_card_gaps: {
         ranked_gaps: [],
@@ -240,10 +256,20 @@ describe("admin_mcp_tool_usage tool card", () => {
   })
 
   it("shows active filters in the expanded card", () => {
-    render(<>{adminMcpToolUsageToolCard.renderExpanded(context({ parsedResult: POPULATED_PAYLOAD }))}</>)
+    render(<>{adminMcpToolUsageToolCard.renderExpanded(context({
+      input: { window: "7d", since: "2h", start: "start-value", end: "end-value", limit: 10, recent_limit: 5, tool: "read_job", server: "sidecar" },
+      parsedResult: POPULATED_PAYLOAD
+    }))}</>)
 
-    expect(screen.getByText("tool: read_job")).toBeInTheDocument()
+    expect(screen.getAllByText("tool: read_job")).toHaveLength(2)
     expect(screen.getByText("server: syrus-chat-sidecar")).toBeInTheDocument()
+    expect(screen.getByText("window: 7d")).toBeInTheDocument()
+    expect(screen.getByText("since: 2h")).toBeInTheDocument()
+    expect(screen.getByText("start: start-value")).toBeInTheDocument()
+    expect(screen.getByText("end: end-value")).toBeInTheDocument()
+    expect(screen.getByText("limit: 10")).toBeInTheDocument()
+    expect(screen.getByText("recent_limit: 5")).toBeInTheDocument()
+    expect(screen.getByText("server: sidecar")).toBeInTheDocument()
   })
 
   it("links recent calls back to available chat, job, workflow, and run pages", () => {
@@ -252,7 +278,8 @@ describe("admin_mcp_tool_usage tool card", () => {
     expect(screen.getByRole("link", { name: "JOB-4774" })).toHaveAttribute("href", "/jobs/4774")
     expect(screen.getByRole("link", { name: "WF-27863" })).toHaveAttribute("href", "/admin/workflows/27863")
     expect(screen.getByRole("link", { name: "RUN-133147" })).toHaveAttribute("href", "/admin/runs/133147/transcript")
-    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/chats/12")
+    expect(screen.getByRole("link", { name: "CHAT-12" })).toHaveAttribute("href", "/chats/12")
+    expect(screen.getByRole("link", { name: "Repository 3" })).toHaveAttribute("href", "/repositories/3")
   })
 
   it("renders unavailable data as an explicit empty state", () => {
@@ -277,8 +304,29 @@ describe("admin_mcp_tool_usage tool card", () => {
     fireEvent(rawDetails, new Event("toggle"))
 
     expect(screen.getByText("Volume priorities")).toBeInTheDocument()
-    const rawText = document.querySelector("pre")?.textContent || ""
+    const rawText = rawDetails.querySelector("pre")?.textContent || ""
     expect(rawText).toContain("\"input\"")
     expect(rawText).toContain("admin_clear_github_cache")
+    expect(rawText).not.toContain("input-secret-123456")
+    expect(rawText).toContain("[redacted]")
+  })
+
+  it("renders the same card for the Codex MCP raw name", () => {
+    const item = toolGroup(POPULATED_PAYLOAD)
+    item.calls[0].raw_name = "mcp__syrus-chat-sidecar__admin_mcp_tool_usage"
+    render(<ToolGroup item={item} />)
+    fireEvent.click(screen.getByText("Admin mcp tool usage"))
+    expect(screen.getByText("Startup timing")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-12" })).toHaveAttribute("href", "/chats/12")
+  })
+
+  it.each([
+    ["structured content", { structured_content: POPULATED_PAYLOAD, content: [{ type: "text", text: "{}" }] }],
+    ["JSON text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify(POPULATED_PAYLOAD) }] }]
+  ])("renders normalized %s MCP results", (_label, payload) => {
+    render(<ToolGroup item={toolGroup(payload)} />)
+    fireEvent.click(screen.getByText("Admin mcp tool usage"))
+    expect(screen.getByText("Startup timing")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-12" })).toHaveAttribute("href", "/chats/12")
   })
 })
