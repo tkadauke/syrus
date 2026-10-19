@@ -41,6 +41,7 @@ export type MarkdownPreviewProps = {
 
 export type TextPreviewProps = {
   text: string
+  emptyLabel?: string
   lang?: HighlighterLanguageId | null
   maxChars?: number
   maxLines?: number
@@ -151,14 +152,23 @@ export function MarkdownPreview({
 
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
-export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
+export function TextPreview({
+  text,
+  emptyLabel,
+  lang = null,
+  maxLines = DEFAULT_MAX_LINES,
+  maxChars,
+  title,
+  modalLabel,
+  truncate = "head"
+}: TextPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
   const empty = !text.trim()
   const truncated = useMemo(() => truncateTextLines(text, { mode: truncate, maxLines, maxChars }), [text, maxChars, maxLines, truncate])
 
-  if (empty) return null
+  if (empty) return emptyLabel ? <div className="text-xs italic text-text-muted">{emptyLabel}</div> : null
 
   const dialogLabel = modalLabel || title || t("show_more")
 
