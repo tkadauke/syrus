@@ -1018,7 +1018,8 @@ one confirmation for the whole batch and, after confirmation, reports the new
 `CHAT-<id>` values and pre-opened bridge thread IDs in the originating thread.
 The spawning agent can immediately send follow-up instructions on those threads
 without duplicating each new chat's initial prompt or waiting for another
-operator message.
+operator message. Cross-chat threads allow 100 messages by default, while the
+`send_chat_message` tool can request a smaller positive cap when opening one.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.

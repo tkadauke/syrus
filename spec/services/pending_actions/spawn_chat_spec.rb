@@ -20,7 +20,7 @@ RSpec.describe PendingActions::SpawnChat do
       origin_chat_session_id: chat_session.id,
       target_chat_session_id: spawned.id,
       opened_by_user_id: user.id,
-      max_hops: ChatBridgeThread::SPAWN_MAX_HOPS,
+      max_hops: ChatBridgeThread::DEFAULT_MAX_HOPS,
       hop_count: 0,
       state: "open"
     )
