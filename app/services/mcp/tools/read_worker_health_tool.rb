@@ -20,7 +20,7 @@ module Mcp::Tools
       def call(server_context:, **arguments)
         return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
 
-        Mcp::Tools.success(
+        payload = CommandRedactor.redact_value(
           ::Admin::WorkerHealthPayload.new(
             hostname: arguments[:hostname],
             since: arguments[:since],
@@ -32,6 +32,7 @@ module Mcp::Tools
             )
           ).as_json
         )
+        Mcp::Tools.success(payload)
       end
 
       private
