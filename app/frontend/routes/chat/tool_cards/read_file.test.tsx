@@ -30,6 +30,16 @@ describe("read_file tool card", () => {
     expect(within(dialog).getByRole("button", { name: "Copy markdown" })).toBeInTheDocument()
   })
 
+  it("does not link an unsafe payload-provided path URL", () => {
+    render(
+      <>{readFileToolCard.renderExpanded(context({ parsedResult: { content: "secret", path_url: "javascript:alert(1)" }, input: { path: "notes.txt" } }))}</>
+    )
+
+    expect(screen.getByText("notes.txt")).not.toBeInstanceOf(HTMLAnchorElement)
+    expect(screen.queryByRole("link", { name: "notes.txt" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy notes.txt to clipboard" })).toBeInTheDocument()
+  })
+
   it("renders text through the code preview and opens the full file", () => {
     const content = Array.from({ length: 500 }, (_, i) => `line ${i}`).join("\n")
     render(<>{readFileToolCard.renderExpanded(context({ parsedResult: { content }, input: { path: "app/models/job.rb" } }))}</>)
@@ -62,7 +72,7 @@ describe("read_file tool card", () => {
       <>{readFileToolCard.renderExpanded(context({ parsedResult: { error: "path escapes repository root" }, input: { path: "../secret" } }))}</>
     )
     expect(screen.getByText("path escapes repository root")).toBeInTheDocument()
-    expect(readFileToolCard.collapsedSummary?.(context({ parsedResult: { error: "missing" } }))).toBe("File read failed")
+    expect(readFileToolCard.collapsedSummary?.(context({ parsedResult: { error: "missing" } }))).toBe("File read failed.")
     rerender(<>{readFileToolCard.renderExpanded(context({ resultError: true, resultBody: "Local daemon not connected.", parsedResult: null }))}</>)
     expect(screen.getByText("Local daemon not connected.")).toBeInTheDocument()
   })

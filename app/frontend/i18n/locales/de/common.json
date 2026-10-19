@@ -6,6 +6,8 @@
   },
   "loading": "Laden...",
   "show_more": "Mehr anzeigen",
+  "copy_markdown": "Markdown kopieren",
+  "empty_file": "Leere Datei.",
   "show_less": "Weniger anzeigen",
   "workflows": "Arbeitsabläufe",
   "file_preview": {

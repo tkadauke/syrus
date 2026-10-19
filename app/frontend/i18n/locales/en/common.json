@@ -6,6 +6,8 @@
   },
   "loading": "Loading...",
   "show_more": "Show more",
+  "copy_markdown": "Copy markdown",
+  "empty_file": "Empty file.",
   "show_less": "Show less",
   "workflows": "Workflows",
   "file_preview": {

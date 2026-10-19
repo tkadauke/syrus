@@ -87,10 +87,10 @@ export function MarkdownPreview({
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
           <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-text-primary">{title || dialogLabel}</h2>
           <button
-            aria-label="Copy markdown"
+            aria-label={t("copy_markdown")}
             className={CLOSE_BUTTON_CLASS}
             onClick={() => copy(text)}
-            title={copied ? "Copied" : "Copy markdown"}
+            title={copied ? t("copy.copied") : t("copy_markdown")}
             type="button"
           >
             <CopyIcon className="h-4 w-4" />
@@ -144,7 +144,7 @@ export function TextPreview({
   maxChars = 12_000,
   title,
   modalLabel,
-  emptyLabel = "Empty file.",
+  emptyLabel,
   lang = null
 }: {
   text: string
@@ -157,7 +157,7 @@ export function TextPreview({
 }) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
-  if (!text.trim()) return <div className="text-xs text-text-muted">{emptyLabel}</div>
+  if (!text.trim()) return <div className="text-xs text-text-muted">{emptyLabel || t("empty_file")}</div>
 
   const lines = text.split("\n")
   const linePreview = lines.slice(0, Math.max(1, maxLines)).join("\n")
