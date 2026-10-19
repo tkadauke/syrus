@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, toolResultPresentation } from "../toolRendering"
 import readPrToolCard from "./read_pr"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -49,9 +50,12 @@ describe("read_pr tool card", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("PR #7")
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
     expect(screen.getByText("Adds custom cards.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("link", { name: "x" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/7/files")
     expect(screen.getByText("open")).toBeInTheDocument()
     expect(screen.getByText("1 file")).toBeInTheDocument()
     expect(screen.getByText("+1")).toBeInTheDocument()
+    expect(screen.getByText("25 bytes returned")).toBeInTheDocument()
     expect(screen.queryByText(/Truncated/)).not.toBeInTheDocument()
   })
 
@@ -76,6 +80,18 @@ describe("read_pr tool card", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument()
     expect(screen.getAllByText("PR #7").length).toBeGreaterThan(0)
     expect(screen.getByRole("button", { name: "Copy PR #7 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByText("Unknown repository")).toBeInTheDocument()
+    expect(screen.getByText("No PR description.")).toBeInTheDocument()
+    expect(screen.getByText("No diff returned.")).toBeInTheDocument()
+  })
+
+  it("shows explicit empty body and diff states", () => {
+    const parsedResult = { pr: { number: 7, body: "", state: "open", diff: { text: "", truncated: false, bytes: 0, omitted_bytes: 0 } } }
+    render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("No PR description.")).toBeInTheDocument()
+    expect(screen.getByText("No changes in diff.")).toBeInTheDocument()
+    expect(screen.getByText("0 bytes returned")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (missing pr object)", () => {
@@ -85,5 +101,28 @@ describe("read_pr tool card", () => {
 
   it("falls back to null for a non-object payload", () => {
     expect(readPrToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
+  })
+
+  it("accepts a JSON string parsedResult", () => {
+    const parsedResult = JSON.stringify({ pr: { number: 8, title: "String payload", state: "open" } })
+
+    render(<>{readPrToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("String payload")).toBeInTheDocument()
+  })
+
+  it("uses shared normalization for content text and structured content envelopes", () => {
+    const textPayload = { pr: { number: 9, state: "open" } }
+    const structuredPayload = { pr: { number: 10, state: "closed" } }
+
+    expect(normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(textPayload) }] })).toEqual(textPayload)
+    expect(normalizedToolCardParsedResult({ content: [{ type: "text", text: "ignored" }], structured_content: structuredPayload })).toEqual(structuredPayload)
+  })
+
+  it("normalizes an mcp-prefixed tool name and summarizes plain-text failures", () => {
+    const payload = JSON.stringify({ pr: { number: 11, state: "open" } })
+    expect(toolResultPresentation("mcp__syrus__read_pr", payload).summary).toBe("PR #11 (open)")
+
+    const failure = toolResultPresentation("mcp__syrus__read_pr", "Error: GitHub unavailable", true, "Error: GitHub unavailable", { pr_number: 11 })
+    expect(failure).toMatchObject({ kind: "error", summary: expect.stringContaining("PR read failed") })
   })
 })
