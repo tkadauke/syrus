@@ -848,7 +848,8 @@ that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Rules can
 be disabled without losing their ordered position, and a matching hold action
-stops first-match evaluation without treating the decision as provider failure.
+stops first-match evaluation and leaves the workflow queued without launching a
+Run or treating the decision as provider failure.
 Existing workflow pins are not rewritten.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its

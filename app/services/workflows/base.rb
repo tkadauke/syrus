@@ -129,7 +129,11 @@ module Workflows
           original_candidate: explicit_candidate
         )
       end
-      resolved_candidate = routed_selection.candidate
+      # A hold deliberately has no selected candidate. Keep the workflow's
+      # provider columns valid using the pre-routing value while the routing
+      # decision artifact remains the source of truth and dispatch refuses to
+      # create a Run.
+      resolved_candidate = routed_selection.candidate || explicit_candidate
       model_selection = model.present? ? "explicit" : "default"
       effort_level_selection = effort_level.present? ? "explicit" : "default"
       effective_artifacts = (effective_artifacts || {}).merge(

@@ -4,6 +4,7 @@ module ProviderRouting
       def selected_provider = candidate&.provider
       def failover? = selected_provider.present? && original_candidate&.provider.present? && selected_provider != original_candidate.provider
       def exhausted? = exhausted
+      def held? = routing_resolution&.held? || false
 
       def artifact
         {
@@ -22,6 +23,7 @@ module ProviderRouting
           "automatic_failover" => true,
           "manual_override" => false,
           "exhausted" => exhausted?,
+          "held" => held?,
           "routing_resolution" => routing_resolution&.explanation,
           "unavailable" => unavailable_summary(unavailable_payload)
         }.compact
@@ -103,6 +105,8 @@ module ProviderRouting
     end
 
     def call
+      return decision(nil, candidate_availability: nil, exhausted: false) if routing_resolution.held?
+
       first_unavailable_candidate = nil
       first_unavailable_availability = nil
 
@@ -136,8 +140,11 @@ module ProviderRouting
     attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :original_candidate, :reason, :availability, :now
 
     def candidates
-      @candidates ||= routing_resolution.candidates.presence ||
-        ProviderRouting::Resolver::HARDCODED_FALLBACK
+      @candidates ||= if routing_resolution.held?
+        []
+      else
+        routing_resolution.candidates.presence || ProviderRouting::Resolver::HARDCODED_FALLBACK
+      end
     end
 
     def routing_resolution
