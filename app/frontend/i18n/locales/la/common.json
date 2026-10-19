@@ -179,6 +179,7 @@
     "error": "Epicum incipere non potuit."
   },
   "copy": {
+    "copy_text": "Copia",
     "copy_to_clipboard": "Describe {{slug}} in tabellam",
     "copied": "Descriptum",
     "copy": "Describe {{slug}}"
