@@ -68,9 +68,9 @@ export function StatePill({ state, tone }: { state: string; tone?: Tone }) {
   )
 }
 
-export function Badge({ children, wrap = false }: { children: ReactNode; wrap?: boolean }) {
+export function Badge({ children }: { children: ReactNode }) {
   return (
-    <Pill className={wrap ? "min-w-0 max-w-full break-words text-2xs [overflow-wrap:anywhere]" : "text-2xs"} tone="neutral" wrap={wrap}>
+    <Pill className="text-2xs" tone="neutral">
       {children}
     </Pill>
   )

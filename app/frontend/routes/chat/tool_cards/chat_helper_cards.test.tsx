@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
@@ -37,6 +37,30 @@ beforeEach(() => {
       previewAvailable: false,
       linkifiesGeneratedText: true,
       hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    },
+    {
+      prefix: "DOC",
+      type: "design_doc",
+      displayLabel: "Design Doc",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/design_docs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    },
+    {
+      prefix: "CHAT",
+      type: "chat",
+      displayLabel: "Chat",
+      copyable: true,
+      linkable: false,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: null,
       mobileInteractionHints: {},
       pluginPreviewComponent: null
     }
@@ -82,7 +106,10 @@ describe("chat helper tool cards", () => {
   it("renders markdown, linked references, URLs, and touch-sized wrapping options", () => {
     const input = {
       questions: [
-        { question: "Review **JOB-42** at https://example.test/details?", options: ["A very long option that must wrap instead of overflowing its card"] }
+        {
+          question: "Review **JOB-42** and DOC-7 at https://example.test/details?",
+          options: ["Discuss CHAT-9 at https://example.test/option/with/a/very/long/path/that/must/wrap/instead/of/overflowing"]
+        }
       ]
     }
     render(
@@ -94,10 +121,16 @@ describe("chat helper tool cards", () => {
     )
 
     expect(screen.getByText("JOB-42").closest("a")).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "DOC-7" })).toHaveAttribute("href", "/design_docs/7")
     expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
     expect(screen.getByText("the operator").tagName).toBe("STRONG")
-    expect(screen.getByText(/A very long option/).parentElement).toHaveClass("break-words", "max-w-full")
-    expect(screen.getByText(/A very long option/).parentElement?.parentElement).toHaveClass("min-h-11")
+    expect(screen.getByRole("button", { name: "Copy CHAT-9 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /https:\/\/example\.test\/option/ })).toHaveAttribute(
+      "href",
+      "https://example.test/option/with/a/very/long/path/that/must/wrap/instead/of/overflowing"
+    )
+    expect(screen.getByTestId("question-option")).toHaveClass("min-h-11", "w-full", "min-w-0", "max-w-full", "sm:w-auto")
+    expect(within(screen.getByTestId("question-option")).getByTestId("markdown-preview-content")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
   })
 
   it("normalizes direct, result-body-only, and Codex-wrapped result envelopes", () => {
