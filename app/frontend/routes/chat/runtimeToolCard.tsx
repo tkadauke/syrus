@@ -646,12 +646,12 @@ function latestFrameSource(session: RuntimeSession) {
   return `${latestFrameUrl}${separator}latest_frame_at=${encodeURIComponent(session.latestFrameAt)}`
 }
 
-function SafeLinks({ session }: { session: RuntimeSession }) {
+function SafeLinks({ session, showLatestFrame = true }: { session: RuntimeSession; showLatestFrame?: boolean }) {
   const links: Array<readonly [string, string]> = []
   const streamUrl = session.streamUrl ? safeRuntimeUrl(session.streamUrl) : null
   const latestFrameUrl = session.latestFrameUrl ? safeRuntimeUrl(session.latestFrameUrl) : null
   if (streamUrl) links.push(["Stream", streamUrl])
-  if (latestFrameUrl) links.push(["Latest frame", latestFrameUrl])
+  if (showLatestFrame && latestFrameUrl) links.push(["Latest frame", latestFrameUrl])
 
   if (links.length === 0) return null
 
@@ -710,7 +710,7 @@ function RuntimeId({ id, href }: { id: string; href?: string | null }) {
   )
 }
 
-function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
+function RuntimeSessionBlock({ session, showLatestFrameLink = true }: { session: RuntimeSession; showLatestFrameLink?: boolean }) {
   const frameSource = latestFrameSource(session)
 
   return (
@@ -727,7 +727,7 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
         {session.latestFrameAt ? <Row label="Latest frame at" value={session.latestFrameAt} /> : null}
       </div>
       <div className="mt-2 space-y-2">
-        <SafeLinks session={session} />
+        <SafeLinks session={session} showLatestFrame={showLatestFrameLink} />
         {frameSource ? (
           <MediaPreviewShell
             item={{
@@ -1070,7 +1070,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : (
           <div className="space-y-2">
             {card.sessions.map((session) => (
-              <RuntimeSessionBlock key={session.id} session={session} />
+              <RuntimeSessionBlock key={session.id} session={session} showLatestFrameLink={false} />
             ))}
           </div>
         )}

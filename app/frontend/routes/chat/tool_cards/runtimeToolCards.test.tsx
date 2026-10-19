@@ -102,11 +102,20 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
   })
 
-  it("summarizes and renders multiple sessions with metadata, URLs, ownership, and errors", () => {
+  it("summarizes and renders every historical session in API order with complete session details", () => {
+    const workspaceRef = "workspace/with/a/very/long/path/that/must/wrap/instead/of/overflowing/on/mobile"
+    const lastError = "The preview process exited unexpectedly.\nRestart it after checking the provider logs."
     const parsedResult = {
       sessions: [
-        session({ id: 1, state: "stopped", primary: false, active_agent_input_lease: null }),
-        session({ id: 2, state: "failed", last_error: "preview crashed" })
+        session({
+          id: 1,
+          state: "stopped",
+          primary: false,
+          workspace_ref: workspaceRef,
+          metadata: { deployment_url: "https://runtime.example.test/a/very/long/path", enabled: false },
+          active_agent_input_lease: null
+        }),
+        session({ id: 2, state: "failed", last_error: lastError })
       ]
     }
 
@@ -115,16 +124,67 @@ describe("Runtime tool cards", () => {
     )
 
     render(<>{runtimeListSessionsToolCard.renderExpanded(context("runtime_list_sessions", { parsedResult }))}</>)
-    expect(screen.getByText("Runtime #1")).toBeInTheDocument()
-    expect(screen.getByText("Runtime #2")).toBeInTheDocument()
+    expect(screen.getAllByText(/Runtime #[12]/, { selector: "a" }).map((element) => element.textContent)).toEqual(["Runtime #1", "Runtime #2"])
+    expect(screen.getByText("stopped")).toBeInTheDocument()
+    expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getAllByText("browser").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("workspace-a").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Stream").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Latest frame").length).toBeGreaterThan(0)
+    expect(screen.getByText(workspaceRef)).toHaveClass("break-words")
+    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-words")
+    expect(screen.getAllByRole("link", { name: "Stream" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "Stream" })[0]).toHaveAttribute("target", "_blank")
+    expect(screen.queryByRole("link", { name: "Latest frame" })).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Open Latest frame" })).toHaveLength(2)
+    expect(screen.getByAltText("Latest frame for Runtime #1")).toHaveAttribute("src", "/runtime/7/frame?latest_frame_at=2026-09-10T12%3A00%3A05Z")
     expect(screen.getAllByText("url").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("http://127.0.0.1:4173").length).toBeGreaterThan(0)
-    expect(screen.getByText("preview crashed")).toBeInTheDocument()
+    expect(screen.getByText("no lease")).toBeInTheDocument()
+    expect(screen.getByText("coding_mode_chat:8")).toHaveClass("break-words")
+    expect(screen.getAllByText("Capabilities")).toHaveLength(2)
+    fireEvent.click(screen.getByText("Last error"))
+    expect(screen.getByText(/The preview process exited unexpectedly/, { selector: "code" })).toHaveTextContent(
+      /The preview process exited unexpectedly\.\s+Restart it after checking the provider logs\./
+    )
     expect(screen.getAllByText("Runtime JSON").length).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ["runtime_list_sessions", (payload: unknown) => payload],
+    ["mcp__syrus-chat-sidecar__runtime_list_sessions", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    [
+      "syrus-chat-sidecar.runtime_list_sessions",
+      (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null })
+    ]
+  ])("normalizes %s session-list envelopes through the real redacted ToolGroup path", (rawName, envelope) => {
+    const payload = { sessions: [session({ id: 31, metadata: { api_token: "secret-value-that-must-not-render" } })] }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime list sessions",
+      calls: [
+        {
+          message_id: 31,
+          tool_name: "Runtime list sessions",
+          raw_name: rawName,
+          detail: "",
+          display_label: "Runtime list sessions",
+          progress_label: "Thinking",
+          raw_payload: {},
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/1 Runtime session: #31 running/)).toBeInTheDocument()
+    expandToolGroup("Runtime list sessions")
+    expect(screen.getByText("Runtime #31", { selector: "a" })).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
   it("shows status for a stale session and active control owner", () => {
