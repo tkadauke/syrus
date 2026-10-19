@@ -130,10 +130,7 @@ function dependencyLabel(context: ToolCardContext, result: Record<string, unknow
 
 function dependencyList(definition: MaintenanceToolDefinition, result: Record<string, unknown>) {
   if (definition.subjectKind === "epic") return compactList(result.depends_on).map((id) => `EPIC-${id}`)
-  return [
-    ...compactList(result.depends_on_job_ids).map((id) => `JOB-${id}`),
-    ...compactList(result.depends_on_epic_ids).map((id) => `EPIC-${id}`)
-  ]
+  return [...compactList(result.depends_on_job_ids).map((id) => `JOB-${id}`), ...compactList(result.depends_on_epic_ids).map((id) => `EPIC-${id}`)]
 }
 
 function buildRows(context: ToolCardContext, result: Record<string, unknown>, showNewState: boolean) {
@@ -224,7 +221,11 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     message,
     rows: buildRows(context, result, hasNewState),
     dependencies: dependencyList(definition, result),
-    showsDependencies: definition.toolName.includes("dependency") || result.depends_on !== undefined || result.depends_on_job_ids !== undefined || result.depends_on_epic_ids !== undefined
+    showsDependencies:
+      definition.toolName.includes("dependency") ||
+      result.depends_on !== undefined ||
+      result.depends_on_job_ids !== undefined ||
+      result.depends_on_epic_ids !== undefined
   }
 }
 
@@ -263,13 +264,31 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} tone={card.failed ? "failure" : undefined} />
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.definition.actionLabel}</span>
-        {card.targetId ? <Badge><EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge> : null}
-        {card.targetIds.map((id) => <Badge key={id}><EntityReference id={id} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge>)}
+        {card.targetId ? (
+          <Badge>
+            <EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
+          </Badge>
+        ) : null}
+        {card.targetIds.map((id) => (
+          <Badge key={id}>
+            <EntityReference id={id} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
+          </Badge>
+        ))}
         {card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
         {card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
-        {card.memberCount != null ? <Badge>{card.memberCount} {card.memberCount === 1 ? "action" : "actions"}</Badge> : null}
+        {card.memberCount != null ? (
+          <Badge>
+            {card.memberCount} {card.memberCount === 1 ? "action" : "actions"}
+          </Badge>
+        ) : null}
       </div>
-      {card.message ? (card.failed ? <div className="break-words text-xs text-danger-text [overflow-wrap:anywhere]">{linkifiedText(card.message)}</div> : <MarkdownPreview text={card.message} />) : null}
+      {card.message ? (
+        card.failed ? (
+          <div className="break-words text-xs text-danger-text [overflow-wrap:anywhere]">{linkifiedText(card.message)}</div>
+        ) : (
+          <MarkdownPreview text={card.message} />
+        )
+      ) : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {card.rows.map((row, index) => (
@@ -292,7 +311,9 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
             })}
           </div>
         </div>
-      ) : card.showsDependencies ? <EmptyState>No dependencies</EmptyState> : null}
+      ) : card.showsDependencies ? (
+        <EmptyState>No dependencies</EmptyState>
+      ) : null}
     </CardShell>
   )
 }

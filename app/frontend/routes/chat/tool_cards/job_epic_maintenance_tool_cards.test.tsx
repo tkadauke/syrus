@@ -34,7 +34,7 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
 
 function normalizedContext(toolName: string, rawResult: unknown, input?: Record<string, unknown>): ToolCardContext {
   const resultBody = typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult)
-  const parsed = typeof rawResult === "string" ? parseJsonText(rawResult) ?? rawResult : rawResult
+  const parsed = typeof rawResult === "string" ? (parseJsonText(rawResult) ?? rawResult) : rawResult
   return context(normalizedToolName(toolName), {
     input,
     resultBody,
@@ -129,7 +129,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { pending_action_id: 9, state: "rejected", message: "Feedback poll rejected." }
     })
 
-    render(<>{rebaseJobCard.renderExpanded(canceled)}{pollJobFeedbackCard.renderExpanded(rejected)}</>)
+    render(
+      <>
+        {rebaseJobCard.renderExpanded(canceled)}
+        {pollJobFeedbackCard.renderExpanded(rejected)}
+      </>
+    )
 
     expect(screen.getByText("canceled")).toBeInTheDocument()
     expect(screen.getByText("Rebase canceled by operator.")).toBeInTheDocument()
@@ -156,7 +161,12 @@ describe("Job and Epic maintenance tool cards", () => {
       }
     })
 
-    render(<>{approveJobCard.renderExpanded(pending)}{approveJobCard.renderExpanded(rejected)}</>)
+    render(
+      <>
+        {approveJobCard.renderExpanded(pending)}
+        {approveJobCard.renderExpanded(rejected)}
+      </>
+    )
 
     expect(screen.queryByText("After")).not.toBeInTheDocument()
     expect(screen.getByText("rejected")).toBeInTheDocument()
@@ -228,7 +238,12 @@ describe("Job and Epic maintenance tool cards", () => {
     })
 
     expect(addJobDependencyCard.collapsedSummary?.(addJob)).toBe("Dependency added · JOB-50")
-    render(<>{addJobDependencyCard.renderExpanded(addJob)}{removeEpicDependencyCard.renderExpanded(removeEpic)}</>)
+    render(
+      <>
+        {addJobDependencyCard.renderExpanded(addJob)}
+        {removeEpicDependencyCard.renderExpanded(removeEpic)}
+      </>
+    )
 
     expect(screen.getAllByText("JOB-49").length).toBeGreaterThan(0)
     expect(screen.getByText("deployment_stage")).toBeInTheDocument()
@@ -253,7 +268,12 @@ describe("Job and Epic maintenance tool cards", () => {
     const approve = context("approve_job", { parsedResult: { job_id: 52, previous_state: "implemented", new_state: "approved" } })
     const unapprove = context("unapprove_job", { parsedResult: { job_id: 52, previous_state: "approved", new_state: "implemented" } })
 
-    render(<>{approveJobCard.renderExpanded(approve)}{unapproveJobCard.renderExpanded(unapprove)}</>)
+    render(
+      <>
+        {approveJobCard.renderExpanded(approve)}
+        {unapproveJobCard.renderExpanded(unapprove)}
+      </>
+    )
 
     expect(screen.getByText("Approve Job")).toBeInTheDocument()
     expect(screen.getByText("Unapprove Job")).toBeInTheDocument()
@@ -278,16 +298,20 @@ describe("Job and Epic maintenance tool cards", () => {
     render(
       <>
         {startEpicCard.renderExpanded(context("start_epic", { parsedResult: { epic_id: 60, previous_state: "ready", new_state: "in_progress" } }))}
-        {moveEpicToBacklogCard.renderExpanded(context("move_epic_to_backlog", { parsedResult: { epic_id: 61, previous_state: "ready", new_state: "backlog" } }))}
-        {archiveEpicCard.renderExpanded(context("archive_epic", {
-          input: { epic_id: 62 },
-          parsedResult: {
-            pending_action_id: 17,
-            pending_confirmation_id: 17,
-            state: "pending",
-            message: "Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed."
-          }
-        }))}
+        {moveEpicToBacklogCard.renderExpanded(
+          context("move_epic_to_backlog", { parsedResult: { epic_id: 61, previous_state: "ready", new_state: "backlog" } })
+        )}
+        {archiveEpicCard.renderExpanded(
+          context("archive_epic", {
+            input: { epic_id: 62 },
+            parsedResult: {
+              pending_action_id: 17,
+              pending_confirmation_id: 17,
+              state: "pending",
+              message: "Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed."
+            }
+          })
+        )}
       </>
     )
 
@@ -305,7 +329,9 @@ describe("Job and Epic maintenance tool cards", () => {
       <>
         {updateJobCard.renderExpanded(context("update_job", { parsedResult: { job_id: 70, title: "New title", description: "New body", state: "open" } }))}
         {updateEpicCard.renderExpanded(context("update_epic", { parsedResult: { epic_id: 71, title: "New Epic", state: "ready" } }))}
-        {removeJobFromEpicCard.renderExpanded(context("remove_job_from_epic", { parsedResult: { job_id: 72, removed_from_epic_id: 73, removed_from_epic_title: "Old Epic" } }))}
+        {removeJobFromEpicCard.renderExpanded(
+          context("remove_job_from_epic", { parsedResult: { job_id: 72, removed_from_epic_id: 73, removed_from_epic_title: "Old Epic" } })
+        )}
       </>
     )
 
@@ -316,7 +342,14 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it("falls back to requested input metadata and linkifies error slugs", () => {
     const update = context("update_job", {
-      input: { job_id: 74, title: "Requested title", description: "A **longer** requested body", priority: "high", reason: "Because", comment: "Please review" },
+      input: {
+        job_id: 74,
+        title: "Requested title",
+        description: "A **longer** requested body",
+        priority: "high",
+        reason: "Because",
+        comment: "Please review"
+      },
       parsedResult: { job_id: 74, state: "pending" }
     })
     const failure = context("approve_job", {
@@ -326,7 +359,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { error: "Error: JOB-1, JOB-2 are not approvable" }
     })
 
-    render(<>{updateJobCard.renderExpanded(update)}{approveJobCard.renderExpanded(failure)}</>)
+    render(
+      <>
+        {updateJobCard.renderExpanded(update)}
+        {approveJobCard.renderExpanded(failure)}
+      </>
+    )
 
     expect(screen.getByText("Requested title")).toBeInTheDocument()
     expect(screen.getByText("longer", { exact: false })).toBeInTheDocument()
@@ -347,7 +385,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { pending_action_id: 20, state: "pending", message: "x".repeat(1_000) }
     })
 
-    render(<>{approveJobCard.renderExpanded(unauthorized)}{cancelJobCard.renderExpanded(longMessage)}</>)
+    render(
+      <>
+        {approveJobCard.renderExpanded(unauthorized)}
+        {cancelJobCard.renderExpanded(longMessage)}
+      </>
+    )
 
     expect(screen.getByText("Not authorized")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
@@ -363,7 +406,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { job_id: 83, depends_on_job_ids: [], depends_on_epic_ids: [] }
     })
 
-    render(<>{approveJobCard.renderExpanded(bulk)}{removeJobDependencyCard.renderExpanded(dependencies)}</>)
+    render(
+      <>
+        {approveJobCard.renderExpanded(bulk)}
+        {removeJobDependencyCard.renderExpanded(dependencies)}
+      </>
+    )
 
     expect(screen.getByRole("link", { name: "JOB-81" })).toHaveAttribute("href", "/jobs/81")
     expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
@@ -396,7 +444,12 @@ describe("Job and Epic maintenance tool cards", () => {
       parsedResult: { pending_action_group_id: 3, pending_action_id: 16, state: "pending", member_count: 2, message: "Approve 2 Jobs?" }
     })
 
-    render(<>{closeJobSuccessfullyCard.renderExpanded(close)}{approveJobCard.renderExpanded(bulk)}</>)
+    render(
+      <>
+        {closeJobSuccessfullyCard.renderExpanded(close)}
+        {approveJobCard.renderExpanded(bulk)}
+      </>
+    )
 
     expect(screen.getByText("no_changes")).toBeInTheDocument()
     expect(screen.getByText("JOB-81")).toBeInTheDocument()
