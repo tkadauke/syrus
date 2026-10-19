@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -27,6 +27,22 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>Nothing here</span>} text=" " />)
+    expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and passes link behavior through both views", () => {
+    const onLinkClick = vi.fn()
+    render(<MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />)
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveTextContent("JOB-42")
+    expect(within(dialog).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
