@@ -1,11 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell } from "@app/routes/chat/toolCardUi"
-import {
-  parseScheduledTaskDetail,
-  PromptDisclosure,
-  scheduledTaskHeadline,
-  ScheduledTaskSummary
-} from "../scheduledTaskToolCard"
+import { parseScheduledTaskDetail, PromptDisclosure, scheduledTaskHeadline, ScheduledTaskSummary, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for read_scheduled_task (the pending-action tool-card work).
 // Payload is `{ scheduled_task: <scheduled_task_payload>.merge(prompt:) }`;
@@ -29,10 +24,10 @@ function renderExpanded(context: ToolCardContext) {
   )
 }
 
-const readScheduledTaskToolCard: ToolCardRenderer = {
+const readScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "read_scheduled_task",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default readScheduledTaskToolCard
