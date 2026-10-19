@@ -51,6 +51,10 @@ module SyrusMcp
           type: "boolean",
           description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. Prefer this for visual-review screenshots. This is also the default when image_base64 and image_path are omitted."
         },
+        subject: {
+          type: "string",
+          description: "Optional subject to bring into view before capturing the current browser. Pass either an exact browser_snapshot ref such as 'e12' or a CSS selector such as '[data-testid=results]'."
+        },
         content_type: {
           type: "string",
           description: "Image MIME type. One of image/png, image/jpeg, image/webp. Defaults from image_path extension, else image/png."
@@ -60,14 +64,14 @@ module SyrusMcp
     )
 
     class << self
-      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, content_type: nil)
+      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, subject: nil, content_type: nil)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_visual_artifact)
 
         artifact_type  = Mcp::Tools.utf8(type).strip
         artifact_title = Mcp::Tools.utf8(title).strip
-        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser)
+        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject)
         explicit_content_type = Mcp::Tools.utf8(content_type).strip.presence
 
         return Mcp::Tools.invalid("type is required")  if artifact_type.empty?
@@ -132,11 +136,13 @@ module SyrusMcp
         nil
       end
 
-      def normalize_image_source(image_base64:, image_path:, capture_current_browser:)
+      def normalize_image_source(image_base64:, image_path:, capture_current_browser:, subject:)
         encoded_text = Mcp::Tools.utf8(image_base64).strip
         path_text = Mcp::Tools.utf8(image_path).strip
+        subject_text = Mcp::Tools.utf8(subject).strip
         return { error: "image_base64 is empty" } if !image_base64.nil? && encoded_text.blank?
         return { error: "image_path is empty" } if !image_path.nil? && path_text.blank?
+        return { error: "subject is empty" } if !subject.nil? && subject_text.blank?
 
         encoded = encoded_text.presence
         path = path_text.presence
@@ -147,7 +153,7 @@ module SyrusMcp
         return { kind: :base64, value: encoded, source: "base64" } if encoded.present?
         return { kind: :path, path: path, source: "image_path" } if path.present?
 
-        { kind: :current_browser, source: "current_browser" }
+        { kind: :current_browser, source: "current_browser", subject: subject_text.presence }
       end
 
       def read_image_data(image_source, run)
@@ -165,13 +171,18 @@ module SyrusMcp
 
           { data: File.binread(path), source: image_source[:source] }
         when :current_browser
-          capture_current_browser(run)
+          capture_current_browser(run, image_source[:subject])
         else
           { error: "image_path, image_base64, or capture_current_browser is required" }
         end
       end
 
-      def capture_current_browser(run)
+      def capture_current_browser(run, subject = nil)
+        if subject.present?
+          scrolled = scroll_subject_into_view(run, subject)
+          return scrolled if scrolled[:error]
+        end
+
         response = call_browser_tool(run, "browser_screenshot", {})
         return { error: "current browser screenshot failed: #{tool_error_text(response)}" } if response.nil? || response.error?
 
@@ -187,6 +198,69 @@ module SyrusMcp
           content_type: image[:mimeType].presence || image[:mime_type].presence || DEFAULT_CONTENT_TYPE,
           metadata: current_browser_metadata(run)
         }
+      end
+
+      def scroll_subject_into_view(run, subject)
+        function = if browser_snapshot_ref?(subject)
+          <<~JS.squish
+            async (element) => {
+              const deadline = Date.now() + 2000;
+              let rect;
+              while (Date.now() < deadline) {
+                const style = getComputedStyle(element);
+                rect = element.getBoundingClientRect();
+                if (style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0) break;
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+              if (!rect || rect.width <= 0 || rect.height <= 0) throw new Error("Subject element is not visible");
+              element.scrollIntoView({ block: "center", inline: "nearest" });
+              await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 100)));
+              rect = element.getBoundingClientRect();
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+          JS
+        else
+          <<~JS.squish
+            async () => {
+              const selector = #{subject.to_json};
+              const deadline = Date.now() + 2000;
+              let element;
+              while (Date.now() < deadline) {
+                element = document.querySelector(selector);
+                if (element) {
+                  const style = getComputedStyle(element);
+                  const rect = element.getBoundingClientRect();
+                  if (style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0) break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+              if (!element || element.getBoundingClientRect().width <= 0 || element.getBoundingClientRect().height <= 0) {
+                throw new Error(`Subject element not found or not visible: ${selector}`);
+              }
+              element.scrollIntoView({ block: "center", inline: "nearest" });
+              await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 100)));
+              const rect = element.getBoundingClientRect();
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+          JS
+        end
+        params = { "function" => function }
+        params.merge!("element" => "visual artifact subject", "target" => subject) if browser_snapshot_ref?(subject)
+
+        response = call_browser_tool(run, "browser_evaluate", params)
+        return { error: "visual artifact subject could not be brought into view: #{tool_error_text(response)}" } if response.nil? || response.error?
+
+        text = response.content.find { |block| block.is_a?(Hash) && block[:type] == "text" }&.dig(:text)
+        rect = parse_browser_evaluate_json(text)
+        return { error: "visual artifact subject did not return an element rectangle" } unless rect.is_a?(Hash) && rect["width"].present? && rect["height"].present?
+
+        { rect: rect }
+      rescue JSON::ParserError, TypeError => e
+        { error: "visual artifact subject returned an invalid element rectangle: #{e.message}" }
+      end
+
+      def browser_snapshot_ref?(subject)
+        subject.match?(/\Ae\d+\z/)
       end
 
       def current_browser_metadata(run)

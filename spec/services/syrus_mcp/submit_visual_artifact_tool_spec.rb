@@ -13,10 +13,11 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     image_base64: png_base64,
     image_path: nil,
     capture_current_browser: false,
+    subject: nil,
     content_type: nil,
     server_context: { run: run }
   )
-    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, content_type: content_type, server_context: server_context)
+    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject, content_type: content_type, server_context: server_context)
   end
 
   def write_workspace_file(relative_path, bytes = png_bytes)
@@ -318,6 +319,70 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(run.workflow.visual_artifact_for(entry.fetch("type")).download).to eq(png_bytes)
   end
 
+  it "scrolls a selector subject into view before capturing the current browser" do
+    evaluate_response = MCP::Tool::Response.new([ { type: "text", text: { x: 10, y: 20, width: 300, height: 80 }.to_json } ])
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    calls = []
+    allow(described_class).to receive(:call_browser_tool) do |_run, tool_name, params|
+      calls << tool_name
+      if tool_name == "browser_evaluate" && params.fetch("function").include?("document.querySelector")
+        expect(params.fetch("function")).to include(%([data-testid=design-docs]))
+        evaluate_response
+      elsif tool_name == "browser_screenshot"
+        screenshot_response
+      else
+        MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+      end
+    end
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Design docs", subject: "[data-testid=design-docs]", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(calls.first(2)).to eq(%w[browser_evaluate browser_screenshot])
+  end
+
+  it "resolves a browser_snapshot ref while scrolling before capturing" do
+    evaluate_response = MCP::Tool::Response.new([ { type: "text", text: { x: 0, y: 100, width: 240, height: 60 }.to_json } ])
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response, screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Card", subject: "e12", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(described_class).to have_received(:call_browser_tool).with(
+      run, "browser_evaluate", hash_including("target" => "e12", "element" => "visual artifact subject")
+    ).ordered
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+  end
+
+  it "returns a clear error when the subject element is missing" do
+    missing = MCP::Tool::Response.new([ { type: "text", text: "Error: Subject element not found or not visible: #missing" } ], error: true)
+    allow(described_class).to receive(:call_browser_tool).and_return(missing)
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Missing", subject: "#missing", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("subject could not be brought into view")
+    expect(response.content.first[:text]).to include("Subject element not found or not visible: #missing")
+    expect(described_class).not_to have_received(:call_browser_tool).with(run, "browser_screenshot", anything)
+  end
+
+  it "keeps omitted-subject capture unchanged" do
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+
+    response = described_class.call(type: "visual_review_screenshot", title: "Viewport", server_context: { run: run })
+
+    expect(response).not_to be_error
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+  end
+
   it "rejects current-browser capture when another image source is also provided" do
     response = call(capture_current_browser: true)
 
@@ -400,5 +465,6 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(described_class.description).to include("prefer capture_current_browser: true")
     expect(described_class.input_schema_value.to_h.dig(:properties, :image_path, :description)).to include("Reserve this for files you know are workflow-local")
     expect(described_class.input_schema_value.to_h.dig(:properties, :capture_current_browser, :description)).to include("Prefer this for visual-review screenshots")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :subject, :description)).to include("browser_snapshot ref", "CSS selector")
   end
 end
