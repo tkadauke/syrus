@@ -1,6 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "i18next"
 import { CardShell, displayValue, EntityReference, StatePill } from "@app/routes/chat/toolCardUi"
+import { withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for fire_scheduled_task_now (the pending-action tool-card work).
 // The tool returns the standard pending-action shape
@@ -53,7 +54,7 @@ function renderExpanded(context: ToolCardContext) {
       <dl className="grid gap-1 sm:grid-cols-2">
         <div className="min-w-0">
           <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_pending_action")}</div>
-          <EntityReference kind="artifact" slug={`#${card.actionId}`} />
+          <EntityReference id={card.actionId} kind="pending_action" />
         </div>
       </dl>
       <div className="text-gray-500 dark:text-gray-400">{t("tool_fire_now_pending_confirmation")}</div>
@@ -61,10 +62,10 @@ function renderExpanded(context: ToolCardContext) {
   )
 }
 
-const fireScheduledTaskNowToolCard: ToolCardRenderer = {
+const fireScheduledTaskNowToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "fire_scheduled_task_now",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default fireScheduledTaskNowToolCard

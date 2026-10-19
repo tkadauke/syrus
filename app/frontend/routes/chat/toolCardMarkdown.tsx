@@ -95,6 +95,7 @@ export function MarkdownPreview({
           <Markdown
             className="min-w-0 break-words [overflow-wrap:anywhere] text-text-primary"
             text={text}
+            linkifySlugs={linkifySlugs}
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
           />

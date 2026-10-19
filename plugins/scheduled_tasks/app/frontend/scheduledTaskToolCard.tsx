@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import i18n from "i18next"
-import { isPlainObject } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { ErrorCard } from "@app/routes/chat/chatHelperToolCard"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 
@@ -83,6 +84,28 @@ export function scheduledTaskHeadline(task: ScheduledTaskCard) {
 
 export function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`scheduled_tasks:${key}`, options)
+}
+
+export function scheduledTaskErrorMessage(context: ToolCardContext): string | null {
+  if (!context.resultError) return null
+  if (isPlainObject(context.parsedResult)) {
+    const nested = isPlainObject(context.parsedResult.error) ? context.parsedResult.error : null
+    return displayValue(nested?.message) || displayValue(context.parsedResult.message) || displayValue(context.parsedResult.error) || t("tool_error_fallback")
+  }
+  return displayValue(context.resultBody) || t("tool_error_fallback")
+}
+
+export function withScheduledTaskErrors(renderer: ToolCardRenderer, title = t("tool_error_title")): ToolCardRenderer {
+  return {
+    ...renderer,
+    collapsedSummary(context) {
+      return scheduledTaskErrorMessage(context) ? t("tool_error_summary") : renderer.collapsedSummary?.(context)
+    },
+    renderExpanded(context) {
+      const message = scheduledTaskErrorMessage(context)
+      return message ? <ErrorCard message={message} title={title} /> : renderer.renderExpanded(context)
+    }
+  }
 }
 
 export function FailureBadge({ count }: { count: number }) {
