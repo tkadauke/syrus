@@ -1,14 +1,30 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
+import { redactToolCardValue } from "@app/toolCardSecurity"
+import i18n from "../../../i18n"
 import { MarkdownPreview, TextPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { formatBytesLarge, formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead } from "../adminToolCard"
 
 type Obj = Record<string, unknown>
+type TranslateOptions = Record<string, string | number>
+const t = (key: string, options?: TranslateOptions) => i18n.t(`admin:tool_cards.admin_overview.${key}`, options)
 const obj = (v: unknown): Obj | null => (isPlainObject(v) ? v : null)
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? v.filter(isPlainObject) : [])
 const words = (v: unknown) => (Array.isArray(v) ? v.flatMap((x) => (displayValue(x) ? [displayValue(x)!] : [])) : [])
 const countMap = (v: unknown) => Object.fromEntries(Object.entries(obj(v) ?? {}).flatMap(([k, n]) => (numberValue(n) == null ? [] : [[k, numberValue(n)!]])))
+
+function DetailPreview({ label, value }: { label: string; value: unknown }) {
+  return <TextPreview maxLines={5} text={JSON.stringify(redactToolCardValue(value), null, 2)} title={label} />
+}
+
+function degradedDisk(disk: Obj) {
+  return ["warning", "critical"].includes(displayValue(disk.level)?.toLowerCase() ?? "")
+}
+
+function hasAdmissionPressure(admission: Obj | null) {
+  return admission ? ["delayed_work", "low_confidence_profiles", "admission_overrides"].some((key) => list(admission[key]).length > 0) : false
+}
 
 function parse(context: ToolCardContext) {
   const root = obj(context.parsedResult),
@@ -33,6 +49,7 @@ function parse(context: ToolCardContext) {
     blocked: list(overview.github_api_blocked_users),
     circuits: list(overview.provider_circuits),
     workers: list(health.current),
+    workerHealth: health,
     disks: [...(obj(overview.data_root_disk_usage) ? [obj(overview.data_root_disk_usage)!] : []), ...list(overview.worker_data_root_usages)],
     capture: obj(overview.agent_session_capture_rate),
     storage: obj(overview.active_storage),
@@ -44,19 +61,19 @@ function parse(context: ToolCardContext) {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Admin overview failed"
+  if (context.resultError) return t("summary_failed")
   const card = parse(context)
   if (!card) return null
   const jobs = numberValue(card.root.open_jobs),
     workflows = numberValue(card.root.running_workflows)
   return (
     [
-      jobs == null ? null : `${jobs} open Job${jobs === 1 ? "" : "s"}`,
-      workflows == null ? null : `${workflows} running`,
-      card.queue.failed == null ? null : `${card.queue.failed} failed (24h)`
+      jobs == null ? null : t("summary_open_jobs", { count: jobs }),
+      workflows == null ? null : t("summary_running", { count: workflows }),
+      card.queue.failed == null ? null : t("summary_failed_runs", { count: card.queue.failed })
     ]
       .filter(Boolean)
-      .join(", ") || "Admin overview"
+      .join(", ") || t("summary")
   )
 }
 
@@ -93,7 +110,7 @@ function TriggerCounts({ label, counts }: { label: string; counts: Record<string
             </Badge>
           ))
         ) : (
-          <span className="text-xs text-text-muted">None</span>
+          <span className="text-xs text-text-muted">{t("none")}</span>
         )}
       </div>
     </div>
@@ -104,7 +121,7 @@ function renderExpanded(context: ToolCardContext) {
   if (context.resultError)
     return (
       <CardShell>
-        <EmptyState>{context.resultBody || "Admin overview failed."}</EmptyState>
+        <EmptyState>{context.resultBody || t("failed")}</EmptyState>
       </CardShell>
     )
   const card = parse(context)
@@ -122,39 +139,53 @@ function renderExpanded(context: ToolCardContext) {
     }
   })
   const unhealthy = currentWorkers.filter((worker) => worker.stale || worker.level !== "ok")
-  const allHealthy = !card.circuits.length && !card.rates.length && !card.blocked.length && !unhealthy.length && (numberValue(card.stalled?.total) ?? 0) === 0
   const captureRate = numberValue(card.capture?.rate)
+  const allHealthy =
+    !card.circuits.length &&
+    !card.rates.length &&
+    !card.blocked.length &&
+    !unhealthy.length &&
+    (card.queue.failed ?? 0) === 0 &&
+    (numberValue(card.stalled?.total) ?? 0) === 0 &&
+    (captureRate == null || captureRate >= 0.95) &&
+    card.storage?.available === true &&
+    !card.disks.some(degradedDisk) &&
+    card.workerSummary?.unreachable !== true &&
+    (numberValue(card.workerSummary?.stale) ?? 0) === 0 &&
+    card.recurring?.unreachable !== true &&
+    list(card.recurring?.overdue).length === 0 &&
+    !hasAdmissionPressure(card.admission)
 
   return (
     <CardShell>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="Users" value={numberValue(card.root.total_users)} href="/admin/users" />
-        <Stat label="Active repos" value={numberValue(card.root.active_repositories)} />
-        <Stat label="Open Jobs" value={numberValue(card.root.open_jobs)} href="/dashboard/jobs" />
-        <Stat label="Running Workflows" value={numberValue(card.root.running_workflows)} href="/admin/activity" />
+        <Stat label={t("users")} value={numberValue(card.root.total_users)} href="/admin/users" />
+        <Stat label={t("active_repositories")} value={numberValue(card.root.active_repositories)} />
+        <Stat label={t("open_jobs")} value={numberValue(card.root.open_jobs)} href="/dashboard/jobs" />
+        <Stat label={t("running_workflows")} value={numberValue(card.root.running_workflows)} href="/admin/activity" />
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="Active Runs" value={card.queue.active} href="/admin/queue/active" />
-        <Stat label="Pending Runs" value={card.queue.pending} href="/admin/queue/pending" />
-        <Stat label="Failed Runs (24h)" value={card.queue.failed} href="/admin/queue/failed" />
+        <Stat label={t("active_runs")} value={card.queue.active} href="/admin/queue/active" />
+        <Stat label={t("pending_runs")} value={card.queue.pending} href="/admin/queue/pending" />
+        <Stat label={t("failed_runs")} value={card.queue.failed} href="/admin/queue/failed" />
         <Stat
-          label="Workers"
-          value={card.workerSummary?.unreachable === true ? "unreachable" : (numberValue(card.workerSummary?.total) ?? currentWorkers.length)}
+          label={t("workers")}
+          value={card.workerSummary?.unreachable === true ? t("unreachable") : (numberValue(card.workerSummary?.total) ?? currentWorkers.length)}
           href="/admin/queue/workers"
         />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <TriggerCounts label="Active by trigger" counts={card.activeByTrigger} />
-        <TriggerCounts label="Failures by trigger (24h)" counts={card.failedByTrigger} />
+        <TriggerCounts label={t("active_by_trigger")} counts={card.activeByTrigger} />
+        <TriggerCounts label={t("failures_by_trigger")} counts={card.failedByTrigger} />
       </div>
-      {allHealthy ? <EmptyState>All provider, GitHub, classifier, and worker health checks are healthy.</EmptyState> : null}
+      {allHealthy ? <EmptyState>{t("all_healthy")}</EmptyState> : null}
 
       {card.circuits.length ? (
         <div>
-          <SectionLabel>Open provider circuits</SectionLabel>
+          <SectionLabel>{t("open_provider_circuits")}</SectionLabel>
           <div className="mt-1 space-y-2">
             {card.circuits.map((circuit, index) => {
-              const provider = displayValue(circuit.provider) ?? "unknown",
+              const provider = displayValue(circuit.provider) ?? t("unknown"),
                 usage = obj(circuit.usage_limit) ?? obj(circuit.decision),
                 evidenceRecord = obj(circuit.evidence)
               const evidence = list(circuit.evidence_records).length + list(circuit.runs).length + (evidenceRecord ? 1 : 0)
@@ -165,25 +196,28 @@ function renderExpanded(context: ToolCardContext) {
                     <span className="font-mono text-text-primary">{provider}</span>
                     {displayValue(circuit.model) ? <Badge>{displayValue(circuit.model)}</Badge> : null}
                     <span className="ml-auto text-xs">
-                      <InternalLink href="/admin">Admin overview</InternalLink>
+                      <InternalLink href="/admin">{t("admin_overview")}</InternalLink>
                     </span>
                   </div>
-                  {displayValue(circuit.reason) ? <MarkdownPreview maxLines={3} text={displayValue(circuit.reason)!} title="Reason" /> : null}
+                  {displayValue(circuit.reason) ? <MarkdownPreview maxLines={3} text={displayValue(circuit.reason)!} title={t("reason")} /> : null}
                   <dl className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-4">
-                    <Row label="Retry after" value={displayValue(circuit.retry_after) ?? "—"} />
-                    <Row label="Failures" value={String(numberValue(circuit.failure_count) ?? "—")} />
-                    <Row label="Jobs" value={String(numberValue(circuit.job_count) ?? "—")} />
-                    <Row label="Evidence" value={String(evidence)} />
+                    <Row label={t("retry_after")} value={displayValue(circuit.retry_after) ?? "—"} />
+                    <Row label={t("failures")} value={String(numberValue(circuit.failure_count) ?? "—")} />
+                    <Row label={t("jobs")} value={String(numberValue(circuit.job_count) ?? "—")} />
+                    <Row label={t("evidence")} value={String(evidence)} />
                   </dl>
-                  {displayValue(circuit.signature) ? <TextPreview maxLines={2} text={displayValue(circuit.signature)!} title="Signature" /> : null}
+                  {displayValue(circuit.signature) ? <TextPreview maxLines={2} text={displayValue(circuit.signature)!} title={t("signature")} /> : null}
                   {circuit.usage_limit === true ? (
-                    <Row label="Usage limit" value="exhausted" />
+                    <Row label={t("usage_limit")} value={t("exhausted")} />
                   ) : usage ? (
-                    <Row label="Usage limit" value={displayValue(usage.message) ?? displayValue(usage.reason) ?? displayValue(usage.kind) ?? "present"} />
+                    <Row
+                      label={t("usage_limit")}
+                      value={displayValue(usage.message) ?? displayValue(usage.reason) ?? displayValue(usage.kind) ?? t("present")}
+                    />
                   ) : null}
                   {evidenceRecord ? (
                     <Row
-                      label="Evidence"
+                      label={t("evidence")}
                       value={
                         [
                           displayValue(evidenceRecord.source),
@@ -193,12 +227,13 @@ function renderExpanded(context: ToolCardContext) {
                           numberValue(evidenceRecord.run_id) == null ? null : `RUN-${numberValue(evidenceRecord.run_id)}`
                         ]
                           .filter(Boolean)
-                          .join(" · ") || "present"
+                          .join(" · ") || t("present")
                       }
                     />
                   ) : null}
+                  <DetailPreview label={t("circuit_details")} value={circuit} />
                   <div className="mt-1 text-xs text-text-muted">
-                    Inspect with <code>inspect_provider_circuit</code>.
+                    {t("inspect_with")} <code>inspect_provider_circuit</code>.
                   </div>
                 </div>
               )
@@ -207,12 +242,12 @@ function renderExpanded(context: ToolCardContext) {
         </div>
       ) : null}
 
-      <Disclosure label="GitHub rate limits and blocked users">
+      <Disclosure label={t("github_diagnostics")}>
         {card.rates.length ? (
           <>
-            <SectionLabel>Low rate limits</SectionLabel>
+            <SectionLabel>{t("low_rate_limits")}</SectionLabel>
             <Table responsive>
-              <THead columns={["User", "Remaining", "Limit", "Resource"]} />
+              <THead columns={[t("user"), t("remaining"), t("limit"), t("resource")]} />
               <TBody>
                 {card.rates.map((rate, index) => (
                   <tr key={`${displayValue(rate.email) ?? index}-${index}`}>
@@ -226,13 +261,13 @@ function renderExpanded(context: ToolCardContext) {
             </Table>
           </>
         ) : (
-          <EmptyState>No users have low GitHub rate limits.</EmptyState>
+          <EmptyState>{t("no_low_rate_limits")}</EmptyState>
         )}
         {card.blocked.length ? (
           <>
-            <SectionLabel>Blocked users</SectionLabel>
+            <SectionLabel>{t("blocked_users")}</SectionLabel>
             <Table responsive>
-              <THead columns={["User", "Blocked", "Reason", "Rate limit", "Reset", "Observed"]} />
+              <THead columns={[t("user"), t("blocked"), t("reason"), t("rate_limit"), t("reset"), t("observed")]} />
               <TBody>
                 {card.blocked.map((user, index) => {
                   const rate = obj(user.rate_limit) ?? {},
@@ -241,7 +276,7 @@ function renderExpanded(context: ToolCardContext) {
                     <tr key={`${id ?? index}-${index}`}>
                       <Td primary>
                         {id ? (
-                          <InternalLink href={`/admin/users/${id}`}>{displayValue(user.email) ?? `User ${id}`}</InternalLink>
+                          <InternalLink href={`/admin/users/${id}`}>{displayValue(user.email) ?? t("user_id", { id })}</InternalLink>
                         ) : (
                           (displayValue(user.email) ?? "—")
                         )}
@@ -260,46 +295,48 @@ function renderExpanded(context: ToolCardContext) {
             </Table>
           </>
         ) : (
-          <EmptyState>No GitHub API blocked users.</EmptyState>
+          <EmptyState>{t("no_blocked_users")}</EmptyState>
         )}
       </Disclosure>
 
-      <Disclosure label="Workers and host health">
+      <Disclosure label={t("worker_health")}>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <InternalLink href="/admin/queue/workers">Open worker detail</InternalLink>
-          <span className="text-text-muted">
-            {unhealthy.length} unhealthy or stale of {currentWorkers.length} reported hosts
-          </span>
+          <InternalLink href="/admin/queue/workers">{t("open_worker_detail")}</InternalLink>
+          <span className="text-text-muted">{t("unhealthy_workers", { unhealthy: unhealthy.length, total: currentWorkers.length })}</span>
         </div>
         {currentWorkers.length ? (
           <Table responsive>
-            <THead columns={["Host", "Role", "Health", "Reasons", "Heartbeat"]} />
+            <THead columns={[t("host"), t("role"), t("health"), t("reasons"), t("heartbeat"), t("details")]} />
             <TBody>
               {currentWorkers.map((worker) => (
                 <tr key={worker.key}>
                   <Td mono primary>
-                    <InternalLink href="/admin/queue/workers">{worker.hostname ?? "unknown"}</InternalLink>
+                    <InternalLink href="/admin/queue/workers">{worker.hostname ?? t("unknown")}</InternalLink>
                   </Td>
                   <Td>{worker.role ?? "—"}</Td>
                   <Td>
                     <HealthPill level={worker.level} />
-                    {worker.stale ? " stale" : ""}
+                    {worker.stale ? ` ${t("stale")}` : ""}
                   </Td>
                   <Td wrap>{worker.reasons.join("; ") || "—"}</Td>
                   <Td mono>{worker.heartbeat ?? "—"}</Td>
+                  <Td wrap>
+                    <DetailPreview label={t("worker_details")} value={card.workers.find((item) => displayValue(item.hostname) === worker.hostname) ?? {}} />
+                  </Td>
                 </tr>
               ))}
             </TBody>
           </Table>
         ) : (
-          <EmptyState>No per-host worker health was reported.</EmptyState>
+          <EmptyState>{t("no_worker_health")}</EmptyState>
         )}
+        <DetailPreview label={t("worker_health_details")} value={card.workerHealth} />
       </Disclosure>
 
-      <Disclosure label="Storage, capture, classifier, and schedules">
+      <Disclosure label={t("system_diagnostics")}>
         <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Row
-            label="Agent session capture"
+            label={t("agent_session_capture")}
             value={
               captureRate == null
                 ? `${numberValue(card.capture?.captured) ?? 0} / ${numberValue(card.capture?.total) ?? 0}`
@@ -307,24 +344,24 @@ function renderExpanded(context: ToolCardContext) {
             }
           />
           <Row
-            label="Active Storage"
+            label={t("active_storage")}
             value={
               card.storage?.available === true
-                ? `available · ${displayValue(card.storage.service) ?? "service unknown"}`
-                : `unavailable · ${displayValue(card.storage?.message) ?? displayValue(card.storage?.error_class) ?? "unknown error"}`
+                ? `${t("available")} · ${displayValue(card.storage.service) ?? t("service_unknown")}`
+                : `${t("unavailable")} · ${displayValue(card.storage?.message) ?? displayValue(card.storage?.error_class) ?? t("unknown_error")}`
             }
           />
-          <Row label="Stalled classifier Jobs" value={String(numberValue(card.stalled?.total) ?? 0)} />
-          <Row label="Recurring tasks" value={card.recurring?.unreachable === true ? "unreachable" : String(numberValue(card.recurring?.count) ?? 0)} />
+          <Row label={t("stalled_classifier_jobs")} value={String(numberValue(card.stalled?.total) ?? 0)} />
+          <Row label={t("recurring_tasks")} value={card.recurring?.unreachable === true ? t("unreachable") : String(numberValue(card.recurring?.count) ?? 0)} />
         </dl>
         {displayValue(card.stalled?.oldest_job_path) ? (
           <div className="mt-1 text-xs">
-            <InternalLink href={displayValue(card.stalled?.oldest_job_path)!}>Open oldest stalled classifier Job</InternalLink>
+            <InternalLink href={displayValue(card.stalled?.oldest_job_path)!}>{t("open_oldest_classifier_job")}</InternalLink>
           </div>
         ) : null}
         {list(card.recurring?.overdue).length ? (
           <div className="mt-1 text-xs text-warning-text">
-            Overdue:{" "}
+            {t("overdue")}:{" "}
             {list(card.recurring?.overdue)
               .map((item) => displayValue(item.key))
               .filter(Boolean)
@@ -333,42 +370,99 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {card.disks.length ? (
           <Table responsive>
-            <THead columns={["Host", "Path", "Used", "Available", "Total", "Level", "Observed"]} />
+            <THead
+              columns={[
+                t("host"),
+                t("path"),
+                t("filesystem"),
+                t("mounted_on"),
+                t("used"),
+                t("used_bytes"),
+                t("available"),
+                t("total"),
+                t("level"),
+                t("observed"),
+                t("details")
+              ]}
+            />
             <TBody>
               {card.disks.map((disk, index) => (
                 <tr key={`${displayValue(disk.hostname) ?? "local"}-${index}`}>
                   <Td mono primary>
-                    {displayValue(disk.hostname) ?? "local"}
+                    {displayValue(disk.hostname) ?? t("local")}
                   </Td>
                   <Td mono wrap>
                     {displayValue(disk.path) ?? "—"}
                   </Td>
+                  <Td mono>{displayValue(disk.filesystem) ?? "—"}</Td>
+                  <Td mono>{displayValue(disk.mounted_on) ?? "—"}</Td>
                   <Td mono>{formatPercent(numberValue(disk.used_percent))}</Td>
+                  <Td mono>{formatBytesLarge(numberValue(disk.used_bytes))}</Td>
                   <Td mono>{formatBytesLarge(numberValue(disk.available_bytes))}</Td>
                   <Td mono>{formatBytesLarge(numberValue(disk.total_bytes))}</Td>
                   <Td>{displayValue(disk.level) ? <StatePill state={displayValue(disk.level)!} /> : "—"}</Td>
                   <Td mono>{displayValue(disk.observed_at) ?? "—"}</Td>
+                  <Td wrap>
+                    <DetailPreview label={t("disk_details")} value={disk} />
+                  </Td>
                 </tr>
               ))}
             </TBody>
           </Table>
         ) : (
-          <EmptyState>No data-root disk usage was reported.</EmptyState>
+          <EmptyState>{t("no_disk_usage")}</EmptyState>
         )}
+        <DetailPreview
+          label={t("system_details")}
+          value={{
+            capture: card.capture,
+            active_storage: card.storage,
+            stalled_classifier_jobs: card.stalled,
+            workers: card.workerSummary,
+            recurring: card.recurring
+          }}
+        />
       </Disclosure>
 
-      <Disclosure label="Resource admission">
+      <Disclosure label={t("resource_admission")}>
         <div className="mb-2 text-xs">
-          <InternalLink href="/admin/resource_admission">Open resource admission diagnostics</InternalLink>
+          <InternalLink href="/admin/resource_admission">{t("open_resource_admission")}</InternalLink>
         </div>
         {card.admission ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="space-y-2">
+            <dl className="grid gap-2 sm:grid-cols-3">
+              <Row label={t("generated_at")} value={displayValue(card.admission.generated_at) ?? "—"} />
+              <Row label={t("recent_window")} value={String(numberValue(obj(card.admission.windows)?.recent_hours) ?? "—")} />
+              <Row label={t("delayed_window")} value={String(numberValue(obj(card.admission.windows)?.delayed_hours) ?? "—")} />
+            </dl>
             {["delayed_work", "active_consumers", "recent_top_consumers", "low_confidence_profiles", "admission_overrides"].map((key) => (
-              <Stat key={key} label={key.replace(/_/g, " ")} value={list(card.admission?.[key]).length} />
+              <div key={key}>
+                <SectionLabel>{t(key)}</SectionLabel>
+                {list(card.admission?.[key]).length ? (
+                  list(card.admission?.[key]).map((item, index) => (
+                    <div className="mt-1 rounded border border-border bg-surface-subtle p-2" key={`${key}-${index}`}>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {displayValue(obj(item.job)?.path) ? (
+                          <InternalLink href={displayValue(obj(item.job)?.path)!}>{displayValue(obj(item.job)?.slug) ?? t("job")}</InternalLink>
+                        ) : null}
+                        {displayValue(item.workflow_path) ? (
+                          <InternalLink href={displayValue(item.workflow_path)!}>
+                            {numberValue(item.workflow_id) == null ? t("workflow") : `WF-${numberValue(item.workflow_id)}`}
+                          </InternalLink>
+                        ) : null}
+                      </div>
+                      <DetailPreview label={t("item_details")} value={item} />
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState>{t("none")}</EmptyState>
+                )}
+              </div>
             ))}
+            <DetailPreview label={t("resource_admission_details")} value={card.admission} />
           </div>
         ) : (
-          <EmptyState>Resource admission diagnostics were not returned.</EmptyState>
+          <EmptyState>{t("resource_admission_missing")}</EmptyState>
         )}
       </Disclosure>
     </CardShell>
@@ -456,7 +550,10 @@ export const examples = [
           {
             hostname: "worker-1",
             path: "/data",
+            filesystem: "/dev/pvc",
+            mounted_on: "/syrus-home",
             used_percent: 91,
+            used_bytes: 91000000,
             available_bytes: 9000000,
             total_bytes: 100000000,
             level: "warning",
@@ -466,8 +563,10 @@ export const examples = [
         workers: { total: 2, stale: 1 },
         recurring: { count: 7, overdue: [{ key: "poll_repositories" }] },
         resource_admission: {
-          delayed_work: [{ workflow_id: 2 }],
-          active_consumers: [{ run_id: 3 }],
+          generated_at: "2026-10-19T00:00:00Z",
+          windows: { recent_hours: 24, delayed_hours: 48 },
+          delayed_work: [{ workflow_id: 2, workflow_path: "/jobs/57?tab=workflows#workflow-2", reason: "host pressure" }],
+          active_consumers: [{ run_id: 3, job: { slug: "JOB-57", path: "/jobs/57" }, pressure: { cpu_pressure: 0.8 } }],
           recent_top_consumers: [],
           low_confidence_profiles: [{ id: 4 }],
           admission_overrides: []
@@ -477,6 +576,9 @@ export const examples = [
             {
               hostname: "worker-1",
               role: "runs",
+              version: "abc123",
+              capabilities: { os: ["linux"] },
+              sample: { cpu_used_percent: 92 },
               stale: true,
               last_heartbeat_at: "2026-10-18T23:55:00Z",
               health: { level: "critical", reasons: ["heartbeat stale"] }

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
 import { normalizedToolCardParsedResult } from "../toolRendering"
 import adminOverviewToolCard from "./admin_overview"
 
@@ -42,7 +43,7 @@ describe("admin_overview tool card", () => {
 
   it("renders an explicit healthy state, trigger rollups, admin links, and empty disclosures", () => {
     render(<>{adminOverviewToolCard.renderExpanded(context({ parsedResult: PAYLOAD }))}</>)
-    expect(screen.getByText("All provider, GitHub, classifier, and worker health checks are healthy.")).toBeInTheDocument()
+    expect(screen.getByText("All provider, GitHub, storage, scheduling, admission, classifier, and worker health checks are healthy.")).toBeInTheDocument()
     expect(screen.getByText("initial: 1")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Workers\s+1/ })).toHaveAttribute("href", "/admin/queue/workers")
     fireEvent.click(screen.getByText("GitHub rate limits and blocked users"))
@@ -63,7 +64,7 @@ describe("admin_overview tool card", () => {
             email: "blocked@example.com",
             blocked_at: "2026-10-18T20:00:00Z",
             reason: "secondary limit",
-            rate_limit: { remaining: 0, limit: 5000, resource: "core", reset_at: "2026-10-19T01:00:00Z" }
+            rate_limit: { remaining: 0, limit: 5000, resource: "core", reset_at: "2026-10-19T01:00:00Z", observed_at: "2026-10-18T20:00:00Z" }
           }
         ],
         provider_circuits: [
@@ -87,6 +88,9 @@ describe("admin_overview tool card", () => {
           {
             hostname: "worker-1",
             path: "/data",
+            filesystem: "/dev/pvc",
+            mounted_on: "/syrus-home",
+            used_bytes: 91000000,
             used_percent: 91,
             available_bytes: 9000000,
             total_bytes: 100000000,
@@ -97,8 +101,10 @@ describe("admin_overview tool card", () => {
         workers: { total: 1, stale: 1 },
         recurring: { count: 6, overdue: [{ key: "poll_repositories" }] },
         resource_admission: {
-          delayed_work: [{ workflow_id: 1 }],
-          active_consumers: [{ run_id: 2 }],
+          generated_at: "2026-10-19T00:00:00Z",
+          windows: { recent_hours: 24, delayed_hours: 48 },
+          delayed_work: [{ workflow_id: 1, workflow_path: "/jobs/9?tab=workflows#workflow-1", reason: "host pressure", decision: { threshold: 0.9 } }],
+          active_consumers: [{ run_id: 2, job: { id: 9, slug: "JOB-9", path: "/jobs/9" }, pressure: { cpu_pressure: 0.8 } }],
           recent_top_consumers: [],
           low_confidence_profiles: [{ id: 3 }],
           admission_overrides: []
@@ -108,6 +114,9 @@ describe("admin_overview tool card", () => {
             {
               hostname: "worker-1",
               role: "runs",
+              version: "abc123",
+              capabilities: { os: ["linux"] },
+              sample: { cpu_used_percent: 92 },
               stale: true,
               last_heartbeat_at: "2026-10-18T23:55:00Z",
               health: { level: "critical", reasons: ["heartbeat stale"] }
@@ -130,9 +139,39 @@ describe("admin_overview tool card", () => {
     expect(screen.getByText("88.0% (44 / 50)")).toBeInTheDocument()
     expect(screen.getByText(/poll_repositories/)).toBeInTheDocument()
     expect(screen.getByText("/data")).toBeInTheDocument()
+    expect(screen.getByText("/dev/pvc")).toBeInTheDocument()
+    expect(screen.getByText("/syrus-home")).toBeInTheDocument()
+    expect(screen.getAllByText(/abc123/).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText("Resource admission"))
     expect(screen.getByRole("link", { name: "Open resource admission diagnostics" })).toHaveAttribute("href", "/admin/resource_admission")
-    expect(screen.getByText("low confidence profiles")).toBeInTheDocument()
+    expect(screen.getByText("Low confidence profiles")).toBeInTheDocument()
+    expect(screen.getAllByText("2026-10-19T00:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "JOB-9" })).toHaveAttribute("href", "/jobs/9")
+    expect(screen.getAllByText(/host pressure/).length).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ["unavailable storage", { active_storage: { available: false, message: "offline" } }],
+    ["warning disk", { data_root_disk_usage: { path: "/data", level: "warning" } }],
+    ["stale worker summary", { workers: { total: 1, stale: 1 } }],
+    ["unreachable workers", { workers: { unreachable: true } }],
+    ["overdue recurrence", { recurring: { count: 6, overdue: [{ key: "poll" }] } }],
+    ["low session capture", { agent_session_capture_rate: { total: 10, captured: 8, rate: 0.8 } }],
+    [
+      "delayed admission",
+      {
+        resource_admission: {
+          delayed_work: [{ workflow_id: 1 }],
+          active_consumers: [],
+          recent_top_consumers: [],
+          low_confidence_profiles: [],
+          admission_overrides: []
+        }
+      }
+    ]
+  ])("does not claim all healthy for %s", (_label, degraded) => {
+    render(<>{adminOverviewToolCard.renderExpanded(context({ parsedResult: { ...PAYLOAD, overview: { ...OVERVIEW, ...degraded } } }))}</>)
+    expect(screen.queryByText(/All provider, GitHub, storage/)).not.toBeInTheDocument()
   })
 
   it("normalizes Claude, Codex, and structured MCP results identically", () => {
@@ -149,6 +188,18 @@ describe("admin_overview tool card", () => {
     }
   })
 
+  it("localizes new card copy in German and Latin", async () => {
+    const original = i18n.language
+    await i18n.changeLanguage("de")
+    const { unmount } = render(<>{adminOverviewToolCard.renderExpanded(context({ parsedResult: PAYLOAD }))}</>)
+    expect(screen.getByText("Aktive Repos")).toBeInTheDocument()
+    unmount()
+    await i18n.changeLanguage("la")
+    render(<>{adminOverviewToolCard.renderExpanded(context({ parsedResult: PAYLOAD }))}</>)
+    expect(screen.getByText("Repositoria activa")).toBeInTheDocument()
+    await i18n.changeLanguage(original)
+  })
+
   it("renders errors and does not expose unrelated sensitive fields", () => {
     render(<>{adminOverviewToolCard.renderExpanded(context({ resultError: true, resultBody: "Access denied" }))}</>)
     expect(screen.getByText("Access denied")).toBeInTheDocument()
@@ -156,12 +207,21 @@ describe("admin_overview tool card", () => {
       <>
         {adminOverviewToolCard.renderExpanded(
           context({
-            parsedResult: { ...PAYLOAD, overview: { ...OVERVIEW, api_token: "secret-token", workers: { total: 1, credential: "secret-worker-key" } } }
+            parsedResult: {
+              ...PAYLOAD,
+              overview: {
+                ...OVERVIEW,
+                api_token: "secret-token",
+                workers: { total: 1, credential: "secret-worker-key" },
+                worker_health: { current: [{ hostname: "worker-1", api_key: "secret-sample-key", health: { level: "ok" } }] }
+              }
+            }
           })
         )}
       </>
     )
-    expect(screen.queryByText(/secret-token|secret-worker-key/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/secret-token|secret-worker-key|secret-sample-key/)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
     unmount()
   })
 
