@@ -164,6 +164,7 @@ class McpToolRegistry
         chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
         chat(Mcp::Tools::ListProposalsTool),
         chat(Mcp::Tools::DeleteProposalTool, mutation: true),
+        chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true),
         chat(Mcp::Tools::SetBookmarkTool, mutation: true),
         chat(Mcp::Tools::ListJobsTool),
         chat(Mcp::Tools::SearchJobsTool),

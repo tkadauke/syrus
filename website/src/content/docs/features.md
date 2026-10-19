@@ -728,6 +728,9 @@ Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript
 view that requires normal Syrus sign-in and does not expose compose controls,
 pending actions, or agent controls.
+Chat agents can also immediately withdraw an unconfirmed action they proposed
+in error. Withdrawal remains scoped to the current conversation and operator;
+grouped actions must still be rejected together from their group card.
 At the end of a turn, the chat agent can suggest the operator's likely next
 message; the suggestion appears as muted ghost text in the empty composer
 with an accept button. Tapping the button or pressing Tab fills the composer
