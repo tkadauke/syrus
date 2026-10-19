@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-10-12._
+_Last reviewed: 2026-10-19._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -37,7 +37,7 @@ domain concepts. File paths are repo-relative.
 
 ## Stack
 
-- Rails 8.1.3 · Ruby 3.4.10
+- Rails 8.1.4 · Ruby 3.4.10
 - SQLite (dev/test) · MySQL (production)
 - **Solid Queue** for background jobs · **Solid Cache** · **Solid Cable**
   for browser app events
@@ -280,6 +280,11 @@ and merge-train behavior can see the higher-level ordering implied by
 their child Jobs.
 
 ### Workflow, Step, Run — the *attempt machinery*
+
+Workflows expose the canonical `WF-<id>` reference through `Workflow#slug`.
+`SlugRefs::Types::Workflow` resolves that reference with the parent Job's
+authorization, links it to the Job's Workflows tab, and supplies the compact
+preview used by chat and other reference-aware UI.
 
 `Workflow` is the top-level attempt on a Job. `Step` rows materialize
 the Workflow template. Each Step owns one or more Runs. A Run lives in
@@ -965,6 +970,17 @@ the run. Worker pods mount a shared `mise` cache (see
 [Deployment topology](#deployment-topology)) so repeated installs across
 Workflows reuse downloaded runtimes.
 
+Distributed immutable-source Steps reuse that preparation without sharing a
+mutable checkout. A successful `prepare` records a fingerprint covering the
+prepare plan and worker capability environment; `PreparedWorkspaceArchive`
+publishes one archive per dependency closure, and `ImmutableSourceCheckout`
+can apply it to any source revision with the same fingerprint. Each worker
+materializes those archives into a host-local `PreparedLayerCache`, then checks
+out the requested immutable revision over the dependency layer. Cache entries
+are keyed by worker storage identity and fingerprint, marked ready only after
+complete extraction, and evicted least-recently-used when the configured size
+budget or data-root disk pressure requires it.
+
 Agentic Steps (`implement`, `adversarial_review`, `visual_review`,
 `respond`, `analyze_and_fix`, rebase repair, landing repair,
 `local_mode_handoff_fix`, summarize, test_plan, and manual)
@@ -1314,7 +1330,9 @@ Core (the agent loop):
 | Service | Purpose |
 |---|---|
 | `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
+| `PreparedWorkspaceArchive` / `PreparedLayerCache` | Publishes prepared dependency trees by preparation fingerprint and keeps bounded, host-local materializations for distributed immutable-source Steps. The checkout moves the reusable dependency carrier to the requested revision instead of downloading and extracting another archive per Workflow. |
 | `ChatWorkspace` | Persistent per-chat workspace under `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`. Repositories are cloned lazily for inspection and fast-forwarded between turns; implementation still belongs to Workflow workspaces. |
+| `RepositoryReadiness` / `RepositoryExecutionProbeRunner` | Evaluates static repository execution readiness, then optionally clones the default branch into a disposable workspace and runs bounded toolchain, prepare, and one grader command. A probe whose required command cannot start blocks the repository's first implementation Workflow until an operator overrides it; later implementation history bypasses that first-run gate. |
 | `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, `submit_test_plan`, and `submit_adversarial_review`. See [MCP sidecar](#mcp-sidecar). |
@@ -2127,7 +2145,12 @@ Several layers, each catching different failure modes:
 - **`/onboarding`** — first-run setup checklist. The route opens guided
   modals for GitHub credentials (PAT first, then GitHub App
   registration/installation), agent credentials, and the first repository,
-  then starts the onboarding chat that creates and lands the first Epic.
+  checks static execution readiness for that repository, and can launch a
+  disposable execution probe before autonomous work is enabled. The probe
+  clones the default branch, performs bounded toolchain and dependency setup,
+  runs one configured or discovered grader, records actionable diagnostics,
+  and removes its workspace. It then starts the onboarding chat that creates
+  and lands the first Epic.
   `/setup` is retired and redirects here.
 - **`/`** and **`/dashboard/*`** — dashboard: Epic, Job, and Workflow
   list/Kanban views with ownership scopes, smart folders, status pills,
