@@ -32,6 +32,20 @@ describe("write_preview_file tool card", () => {
     expect(screen.getByText("index.html")).toBeInTheDocument()
   })
 
+  it("shows input-derived size and a styled error", () => {
+    render(
+      <>
+        {writePreviewFileToolCard.renderExpanded(
+          context({ input: { panel_id: "7", path: "index.html", content: "hello" }, parsedResult: { panel_id: "7", path: "index.html" } })
+        )}
+      </>
+    )
+    expect(screen.getByText("5 bytes")).toBeInTheDocument()
+    render(<>{writePreviewFileToolCard.renderExpanded(context({ resultError: true, resultBody: "Error: panel not found" }))}</>)
+    expect(screen.getByText("Write preview file")).toBeInTheDocument()
+    expect(screen.getByText("panel not found")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload (missing path)", () => {
     expect(writePreviewFileToolCard.renderExpanded(context({ parsedResult: { panel_id: "7" } }))).toBeNull()
   })

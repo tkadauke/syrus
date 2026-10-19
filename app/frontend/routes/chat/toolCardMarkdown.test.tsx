@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -27,6 +28,42 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders a requested empty state", () => {
+    render(<MarkdownPreview emptyText="No note provided." text=" " />)
+    expect(screen.getByText("No note provided.")).toBeInTheDocument()
+  })
+
+  it("linkifies URLs and slug references in the compact preview", () => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/s/JOB-:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+    const onLinkClick = vi.fn()
+    render(<MarkdownPreview linkifySlugs linkifyUrls onLinkClick={onLinkClick} text="See JOB-42 and https://example.test" />)
+    expect(screen.getByRole("link", { name: "JOB-42" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    setSlugReferenceRegistryForTests(null)
+  })
+
+  it("uses maxChars and provides a modal copy action", () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    render(<MarkdownPreview maxChars={12} text="This note is long enough to expand." title="Note" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Note" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("This note is long enough to expand.")
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
