@@ -187,5 +187,19 @@
   "tool_section_count_other": "{{doc}}: {{count}} sectiones",
   "tool_sections": "Sectiones",
   "tool_no_sections": "Nulli tituli inventi.",
-  "tool_untitled_design_doc": "Documentum consilii sine titulo"
+  "tool_untitled_design_doc": "Documentum consilii sine titulo",
+  "tool_filter_limit": "Terminus",
+  "tool_filter_query": "Quaestio",
+  "tool_filter_repository": "Filtrum repositorii",
+  "tool_list_error_summary": "Documenta consilii enumerari non potuerunt",
+  "tool_list_pending_summary": "Documenta consilii enumerantur",
+  "tool_list_title": "Documenta consilii",
+  "tool_no_design_docs": "Nulla documenta consilii his filtris respondent.",
+  "tool_no_matching_design_docs": "Nulla documenta consilii huic quaestioni respondent.",
+  "tool_pending": "Eventus instrumenti exspectatur.",
+  "tool_repositories": "Repositoria:",
+  "tool_repository_number": "Repositorium {{id}}",
+  "tool_unknown_error": "Petitio documentorum consilii defecit.",
+  "tool_updated": "Renovatum {{value}}",
+  "tool_version": "v{{number}}"
 }
