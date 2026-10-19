@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { setSlugReferenceRegistryForTests } from "@app/lib/slugReferenceRegistry"
 import clearCanvasToolCard from "./clear_canvas"
 import deleteElementToolCard from "./delete_element"
 import drawArrowToolCard from "./draw_arrow"
@@ -219,7 +221,7 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getByRole("button", { name: "Open actual-file" })).toBeInTheDocument()
   })
 
-  it("renders embed links as safe external anchors and text content as markdown", () => {
+  it("renders embed links as safe external anchors", () => {
     const { unmount } = render(
       <>
         {drawEmbedToolCard.renderExpanded(
@@ -231,16 +233,71 @@ describe("whiteboard element-action tool cards", () => {
     expect(link).toHaveAttribute("target", "_blank")
     expect(link).toHaveAttribute("rel", "noreferrer")
     unmount()
+  })
 
+  it("shows literal wrapped draw_text content, typography, position, links, and a wrapped result envelope", () => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/jobs/:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+    const content = `**Literal markdown** JOB-42 https://example.com/note\n${Array.from({ length: 6 }, (_, index) => `canvas line ${index + 1}`).join("\n")}`
     render(
-      <>
+      <MemoryRouter>
         {drawTextToolCard.renderExpanded(
-          context({ input: { content: "**Important** note", x: 1, y: 2, font_size: 24 }, parsedResult: { id: "text-1", version: 1 } })
+          context({ input: { content, x: 12, y: 34, font_size: 24, color: "#7c3aed" }, parsedResult: { result: { id: "text-1", version: 5 } } })
         )}
-      </>
+      </MemoryRouter>
     )
-    expect(screen.getByText("Important").tagName).toBe("STRONG")
-    expect(screen.getByText("24")).toBeInTheDocument()
+
+    expect(screen.getByText("text-1")).toBeInTheDocument()
+    expect(screen.getByText("v5")).toBeInTheDocument()
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("**Literal markdown**", { normalizeWhitespace: false })
+    expect(screen.queryByText("Literal markdown", { selector: "strong" })).not.toBeInTheDocument()
+    for (const value of ["12", "34", "24", "#7c3aed"]) expect(screen.getByText(value)).toBeInTheDocument()
+    expect(screen.getByLabelText("#7c3aed")).toHaveStyle({ backgroundColor: "#7c3aed" })
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.com/note" })).toHaveAttribute("target", "_blank")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog", { name: "Content" })).getByText(/canvas line 6/)).toBeInTheDocument()
+    setSlugReferenceRegistryForTests(null)
+  })
+
+  it("shows an explicit empty text value and missing-result state", () => {
+    const { unmount } = render(
+      <>{drawTextToolCard.renderExpanded(context({ input: { content: "", x: 0, y: 0 }, parsedResult: { id: "text-empty", version: 1 } }))}</>
+    )
+    expect(screen.getByText("—")).toBeInTheDocument()
+    expect(screen.getAllByText("0")).toHaveLength(2)
+    unmount()
+
+    render(<>{drawTextToolCard.renderExpanded(context({ input: { content: "note", x: 1, y: 2 }, parsedResult: { result: {} } }))}</>)
+    expect(screen.getByText("Result did not include an element ID")).toBeInTheDocument()
+  })
+
+  it("renders draw_text limit errors through the shared failure card", () => {
+    const toolContext = context({
+      toolName: "draw_text",
+      input: { content: "Blocked", x: 1, y: 2 },
+      resultError: true,
+      resultBody: "Canvas element limit exceeded",
+      parsedResult: { error_class: "Whiteboard::Canvas::ElementLimitExceeded", message: "Canvas element limit exceeded" }
+    })
+
+    expect(drawTextToolCard.collapsedSummary?.(toolContext)).toBe("Drew text failed: Canvas element limit exceeded")
+    render(<>{drawTextToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("Drew text failed")).toBeInTheDocument()
+    expect(screen.getByText("Whiteboard::Canvas::ElementLimitExceeded")).toBeInTheDocument()
   })
 
   it("renders a specific failure card for a failed draw_arrow call", () => {
