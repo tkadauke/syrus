@@ -790,6 +790,10 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
+Job proposal cards show the requested priority. A proposal can select urgent,
+high, medium, or low (medium by default), including a separate priority for
+each child in an Epic bundle. Confirmation applies it before work starts, so
+the first scheduling decision already observes the selected priority.
 Standalone direct Job proposal cards also show a route before confirmation:
 **Start normally** by default, or **Backlog** when the card is explicitly
 routed there. Operators can change that route on the single direct Job card.

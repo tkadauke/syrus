@@ -43,6 +43,37 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  it "stores an explicit priority and defaults it to medium" do
+    urgent_response = call_tool(
+      repo: repository.slug,
+      title: "Urgent fix",
+      description: "Handle this first.",
+      priority: "urgent"
+    )
+    default_response = call_tool(
+      repo: repository.slug,
+      title: "Normal fix",
+      description: "Handle this normally."
+    )
+
+    expect(response_payload(urgent_response)).to include(priority: "urgent")
+    expect(ChatProposal.find(response_payload(urgent_response).fetch(:id))).to have_attributes(priority: "urgent")
+    expect(ChatProposal.find(response_payload(default_response).fetch(:id))).to have_attributes(priority: "medium")
+  end
+
+  it "rejects an unknown priority before creating a proposal" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Invalid priority",
+      description: "Do not create this.",
+      priority: "critical"
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include('"urgent", "high", "medium", "low"')
+    expect(chat_session.proposals.find_by(title: "Invalid priority")).to be_nil
+  end
+
   it "stores deployment-stage requirements for existing Job dependencies" do
     stub_deployment_stage("staging")
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 44)
