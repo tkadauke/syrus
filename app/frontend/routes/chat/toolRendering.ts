@@ -4,12 +4,12 @@
 // argument detail, and a trimmed result summary/body — shortening the long
 // per-workflow workspace paths that show up in tool output. Pure functions
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
-import { isPlainObject } from "../../toolCardParsing"
+import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
-export { isPlainObject } from "../../toolCardParsing"
+export { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
@@ -345,21 +345,6 @@ export function typedToolResult(name: string, body: string, error = false): Type
   // set_bookmark used to be special-cased here; superseded by its
   // tool_cards/set_bookmark.tsx renderer (same pattern as read_job/propose_job).
   return null
-}
-
-export function normalizedToolCardParsedResult(parsed: unknown): unknown {
-  if (!isPlainObject(parsed)) return parsed
-
-  if (parsed.structured_content != null) return parsed.structured_content
-
-  const content = parsed.content
-  if (!Array.isArray(content)) return parsed
-
-  const firstContent = content[0]
-  if (!isPlainObject(firstContent) || typeof firstContent.text !== "string") return parsed
-
-  const inner = parseJsonText(firstContent.text)
-  return inner == null ? parsed : inner
 }
 
 // `parseBody` defaults to `body` but callers that already have the tool

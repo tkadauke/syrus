@@ -48,6 +48,7 @@ describe("git_diff tool card", () => {
 
     render(<>{gitDiffToolCard.renderExpanded(context({ parsedResult: { diff: manyFiles } }))}</>)
     expect(screen.getByText(/50 files/)).toBeInTheDocument()
+    expect(screen.getByText("Showing first 300 of 350 lines")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload", () => {

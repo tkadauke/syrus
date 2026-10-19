@@ -18,7 +18,11 @@ export function diffStats(diff: string): DiffStats {
 export function DiffStatBadges({ stats }: { stats: DiffStats }) {
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-2xs">
-      {stats.fileCount > 0 ? <Pill tone="neutral">{stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}</Pill> : null}
+      {stats.fileCount > 0 ? (
+        <Pill tone="neutral">
+          {stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}
+        </Pill>
+      ) : null}
       <Pill tone="success">+{stats.additions}</Pill>
       <Pill tone="danger">-{stats.deletions}</Pill>
     </div>
@@ -28,17 +32,25 @@ export function DiffStatBadges({ stats }: { stats: DiffStats }) {
 const PREVIEW_LINE_LIMIT = 300
 
 export function RawDiffPreview({ diff }: { diff: string }) {
-  const lines = parseUnifiedDiff(diff).slice(0, PREVIEW_LINE_LIMIT)
+  const allLines = parseUnifiedDiff(diff)
+  const lines = allLines.slice(0, PREVIEW_LINE_LIMIT)
   if (lines.length === 0) return null
 
   return (
-    <CodeSurface code={diff} copyLabel="Copy diff" maxHeightClassName="max-h-72" mode="multiline">
-      {lines.map((line, index) => (
-        <span className={`flex ${diffLineClass(line.kind)}`} key={index}>
-          <span className={diffMarkerClass(line.kind)}>{line.marker}</span>
-          <span className="min-w-0 flex-1 whitespace-pre-wrap break-words px-2 py-0.5">{line.code || " "}</span>
-        </span>
-      ))}
-    </CodeSurface>
+    <div className="min-w-0 space-y-1">
+      {allLines.length > PREVIEW_LINE_LIMIT ? (
+        <div className="text-2xs text-text-muted">
+          Showing first {PREVIEW_LINE_LIMIT} of {allLines.length} lines
+        </div>
+      ) : null}
+      <CodeSurface code={diff} copyLabel="Copy diff" maxHeightClassName="max-h-72" mode="multiline">
+        {lines.map((line, index) => (
+          <span className={`flex ${diffLineClass(line.kind)}`} key={index}>
+            <span className={diffMarkerClass(line.kind)}>{line.marker}</span>
+            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words px-2 py-0.5">{line.code || " "}</span>
+          </span>
+        ))}
+      </CodeSurface>
+    </div>
   )
 }

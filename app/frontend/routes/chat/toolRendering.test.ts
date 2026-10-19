@@ -239,6 +239,10 @@ describe("toolResultPresentation", () => {
 })
 
 describe("normalizedToolCardParsedResult", () => {
+  it("parses JSON-encoded result strings", () => {
+    expect(normalizedToolCardParsedResult(JSON.stringify({ pr: { number: 7 } }))).toEqual({ pr: { number: 7 } })
+  })
+
   it("unwraps a Codex MCP content envelope with JSON text", () => {
     expect(normalizedToolCardParsedResult({
       content: [{ type: "text", text: JSON.stringify({ epic: { id: 349, state: "running" }, child_jobs: [] }) }],

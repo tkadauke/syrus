@@ -1,6 +1,8 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EntityReference, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
+import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
@@ -15,6 +17,8 @@ type PrCard = {
   htmlUrl: string | null
   body: string | null
   diff: PrDiff | null
+  repositorySlug: string | null
+  repositoryUrl: string | null
 }
 
 const failureConfig: ToolFailureConfig = {
@@ -38,7 +42,7 @@ function parseDiff(value: unknown): PrDiff | null {
 }
 
 function parsePr(context: ToolCardContext): PrCard | null {
-  const parsed = context.parsedResult
+  const parsed = normalizedToolCardParsedResult(context.parsedResult)
   if (!isPlainObject(parsed) || !isPlainObject(parsed.pr)) return null
 
   const pr = parsed.pr
@@ -46,14 +50,35 @@ function parsePr(context: ToolCardContext): PrCard | null {
   const state = displayValue(pr.state)
   if (!number || !state) return null
 
+  const htmlUrl = displayValue(pr.html_url)
+  const repository = repositoryFromPrUrl(htmlUrl)
   return {
     number,
     title: displayValue(pr.title) || `PR #${number}`,
     state,
-    htmlUrl: displayValue(pr.html_url),
-    body: displayValue(pr.body),
-    diff: parseDiff(pr.diff)
+    htmlUrl,
+    body: typeof pr.body === "string" ? pr.body : null,
+    diff: parseDiff(pr.diff),
+    repositorySlug: repository?.slug ?? null,
+    repositoryUrl: repository?.url ?? null
   }
+}
+
+function repositoryFromPrUrl(prUrl: string | null) {
+  if (!prUrl) return null
+  const match = prUrl.match(/^(https?:\/\/github\.com\/([^/]+\/[^/]+))\/pull\/\d+(?:\/|$)/)
+  return match ? { url: match[1], slug: match[2] } : null
+}
+
+function changedFiles(diff: string) {
+  return Array.from(
+    new Set(
+      diff.split("\n").flatMap((line) => {
+        const match = line.match(/^diff --git a\/(.+) b\/(.+)$/)
+        return match ? [match[2]] : []
+      })
+    )
+  )
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -76,23 +101,43 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={pr.number} kind="pull_request" prUrl={pr.htmlUrl} />
         <StatePill state={pr.state} />
+        {pr.repositorySlug ? <EntityReference href={pr.repositoryUrl} kind="repository" repositorySlug={pr.repositorySlug} /> : null}
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>
-      {pr.body ? <LargeTextPreview label="PR body" maxLines={60} text={pr.body} /> : null}
+      {pr.body?.trim() ? (
+        <MarkdownPreview maxLines={6} modalLabel="Full PR body" text={pr.body} title="PR body" />
+      ) : (
+        <EmptyState>No PR description provided.</EmptyState>
+      )}
       {pr.diff ? (
         <div>
           <SectionLabel>Diff</SectionLabel>
           <div className="mt-1 space-y-1">
             <DiffStatBadges stats={diffStats(pr.diff.text)} />
-            {pr.diff.truncated ? (
-              <div className="text-2xs text-gray-500 dark:text-gray-400">
-                Truncated{pr.diff.omittedBytes != null ? ` — ${pr.diff.omittedBytes} bytes omitted` : ""}
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-text-muted">
+              {pr.diff.bytes != null ? <span>{pr.diff.bytes.toLocaleString()} bytes total</span> : null}
+              {pr.diff.truncated ? (
+                <span>Diff truncated{pr.diff.omittedBytes != null ? ` — ${pr.diff.omittedBytes.toLocaleString()} bytes omitted` : ""}</span>
+              ) : null}
+            </div>
+            {changedFiles(pr.diff.text).length > 0 ? (
+              <div className="min-w-0">
+                <SectionLabel>Changed files</SectionLabel>
+                <ul className="mt-1 space-y-1">
+                  {changedFiles(pr.diff.text).map((path) => (
+                    <li className="min-w-0 break-all text-xs" key={path}>
+                      {pr.htmlUrl ? <InternalLink href={`${pr.htmlUrl}/files`}>{path}</InternalLink> : path}
+                    </li>
+                  ))}
+                </ul>
               </div>
             ) : null}
-            <RawDiffPreview diff={pr.diff.text} />
+            {pr.diff.text.trim() ? <RawDiffPreview diff={pr.diff.text} /> : <EmptyState>No diff content returned.</EmptyState>}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <EmptyState>No diff is available for this PR.</EmptyState>
+      )}
     </CardShell>
   )
 }
@@ -119,7 +164,11 @@ export const examples = [
         body: "Updates representative cards and examples so entity references are linked and copyable.",
         state: "open",
         html_url: "https://github.com/tkadauke/syrus/pull/407",
-        diff: { text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs", truncated: false, bytes: 112 }
+        diff: {
+          text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs",
+          truncated: false,
+          bytes: 112
+        }
       }
     }
   },
@@ -129,6 +178,43 @@ export const examples = [
     description: "The PR number remains copyable when no external URL is available.",
     input: { pr_number: 408 },
     parsedResult: { pr: { number: 408, title: "Local PR metadata", state: "open" } }
+  },
+  {
+    id: "empty_body_and_diff",
+    label: "Empty body and diff",
+    input: { pr_number: 409 },
+    parsedResult: {
+      pr: {
+        number: 409,
+        title: "Metadata only",
+        body: "",
+        state: "closed",
+        html_url: "https://github.com/tkadauke/syrus/pull/409",
+        diff: { text: "", truncated: false, bytes: 0 }
+      }
+    }
+  },
+  {
+    id: "truncated_diff",
+    label: "Truncated diff",
+    input: { pr_number: 410 },
+    parsedResult: {
+      pr: {
+        number: 410,
+        title: "Large change",
+        body: "See **details**.",
+        state: "open",
+        html_url: "https://github.com/tkadauke/syrus/pull/410",
+        diff: { text: "diff --git a/old.rb b/new.rb\n+changed", truncated: true, bytes: 640020, omitted_bytes: 588820 }
+      }
+    }
+  },
+  {
+    id: "failure",
+    label: "Read failure",
+    input: { pr_number: 404 },
+    resultBody: "Error: pull request not found: 404",
+    resultError: true
   }
 ]
 
