@@ -312,9 +312,13 @@ describe("ChatWorkspacePanel coding files", () => {
     renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
 
     await waitFor(() => expect(fetchCodingFileTree).toHaveBeenCalledTimes(1))
-    await new Promise((resolve) => window.setTimeout(resolve, 3_200))
-
-    expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
+    vi.useFakeTimers()
+    try {
+      await act(async () => vi.advanceTimersByTimeAsync(3_200))
+      expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("shows a not-ready message instead of a hard error when the checkout isn't cloned yet", async () => {
