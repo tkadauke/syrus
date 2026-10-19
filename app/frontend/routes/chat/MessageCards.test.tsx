@@ -710,27 +710,35 @@ describe("tool result rendering", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Send chat message",
-      calls: [{
-        message_id: 1,
-        tool_name: "send_chat_message",
-        raw_name: "mcp__syrus-chat-sidecar__send_chat_message",
-        detail: "",
-        display_label: "Send chat message",
-        progress_label: "Sending",
-        raw_payload: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)" },
-        result_body: JSON.stringify(result),
-        result_json: result,
-        result_settled: true,
-        result_error: false,
-        result_kind: "record",
-        result_summary: ""
-      }],
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "send_chat_message",
+          raw_name: "mcp__syrus-chat-sidecar__send_chat_message",
+          detail: "",
+          display_label: "Send chat message",
+          progress_label: "Sending",
+          raw_payload: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)" },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_settled: true,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
       summary_label: "Send chat message",
       collapsed_by_default: true
     }
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
-    render(<QueryClientProvider client={queryClient}><MemoryRouter><ToolGroup item={item} payload={makePayload()} /></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
     expandToolGroup("Send chat message")
     fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
 
