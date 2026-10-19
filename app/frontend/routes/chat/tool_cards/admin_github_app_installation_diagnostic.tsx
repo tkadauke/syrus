@@ -231,25 +231,23 @@ function Installations({ rows, empty }: { rows: Installation[]; empty: string })
 function Memberships({ rows }: { rows: Membership[] }) {
   if (rows.length === 0) return <EmptyState>No repository memberships found.</EmptyState>
   return (
-    <Table responsive>
-      <THead columns={["User id", "Email", "Role", "Installation id", "Effective client installation id", "Installation"]} />
-      <TBody>
-        {rows.map((row) => (
-          <tr key={row.key}>
-            <Td mono>{row.userId || "—"}</Td>
-            <Td wrap>{row.email || "—"}</Td>
-            <Td>{row.role || "—"}</Td>
-            <Td mono>{row.installationId || "—"}</Td>
-            <Td mono>{row.effectiveId || "—"}</Td>
-            <Td wrap>
-              {row.installation
-                ? `${row.installation.accountLogin || "unknown account"} · ${row.installation.githubId || "no GitHub id"} · ${row.installation.active ? "active" : "removed"}`
-                : "—"}
-            </Td>
-          </tr>
-        ))}
-      </TBody>
-    </Table>
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <section className="min-w-0 space-y-2 rounded-[var(--radius-panel)] border border-border bg-surface-raised p-2" key={row.key}>
+          <dl className="grid gap-1 sm:grid-cols-2">
+            <Row label="User id" value={row.userId || "—"} />
+            <Row label="Email" value={row.email || "—"} />
+            <Row label="Role" value={row.role || "—"} />
+            <Row label="Installation id" value={row.installationId || "—"} />
+            <Row label="Effective client installation id" value={row.effectiveId || "—"} />
+          </dl>
+          <div>
+            <div className="mb-1 text-2xs font-semibold uppercase text-text-muted">Membership installation</div>
+            <Installations empty="No membership installation is linked." rows={row.installation ? [row.installation] : []} />
+          </div>
+        </section>
+      ))}
+    </div>
   )
 }
 
