@@ -265,7 +265,7 @@ function renderExpanded(context: ToolCardContext) {
           {card.test.filePath ? href ? <InternalLink href={href}>{card.test.filePath}</InternalLink> : card.test.filePath : null}
         </div>
       ) : null}
-      <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+      <dl className="grid min-w-0 gap-x-3 gap-y-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 14rem), 1fr))" }}>
         <DetailRow label={t("tool_test_id")} value={card.test.id} />
         {card.test.fingerprint ? <DetailRow label={t("tool_fingerprint")} value={card.test.fingerprint} /> : null}
         <DetailRow label={t("tool_col_failure_rate")} value={formatFailureRate(card.test.failureRate)} />
@@ -333,7 +333,7 @@ function renderExpanded(context: ToolCardContext) {
                       <RefLink target={entry.run} />
                       <RefLink target={entry.job} />
                     </div>
-                    <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+                    <dl className="grid min-w-0 gap-x-3 gap-y-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 14rem), 1fr))" }}>
                       {entry.graderName ? <DetailRow label={t("tool_setting_grader_name")} value={entry.graderName} /> : null}
                       {entry.totalCount != null ? (
                         <DetailRow
