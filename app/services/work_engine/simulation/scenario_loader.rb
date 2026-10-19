@@ -462,7 +462,8 @@ module WorkEngine
           ).tap do |step|
             step_keys[step_config["key"].to_s] = step if step_config["key"].present?
             step.update_columns(created_at: parse_optional_time(step_config["created_at"])) if step_config["created_at"].present?
-            create_run!(job, workflow, step, step_config["run"]) if step_config["run"]
+            run_configs = step_config.key?("runs") ? Array(step_config["runs"]) : [step_config["run"]].compact
+            run_configs.each { |run_config| create_run!(job, workflow, step, run_config) }
           end
         end
         steps.each_cons(2) do |step, next_step|
@@ -501,6 +502,7 @@ module WorkEngine
           run.update_columns(updates)
           run.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
           run.update_columns(updated_at: parse_optional_time(config["updated_at"])) if config["updated_at"].present?
+          create_run_transition!(run, config["transition"]) if config["transition"]
           create_run_checkpoint!(run, config["checkpoint"]) if config["checkpoint"]
           diagnostic = config["diagnostic"]
           if diagnostic
@@ -541,6 +543,17 @@ module WorkEngine
           end
           create_solid_queue_state!(run, config["solid_queue"]) if config["solid_queue"].present?
         end
+      end
+
+      def create_run_transition!(run, config)
+        StateTransition.create!(
+          subject: run,
+          from_state: config.fetch("from_state", "queued"),
+          to_state: config.fetch("to_state", run.state),
+          event_name: config.fetch("event_name", "cancel"),
+          source: config.fetch("source", "reconciler"),
+          metadata: config.fetch("metadata", {})
+        )
       end
 
       def create_host_admission_deferral!(workflow, run, config)

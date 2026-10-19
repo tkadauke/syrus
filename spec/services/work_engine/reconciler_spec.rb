@@ -6349,6 +6349,95 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :retry_failed_step)).to be_nil
   end
 
+  it "recovers from a retryable failure hidden by a terminal-cleanup-cancelled replacement Run" do
+    failed_at = 5.minutes.ago
+    step.update_columns(kind: "visual_review", state: "failed", finished_at: failed_at)
+    workflow.update_columns(state: "failed", finished_at: 3.minutes.ago, cleaned_up_at: nil)
+    job.update_columns(state: "failed")
+    run.update_columns(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "turn_failed",
+      finished_at: failed_at,
+      created_at: failed_at
+    )
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "Steps::Base::StepFailed",
+      error_message: "Selected model is at capacity. Please try a different model."
+    )
+    replacement = step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "codex",
+      state: "cancelled",
+      finished_at: 2.minutes.ago,
+      created_at: 4.minutes.ago
+    )
+    StateTransition.create!(
+      subject: replacement,
+      from_state: "queued",
+      to_state: "cancelled",
+      event_name: "cancel",
+      source: "reconciler",
+      metadata: {
+        "reason_key" => "cancel_terminal_workflow_active_descendants",
+        "repair_action" => "cancel_terminal_workflow_active_descendants"
+      }
+    )
+
+    result = nil
+    expect {
+      2.times { result = reconcile_and_execute(run_id: replacement.id) }
+    }.to change { AutoRetryAttempt.where(run: run).count }.by(1)
+      .and have_enqueued_job(AutoRetryJob).exactly(:once)
+
+    expect(kind(result, :retryable_run_failure)).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "plan_retry"
+    )
+    expect(result.repair_plans).to include(have_attributes(target_id: workflow.id, auto_executable: true))
+    expect(run.reload.run_failure_classification).to have_attributes(
+      classification: "provider_transient",
+      retryable: true
+    )
+  end
+
+  it "keeps a deliberate replacement cancellation authoritative over an older retryable failure" do
+    step.update_columns(kind: "visual_review", state: "failed", finished_at: 5.minutes.ago)
+    workflow.update_columns(state: "failed", finished_at: 3.minutes.ago)
+    run.update_columns(state: "failed", agent_outcome: "turn_failed", finished_at: 5.minutes.ago, created_at: 5.minutes.ago)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "provider_transient",
+      retryable: true,
+      confidence: 0.9,
+      reason: "provider capacity",
+      classified_at: 5.minutes.ago
+    )
+    replacement = step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "codex",
+      state: "cancelled",
+      finished_at: 2.minutes.ago,
+      created_at: 4.minutes.ago
+    )
+    StateTransition.create!(
+      subject: replacement,
+      from_state: "queued",
+      to_state: "cancelled",
+      event_name: "cancel",
+      source: "operator",
+      metadata: { "reason_key" => "operator_cancelled" }
+    )
+
+    result = reconcile(run_id: replacement.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(result.repair_plans.map(&:action)).not_to include("retry_workflow", "retry_failed_step", "resume_failed_step")
+  end
+
   it "plans provider usage-limit failures for the provider reset time" do
     run.update_columns(
       state: "failed",
