@@ -362,6 +362,40 @@ export function normalizedToolCardParsedResult(parsed: unknown): unknown {
   return inner == null ? parsed : inner
 }
 
+// MCP clients and agent providers preserve image content at different depths:
+// some hand us the content array directly, while others retain the MCP
+// response, structured-content, or provider result envelope. Keep that
+// provider-specific traversal here so individual cards consume one shape.
+export function normalizedToolCardContentBlocks(parsed: unknown): Record<string, unknown>[] {
+  const blocks: Record<string, unknown>[] = []
+  const visited = new Set<object>()
+
+  const collect = (value: unknown) => {
+    if (Array.isArray(value)) {
+      if (visited.has(value)) return
+      visited.add(value)
+      value.forEach((item) => {
+        if (isPlainObject(item) && typeof item.type === "string") blocks.push(item)
+        else collect(item)
+      })
+      return
+    }
+    if (!isPlainObject(value) || visited.has(value)) return
+    visited.add(value)
+
+    if (typeof value.type === "string" && (
+      "data" in value || "text" in value || "source" in value || "image_url" in value || "dataUrl" in value
+    )) blocks.push(value)
+
+    for (const key of ["structured_content", "content", "result", "output", "payload"]) {
+      if (value[key] != null) collect(value[key])
+    }
+  }
+
+  collect(parsed)
+  return blocks
+}
+
 // `parseBody` defaults to `body` but callers that already have the tool
 // result's complete, untruncated text (see `fullResultBodyUnbounded`) should
 // pass it explicitly: `body` itself is frequently the display-bounded
