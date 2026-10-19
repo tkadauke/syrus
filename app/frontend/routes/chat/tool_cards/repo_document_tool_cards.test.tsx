@@ -267,6 +267,31 @@ describe("repository document tool cards", () => {
     expect(screen.getByText(/Confirm that the document still exists/)).toBeInTheDocument()
   })
 
+  it("renders failed pending-action payloads as delete failure cards", () => {
+    const failed = context("delete_repo_document", {
+      input: { document_id: 99 },
+      parsedResult: {
+        pending_action_id: 502,
+        state: "failed",
+        message: 'Delete document "Old notes"?',
+        reason: "Document disappeared before confirmation."
+      },
+      resultBody: JSON.stringify({
+        pending_action_id: 502,
+        state: "failed",
+        message: 'Delete document "Old notes"?',
+        reason: "Document disappeared before confirmation."
+      }),
+      resultError: true
+    })
+
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Delete repository document failed")).toBeInTheDocument()
+    expect(screen.getByText('Delete document "Old notes"?')).toBeInTheDocument()
+    expect(screen.getByText("Delete document 99")).toBeInTheDocument()
+  })
+
   it("normalizes differently shaped provider envelopes for delete results", () => {
     const payload = { pending_action_id: 505, state: "pending", message: 'Delete document "Draft"?' }
     const envelopes = [
