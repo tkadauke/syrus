@@ -182,6 +182,7 @@
   "tool_suggestion_error_summary": "Suggestio documenti consilii defecit",
   "tool_suggestion_pending_summary": "Mutatio documenti consilii suggeritur…",
   "tool_suggested_by": "Suggestum ab",
+  "tool_author": "Auctor",
   "tool_version_label": "Creatum in versione",
   "tool_base_version": "Versio fundamentalis",
   "tool_occurrence": "Occursus",

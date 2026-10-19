@@ -182,6 +182,7 @@
   "tool_suggestion_error_summary": "Design Doc suggestion failed",
   "tool_suggestion_pending_summary": "Suggesting Design Doc change…",
   "tool_suggested_by": "Suggested by",
+  "tool_author": "Author",
   "tool_version_label": "Created in version",
   "tool_base_version": "Base version",
   "tool_occurrence": "Occurrence",

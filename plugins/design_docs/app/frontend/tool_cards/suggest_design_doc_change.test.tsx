@@ -22,6 +22,7 @@ const parsedResult = {
     change_summary: "Clarify the **monorepo** section for DOC-29",
     conflict_reason: null,
     suggested_by_kind: "agent",
+    suggested_by: { id: 8, name: "Ada Lovelace", email_address: "ada@example.test" },
     original_markdown: "Old text",
     proposed_markdown: "New text",
     anchor: { anchor_kind: "range", start_offset: 12, end_offset: 20, status: "active" },
@@ -50,6 +51,8 @@ describe("suggest_design_doc_change tool card", () => {
     expect(screen.getByText("Old text")).toBeInTheDocument()
     expect(screen.getByText("New text")).toBeInTheDocument()
     expect(screen.getByText("agent")).toBeInTheDocument()
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "ada@example.test" })).toHaveAttribute("href", "mailto:ada@example.test")
     expect(screen.getByText("6")).toBeInTheDocument()
     expect(screen.getByText("5")).toBeInTheDocument()
     expect(screen.getByText("2")).toBeInTheDocument()
@@ -63,6 +66,22 @@ describe("suggest_design_doc_change tool card", () => {
 
     expect(screen.getByText("Conflict")).toBeInTheDocument()
     expect(screen.getByText("stale offsets")).toBeInTheDocument()
+  })
+
+  it("renders a human suggestion's serialized author separately from its provenance kind", () => {
+    const humanSuggestion = {
+      ...parsedResult,
+      suggestion: {
+        ...parsedResult.suggestion,
+        suggested_by_kind: "user",
+        suggested_by: { id: 12, name: "Grace Hopper", email_address: "grace@example.test" }
+      }
+    }
+    render(<>{suggestDesignDocChangeToolCard.renderExpanded(context({ parsedResult: humanSuggestion }))}</>)
+
+    expect(screen.getByText("user")).toBeInTheDocument()
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "grace@example.test" })).toHaveAttribute("href", "mailto:grace@example.test")
   })
 
   it("falls back to null for a malformed payload (missing suggestion)", () => {
