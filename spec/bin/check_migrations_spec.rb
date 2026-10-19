@@ -23,13 +23,13 @@ RSpec.describe "bin/check-migrations", :ci_only do
     File.write(full_path, body)
   end
 
-  def run_check(*args)
+  def run_check(*args, env: {}, chdir: @dir)
     Open3.capture3(
-      { "SYRUS_MIGRATION_LINT_ROOT" => @dir },
+      { "SYRUS_MIGRATION_LINT_ROOT" => @dir }.merge(env),
       RbConfig.ruby,
       script,
       *args,
-      chdir: @dir,
+      chdir: chdir,
       unsetenv_others: true
     )
   end
@@ -37,6 +37,13 @@ RSpec.describe "bin/check-migrations", :ci_only do
   def git!(*args)
     _stdout, stderr, status = Open3.capture3("git", "-C", @dir, *args)
     raise "git #{args.join(' ')} failed: #{stderr}" unless status.success?
+  end
+
+  def git_output(*args)
+    stdout, stderr, status = Open3.capture3("git", "-C", @dir, *args)
+    raise "git #{args.join(' ')} failed: #{stderr}" unless status.success?
+
+    stdout.strip
   end
 
   it "rejects post-policy references with foreign_key true without booting Rails" do
@@ -162,6 +169,107 @@ RSpec.describe "bin/check-migrations", :ci_only do
 
     expect(status).to be_success, stderr
     expect(stdout).to include("[check-migrations] ok (0 changed files")
+  end
+
+  it "uses the single fetched stacked base in a detached immutable checkout" do
+    git!("init", "-q", "-b", "main")
+    git!("config", "user.email", "test@example.com")
+    git!("config", "user.name", "Test")
+    git!("config", "commit.gpgsign", "false")
+    write_migration("db/migrate/20260830120400_existing_bad_fk.rb", <<~RUBY)
+      class ExistingBadFk < ActiveRecord::Migration[8.0]
+        def change
+          add_foreign_key :widgets, :repositories
+        end
+      end
+    RUBY
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "stacked base")
+    base_sha = git_output("rev-parse", "HEAD")
+    File.write(File.join(@dir, "README.md"), "feature\n")
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "feature")
+    git!("update-ref", "refs/remotes/origin/syrus/parent", base_sha)
+    git!("checkout", "-q", "--detach", "HEAD")
+    git!("branch", "-D", "main")
+
+    stdout, stderr, status = run_check
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("[check-migrations] ok (0 changed files")
+  end
+
+  it "fails safely instead of scanning every migration when no diff base exists" do
+    git!("init", "-q", "-b", "main")
+    git!("config", "user.email", "test@example.com")
+    git!("config", "user.name", "Test")
+    git!("config", "commit.gpgsign", "false")
+    write_migration("db/migrate/20260830120400_existing_bad_fk.rb", <<~RUBY)
+      class ExistingBadFk < ActiveRecord::Migration[8.0]
+        def change
+          add_foreign_key :widgets, :repositories
+        end
+      end
+    RUBY
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "orphaned checkout")
+    git!("checkout", "-q", "--detach", "HEAD")
+    git!("branch", "-D", "main")
+
+    _stdout, stderr, status = run_check
+
+    expect(status.exitstatus).to eq(1)
+    expect(stderr).to include("could not resolve a unique diff base")
+    expect(stderr).not_to include("offense(s)")
+  end
+
+  it "fails safely when multiple possible stacked bases exist" do
+    git!("init", "-q", "-b", "feature")
+    git!("config", "user.email", "test@example.com")
+    git!("config", "user.name", "Test")
+    git!("config", "commit.gpgsign", "false")
+    File.write(File.join(@dir, "README.md"), "base\n")
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "base")
+    base_sha = git_output("rev-parse", "HEAD")
+    git!("update-ref", "refs/remotes/origin/first-parent", base_sha)
+    git!("update-ref", "refs/remotes/upstream/second-parent", base_sha)
+
+    _stdout, stderr, status = run_check
+
+    expect(status.exitstatus).to eq(1)
+    expect(stderr).to include("multiple are available: origin/first-parent, upstream/second-parent")
+    expect(stderr).not_to include("offense(s)")
+  end
+
+  it "honors an explicit base ref and runs Git from the configured repository root" do
+    git!("init", "-q", "-b", "feature")
+    git!("config", "user.email", "test@example.com")
+    git!("config", "user.name", "Test")
+    git!("config", "commit.gpgsign", "false")
+    File.write(File.join(@dir, "README.md"), "base\n")
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "base")
+    base_sha = git_output("rev-parse", "HEAD")
+    write_migration("db/migrate/20260830120600_add_widget_fk.rb", <<~RUBY)
+      class AddWidgetFk < ActiveRecord::Migration[8.0]
+        def change
+          add_foreign_key :widgets, :repositories
+        end
+      end
+    RUBY
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "feature")
+    nested_dir = File.join(@dir, "tmp", "nested")
+    FileUtils.mkdir_p(nested_dir)
+
+    _stdout, stderr, status = run_check(
+      env: { "SYRUS_MIGRATION_LINT_BASE_REF" => base_sha },
+      chdir: nested_dir
+    )
+
+    expect(status.exitstatus).to eq(1)
+    expect(stderr).to include("[database_foreign_key] db/migrate/20260830120600_add_widget_fk.rb:3")
   end
 
   it "lints changed plugin migrations in review scope" do

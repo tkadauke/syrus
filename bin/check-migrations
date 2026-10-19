@@ -28,6 +28,7 @@
 #                                      database-level foreign key constraints.
 
 require "pathname"
+require "open3"
 
 ROOT = Pathname.new(ENV.fetch("SYRUS_MIGRATION_LINT_ROOT", File.expand_path("..", __dir__)))
 MIGRATION_GLOBS = [
@@ -38,11 +39,12 @@ MIGRATION_GLOBS = [
 MIGRATION_PATH_PATTERN = %r{\A(?:db/(?:migrate|[^/]+_migrate)|plugins/[^/]+/db/migrate)/.*\.rb\z}
 NO_FK_POLICY_VERSION = "20260820010000"
 
-# Lint only migrations changed on this branch vs the merge base
-# with origin/main (or `--all` to scan every migration). Legacy
-# migrations in the repo predate this linter; their offenses are
-# technical debt to clean up separately, not a reason to fail
-# every new workflow's grade.
+# Lint only migrations changed on this branch vs its effective base (or
+# `--all` to scan every migration). Immutable grader checkouts fetch the
+# effective stacked base, but intentionally may not carry origin/main.
+# Legacy migrations in the repo predate this linter; their offenses are
+# technical debt to clean up separately, not a reason to fail every new
+# workflow's grade.
 def migration_paths
   if ARGV.include?("--all")
     MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.sort
@@ -52,10 +54,13 @@ def migration_paths
 end
 
 def diff_paths
-  base = resolve_default_branch
-  return MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.sort if base.nil?
+  base = resolve_diff_base
+  diff, error, status = Open3.capture3(
+    "git", "-C", ROOT.to_s,
+    "diff", "--name-only", "--diff-filter=AM", "#{base}...HEAD"
+  )
+  abort "[check-migrations] could not diff #{base}...HEAD: #{error.strip}" unless status.success?
 
-  diff = `git diff --name-only --diff-filter=AM #{base}...HEAD 2>/dev/null`
   diff.lines
       .map(&:strip)
       .select { |rel| rel.match?(MIGRATION_PATH_PATTERN) }
@@ -64,9 +69,41 @@ def diff_paths
       .sort
 end
 
-def resolve_default_branch
-  candidates = %w[origin/main origin/master main master]
-  candidates.find { |ref| system("git rev-parse --verify --quiet #{ref}", out: File::NULL, err: File::NULL) }
+def resolve_diff_base
+  explicit = ENV["SYRUS_MIGRATION_LINT_BASE_REF"].to_s.strip
+  unless explicit.empty?
+    return explicit if git_ref_exists?(explicit)
+
+    abort "[check-migrations] configured diff base #{explicit.inspect} does not exist"
+  end
+
+  default = %w[origin/main origin/master main master].find { |ref| git_ref_exists?(ref) }
+  return default if default
+
+  # Distributed grader checkouts are deliberately minimal. When the Job is
+  # stacked they contain HEAD plus exactly one fetched remote-tracking ref:
+  # the Job's effective base. Use it only when it is unambiguous; guessing
+  # among multiple refs could silently lint against the wrong branch.
+  output, error, status = Open3.capture3(
+    "git", "-C", ROOT.to_s,
+    "for-each-ref", "--format=%(refname:short)", "refs/remotes"
+  )
+  abort "[check-migrations] could not inspect Git refs: #{error.strip}" unless status.success?
+
+  remote_refs = output.lines.map(&:strip).reject(&:empty?).reject { |ref| ref.end_with?("/HEAD") }
+  return remote_refs.first if remote_refs.one?
+
+  detail = remote_refs.empty? ? "none are available" : "multiple are available: #{remote_refs.join(', ')}"
+  abort "[check-migrations] could not resolve a unique diff base (#{detail}); " \
+        "set SYRUS_MIGRATION_LINT_BASE_REF or run with --all"
+end
+
+def git_ref_exists?(ref)
+  _output, _error, status = Open3.capture3(
+    "git", "-C", ROOT.to_s,
+    "rev-parse", "--verify", "--quiet", ref
+  )
+  status.success?
 end
 
 Offense = Struct.new(:rule, :path, :line, :detail, :remediation, keyword_init: true) do
