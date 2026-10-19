@@ -89,8 +89,40 @@ describe("issue, tag, and artifact tool cards", () => {
 
     expect(screen.getByText("area:auth")).toBeInTheDocument()
     expect(screen.getByText("urgent")).toBeInTheDocument()
-    expect(screen.getByText("JOB-7")).toBeInTheDocument()
-    expect(screen.getByText("JOB-8")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(screen.getAllByRole("link", { name: "JOB-8" })).toHaveLength(2)
+    expect(screen.getByText("area:auth").closest("div.rounded")).toHaveTextContent("JOB-7JOB-8")
+    expect(screen.getByText("urgent").closest("div.rounded")).toHaveTextContent("JOB-8")
+    expect(screen.getByText("2 Jobs")).toBeInTheDocument()
+    expect(screen.getByText("1 Job")).toBeInTheDocument()
+  })
+
+  it("renders localized pending and error tag-list states", () => {
+    const pending = context("list_tags")
+    expect(listTagsToolCard.collapsedSummary?.(pending)).toBe("Loading tags")
+    const { rerender } = render(<>{listTagsToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("Loading tags…")).toBeInTheDocument()
+
+    const failed = context("list_tags", { resultError: true, resultBody: "Permission denied" })
+    expect(listTagsToolCard.collapsedSummary?.(failed)).toBe("Could not list tags")
+    rerender(<>{listTagsToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("List tags")).toBeInTheDocument()
+    expect(screen.getByText("Permission denied")).toBeInTheDocument()
+  })
+
+  it("normalizes differently shaped list-tags envelopes", () => {
+    const envelopes = [
+      { structured_content: { tags: [{ id: 1, name: "backend", color: "green", job_ids: [4] }] } },
+      { content: [{ type: "text", text: JSON.stringify({ tags: [{ id: 2, name: "frontend", color: "pink", job_ids: [5] }] }) }] }
+    ]
+
+    for (const [index, envelope] of envelopes.entries()) {
+      const normalizedContext = context(normalizedToolName(index === 0 ? "mcp__syrus__list_tags" : "syrus-chat-sidecar.list_tags"), {
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      expect(normalizedContext.toolName).toBe("list_tags")
+      expect(listTagsToolCard.collapsedSummary?.(normalizedContext)).toBe("1 tag")
+    }
   })
 
   it("renders create input and result details without an empty affected-Jobs section", () => {
@@ -108,8 +140,12 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.queryByText("Affected Jobs")).not.toBeInTheDocument()
     expect(container.querySelector("[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
 
-    expect(addJobTagToolCard.collapsedSummary?.(context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe("Added tag 10 · JOB-7")
-    expect(removeJobTagToolCard.collapsedSummary?.(context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe("Removed tag 10 · JOB-7")
+    expect(addJobTagToolCard.collapsedSummary?.(context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe(
+      "Added tag 10 · JOB-7"
+    )
+    expect(removeJobTagToolCard.collapsedSummary?.(context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe(
+      "Removed tag 10 · JOB-7"
+    )
   })
 
   it("renders a pending create from input alone", () => {

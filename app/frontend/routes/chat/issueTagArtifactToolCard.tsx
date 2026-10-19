@@ -1,11 +1,15 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { formatRelativeDate } from "../../lib/relativeTime"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
 const ARTIFACT_PREVIEW_LINES = 8
 const ARTIFACT_PREVIEW_CHARS = 900
+const ARTIFACT_PREVIEW_CLASS =
+  "mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300"
 
 type IssueRow = {
   number: string
@@ -69,16 +73,18 @@ function issueRows(context: ToolCardContext): IssueRow[] | null {
     const title = displayValue(item.title)
     if (!number || !title) return []
 
-    return [{
-      number,
-      title,
-      labels: arrayStrings(item.labels),
-      state: displayValue(item.state),
-      createdAt: displayValue(item.created_at),
-      updatedAt: displayValue(item.updated_at),
-      url: displayValue(item.url) || displayValue(item.html_url),
-      repository: displayValue(item.repository) || displayValue(item.repository_slug)
-    }]
+    return [
+      {
+        number,
+        title,
+        labels: arrayStrings(item.labels),
+        state: displayValue(item.state),
+        createdAt: displayValue(item.created_at),
+        updatedAt: displayValue(item.updated_at),
+        url: displayValue(item.url) || displayValue(item.html_url),
+        repository: displayValue(item.repository) || displayValue(item.repository_slug)
+      }
+    ]
   })
 }
 
@@ -103,12 +109,24 @@ export function IssueListCard({ rows }: { rows: IssueRow[] }) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Issue</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Labels</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Age</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Link</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Issue
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Labels
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Age
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Updated
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Link
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -116,18 +134,28 @@ export function IssueListCard({ rows }: { rows: IssueRow[] }) {
             <tr key={issue.number}>
               <td className="max-w-80 px-2 py-1">
                 <div className="font-mono font-medium text-gray-800 dark:text-gray-200">#{issue.number}</div>
-                <div className="truncate text-gray-700 dark:text-gray-300" title={issue.title}>{issue.title}</div>
+                <div className="truncate text-gray-700 dark:text-gray-300" title={issue.title}>
+                  {issue.title}
+                </div>
                 {issue.repository ? <div className="truncate font-mono text-2xs text-gray-500 dark:text-gray-400">{issue.repository}</div> : null}
               </td>
               <td className="whitespace-nowrap px-2 py-1">{issue.state ? <StatePill state={issue.state} /> : <span className="text-gray-400">-</span>}</td>
               <td className="min-w-36 px-2 py-1">
                 {issue.labels.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">{issue.labels.map((label) => <Badge key={label}>{label}</Badge>)}</div>
-                ) : <span className="text-gray-400">-</span>}
+                  <div className="flex flex-wrap gap-1">
+                    {issue.labels.map((label) => (
+                      <Badge key={label}>{label}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
               </td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.createdAt) || "-"}</td>
               <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.updatedAt) || "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1">{issue.url ? <InternalLink href={issue.url}>open</InternalLink> : <span className="text-gray-400">-</span>}</td>
+              <td className="whitespace-nowrap px-2 py-1">
+                {issue.url ? <InternalLink href={issue.url}>open</InternalLink> : <span className="text-gray-400">-</span>}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -171,9 +199,11 @@ function tagRows(context: ToolCardContext): TagRow[] | null {
 }
 
 export function tagListSummary(context: ToolCardContext) {
+  if (context.resultError) return i18n.t("chat:tool_card_tags_error_summary")
+  if (context.parsedResult == null && context.resultBody === "") return i18n.t("chat:tool_card_tags_loading_summary")
   const rows = tagRows(context)
   if (!rows) return null
-  return rows.length === 0 ? "No tags" : `${rows.length} tag${rows.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_card_tags_count", { count: rows.length })
 }
 
 const TAG_PALETTE: Record<string, { backgroundColor: string; color: string }> = {
@@ -202,7 +232,10 @@ function tagStyle(color: string | null): CSSProperties | undefined {
 
 function TagChip({ tag }: { tag: TagRow }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" style={tagStyle(tag.color)}>
+    <span
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+      style={tagStyle(tag.color)}
+    >
       <span className="truncate">{tag.name}</span>
       {tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
     </span>
@@ -210,28 +243,57 @@ function TagChip({ tag }: { tag: TagRow }) {
 }
 
 export function TagListCard({ rows }: { rows: TagRow[] }) {
-  if (rows.length === 0) return <EmptyState>No tags found.</EmptyState>
+  const { t } = useT("chat")
+  if (rows.length === 0) return <EmptyState>{t("tool_card_tags_empty")}</EmptyState>
 
   return (
     <CardShell>
-      <div className="flex flex-wrap gap-1">
-        {rows.map((tag, index) => <TagChip key={tag.id || `${tag.name}-${index}`} tag={tag} />)}
-      </div>
-      <div>
-        <SectionLabel>Affected Jobs</SectionLabel>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).length > 0
-            ? Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).map((id) => <Badge key={id}>JOB-{id}</Badge>)
-            : <span className="text-gray-500 dark:text-gray-400">No tagged Jobs.</span>}
-        </div>
+      <SectionLabel>{t("tool_card_tags_section", { count: rows.length })}</SectionLabel>
+      <div className="grid gap-2">
+        {rows.map((tag, index) => (
+          <div
+            className="flex min-w-0 flex-col gap-1 rounded border border-gray-200 p-2 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
+            key={tag.id || `${tag.name}-${index}`}
+          >
+            <TagChip tag={tag} />
+            <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+              <span className="text-2xs text-gray-500 dark:text-gray-400">{t("tool_card_tags_jobs_count", { count: tag.jobIds.length })}</span>
+              {tag.jobIds.map((id) => (
+                <Badge key={id}>
+                  <EntityReference id={id} kind="job" />
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </CardShell>
   )
 }
 
-export function renderTagList(context: ToolCardContext): ReactNode | null {
+function TagListResult({ context }: { context: ToolCardContext }) {
+  const { t } = useT("chat")
+  if (context.resultError) {
+    return <ErrorCard title={t("tool_card_tags_error_title")} message={context.resultBody || t("tool_card_tags_error_fallback")} />
+  }
+  if (context.parsedResult == null && context.resultBody === "") {
+    return (
+      <CardShell>
+        <div className="flex items-center gap-2">
+          <StatePill state="pending" />
+          <span>{t("tool_card_tags_loading")}</span>
+        </div>
+      </CardShell>
+    )
+  }
+
   const rows = tagRows(context)
   return rows ? <TagListCard rows={rows} /> : null
+}
+
+export function renderTagList(context: ToolCardContext): ReactNode | null {
+  if (!context.resultError && !(context.parsedResult == null && context.resultBody === "") && !tagRows(context)) return null
+  return <TagListResult context={context} />
 }
 
 export function parseTagAction(context: ToolCardContext, action: TagAction["action"]): TagAction | null {
@@ -348,7 +410,9 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
       {artifact.preview ? (
         <div>
           <SectionLabel>Preview</SectionLabel>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{artifact.preview}</pre>
+          <pre className={ARTIFACT_PREVIEW_CLASS}>
+            {artifact.preview}
+          </pre>
         </div>
       ) : null}
     </CardShell>
