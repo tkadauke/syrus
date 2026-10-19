@@ -8,7 +8,7 @@ module Mcp::Tools
 
     description <<~DESC
       Immediately take over an existing Syrus Job in state
-      #{Mcp::ControlToolContracts.states(Mcp::ControlToolContracts::TAKEOVER_JOB_STATES)}
+      #{Mcp::ControlToolContracts.states(JobCodingMode::Takeover::CLAIMABLE_JOB_STATES)}
       (or resume the same chat-linked `coding` Job). This requires a Coding Mode
       chat, a recorded pushed branch, repository credentials, no conflicting
       checkout, and no incompatible active workflow ownership. It creates no

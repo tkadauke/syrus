@@ -10,7 +10,8 @@ RSpec.describe "MCP control tool contracts" do
       Mcp::Tools::CancelJobTool => [ "Eligible states are", "creates only pending action", "without creating a Job" ],
       Mcp::Tools::ReenqueueWorkTool => [ "Workflow must be queued/running", "selected Run must", "be queued", "normal admission control" ],
       Mcp::Tools::ForceStateTransitionTool => [ "AASM may_<event>? guard", "creates only a pending action", "no Job, Workflow, WorkUnit" ],
-      Mcp::Tools::SetJobPriorityTool => [ "any existing Job state", "needs no confirmation", "does not reorder" ]
+      Mcp::Tools::SetJobPriorityTool => [ "any existing Job state", "needs no confirmation", "does not reorder" ],
+      Mcp::Tools::SubmitCodingChangesTool => [ "Request time does not prove", "waits for operator confirmation", "auto-enqueues confirmation", "returns state `confirming`" ]
     }
 
     expectations.each do |tool, fragments|
@@ -20,11 +21,11 @@ RSpec.describe "MCP control tool contracts" do
     end
   end
 
-  it "derives documented Job state lists from the Job state machine" do
+  it "takes documented state lists from each owning eligibility service" do
     states = Job.aasm.states.map { |state| state.name.to_s }
 
-    expect(Mcp::ControlToolContracts::JOB_STATES).to eq(states)
-    expect(Mcp::ControlToolContracts::RETRY_JOB_STATES).to eq(states - %w[approved landing closed])
-    expect(Mcp::ControlToolContracts::CANCEL_JOB_STATES).to eq(states - %w[closed])
+    expect(RetryWorkflowEligibility::CANDIDATE_JOB_STATES).to eq(states - RetryWorkflowEligibility::INELIGIBLE_JOB_STATES)
+    expect(JobCancellationEligibility::ELIGIBLE_STATES).to eq(states - JobCancellationEligibility::INELIGIBLE_STATES)
+    expect(JobCodingMode::Takeover::CLAIMABLE_JOB_STATES).to eq(%w[implemented approved])
   end
 end

@@ -12,7 +12,7 @@ module Mcp::Tools
     description <<~DESC
       Request cancellation of one or more Syrus Jobs in this repository. Pass
       Eligible states are
-      #{Mcp::ControlToolContracts.states(Mcp::ControlToolContracts::CANCEL_JOB_STATES)};
+      #{Mcp::ControlToolContracts.states(JobCancellationEligibility::ELIGIBLE_STATES)};
       a closed Job is already terminal and must be reopened before further work.
       job_id for a single Job (unchanged single-confirmation behavior) or
       job_ids for multiple Jobs, which creates one grouped pending action the
@@ -40,9 +40,12 @@ module Mcp::Tools
         return error if error
 
         jobs = ids.map { |id| find_job!(id) }
-        closed = jobs.select(&:closed?)
-        if closed.any?
-          return Mcp::Tools.invalid("Cannot cancel already-closed Jobs: #{closed.map(&:slug).join(', ')}. Reopen a Job first if more work is required.")
+        ineligible = jobs.filter_map do |job|
+          eligibility = JobCancellationEligibility.call(job: job)
+          "#{job.slug}: #{eligibility.message}" unless eligibility.eligible?
+        end
+        if ineligible.any?
+          return Mcp::Tools.invalid("Cannot cancel #{ineligible.size} of #{jobs.size} Jobs - #{ineligible.join('; ')}")
         end
 
         unless bulk
