@@ -432,6 +432,10 @@ module ChatSerialization
 
       { resource_title: document.title }
     when "submit_coding_changes"
+      if (job = pending_action_scoped_job(action, payload["job_id"]))
+        return { resource_title: job.issue_title, resource_url: job_path(job) }
+      end
+
       repository = action.user.repositories.active.find_by(id: payload["repository_id"])
       return nil unless repository
 

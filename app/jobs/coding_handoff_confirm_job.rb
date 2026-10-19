@@ -47,6 +47,7 @@ class CodingHandoffConfirmJob < ApplicationJob
     workflow = job.start_coding_handoff!(artifacts: artifacts)
     raise ArgumentError, "could not start coding handoff (feature may be disabled or state invalid)" unless workflow
 
+    action.update!(payload: payload.merge("job_id" => job.id))
     record_stack_handoff!(chat_session, repository: repository, job: job, snapshot: snapshot)
     GenerateJobTitleJob.perform_later(job) if title.nil?
 

@@ -663,6 +663,27 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:resource_url)).to eq("/repositories/#{repository.id}")
   end
 
+  it "links the created Job for a completed submit_coding_changes pending action" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Add dark mode toggle")
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      state: "confirmed",
+      payload: {
+        "repository_id" => repository.id,
+        "job_id" => job.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Submitted." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(resource_title: "Add dark mode toggle", resource_url: "/jobs/#{job.id}")
+  end
+
   it "omits resource fields for submit_coding_changes when the repository is not found" do
     action = chat.pending_actions.create!(
       action: "submit_coding_changes",
