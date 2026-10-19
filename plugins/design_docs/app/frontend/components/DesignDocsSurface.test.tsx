@@ -51,101 +51,57 @@ const docDetail = {
   collaborator_ids: [2],
   pending_suggestions_count: 1,
   open_threads_count: 1,
-  threads: [{
-    id: 7,
-    state: "open",
-    anchor: {
-      id: 20,
-      anchor_key: "a",
-      marker_id: "m1",
-      anchor_kind: "range",
-      status: "active",
-      start_offset: 6,
-      end_offset: 10,
-      last_known_start_offset: 6,
-      last_known_end_offset: 10,
-      selected_markdown: "beta",
-      selected_text: "beta",
-      prefix_context: null,
-      suffix_context: null
+  threads: [
+    {
+      id: 7,
+      state: "open",
+      anchor: {
+        id: 20,
+        anchor_key: "a",
+        marker_id: "m1",
+        anchor_kind: "range",
+        status: "active",
+        start_offset: 6,
+        end_offset: 10,
+        last_known_start_offset: 6,
+        last_known_end_offset: 10,
+        selected_markdown: "beta",
+        selected_text: "beta",
+        prefix_context: null,
+        suffix_context: null
+      },
+      opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      resolved_by: null,
+      resolved_at: null,
+      agent_run: {
+        id: 4,
+        status: "running",
+        triggering_comment_id: 8,
+        requested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+        agent_provider: "codex",
+        base_version_id: 1,
+        result_summary: null,
+        error_message: null,
+        started_at: "2026-08-29T12:02:00Z",
+        finished_at: null,
+        created_at: "2026-08-29T12:02:00Z",
+        updated_at: "2026-08-29T12:02:00Z"
+      },
+      comments: [
+        {
+          id: 8,
+          author_kind: "user",
+          author: { id: 2, name: "Editor", email_address: "editor@example.com" },
+          design_doc_agent_run_id: null,
+          body: "Needs evidence",
+          created_at: "2026-08-29T12:01:00Z",
+          updated_at: "2026-08-29T12:01:00Z"
+        }
+      ],
+      created_at: "2026-08-29T12:01:00Z",
+      updated_at: "2026-08-29T12:01:00Z"
     },
-    opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
-    resolved_by: null,
-    resolved_at: null,
-    agent_run: {
-      id: 4,
-      status: "running",
-      triggering_comment_id: 8,
-      requested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
-      agent_provider: "codex",
-      base_version_id: 1,
-      result_summary: null,
-      error_message: null,
-      started_at: "2026-08-29T12:02:00Z",
-      finished_at: null,
-      created_at: "2026-08-29T12:02:00Z",
-      updated_at: "2026-08-29T12:02:00Z"
-    },
-    comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
-    created_at: "2026-08-29T12:01:00Z",
-    updated_at: "2026-08-29T12:01:00Z"
-  }, {
-    id: 17,
-    state: "open",
-    anchor: {
-      id: 21,
-      anchor_key: "b",
-      marker_id: "m2",
-      anchor_kind: "range",
-      status: "active",
-      start_offset: 11,
-      end_offset: 16,
-      last_known_start_offset: 11,
-      last_known_end_offset: 16,
-      selected_markdown: "gamma",
-      selected_text: "gamma",
-      prefix_context: null,
-      suffix_context: null
-    },
-    opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
-    resolved_by: null,
-    resolved_at: null,
-    agent_run: null,
-    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
-    created_at: "2026-08-29T12:02:00Z",
-    updated_at: "2026-08-29T12:02:30Z"
-  }],
-  suggestions: [{
-    id: 9,
-    state: "pending",
-    suggested_by_kind: "user",
-    suggested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
-    original_markdown: "gamma",
-    suggested_markdown: "delta",
-    proposed_markdown: "delta",
-    change_type: "replace",
-    render_mode: "inline",
-    change_summary: "Use newer name",
-    base_version_id: 1,
-    design_doc_agent_run_id: null,
-    provenance: {},
-    conflict_reason: null,
-    anchor: {
-      id: 21,
-      anchor_key: "b",
-      marker_id: "m2",
-      anchor_kind: "range",
-      status: "active",
-      start_offset: 11,
-      end_offset: 16,
-      last_known_start_offset: 11,
-      last_known_end_offset: 16,
-      selected_markdown: "gamma",
-      selected_text: "gamma",
-      prefix_context: null,
-      suffix_context: null
-    },
-    thread: {
+    {
       id: 17,
       state: "open",
       anchor: {
@@ -167,14 +123,93 @@ const docDetail = {
       resolved_by: null,
       resolved_at: null,
       agent_run: null,
-      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+      comments: [
+        {
+          id: 18,
+          author_kind: "user",
+          author: { id: 2, name: "Editor", email_address: "editor@example.com" },
+          design_doc_agent_run_id: null,
+          body: "Why this wording?",
+          created_at: "2026-08-29T12:02:30Z",
+          updated_at: "2026-08-29T12:02:30Z"
+        }
+      ],
       created_at: "2026-08-29T12:02:00Z",
       updated_at: "2026-08-29T12:02:30Z"
-    },
-    reviewed_by: null,
-    reviewed_at: null,
-    created_at: "2026-08-29T12:02:00Z"
-  }]
+    }
+  ],
+  suggestions: [
+    {
+      id: 9,
+      state: "pending",
+      suggested_by_kind: "user",
+      suggested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      original_markdown: "gamma",
+      suggested_markdown: "delta",
+      proposed_markdown: "delta",
+      change_type: "replace",
+      render_mode: "inline",
+      change_summary: "Use newer name",
+      base_version_id: 1,
+      design_doc_agent_run_id: null,
+      provenance: {},
+      conflict_reason: null,
+      anchor: {
+        id: 21,
+        anchor_key: "b",
+        marker_id: "m2",
+        anchor_kind: "range",
+        status: "active",
+        start_offset: 11,
+        end_offset: 16,
+        last_known_start_offset: 11,
+        last_known_end_offset: 16,
+        selected_markdown: "gamma",
+        selected_text: "gamma",
+        prefix_context: null,
+        suffix_context: null
+      },
+      thread: {
+        id: 17,
+        state: "open",
+        anchor: {
+          id: 21,
+          anchor_key: "b",
+          marker_id: "m2",
+          anchor_kind: "range",
+          status: "active",
+          start_offset: 11,
+          end_offset: 16,
+          last_known_start_offset: 11,
+          last_known_end_offset: 16,
+          selected_markdown: "gamma",
+          selected_text: "gamma",
+          prefix_context: null,
+          suffix_context: null
+        },
+        opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+        resolved_by: null,
+        resolved_at: null,
+        agent_run: null,
+        comments: [
+          {
+            id: 18,
+            author_kind: "user",
+            author: { id: 2, name: "Editor", email_address: "editor@example.com" },
+            design_doc_agent_run_id: null,
+            body: "Why this wording?",
+            created_at: "2026-08-29T12:02:30Z",
+            updated_at: "2026-08-29T12:02:30Z"
+          }
+        ],
+        created_at: "2026-08-29T12:02:00Z",
+        updated_at: "2026-08-29T12:02:30Z"
+      },
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: "2026-08-29T12:02:00Z"
+    }
+  ]
 }
 
 const secondDocDetail = {
@@ -316,8 +351,24 @@ function renderSurface(path = "/design_docs") {
           <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
           <Route path="/repositories/:id" element={<LocationProbe />} />
-          <Route path="/chats/:id" element={<DesignDocsSurface chatId={237} compact designDocIds={[1]} initialDesignDocId={1} initialDesignDocs={[docDetail as DesignDocSummary]} mode="chat" repositoryId={10} />} />
-          <Route path="/chats/:id/empty" element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />} />
+          <Route
+            path="/chats/:id"
+            element={
+              <DesignDocsSurface
+                chatId={237}
+                compact
+                designDocIds={[1]}
+                initialDesignDocId={1}
+                initialDesignDocs={[docDetail as DesignDocSummary]}
+                mode="chat"
+                repositoryId={10}
+              />
+            }
+          />
+          <Route
+            path="/chats/:id/empty"
+            element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />}
+          />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -357,7 +408,13 @@ function indexPayload(detail = docDetail) {
       { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [], typeahead: true },
       { field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is", "is_not", "is_set", "is_unset"], values: [{ value: "me", label: "Me" }] },
       { field: "state", label: "State", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [{ value: "draft", label: "Draft" }] },
-      { field: "visibility", label: "Visibility", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [{ value: "public", label: "Public" }] },
+      {
+        field: "visibility",
+        label: "Visibility",
+        bucket: "enum",
+        operators: ["is", "is_not", "is_one_of", "is_none_of"],
+        values: [{ value: "public", label: "Public" }]
+      },
       { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [] }
     ],
     preferences: {
@@ -430,7 +487,10 @@ function mockFetch(detail = docDetail) {
     }
     if (url.pathname === "/api/v1/app/design_docs/preferences" && init?.method === "PATCH") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
-      return jsonResponse({ message: "Design Docs preferences updated.", preferences: { visible_columns: payload.preferences?.visible_columns ?? [], raw: {} } })
+      return jsonResponse({
+        message: "Design Docs preferences updated.",
+        preferences: { visible_columns: payload.preferences?.visible_columns ?? [], raw: {} }
+      })
     }
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
       return jsonResponse({
@@ -475,11 +535,14 @@ function mockFetch(detail = docDetail) {
     }
     if (url.pathname === "/api/v1/app/design_docs/5" && init?.method === "PATCH") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
-      const nextDetail = payload.design_doc?.state === "draft" ? {
-        ...archivedDocDetail,
-        state: "draft",
-        permissions: docDetail.permissions
-      } : archivedDocDetail
+      const nextDetail =
+        payload.design_doc?.state === "draft"
+          ? {
+              ...archivedDocDetail,
+              state: "draft",
+              permissions: docDetail.permissions
+            }
+          : archivedDocDetail
       return jsonResponse({ design_doc: nextDetail, mode: "canonical", message: "Design doc updated." })
     }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
@@ -493,30 +556,58 @@ function mockFetch(detail = docDetail) {
       if (payload.comment?.thread_id === 7) {
         const commentThread = {
           ...docDetail.threads[0],
-          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+          comments: [
+            ...docDetail.threads[0].comments,
+            {
+              id: 10,
+              author_kind: "user",
+              author: docDetail.owner,
+              design_doc_agent_run_id: null,
+              body: "Follow up",
+              created_at: "2026-08-29T12:03:00Z",
+              updated_at: "2026-08-29T12:03:00Z"
+            }
+          ]
         }
-        return jsonResponse({
-          design_doc: {
-            ...docDetail,
-            threads: [commentThread, docDetail.threads[1]]
+        return jsonResponse(
+          {
+            design_doc: {
+              ...docDetail,
+              threads: [commentThread, docDetail.threads[1]]
+            },
+            message: "Comment created."
           },
-          message: "Comment created."
-        }, 201)
+          201
+        )
       }
       if (payload.comment?.thread_id === 17) {
         const suggestionThread = {
           ...docDetail.threads[1],
-          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
+          comments: [
+            ...docDetail.threads[1].comments,
+            {
+              id: 19,
+              author_kind: "user",
+              author: docDetail.owner,
+              design_doc_agent_run_id: null,
+              body: "Agreed",
+              created_at: "2026-08-29T12:04:00Z",
+              updated_at: "2026-08-29T12:04:00Z"
+            }
+          ]
         }
         const suggestion = { ...docDetail.suggestions[0], thread: suggestionThread }
-        return jsonResponse({
-          design_doc: {
-            ...docDetail,
-            threads: [docDetail.threads[0], suggestionThread],
-            suggestions: [suggestion]
+        return jsonResponse(
+          {
+            design_doc: {
+              ...docDetail,
+              threads: [docDetail.threads[0], suggestionThread],
+              suggestions: [suggestion]
+            },
+            message: "Comment created."
           },
-          message: "Comment created."
-        }, 201)
+          201
+        )
       }
       return jsonResponse({ design_doc: { ...docDetail, open_threads_count: 2 }, message: "Comment created." }, 201)
     }
@@ -536,13 +627,35 @@ function mockFetch(detail = docDetail) {
       })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
-      return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
+      return jsonResponse({
+        design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] },
+        suggestion: { ...docDetail.suggestions[0], state: "rejected" },
+        message: "Suggestion rejected."
+      })
     }
     if (url.pathname === "/api/v1/app/design_docs/4/suggestions/31/accept") {
-      return jsonResponse({ design_doc: { ...openQuestionsDocDetail, suggestions: openQuestionsDocDetail.suggestions.slice(1) }, suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
+      return jsonResponse({
+        design_doc: { ...openQuestionsDocDetail, suggestions: openQuestionsDocDetail.suggestions.slice(1) },
+        suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" },
+        message: "Suggestion accepted."
+      })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
-      return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
+      return jsonResponse({
+        design_doc: docDetail,
+        versions: [
+          {
+            id: 1,
+            version_number: 1,
+            markdown: "Historical body",
+            actor_kind: "user",
+            actor: docDetail.owner,
+            change_summary: "Initial",
+            metadata: {},
+            created_at: "2026-08-29T12:00:00Z"
+          }
+        ]
+      })
     }
     return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
   })
@@ -593,33 +706,35 @@ function docWithSuggestion(markdown: string, proposedMarkdown: string, originalM
     rendered_markdown: markdown,
     threads: [],
     open_threads_count: 0,
-    suggestions: [{
-      ...docDetail.suggestions[0],
-      original_markdown: originalMarkdown,
-      suggested_markdown: proposedMarkdown,
-      proposed_markdown: proposedMarkdown,
-      anchor: {
-        ...docDetail.suggestions[0].anchor,
-        start_offset: 0,
-        end_offset: markdown.length,
-        last_known_start_offset: 0,
-        last_known_end_offset: markdown.length,
-        selected_markdown: originalMarkdown,
-        selected_text: originalMarkdown
-      },
-      thread: {
-        ...docDetail.suggestions[0].thread,
+    suggestions: [
+      {
+        ...docDetail.suggestions[0],
+        original_markdown: originalMarkdown,
+        suggested_markdown: proposedMarkdown,
+        proposed_markdown: proposedMarkdown,
         anchor: {
-          ...docDetail.suggestions[0].thread.anchor,
+          ...docDetail.suggestions[0].anchor,
           start_offset: 0,
           end_offset: markdown.length,
           last_known_start_offset: 0,
           last_known_end_offset: markdown.length,
           selected_markdown: originalMarkdown,
           selected_text: originalMarkdown
+        },
+        thread: {
+          ...docDetail.suggestions[0].thread,
+          anchor: {
+            ...docDetail.suggestions[0].thread.anchor,
+            start_offset: 0,
+            end_offset: markdown.length,
+            last_known_start_offset: 0,
+            last_known_end_offset: markdown.length,
+            selected_markdown: originalMarkdown,
+            selected_text: originalMarkdown
+          }
         }
       }
-    }]
+    ]
   }
 }
 
@@ -678,7 +793,9 @@ describe("DesignDocsSurface", () => {
     mockFetch(markdownDetail)
     renderSurface()
 
-    const preview = await screen.findByText((_content, element) => element?.tagName === "P" && element.textContent === "Problem See the bold part and the raw output.")
+    const preview = await screen.findByText(
+      (_content, element) => element?.tagName === "P" && element.textContent === "Problem See the bold part and the raw output."
+    )
     expect(preview).toBeInTheDocument()
     expect(preview.innerHTML).toContain("<strong>")
     expect(preview.innerHTML).toContain("<code>")
@@ -711,13 +828,17 @@ describe("DesignDocsSurface", () => {
     ])
     const detail = {
       ...docDetail,
-      threads: [{
-        ...docDetail.threads[0],
-        comments: [{
-          ...docDetail.threads[0].comments[0],
-          body: "Compare JOB-42 with DOC-9."
-        }]
-      }],
+      threads: [
+        {
+          ...docDetail.threads[0],
+          comments: [
+            {
+              ...docDetail.threads[0].comments[0],
+              body: "Compare JOB-42 with DOC-9."
+            }
+          ]
+        }
+      ],
       suggestions: []
     }
     mockFetch(detail)
@@ -805,12 +926,16 @@ describe("DesignDocsSurface", () => {
   })
 
   it("wraps Rich Text tables in the shared horizontal scroller", async () => {
-    mockFetch(docWithMarkdown([
-      "| Shape | Execution | Isolation need |",
-      "| --- | --- | --- |",
-      "| MacBook, Electron + docker-compose | no containers | none (single user) |",
-      "| k3s / Portainer | containers preferred | none (trusted team) |"
-    ].join("\n")))
+    mockFetch(
+      docWithMarkdown(
+        [
+          "| Shape | Execution | Isolation need |",
+          "| --- | --- | --- |",
+          "| MacBook, Electron + docker-compose | no containers | none (single user) |",
+          "| k3s / Portainer | containers preferred | none (trusted team) |"
+        ].join("\n")
+      )
+    )
     renderSurface("/design_docs/1")
 
     const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
@@ -823,11 +948,13 @@ describe("DesignDocsSurface", () => {
 
   it("wraps read-only mobile tables in the shared horizontal scroller", async () => {
     mockMobileViewport()
-    mockFetch(docWithMarkdown([
-      "| Shape | Execution | Isolation need |",
-      "| --- | --- | --- |",
-      "| MacBook, Electron + docker-compose | no containers | none (single user) |"
-    ].join("\n")))
+    mockFetch(
+      docWithMarkdown(
+        ["| Shape | Execution | Isolation need |", "| --- | --- | --- |", "| MacBook, Electron + docker-compose | no containers | none (single user) |"].join(
+          "\n"
+        )
+      )
+    )
     renderSurface("/design_docs/1")
 
     const body = await screen.findByRole("region", { name: "Design doc content" })
@@ -838,11 +965,7 @@ describe("DesignDocsSurface", () => {
   })
 
   it("round-trips wrapped Rich Text tables back to Markdown", async () => {
-    const fetchSpy = mockFetch(docWithMarkdown([
-      "| Shape | Execution |",
-      "| --- | --- |",
-      "| MacBook | no containers |"
-    ].join("\n")))
+    const fetchSpy = mockFetch(docWithMarkdown(["| Shape | Execution |", "| --- | --- |", "| MacBook | no containers |"].join("\n")))
     renderSurface("/design_docs/1")
 
     const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
@@ -906,12 +1029,7 @@ describe("DesignDocsSurface", () => {
   })
 
   it("preserves explicit Markdown hard breaks in Rich Text paragraphs", async () => {
-    const markdown = [
-      "first line  ",
-      "second line\\",
-      "third line",
-      "fourth line"
-    ].join("\n")
+    const markdown = ["first line  ", "second line\\", "third line", "fourth line"].join("\n")
     mockFetch(docWithMarkdown(markdown))
     renderSurface("/design_docs/1")
 
@@ -1585,9 +1703,7 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
     const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
-    const textNode = Array.from(editor.querySelectorAll("[data-source-start]"))
-      .find((node) => node.textContent === selected)!
-      .firstChild!
+    const textNode = Array.from(editor.querySelectorAll("[data-source-start]")).find((node) => node.textContent === selected)!.firstChild!
     const range = document.createRange()
     range.setStart(textNode, 0)
     range.setEnd(textNode, selected.length)
@@ -1631,15 +1747,11 @@ describe("DesignDocsSurface", () => {
     // cursor), so this must exercise the incremental data-source-* patch on its
     // own, without a masking full re-render.
     editor.focus()
-    const introTextNode = Array.from(editor.querySelectorAll("[data-source-start]"))
-      .find((node) => node.textContent === "Intro line.")!
-      .firstChild as Text
+    const introTextNode = Array.from(editor.querySelectorAll("[data-source-start]")).find((node) => node.textContent === "Intro line.")!.firstChild as Text
     introTextNode.data = inserted + introTextNode.data
     fireEvent.input(editor)
 
-    const targetTextNode = Array.from(editor.querySelectorAll("[data-source-start]"))
-      .find((node) => node.textContent === selected)!
-      .firstChild!
+    const targetTextNode = Array.from(editor.querySelectorAll("[data-source-start]")).find((node) => node.textContent === selected)!.firstChild!
     const range = document.createRange()
     range.setStart(targetTextNode, 0)
     range.setEnd(targetTextNode, selected.length)
@@ -1710,43 +1822,57 @@ describe("DesignDocsSurface", () => {
       rendered_markdown: markdown,
       open_threads_count: 1,
       pending_suggestions_count: 1,
-      threads: [{
-        ...docDetail.threads[0],
-        id: 201,
-        anchor: {
-          ...docDetail.threads[0].anchor,
-          id: 301,
-          marker_id: "t1",
-          start_offset: 12,
-          end_offset: 19,
-          last_known_start_offset: 12,
-          last_known_end_offset: 19,
-          selected_markdown: "Charlie",
-          selected_text: "Charlie"
-        },
-        agent_run: null,
-        comments: [{ id: 401, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Later thread comment", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
-      }],
-      suggestions: [{
-        ...docDetail.suggestions[0],
-        id: 90,
-        original_markdown: "Alpha",
-        suggested_markdown: "AlphaX",
-        proposed_markdown: "AlphaX",
-        change_summary: "Earlier suggestion summary",
-        anchor: {
-          ...docDetail.suggestions[0].anchor,
-          id: 302,
-          marker_id: "s1",
-          start_offset: 0,
-          end_offset: 5,
-          last_known_start_offset: 0,
-          last_known_end_offset: 5,
-          selected_markdown: "Alpha",
-          selected_text: "Alpha"
-        },
-        thread: null
-      }]
+      threads: [
+        {
+          ...docDetail.threads[0],
+          id: 201,
+          anchor: {
+            ...docDetail.threads[0].anchor,
+            id: 301,
+            marker_id: "t1",
+            start_offset: 12,
+            end_offset: 19,
+            last_known_start_offset: 12,
+            last_known_end_offset: 19,
+            selected_markdown: "Charlie",
+            selected_text: "Charlie"
+          },
+          agent_run: null,
+          comments: [
+            {
+              id: 401,
+              author_kind: "user",
+              author: docDetail.owner,
+              design_doc_agent_run_id: null,
+              body: "Later thread comment",
+              created_at: "2026-08-29T12:01:00Z",
+              updated_at: "2026-08-29T12:01:00Z"
+            }
+          ]
+        }
+      ],
+      suggestions: [
+        {
+          ...docDetail.suggestions[0],
+          id: 90,
+          original_markdown: "Alpha",
+          suggested_markdown: "AlphaX",
+          proposed_markdown: "AlphaX",
+          change_summary: "Earlier suggestion summary",
+          anchor: {
+            ...docDetail.suggestions[0].anchor,
+            id: 302,
+            marker_id: "s1",
+            start_offset: 0,
+            end_offset: 5,
+            last_known_start_offset: 0,
+            last_known_end_offset: 5,
+            selected_markdown: "Alpha",
+            selected_text: "Alpha"
+          },
+          thread: null
+        }
+      ]
     }
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const url = new URL(String(input), "http://test.host")
@@ -1851,7 +1977,17 @@ describe("DesignDocsSurface", () => {
           last_known_start_offset: startOffset,
           last_known_end_offset: startOffset + 5
         },
-        comments: [{ id: 301 + index, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: ["First note", "Second note", "Third note"][index], created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
+        comments: [
+          {
+            id: 301 + index,
+            author_kind: "user",
+            author: docDetail.owner,
+            design_doc_agent_run_id: null,
+            body: ["First note", "Second note", "Third note"][index],
+            created_at: "2026-08-29T12:01:00Z",
+            updated_at: "2026-08-29T12:01:00Z"
+          }
+        ]
       }))
     }
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
@@ -1933,7 +2069,17 @@ describe("DesignDocsSurface", () => {
             last_known_start_offset: start,
             last_known_end_offset: start + word.length
           },
-          comments: [{ id: 700 + index, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: `${word} note`, created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
+          comments: [
+            {
+              id: 700 + index,
+              author_kind: "user",
+              author: docDetail.owner,
+              design_doc_agent_run_id: null,
+              body: `${word} note`,
+              created_at: "2026-08-29T12:01:00Z",
+              updated_at: "2026-08-29T12:01:00Z"
+            }
+          ]
         }
       })
     }
@@ -2104,7 +2250,11 @@ describe("DesignDocsSurface", () => {
 
     expect(editor).toHaveTextContent("Old Title")
     expect(within(editor).getByText("# Old Title").closest("del")).toHaveClass("text-warning", "decoration-warning")
-    expect(within(editor).getByText(/# New Title/).closest("ins")).toHaveClass("text-success", "no-underline")
+    expect(
+      within(editor)
+        .getByText(/# New Title/)
+        .closest("ins")
+    ).toHaveClass("text-success", "no-underline")
     expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
     expect(screen.getByText("Current")).toBeInTheDocument()
     expect(screen.getByText("Proposed")).toBeInTheDocument()
@@ -2112,38 +2262,34 @@ describe("DesignDocsSurface", () => {
   })
 
   it("aligns an initially visible lower suggestion card to its source-offset fallback when the inline marker is unavailable", async () => {
-    const markdown = [
-      "Intro",
-      "",
-      "## Summary",
-      "",
-      "Body"
-    ].join("\n")
+    const markdown = ["Intro", "", "## Summary", "", "Body"].join("\n")
     const start = markdown.indexOf("Summary")
     const lowerSuggestionDoc = {
       ...docDetail,
       markdown,
       rendered_markdown: markdown,
       threads: [],
-      suggestions: [{
-        ...docDetail.suggestions[0],
-        id: 61,
-        original_markdown: "Summary",
-        suggested_markdown: "Plan",
-        proposed_markdown: "Plan",
-        render_mode: "block" as const,
-        change_summary: "Rename summary",
-        anchor: {
-          ...docDetail.suggestions[0].anchor,
-          start_offset: start,
-          end_offset: start + "Summary".length,
-          last_known_start_offset: start,
-          last_known_end_offset: start + "Summary".length,
-          selected_markdown: "Summary",
-          selected_text: "Summary"
-        },
-        thread: null
-      }]
+      suggestions: [
+        {
+          ...docDetail.suggestions[0],
+          id: 61,
+          original_markdown: "Summary",
+          suggested_markdown: "Plan",
+          proposed_markdown: "Plan",
+          render_mode: "block" as const,
+          change_summary: "Rename summary",
+          anchor: {
+            ...docDetail.suggestions[0].anchor,
+            start_offset: start,
+            end_offset: start + "Summary".length,
+            last_known_start_offset: start,
+            last_known_end_offset: start + "Summary".length,
+            selected_markdown: "Summary",
+            selected_text: "Summary"
+          },
+          thread: null
+        }
+      ]
     }
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const url = new URL(String(input), "http://test.host")
@@ -2543,7 +2689,10 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Unarchive" }))
 
     await waitFor(() => {
-      const unarchiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/5" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "draft")
+      const unarchiveRequest = fetchSpy.mock.calls.find(
+        (call) =>
+          String(call[0]) === "/api/v1/app/design_docs/5" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "draft"
+      )
       expect(unarchiveRequest).toBeTruthy()
     })
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument()
@@ -2589,9 +2738,7 @@ describe("DesignDocsSurface", () => {
 
     await new Promise((resolve) => window.setTimeout(resolve, 900))
 
-    expect(fetchSpy.mock.calls.some((call) => (
-      String(call[0]) === "/api/v1/app/design_docs/1/suggestions" && call[1]?.method === "POST"
-    ))).toBe(false)
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]) === "/api/v1/app/design_docs/1/suggestions" && call[1]?.method === "POST")).toBe(false)
   })
 
   it("runs formatting toolbar commands against Markdown and persists Suggest mode as a suggestion", async () => {
@@ -2852,7 +2999,10 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(within(menu).getByRole("combobox", { name: "Share visibility" }), { target: { value: "public" } })
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
-    const visibilityRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.visibility === "public")
+    const visibilityRequest = fetchSpy.mock.calls.find(
+      (call) =>
+        String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.visibility === "public"
+    )
     expect(visibilityRequest).toBeTruthy()
 
     fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
@@ -2860,14 +3010,20 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(within(menu).getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      const saveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.checkpoint === true)
+      const saveRequest = fetchSpy.mock.calls.find(
+        (call) =>
+          String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.checkpoint === true
+      )
       expect(saveRequest).toBeTruthy()
     })
 
     fireEvent.click(within(menu).getByRole("button", { name: "Archive" }))
 
     await waitFor(() => {
-      const archiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "archived")
+      const archiveRequest = fetchSpy.mock.calls.find(
+        (call) =>
+          String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH" && JSON.parse(String(call[1]?.body)).design_doc?.state === "archived"
+      )
       expect(archiveRequest).toBeTruthy()
     })
     expect(await screen.findByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
@@ -3084,9 +3240,12 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved owner draft" } })
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" }))
-    }, { timeout: 1500 })
+    await waitFor(
+      () => {
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" }))
+      },
+      { timeout: 1500 }
+    )
     const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
     expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
       design_doc: { markdown: "Autosaved owner draft" }
@@ -3184,15 +3343,17 @@ describe("DesignDocsSurface", () => {
         const payload = JSON.parse(String(init.body))
         currentDoc = {
           ...currentDoc,
-          suggestions: [{
-            ...docDetail.suggestions[0],
-            id: 40,
-            original_markdown: payload.suggestion.original_markdown,
-            proposed_markdown: payload.suggestion.proposed_markdown,
-            suggested_markdown: payload.suggestion.proposed_markdown,
-            render_mode: "block",
-            provenance: { autosave: true }
-          }],
+          suggestions: [
+            {
+              ...docDetail.suggestions[0],
+              id: 40,
+              original_markdown: payload.suggestion.original_markdown,
+              proposed_markdown: payload.suggestion.proposed_markdown,
+              suggested_markdown: payload.suggestion.proposed_markdown,
+              render_mode: "block",
+              provenance: { autosave: true }
+            }
+          ],
           pending_suggestions_count: 1
         }
         return jsonResponse({ design_doc: currentDoc, suggestion: currentDoc.suggestions[0], message: "Suggestion created." }, 201)
@@ -3204,9 +3365,12 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved suggestion draft" } })
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" }))
-    }, { timeout: 1500 })
+    await waitFor(
+      () => {
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" }))
+      },
+      { timeout: 1500 }
+    )
     const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3/suggestions" && call[1]?.method === "POST")
     expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
       suggestion: { proposed_markdown: "Autosaved suggestion draft", autosave: true }
@@ -3219,7 +3383,16 @@ describe("DesignDocsSurface", () => {
   })
 
   it("hides a stale-anchored comment from the current thread rail but shows it when viewing the version where it existed", async () => {
-    const historicalVersion = { id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }
+    const historicalVersion = {
+      id: 1,
+      version_number: 1,
+      markdown: "Historical body",
+      actor_kind: "user",
+      actor: docDetail.owner,
+      change_summary: "Initial",
+      metadata: {},
+      created_at: "2026-08-29T12:00:00Z"
+    }
     const staleThread = {
       id: 70,
       state: "open" as const,
@@ -3241,7 +3414,16 @@ describe("DesignDocsSurface", () => {
       opened_by: docDetail.owner,
       resolved_by: null,
       resolved_at: null,
-      comments: [{ id: 71, author_kind: "user", author: docDetail.owner, body: "This got overwritten", created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z" }],
+      comments: [
+        {
+          id: 71,
+          author_kind: "user",
+          author: docDetail.owner,
+          body: "This got overwritten",
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z"
+        }
+      ],
       created_at: "2026-09-01T00:00:00Z",
       updated_at: "2026-09-01T00:00:00Z"
     }
