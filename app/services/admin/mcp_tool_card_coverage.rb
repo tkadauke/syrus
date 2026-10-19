@@ -22,9 +22,7 @@ module Admin
       "force_fail_job" => "generic",
       "get_spending" => "deferred",
       "manual_agentic_run" => "generic",
-      "cancel_coding_checkout" => "generic",
       "credential_store_ssh_exec" => "generic",
-      "open_in_coding_mode" => "generic",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic",
       "spawn_chats" => "deferred"

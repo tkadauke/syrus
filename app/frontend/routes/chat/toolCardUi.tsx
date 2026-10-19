@@ -91,15 +91,18 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value, wrap = false, copyable = false }: { label: string; value: string; wrap?: boolean; copyable?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>
-        {value}
-      </Text>
+      <div className="flex min-w-0 items-center gap-1">
+        <Text as="div" className={`${wrap ? "break-all" : "truncate"} min-w-0 font-mono text-xs`} title={value}>
+          {value}
+        </Text>
+        {copyable ? <CopyOnlyIconButton value={value} /> : null}
+      </div>
     </div>
   )
 }
