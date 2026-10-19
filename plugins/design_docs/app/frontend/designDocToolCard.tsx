@@ -1,6 +1,6 @@
 import { isPlainObject } from "@app/pluginToolCards"
 import i18n from "i18next"
-import { Badge, displayValue, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
 // / read_design_doc, propose_design_doc, suggest_design_doc_change,
@@ -48,6 +48,32 @@ export function DesignDocHeader({ doc }: { doc: DesignDocSummary }) {
       {doc.state ? <StatePill state={doc.state} /> : null}
       {doc.visibility ? <Badge>{doc.visibility}</Badge> : null}
     </div>
+  )
+}
+
+export function DesignDocErrorCard({ message, title }: { message: string; title: string }) {
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-text-primary">{title}</span>
+        <StatePill state="failed" />
+      </div>
+      <div className="rounded-[var(--radius-panel)] border border-danger/30 bg-danger/10 px-2 py-1 text-danger-text" role="alert">
+        {message}
+      </div>
+    </CardShell>
+  )
+}
+
+export function DesignDocPendingCard({ title }: { title: string }) {
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-text-primary">{title}</span>
+        <StatePill state="pending" />
+      </div>
+      <EmptyState>{t("tool_pending")}</EmptyState>
+    </CardShell>
   )
 }
 
