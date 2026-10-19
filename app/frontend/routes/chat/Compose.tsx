@@ -33,7 +33,7 @@ import {
   retryVideoWalkthrough,
   uploadVideoWalkthrough
 } from "../../api/videoWalkthroughs"
-import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
+import { MAX_TRANSCRIPTION_BYTES, MIN_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
@@ -2721,6 +2721,14 @@ function useChatDictation({
     if (!paths.batch) return
     const audio = new Blob(chunksRef.current, { type: recorderMimeType() })
     chunksRef.current = []
+    if (audio.size < MIN_TRANSCRIPTION_BYTES) {
+      onTranscriptComplete()
+      cleanup()
+      setPhase("idle")
+      setMessageTone("error")
+      setMessage(t("dictation_no_speech"))
+      return
+    }
     setPhase("transcribing")
     setMessage(t("dictation_transcribing"))
     try {
@@ -2736,6 +2744,7 @@ function useChatDictation({
       setMessage(null)
       cleanup()
     } catch (error) {
+      onTranscriptComplete()
       cleanup()
       if (capability.modes.browser.available && browserRecognitionAvailable()) {
         setMessage(t("dictation_browser_fallback"))

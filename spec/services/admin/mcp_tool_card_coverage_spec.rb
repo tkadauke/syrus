@@ -198,6 +198,23 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     )
   end
 
+  it "recognizes card factories with additional arguments" do
+    add_card("plugins/whiteboard/app/frontend/tool_cards/draw_shape.tsx", <<~TS)
+      import { makeElementCard } from "../whiteboardToolCard"
+      export default makeElementCard("draw_shape", "tool_action_drew_shape")
+    TS
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[draw_shape]
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "draw_shape", card_status: "registered")
+    )
+    expect(report.fetch(:unclassified_advertised_tools)).to be_empty
+  end
+
   it "ranks missing and weak card gaps by usage impact, ownership, and recency" do
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }

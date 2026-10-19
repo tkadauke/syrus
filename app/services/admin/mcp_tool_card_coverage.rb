@@ -14,11 +14,10 @@ module Admin
     PLUGIN_CARD_GLOB = "plugins/*/app/frontend/tool_cards/*.tsx"
     TEST_CARD_PATTERN = /\.test\.tsx\z/
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
-    TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["']\)/
+    TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)/
     EXPLICIT_CARD_STATUSES = {
       "retire_terminal_work_unit" => "generic",
       "assign_job_to_epic" => "generic",
-      "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
       "get_spending" => "deferred",
       "manual_agentic_run" => "generic",

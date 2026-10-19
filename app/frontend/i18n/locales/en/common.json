@@ -9,6 +9,7 @@
   "copy_content": "Copy content",
   "copy_markdown": "Copy markdown",
   "empty_file": "Empty file.",
+  "markdown_preview_empty": "No content provided.",
   "show_less": "Show less",
   "text_preview": {
     "earlier_lines_one": "… {{count}} earlier line",

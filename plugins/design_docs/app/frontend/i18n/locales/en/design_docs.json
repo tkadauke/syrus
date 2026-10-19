@@ -187,5 +187,18 @@
   "tool_section_count_other": "{{doc}}: {{count}} sections",
   "tool_sections": "Sections",
   "tool_no_sections": "No headings found.",
-  "tool_untitled_design_doc": "Untitled design doc"
+  "tool_untitled_design_doc": "Untitled design doc",
+  "tool_archived": "Archived",
+  "tool_immediate": "Immediate",
+  "tool_archive_requested": "Archive requested",
+  "tool_confirmation_required": "Confirmation required",
+  "tool_state_transition": "State transition",
+  "tool_reason": "Reason",
+  "tool_confirmation_reason": "Confirmation reason",
+  "tool_no_archive_reason": "No archive reason provided.",
+  "tool_no_confirmation_reason": "No confirmation reason provided.",
+  "tool_design_doc_id": "Design doc ID",
+  "tool_archive_failed": "Could not archive design doc",
+  "tool_archive_error_summary": "Archive failed: {{message}}",
+  "tool_archived_summary": "Archived {{doc}} — {{title}}"
 }
