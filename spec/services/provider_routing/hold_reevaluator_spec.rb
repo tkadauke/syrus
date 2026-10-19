@@ -70,7 +70,6 @@ RSpec.describe ProviderRouting::HoldReevaluator do
     expect(workflow.provider_routing_holds.active).to be_empty
     expect(workflow.reload.artifact("agent_provider_routing_decision").dig("routing_resolution", "matched_rule", "position")).to eq(2)
   end
-
   it "releases once under concurrent operator requests and records the actor and reason" do
     rule = ProviderRoutingRule.create!(
       scope_type: "repository", scope_id: job.repository_id, task_key: "initial", candidates: [],
