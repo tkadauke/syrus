@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import clearCanvasToolCard from "./clear_canvas"
 import deleteElementToolCard from "./delete_element"
@@ -122,8 +122,9 @@ describe("whiteboard element-action tool cards", () => {
   it.each(CARDS)("$card.toolName includes its representative tool input details", ({ card, action, input, expectedDetails }) => {
     const parsedResult = { id: "el_abc123", version: 1 }
     const type = typeof input.type === "string" ? ` (${input.type})` : ""
+    const endpoints = card === drawArrowToolCard ? ` ${input.from_id} → ${input.to_id}` : ""
 
-    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(`${action}${type} · el_abc123`)
+    expect(card.collapsedSummary?.(context({ toolName: card.toolName, input, parsedResult }))).toBe(`${action}${type}${endpoints} · el_abc123`)
 
     render(<>{card.renderExpanded(context({ toolName: card.toolName, input, parsedResult }))}</>)
     for (const detail of expectedDetails) expect(screen.getAllByText(detail).length).toBeGreaterThan(0)
@@ -217,6 +218,49 @@ describe("whiteboard element-action tool cards", () => {
     expect(screen.getAllByText("actual-file")).toHaveLength(2)
     expect(screen.getAllByText("image/png")).toHaveLength(2)
     expect(screen.getByRole("button", { name: "Open actual-file" })).toBeInTheDocument()
+  })
+
+  it("shows every arrow field with copyable bindings and wrapping-safe layout", () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    const input = {
+      from_id: "source-element-with-a-long-id",
+      to_id: "target-element-with-a-long-id",
+      label: "Moves through review",
+      start_arrowhead: "dot",
+      end_arrowhead: "arrow",
+      color: "#b6492e",
+      stroke_width: 3
+    }
+    const parsedResult = { result: { id: "arrow-1", label_id: "arrow-label-1", version: 8 } }
+
+    expect(drawArrowToolCard.collapsedSummary?.(context({ toolName: "draw_arrow", input, parsedResult }))).toBe(
+      "Drew arrow source-element-with-a-long-id → target-element-with-a-long-id · arrow-1"
+    )
+    render(<>{drawArrowToolCard.renderExpanded(context({ toolName: "draw_arrow", input, parsedResult }))}</>)
+
+    for (const value of ["Moves through review", "#b6492e", "v8"]) expect(screen.getByText(value, { exact: true })).toBeInTheDocument()
+    expect(screen.getByText("Start arrowhead: dot")).toBeInTheDocument()
+    expect(screen.getByText("End arrowhead: arrow")).toBeInTheDocument()
+    expect(screen.getByText("Stroke width: 3")).toBeInTheDocument()
+    expect(screen.getByLabelText("#b6492e")).toHaveStyle({ backgroundColor: "#b6492e" })
+    for (const id of ["source-element-with-a-long-id", "target-element-with-a-long-id", "arrow-1", "arrow-label-1"]) {
+      const copy = screen.getByRole("button", { name: `Copy ${id} to clipboard` })
+      expect(copy).toHaveClass("max-w-full")
+      fireEvent.click(copy)
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(id)
+    }
+    expect(screen.getByText("→").parentElement).toHaveClass("flex-wrap", "sm:flex-nowrap")
+  })
+
+  it("renders empty and malformed arrow results without inventing fields", () => {
+    expect(drawArrowToolCard.collapsedSummary?.(context({ toolName: "draw_arrow", input: {} }))).toBe("Drew arrow pending")
+    const { unmount } = render(<>{drawArrowToolCard.renderExpanded(context({ toolName: "draw_arrow", input: {} }))}</>)
+    expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
+    unmount()
+
+    render(<>{drawArrowToolCard.renderExpanded(context({ toolName: "draw_arrow", input: {}, parsedResult: {} }))}</>)
+    expect(screen.getByText("Result did not include an element ID")).toBeInTheDocument()
+    expect(screen.queryByText("From → To")).not.toBeInTheDocument()
   })
 
   it("renders embed links as safe external anchors and text content as markdown", () => {
