@@ -27,12 +27,10 @@ describe("admin tool card table", () => {
         <THead columns={["Run", "Message"]} />
         <TBody>
           <tr>
-            <Td label="Run" mono primary>
+            <Td mono primary>
               <a href="/runs/1">RUN-1</a>
             </Td>
-            <Td label="Message" wrap>
-              A long diagnostic message
-            </Td>
+            <Td wrap>A long diagnostic message</Td>
           </tr>
         </TBody>
       </Table>
