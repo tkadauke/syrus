@@ -187,5 +187,18 @@
   "tool_section_count_other": "{{doc}}: {{count}} Abschnitte",
   "tool_sections": "Abschnitte",
   "tool_no_sections": "Keine Ueberschriften gefunden.",
-  "tool_untitled_design_doc": "Unbenanntes Design-Dokument"
+  "tool_untitled_design_doc": "Unbenanntes Design-Dokument",
+  "tool_archived": "Archiviert",
+  "tool_immediate": "Sofort",
+  "tool_archive_requested": "Archivierung angefordert",
+  "tool_confirmation_required": "Bestaetigung erforderlich",
+  "tool_state_transition": "Statusuebergang",
+  "tool_reason": "Grund",
+  "tool_confirmation_reason": "Bestaetigungsgrund",
+  "tool_no_archive_reason": "Kein Archivierungsgrund angegeben.",
+  "tool_no_confirmation_reason": "Kein Bestaetigungsgrund angegeben.",
+  "tool_design_doc_id": "Design-Dokument-ID",
+  "tool_archive_failed": "Design-Dokument konnte nicht archiviert werden",
+  "tool_archive_error_summary": "Archivierung fehlgeschlagen: {{message}}",
+  "tool_archived_summary": "{{doc}} archiviert — {{title}}"
 }
