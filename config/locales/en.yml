@@ -283,6 +283,7 @@ en:
       no_preview_configured: "No preview is configured for this repository."
 
     speech_to_text:
+      audio_too_small: "The recording is too short to transcribe."
       backend_batch_unavailable: "Backend batch transcription is not configured."
       backend_streaming_unavailable: "Backend streaming transcription is not configured."
       missing_file: "Attach an audio file."

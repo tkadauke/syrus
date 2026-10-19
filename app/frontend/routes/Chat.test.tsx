@@ -1738,6 +1738,72 @@ describe("chat composer dictation", () => {
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
   })
 
+  it("waits for the terminal recorder chunk before final batch transcription", async () => {
+    class TerminalChunkMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        window.setTimeout(() => {
+          this.ondataavailable?.({ data: new Blob(["a".repeat(512)], { type: "audio/webm" }) } as BlobEvent)
+          this.onstop?.()
+        }, 0)
+      }
+    }
+    vi.stubGlobal("MediaRecorder", TerminalChunkMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }), { batchText: "terminal chunk text" })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+
+    await waitFor(() => expect(textarea).toHaveValue("terminal chunk text"))
+  })
+
+  it("does not upload a rapid-stop recording and preserves composer text", async () => {
+    class TinyMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        this.ondataavailable?.({ data: new Blob(["tiny"], { type: "audio/webm" }) } as BlobEvent)
+        this.onstop?.()
+      }
+    }
+    vi.stubGlobal("MediaRecorder", TinyMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Keep this" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+
+    expect(await screen.findByText("No speech detected.")).toBeInTheDocument()
+    expect(textarea).toHaveValue("Keep this")
+  })
+
   it("keeps browser speech recognition active after backend batch transcription fails", async () => {
     installMediaRecorderMock()
     const recognition = installSpeechRecognitionMock()
@@ -7716,7 +7782,7 @@ function installMediaRecorderMock() {
 
     stop() {
       this.state = "inactive"
-      this.ondataavailable?.({ data: new Blob(["audio"], { type: "audio/webm" }) } as BlobEvent)
+      this.ondataavailable?.({ data: new Blob(["a".repeat(512)], { type: "audio/webm" }) } as BlobEvent)
       this.onstop?.()
     }
   }

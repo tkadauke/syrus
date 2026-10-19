@@ -22,7 +22,7 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     end.update!(enabled: true)
   end
 
-  def upload_file(name: "dictation.webm", content_type: "audio/webm", content: "audio-bytes")
+  def upload_file(name: "dictation.webm", content_type: "audio/webm", content: "a" * 512)
     file = Tempfile.new([ "dictation", File.extname(name) ])
     file.binmode
     file.write(content)
@@ -144,7 +144,7 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
 
     begin
       post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: {
-        file: upload_file(content: "raw audio bytes"),
+        file: upload_file(content: "raw audio bytes" * 32),
         duration_seconds: "3"
       }
     ensure
@@ -170,6 +170,34 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     expect(parse_body.dig("error", "code")).to eq("speech_to_text_transcription_failed")
     expect(parse_body.dig("error", "message")).to eq("model unavailable")
     expect(ChatMessage.count).to eq(0)
+  end
+
+  it "maps backend timeouts and unavailability to retryable gateway statuses" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    allow(ChatSpeechToText::Providers).to receive(:configured).and_return(provider)
+
+    allow(provider).to receive(:transcribe_batch).and_raise(ChatSpeechToText::Providers::TranscriptionTimeout, "Backend transcription timed out.")
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: { file: upload_file }
+    expect(response).to have_http_status(:gateway_timeout)
+    expect(parse_body.dig("error", "code")).to eq("speech_to_text_timeout")
+
+    allow(provider).to receive(:transcribe_batch).and_raise(ChatSpeechToText::Providers::TranscriptionUnavailable, "Backend unavailable.")
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: { file: upload_file }
+    expect(response).to have_http_status(:service_unavailable)
+    expect(parse_body.dig("error", "code")).to eq("speech_to_text_backend_unavailable")
+  end
+
+  it "keeps provider-detected invalid audio as a non-retryable 422" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    allow(ChatSpeechToText::Providers).to receive(:configured).and_return(provider)
+    allow(provider).to receive(:transcribe_batch).and_raise(ChatSpeechToText::Providers::InvalidAudio, "Invalid or truncated audio.")
+
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: { file: upload_file }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_audio")
   end
 
   it "logs backend fallback reasons without runtime config values" do
@@ -207,6 +235,19 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("unsupported_content_type")
+  end
+
+  it "rejects empty and implausibly small audio before calling the backend" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    allow(ChatSpeechToText::Providers).to receive(:configured).and_return(provider)
+    expect(provider).not_to receive(:transcribe_batch)
+
+    [ "", "tiny" ].each do |content|
+      post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: { file: upload_file(content: content) }
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("audio_too_small")
+    end
   end
 
   it "rejects oversized uploads before calling the backend" do

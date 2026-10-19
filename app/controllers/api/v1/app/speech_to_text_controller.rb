@@ -45,7 +45,8 @@ module Api
               audio: file.tempfile,
               content_type: normalized_content_type(file.content_type),
               language: params[:language].presence,
-              prompt: params[:prompt].presence
+              prompt: params[:prompt].presence,
+              correlation_id: request.request_id
             )
           )
 
@@ -68,10 +69,12 @@ module Api
             "error",
             chat_id: params[:chat_id].to_i,
             mode: "backend_batch",
+            request_id: request.request_id,
             duration_ms: started_at ? ChatSpeechToText::Telemetry.duration_ms(started_at) : nil,
             **ChatSpeechToText::Telemetry.safe_error(e)
           )
-          render_error("speech_to_text_transcription_failed", e.message.presence || I18n.t("api.speech_to_text.transcription_failed"), status: :bad_gateway)
+          code, status = transcription_error_response(e)
+          render_error(code, e.message.presence || I18n.t("api.speech_to_text.transcription_failed"), status: status)
         end
 
         def stream
@@ -124,6 +127,11 @@ module Api
             return false
           end
 
+          if file.size.to_i < ChatSpeechToText::AudioConstraints::MIN_BYTES
+            render_error("audio_too_small", I18n.t("api.speech_to_text.audio_too_small"), status: :unprocessable_content)
+            return false
+          end
+
           if file.size.to_i > MAX_AUDIO_BYTES
             render_error("audio_too_large", I18n.t("api.speech_to_text.audio_too_large"), status: :content_too_large)
             return false
@@ -136,6 +144,14 @@ module Api
           end
 
           true
+        end
+
+        def transcription_error_response(error)
+          return [ "invalid_audio", :unprocessable_content ] if error.is_a?(ChatSpeechToText::Providers::InvalidAudio)
+          return [ "speech_to_text_timeout", :gateway_timeout ] if error.is_a?(ChatSpeechToText::Providers::TranscriptionTimeout)
+          return [ "speech_to_text_backend_unavailable", :service_unavailable ] if error.is_a?(ChatSpeechToText::Providers::TranscriptionUnavailable)
+
+          [ "speech_to_text_transcription_failed", :bad_gateway ]
         end
 
         def allowed_audio_content_type?(content_type)

@@ -3,6 +3,7 @@ import { ApiError } from "./client"
 import {
   isTranscriptionAudioFile,
   MAX_TRANSCRIPTION_BYTES,
+  MIN_TRANSCRIPTION_BYTES,
   MAX_TRANSCRIPTION_DURATION_SECONDS,
   TRANSCRIPTION_AUDIO_CONTENT_TYPES,
   transcribeChatAudio
@@ -15,6 +16,10 @@ describe("speech-to-text upload gates", () => {
 
   it("caps size at 10 MB, matching the backend", () => {
     expect(MAX_TRANSCRIPTION_BYTES).toBe(10_485_760)
+  })
+
+  it("rejects recorder output smaller than the backend minimum", () => {
+    expect(MIN_TRANSCRIPTION_BYTES).toBe(256)
   })
 
   it("accepts recorder-friendly audio content types", () => {
@@ -79,6 +84,31 @@ describe("transcribeChatAudio", () => {
     await expect(promise).rejects.toMatchObject(
       new ApiError("model unavailable", { status: 502, code: "speech_to_text_transcription_failed" })
     )
+  })
+
+  it("retries once for 503 and then resolves", async () => {
+    const requests: FakeXMLHttpRequest[] = []
+    vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))
+    const promise = transcribeChatAudio({
+      chatSessionId: 42,
+      file: new Blob(["audio"], { type: "audio/webm" }),
+      filename: "dictation.webm"
+    })
+
+    requests[0].respond(503, { error: { code: "speech_to_text_backend_unavailable", message: "unavailable" } })
+    expect(requests).toHaveLength(2)
+    requests[1].respond(200, { transcript: { text: "recovered", source: "backend_batch", confidence: null } })
+    await expect(promise).resolves.toMatchObject({ transcript: { text: "recovered" } })
+  })
+
+  it("does not retry 4xx responses", async () => {
+    const requests: FakeXMLHttpRequest[] = []
+    vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))
+    const promise = transcribeChatAudio({ chatSessionId: 42, file: new Blob(["x"]), filename: "dictation.webm" })
+    requests[0].respond(422, { error: { code: "audio_too_small", message: "too short" } })
+
+    await expect(promise).rejects.toMatchObject({ status: 422, code: "audio_too_small" })
+    expect(requests).toHaveLength(1)
   })
 })
 
