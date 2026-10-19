@@ -31,7 +31,7 @@ module Mcp::Tools
 
         actions = RefMovementActionsSummary.for(repository: repository, job: job)
 
-        Mcp::Tools.success(repository: repository.slug, job_id: job&.id, ref_movement_actions: actions)
+        Mcp::Tools.success(repository: repository.slug, repository_id: repository.id, job_id: job&.id, ref_movement_actions: actions)
       end
     end
   end

@@ -1,8 +1,15 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, EmptyState } from "../toolCardUi"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { DataTable } from "../../../components/ui"
+import { TBody, Table, Td, THead } from "../adminToolCard"
+import { MarkdownPreview } from "../toolCardMarkdown"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for list_ref_movement_actions (the tool-card work).
-type ActionRow = { name: string; enabled: boolean; mode: string | null; available: boolean; blockedReason: string | null }
+type ActionRow = { name: string; enabled: boolean; mode: string | null; gradePhases: string[]; available: boolean; blockedReason: string | null }
+type Card =
+  | { kind: "actions"; repository: string | null; repositoryId: number | null; jobId: number | null; rows: ActionRow[] }
+  | { kind: "error"; message: string }
+  | { kind: "malformed" }
 
 function parseRow(value: unknown): ActionRow | null {
   if (!isPlainObject(value)) return null
@@ -13,56 +20,96 @@ function parseRow(value: unknown): ActionRow | null {
     name,
     enabled: value.enabled === true,
     mode: displayValue(value.mode),
+    gradePhases: Array.isArray(value.grade_phases) ? value.grade_phases.flatMap((phase) => displayValue(phase) ?? []) : [],
     available: value.available === true,
     blockedReason: displayValue(value.blocked_reason)
   }
 }
 
-function parseRows(context: ToolCardContext): ActionRow[] | null {
+function parseCard(context: ToolCardContext): Card {
+  if (context.resultError) return { kind: "error", message: displayValue(context.resultBody) ?? "Could not list ref movement actions." }
   const parsed = context.parsedResult
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.ref_movement_actions)) return null
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.ref_movement_actions)) return { kind: "malformed" }
 
-  return parsed.ref_movement_actions.flatMap((item) => {
-    const row = parseRow(item)
-    return row ? [row] : []
-  })
+  return {
+    kind: "actions",
+    repository: displayValue(parsed.repository),
+    repositoryId: numberValue(parsed.repository_id),
+    jobId: numberValue(parsed.job_id) ?? numberValue(context.input?.job_id),
+    rows: parsed.ref_movement_actions.flatMap((item) => {
+      const row = parseRow(item)
+      return row ? [row] : []
+    })
+  }
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const rows = parseRows(context)
-  if (!rows) return null
-  const availableCount = rows.filter((row) => row.available).length
-  return `${availableCount}/${rows.length} ref movement action${rows.length === 1 ? "" : "s"} available`
+  const card = parseCard(context)
+  if (card.kind === "error") return "Ref movement actions failed"
+  if (card.kind === "malformed") return null
+  const availableCount = card.rows.filter((row) => row.available).length
+  return `${availableCount}/${card.rows.length} ref movement action${card.rows.length === 1 ? "" : "s"} available`
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const rows = parseRows(context)
-  if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No ref movement actions configured.</EmptyState>
+  const card = parseCard(context)
+  if (card.kind === "malformed") return null
+  if (card.kind === "error") return <EmptyState>{card.message}</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Action</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Mode</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Availability</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.name}>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-800 dark:text-gray-200">{row.name}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.mode || "—"}</td>
-              <td className="px-2 py-1 text-gray-600 dark:text-gray-300">
-                {row.available ? <Badge>available</Badge> : <span title={row.blockedReason ?? undefined}>{row.blockedReason || "blocked"}</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <CardShell>
+      {card.repository ? (
+        <div className="min-w-0">
+          <SectionLabel>Repository</SectionLabel>
+          <EntityReference kind="repository" repositoryId={card.repositoryId} repositorySlug={card.repository} />
+        </div>
+      ) : null}
+      {card.jobId != null ? (
+        <div className="min-w-0">
+          <SectionLabel>Job</SectionLabel>
+          <EntityReference id={card.jobId} kind="job" />
+        </div>
+      ) : null}
+      {card.rows.length === 0 ? (
+        <EmptyState>No ref movement actions configured.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["Action", "Enabled", "Mode", "Grade phases", "Availability"]} />
+          <TBody>
+            {card.rows.map((row) => (
+              <DataTable.Row key={row.name}>
+                <Td mono primary>
+                  {row.name}
+                </Td>
+                <Td>
+                  <StatePill state={row.enabled ? "enabled" : "disabled"} tone={row.enabled ? "success" : "neutral"} />
+                </Td>
+                <Td>{row.mode || "—"}</Td>
+                <Td wrap>
+                  {row.gradePhases.length > 0 ? (
+                    <span className="flex flex-wrap gap-1">
+                      {row.gradePhases.map((phase) => (
+                        <Badge key={phase}>{phase}</Badge>
+                      ))}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </Td>
+                <Td wrap>
+                  <div className="space-y-1">
+                    <StatePill state={row.available ? "available" : "blocked"} tone={row.available ? "success" : "warning"} />
+                    {!row.available && row.blockedReason ? (
+                      <MarkdownPreview maxLines={3} modalLabel={`Blocked reason for ${row.name}`} text={row.blockedReason} />
+                    ) : null}
+                  </div>
+                </Td>
+              </DataTable.Row>
+            ))}
+          </TBody>
+        </Table>
+      )}
+    </CardShell>
   )
 }
 
@@ -73,3 +120,33 @@ const listRefMovementActionsToolCard: ToolCardRenderer = {
 }
 
 export default listRefMovementActionsToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "mixed_availability",
+    label: "Enabled and disabled actions",
+    input: { job_id: 42 },
+    parsedResult: {
+      repository: "tkadauke/syrus",
+      repository_id: 1,
+      job_id: 42,
+      ref_movement_actions: [
+        { name: "send_job_upstream", enabled: true, mode: "manual_pr", grade_phases: ["review", "landing"], available: true, blocked_reason: null },
+        {
+          name: "submit_branch_upstream",
+          enabled: false,
+          mode: null,
+          grade_phases: [],
+          available: false,
+          blocked_reason: "Disabled in **delivery.ref_movement_actions**."
+        }
+      ]
+    }
+  },
+  {
+    id: "no_actions",
+    label: "No configured actions",
+    parsedResult: { repository: "tkadauke/syrus", repository_id: 1, job_id: null, ref_movement_actions: [] }
+  },
+  { id: "tool_error", label: "Tool error", resultBody: "Error: no repository attached", resultError: true }
+]

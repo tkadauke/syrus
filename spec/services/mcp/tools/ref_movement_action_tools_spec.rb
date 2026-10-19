@@ -22,6 +22,7 @@ RSpec.describe "Mcp::Tools ref-movement action tools" do
       response = described_class.call(server_context: chat_context)
 
       expect(response).not_to be_error
+      expect(payload(response)).to include(repository: fork_repo.slug, repository_id: fork_repo.id, job_id: nil)
       expect(payload(response)[:ref_movement_actions]).to eq([])
     end
 
