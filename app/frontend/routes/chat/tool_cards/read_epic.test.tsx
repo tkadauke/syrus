@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import readEpicToolCard from "./read_epic"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -89,7 +90,83 @@ describe("read_epic tool card", () => {
     expect(screen.getByText("Child Jobs (1/2)")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-319" })).toHaveAttribute("href", "/jobs/319")
     expect(screen.getByRole("link", { name: "JOB-320" })).toHaveAttribute("href", "/jobs/320")
-    expect(screen.getByText("JOB-319 waits for JOB-318 · stage production · latest Staging")).toBeInTheDocument()
+    expect(screen.getByText("Add extension point")).toBeVisible()
+    expect(screen.getByText("Waits for")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-318" })).toHaveAttribute("href", "/jobs/318")
+    expect(screen.getByText("· stage production · latest Staging")).toBeInTheDocument()
+  })
+
+  it("renders descriptions, provenance, lag, and all child Job details with links", () => {
+    const parsedResult = {
+      epic: {
+        id: 291,
+        display_number: "EPIC-291",
+        title: "Detailed Epic",
+        state: "running",
+        repository: "tkadauke/syrus",
+        github_issue_url: "https://github.com/tkadauke/syrus/issues/9",
+        description: { text: "Epic **markdown** description", truncated: true, bytes: 40_000, omitted_bytes: 7_232 },
+        auto_approve_mode: "after_review",
+        goal_provenance: { chat_goal_id: 55, prompt_snapshot: { prompt: "Complete the **goal**" } },
+        max_commits_behind_base: 7,
+        furthest_behind_job: { id: 319, slug: "JOB-319" }
+      },
+      child_jobs: [
+        {
+          id: 319,
+          issue_title: "Visible child title",
+          issue_body: { text: "Child *markdown* body", truncated: true, bytes: 20_000, omitted_bytes: 3_616 },
+          state: "closed",
+          repository: "tkadauke/syrus",
+          pr_number: 123,
+          branch_name: "syrus/example",
+          priority: "high",
+          agent_provider: "codex",
+          job_provider_setting: "inherit",
+          closure_reason: "merged",
+          landed_sha: "abcdef123456",
+          depends_on_jobs: [{ unresolved_ref: "foundation-job", satisfaction_mode: "closed" }]
+        }
+      ]
+    }
+
+    render(<>{readEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getAllByTestId("markdown-preview-content")[0]).toHaveTextContent("Epic markdown description")
+    expect(screen.getAllByTestId("markdown-preview-content")[2]).toHaveTextContent("Child markdown body")
+    expect(screen.getAllByText(/Source text was truncated/)).toHaveLength(2)
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("link", { name: "GitHub issue" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/issues/9")
+    expect(screen.getByRole("link", { name: "CHAT-55" })).toHaveAttribute("href", "/chats/55")
+    expect(screen.getByRole("link", { name: "PR #123" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/123")
+    expect(screen.getByText("syrus/example")).toBeInTheDocument()
+    expect(screen.getByText("codex (inherit)")).toBeInTheDocument()
+    expect(screen.getByText("merged")).toBeInTheDocument()
+    expect(screen.getByText("abcdef123456")).toBeInTheDocument()
+    expect(screen.getByText("foundation-job")).toBeVisible()
+    expect(screen.getByText("7 commits")).toBeInTheDocument()
+  })
+
+  it("uses the shared normalizers for text and structured MCP envelopes and prefixed names", () => {
+    const result = { epic: { id: 291, title: "Normalized", state: "running" }, child_jobs: [] }
+    const textEnvelope = { content: [{ type: "text", text: JSON.stringify(result) }], structured_content: null }
+    const structuredEnvelope = { content: [{ type: "text", text: "ignored" }], structured_content: result }
+
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__read_epic")).toBe("read_epic")
+    expect(readEpicToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(textEnvelope) }))).toBe("EPIC-291: Normalized")
+    expect(readEpicToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(structuredEnvelope) }))).toBe("EPIC-291: Normalized")
+  })
+
+  it("renders error and pending cards", () => {
+    const { rerender } = render(<>{readEpicToolCard.renderExpanded(context({ input: { id: 291 }, resultError: true, resultBody: "Epic not found" }))}</>)
+    expect(screen.getByText("Epic not found")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-291" })).toHaveAttribute("href", "/epics/291")
+    expect(readEpicToolCard.collapsedSummary?.(context({ input: { id: 291 }, resultError: true }))).toBe("Failed to read EPIC-291")
+
+    rerender(<>{readEpicToolCard.renderExpanded(context({ input: { epic_id: 292 } }))}</>)
+    expect(screen.getByText("Waiting for the Epic result.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-292" })).toHaveAttribute("href", "/epics/292")
+    expect(readEpicToolCard.collapsedSummary?.(context({ input: { epic_id: 292 } }))).toBe("Reading EPIC-292…")
   })
 
   it("omits optional sections when fields are missing", () => {
@@ -101,7 +178,8 @@ describe("read_epic tool card", () => {
     // display_number/title are absent, so it legitimately appears twice.
     expect(screen.getAllByText("EPIC-291")).toHaveLength(2)
     expect(screen.queryByText("Depends on")).not.toBeInTheDocument()
-    expect(screen.queryByText(/Child Jobs/)).not.toBeInTheDocument()
+    expect(screen.getByText("Child Jobs (0/0)")).toBeInTheDocument()
+    expect(screen.getByText("No child Jobs.")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload (missing epic object)", () => {
@@ -110,6 +188,6 @@ describe("read_epic tool card", () => {
   })
 
   it("falls back to null for a non-object payload", () => {
-    expect(readEpicToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
+    expect(readEpicToolCard.renderExpanded(context({ parsedResult: "not json", resultBody: "not json" }))).toBeNull()
   })
 })

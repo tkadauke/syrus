@@ -4,7 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, updateChatPreviewPanelVisibility } from "../../api/chats"
+import {
+  closeChatPreviewPanel,
+  fetchChatMedia,
+  fetchChatMessagePins,
+  fetchChatPreviewPanelAccessToken,
+  fetchChatPreviewPanelFile,
+  fetchCodingCommits,
+  fetchCodingDiff,
+  fetchCodingFileContent,
+  fetchCodingFileTree,
+  fetchWhiteboardSnapshots,
+  updateChatPreviewPanelVisibility
+} from "../../api/chats"
 import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
@@ -45,7 +57,11 @@ vi.mock("../../api/chats", async (importOriginal) => {
 
 vi.mock("../../pluginWorkspaceTabs", () => ({
   pluginWorkspaceTabComponentFor: (key: string | null | undefined) =>
-    key === "test_plugin/DemoTab" ? function DemoTab() { return <div>Demo tab content</div> } : null
+    key === "test_plugin/DemoTab"
+      ? function DemoTab() {
+          return <div>Demo tab content</div>
+        }
+      : null
 }))
 
 function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload {
@@ -164,14 +180,17 @@ function makePlanningFilesPayload(overrides: Partial<ChatPayload> = {}): ChatPay
   }
 }
 
-function renderWorkspacePanel(payload: ChatPayload, options: {
-  activeTab?: WorkspaceTab
-  onSelectTab?: (tab: WorkspaceTab | null) => void
-  onToggleCollapse?: () => void
-  onBookmarkSelect?: (messageId: number) => void
-  onNotice?: (message: string | null) => void
-  contextFindOpenerRef?: { current: (() => boolean) | null }
-} = {}) {
+function renderWorkspacePanel(
+  payload: ChatPayload,
+  options: {
+    activeTab?: WorkspaceTab
+    onSelectTab?: (tab: WorkspaceTab | null) => void
+    onToggleCollapse?: () => void
+    onBookmarkSelect?: (messageId: number) => void
+    onNotice?: (message: string | null) => void
+    contextFindOpenerRef?: { current: (() => boolean) | null }
+  } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   if (options.activeTab !== "pinned") {
     client.setQueryData(chatPinsQueryKey(payload.chat.id, ""), { pins: [] })
@@ -234,21 +253,23 @@ describe("ChatSettingsDialog", () => {
   })
 
   it("does not render workflow failover copy in chat provider settings", () => {
-    renderDialog(makePayload({
-      effective_chat_provider: "claude",
-      effective_chat_provider_label: "Claude",
-      provider_availability: {
-        provider: "claude",
-        label: "Claude Code",
-        model: null,
-        state: "open",
-        open: true,
-        usage_exhausted: false,
-        retry_after: "2026-08-01T12:10:00Z",
-        reason: "Provider appears temporarily unavailable.",
-        message: "Claude Code appears temporarily unavailable."
-      }
-    }))
+    renderDialog(
+      makePayload({
+        effective_chat_provider: "claude",
+        effective_chat_provider_label: "Claude",
+        provider_availability: {
+          provider: "claude",
+          label: "Claude Code",
+          model: null,
+          state: "open",
+          open: true,
+          usage_exhausted: false,
+          retry_after: "2026-08-01T12:10:00Z",
+          reason: "Provider appears temporarily unavailable.",
+          message: "Claude Code appears temporarily unavailable."
+        }
+      })
+    )
 
     expect(screen.getByText("Claude")).toBeInTheDocument()
     expect(screen.queryByText(/running this workflow with/)).not.toBeInTheDocument()
@@ -303,26 +324,35 @@ describe("ChatWorkspacePanel coding files", () => {
   })
 
   it("pauses busy polling after the coding relay reports unavailable", async () => {
-    vi.mocked(fetchCodingFileTree).mockRejectedValue(new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
-      status: 503,
-      code: "relay_unavailable",
-      retryAfter: 30
-    }))
+    vi.mocked(fetchCodingFileTree).mockRejectedValue(
+      new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
+        status: 503,
+        code: "relay_unavailable",
+        retryAfter: 30
+      })
+    )
 
-    renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
+    vi.useFakeTimers()
+    try {
+      renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
 
-    await waitFor(() => expect(fetchCodingFileTree).toHaveBeenCalledTimes(1))
-    await new Promise((resolve) => window.setTimeout(resolve, 3_200))
-
-    expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
+      await act(async () => vi.advanceTimersByTimeAsync(3_200))
+      expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("shows a not-ready message instead of a hard error when the checkout isn't cloned yet", async () => {
-    vi.mocked(fetchCodingFileTree).mockRejectedValue(new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
-      status: 503,
-      code: "relay_unavailable",
-      retryAfter: 30
-    }))
+    vi.mocked(fetchCodingFileTree).mockRejectedValue(
+      new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
+        status: 503,
+        code: "relay_unavailable",
+        retryAfter: 30
+      })
+    )
 
     renderWorkspacePanel(makeCodingPayload())
 
@@ -934,7 +964,13 @@ describe("MediaGallery artifacts", () => {
           renderer_type: "erd_diagram",
           payload: {
             tables: [
-              { name: "users", columns: [{ name: "id", type: "bigint" }, { name: "email", type: "string" }] }
+              {
+                name: "users",
+                columns: [
+                  { name: "id", type: "bigint" },
+                  { name: "email", type: "string" }
+                ]
+              }
             ]
           }
         }
@@ -1274,12 +1310,14 @@ describe("MediaGallery images", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Attach to message" }))
 
-    await waitFor(() => expect(attachMediaLibraryImage).toHaveBeenCalledWith({
-      chatId: "1",
-      url: "/api/v1/app/repository_documents/1/file",
-      name: "old.png",
-      mimeType: "image/png"
-    }))
+    await waitFor(() =>
+      expect(attachMediaLibraryImage).toHaveBeenCalledWith({
+        chatId: "1",
+        url: "/api/v1/app/repository_documents/1/file",
+        name: "old.png",
+        mimeType: "image/png"
+      })
+    )
   })
 })
 
@@ -1300,10 +1338,7 @@ describe("ChatWorkspacePanel pinned tab", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "pinned" })
 
     const rows = await screen.findAllByRole("listitem")
-    expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Second pinned note."),
-      expect.stringContaining("First pinned note.")
-    ])
+    expect(rows.map((row) => row.textContent)).toEqual([expect.stringContaining("Second pinned note."), expect.stringContaining("First pinned note.")])
     expect(screen.getByText("Assistant")).toBeInTheDocument()
     expect(screen.getByText("You")).toBeInTheDocument()
   })
@@ -1350,10 +1385,9 @@ describe("ChatWorkspacePanel local diff tab", () => {
 
     const { unmount } = renderWorkspacePanel(makeLocalDiffPayload(), { activeTab: "diff" })
 
-    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: "LocalDiffChannel" }),
-      expect.anything()
-    ))
+    await waitFor(() =>
+      expect(actionCable.createSubscription).toHaveBeenCalledWith(expect.objectContaining({ channel: "LocalDiffChannel" }), expect.anything())
+    )
     // Only one underlying WebSocket (the shared consumer) backs the panel.
     expect(actionCable.createConsumer).toHaveBeenCalledTimes(1)
 
@@ -1478,7 +1512,7 @@ describe("ChatWorkspacePanel preview panels", () => {
           entry_path: "index.html",
           entry_content_type: "text/html",
           entry_viewer_kind: "html",
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" } ]
+          versions: [{ id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" }]
         }
       ]
     }
@@ -1531,18 +1565,17 @@ describe("ChatWorkspacePanel preview panels", () => {
     fireEvent.click(options[1])
 
     expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/?v=101")
-    expect(screen.getByRole("link", { name: "Open Layout mockup in new tab" })).toHaveAttribute(
-      "href",
-      "http://preview-panel-7.lvh.me/?v=101"
-    )
-    expect(screen.getByRole("link", { name: "Export Layout mockup as zip" })).toHaveAttribute(
-      "href",
-      "/api/v1/app/chats/1/preview_panels/7/export?v=101"
-    )
+    expect(screen.getByRole("link", { name: "Open Layout mockup in new tab" })).toHaveAttribute("href", "http://preview-panel-7.lvh.me/?v=101")
+    expect(screen.getByRole("link", { name: "Export Layout mockup as zip" })).toHaveAttribute("href", "/api/v1/app/chats/1/preview_panels/7/export?v=101")
   })
 
   it("renders Markdown entries with a preview/source toggle", async () => {
-    vi.mocked(fetchChatPreviewPanelFile).mockResolvedValue({ content: "# Notes\n\nDiscuss **roads**.", binary: false, too_large: false, content_type: "text/markdown" })
+    vi.mocked(fetchChatPreviewPanelFile).mockResolvedValue({
+      content: "# Notes\n\nDiscuss **roads**.",
+      binary: false,
+      too_large: false,
+      content_type: "text/markdown"
+    })
     const payload = {
       ...payloadWithPanel(),
       preview_panels: [
@@ -1552,7 +1585,9 @@ describe("ChatWorkspacePanel preview panels", () => {
           entry_path: "notes.md",
           entry_content_type: "text/markdown",
           entry_viewer_kind: "markdown" as const,
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "notes.md", entry_content_type: "text/markdown", entry_viewer_kind: "markdown" as const } ]
+          versions: [
+            { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "notes.md", entry_content_type: "text/markdown", entry_viewer_kind: "markdown" as const }
+          ]
         }
       ]
     }
@@ -1574,7 +1609,9 @@ describe("ChatWorkspacePanel preview panels", () => {
           entry_path: "report.pdf",
           entry_content_type: "application/pdf",
           entry_viewer_kind: "pdf" as const,
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "report.pdf", entry_content_type: "application/pdf", entry_viewer_kind: "pdf" as const } ]
+          versions: [
+            { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "report.pdf", entry_content_type: "application/pdf", entry_viewer_kind: "pdf" as const }
+          ]
         }
       ]
     }
@@ -1594,7 +1631,9 @@ describe("ChatWorkspacePanel preview panels", () => {
           entry_path: "diagram.svg",
           entry_content_type: "image/svg+xml",
           entry_viewer_kind: "image" as const,
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "diagram.svg", entry_content_type: "image/svg+xml", entry_viewer_kind: "image" as const } ]
+          versions: [
+            { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "diagram.svg", entry_content_type: "image/svg+xml", entry_viewer_kind: "image" as const }
+          ]
         }
       ]
     }
@@ -1618,7 +1657,15 @@ describe("ChatWorkspacePanel preview panels", () => {
           entry_path: "notes.txt",
           entry_content_type: "text/plain",
           entry_viewer_kind: "unsupported" as const,
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "notes.txt", entry_content_type: "text/plain", entry_viewer_kind: "unsupported" as const } ]
+          versions: [
+            {
+              id: 100,
+              created_at: "2026-08-20T10:00:00Z",
+              entry_path: "notes.txt",
+              entry_content_type: "text/plain",
+              entry_viewer_kind: "unsupported" as const
+            }
+          ]
         }
       ]
     }
@@ -1682,7 +1729,9 @@ describe("ChatWorkspacePanel preview panel sharing", () => {
   it("requests an access token and waits before rendering a private panel's iframe", async () => {
     let resolveToken: (value: { token: string; expires_in: number }) => void = () => {}
     vi.mocked(fetchChatPreviewPanelAccessToken).mockReturnValue(
-      new Promise((resolve) => { resolveToken = resolve })
+      new Promise((resolve) => {
+        resolveToken = resolve
+      })
     )
 
     renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
@@ -1727,14 +1776,14 @@ describe("ChatWorkspacePanel preview panel sharing", () => {
 
   function payloadWithPanelVisibility(visibility: "private" | "public"): ChatPayload {
     const payload = payloadWithPrivatePanel()
-    return { ...payload, preview_panels: [ { ...payload.preview_panels[0], visibility } ] }
+    return { ...payload, preview_panels: [{ ...payload.preview_panels[0], visibility }] }
   }
 
   it("shows the current visibility and switches to public through the API", async () => {
     vi.mocked(fetchChatPreviewPanelAccessToken).mockResolvedValue({ token: "signed-token", expires_in: 86400 })
     vi.mocked(updateChatPreviewPanelVisibility).mockResolvedValue({
       ...payloadWithPanelVisibility("public"),
-      preview_panels: [ { ...payloadWithPrivatePanel().preview_panels[0], visibility: "public" } ]
+      preview_panels: [{ ...payloadWithPrivatePanel().preview_panels[0], visibility: "public" }]
     })
 
     renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
@@ -1781,9 +1830,7 @@ describe("ChatWorkspacePanel plugin tabs", () => {
   function payloadWithPluginTab(): ChatPayload {
     return {
       ...makePayload(),
-      workspace_tabs: [
-        { id: "test_plugin.demo_tab", label: "Demo Tab", label_key: null, component: "test_plugin/DemoTab", order: 100 }
-      ]
+      workspace_tabs: [{ id: "test_plugin.demo_tab", label: "Demo Tab", label_key: null, component: "test_plugin/DemoTab", order: 100 }]
     }
   }
 
@@ -1802,9 +1849,7 @@ describe("ChatWorkspacePanel plugin tabs", () => {
   it("shows an unavailable message for a tab whose component cannot be resolved", async () => {
     const payload: ChatPayload = {
       ...makePayload(),
-      workspace_tabs: [
-        { id: "missing.tab", label: "Missing", label_key: null, component: "missing/Nope", order: 0 }
-      ]
+      workspace_tabs: [{ id: "missing.tab", label: "Missing", label_key: null, component: "missing/Nope", order: 0 }]
     }
 
     renderWorkspacePanel(payload, { activeTab: "plugin:missing.tab" as WorkspaceTab })
@@ -1824,8 +1869,40 @@ describe("ChatWorkspacePanel plugin tabs", () => {
         confirmed_proposal_count: 1
       }),
       preview_panels: [
-        { id: 7, title: "DOC-20", file_count: 1, url: "https://example.test/7", app_close_path: "/panels/7", app_visibility_path: "/panels/7/visibility", app_export_path: "/panels/7/export", app_file_base_path: "/panels/7/files", app_token_path: "/panels/7/token", visibility: "public", current_version_id: null, entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html", versions: [] },
-        { id: 8, title: "DOC-17", file_count: 1, url: "https://example.test/8", app_close_path: "/panels/8", app_visibility_path: "/panels/8/visibility", app_export_path: "/panels/8/export", app_file_base_path: "/panels/8/files", app_token_path: "/panels/8/token", visibility: "public", current_version_id: null, entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html", versions: [] }
+        {
+          id: 7,
+          title: "DOC-20",
+          file_count: 1,
+          url: "https://example.test/7",
+          app_close_path: "/panels/7",
+          app_visibility_path: "/panels/7/visibility",
+          app_export_path: "/panels/7/export",
+          app_file_base_path: "/panels/7/files",
+          app_token_path: "/panels/7/token",
+          visibility: "public",
+          current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
+          versions: []
+        },
+        {
+          id: 8,
+          title: "DOC-17",
+          file_count: 1,
+          url: "https://example.test/8",
+          app_close_path: "/panels/8",
+          app_visibility_path: "/panels/8/visibility",
+          app_export_path: "/panels/8/export",
+          app_file_base_path: "/panels/8/files",
+          app_token_path: "/panels/8/token",
+          visibility: "public",
+          current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
+          versions: []
+        }
       ],
       workspace_tabs: [
         { id: "design_docs.inline", label: "Design Doc Inline Comments", label_key: null, component: "test_plugin/DemoTab", order: 20 },

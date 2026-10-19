@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_053736) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -444,7 +444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
   create_table "chat_bridge_threads", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "hop_count", default: 0, null: false
-    t.integer "max_hops", default: 6, null: false
+    t.integer "max_hops", default: 100, null: false
     t.integer "opened_by_user_id", null: false
     t.integer "origin_chat_session_id", null: false
     t.string "state", default: "open", null: false

@@ -25,6 +25,7 @@ type SlugTone = "default" | "inverted"
 
 type LinkifySlugOptions = {
   hoverCards?: boolean
+  hrefFallbacks?: Record<string, string>
   jobStyle?: "link" | "copyable"
   slugStyle?: "link" | "copyable"
   tone?: SlugTone
@@ -36,7 +37,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
   const tone = options.tone ?? "default"
 
   return text.split(slugPattern).map((part, index) => {
-    const reference = parseSlugReference(part)
+    const reference = parseSlugReference(part, options.hrefFallbacks)
     if (!reference) {
       if (slugStyle === "copyable" && /^([A-Z]{2,}(?:_[A-Z0-9]+)*-\d+)$/.test(part)) {
         return <CopyableSlug className="text-xs normal-case" key={index} slug={part} tone={tone} />
@@ -65,17 +66,47 @@ export function containsSlug(text: string) {
   return /[A-Z]{2,}(?:_[A-Z0-9]+)*-\d+/.test(text)
 }
 
-function parseSlugReference(slug: string) {
+function parseSlugReference(slug: string, hrefFallbacks?: Record<string, string>) {
   const match = slug.match(/^([A-Z]{2,}(?:_[A-Z0-9]+)*)-(\d+)$/)
   if (!match) return null
 
-  const entry = slugReferenceRegistryEntryForPrefix(match[1])
+  const prefix = match[1]
+  const entry = slugReferenceRegistryEntryForPrefix(prefix) ?? fallbackEntry(prefix, hrefFallbacks?.[prefix])
   if (!entry) return null
 
   return { entry, id: Number(match[2]), slug }
 }
 
-function SlugReferenceControl({ copyOnly, entry, id, slug, tone }: { copyOnly: boolean; entry: SlugReferenceRegistryEntry; id: number; slug: string; tone: SlugTone }) {
+function fallbackEntry(prefix: string, hrefTemplate: string | undefined): SlugReferenceRegistryEntry | null {
+  if (!hrefTemplate) return null
+
+  return {
+    prefix,
+    type: prefix.toLowerCase(),
+    displayLabel: prefix,
+    copyable: false,
+    linkable: true,
+    previewAvailable: false,
+    linkifiesGeneratedText: true,
+    hrefTemplate,
+    mobileInteractionHints: {},
+    pluginPreviewComponent: null
+  }
+}
+
+function SlugReferenceControl({
+  copyOnly,
+  entry,
+  id,
+  slug,
+  tone
+}: {
+  copyOnly: boolean
+  entry: SlugReferenceRegistryEntry
+  id: number
+  slug: string
+  tone: SlugTone
+}) {
   const href = hrefForSlugReference(entry, id)
 
   if (copyOnly && entry.copyable) return <CopyableSlug className="text-xs normal-case" slug={slug} tone={tone} />
@@ -121,7 +152,9 @@ function LinkedCopyableSlug({ href, slug, tone }: { href: string; slug: string; 
         title={copied ? t("copy.copied") : t("copy.copy", { slug })}
         type="button"
       >
-        <CopyIcon className={`h-3.5 w-3.5 ${copied ? (tone === "inverted" ? "text-on-brand" : "text-success-text") : (tone === "inverted" ? "group-hover:text-on-brand" : "group-hover:text-text-primary")}`} />
+        <CopyIcon
+          className={`h-3.5 w-3.5 ${copied ? (tone === "inverted" ? "text-on-brand" : "text-success-text") : tone === "inverted" ? "group-hover:text-on-brand" : "group-hover:text-text-primary"}`}
+        />
       </button>
     </span>
   )

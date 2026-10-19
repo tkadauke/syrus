@@ -49,8 +49,11 @@ module WorkerTimeline
       hostname = sample&.hostname || host_processes.first&.hostname || hostname_for_key(key)
       slots = active_slots.select { |slot| slot[:worker_storage_key].presence == key || (slot[:worker_storage_key].blank? && host_key_for(hostname: slot[:hostname]) == key) }
       pools = pools_for(key, host_processes, slots)
-      total_slots = pools.sum { |pool| pool[:capacity].to_i }
-      used_slots = occupancy_units(slots)
+      used_slots = occupied_units(slots)
+      # An unreadable pool size must not become an overload claim: fall back to
+      # the occupied count so the host reads as busy rather than over capacity.
+      capacity_known = pools.any? && pools.none? { |pool| pool[:capacity].nil? }
+      total_slots = capacity_known ? pools.sum { |pool| pool[:capacity].to_i } : used_slots
       total_slots = used_slots if total_slots.zero?
       health = health_payload(sample)
       status = status_for(used_slots: used_slots, total_slots: total_slots, health: health)
@@ -87,8 +90,8 @@ module WorkerTimeline
         hostname: unassigned.first[:hostname],
         pid: nil,
         queues: [ "inferred" ],
-        capacity: occupancy_units(unassigned),
-        used: occupancy_units(unassigned),
+        capacity: occupied_units(unassigned),
+        used: occupied_units(unassigned),
         status: "busy",
         last_heartbeat_at: nil,
         slots: unassigned
@@ -99,14 +102,17 @@ module WorkerTimeline
       candidates = pool_states.select { |state| slot_matches_pool?(slot, state[:queues]) }
       candidates.min_by do |state|
         occupied = occupancy_units(state[:slots])
-        saturation = state[:capacity].positive? ? occupied.to_f / state[:capacity] : occupied
+        # A pool whose size could not be read has no saturation to compare;
+        # fall back to raw occupancy so it still participates in the choice.
+        capacity = state[:capacity].to_i
+        saturation = capacity.positive? ? occupied.to_f / capacity : occupied
         [ saturation, state[:slots].length, state[:process].pid.to_i ]
       end
     end
 
     def pool_payload(state)
       process = state[:process]
-      used = occupancy_units(state[:slots])
+      used = occupied_units(state[:slots])
       capacity = state[:capacity]
       {
         key: "#{process.hostname}:#{process.pid}",
@@ -162,6 +168,23 @@ module WorkerTimeline
       workflow&.worker_storage_key.presence || host_key_for(hostname: hostname)
     end
 
+    # A worker thread is occupied by work that is *executing*: a live spawned
+    # process, or a Run claimed and running on this host. A Workflow or Step
+    # slot with neither is work the host has been assigned and has not started
+    # -- it is waiting behind the agent-concurrency cap, on placement, or
+    # between steps -- and it occupies no thread.
+    #
+    # Counting those as occupancy is what produced "overloaded" cards on hosts
+    # whose CPU and memory were flat: a burst of Jobs pins many running
+    # Workflows to a host while only a handful of Runs execute cluster-wide.
+    # The raw slot count stays in `occupancy[:slots]`, which is useful; it just
+    # is not an occupancy figure.
+    OCCUPYING_ATTRIBUTIONS = %w[ spawned_process run ].freeze
+
+    def occupied_units(slots)
+      occupancy_units(Array(slots).select { |slot| OCCUPYING_ATTRIBUTIONS.include?(slot[:attribution].to_s) })
+    end
+
     def occupancy_units(slots)
       Array(slots).map do |slot|
         if slot[:run_id].present? then [ :run, slot[:run_id] ]
@@ -172,11 +195,28 @@ module WorkerTimeline
       end.uniq.length
     end
 
+    # SolidQueue records a worker pool's thread count as `pool_size`. This read
+    # asked for `thread_pool_size`, which no process has ever written, so every
+    # pool resolved to nil -> 0 -> clamped to 1. A host running pools of 3 and 5
+    # threads reported a capacity of 2, and any host with more running work than
+    # registered processes was declared "overloaded" while sitting near idle.
+    #
+    # The clamp is what hid it: it turned "I could not read this" into a
+    # plausible number. An unreadable size now returns nil, and the caller
+    # declines to claim overload rather than inventing a denominator.
+    POOL_SIZE_KEYS = %w[ pool_size thread_pool_size ].freeze
+
     def pool_capacity(process)
-      Integer(process.metadata&.dig("thread_pool_size"), exception: false).to_i.clamp(1, 10_000)
+      metadata = process.metadata
+      raw = POOL_SIZE_KEYS.filter_map { |key| metadata&.dig(key) }.first
+      size = Integer(raw, exception: false)
+      return size.clamp(1, 10_000) if size&.positive?
+
+      nil
     end
 
     def pool_status(used:, capacity:)
+      return used.positive? ? "busy" : "idle" if capacity.nil?
       return "overloaded" if used > capacity
       return "busy" if used.positive?
 

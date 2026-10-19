@@ -55,7 +55,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{result.slug}</span>
+        <span className="font-mono font-semibold text-text-primary">{result.slug}</span>
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.defaultBranch ? <Row label="Default branch" value={result.defaultBranch} /> : null}
