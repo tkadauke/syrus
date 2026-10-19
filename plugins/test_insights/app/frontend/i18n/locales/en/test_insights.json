@@ -98,5 +98,22 @@
   "tool_recent_record": "Recent record",
   "tool_recent_record_value": "{{failed}} failed / {{passed}} passed of {{total}}",
   "tool_recent_executions": "Recent executions",
-  "tool_recent_executions_limit": " (up to {{count}})"
+  "tool_recent_executions_limit": " (up to {{count}})",
+  "tool_repository_tests_summary_one": "{{count}} test in {{repository}}",
+  "tool_repository_tests_summary_other": "{{count}} tests in {{repository}}",
+  "tool_unavailable_test": "Unavailable test",
+  "tool_serialization_error": "Could not load this test",
+  "tool_query_settings": "Query settings",
+  "tool_last_duration": "Last duration",
+  "tool_last_seen": "Last seen",
+  "tool_last_failed": "Last failed",
+  "tool_runtime_p50_p95": "Runtime p50 / p95 (samples)",
+  "tool_setting_filter": "Filter",
+  "tool_setting_sort": "Sort",
+  "tool_setting_direction": "Direction",
+  "tool_setting_query": "Query",
+  "tool_setting_grader_name": "Grader",
+  "tool_setting_lookback": "Lookback",
+  "tool_setting_summary_window": "Summary window",
+  "tool_setting_limit": "Limit"
 }

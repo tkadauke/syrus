@@ -98,5 +98,22 @@
   "tool_recent_record": "Aktueller Verlauf",
   "tool_recent_record_value": "{{failed}} fehlgeschlagen / {{passed}} bestanden von {{total}}",
   "tool_recent_executions": "Aktuelle Ausfuehrungen",
-  "tool_recent_executions_limit": " (bis zu {{count}})"
+  "tool_recent_executions_limit": " (bis zu {{count}})",
+  "tool_repository_tests_summary_one": "{{count}} Test in {{repository}}",
+  "tool_repository_tests_summary_other": "{{count}} Tests in {{repository}}",
+  "tool_unavailable_test": "Nicht verfügbarer Test",
+  "tool_serialization_error": "Dieser Test konnte nicht geladen werden",
+  "tool_query_settings": "Abfrageeinstellungen",
+  "tool_last_duration": "Letzte Dauer",
+  "tool_last_seen": "Zuletzt gesehen",
+  "tool_last_failed": "Zuletzt fehlgeschlagen",
+  "tool_runtime_p50_p95": "Laufzeit p50 / p95 (Proben)",
+  "tool_setting_filter": "Filter",
+  "tool_setting_sort": "Sortierung",
+  "tool_setting_direction": "Richtung",
+  "tool_setting_query": "Abfrage",
+  "tool_setting_grader_name": "Grader",
+  "tool_setting_lookback": "Rückblick",
+  "tool_setting_summary_window": "Zusammenfassungsfenster",
+  "tool_setting_limit": "Limit"
 }
