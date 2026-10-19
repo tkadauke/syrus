@@ -167,6 +167,12 @@ module App
       nil
     end
 
+    def pending_action_resource(action)
+      pending_action_presenter(action).presentation_resource
+    rescue PendingActions::UnknownAction
+      nil
+    end
+
     def pending_action_presenter(action)
       PendingActions.for(action.action.presence || action.action_type).new(action)
     end
