@@ -11,11 +11,16 @@ module Mcp::Tools
 
     description <<~DESC
       Request operator confirmation that implementation is complete. In Coding
-      Mode, call this after committing in the chat coding checkout; do not push
+      Mode the Job must be `coding` and linked to this chat; call this after
+      committing in the active chat checkout, whose local branch is selected by
+      branch_name or inferred when omitted. Do not push
       the Job branch to GitHub yourself. In Local Mode, the external daemon is
       responsible for pushing the branch when that workflow requires it. The
-      handoff workflow for Syrus graders (and PR open if needed) is not enqueued
-      until the operator confirms the pending action. Call this only after the
+      The call creates only a pending action. On confirmation, Coding Mode
+      captures the checkout to an immutable handoff branch, creates a
+      coding_handoff Workflow and WorkUnit, and starts it through normal
+      admission control/worker-queue routing; Local Mode starts its corresponding
+      handoff. Nothing is enqueued before confirmation. Call this only after the
       operator explicitly instructs you to hand off and the working tree is clean.
     DESC
 

@@ -6,7 +6,13 @@ module Mcp::Tools
 
     tool_name "set_job_priority"
 
-    description "Set the priority for a Syrus Job in this chat session's repository."
+    description <<~DESC
+      Immediately set priority on any existing Job state in this chat session's
+      repository (#{Mcp::ControlToolContracts.states(Mcp::ControlToolContracts::JOB_STATES)}).
+      This creates no Job, Workflow, WorkUnit, or pending action and queues no
+      work. It affects later scheduling/admission decisions; it does not reorder
+      or restart work already claimed by a worker and needs no confirmation.
+    DESC
 
     input_schema(
       properties: {

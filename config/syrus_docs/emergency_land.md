@@ -21,7 +21,9 @@ The repository owner gets that membership through the existing owner-membership 
 
 ## Confirmation Flow
 
-The `emergency_land` MCP tool never merges code immediately. It creates a `ChatPendingAction` with `action: "emergency_land"` for the operator to confirm or decline in chat. After confirmation, the action remains visibly `confirming` while the chat worker captures and lands the change; only a successful merge marks it `confirmed`, and capture, permission, validation, or GitHub failures durably mark it `failed` with the actionable error.
+The `emergency_land` MCP tool never merges code immediately. It initially creates only a `ChatPendingAction` with `action: "emergency_land"` for the operator to confirm or decline in chat; no Job, Workflow, or WorkUnit is created at request time. After confirmation, the action remains visibly `confirming` while the chat worker captures and lands the change without admission control, a Workflow, or a WorkUnit. Only a successful merge marks it `confirmed`, and capture, permission, validation, or GitHub failures durably mark it `failed` with the actionable error.
+
+With `job_id`, the target is the Job's recorded, already-pushed branch; an optional `branch_name` must match that recorded branch. Without `job_id`, confirmation captures the active clean, committed Coding Mode checkout, publishes an immutable emergency branch, and creates the audit Job needed to record the landing.
 
 The pending-action UI renders with warning styling and states the consequence explicitly: Syrus graders, adversarial review, and visual review are skipped, and the PR is about to be merged directly through GitHub. Confirmation re-checks the feature flag, Coding Mode session, branch validity, repository access, and repository-admin permission before landing.
 

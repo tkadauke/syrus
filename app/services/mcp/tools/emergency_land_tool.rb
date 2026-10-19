@@ -15,7 +15,11 @@ module Mcp::Tools
       entirely and lands the change by opening (if needed) and merging the PR.
       With job_id it lands an eligible, already-pushed Job branch; without
       job_id it captures the active clean, committed Coding Mode checkout into
-      a new audit Job. This is an incident-response escape hatch, not a normal
+      a new audit Job. Calling the tool creates only a pending action; after
+      confirmation, landing runs on the chat worker without admission control,
+      a Workflow, or a WorkUnit. The caller must have repository-admin
+      permission and the emergency_land feature must be on. This is an
+      incident-response escape hatch, not a normal
       handoff path. Call it ONLY when the operator has explicitly and
       unambiguously asked for an emergency or urgent land in this turn, such as
       "emergency land this now" or "skip review and land". Never call this
@@ -92,21 +96,9 @@ module Mcp::Tools
       end
 
       def validate_request(chat_session:, job:, repository:, branch_name:, title:, description:)
-        return Mcp::Tools.invalid("Emergency land is not enabled on this instance.") unless Feature.emergency_land_enabled?
-        return Mcp::Tools.invalid("emergency_land is only available in Coding Mode chat sessions.") unless chat_session.coding?
-        return Mcp::Tools.invalid("repository not found or not accessible") unless repository
-        return Mcp::Tools.invalid("Emergency land requires repository admin permissions.") unless EmergencyLand::Permission.granted?(user: chat_session.user, repository: repository)
-        return Mcp::Tools.invalid("branch_name is not a valid branch name.") if branch_name.present? && !GitBranchName.valid?(branch_name)
-        if job
-          return Mcp::Tools.invalid("branch_name is required because #{job.slug} has no recorded branch.") if job.branch_name.blank?
-          return Mcp::Tools.invalid("branch_name must match #{job.slug}'s recorded branch #{job.branch_name}.") if branch_name.present? && branch_name != job.branch_name
-          return Mcp::Tools.invalid("#{job.slug} is not eligible for emergency land from state #{job.state}.") unless EmergencyLand::Lander.eligible_state?(job)
-        else
-          return Mcp::Tools.invalid("title is required for direct emergency land") if title.to_s.strip.blank?
-          return Mcp::Tools.invalid("description is required for direct emergency land") if description.to_s.strip.blank?
-        end
-
-        nil
+        eligibility = EmergencyLand::Eligibility.call(chat_session: chat_session, job: job, repository: repository,
+          branch_name: branch_name, title: title, description: description)
+        Mcp::Tools.invalid(eligibility.message) unless eligibility.eligible?
       end
 
       def resolve_repository(chat_session, repository_id)
