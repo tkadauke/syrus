@@ -825,7 +825,7 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
+export function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
