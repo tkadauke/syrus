@@ -59,7 +59,9 @@ RSpec.describe "Mcp::Tools pinned context tools" do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload(response)).to include(
+      chat_id: chat_session.id,
       pinned_context: nil,
+      removed_pinned_context: "Temporary context",
       message: "Pinned context removed."
     )
     expect(chat_session.reload.pinned_context).to be_nil
