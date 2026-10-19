@@ -200,5 +200,19 @@
   "tool_design_doc_id": "Design doc ID",
   "tool_archive_failed": "Could not archive design doc",
   "tool_archive_error_summary": "Archive failed: {{message}}",
-  "tool_archived_summary": "Archived {{doc}} — {{title}}"
+  "tool_archived_summary": "Archived {{doc}} — {{title}}",
+  "tool_filter_limit": "Limit",
+  "tool_filter_query": "Query",
+  "tool_filter_repository": "Repository filter",
+  "tool_list_error_summary": "Could not list design docs",
+  "tool_list_pending_summary": "Listing design docs",
+  "tool_list_title": "Design docs",
+  "tool_no_design_docs": "No design docs matched these filters.",
+  "tool_no_matching_design_docs": "No design docs match this search.",
+  "tool_pending": "Waiting for the tool result.",
+  "tool_repositories": "Repositories:",
+  "tool_repository_number": "Repository {{id}}",
+  "tool_unknown_error": "The design docs request failed.",
+  "tool_updated": "Updated {{value}}",
+  "tool_version": "v{{number}}"
 }

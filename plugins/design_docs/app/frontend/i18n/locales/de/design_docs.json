@@ -200,5 +200,19 @@
   "tool_design_doc_id": "Design-Dokument-ID",
   "tool_archive_failed": "Design-Dokument konnte nicht archiviert werden",
   "tool_archive_error_summary": "Archivierung fehlgeschlagen: {{message}}",
-  "tool_archived_summary": "{{doc}} archiviert — {{title}}"
+  "tool_archived_summary": "{{doc}} archiviert — {{title}}",
+  "tool_filter_limit": "Limit",
+  "tool_filter_query": "Suche",
+  "tool_filter_repository": "Repository-Filter",
+  "tool_list_error_summary": "Design Docs konnten nicht aufgelistet werden",
+  "tool_list_pending_summary": "Design Docs werden aufgelistet",
+  "tool_list_title": "Design Docs",
+  "tool_no_design_docs": "Keine Design Docs entsprechen diesen Filtern.",
+  "tool_no_matching_design_docs": "Keine Design Docs entsprechen dieser Suche.",
+  "tool_pending": "Das Werkzeugergebnis wird erwartet.",
+  "tool_repositories": "Repositories:",
+  "tool_repository_number": "Repository {{id}}",
+  "tool_unknown_error": "Die Design-Docs-Anfrage ist fehlgeschlagen.",
+  "tool_updated": "Aktualisiert {{value}}",
+  "tool_version": "v{{number}}"
 }
