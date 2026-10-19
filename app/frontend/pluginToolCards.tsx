@@ -42,6 +42,9 @@ export type ToolCardContext = {
 
 export type ToolCardRenderer = {
   toolName: string
+  // Most cards need a completed result before their expanded body is useful.
+  // Opt in when the card can also present an in-flight call from its input.
+  renderWhilePending?: boolean
   // One-line summary shown in the collapsed row. Return null/undefined
   // (or omit this) to keep the generic count/text summary.
   collapsedSummary?: (context: ToolCardContext) => string | null | undefined
