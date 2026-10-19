@@ -139,7 +139,7 @@ RSpec.describe ProviderRoutingRule do
   it "accepts structured conditions for workflow, budget, day, repository, and job metadata predicates" do
     record = rule(conditions: {
       workflow_trigger_kind: [ "initial" ],
-      usage: { "max_daily_cost_usd" => 10 },
+      usage: { "provider" => "codex", "remaining_percent_less_than" => 10 },
       budget: { "remaining_percent_greater_than" => 20 },
       day_time: { "days" => [ "monday" ], "start" => "09:00", "end" => "17:00" },
       repository: { "ids" => [ repository.id ], "owners" => [ repository.owner ], "names" => [ repository.name ] },
