@@ -161,6 +161,7 @@ export type ToolCardEntityKind =
   | "cluster"
   | "namespace"
   | "node"
+  | "pending_action"
   | "wakeup"
   | "scheduled_task"
   | "preview_panel"
@@ -284,6 +285,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   cluster: { label: (reference) => compactEntityValue(reference.id), href: idHref("/k8s_clusters") },
   namespace: { label: (reference) => displayValue(reference.label), href: idHref("/k8s_clusters") },
   node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue },
+  pending_action: { label: (reference) => prefixedEntityLabel("ACTION", reference.id), href: noHref, copyValue: slugCopyValue },
   wakeup: {
     label: (reference) => prefixedEntityLabel("WAKEUP", reference.id),
     href: (reference) => {
