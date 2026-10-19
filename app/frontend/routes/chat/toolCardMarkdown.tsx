@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Modal } from "../../components/Modal"
@@ -32,8 +32,30 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 export function MarkdownPreview({ text, maxLines = DEFAULT_MAX_LINES, title, modalLabel }: MarkdownPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
+  const [visuallyClipped, setVisuallyClipped] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const empty = !text.trim()
   const truncated = useMemo(() => truncateMarkdown(text, maxLines), [text, maxLines])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (!preview || truncated.truncated) {
+      setVisuallyClipped(false)
+      return
+    }
+
+    const measure = () => setVisuallyClipped(preview.scrollHeight > preview.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure)
+      return () => window.removeEventListener("resize", measure)
+    }
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(preview)
+    return () => observer.disconnect()
+  }, [maxLines, text, truncated.truncated])
 
   if (empty) return null
 
@@ -48,11 +70,16 @@ export function MarkdownPreview({ text, maxLines = DEFAULT_MAX_LINES, title, mod
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
-      <div className="break-words text-xs text-text-muted [overflow-wrap:anywhere]" data-testid="markdown-preview-content" style={lineClampStyle}>
+      <div
+        className="break-words text-xs text-text-muted [overflow-wrap:anywhere]"
+        data-testid="markdown-preview-content"
+        ref={previewRef}
+        style={lineClampStyle}
+      >
         {renderLightMarkdown(truncated.preview)}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated ? (
+      {truncated.truncated || visuallyClipped ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>

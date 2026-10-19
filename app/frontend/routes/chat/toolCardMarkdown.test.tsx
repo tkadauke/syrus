@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
@@ -21,6 +23,17 @@ describe("MarkdownPreview", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when line clamping causes visual overflow", () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+    const text = `**Result:** ${"responsive workflow details ".repeat(8)}`
+
+    render(<MarkdownPreview maxLines={3} modalLabel="Full result" text={text} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Full result" })).toHaveTextContent("responsive workflow details")
   })
 
   it("renders nothing for empty or whitespace-only text", () => {
