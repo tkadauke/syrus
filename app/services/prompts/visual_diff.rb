@@ -15,7 +15,7 @@ module Prompts
 
         Syrus has already inspected the after-artifact provenance and filtered out obvious auth/sign-in/error-wall captures when they do not match the changed surface. Start the preview, navigate to the same screens represented by these after screenshots, capture matching before screenshots, and call `submit_visual_artifact` once per matching baseline image.
 
-        Use type "#{@baseline_type}" for every baseline screenshot. Use the exact same title and `subject` as the paired after screenshot so Syrus can pair them and the capture tool can scroll the same subject into view and verify that it is visible. Re-resolve a ref with `browser_snapshot` after navigation or `browser_resize`; do not reuse a stale ref. If a screen or its subject cannot be reproduced on the base revision, do not invent an image.
+        Use type "#{@baseline_type}" for every baseline screenshot. Use the exact same title as the paired after screenshot so Syrus can pair them. Target the same logical element as its recorded after `subject`: reuse the exact value when it is a stable CSS selector, but when it is a `browser_snapshot` ref such as `e12`, call `browser_snapshot` in the baseline page and pass the newly resolved ref for that element. After any navigation or `browser_resize`, re-resolve ref-based subjects again; never reuse a stale ref from the after capture or an earlier baseline page state. The capture tool will scroll the supplied subject into view and verify that it is visible. If a screen or its subject cannot be reproduced on the base revision, do not invent an image.
 
         After screenshots to reproduce:
 
