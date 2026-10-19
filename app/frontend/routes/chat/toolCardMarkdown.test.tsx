@@ -69,6 +69,20 @@ describe("TextPreview", () => {
     expect(truncateTextLines(text, { mode: "headTail", maxLines: 3, maxChars: 4 }).preview).toBe("01\n… text omitted\n89")
   })
 
+  it("uses a non-numeric tail marker when character clipping drops selected multiline content", () => {
+    const result = truncateTextLines("aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc", { mode: "tail", maxLines: 2, maxChars: 5 })
+
+    expect(result.preview).toBe("… earlier text\nccccc")
+    expect(result.preview).not.toContain("1 earlier line")
+  })
+
+  it("uses a non-numeric head-tail marker when character clipping trims either retained end", () => {
+    const result = truncateTextLines("aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc", { mode: "headTail", maxLines: 2, maxChars: 8 })
+
+    expect(result.preview).toBe("aaaa\n… text omitted\ncccc")
+    expect(result.preview).not.toContain("line omitted")
+  })
+
   it("renders short text with whitespace preserved and no expansion button", () => {
     render(<TextPreview text={"first line\n  indented line"} />)
 
