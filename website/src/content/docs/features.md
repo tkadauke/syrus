@@ -1140,7 +1140,10 @@ Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
 results in 50-item pages, while the admin overview shows the first page and a
-total stuck count.
+total stuck count. The `admin_stuck_jobs` chat tool uses the same 50-item
+default, accepts bounded `page` and `per` inputs, and reports totals plus
+next/previous-page availability so large watchlists stay safe for the MCP
+transport.
 Admin queue filters can be saved as smart folders from the queue sidebar,
 then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders. The

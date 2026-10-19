@@ -23,6 +23,17 @@ describe("admin_stuck_jobs tool card", () => {
     expect(adminStuckJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 stuck items")
   })
 
+  it("summarizes the bounded page against the total and shows its position", () => {
+    const parsedResult = {
+      items: [{ kind: "a" }, { kind: "b" }],
+      pagination: { page: 2, total_pages: 4, total_items: 8 }
+    }
+    expect(adminStuckJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 of 8 stuck items")
+
+    render(<>{adminStuckJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("Page 2 of 4")).toBeInTheDocument()
+  })
+
   it("renders the Job link, kind, attention state, detail, step, age, and recommended action", () => {
     const parsedResult = {
       items: [
