@@ -15,8 +15,13 @@ function elementContext(context: ToolCardContext) {
   const input = isPlainObject(context.input) ? context.input : {}
   const result = resultRecord(context.parsedResult)
   const element = isPlainObject(result.element) ? result.element : {}
-  const type = displayValue(result.type) ?? displayValue(element.type) ?? displayValue(input.type)
-  const label = displayValue(result.label) ?? displayValue(element.label) ?? displayValue(input.label)
+  const deletedId = parseElementResult(context.parsedResult)?.id ?? displayValue(input.id)
+  const drawContext = [...(context.priorCalls ?? [])].reverse().find((call) => {
+    if (!call.toolName.startsWith("draw_")) return false
+    return parseElementResult(call.parsedResult)?.id === deletedId
+  })?.input
+  const type = displayValue(result.type) ?? displayValue(element.type) ?? displayValue(input.type) ?? displayValue(drawContext?.type)
+  const label = displayValue(result.label) ?? displayValue(element.label) ?? displayValue(input.label) ?? displayValue(drawContext?.label)
 
   return { ...input, ...(type ? { type } : {}), ...(label ? { label } : {}) }
 }
@@ -54,7 +59,14 @@ export const examples: ToolCardExample[] = [
     id: "deleted_labeled_shape",
     label: "Deleted labeled shape",
     input: { id: "shape-demo" },
-    parsedResult: { id: "shape-demo", type: "diamond", label: "Decision", version: 8 },
+    parsedResult: { id: "shape-demo", version: 8 },
+    priorCalls: [
+      {
+        toolName: "draw_shape",
+        input: { type: "diamond", label: "Decision" },
+        parsedResult: { id: "shape-demo", label_id: "text-demo-label", version: 7 }
+      }
+    ],
     sourceType: "generic"
   },
   {
@@ -69,7 +81,14 @@ export const examples: ToolCardExample[] = [
     id: "wrapped_result",
     label: "Wrapped result",
     input: { id: "text-demo" },
-    parsedResult: { result: { id: "text-demo", type: "text", label: "Release notes", version: 9 } },
+    parsedResult: { result: { id: "text-demo", version: 9 } },
+    priorCalls: [
+      {
+        toolName: "draw_text",
+        input: { type: "text", label: "Release notes" },
+        parsedResult: { result: { id: "text-demo", version: 8 } }
+      }
+    ],
     sourceType: "generic"
   },
   { id: "pending", label: "Pending result", input: { id: "pending-element" }, resultBody: "", sourceType: "generic" }
