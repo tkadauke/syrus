@@ -1,8 +1,15 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { Table, TBody, Td, THead } from "./adminToolCard"
+import { JobRefLink, Table, TBody, Td, THead } from "./adminToolCard"
 
 describe("admin tool card table", () => {
+  it("renders Job references through the shared entity treatment", () => {
+    render(<JobRefLink jobId={42} />)
+
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+  })
+
   it("preserves the existing desktop table markup by default", () => {
     render(
       <Table>
