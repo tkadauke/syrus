@@ -62,10 +62,12 @@ describe("credential_store_ssh_exec tool card", () => {
       stdout: { text: "", truncated: false, bytes: 0 },
       stderr: { text: "permission denied", truncated: false, bytes: 17 }
     }
-    render(<>{card.renderExpanded(context({ parsedResult: failed }))}</>)
-    expect(card.collapsedSummary?.(context({ parsedResult: failed }))).toBe("ssh deploy@app.example.com:2222: exit 17")
+    const failedContext = context({ parsedResult: failed, resultBody: JSON.stringify(failed), resultError: true })
+    render(<>{card.renderExpanded(failedContext)}</>)
+    expect(card.collapsedSummary?.(failedContext)).toBe("ssh deploy@app.example.com:2222: exit 17")
     expect(screen.getByText("No stdout output.")).toBeInTheDocument()
     expect(screen.getByText("permission denied")).toBeInTheDocument()
+    expect(screen.queryByText(JSON.stringify(failed))).not.toBeInTheDocument()
     expect(screen.getByText("stderr").closest("details")).toHaveProperty("open", true)
   })
 

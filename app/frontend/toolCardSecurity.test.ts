@@ -104,6 +104,9 @@ describe("toolCardSecurity", () => {
           credential_id: 42,
           credential_name: "production-cluster",
           credential_type: "kubeconfig",
+          lease_id: "lease-123",
+          issued_at: "2026-10-19T12:00:00Z",
+          value: "hunter2",
           client_secret: "hidden-value",
           token: "hidden-token"
         }
@@ -113,6 +116,9 @@ describe("toolCardSecurity", () => {
         credential_id: 42,
         credential_name: "production-cluster",
         credential_type: "kubeconfig",
+        lease_id: "lease-123",
+        issued_at: "2026-10-19T12:00:00Z",
+        value: "[redacted]",
         client_secret: "[redacted]",
         token: "[redacted]"
       }

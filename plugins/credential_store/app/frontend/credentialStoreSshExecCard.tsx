@@ -82,9 +82,13 @@ function textBlock(value: unknown): TextBlock {
 export function parseSshExecCard(context: ToolCardContext): SshExecCard | null {
   const input = isPlainObject(context.input) ? context.input : {}
   const payload = resultPayload(context.parsedResult)
+  const structuredResult = payload != null && (typeof payload.ok === "boolean" || typeof payload.status === "number")
   const target = payload && isPlainObject(payload.target) ? payload.target : {}
   const credential = payload && isPlainObject(payload.credential) ? payload.credential : {}
-  const errorText = context.resultError ? safe(context.resultBody) : null
+  // A nonzero SSH process exit is represented by a structured result whose
+  // MCP isError flag is true. Reserve the raw error notice for failures that
+  // did not return that structured execution payload.
+  const errorText = context.resultError && !structuredResult ? safe(context.resultBody) : null
   const host = safe(target.host) || safe(input.host)
   const user = safe(target.user) || safe(input.user)
   const port = safe(target.port) || safe(input.port)
