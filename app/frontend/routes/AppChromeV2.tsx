@@ -416,9 +416,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : 0
   const mobileChatAppContentStyle = isMobileLayeredChromePage
     ? ({
-        "--mobile-chat-app-header-height": `${mobileChatAppHeaderHeight}px`,
-        "--mobile-chrome-top-overlap-height": `${mobileChatAppHeaderHeight}px`,
-        "--mobile-chrome-visible-top-inset": `${mobileChromeVisibleTopInset}px`
+        "--mobile-chat-app-header-height": `calc(${mobileChatAppHeaderHeight}px + env(safe-area-inset-top))`,
+        "--mobile-chrome-top-overlap-height": `calc(${mobileChatAppHeaderHeight}px + env(safe-area-inset-top))`,
+        "--mobile-chrome-visible-top-inset": mobileChatHeaderHidden ? "0px" : `calc(${mobileChromeVisibleTopInset}px + env(safe-area-inset-top))`
       } as CSSProperties)
     : undefined
   const revealMobileChatHeader = useCallback(() => {
@@ -816,7 +816,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     mobileChatHeaderAutoHideActive
                       ? {
                           opacity: mobileChatHeaderHidden ? 0 : 1,
-                          transform: `translateY(-${mobileChatHeaderOffset}px)`
+                        transform: mobileChatHeaderHidden
+                          ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
+                          : `translateY(-${mobileChatHeaderOffset}px)`
                         }
                       : undefined
                   }
