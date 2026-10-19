@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { toolCardContextForExample } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
@@ -10,6 +10,12 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("attach_repository tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(attachRepositoryToolCard.toolName).toBe("attach_repository")
   })
@@ -29,8 +35,17 @@ describe("attach_repository tool card", () => {
     render(<>{attachRepositoryToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
-    expect(screen.getByText("1").closest("a")).toHaveAttribute("href", "/repositories/1")
-    expect(screen.getByText("tkadauke/syrus").closest("a")).toHaveAttribute("href", "/repositories/1")
+    const idLink = screen.getByRole("link", { name: "1" })
+    const slugLink = screen.getByRole("link", { name: "tkadauke/syrus" })
+    expect(idLink).toHaveAttribute("href", "/repositories/1")
+    expect(slugLink).toHaveAttribute("href", "/repositories/1")
+    expect(idLink).toHaveClass("min-h-11", "sm:min-h-7")
+    expect(slugLink).toHaveClass("min-h-11", "sm:min-h-7")
+
+    const idCopyButton = screen.getByRole("button", { name: "Copy 1 to clipboard" })
+    expect(idCopyButton).toHaveClass("h-11", "w-11", "sm:h-7", "sm:w-7")
+    fireEvent.click(idCopyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("1")
     expect(screen.getByText("main")).toBeInTheDocument()
     expect(screen.getByText("/data/workspaces/chat-1")).toBeInTheDocument()
     expect(screen.getByText("/data/workspaces/chat-1/syrus")).toBeInTheDocument()
