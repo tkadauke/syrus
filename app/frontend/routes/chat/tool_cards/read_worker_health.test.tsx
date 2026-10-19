@@ -108,6 +108,7 @@ describe("read_worker_health tool card", () => {
           desired_version: { git_sha: "newsha" },
           macos_updater_state: "ready",
           capability_diagnostics: { docker: true },
+          trend: { sample_count: 12, load_1m: { avg: 1.5, max: 3 } },
           seconds_since_heartbeat: 12,
           health: { level: "warning", reasons: ["load elevated"] },
           sample: {
@@ -148,6 +149,7 @@ describe("read_worker_health tool card", () => {
     expect(screen.getAllByText("load elevated").length).toBeGreaterThan(0)
     expect(screen.getByText("Generated at")).toBeInTheDocument()
     expect(screen.getByText(/\[REDACTED\]/)).toBeInTheDocument()
+    expect(screen.getByText(/"sample_count": 12/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "Copy worker-1 to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("worker-1")
   })
