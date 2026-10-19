@@ -937,8 +937,10 @@ other chat's turn — useful for sharing context or coordinating work between
 chats running different repositories or different chat providers/models. A new
 thread can only be opened as a direct result of the operator's own message in
 the current chat, so an automated turn (a wakeup, a scheduled message, and so
-on) can never spontaneously start one on its own; once a thread is open, either
-side can reply until the exchange reaches a small hop cap, at which point
+on) can never spontaneously start one on its own. Confirming a grouped chat
+spawn is also explicit authorization: Syrus pre-opens a higher-hop coordination
+thread between the spawning chat and each chat it creates. Once a thread is
+open, either side can reply until the exchange reaches its hop cap, at which point
 Syrus auto-closes it and posts a visible notice to both chats. This is
 same-operator-only for now — a chat can only message another chat it owns.
 
@@ -1013,8 +1015,10 @@ owns, separate from pinned-message previews and pinned context notes.
 They can request up to ten new chat threads at once, each with an initial
 prompt and optional title, provider, and accessible repository. Syrus shows
 one confirmation for the whole batch and, after confirmation, reports the new
-`CHAT-<id>` values in the originating thread so the agent can coordinate them
-without manual setup.
+`CHAT-<id>` values and pre-opened bridge thread IDs in the originating thread.
+The spawning agent can immediately send follow-up instructions on those threads
+without duplicating each new chat's initial prompt or waiting for another
+operator message.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.
