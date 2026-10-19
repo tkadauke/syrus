@@ -56,9 +56,30 @@ function MessageText({ context }: { context: ToolCardContext }) {
         maxChars={500}
         maxLines={4}
         modalLabel="Sent message"
+        onLinkClick={context.onLinkClick}
         text={text}
       />
     </div>
+  )
+}
+
+function RequestRouting({ context }: { context: ToolCardContext }) {
+  const targetChatSessionId = displayValue(context.input?.target_chat_session_id)
+  const threadId = displayValue(context.input?.thread_id)
+  const maxHops = numberValue(context.input?.max_hops)
+  if (!targetChatSessionId && !threadId && maxHops == null) return null
+
+  return (
+    <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
+      {targetChatSessionId ? (
+        <div className="min-w-0">
+          <SectionLabel>Requested target</SectionLabel>
+          <EntityReference id={targetChatSessionId} kind="chat" />
+        </div>
+      ) : null}
+      {threadId ? <Row label="Requested thread" value={`#${threadId}`} /> : null}
+      {maxHops != null ? <Row label="Requested hop cap" value={String(maxHops)} /> : null}
+    </dl>
   )
 }
 
@@ -70,6 +91,7 @@ function renderExpanded(context: ToolCardContext) {
       return (
         <StatusCard title="Cross-chat message" status="pending">
           <MessageText context={context} />
+          <RequestRouting context={context} />
           <EmptyState>Waiting for the message to be sent.</EmptyState>
         </StatusCard>
       )
@@ -77,13 +99,12 @@ function renderExpanded(context: ToolCardContext) {
     return <MalformedCard title="Cross-chat message" />
   }
 
-  const requestedThreadId = displayValue(context.input?.thread_id)
-  const requestedMaxHops = numberValue(context.input?.max_hops)
   const messageHref = `/chats/${parsed.data.targetChatSessionId}#message-${parsed.data.messageId}`
 
   return (
     <StatusCard title="Cross-chat message" status={parsed.data.state}>
       <MessageText context={context} />
+      <RequestRouting context={context} />
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
         <div className="min-w-0">
           <SectionLabel>Target chat</SectionLabel>
@@ -94,12 +115,10 @@ function renderExpanded(context: ToolCardContext) {
           <EntityReference href={messageHref} id={parsed.data.targetChatSessionId} kind="chat" label={`Message #${parsed.data.messageId}`} />
         </div>
         <Row label="Thread" value={`#${parsed.data.threadId}`} />
-        {requestedThreadId ? <Row label="Requested thread" value={`#${requestedThreadId}`} /> : null}
         {parsed.data.hopCount != null && parsed.data.maxHops != null ? (
           <Row label="Hops used" value={`${parsed.data.hopCount} / ${parsed.data.maxHops}`} />
         ) : null}
         {parsed.data.hopsRemaining != null ? <Row label="Hops left" value={String(parsed.data.hopsRemaining)} /> : null}
-        {requestedMaxHops != null ? <Row label="Requested hop cap" value={String(requestedMaxHops)} /> : null}
       </dl>
     </StatusCard>
   )

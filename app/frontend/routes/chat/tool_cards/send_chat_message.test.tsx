@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, parseJsonText } from "../toolRendering"
 import sendChatMessageToolCard from "./send_chat_message"
@@ -40,7 +40,8 @@ describe("send_chat_message tool card", () => {
     expect(screen.getByText("open")).toBeInTheDocument()
     expect(screen.getByText("the change").tagName).toBe("STRONG")
     expect(screen.getByRole("link", { name: "https://example.test/context" })).toHaveAttribute("href", "https://example.test/context")
-    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getAllByRole("link", { name: "CHAT-42" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "CHAT-42" })[0]).toHaveAttribute("href", "/chats/42")
     expect(screen.getByRole("link", { name: "Message #99" })).toHaveAttribute("href", "/chats/42#message-99")
     expect(screen.getByText("#7")).toBeInTheDocument()
     expect(screen.getByText("1 / 6")).toBeInTheDocument()
@@ -58,6 +59,24 @@ describe("send_chat_message tool card", () => {
     render(<MemoryRouter>{sendChatMessageToolCard.renderExpanded(context({ input: { text: "Reply", thread_id: 7 }, parsedResult: success }))}</MemoryRouter>)
     expect(screen.getByText("Requested thread")).toBeInTheDocument()
     expect(screen.getAllByText("#7")).toHaveLength(2)
+  })
+
+  it("passes markdown link clicks to the chat surface interceptor", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        {sendChatMessageToolCard.renderExpanded(
+          context({
+            input: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)", thread_id: 7 },
+            onLinkClick,
+            parsedResult: success
+          })
+        )}
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
+    expect(onLinkClick).toHaveBeenCalledWith("/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb", expect.any(Object))
   })
 
   it("renders a closed thread state after the hop cap is reached", () => {
@@ -79,12 +98,18 @@ describe("send_chat_message tool card", () => {
     }
   )
 
-  it("renders pending and blank-message states", () => {
-    const pending = context({ input: { text: "" } })
+  it("renders pending, blank-message, and routing input states", () => {
+    const pending = context({ input: { text: "", target_chat_session_id: 42, thread_id: 7, max_hops: 9 } })
     expect(sendChatMessageToolCard.collapsedSummary?.(pending)).toBe("Cross-chat message pending")
     render(<>{sendChatMessageToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("No message text was included with this transcript entry.")).toBeInTheDocument()
+    expect(screen.getByText("Requested target")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("Requested thread")).toBeInTheDocument()
+    expect(screen.getByText("#7")).toBeInTheDocument()
+    expect(screen.getByText("Requested hop cap")).toBeInTheDocument()
+    expect(screen.getByText("9")).toBeInTheDocument()
     expect(screen.getByText("Waiting for the message to be sent.")).toBeInTheDocument()
   })
 
