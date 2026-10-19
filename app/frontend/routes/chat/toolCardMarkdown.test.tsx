@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
@@ -27,6 +27,34 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview text={"  \n\t "} />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>No prompt</span>} text=" " />)
+
+    expect(screen.getByText("No prompt")).toBeInTheDocument()
+  })
+
+  it("honors a character limit and copies the complete text from the modal", async () => {
+    const text = "A compact single-line prompt. ".repeat(30)
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    render(<MarkdownPreview maxChars={80} modalLabel="Full prompt" text={text} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy Full prompt/ }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
+  })
+
+  it("passes URL and click handling through both preview renderers", () => {
+    const onLinkClick = vi.fn((href, event) => event.preventDefault())
+    const text = `Visit https://example.test/path then ${"continue reading. ".repeat(20)}`
+    render(<MarkdownPreview linkifyUrls maxChars={60} onLinkClick={onLinkClick} text={text} />)
+
+    fireEvent.click(screen.getByRole("link"))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link"))
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
