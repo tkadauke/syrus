@@ -123,14 +123,14 @@ function MediaPreviewModal({
           </div>
           <button
             aria-label="Close media preview"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
             onClick={onClose}
             type="button"
           >
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 overflow-auto p-4">
+        <div className="min-h-0 overflow-auto p-2 sm:p-4">
           <div className="flex min-h-48 items-center justify-center rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
             {item.previewChildren ? (
               item.previewChildren
@@ -187,7 +187,6 @@ function MediaPreviewMetaRow({ row }: { row: MediaPreviewMeta }) {
 
 function MediaPreviewActionButton({ action }: { action: MediaPreviewAction }) {
   const { copied, copy } = useCopyToClipboard()
-
   if (action.copyValue) {
     return (
       <button
