@@ -296,7 +296,7 @@ describe("toolResultPresentation", () => {
       true
     )
 
-    expect(result).toMatchObject({ kind: "error", summary: 'Delete document "Old notes"?' })
+    expect(result).toMatchObject({ kind: "error", summary: "Delete repository document failed: Delete document \"Old notes\"?" })
   })
 
   it("passes tool input to registered collapsed-summary cards", () => {
