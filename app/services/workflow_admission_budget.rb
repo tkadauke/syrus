@@ -254,14 +254,7 @@ class WorkflowAdmissionBudget
   end
 
   def prediction_confidence(source)
-    case source
-    when "command_attributed"
-      "process_attributed"
-    when "host_correlated"
-      "lower_confidence_fallback"
-    else
-      "conservative_defaults"
-    end
+    PredictionSource.for(source).confidence
   end
 
   def missing_profile_count(predictions)
