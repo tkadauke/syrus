@@ -60,6 +60,7 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
       payload = response_payload(response)
 
       expect(response[:result][:isError]).to be_falsey
+      expect(payload[:job_id]).to eq(job.id)
       ids = payload[:workflows].map { |workflow| workflow[:id] }
       expect(ids).to start_with(newer.id, older.id)
       expect(payload[:workflows].first).to include(
@@ -67,7 +68,8 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
         state: "queued",
         summary: "newer run summary",
         step_count: 1,
-        run_count: 2
+        run_count: 2,
+        created_at: newer.created_at.iso8601
       )
     end
 
