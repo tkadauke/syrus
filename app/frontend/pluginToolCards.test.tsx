@@ -31,24 +31,15 @@ describe("pluginToolCards", () => {
     // of core) never names "design_docs" or imports that module directly.
     expect(pluginToolCardRendererKeys()).toContain("list_design_docs")
     expect(pluginToolCardRendererKeys()).toContain("list_design_doc_sections")
-    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
-      "compare_test_runtime",
-      "read_job_test_results",
-      "read_test_insight"
-    ]))
+    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining(["compare_test_runtime", "read_job_test_results", "read_test_insight"]))
     expect(pluginToolCardRendererFor("list_design_docs")).not.toBeNull()
     expect(pluginToolCardRendererFor("list_design_doc_sections")).not.toBeNull()
   })
 
   it("discovers Browser plugin cards by directory convention", () => {
-    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
-      "browser_navigate",
-      "browser_snapshot",
-      "browser_screenshot",
-      "browser_resize",
-      "browser_wait_for",
-      "browser_close"
-    ]))
+    expect(pluginToolCardRendererKeys()).toEqual(
+      expect.arrayContaining(["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_resize", "browser_wait_for", "browser_close"])
+    )
   })
 
   it("discovers the emergency land core card by directory convention", () => {
@@ -65,7 +56,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when renderExpanded throws on a malformed payload", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      renderExpanded: () => { throw new Error("boom") }
+      renderExpanded: () => {
+        throw new Error("boom")
+      }
     }
 
     expect(renderToolCard(renderer, context({ toolName: "broken_tool" }))).toBeNull()
@@ -74,7 +67,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when collapsedSummary throws", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      collapsedSummary: () => { throw new Error("boom") },
+      collapsedSummary: () => {
+        throw new Error("boom")
+      },
       renderExpanded: () => null
     }
 
