@@ -36,15 +36,17 @@ describe("git_diff tool card", () => {
   })
 
   it("renders a large diff behind the shared bounded preview", () => {
-    const manyFiles = Array.from({ length: 50 }, (_, i) => [
-      `diff --git a/file${i}.rb b/file${i}.rb`,
-      "index 1234567..89abcde 100644",
-      `--- a/file${i}.rb`,
-      `+++ b/file${i}.rb`,
-      "@@ -1,1 +1,2 @@",
-      " line",
-      "+added line"
-    ].join("\n")).join("\n")
+    const manyFiles = Array.from({ length: 50 }, (_, i) =>
+      [
+        `diff --git a/file${i}.rb b/file${i}.rb`,
+        "index 1234567..89abcde 100644",
+        `--- a/file${i}.rb`,
+        `+++ b/file${i}.rb`,
+        "@@ -1,1 +1,2 @@",
+        " line",
+        "+added line"
+      ].join("\n")
+    ).join("\n")
 
     render(<>{gitDiffToolCard.renderExpanded(context({ parsedResult: { diff: manyFiles } }))}</>)
     expect(screen.getByText(/50 files/)).toBeInTheDocument()

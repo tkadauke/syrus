@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { NO_ARGUMENTS_SENTINEL, fullResultBody, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
+import {
+  NO_ARGUMENTS_SENTINEL,
+  fullResultBody,
+  normalizedToolCardParsedResult,
+  shortenWorkspacePaths,
+  toolDetail,
+  toolLabel,
+  toolPresentation,
+  toolResultPresentation,
+  typedToolResult
+} from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -44,10 +54,7 @@ describe("toolDetail", () => {
 
   it("summarizes ask_user_question arguments without dumping raw JSON", () => {
     const detail = toolDetail("ask_user_question", {
-      questions: [
-        { question: "Which path?", options: ["Fast", "Careful"] },
-        { question: "Anything else?" }
-      ]
+      questions: [{ question: "Which path?", options: ["Fast", "Careful"] }, { question: "Anything else?" }]
     })
 
     expect(detail).toBe("2 questions")
@@ -136,10 +143,12 @@ describe("toolResultPresentation", () => {
     // this proves the registered card wins over the blind generic guess.
     const result = toolResultPresentation(
       "list_chat_media",
-      JSON.stringify(JSON.stringify({
-        snapshots: [{ id: "snapshot:1" }],
-        chat_images: [{ id: "chat_image:1" }]
-      }))
+      JSON.stringify(
+        JSON.stringify({
+          snapshots: [{ id: "snapshot:1" }],
+          chat_images: [{ id: "chat_image:1" }]
+        })
+      )
     )
 
     expect(result).toMatchObject({ kind: "text", summary: "2 media items" })
@@ -155,9 +164,15 @@ describe("toolResultPresentation", () => {
     // list_design_docs is registered entirely inside the design_docs plugin
     // (plugins/design_docs/app/frontend/tool_cards/list_design_docs.tsx) —
     // this proves the extension point without this file naming that plugin.
-    const result = toolResultPresentation("list_design_docs", JSON.stringify({
-      design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }, { id: 2, doc_ref: "DOC-2", title: "B" }]
-    }))
+    const result = toolResultPresentation(
+      "list_design_docs",
+      JSON.stringify({
+        design_docs: [
+          { id: 1, doc_ref: "DOC-1", title: "A" },
+          { id: 2, doc_ref: "DOC-2", title: "B" }
+        ]
+      })
+    )
 
     expect(result).toMatchObject({ kind: "text", summary: "2 design docs" })
   })
@@ -197,14 +212,18 @@ describe("toolResultPresentation", () => {
   })
 
   it("lets registered cards summarize structured error payloads", () => {
-    const result = toolResultPresentation("delete_repo_document", JSON.stringify({
-      pending_action_id: 502,
-      state: "failed",
-      message: "Delete document \"Old notes\"?",
-      reason: "Document disappeared before confirmation."
-    }), true)
+    const result = toolResultPresentation(
+      "delete_repo_document",
+      JSON.stringify({
+        pending_action_id: 502,
+        state: "failed",
+        message: 'Delete document "Old notes"?',
+        reason: "Document disappeared before confirmation."
+      }),
+      true
+    )
 
-    expect(result).toMatchObject({ kind: "error", summary: "Delete document \"Old notes\"?" })
+    expect(result).toMatchObject({ kind: "error", summary: 'Delete document "Old notes"?' })
   })
 
   it("passes tool input to registered collapsed-summary cards", () => {
@@ -228,9 +247,9 @@ describe("toolResultPresentation", () => {
   it("lets plugin collapsed summaries describe errored Browser results", () => {
     const result = toolResultPresentation(
       "browser_navigate",
-      "Error: Navigation to \"http://evil.example.com\" was blocked",
+      'Error: Navigation to "http://evil.example.com" was blocked',
       true,
-      "Error: Navigation to \"http://evil.example.com\" was blocked",
+      'Error: Navigation to "http://evil.example.com" was blocked',
       { url: "http://evil.example.com" }
     )
 
@@ -244,17 +263,21 @@ describe("normalizedToolCardParsedResult", () => {
   })
 
   it("unwraps a Codex MCP content envelope with JSON text", () => {
-    expect(normalizedToolCardParsedResult({
-      content: [{ type: "text", text: JSON.stringify({ epic: { id: 349, state: "running" }, child_jobs: [] }) }],
-      structured_content: null
-    })).toEqual({ epic: { id: 349, state: "running" }, child_jobs: [] })
+    expect(
+      normalizedToolCardParsedResult({
+        content: [{ type: "text", text: JSON.stringify({ epic: { id: 349, state: "running" }, child_jobs: [] }) }],
+        structured_content: null
+      })
+    ).toEqual({ epic: { id: 349, state: "running" }, child_jobs: [] })
   })
 
   it("prefers structured_content over text content", () => {
-    expect(normalizedToolCardParsedResult({
-      content: [{ type: "text", text: JSON.stringify({ job: { id: 1, state: "stale" } }) }],
-      structured_content: { job: { id: 2, state: "running" } }
-    })).toEqual({ job: { id: 2, state: "running" } })
+    expect(
+      normalizedToolCardParsedResult({
+        content: [{ type: "text", text: JSON.stringify({ job: { id: 1, state: "stale" } }) }],
+        structured_content: { job: { id: 2, state: "running" } }
+      })
+    ).toEqual({ job: { id: 2, state: "running" } })
   })
 
   it("leaves direct unwrapped payloads unchanged", () => {
@@ -265,7 +288,7 @@ describe("normalizedToolCardParsedResult", () => {
 
   it("falls back to the original envelope when inner text is malformed JSON", () => {
     const envelope = {
-      content: [{ type: "text", text: "{\"job\":" }],
+      content: [{ type: "text", text: '{"job":' }],
       structured_content: null
     }
 
@@ -289,7 +312,9 @@ describe("typedToolResult", () => {
     expect(typedToolResult("propose_job", JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic", JSON.stringify({ slug: "fix-epic", title: "Fix epic", kind: "epic", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic_with_jobs", JSON.stringify({ slug: "fix-epic", state: "proposed" }))).toBeNull()
-    expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))).toBeNull()
+    expect(
+      typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))
+    ).toBeNull()
   })
 
   it("no longer special-cases set_bookmark (superseded by its tool_cards/ renderer)", () => {
@@ -310,15 +335,11 @@ describe("shortenWorkspacePaths", () => {
   })
 
   it("shortens chat workspace repository roots", () => {
-    expect(
-      shortenWorkspacePaths("/syrus-home/.syrus/chat-workspaces/161/repositories/tkadauke/syrus/app/models/job.rb")
-    ).toBe("app/models/job.rb")
+    expect(shortenWorkspacePaths("/syrus-home/.syrus/chat-workspaces/161/repositories/tkadauke/syrus/app/models/job.rb")).toBe("app/models/job.rb")
   })
 
   it("shortens workflow workspace roots", () => {
-    expect(
-      shortenWorkspacePaths("changed /syrus-home/.syrus/workflows/123/app/models/job.rb")
-    ).toBe("changed app/models/job.rb")
+    expect(shortenWorkspacePaths("changed /syrus-home/.syrus/workflows/123/app/models/job.rb")).toBe("changed app/models/job.rb")
   })
 
   it("keeps exact workspace references readable", () => {
