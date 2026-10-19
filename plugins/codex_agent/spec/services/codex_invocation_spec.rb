@@ -823,6 +823,37 @@ RSpec.describe CodexInvocation do
       )
     end
 
+    it "discards oversized JSONL records without aborting the invocation" do
+      events = []
+      runner_result = ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+        operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+      )
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run) do
+          kwargs.fetch(:on_output_line_fragment).call("discarded fragment")
+          kwargs.fetch(:on_output_line_fragment).call("discarded tail\n")
+          kwargs.fetch(:on_output_line).call(
+            { type: "turn.completed", usage: { input_tokens: 5, output_tokens: 10 } }.to_json
+          )
+          runner_result
+        end
+        fake
+      end
+
+      Dir.mktmpdir do |home|
+        result = described_class.new(
+          "/tmp/wkt", prompt: "x", api_key: "sk-test", codex_home: home,
+          log_sink: ->(message, **) { events << message }
+        ).run
+
+        expect(result).to be_success
+        expect(events.grep(/oversized JSONL record omitted/).size).to eq(1)
+        expect(events.join).not_to include("discarded fragment", "discarded tail")
+      end
+    end
+
     it "treats a silent timeout after a successful provider result as cleanup overhead" do
       turn_completed_line = {
         type: "turn.completed", usage: { input_tokens: 5, output_tokens: 10 }
