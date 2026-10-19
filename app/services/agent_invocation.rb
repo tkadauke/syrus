@@ -12,6 +12,19 @@ module AgentInvocation
   # in production. Kept in sync with User::AGENT_MAX_TURNS_RANGE's
   # production default so direct callers don't get a surprising cap.
   DEFAULT_MAX_TURNS = 200
+  # JSONL agent events can embed base64 screenshots and other tool payloads.
+  # Keep them bounded, but allow substantially more than ProcessRunner's
+  # general-purpose limit before discarding one malformed or extreme event.
+  MAX_EVENT_BYTES = 64.megabytes
+
+  def self.oversized_event_handler(provider)
+    ->(limit) {
+      Rails.logger.warn(
+        "Discarding oversized #{provider} agent event exceeding #{limit} bytes; " \
+        "resuming at the next JSONL record"
+      )
+    }
+  end
 
   ENV_FORWARD = %w[
     HOME

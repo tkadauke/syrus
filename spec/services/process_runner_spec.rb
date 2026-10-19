@@ -81,6 +81,44 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(lines).to be_empty
   end
 
+  it "honors a custom line cap and delivers a record above the default intact" do
+    payload_bytes = described_class::MAX_OUTPUT_LINE_BYTES + 17
+    lines = []
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "puts('x' * #{payload_bytes})" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      max_output_line_bytes: payload_bytes + 1,
+      on_output_line: ->(line) { lines << line }
+    ).run
+
+    expect(result).to be_success
+    expect(lines).to eq([ ("x" * payload_bytes) + "\n" ])
+  end
+
+  it "discards an oversized record and resumes at the next newline" do
+    discarded_limits = []
+    lines = []
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "STDOUT.write(('x' * 33) + \"\\nnext\\n\")" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 5,
+      max_output_line_bytes: 32,
+      on_output_line_too_long: ->(limit) { discarded_limits << limit },
+      on_output_line: ->(line) { lines << line }
+    ).run
+
+    expect(result).to be_success
+    expect(discarded_limits).to eq([ 32 ])
+    expect(lines).to eq([ "next\n" ])
+  end
+
   it "lets explicit fragment consumers drain an oversized newline-free record" do
     payload = "x" * (described_class::MAX_OUTPUT_LINE_BYTES * 2 + 17)
     complete_lines = []
