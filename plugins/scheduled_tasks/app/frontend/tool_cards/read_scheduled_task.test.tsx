@@ -48,17 +48,15 @@ describe("read_scheduled_task tool card", () => {
   it("summarizes the collapsed row with the label, id, and state", () => {
     const parsedResult = { scheduled_task: task }
 
-    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Nightly main-branch health check (#12, scheduled)"
-    )
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Nightly main-branch health check (#12, scheduled)")
   })
 
   it("renders the schedule, repository, and firing history", () => {
     render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult: { scheduled_task: task } }))}</>)
 
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Copy #12 to clipboard" }))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("#12")
+    fireEvent.click(screen.getByRole("button", { name: "Copy TASK-12 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("TASK-12")
     expect(screen.getByText("scheduled")).toBeInTheDocument()
     expect(screen.getByText("cron")).toBeInTheDocument()
     expect(screen.getByText("Runs daily at 3:00 AM UTC (UTC)")).toBeInTheDocument()
@@ -97,6 +95,15 @@ describe("read_scheduled_task tool card", () => {
 
     expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(readScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+  })
+
+  it("renders structured tool errors with the shared scheduled-task error card", () => {
+    const parsedResult = { error: { message: "scheduled task not found" } }
+    render(<>{readScheduledTaskToolCard.renderExpanded(context({ resultError: true, parsedResult }))}</>)
+
+    expect(screen.getByText("Scheduled task")).toBeInTheDocument()
+    expect(screen.getByText("scheduled task not found")).toBeInTheDocument()
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ resultError: true, parsedResult }))).toBe("Scheduled task request failed")
   })
 
   it("falls back to null when the task payload is missing required fields", () => {

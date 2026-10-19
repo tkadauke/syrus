@@ -45,6 +45,15 @@ describe("MarkdownPreview", () => {
     expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
   })
 
+  it("keeps slug linking disabled in the full modal", () => {
+    const text = `Review JOB-42 before continuing. ${"Additional details. ".repeat(30)}`
+    render(<MarkdownPreview linkifySlugs={false} maxChars={40} text={text} />)
+
+    expect(screen.queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 

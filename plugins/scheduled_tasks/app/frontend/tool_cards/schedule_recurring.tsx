@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCar
 import { ErrorCard } from "@app/routes/chat/chatHelperToolCard"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { CardShell, displayValue, EntityReference, Row, StatePill } from "@app/routes/chat/toolCardUi"
-import { t } from "../scheduledTaskToolCard"
+import { scheduledTaskErrorMessage, t } from "../scheduledTaskToolCard"
 
 type ScheduleRecurringCard = {
   confirmationId: string
@@ -16,15 +16,6 @@ type ScheduleRecurringCard = {
   reason: string | null
   taskId: string | null
   taskHref: string | null
-}
-
-function errorMessage(context: ToolCardContext) {
-  if (!context.resultError) return null
-  if (isPlainObject(context.parsedResult)) {
-    const nested = isPlainObject(context.parsedResult.error) ? context.parsedResult.error : null
-    return displayValue(nested?.message) || displayValue(context.parsedResult.message) || displayValue(context.parsedResult.error)
-  }
-  return displayValue(context.resultBody) || t("tool_schedule_error_fallback")
 }
 
 function parseScheduleRecurring(context: ToolCardContext): ScheduleRecurringCard | null {
@@ -55,7 +46,7 @@ function parseScheduleRecurring(context: ToolCardContext): ScheduleRecurringCard
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const error = errorMessage(context)
+  const error = scheduledTaskErrorMessage(context)
   if (error) return t("tool_schedule_error_summary")
   const card = parseScheduleRecurring(context)
   if (!card) return null
@@ -67,7 +58,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const error = errorMessage(context)
+  const error = scheduledTaskErrorMessage(context)
   if (error) return <ErrorCard message={error} title={t("tool_schedule_title")} />
   const card = parseScheduleRecurring(context)
   if (!card) return null

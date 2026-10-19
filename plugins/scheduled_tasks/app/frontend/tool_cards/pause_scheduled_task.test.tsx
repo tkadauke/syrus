@@ -21,16 +21,14 @@ describe("pause_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the paused label and id", () => {
-    expect(pauseScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: paused }))).toBe(
-      "Paused 'Nightly main-branch health check' (#12)"
-    )
+    expect(pauseScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: paused }))).toBe("Paused 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the paused outcome", () => {
     render(<>{pauseScheduledTaskToolCard.renderExpanded(context({ parsedResult: paused }))}</>)
 
     expect(screen.getByText("paused")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
     expect(screen.getByText("This task will not fire again until it is resumed.")).toBeInTheDocument()
   })
@@ -40,6 +38,14 @@ describe("pause_scheduled_task tool card", () => {
 
     expect(pauseScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(pauseScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+  })
+
+  it("renders tool errors with the shared scheduled-task error card", () => {
+    render(<>{pauseScheduledTaskToolCard.renderExpanded(context({ resultError: true, resultBody: "scheduled task is already disabled" }))}</>)
+
+    expect(screen.getByText("Scheduled task")).toBeInTheDocument()
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("scheduled task is already disabled")).toBeInTheDocument()
   })
 
   it("falls back to null for a non-object payload", () => {

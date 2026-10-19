@@ -71,8 +71,8 @@ describe("list_scheduled_tasks tool card", () => {
     render(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [cronTask, oneShotTask] } }))}</>)
 
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Copy #12 to clipboard" }))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("#12")
+    fireEvent.click(screen.getByRole("button", { name: "Copy TASK-12 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("TASK-12")
     expect(screen.getByText("scheduled")).toBeInTheDocument()
     expect(screen.getByText("cron")).toBeInTheDocument()
     expect(screen.getByText("Runs daily at 3:00 AM UTC")).toBeInTheDocument()
