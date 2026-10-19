@@ -1,5 +1,7 @@
 import { type ReactNode } from "react"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell } from "./mediaPreviewShell"
 import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
@@ -11,7 +13,7 @@ import { Badge, CardShell, displayValue, EntityReference, SectionLabel, StatePil
 // (no title, a child_jobs list of proposals rather than a materialized
 // result) and is handled by its own tool_cards/propose_epic_with_jobs.tsx.
 export type MaterializedOutcome =
-  | { kind: "job"; jobId: string; jobState: string | null }
+  | { kind: "job"; jobId: string; jobTitle: string | null; jobState: string | null }
   | { kind: "epic"; epicId: string; childJobCount: number }
   | { kind: "rejected"; reason: string }
   | null
@@ -19,16 +21,28 @@ export type MaterializedOutcome =
 export type ProposalOutcome = {
   slug: string
   title: string | null
+  body: string
   kind: string
   state: string
+  labels: string[]
   repository: string | null
-  dependencyCount: number
+  dependencies: string[]
+  jobDependencyIds: string[]
+  epicDependencyIds: string[]
+  dependencyRequirements: DependencyRequirement[]
   targetEpicId: string | null
   targetEpicLabel: string | null
+  investigation: boolean
+  initialJobState: string | null
   providerSetting: string | null
+  plannedExecutionText: string | null
   capabilitiesText: string | null
+  goalProvenanceText: string | null
+  media: string[]
   materialized: MaterializedOutcome
 }
+
+type DependencyRequirement = { target: string; mode: string; stage: string | null }
 
 function plannedExecutionCapabilitiesText(plannedExecution: unknown) {
   if (!isPlainObject(plannedExecution)) return null
@@ -50,7 +64,7 @@ function parseMaterialized(value: unknown): MaterializedOutcome {
 
   if (kind === "job") {
     const jobId = displayValue(value.job_id)
-    return jobId ? { kind: "job", jobId, jobState: displayValue(value.job_state) } : null
+    return jobId ? { kind: "job", jobId, jobTitle: displayValue(value.job_title), jobState: displayValue(value.job_state) } : null
   }
 
   if (kind === "epic") {
@@ -68,8 +82,32 @@ function parseMaterialized(value: unknown): MaterializedOutcome {
   return null
 }
 
-export function parseProposalOutcome(value: unknown): ProposalOutcome | null {
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(displayValue).filter((item): item is string => Boolean(item)) : []
+}
+
+function dependencyRequirements(value: unknown): DependencyRequirement[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isPlainObject(item)) return []
+    const jobId = displayValue(item.job_id ?? item.depends_on_job_id)
+    const slug = displayValue(item.proposal_slug ?? item.depends_on ?? item.slug)
+    const target = jobId ? `JOB-${jobId}` : slug
+    if (!target) return []
+    return [{ target, mode: displayValue(item.satisfaction_mode) || "success", stage: displayValue(item.required_deployment_stage_name) }]
+  })
+}
+
+function objectSummary(value: unknown): string | null {
+  if (!isPlainObject(value) || Object.keys(value).length === 0) return null
+  return Object.entries(value)
+    .map(([key, entry]) => `${key.replace(/_/g, " ")}: ${isPlainObject(entry) ? JSON.stringify(entry) : (displayValue(entry) ?? "—")}`)
+    .join(" · ")
+}
+
+export function parseProposalOutcome(value: unknown, rawInput?: Record<string, unknown>): ProposalOutcome | null {
   if (!isPlainObject(value)) return null
+  const input = rawInput ?? {}
   const slug = displayValue(value.slug)
   const state = displayValue(value.state)
   if (!slug || !state) return null
@@ -77,14 +115,24 @@ export function parseProposalOutcome(value: unknown): ProposalOutcome | null {
   return {
     slug,
     title: displayValue(value.title),
+    body: displayValue(value.body) || displayValue(input.description) || "",
     kind: displayValue(value.kind) || "job",
     state,
+    labels: stringList(value.labels),
     repository: displayValue(value.repository),
-    dependencyCount: Array.isArray(value.dependencies) ? value.dependencies.length : 0,
-    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : null,
+    dependencies: stringList(value.dependencies),
+    jobDependencyIds: stringList(value.depends_on_job_ids ?? input.depends_on_job_ids),
+    epicDependencyIds: stringList(value.depends_on_epic_ids ?? input.depends_on_epic_ids),
+    dependencyRequirements: dependencyRequirements(value.dependency_requirements ?? input.dependency_requirements),
+    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : displayValue(input.epic_id),
     targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
-    providerSetting: displayValue(value.provider_setting),
-    capabilitiesText: plannedExecutionCapabilitiesText(value.planned_execution),
+    investigation: value.investigation === true,
+    initialJobState: displayValue(value.initial_job_state) || (value.route_to_backlog === true ? "backlog" : null),
+    providerSetting: displayValue(value.provider_setting) || displayValue(input.provider),
+    plannedExecutionText: objectSummary(value.planned_execution ?? input.planned_execution),
+    capabilitiesText: plannedExecutionCapabilitiesText(value.planned_execution ?? input.planned_execution),
+    goalProvenanceText: objectSummary(value.goal_provenance),
+    media: stringList(input.media),
     materialized: parseMaterialized(value.materialized)
   }
 }
@@ -104,7 +152,10 @@ function MaterializedOutcomeDetail({ materialized }: { materialized: Materialize
   if (materialized.kind === "job") {
     return (
       <div className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
-        <span>Materialized as <EntityReference id={materialized.jobId} kind="job" /></span>
+        <span>
+          Materialized as <EntityReference id={materialized.jobId} kind="job" />
+          {materialized.jobTitle ? ` · ${materialized.jobTitle}` : ""}
+        </span>
         {materialized.jobState ? <StatePill state={materialized.jobState} /> : null}
       </div>
     )
@@ -126,7 +177,7 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
   return (
     <div className="min-w-0">
       <SectionLabel>{label}</SectionLabel>
-      <div className="truncate text-xs">{children}</div>
+      <div className="break-words text-xs [overflow-wrap:anywhere]">{children}</div>
     </div>
   )
 }
@@ -136,6 +187,19 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
 // card (ProposalCards.tsx's ProposalCard), which already renders separately
 // for the same chat_proposal item and owns edit/confirm/reject controls.
 export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome }) {
+  const hasDetails =
+    proposal.repository ||
+    proposal.targetEpicLabel ||
+    proposal.targetEpicId ||
+    proposal.dependencies.length > 0 ||
+    proposal.jobDependencyIds.length > 0 ||
+    proposal.epicDependencyIds.length > 0 ||
+    proposal.dependencyRequirements.length > 0 ||
+    proposal.investigation ||
+    proposal.initialJobState ||
+    proposal.providerSetting ||
+    proposal.plannedExecutionText ||
+    proposal.goalProvenanceText
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -144,18 +208,106 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         <EntityReference kind="proposal" slug={proposal.slug} />
       </div>
       {proposal.title ? <div className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{proposal.title}</div> : null}
-      {proposal.repository || proposal.targetEpicLabel || proposal.dependencyCount > 0 || (proposal.providerSetting && proposal.providerSetting !== "default") || proposal.capabilitiesText ? (
+      <MarkdownPreview
+        emptyState={<div className="text-xs italic text-text-muted">No description provided.</div>}
+        linkifySlugs
+        linkifyUrls
+        maxChars={960}
+        modalLabel="Full Job description"
+        text={proposal.body}
+        title="Description"
+      />
+      {proposal.labels.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {proposal.labels.map((label) => (
+            <Badge key={label}>{label}</Badge>
+          ))}
+        </div>
+      ) : null}
+      {hasDetails ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {proposal.repository ? <DetailValue label="Repository"><EntityReference kind="repository" slug={proposal.repository} /></DetailValue> : null}
-          {proposal.targetEpicLabel ? (
-            <DetailValue label="Target epic">
-              {proposal.targetEpicId ? <EntityReference id={proposal.targetEpicId} kind="epic" label={proposal.targetEpicLabel} slug={proposal.targetEpicLabel} /> : proposal.targetEpicLabel}
+          {proposal.repository ? (
+            <DetailValue label="Repository">
+              <EntityReference kind="repository" slug={proposal.repository} />
             </DetailValue>
           ) : null}
-          {proposal.dependencyCount > 0 ? <DetailValue label="Dependencies">{proposal.dependencyCount}</DetailValue> : null}
-          {proposal.providerSetting && proposal.providerSetting !== "default" ? <DetailValue label="Provider">{proposal.providerSetting}</DetailValue> : null}
+          {proposal.targetEpicLabel || proposal.targetEpicId ? (
+            <DetailValue label="Target epic">
+              {proposal.targetEpicId ? (
+                <EntityReference id={proposal.targetEpicId} kind="epic" label={proposal.targetEpicLabel} slug={proposal.targetEpicLabel} />
+              ) : (
+                proposal.targetEpicLabel
+              )}
+            </DetailValue>
+          ) : null}
+          {proposal.dependencies.length > 0 ? (
+            <DetailValue label="Proposal dependencies">
+              <span className="flex flex-wrap gap-2">
+                {proposal.dependencies.map((slug) => (
+                  <EntityReference key={slug} kind="proposal" slug={slug} />
+                ))}
+              </span>
+            </DetailValue>
+          ) : null}
+          {proposal.jobDependencyIds.length > 0 ? (
+            <DetailValue label="Job dependencies">
+              <span className="flex flex-wrap gap-2">
+                {proposal.jobDependencyIds.map((id) => (
+                  <EntityReference id={id} key={id} kind="job" />
+                ))}
+              </span>
+            </DetailValue>
+          ) : null}
+          {proposal.epicDependencyIds.length > 0 ? (
+            <DetailValue label="Epic dependencies">
+              <span className="flex flex-wrap gap-2">
+                {proposal.epicDependencyIds.map((id) => (
+                  <EntityReference id={id} key={id} kind="epic" />
+                ))}
+              </span>
+            </DetailValue>
+          ) : null}
+          {proposal.dependencyRequirements.length > 0 ? (
+            <DetailValue label="Dependency requirements">
+              {proposal.dependencyRequirements.map((requirement) => (
+                <div key={`${requirement.target}-${requirement.mode}`}>
+                  {requirement.target.startsWith("JOB-") ? (
+                    <EntityReference id={requirement.target.slice(4)} kind="job" />
+                  ) : (
+                    <EntityReference kind="proposal" slug={requirement.target} />
+                  )}{" "}
+                  · {requirement.mode.replace(/_/g, " ")}
+                  {requirement.stage ? `: ${requirement.stage}` : ""}
+                </div>
+              ))}
+            </DetailValue>
+          ) : null}
+          {proposal.investigation ? <DetailValue label="Work type">Investigation</DetailValue> : null}
+          {proposal.initialJobState ? <DetailValue label="Initial state">{proposal.initialJobState}</DetailValue> : null}
+          {proposal.providerSetting ? <DetailValue label="Provider">{proposal.providerSetting}</DetailValue> : null}
+          {proposal.plannedExecutionText ? <DetailValue label="Planned execution">{proposal.plannedExecutionText}</DetailValue> : null}
           {proposal.capabilitiesText ? <DetailValue label="Capabilities">{proposal.capabilitiesText}</DetailValue> : null}
+          {proposal.goalProvenanceText ? <DetailValue label="Goal provenance">{proposal.goalProvenanceText}</DetailValue> : null}
         </dl>
+      ) : null}
+      {proposal.media.length > 0 ? (
+        <div>
+          <SectionLabel>Media</SectionLabel>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {proposal.media.map((reference) => (
+              <MediaPreviewShell
+                item={{
+                  title: reference,
+                  fallbackLabel: reference.split(":", 1)[0].replace(/_/g, " "),
+                  badge: "attachment",
+                  actions: [{ label: "Copy reference", copyValue: reference }]
+                }}
+                key={reference}
+                thumbnailClassName="w-full"
+              />
+            ))}
+          </div>
+        </div>
       ) : null}
       <MaterializedOutcomeDetail materialized={proposal.materialized} />
     </CardShell>

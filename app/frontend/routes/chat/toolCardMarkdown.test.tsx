@@ -29,6 +29,21 @@ describe("MarkdownPreview", () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it("supports an explicit empty state", () => {
+    render(<MarkdownPreview emptyState={<span>No description.</span>} text=" " />)
+    expect(screen.getByText("No description.")).toBeInTheDocument()
+  })
+
+  it("linkifies URLs and slugs in previews and offers modal copy for character-limited content", () => {
+    const text = `See JOB-42 and https://example.test/details. ${"More details. ".repeat(30)}`
+    render(<MarkdownPreview linkifySlugs linkifyUrls maxChars={60} text={text} title="Description" />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 
