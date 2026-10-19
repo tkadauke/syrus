@@ -1,9 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import i18n from "@app/i18n"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import listInsightsToolCard from "./list_insights"
 import readInsightToolCard from "./read_insight"
 import retireInsightToolCard from "./retire_insight"
+import submitInsightToolCard from "./submit_insight"
+import updateInsightToolCard from "./update_insight"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -45,13 +48,14 @@ describe("Agent Insights tool cards", () => {
     expect(pluginToolCardRendererFor("retire_insight")).not.toBeNull()
   })
 
-  it("renders an empty list without falling back to raw JSON", () => {
-    const cardContext = context({ parsedResult: { insights: [] } })
+  it("renders an empty list with its applied filter without falling back to raw JSON", () => {
+    const cardContext = context({ input: { state: "pending" }, parsedResult: { insights: [] } })
 
     expect(listInsightsToolCard.collapsedSummary?.(cardContext)).toBe("0 insights")
     render(<>{listInsightsToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("No insights match this query.")).toBeInTheDocument()
+    expect(screen.getByText("No insights match: State: pending.")).toBeInTheDocument()
   })
 
   it("renders pending, accepted, and retired insights with summaries, metadata, and source links", () => {
@@ -63,18 +67,28 @@ describe("Agent Insights tool cards", () => {
 
     render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights } }))}</>)
 
-    expect(screen.getByText("Prepare failures cluster")).toBeInTheDocument()
-    expect(screen.getAllByText("Several prepare failures share the same Bundler setup issue.")).toHaveLength(3)
-    expect(screen.getByText("Resolved memory cleanup")).toBeInTheDocument()
-    expect(screen.getByText("Retired duplicate")).toBeInTheDocument()
-    expect(screen.getByText("pending")).toBeInTheDocument()
-    expect(screen.getByText("accepted")).toBeInTheDocument()
-    expect(screen.getByText("retired")).toBeInTheDocument()
-    expect(screen.getAllByText("acme/widgets")).toHaveLength(3)
+    expect(screen.getAllByText("Prepare failures cluster")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("Several prepare failures share the same Bundler setup issue.")).toHaveLength(6)
+    expect(screen.getAllByText("Resolved memory cleanup")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("Retired duplicate")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("pending")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("accepted")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("retired")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("acme/widgets")).toHaveLength(6)
     expect(screen.getAllByRole("link", { name: "WF-12" })[0]).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
     expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
     fireEvent.click(screen.getAllByRole("button", { name: "Copy INSIGHT-41 to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("INSIGHT-41")
+    expect(screen.getAllByRole("link", { name: "INSIGHT-41" })[0]).toHaveAttribute("href", "/s/INSIGHT-41")
+    const mobileList = screen.getAllByText("Prepare failures cluster")[0].closest(".sm\\:hidden")
+    expect(mobileList).not.toBeNull()
+    const mobileRow = within(mobileList!.firstElementChild as HTMLElement)
+    expect(mobileRow.getByText("repeated failure")).toBeInTheDocument()
+    expect(mobileRow.getByText("create job")).toBeInTheDocument()
+    expect(mobileRow.getByText("92% confidence")).toBeInTheDocument()
+    expect(mobileRow.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
+    expect(mobileRow.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    expect(mobileRow.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/repositories/3")
   })
 
   it("renders read_insight details with long evidence, recommended action, links, and retirement outcome", () => {
@@ -104,7 +118,7 @@ describe("Agent Insights tool cards", () => {
     render(<>{readInsightToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("Recommended action")).toBeInTheDocument()
-    expect(screen.getByText("Show full text (8 lines)")).toBeInTheDocument()
+    expect(screen.getByText("Show more")).toBeInTheDocument()
     expect(screen.getByText("Show remaining evidence (2)")).toBeInTheDocument()
     expect(screen.getByText("Retirement outcome")).toBeInTheDocument()
     expect(screen.getByText("Superseded by")).toBeInTheDocument()
@@ -142,13 +156,42 @@ describe("Agent Insights tool cards", () => {
       toolName: "retire_insight",
       resultBody: JSON.stringify({ message: "Retired 2 insights.", insight_ids: [41, 42] }),
       parsedResult: { message: "Retired 2 insights.", insight_ids: [41, 42] },
-      input: { insight_ids: [41, 42], reason: "Both findings are stale." }
+      input: { insight_ids: [41, 42], reason: "Both findings are stale." },
+      livePendingAction: {
+        id: 7,
+        action: "retire_insight",
+        state: "confirmed",
+        label: "Retire insights",
+        detail: "Confirmed by the operator.",
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
     })
 
     expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Retired insight #41")
     render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByText("Retired 2 insights.")).toBeInTheDocument()
     expect(screen.getByText("Both findings are stale.")).toBeInTheDocument()
+    expect(screen.getByText("Confirmed by the operator.")).toBeInTheDocument()
+  })
+
+  it("normalizes wrapped provider envelopes and renders errors", () => {
+    const wrapped = { content: [{ type: "text", text: JSON.stringify({ insights: [baseInsight] }) }] }
+    expect(listInsightsToolCard.collapsedSummary?.(context({ parsedResult: wrapped }))).toBe("1 insight")
+    render(<>{listInsightsToolCard.renderExpanded(context({ resultBody: "Repository is not accessible.", resultError: true }))}</>)
+    expect(screen.getByText("Repository is not accessible.")).toBeInTheDocument()
+  })
+
+  it("localizes mutation summaries, labels, and fallback messages", async () => {
+    await i18n.changeLanguage("de")
+    const cardContext = context({ parsedResult: { insight_ids: [41] } })
+    expect(submitInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 gespeichert")
+    expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 aktualisiert")
+    expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Einblick #41 zurückgezogen")
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Ergebnis der Zurückziehung")).toBeInTheDocument()
+    expect(screen.getByText("Änderung des Einblicks angefordert.")).toBeInTheDocument()
+    await i18n.changeLanguage("en")
   })
 
   it("falls back to the generic renderer for malformed list and detail payloads", () => {
@@ -157,7 +200,7 @@ describe("Agent Insights tool cards", () => {
   })
 
   it("ignores malformed insight rows while preserving valid rows", () => {
-    render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: [ { oops: true }, baseInsight ] } }))}</>)
+    render(<>{listInsightsToolCard.renderExpanded(context({ parsedResult: { insights: [{ oops: true }, baseInsight] } }))}</>)
 
     const rows = screen.getAllByRole("row")
     expect(rows).toHaveLength(2)
