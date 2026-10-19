@@ -449,6 +449,23 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.queryByText("No backend")).not.toBeInTheDocument()
   })
 
+  it("keeps the requested resource name in linked scope details", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_deployments",
+      input: { cluster_id: 7, namespace: "default", name: "web" },
+      parsedResult: {
+        available: true,
+        deployments: [{ namespace: "default", name: "web", replicas: 1, ready_replicas: 1 }]
+      }
+    })
+
+    render(<>{deploymentsToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("link", { name: "default" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getAllByText("web").length).toBeGreaterThan(0)
+  })
+
   it("renders config and secret metadata without exposing secret values", () => {
     render(
       <>
@@ -485,7 +502,7 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
-    expect(screen.getByText("web-1")).toBeInTheDocument()
+    expect(screen.getAllByText("web-1").length).toBeGreaterThan(0)
     expect(screen.getByText(/boot complete/)).toBeInTheDocument()
   })
 

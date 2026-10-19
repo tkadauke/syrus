@@ -2,7 +2,17 @@ import i18n from "i18next"
 import type { ReactNode } from "react"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, EmptyState, FilterableList, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
+import {
+  CardShell,
+  Disclosure,
+  EmptyState,
+  EntityReference,
+  FilterableList,
+  Row as DetailRow,
+  StatePill,
+  displayValue,
+  numberValue
+} from "@app/routes/chat/toolCardUi"
 import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
 import { formatBytes, formatAge, formatMillicores } from "./lib/k8sFormat"
 
@@ -60,6 +70,10 @@ type ParsedCard = {
   countLabel: string
   warningCount: number
   errorMessage: string | null
+  clusterId: string | null
+  namespace: string | null
+  name: string | null
+  generatedAt: string | null
   overview?: OverviewCard
 }
 type OverviewSection = {
@@ -385,7 +399,17 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
 
   const errorMessage = parseErrorMessage(context)
   if (errorMessage)
-    return { kind, rows: [], truncated: false, scope: scopeLabel(context), countLabel: t("tool_card_no_resources"), warningCount: 1, errorMessage }
+    return {
+      kind,
+      rows: [],
+      truncated: false,
+      scope: scopeLabel(context),
+      countLabel: t("tool_card_no_resources"),
+      warningCount: 1,
+      errorMessage,
+      ...scopeDetails(context),
+      generatedAt: null
+    }
 
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -401,6 +425,8 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
       countLabel: t("tool_card_overview_counts", { nodes: overview.nodes.items.length, pods: overview.pods.items.length }),
       warningCount: [overview.nodes, overview.pods].filter((section) => !section.available).length,
       errorMessage: null,
+      ...scopeDetails(context),
+      generatedAt: displayValue(parsed.generated_at),
       overview
     }
   }
@@ -414,7 +440,18 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
     scope: scopeLabel(context),
     countLabel: t("tool_card_resource_count", { count: resourceCount(kind, rows), resource: resourceLabel(kind) }),
     warningCount: warningCount(kind, rows),
-    errorMessage: null
+    errorMessage: null,
+    ...scopeDetails(context),
+    generatedAt: displayValue(parsed.generated_at)
+  }
+}
+
+function scopeDetails(context: ToolCardContext) {
+  const input = context.input || {}
+  return {
+    clusterId: displayValue(input.cluster_id),
+    namespace: displayValue(input.namespace),
+    name: displayValue(input.name)
   }
 }
 
@@ -905,12 +942,38 @@ function cell(column: Column, row: K8sRow) {
 function SummaryStrip({ card }: { card: ParsedCard }) {
   return (
     <div className="grid gap-2 sm:grid-cols-3">
-      <DetailRow label={t("tool_card_scope")} value={card.scope} />
+      <ScopeDetail card={card} />
       <DetailRow label={t("tool_card_resources")} value={card.countLabel} />
       <DetailRow
         label={t("tool_card_health")}
         value={card.warningCount > 0 ? t("tool_card_warning_count", { count: card.warningCount }) : t("tool_card_no_warnings")}
       />
+      {card.generatedAt ? <DetailRow label={t("tool_card_generated_at")} value={card.generatedAt} /> : null}
+    </div>
+  )
+}
+
+function ScopeDetail({ card }: { card: ParsedCard }) {
+  if (!card.clusterId) return <DetailRow label={t("tool_card_scope")} value={card.scope} />
+
+  return (
+    <div className="min-w-0">
+      <div className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_scope")}</div>
+      <div className="flex flex-wrap items-center gap-x-1 font-mono text-xs text-text-primary">
+        <EntityReference kind="cluster" id={card.clusterId} label={t("tool_card_scope_cluster", { cluster: card.clusterId })} />
+        {card.namespace ? (
+          <>
+            <span>/</span>
+            <EntityReference kind="namespace" id={card.clusterId} label={card.namespace} />
+          </>
+        ) : null}
+        {card.name ? (
+          <>
+            <span>/</span>
+            <span className="break-all">{card.name}</span>
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }

@@ -288,6 +288,7 @@
   "tool_card_error_summary": "{{scope}} · Fehler",
   "tool_card_filter_placeholder": "Ressourcen filtern",
   "tool_card_health": "Zustand",
+  "tool_card_generated_at": "Erzeugt um",
   "tool_card_items": "Einträge",
   "tool_card_default_container": "Standard",
   "tool_card_log_preview": "Log-Vorschau",
