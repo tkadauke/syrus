@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, decimalCost, displayValue, EmptyState, StatePill } from "../toolCardUi"
-import { JobRefLink, Table, TBody, Td, THead } from "../adminToolCard"
+import { Badge, CardShell, decimalCost, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
+import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_list_runs (the tool-card work). Renders a
 // dense cross-Job table of Runs: state, trigger kind, timing, and cost.
@@ -38,40 +38,84 @@ function runRows(context: ToolCardContext): RunRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.runs)) return null
 
-  return parsed.runs.flatMap((run, index) => { const row = parseRow(run, index); return row ? [row] : [] })
+  return parsed.runs.flatMap((run, index) => {
+    const row = parseRow(run, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  if (context.resultError) return "Run listing failed"
   const rows = runRows(context)
   if (!rows) return null
   return `${rows.length} Run${rows.length === 1 ? "" : "s"}`
 }
 
+function AppliedFilters({ input }: { input?: Record<string, unknown> }) {
+  if (!input) return null
+
+  const entries: Array<[string, string]> = [
+    ["state", displayValue(input.state) ?? ""],
+    ["trigger_kind", displayValue(input.trigger_kind) ?? ""],
+    ["job_id", displayValue(input.job_id) ?? ""],
+    ["since", displayValue(input.since) ?? ""],
+    ["limit", displayValue(input.limit) ?? ""]
+  ].filter(([, value]) => value.length > 0) as Array<[string, string]>
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {entries.map(([key, value]) => (
+        <Badge key={key}>
+          {key}: {value}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) {
+    return (
+      <CardShell>
+        <AppliedFilters input={context.input} />
+        <div className="rounded border border-danger-border bg-danger-surface px-2 py-1 text-danger-text" role="alert">
+          {displayValue(context.resultBody) ?? "Unable to list Runs."}
+        </div>
+      </CardShell>
+    )
+  }
+
   const rows = runRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>No Runs found.</EmptyState>
-
   return (
     <CardShell>
-      <Table>
-        <THead columns={["Run", "Job", "Workflow", "State", "Trigger", "Started", "Finished", "Cost"]} />
-        <TBody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <Td mono>RUN-{row.id}</Td>
-              <Td><JobRefLink jobId={row.jobId} /></Td>
-              <Td mono>{row.workflowId ? `WF-${row.workflowId}` : "—"}</Td>
-              <Td>{row.state ? <StatePill state={row.state} /> : "—"}</Td>
-              <Td>{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</Td>
-              <Td mono>{row.startedAt || "—"}</Td>
-              <Td mono>{row.finishedAt || "—"}</Td>
-              <Td mono>{row.costUsd || "—"}</Td>
-            </tr>
-          ))}
-        </TBody>
-      </Table>
+      <AppliedFilters input={context.input} />
+      {rows.length === 0 ? (
+        <EmptyState>No Runs found.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["Run", "Job", "Workflow", "State", "Trigger", "Started", "Finished", "Cost"]} />
+          <TBody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <Td primary>
+                  <EntityReference id={row.id} jobId={row.jobId} kind="run" workflowId={row.workflowId} wrap="nowrap" />
+                </Td>
+                <Td>{row.jobId ? <EntityReference id={row.jobId} kind="job" wrap="nowrap" /> : "—"}</Td>
+                <Td>{row.workflowId ? <EntityReference id={row.workflowId} jobId={row.jobId} kind="workflow" wrap="nowrap" /> : "—"}</Td>
+                <Td>{row.state ? <StatePill state={row.state} /> : "—"}</Td>
+                <Td>{row.triggerKind ? <Badge>{row.triggerKind}</Badge> : "—"}</Td>
+                <Td mono>{row.startedAt || "—"}</Td>
+                <Td mono>{row.finishedAt || "—"}</Td>
+                <Td mono>{row.costUsd || "—"}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
     </CardShell>
   )
 }
