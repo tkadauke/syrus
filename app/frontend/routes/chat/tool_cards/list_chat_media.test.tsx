@@ -81,6 +81,23 @@ describe("list_chat_media tool card", () => {
     expect(within(screen.getByRole("button", { name: "Open remote.png" })).getByRole("img")).toHaveAttribute("src", "https://cdn.example/remote.png")
   })
 
+  it("does not render an inline image data URL as modal metadata", () => {
+    const dataUrl = "data:image/png;base64,a-very-long-encoded-image"
+    const parsedResult = {
+      snapshots: [],
+      chat_images: [{ id: "chat_image:9", filename: "inline.png", content_type: "image/png", file_path: dataUrl }]
+    }
+
+    render(<>{listChatMediaToolCard.renderExpanded(context({ parsedResult }))}</>)
+    fireEvent.click(screen.getByRole("button", { name: "Open inline.png" }))
+
+    const dialog = screen.getByRole("dialog", { name: "inline.png" })
+    expect(within(dialog).queryByText(dataUrl)).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("Path")).not.toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "Open image" })).toHaveAttribute("href", dataUrl)
+    expect(within(dialog).getByRole("button", { name: "Copy path" })).toBeInTheDocument()
+  })
+
   it("opens a preview modal with full details on click", () => {
     const parsedResult = {
       snapshots: [],

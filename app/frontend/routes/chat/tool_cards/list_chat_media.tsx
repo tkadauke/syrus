@@ -150,6 +150,7 @@ function MediaGallery({ items, contextRows }: { items: Media[]; contextRows: Con
 
 function MediaTile({ item }: { item: Media }) {
   const thumbnailSrc = mediaThumbnailSrc(item)
+  const imageSource = item.kind === "chat_image" ? item.file_path || item.image_url : ""
   const href = item.kind === "snapshot" ? safeMediaUrl(item.whiteboard_url) : thumbnailSrc
   const actions: MediaPreviewAction[] = [{ label: "Copy ID", copyValue: item.id }]
   if (href) actions.unshift({ label: item.kind === "snapshot" ? "Open whiteboard" : "Open image", href })
@@ -162,7 +163,7 @@ function MediaTile({ item }: { item: Media }) {
       ? { label: "Content type", value: item.content_type }
       : { label: "Elements", value: item.element_count == null ? null : String(item.element_count) },
     item.kind === "chat_image"
-      ? { label: "Path", value: item.file_path || item.image_url, copyValue: item.file_path || item.image_url }
+      ? { label: "Path", value: inlineImageSource(imageSource) ? null : imageSource, copyValue: imageSource }
       : { label: "Created", value: item.created_at }
   ]
   const title = item.kind === "chat_image" ? item.filename : item.name
@@ -186,6 +187,10 @@ function MediaTile({ item }: { item: Media }) {
 
 function safeMediaUrl(value: string) {
   return value && (value.startsWith("/") || value.startsWith("data:image/") || /^https?:\/\//i.test(value)) ? value : null
+}
+
+function inlineImageSource(value: string) {
+  return value.startsWith("data:image/")
 }
 
 function mediaThumbnailSrc(item: Media) {
