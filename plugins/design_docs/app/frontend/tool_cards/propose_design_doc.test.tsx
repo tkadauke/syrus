@@ -33,7 +33,7 @@ const input = {
   markdown: `# Proposed body\n\nSee JOB-42 and https://example.test/details. ${"More context. ".repeat(100)}`,
   visibility: "public",
   repository_ids: [41, "42"],
-  collaborator_user_ids: [7, "8"],
+  collaborator_user_ids: [7, "8", 9],
   change_summary: "Adds **placement** guidance."
 }
 
@@ -47,7 +47,11 @@ const parsedResult = {
     current_version_number: 3,
     markdown: `# Created body\n\nThe complete result for DOC-42. ${"Result details. ".repeat(100)}`,
     repositories: [{ id: 41, slug: "acme/widgets" }],
-    collaborators: [{ id: 7, name: "Ada" }]
+    collaborators: [
+      { id: 7, name: "Ada", email_address: "ada@example.com" },
+      { id: 8, name: " ", email_address: "grace@example.com" },
+      { id: 9 }
+    ]
   },
   note: "For later changes, use **suggest_design_doc_change**."
 }
@@ -76,9 +80,10 @@ describe("propose_design_doc tool card", () => {
     expect(screen.getByText("Proposed title")).toBeInTheDocument()
     expect(screen.getByText("Proposal input title")).toBeInTheDocument()
     expect(screen.getByText("public")).toBeInTheDocument()
-    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.getAllByText("Ada, grace@example.com")).toHaveLength(2)
+    expect(screen.queryByText("7, 8, 9")).not.toBeInTheDocument()
+    expect(screen.queryByText("Collaborator 9")).not.toBeInTheDocument()
     expect(screen.getByText("placement").tagName).toBe("STRONG")
-    expect(screen.getByText("Ada")).toBeInTheDocument()
 
     for (const [label, href] of [
       ["Repository 41", "/repositories/41"],
@@ -118,7 +123,8 @@ describe("propose_design_doc tool card", () => {
     expect(screen.getByText("Proposal input title")).toBeInTheDocument()
     expect(screen.getByText("Proposed body")).toBeInTheDocument()
     expect(screen.getByText("public")).toBeInTheDocument()
-    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.queryByText("7, 8, 9")).not.toBeInTheDocument()
+    expect(screen.queryByText("Collaborators")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Repository 41" })).toHaveAttribute("href", "/repositories/41")
     expect(screen.getByText("placement").tagName).toBe("STRONG")
 
@@ -130,7 +136,8 @@ describe("propose_design_doc tool card", () => {
     expect(screen.getByText("Proposal input title")).toBeInTheDocument()
     expect(screen.getByText("Proposed body")).toBeInTheDocument()
     expect(screen.getByText("public")).toBeInTheDocument()
-    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.queryByText("7, 8, 9")).not.toBeInTheDocument()
+    expect(screen.queryByText("Collaborators")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Repository 42" })).toHaveAttribute("href", "/repositories/42")
     expect(screen.getByText("placement").tagName).toBe("STRONG")
   })
