@@ -63,7 +63,7 @@ function FreeDrawPreview({ points, color, strokeWidth }: { points: Point[]; colo
   if (!path) return null
   return (
     <svg
-      aria-label="Freehand path preview"
+      aria-label={`${t("tool_action_drew_freehand_path")}: ${t("tool_field_points")}`}
       className="h-16 w-full max-w-64 rounded border border-border bg-surface-subtle"
       data-preview-point-count={points.length}
       role="img"
