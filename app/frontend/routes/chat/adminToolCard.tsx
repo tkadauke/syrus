@@ -95,7 +95,7 @@ export function JobRefLink({ jobId }: { jobId: number | string | null }) {
 
 type ResponsiveTableContextValue = {
   columns: string[]
-  responsive: boolean
+  responsive: false | "viewport" | "container"
 }
 
 const ResponsiveTableContext = createContext<ResponsiveTableContextValue>({ columns: [], responsive: false })
@@ -116,17 +116,36 @@ const RESPONSIVE_CELL_CLASSES = [
   "[&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center sm:[&_a]:min-h-0"
 ].join(" ")
 
-export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean }) {
+const CONTAINER_RESPONSIVE_BODY_CLASSES = [
+  "block divide-y-0 space-y-2 bg-transparent",
+  "@[64rem]:table-row-group @[64rem]:divide-y @[64rem]:space-y-0 @[64rem]:bg-surface",
+  "[&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)]",
+  "[&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1",
+  "@[64rem]:[&>tr]:table-row @[64rem]:[&>tr]:h-[var(--data-table-row-min-height)]",
+  "@[64rem]:[&>tr]:rounded-none @[64rem]:[&>tr]:border-0 @[64rem]:[&>tr]:py-0"
+].join(" ")
+
+const CONTAINER_RESPONSIVE_CELL_CLASSES = [
+  "grid min-w-0 grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)] items-start gap-3 px-3",
+  "@[64rem]:table-cell @[64rem]:px-2",
+  "[&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center @[64rem]:[&_a]:min-h-0"
+].join(" ")
+
+export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean | "container" }) {
   const header = Children.toArray(children).find((child) => isValidElement<{ columns: string[] }>(child) && child.type === THead)
   const columns = isValidElement<{ columns: string[] }>(header) ? header.props.columns : []
+  const responsiveMode = responsive === "container" ? "container" : responsive ? "viewport" : false
+  const tableClass = responsiveMode === "container" ? "block text-xs @[64rem]:table" : responsiveMode ? "block text-xs sm:table" : "text-xs"
+  const wrapperClass =
+    responsiveMode === "container"
+      ? "mt-1 overflow-visible [container-type:inline-size] @[64rem]:overflow-x-auto"
+      : responsiveMode
+        ? "mt-1 overflow-visible sm:overflow-x-auto"
+        : "mt-1"
 
   return (
-    <ResponsiveTableContext.Provider value={{ columns, responsive }}>
-      <DataTable.Root
-        className={responsive ? "block text-xs sm:table" : "text-xs"}
-        density="compact"
-        wrapperClassName={responsive ? "mt-1 overflow-visible sm:overflow-x-auto" : "mt-1"}
-      >
+    <ResponsiveTableContext.Provider value={{ columns, responsive: responsiveMode }}>
+      <DataTable.Root className={tableClass} density="compact" wrapperClassName={wrapperClass}>
         {children}
       </DataTable.Root>
     </ResponsiveTableContext.Provider>
@@ -135,8 +154,9 @@ export function Table({ children, responsive = false }: { children: ReactNode; r
 
 export function THead({ columns }: { columns: string[] }) {
   const { responsive } = useContext(ResponsiveTableContext)
+  const responsiveClass = responsive === "container" ? "hidden @[64rem]:table-header-group" : responsive ? "hidden sm:table-header-group" : ""
   return (
-    <DataTable.Header className={responsive ? "hidden sm:table-header-group" : ""}>
+    <DataTable.Header className={responsiveClass}>
       <DataTable.Row>
         {columns.map((column) => (
           <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column}>
@@ -174,7 +194,7 @@ export function TBody({ children }: { children: ReactNode }) {
     )
   })
 
-  return <DataTable.Body className={RESPONSIVE_BODY_CLASSES}>{labeledRows}</DataTable.Body>
+  return <DataTable.Body className={responsive === "container" ? CONTAINER_RESPONSIVE_BODY_CLASSES : RESPONSIVE_BODY_CLASSES}>{labeledRows}</DataTable.Body>
 }
 
 export function Td({
@@ -202,13 +222,18 @@ export function Td({
       ? "whitespace-normal break-words"
       : "whitespace-nowrap"
 
+  const responsiveCellClass = responsive === "container" ? CONTAINER_RESPONSIVE_CELL_CLASSES : RESPONSIVE_CELL_CLASSES
+  const responsiveLabelClass = responsive === "container" ? "@[64rem]:hidden" : "sm:hidden"
+
   return (
     <DataTable.Cell
-      className={`${widthClass} ${mono ? "font-mono" : ""} ${primary ? "font-semibold text-text-primary" : ""} ${responsive ? RESPONSIVE_CELL_CLASSES : "px-2"} py-1 text-xs`}
+      className={`${widthClass} ${mono ? "font-mono" : ""} ${primary ? "font-semibold text-text-primary" : ""} ${responsive ? responsiveCellClass : "px-2"} py-1 text-xs`}
       data-label={responsiveLabel ?? undefined}
       title={title}
     >
-      {responsiveLabel ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{responsiveLabel}</span> : null}
+      {responsiveLabel ? (
+        <span className={`text-2xs font-medium uppercase tracking-wide text-text-muted ${responsiveLabelClass}`}>{responsiveLabel}</span>
+      ) : null}
       {children}
     </DataTable.Cell>
   )

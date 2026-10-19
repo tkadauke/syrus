@@ -45,4 +45,24 @@ describe("admin tool card table", () => {
     expect(screen.getByText("A long diagnostic message")).toHaveClass("whitespace-normal", "break-words")
     expect(screen.getByRole("link", { name: "RUN-1" }).closest("td")).toHaveClass("[&_a]:min-h-11")
   })
+
+  it("can keep dense tables stacked until their container is wide enough", () => {
+    render(
+      <Table responsive="container">
+        <THead columns={["Job", "Repair plan"]} />
+        <TBody>
+          <tr>
+            <Td primary>JOB-1</Td>
+            <Td wrap>Mark a stale run failed</Td>
+          </tr>
+        </TBody>
+      </Table>
+    )
+
+    expect(screen.getByRole("table")).toHaveClass("block", "@[64rem]:table")
+    expect(screen.getByRole("table").parentElement).toHaveClass("[container-type:inline-size]")
+    expect(screen.getByRole("columnheader", { name: "Job" }).closest("thead")).toHaveClass("hidden", "@[64rem]:table-header-group")
+    expect(screen.getByText("JOB-1").closest("td")).toHaveAttribute("data-label", "Job")
+    expect(screen.getAllByText("Job").at(-1)).toHaveClass("@[64rem]:hidden")
+  })
 })
