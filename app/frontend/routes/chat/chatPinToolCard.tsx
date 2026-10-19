@@ -11,7 +11,7 @@ type ChatPinResult = {
 }
 
 function parseChatPin(context: ToolCardContext, fallbackError: string) {
-  if (!context.resultError && !context.resultBody && context.parsedResult == null) return { kind: "pending" as const }
+  if (!context.resultError && context.resultSettled === false) return { kind: "pending" as const }
 
   return successOrError<ChatPinResult>(context, fallbackError, (parsed) => {
     const sessionId = displayValue(parsed.session_id)
@@ -109,6 +109,13 @@ export function chatPinToolCardExamples(toolName: "pin_chat" | "unpin_chat"): To
     {
       id: "pending",
       label: pinned ? "Pin pending" : "Unpin pending",
+      input: { chat_session_id: 42 },
+      resultSettled: false,
+      sourceType: "generic"
+    },
+    {
+      id: "empty_result",
+      label: pinned ? "Pin completed with an empty result" : "Unpin completed with an empty result",
       input: { chat_session_id: 42 },
       sourceType: "generic"
     },

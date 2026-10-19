@@ -26,6 +26,10 @@ export type ToolCardContext = {
   // Raw tool result text, before any JSON parsing.
   resultBody: string
   resultError: boolean
+  // Whether the provider has finished producing this result. This preserves
+  // the otherwise ambiguous distinction between an in-flight call and a
+  // completed call whose result body is empty.
+  resultSettled?: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
   // Current state of the ChatPendingAction this tool call created, read
@@ -94,6 +98,7 @@ export type ToolCardExample = {
   resultBody?: string
   parsedResult?: unknown
   resultError?: boolean
+  resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
 }
 
@@ -134,6 +139,7 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
     input: example.input,
     resultBody,
     resultError: example.resultError ?? false,
+    resultSettled: example.resultSettled ?? true,
     parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
   }
 }

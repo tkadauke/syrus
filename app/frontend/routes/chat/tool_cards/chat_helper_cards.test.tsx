@@ -219,12 +219,21 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("unpinned")).toBeInTheDocument()
   })
 
-  it("renders pending and empty pin results with their requested target", () => {
-    const pending = context("pin_chat", { input: { chat_session_id: 87 } })
+  it("renders an unsettled pin call as pending with its requested target", () => {
+    const pending = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
     expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat...")
     render(<>{pinChatToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("CHAT-87")).toBeInTheDocument()
+  })
+
+  it("renders a settled empty pin result as malformed instead of pending", () => {
+    const empty = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: true })
+    expect(pinChatToolCard.collapsedSummary?.(empty)).toBe("Chat pin returned an unexpected response")
+    render(<>{pinChatToolCard.renderExpanded(empty)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
   })
 
   it("renders authorization errors without exposing an unrelated chat", () => {
@@ -261,8 +270,8 @@ describe("chat helper tool cards", () => {
     ).toBe("Chat pinned.")
   })
 
-  it("publishes catalog examples for explicit, pending, and authorization states", () => {
-    expect(pinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "not_authorized"])
+  it("publishes catalog examples for explicit, pending, empty, and authorization states", () => {
+    expect(pinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "empty_result", "not_authorized"])
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
