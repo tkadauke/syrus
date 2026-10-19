@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -55,6 +58,28 @@ describe("MarkdownPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("link"))
     expect(onLinkClick).toHaveBeenCalledTimes(2)
+  })
+
+  it("disables slug links in both the compact and expanded renderers", () => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: false,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/s/JOB-:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+    render(<MarkdownPreview linkifySlugs={false} maxChars={40} text={`Review JOB-322 carefully. ${"More context. ".repeat(20)}`} />)
+
+    expect(screen.queryByRole("link", { name: "JOB-322" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "JOB-322" })).not.toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
