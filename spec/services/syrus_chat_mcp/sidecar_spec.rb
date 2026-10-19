@@ -97,6 +97,7 @@ RSpec.describe Mcp::Sidecar do
         cancel_job
         close_job_successfully
         retry_job
+        base_refresh_retry_job
         set_job_priority
         repo_info
         submit_chat_feedback

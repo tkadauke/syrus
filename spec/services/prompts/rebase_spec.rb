@@ -29,4 +29,10 @@ RSpec.describe Prompts::Rebase do
     out = described_class.new(repo_slug: "x/y", branch_name: "b", base_branch: "main", pr_number: 1).to_s
     expect(out).to match(/git rebase --abort/)
   end
+
+  it "describes unpublished branchless work without rendering a blank PR" do
+    prompt = described_class.new(repo_slug: "owner/repo", branch_name: "syrus/direct-42", base_branch: "main", pr_number: nil).to_s
+    expect(prompt).to include("unpublished work on branch `syrus/direct-42`")
+    expect(prompt).not_to include("owner/repo#`")
+  end
 end
