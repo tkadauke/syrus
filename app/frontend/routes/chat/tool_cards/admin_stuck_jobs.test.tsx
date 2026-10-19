@@ -114,6 +114,12 @@ describe("admin_stuck_jobs tool card", () => {
     expect(screen.getByText("critical")).toBeInTheDocument()
     expect(screen.getAllByText("running").length).toBeGreaterThanOrEqual(3)
     expect(document.querySelector('td[data-label="Repair plan"]')).toBeInTheDocument()
+    expect(screen.getByRole("table")).toHaveClass("@[64rem]:table")
+    expect(screen.getByText("running run without live worker evidence").parentElement?.parentElement).toHaveClass(
+      "[&>span]:whitespace-normal",
+      "[&>span]:break-words"
+    )
+    expect(screen.getByRole("table").parentElement?.parentElement).toHaveClass("pb-24", "sm:pb-0")
   })
 
   it("derives the Job link when job_path is absent", () => {
