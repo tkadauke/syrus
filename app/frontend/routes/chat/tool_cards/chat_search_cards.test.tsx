@@ -59,7 +59,7 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByText("Page 1 of 1 · 1 total · End of results")).toBeInTheDocument()
   })
 
-  it("renders empty list and search states", () => {
+  it("renders empty list and message-only search states", () => {
     render(
       <>
         {listChatsToolCard.renderExpanded(
@@ -71,8 +71,16 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByText("No attached Jobs")).toBeInTheDocument()
     expect(screen.getByText("0 total · End of results")).toBeInTheDocument()
 
-    render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { parsedResult: { results: [], message: "No matching messages found." } }))}</>)
+    render(
+      <>
+        {searchChatsToolCard.renderExpanded(
+          context("search_chats", { input: { query: "missing", limit: 5 }, parsedResult: { message: "No matching messages found." } })
+        )}
+      </>
+    )
     expect(screen.getByText("No matching messages found.")).toBeInTheDocument()
+    expect(screen.getByText("missing")).toBeInTheDocument()
+    expect(screen.getByText("5")).toBeInTheDocument()
   })
 
   it("renders a dedicated error card even when the error body is not JSON", () => {
@@ -83,6 +91,10 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByText("Could not list chats")).toBeInTheDocument()
     expect(screen.getByText("Chat service unavailable")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
+
+    render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { resultError: true, resultBody: "Search unavailable" }))}</>)
+    expect(screen.getByText("Could not search chats")).toBeInTheDocument()
+    expect(screen.getByText("Search unavailable")).toBeInTheDocument()
   })
 
   it("normalizes provider-prefixed names and MCP result envelopes before rendering", () => {
@@ -107,10 +119,14 @@ describe("chat search/history tool cards", () => {
           chat_session_id: 42,
           message_id: 100,
           chat_title: "Landing queue notes",
+          mode: "coding",
+          repository_id: 7,
           repository: "acme/widgets",
           role: "assistant",
           snippet: "Found <b>needle</b> in the queue.",
-          created_at: "2026-09-01T12:00:00Z"
+          created_at: "2026-09-01T12:00:00Z",
+          attached_jobs_count: 1,
+          attached_jobs: [{ id: 101, slug: "repair-queue", title: "Repair queue", state: "running" }]
         },
         {
           chat_session_id: 42,
@@ -125,12 +141,56 @@ describe("chat search/history tool cards", () => {
     }
 
     expect(searchChatsToolCard.collapsedSummary?.(context("search_chats", { input: { query: "needle" }, parsedResult }))).toBe('"needle" - 2 hits')
-    render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { input: { query: "needle" }, parsedResult }))}</>)
+    render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { input: { query: "needle", limit: 20 }, parsedResult }))}</>)
 
     expect(screen.getAllByRole("link", { name: "Landing queue notes" })[0]).toHaveAttribute("href", "/chats/42#message-100")
     expect(screen.getAllByText("2 matches in chat")).toHaveLength(2)
-    expect(document.querySelectorAll("mark")).toHaveLength(2)
+    expect(document.querySelectorAll("strong")).toHaveLength(2)
     expect(screen.getByText("assistant")).toBeInTheDocument()
+    expect(screen.getByText("coding")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "acme/widgets" })[0]).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByRole("link", { name: "repair-queue" })).toHaveAttribute("href", "/jobs/101")
+    expect(screen.getByText("20")).toBeInTheDocument()
+  })
+
+  it("renders admin deletion metadata and keeps untrusted snippet HTML inert", () => {
+    const parsedResult = {
+      results: [
+        {
+          chat_session_id: 42,
+          message_id: 100,
+          chat_title: "Deleted discussion",
+          mode: "planning",
+          role: "assistant",
+          snippet: "Found <b>needle</b> <img src=x onerror=alert(1)> " + "more markdown details ".repeat(60),
+          created_at: "2026-09-01T12:00:00Z",
+          chat_session_deleted_at: "2026-09-03T12:00:00Z",
+          chat_session_deleted_by: { id: 9, name: "Ada Admin", email: "ada@example.test" },
+          deleted_at: "2026-09-02T12:00:00Z",
+          deleted_by: { id: 9, email: "ada@example.test" }
+        }
+      ]
+    }
+
+    render(<>{searchChatsToolCard.renderExpanded(context("search_chats", { input: { query: "needle" }, parsedResult }))}</>)
+
+    expect(screen.getByText(/Chat by Ada Admin/)).toBeInTheDocument()
+    expect(screen.getByText(/Message by ada@example.test/)).toBeInTheDocument()
+    expect(screen.getAllByText("deleted")).toHaveLength(2)
+    expect(document.querySelector("img")).toBeNull()
+    expect(screen.getByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("normalizes a differently shaped search result envelope", () => {
+    const payload = {
+      results: [{ chat_session_id: 9, message_id: 3, chat_title: "Codex envelope", snippet: "A <b>match</b>." }]
+    }
+    const parsedResult = normalizedToolCardParsedResult({ structured_content: payload })
+
+    expect(normalizedToolName("mcp__custom-provider__search_chats")).toBe("search_chats")
+    render(<>{searchChatsToolCard.renderExpanded(context(normalizedToolName("custom-provider.search_chats"), { parsedResult }))}</>)
+    expect(screen.getByRole("link", { name: "Codex envelope" })).toHaveAttribute("href", "/chats/9#message-3")
   })
 
   it("renders transcript excerpts with metadata, safe truncation, anchors, and pagination state", () => {
