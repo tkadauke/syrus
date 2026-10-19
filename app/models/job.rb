@@ -1169,8 +1169,11 @@ class Job < ApplicationRecord
   def cancel_active_runs_and_close!(reason)
     return if closed?
 
-    cancel_active_execution!
-    close_with_reason!(reason)
+    transaction do
+      lock!
+      cancel_active_execution!
+      close_with_reason!(reason)
+    end
   end
 
   # Stops an in-progress landing attempt without closing the Job, unlike
@@ -1205,24 +1208,26 @@ class Job < ApplicationRecord
   end
 
   def cancel_active_execution!
-    active_runtime_workflows.each do |workflow|
-      WorkUnits::WorkflowCancellation.cancel!(
-        workflow,
-        reason: "operator_cancelled",
-        artifacts: {
-          "cancelled_reason" => "operator_cancelled",
-          "cancelled_at" => Time.current.iso8601
-        }
-      )
-    end
+    transaction do
+      active_runtime_workflows.each do |workflow|
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: "operator_cancelled",
+          artifacts: {
+            "cancelled_reason" => "operator_cancelled",
+            "cancelled_at" => Time.current.iso8601
+          }
+        )
+      end
 
-    runs.active.find_each do |run|
-      run.cancel! if run.may_cancel?
-      run.save!
-    end
+      runs.active.find_each do |run|
+        run.cancel! if run.may_cancel?
+        run.save!
+      end
 
-    WorkUnits::Ownership.active_units_for_job(self).each do |unit|
-      unit.preempt!(reason: "operator_cancelled") if unit.active?
+      WorkUnits::Ownership.active_units_for_job(self).each do |unit|
+        unit.preempt!(reason: "operator_cancelled") if unit.active?
+      end
     end
   end
 

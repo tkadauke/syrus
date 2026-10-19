@@ -161,12 +161,15 @@ class JobStateRepair
     def call
       raise ArgumentError, "event is not allowed: #{event}" unless ALLOWED_EVENTS.include?(event)
 
-      job.with_lock do
+      ApplicationRecord.transaction do
+        job.lock!
         job.reload
         guard = "may_#{event}?"
         raise ArgumentError, "#{job.slug} cannot apply #{event} from #{job.state}" unless job.public_send(guard)
 
         from_state = job.state
+        job.cancel_active_execution! if terminal_event?
+        job.reload
         StateTransition.with_source("reconciler") do
           job.public_send("#{event}!")
           job.save!
@@ -179,6 +182,10 @@ class JobStateRepair
     private
 
     attr_reader :job, :event, :reason
+
+    def terminal_event?
+      event.in?(%w[mark_implemented mark_failed mark_no_change_needed force_fail close])
+    end
 
     def audit!(from_state)
       run = job.runs.reorder(created_at: :desc, id: :desc).first
