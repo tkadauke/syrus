@@ -16,10 +16,14 @@ module Prompts
     end
 
     def to_s
+      subject = if @pr_number.present?
+        "The pull request `#{@repo_slug}##{@pr_number}` from branch `#{@branch_name}`"
+      else
+        "The unpublished work on branch `#{@branch_name}` in `#{@repo_slug}`"
+      end
       context = <<~CONTEXT.strip
-        This is a **rebase** run. The pull request `#{@repo_slug}##{@pr_number}` from branch
-        `#{@branch_name}` onto `#{@base_branch}` is no longer mergeable — its branch has
-        fallen behind base and conflicts with it.
+        This is a **rebase** run. #{subject} is being rebased onto `#{@base_branch}` and
+        has conflicts that the mechanical rebase could not resolve.
       CONTEXT
       SkillLoader.render(SKILL_FILE, context)
     end

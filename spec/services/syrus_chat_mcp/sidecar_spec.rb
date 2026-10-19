@@ -96,6 +96,7 @@ RSpec.describe Mcp::Sidecar do
         cancel_job
         close_job_successfully
         retry_job
+        base_refresh_retry_job
         set_job_priority
         repo_info
         submit_chat_feedback
@@ -107,7 +108,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(27)
+      expect(tool_names.size).to eq(28)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

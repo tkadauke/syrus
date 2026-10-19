@@ -281,6 +281,7 @@ Syrus chooses the template from the trigger kind:
 | `auto_merge` | `Workflows::AutoMerge` |
 | `merge_train` | `Workflows::MergeTrain` |
 | `retry` | `Workflows::Retry` |
+| `base_refresh_retry` | `Workflows::BaseRefreshRetry` |
 | `coding_handoff` | `Workflows::CodingHandoff` |
 | `external_pr_ingest` | `Workflows::ExternalPrIngest` |
 | `skill` | `Workflows::Skill` |

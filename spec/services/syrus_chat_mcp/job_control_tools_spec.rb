@@ -21,6 +21,7 @@ RSpec.describe "Mcp::Tools job control tools" do
         Mcp::Tools::CancelJobTool,
         Mcp::Tools::CloseJobSuccessfullyTool,
         Mcp::Tools::RetryJobTool,
+        Mcp::Tools::BaseRefreshRetryJobTool,
         Mcp::Tools::ForceFailJobTool,
         Mcp::Tools::RebaseJobTool
       ],
@@ -543,6 +544,35 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(pending_action).to be_pending
     expect(pending_action.action).to eq("retry_job")
     expect(job.workflows.where(trigger_kind: "retry")).to be_empty
+  end
+
+  it "creates an authorized base-refresh confirmation for a published checkpoint" do
+    job = make_retryable_job
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    step = workflow.steps.find_by!(kind: "implement")
+    run = step.runs.first
+    run.update_columns(state: "succeeded", head_sha: "checkpoint-sha", base_sha: "old-base")
+    RunCheckpoint.create!(run: run, workflow: workflow, step: step, job: job, repository: repository, user: user,
+      step_kind: "implement", commit_sha: "checkpoint-sha", base_sha: "old-base",
+      remote_ref: RunCheckpoint.remote_ref_for(run), status: "published", published_at: Time.current)
+
+    response = call_tool("base_refresh_retry_job", job_id: job.id, source_workflow_id: workflow.id, reason: "Base repaired")
+    pending = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+    expect(pending).to be_pending
+    expect(pending).to have_attributes(action: "base_refresh_retry_job", requested_by: "agent")
+    expect(pending.payload).to include("job_id" => job.id, "source_workflow_id" => workflow.id, "reason" => "Base repaired")
+    expect(job.workflows.where(trigger_kind: "base_refresh_retry")).to be_empty
+  end
+
+  it "rejects base refresh when the selected failed workflow has no checkpoint" do
+    job = make_retryable_job
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+
+    response = call_tool("base_refresh_retry_job", job_id: job.id, source_workflow_id: workflow.id, reason: "Base repaired")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("No published mutation checkpoint")
   end
 
   it "rejects retry_job up front for a job whose most recent problem was a landing failure" do
