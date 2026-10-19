@@ -14,6 +14,7 @@ module McpToolPayloads
         summary: text_snippet(workflow.artifact("summary").presence || latest_run&.agent_summary, 300),
         step_count: workflow.steps.size,
         run_count: runs.size,
+        created_at: workflow.created_at&.iso8601,
         started_at: workflow.started_at&.iso8601,
         finished_at: workflow.finished_at&.iso8601
       }
