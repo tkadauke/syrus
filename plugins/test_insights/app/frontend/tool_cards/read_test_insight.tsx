@@ -125,9 +125,12 @@ function strings(value: unknown) {
       })
     : []
 }
-function relatedRef(slug: string): RunJobRef {
-  const id = slug.match(/^(?:RUN|JOB)-(\d+)$/)?.[1]
-  return { slug, title: null, path: slug.startsWith("JOB-") ? `/jobs/${id}` : slug.startsWith("RUN-") ? `/admin/runs/${id}` : null }
+function relatedRef(slug: string, history: HistoryEntry[]): RunJobRef {
+  const historyRef = history.flatMap((entry) => [entry.run, entry.job]).find((reference) => reference?.slug === slug)
+  if (historyRef) return historyRef
+
+  const jobId = slug.match(/^JOB-(\d+)$/)?.[1]
+  return { slug, title: null, path: jobId ? `/jobs/${jobId}` : null }
 }
 
 function parseCard(context: ToolCardContext): Card | null {
@@ -136,11 +139,12 @@ function parseCard(context: ToolCardContext): Card | null {
   const test = parseTest(parsed.test)
   if (!test) return null
   const related = isPlainObject(parsed.related) ? parsed.related : null
+  const history = Array.isArray(parsed.history) ? parsed.history.flatMap((item, index) => parseHistory(item, index) ?? []) : []
   return {
     repository: parseRepository(parsed.repository),
     test,
     historyLimit: numberValue(parsed.history_limit),
-    history: Array.isArray(parsed.history) ? parsed.history.flatMap((item, index) => parseHistory(item, index) ?? []) : [],
+    history,
     durationPoints: Array.isArray(parsed.duration_points)
       ? parsed.duration_points.flatMap((item, index) => {
           if (!isPlainObject(item)) return []
@@ -149,8 +153,8 @@ function parseCard(context: ToolCardContext): Card | null {
         })
       : [],
     graderNames: strings(related?.grader_names),
-    relatedRuns: strings(related?.run_refs).map(relatedRef),
-    relatedJobs: strings(related?.job_refs).map(relatedRef),
+    relatedRuns: strings(related?.run_refs).map((slug) => relatedRef(slug, history)),
+    relatedJobs: strings(related?.job_refs).map((slug) => relatedRef(slug, history)),
     includeFailures: typeof context.input?.include_failures === "boolean" ? context.input.include_failures : null
   }
 }
