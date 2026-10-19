@@ -1,6 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EntityReference, LargeTextPreview, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
-import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
+import { CardShell, EmptyState, EntityReference, InternalLink, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
+import { changedFilePaths, DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
@@ -15,6 +16,7 @@ type PrCard = {
   htmlUrl: string | null
   body: string | null
   diff: PrDiff | null
+  repository: string | null
 }
 
 const failureConfig: ToolFailureConfig = {
@@ -38,7 +40,7 @@ function parseDiff(value: unknown): PrDiff | null {
 }
 
 function parsePr(context: ToolCardContext): PrCard | null {
-  const parsed = context.parsedResult
+  const parsed = parsedObject(context.parsedResult)
   if (!isPlainObject(parsed) || !isPlainObject(parsed.pr)) return null
 
   const pr = parsed.pr
@@ -46,13 +48,34 @@ function parsePr(context: ToolCardContext): PrCard | null {
   const state = displayValue(pr.state)
   if (!number || !state) return null
 
+  const htmlUrl = displayValue(pr.html_url)
   return {
     number,
     title: displayValue(pr.title) || `PR #${number}`,
     state,
-    htmlUrl: displayValue(pr.html_url),
+    htmlUrl,
     body: displayValue(pr.body),
-    diff: parseDiff(pr.diff)
+    diff: parseDiff(pr.diff),
+    repository: repositoryFromPrUrl(htmlUrl)
+  }
+}
+
+function parsedObject(value: unknown): unknown {
+  if (typeof value !== "string") return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+function repositoryFromPrUrl(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const match = new URL(url).pathname.match(/^\/([^/]+\/[^/]+)\/pull\/\d+/)
+    return match?.[1] ?? null
+  } catch {
+    return null
   }
 }
 
@@ -70,6 +93,7 @@ function renderExpanded(context: ToolCardContext) {
 
   const pr = parsePr(context)
   if (!pr) return null
+  const paths = pr.diff ? changedFilePaths(pr.diff.text) : []
 
   return (
     <CardShell>
@@ -78,7 +102,17 @@ function renderExpanded(context: ToolCardContext) {
         <StatePill state={pr.state} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{pr.title}</div>
-      {pr.body ? <LargeTextPreview label="PR body" maxLines={60} text={pr.body} /> : null}
+      <div>
+        <SectionLabel>Repository</SectionLabel>
+        <div className="mt-1">
+          {pr.repository ? (
+            <EntityReference href={`https://github.com/${pr.repository}`} kind="repository" repositorySlug={pr.repository} />
+          ) : (
+            <span className="text-xs text-text-muted">Unknown repository</span>
+          )}
+        </div>
+      </div>
+      {pr.body ? <MarkdownPreview maxLines={6} modalLabel="PR body" text={pr.body} title="PR body" /> : <EmptyState>No PR description.</EmptyState>}
       {pr.diff ? (
         <div>
           <SectionLabel>Diff</SectionLabel>
@@ -89,10 +123,35 @@ function renderExpanded(context: ToolCardContext) {
                 Truncated{pr.diff.omittedBytes != null ? ` — ${pr.diff.omittedBytes} bytes omitted` : ""}
               </div>
             ) : null}
-            <RawDiffPreview diff={pr.diff.text} />
+            {pr.diff.bytes != null ? <div className="text-2xs text-text-muted">{pr.diff.bytes} bytes returned</div> : null}
+            {pr.diff.text ? (
+              <>
+                {paths.length > 0 ? (
+                  <div className="min-w-0">
+                    <SectionLabel>Changed files</SectionLabel>
+                    <ul className="mt-1 space-y-1">
+                      {paths.map((path) => (
+                        <li className="min-w-0 break-all text-xs" key={path}>
+                          {pr.htmlUrl ? (
+                            <InternalLink href={`${pr.htmlUrl}/files`}>{path}</InternalLink>
+                          ) : (
+                            <span className="font-mono text-text-primary">{path}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <RawDiffPreview diff={pr.diff.text} />
+              </>
+            ) : (
+              <EmptyState>No changes in diff.</EmptyState>
+            )}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <EmptyState>No diff returned.</EmptyState>
+      )}
     </CardShell>
   )
 }
@@ -119,7 +178,11 @@ export const examples = [
         body: "Updates representative cards and examples so entity references are linked and copyable.",
         state: "open",
         html_url: "https://github.com/tkadauke/syrus/pull/407",
-        diff: { text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs", truncated: false, bytes: 112 }
+        diff: {
+          text: "diff --git a/app/frontend/routes/chat/toolCardUi.tsx b/app/frontend/routes/chat/toolCardUi.tsx\n+copyable PR refs",
+          truncated: false,
+          bytes: 112
+        }
       }
     }
   },
