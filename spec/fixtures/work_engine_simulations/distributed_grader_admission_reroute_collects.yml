@@ -1,0 +1,86 @@
+name: distributed grader admission reroute collects
+features:
+  distributed_workflow_dag: true
+repository:
+  owner: simulation
+  name: distributed-grader-admission-reroute-collects
+  distributed_workflow_dag_enabled: false
+jobs:
+  job:
+    title: Distributed grader admission reroute collects
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          iteration: 1
+          loop_id: grade-loop
+        - key: lint
+          kind: grader
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: lint
+            required: true
+            required_capabilities:
+              os:
+                - linux
+          run:
+            state: queued
+        - key: collect
+          kind: grader_collect
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - lint
+          run:
+            state: queued
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on:
+            - collect
+        - key: pr_open
+          kind: pr_open
+          state: queued
+outcomes:
+  default: success
+  steps:
+    grader_collect:
+      status: success
+events:
+  - name: reroute grader from pressured worker
+    when:
+      workflow:
+        job: job
+        state: running
+    do:
+      reroute_host_rejected_run:
+        job: job
+        step: grader
+        name: lint
+        rejecting_hostname: worker-pressured
+        target_hostname: worker-idle
+        worker_storage_key: shared-rwx
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+  events:
+    - "admission rerouted grader:lint from worker-pressured to worker-idle on worker-worker-idle"
+    - "grader -> success"
+    - "grader_collect -> {\"status\" => \"success\""
+    - "summarize -> success"
+    - "pr_open -> success"

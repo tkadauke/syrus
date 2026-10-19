@@ -20,7 +20,9 @@ An immutable-source distributed grader rejected for critical local pressure or
 a full host resource guard can move immediately to another live,
 capability-compatible worker with healthy headroom. The banner diagnostics
 identify the rejecting worker, alternatives considered, and the selected
-routing decision. If all eligible workers are pressured, Syrus schedules a
+routing decision. Reroutes use a hostname-specific queue, so they remain
+worker-specific even when multiple workers share storage. If all eligible
+workers are pressured, Syrus schedules a
 bounded backoff rather than repeatedly bouncing the grader between workers.
 
 Fresh installs leave soft admission control disabled, so Docker Compose needs

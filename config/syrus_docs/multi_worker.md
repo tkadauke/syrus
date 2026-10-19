@@ -601,7 +601,10 @@ workspace. For `local_worker_pressure_critical` and
 `host_resource_semaphore_busy`, Syrus checks live workers that satisfy the
 grader's declared capabilities. When one has fresh healthy telemetry and
 compute headroom, the same queued Run is dispatched immediately to that
-worker's resume queue with its original priority. The admission artifact names
+worker's hostname-specific `worker-<hostname>` queue with its original
+priority. This queue is distinct from `resume-<storage-key>` and therefore
+still targets one worker when several workers share an RWX data root. The
+admission artifact names
 the rejecting worker and reason, alternatives considered, selected queue, and
 worker. Rejected workers are excluded within a routing cycle; if every eligible
 worker is pressured, Syrus clears the bounded exclusion set and uses increasing
