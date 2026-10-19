@@ -205,7 +205,10 @@ describe("chat helper tool rendering integration", () => {
     }
 
     render(<ToolGroup item={item} />)
-    const summary = screen.getAllByText("Renaming chat").map((element) => element.closest("summary")).find(Boolean)
+    const summary = screen
+      .getAllByText("Renaming chat")
+      .map((element) => element.closest("summary"))
+      .find(Boolean)
     expect(summary).not.toBeUndefined()
     if (!summary) return
     fireEvent.click(summary)
