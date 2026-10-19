@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -41,5 +41,26 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("supports character bounds, URL linking, a modal copy action, and an explicit empty state", () => {
+    const { rerender } = render(
+      <MarkdownPreview emptyLabel="Nothing here." linkifyUrls maxChars={20} text={"Visit https://example.test/long-path and continue."} />
+    )
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/long-path" })).toBeInTheDocument()
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy markdown" })).toBeInTheDocument()
+    rerender(<MarkdownPreview emptyLabel="Nothing here." text="   " />)
+    expect(screen.getByText("Nothing here.")).toBeInTheDocument()
+  })
+
+  it("renders bounded code text with a full-content modal and empty state", () => {
+    const { rerender } = render(<TextPreview maxLines={1} text={"first\nsecond"} />)
+    expect(screen.getByText("first")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog").querySelector("code")).toHaveTextContent("second")
+    rerender(<TextPreview text="" />)
+    expect(screen.getByText("Empty file.")).toBeInTheDocument()
   })
 })
