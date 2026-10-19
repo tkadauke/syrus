@@ -123,6 +123,23 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.queryByText("Created name")).not.toBeInTheDocument()
   })
 
+  it("does not treat input metadata as success for a settled unrecognized result", () => {
+    const malformed = context("create_tag", {
+      input: { name: "area:ui", color: "gray" },
+      resultBody: "{}",
+      parsedResult: {}
+    })
+
+    expect(createTagToolCard.collapsedSummary?.(malformed)).toBe("Create area:ui returned an unexpected response")
+    render(<>{createTagToolCard.renderExpanded(malformed)}</>)
+
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+    expect(screen.queryByText("success")).not.toBeInTheDocument()
+    expect(screen.getByText("Requested name")).toBeInTheDocument()
+    expect(screen.queryByText("Created name")).not.toBeInTheDocument()
+  })
+
   it("normalizes provider-qualified names and MCP result envelopes", () => {
     const envelopes = [
       { structured_content: { id: 11, name: "priority", color: "amber", job_ids: [] } },
