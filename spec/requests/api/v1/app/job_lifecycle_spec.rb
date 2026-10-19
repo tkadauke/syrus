@@ -385,6 +385,27 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(placement.planned_execution_capabilities).to eq("os" => [ "linux" ])
     end
 
+    it "rechecks placement eligibility under the row lock for competing decisions" do
+      first_request_job = Job.find(placement.id)
+      competing_request_job = Job.find(placement.id)
+
+      first_request_job.with_lock do
+        expect(first_request_job.accept_triage!(placement_decision: "suggested", by_user: user)).to be(true)
+      end
+
+      competing_result = competing_request_job.with_lock do
+        competing_request_job.accept_triage!(placement_decision: "linux", by_user: user)
+      end
+
+      expect(competing_result).to be(false)
+      expect(competing_request_job).to be_queued
+      expect(competing_request_job).to have_attributes(
+        placement_recommendation_status: "accepted",
+        planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] }
+      )
+      expect(competing_request_job.workflows.sole.planned_execution_capabilities).to eq(competing_request_job.planned_execution_capabilities)
+    end
+
     # `cancelled`, not one of the successful reasons: rejecting an unclear
     # request delivers nothing, and filing it as a success would corrupt the
     # attribution closure reasons exist to keep honest.

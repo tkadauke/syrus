@@ -85,18 +85,27 @@ module Api
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
 
-          unless job.awaiting_triage_decision?
+          placement_decision = params[:placement_decision].to_s.presence
+          result = job.with_lock do
+            if !job.awaiting_triage_decision?
+              :not_awaiting_triage
+            elsif job.triaging_reason_placement_confirmation? && !%w[suggested linux].include?(placement_decision)
+              :placement_decision_required
+            else
+              job.accept_triage!(placement_decision: placement_decision, by_user: Current.user)
+              :accepted
+            end
+          end
+
+          if result == :not_awaiting_triage
             render_error("validation_failed", lifecycle_t("not_awaiting_triage", slug: job.slug), status: :unprocessable_content)
             return
           end
-
-          placement_decision = params[:placement_decision].to_s.presence
-          if job.triaging_reason_placement_confirmation? && !%w[suggested linux].include?(placement_decision)
+          if result == :placement_decision_required
             render_error("placement_decision_required", lifecycle_t("placement_decision_required"), status: :unprocessable_content)
             return
           end
 
-          job.transaction { job.accept_triage!(placement_decision: placement_decision, by_user: Current.user) }
           render_job(job.reload, message: lifecycle_t("accepted"), changed: [ "state", "runs" ])
         end
 
