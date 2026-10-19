@@ -112,8 +112,12 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   )
 }
 
-export function CardShell({ children }: { children: ReactNode }) {
-  return <ToolCard.Root className="mt-1 space-y-2">{children}</ToolCard.Root>
+export function CardShell({ children, tone = "neutral" }: { children: ReactNode; tone?: SemanticTone }) {
+  return (
+    <ToolCard.Root className="mt-1 space-y-2" tone={tone}>
+      {children}
+    </ToolCard.Root>
+  )
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {

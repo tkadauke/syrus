@@ -1,6 +1,26 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/s/JOB-:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+})
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -23,10 +43,10 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an empty state for empty or whitespace-only text", () => {
+    render(<MarkdownPreview text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText("No text provided.")).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
@@ -41,5 +61,21 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("supports a character limit, linked URLs and slugs, link handling, and modal copy", () => {
+    const onLinkClick = vi.fn((_: string, event: React.MouseEvent<HTMLAnchorElement>) => event.preventDefault())
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    const text = `See JOB-42 and https://example.test/path. ${"More details. ".repeat(30)}`
+
+    render(<MarkdownPreview linkifyUrls maxChars={80} onLinkClick={onLinkClick} text={text} title="Prompt" />)
+
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/s/JOB-42")
+    fireEvent.click(screen.getByRole("link", { name: /https:\/\/example\.test\/path/ }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy full text" }))
+    expect(writeText).toHaveBeenCalledWith(text)
   })
 })
