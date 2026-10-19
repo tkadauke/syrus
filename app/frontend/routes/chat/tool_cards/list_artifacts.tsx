@@ -14,14 +14,32 @@ type ArtifactRow = {
   source: string | null
   capturedAt: string | null
   page: string | null
+  pageUrl: string | null
   viewport: string | null
 }
 type ArtifactList = { workflowId: string | null; jobId: string | null; rows: ArtifactRow[] }
+
+function pageMetadata(value: unknown): { label: string | null; url: string | null } {
+  if (!isPlainObject(value)) return { label: displayValue(value), url: null }
+  const url = displayValue(value.url)
+  const parts = [displayValue(value.title), displayValue(value.path), url].filter((part, index, values) => part && values.indexOf(part) === index)
+  return { label: parts.join(" · ") || null, url }
+}
+
+function viewportMetadata(value: unknown): string | null {
+  if (!isPlainObject(value)) return displayValue(value)
+  const width = displayValue(value.width)
+  const height = displayValue(value.height)
+  const scale = displayValue(value.device_scale_factor) ?? displayValue(value.deviceScaleFactor)
+  const dimensions = width && height ? `${width}×${height}` : (width ?? height)
+  return [dimensions, scale ? `@ ${scale}x` : null].filter(Boolean).join(" ") || null
+}
 
 function parseArtifactRow(value: unknown): ArtifactRow | null {
   if (!isPlainObject(value)) return null
   const type = displayValue(value.type)
   if (!type) return null
+  const page = pageMetadata(value.page)
   return {
     type,
     title: displayValue(value.title),
@@ -33,8 +51,9 @@ function parseArtifactRow(value: unknown): ArtifactRow | null {
     imageUrl: displayValue(value.image_url),
     source: displayValue(value.source),
     capturedAt: displayValue(value.captured_at),
-    page: displayValue(value.page),
-    viewport: displayValue(value.viewport)
+    page: page.label,
+    pageUrl: page.url,
+    viewport: viewportMetadata(value.viewport)
   }
 }
 
@@ -132,7 +151,6 @@ function ArtifactDetails({ row }: { row: ArtifactRow }) {
     ["Iteration", row.iteration],
     ["Source", row.source],
     ["Captured", row.capturedAt],
-    ["Page", row.page],
     ["Viewport", row.viewport]
   ]
   return (
@@ -145,6 +163,18 @@ function ArtifactDetails({ row }: { row: ArtifactRow }) {
           </dd>
         </div>
       ))}
+      <div className="min-w-0">
+        <dt className="text-2xs font-semibold uppercase text-gray-500">Page</dt>
+        <dd>
+          {row.pageUrl ? (
+            <a className="break-all text-brand hover:underline" href={row.pageUrl} rel="noreferrer" target="_blank">
+              {row.page}
+            </a>
+          ) : (
+            <Value>{row.page}</Value>
+          )}
+        </dd>
+      </div>
     </dl>
   )
 }
@@ -228,10 +258,20 @@ export function renderArtifactList(context: ToolCardContext) {
   if (!list) return null
   return (
     <CardShell>
-      {list.workflowId ? (
-        <div className="flex min-h-8 items-center gap-2 text-xs">
-          <span className="text-gray-500">Workflow</span>
-          <EntityReference id={list.workflowId} jobId={list.jobId} kind="workflow" />
+      {list.jobId || list.workflowId ? (
+        <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {list.jobId ? (
+            <span className="inline-flex items-center gap-1">
+              <span className="text-gray-500">Job</span>
+              <EntityReference id={list.jobId} kind="job" />
+            </span>
+          ) : null}
+          {list.workflowId ? (
+            <span className="inline-flex items-center gap-1">
+              <span className="text-gray-500">Workflow</span>
+              <EntityReference id={list.workflowId} jobId={list.jobId} kind="workflow" />
+            </span>
+          ) : null}
         </div>
       ) : null}
       <ArtifactListCard list={list} />
@@ -262,8 +302,8 @@ export const examples: ToolCardExample[] = [
           image_url: "/api/v1/app/workflows/28622/visual_artifact?type=visual_review_screenshot_1",
           source: "playwright",
           captured_at: "2026-10-18T12:30:00Z",
-          page: "/",
-          viewport: "1280x720"
+          page: { url: "https://example.test/dashboard", path: "/dashboard", title: "Dashboard" },
+          viewport: { width: 1280, height: 720, device_scale_factor: 2 }
         },
         { type: "rails_schema_erd", title: "Schema ERD", content_type: "application/json" }
       ]

@@ -47,8 +47,8 @@ describe("workflow artifact tool cards", () => {
           image_url: "/api/v1/app/workflows/28622/visual_artifact?type=visual_review_screenshot_1",
           source: "playwright",
           captured_at: "2026-10-18T12:30:00Z",
-          page: "/dashboard",
-          viewport: "1280x720"
+          page: { url: "https://example.test/dashboard", path: "/dashboard", title: "Dashboard" },
+          viewport: { width: 1280, height: 720, device_scale_factor: 2 }
         },
         {
           type: "rails_schema_erd",
@@ -68,6 +68,7 @@ describe("workflow artifact tool cards", () => {
     render(<>{listArtifactsToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByRole("link", { name: "WF-28622" })).toHaveAttribute("href", "/jobs/7706?tab=workflows#workflow-28622")
+    expect(screen.getByRole("link", { name: "JOB-7706" })).toHaveAttribute("href", "/jobs/7706")
     expect(screen.getAllByText("visual_review_screenshot_1")).not.toHaveLength(0)
     expect(screen.getAllByText("Homepage after fix")).not.toHaveLength(0)
     expect(screen.getAllByText("image/png")).not.toHaveLength(0)
@@ -76,8 +77,11 @@ describe("workflow artifact tool cards", () => {
     expect(screen.getAllByRole("link", { name: "STEP-223959" })[0]).toHaveAttribute("href", "/jobs/7706?tab=workflows#workflow-28622")
     expect(screen.getAllByText("playwright")).not.toHaveLength(0)
     expect(screen.getAllByText("2026-10-18T12:30:00Z")).not.toHaveLength(0)
-    expect(screen.getAllByText("/dashboard")).not.toHaveLength(0)
-    expect(screen.getAllByText("1280x720")).not.toHaveLength(0)
+    expect(screen.getAllByRole("link", { name: "Dashboard · /dashboard · https://example.test/dashboard" })[0]).toHaveAttribute(
+      "href",
+      "https://example.test/dashboard"
+    )
+    expect(screen.getAllByText("1280×720 @ 2x")).not.toHaveLength(0)
     expect(screen.getAllByText("rails_schema_erd")).not.toHaveLength(0)
     expect(screen.getAllByText("Schema ERD")).not.toHaveLength(0)
 
