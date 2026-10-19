@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import deChat from "../../../i18n/locales/de/chat.json"
+import enChat from "../../../i18n/locales/en/chat.json"
+import laChat from "../../../i18n/locales/la/chat.json"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import adminStuckJobsToolCard from "./admin_stuck_jobs"
 
@@ -15,6 +18,14 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("admin_stuck_jobs tool card", () => {
+  it("defines the complete card translation set in every locale", () => {
+    const expectedKeys = Object.keys(enChat.admin_stuck_jobs).sort()
+    expect(Object.keys(deChat.admin_stuck_jobs).sort()).toEqual(expectedKeys)
+    expect(Object.keys(laChat.admin_stuck_jobs).sort()).toEqual(expectedKeys)
+    expect(expectedKeys).toContain("execution_message")
+    expect(expectedKeys).toContain("repair_plan")
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(adminStuckJobsToolCard.toolName).toBe("admin_stuck_jobs")
   })
