@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { MarkdownPreview, TextPreview, truncateMarkdown, truncateTextLines } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -45,6 +45,30 @@ describe("MarkdownPreview", () => {
 })
 
 describe("TextPreview", () => {
+  it("truncates from the head by default and normalizes CRLF", () => {
+    expect(truncateTextLines("one\r\ntwo\r\nthree", { maxLines: 2 })).toEqual({
+      preview: "one\ntwo…",
+      totalLines: 3,
+      truncated: true
+    })
+  })
+
+  it("keeps the final lines in tail mode and reports earlier lines", () => {
+    expect(truncateTextLines("one\ntwo\nthree\nfour", { mode: "tail", maxLines: 2 }).preview).toBe("… 2 earlier lines\nthree\nfour")
+  })
+
+  it("keeps both ends and reports the exact omitted line count", () => {
+    expect(truncateTextLines("one\ntwo\nthree\nfour\nfive", { mode: "headTail", maxLines: 4 }).preview).toBe("one\ntwo\n… 1 line omitted\nfour\nfive")
+  })
+
+  it("caps a single huge line by characters in every mode", () => {
+    const text = "0123456789"
+
+    expect(truncateTextLines(text, { mode: "head", maxLines: 3, maxChars: 4 }).preview).toBe("0123…")
+    expect(truncateTextLines(text, { mode: "tail", maxLines: 3, maxChars: 4 }).preview).toBe("… earlier text\n6789")
+    expect(truncateTextLines(text, { mode: "headTail", maxLines: 3, maxChars: 4 }).preview).toBe("01\n… text omitted\n89")
+  })
+
   it("renders short text with whitespace preserved and no expansion button", () => {
     render(<TextPreview text={"first line\n  indented line"} />)
 
@@ -61,6 +85,9 @@ describe("TextPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     const dialog = screen.getByRole("dialog", { name: "Full command output" })
     expect(dialog.querySelector("pre")).toHaveTextContent(text, { normalizeWhitespace: false })
+    expect(within(dialog).getByRole("button", { name: /Copy .*clipboard/i })).toBeInTheDocument()
+    expect(dialog).toHaveClass("h-[100dvh]", "w-full", "sm:max-w-3xl")
+    expect(dialog.parentElement).toHaveClass("h-[100dvh]", "w-[100dvw]", "p-0", "sm:p-4")
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
     expect(screen.queryByRole("dialog", { name: "Full command output" })).not.toBeInTheDocument()
@@ -80,5 +107,11 @@ describe("TextPreview", () => {
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     expect(within(screen.getByRole("dialog")).getByText(text)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+  })
+
+  it("renders the tail marker above the final lines", () => {
+    render(<TextPreview maxLines={2} text={"one\ntwo\nthree\nfour"} truncate="tail" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("… 2 earlier lines\nthree\nfour", { normalizeWhitespace: false })
   })
 })

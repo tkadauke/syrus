@@ -1,5 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, FilterableList, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
+import { TextPreview } from "../toolCardMarkdown"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_read_operational_logs (the tool-card work /
@@ -142,7 +143,7 @@ function renderExpanded(context: ToolCardContext) {
                             <Td>{log.role || "—"}</Td>
                             <Td mono>{log.hostname || "—"}</Td>
                             <Td maxWidth title={log.message ?? undefined}>
-                              {(log.message || "—").length > MESSAGE_PREVIEW_CHARS ? `${log.message!.slice(0, MESSAGE_PREVIEW_CHARS)}…` : log.message || "—"}
+                              {log.message ? <TextPreview maxChars={MESSAGE_PREVIEW_CHARS} maxLines={2} modalLabel="Full operational log message" text={log.message} truncate="headTail" /> : "—"}
                             </Td>
                             <Td mono>
                               {[log.jobId ? `JOB-${log.jobId}` : null, log.workflowId ? `WF-${log.workflowId}` : null, log.runId ? `RUN-${log.runId}` : null].filter(Boolean).join(" ") || "—"}
