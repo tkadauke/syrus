@@ -20,7 +20,6 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/RetentionSettings.tsx" => "per-table archive history mini-list nested under retention policy rows",
     "app/frontend/routes/chat/issueTagArtifactToolCard.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/repoDocumentToolCard.tsx" => "compact chat tool-card result summary",
-    "app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_artifacts.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_delivery_tracks.tsx" => "compact chat tool-card result summary",
     "app/frontend/routes/chat/tool_cards/list_epics.tsx" => "compact chat tool-card result summary",
