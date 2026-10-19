@@ -726,7 +726,7 @@ export function ChatCommandOutputSurface({ command, compact = false, emptyLabel,
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroupItem }) {
+export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chatSessionId?: number | string; item: ChatToolGroupItem }) {
   const [open, setOpen] = useState(false)
 
   const details = item.calls.map((call) => [toolCardAwareResultSummary(call), informativeDetail(call.detail)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
@@ -750,12 +750,12 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} chatSessionId={chatSessionId} /> : null}
               {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
                   ))}
                 </div>
               ) : null}
@@ -787,7 +787,7 @@ function callHasExpandedCard(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call)) != null
 }
 
-function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) {
+function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["calls"][number]; chatSessionId?: number | string }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -805,7 +805,7 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId))
   if (pluginBody != null) return <>{pluginBody}</>
 
   if (call.result_error) return <ToolErrorCard call={call} />
@@ -825,7 +825,7 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
+function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSessionId?: number | string) {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
@@ -834,6 +834,7 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
+    chatSessionId,
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
   }
 }
