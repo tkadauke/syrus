@@ -189,6 +189,20 @@ describe("toolCardSecurity", () => {
     })
   })
 
+  it("redacts credentials embedded in command output", () => {
+    const text = [
+      "DATABASE_URL=postgres://database_user:database-password@example.test/app",
+      "curl -u api-user:api-password https://example.test",
+      "-----BEGIN RSA PRIVATE KEY-----",
+      "private-key-material",
+      "-----END RSA PRIVATE KEY-----"
+    ].join("\n")
+
+    expect(redactToolCardText(text)).toBe(
+      ["DATABASE_URL=postgres://database_user:[redacted]@example.test/app", "curl -u api-user:[redacted] https://example.test", "[redacted]"].join("\n")
+    )
+  })
+
   it("reports payload size in bytes for small payloads", () => {
     expect(toolCardPayloadSizeLabel("abc")).toBe("3 B")
   })
