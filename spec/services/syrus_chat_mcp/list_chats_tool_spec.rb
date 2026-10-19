@@ -52,6 +52,7 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     expect(chats.first).to include(
       title: "Epic #42 follow-up",
       mode: "planning",
+      repository_id: nil,
       repository: nil,
       message_count: 1,
       attached_jobs_count: 0,
@@ -60,6 +61,7 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     expect(chats.second).to include(
       title: "api",
       mode: "planning",
+      repository_id: older_repo.id,
       repository: "acme/api",
       message_count: 2,
       attached_jobs_count: 0,
@@ -144,6 +146,7 @@ RSpec.describe Mcp::Tools::ListChatsTool do
             slug: first_attached.slug,
             title: "Attached 0",
             state: "queued",
+            repository_id: repository.id,
             repository: repository.slug
           }
         ]

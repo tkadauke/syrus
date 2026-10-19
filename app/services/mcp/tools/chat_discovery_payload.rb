@@ -7,6 +7,7 @@ module Mcp::Tools::ChatDiscoveryPayload
 
     {
       mode: session.mode.presence || "planning",
+      repository_id: repository&.id,
       repository: repository&.slug,
       attached_jobs_count: attached_jobs.size,
       attached_jobs: attached_jobs.first(MAX_ATTACHED_JOBS).map { |job| attached_job_payload(job) }
@@ -19,6 +20,7 @@ module Mcp::Tools::ChatDiscoveryPayload
       slug: job.slug,
       title: job.issue_title.presence || job.title,
       state: job.state,
+      repository_id: job.repository&.id,
       repository: job.repository&.slug
     }
   end

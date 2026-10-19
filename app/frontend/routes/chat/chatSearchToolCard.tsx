@@ -1,6 +1,19 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, FilterableList, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel } from "./toolCardUi"
+import {
+  Badge,
+  CardShell,
+  EntityReference,
+  FilterableList,
+  displayValue,
+  EmptyState,
+  InternalLink,
+  numberValue,
+  Row,
+  SectionLabel,
+  StatePill
+} from "./toolCardUi"
+import { ErrorCard } from "./chatHelperToolCard"
 
 const SNIPPET_CHARS = 280
 const MESSAGE_CHARS = 520
@@ -16,9 +29,22 @@ type Pagination = {
 type ChatRow = {
   id: string
   title: string
+  mode: string | null
+  repositoryId: string | null
   repository: string | null
   messageCount: number | null
   updatedAt: string | null
+  attachedJobsCount: number | null
+  attachedJobs: AttachedJob[]
+}
+
+type AttachedJob = {
+  id: string
+  slug: string | null
+  title: string | null
+  state: string | null
+  repositoryId: string | null
+  repository: string | null
 }
 
 type SearchHit = {
@@ -85,9 +111,29 @@ function parseChatRow(value: unknown): ChatRow | null {
   return {
     id,
     title,
+    mode: displayValue(value.mode),
+    repositoryId: displayValue(value.repository_id),
     repository: displayValue(value.repository),
     messageCount: numberValue(value.message_count),
-    updatedAt: displayValue(value.updated_at)
+    updatedAt: displayValue(value.updated_at),
+    attachedJobsCount: numberValue(value.attached_jobs_count),
+    attachedJobs: Array.isArray(value.attached_jobs)
+      ? value.attached_jobs.flatMap((item) => {
+          if (!isPlainObject(item)) return []
+          const jobId = displayValue(item.id)
+          if (!jobId) return []
+          return [
+            {
+              id: jobId,
+              slug: displayValue(item.slug),
+              title: displayValue(item.title),
+              state: displayValue(item.state),
+              repositoryId: displayValue(item.repository_id),
+              repository: displayValue(item.repository)
+            }
+          ]
+        })
+      : []
   }
 }
 
@@ -133,7 +179,7 @@ function PaginationNote({ pagination }: { pagination: Pagination }) {
   const pieces = [
     pagination.page != null && pagination.totalPages != null ? `Page ${pagination.page} of ${pagination.totalPages}` : null,
     pagination.totalCount != null ? `${pagination.totalCount} total` : null,
-    pagination.hasNextPage ? "More available" : null
+    pagination.hasNextPage === true ? "More available" : pagination.hasNextPage === false ? "End of results" : null
   ].filter(Boolean)
   if (pieces.length === 0) return null
   return <div className="text-2xs text-gray-500 dark:text-gray-400">{pieces.join(" · ")}</div>
@@ -155,14 +201,21 @@ function Snippet({ text }: { text: string }) {
           return null
         }
         if (!part) return null
-        return marked ? <mark className="rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" key={index}>{part}</mark> : <span key={index}>{part}</span>
+        return marked ? (
+          <mark className="rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" key={index}>
+            {part}
+          </mark>
+        ) : (
+          <span key={index}>{part}</span>
+        )
       })}
     </>
   )
 }
 
 function ChatTitle({ chatId, messageId, title }: { chatId: string; messageId?: string | null; title: string }) {
-  return <InternalLink href={messageHref(chatId, messageId ?? null)}>{title}</InternalLink>
+  if (messageId) return <EntityReference href={messageHref(chatId, messageId)} id={chatId} kind="chat" label={title} />
+  return <EntityReference id={chatId} kind="chat" label={title} />
 }
 
 function Metadata({ children }: { children: ReactNode }) {
@@ -189,27 +242,91 @@ export function listChatsCollapsedSummary(context: ToolCardContext) {
 }
 
 export function ListChatsCard({ context }: { context: ToolCardContext }) {
+  if (context.resultError) return <ErrorCard title="Could not list chats" message={displayValue(context.resultBody) ?? "The chat list request failed."} />
   const result = parseListChats(context)
   if (!result) return null
-  if (result.rows.length === 0) return <EmptyState>No chats found.</EmptyState>
+
+  const modeFilter = displayValue(context.input?.mode)
+  const jobFilter = displayValue(context.input?.job_id)
+  const attachedFilter = typeof context.input?.has_attached_jobs === "boolean" ? context.input.has_attached_jobs : null
+  const filters = [
+    modeFilter ? `Mode: ${modeFilter}` : null,
+    jobFilter ? `Job: JOB-${jobFilter}` : null,
+    attachedFilter == null ? null : attachedFilter ? "Has attached Jobs" : "No attached Jobs"
+  ].filter((filter): filter is string => filter != null)
+
+  if (result.rows.length === 0)
+    return (
+      <CardShell>
+        {filters.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {filters.map((filter) => (
+              <Badge key={filter}>{filter}</Badge>
+            ))}
+          </div>
+        ) : null}
+        <EmptyState>No chats found.</EmptyState>
+        <PaginationNote pagination={result.pagination} />
+      </CardShell>
+    )
 
   return (
     <CardShell>
+      {filters.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {filters.map((filter) => (
+            <Badge key={filter}>{filter}</Badge>
+          ))}
+        </div>
+      ) : null}
       <div className="space-y-2">
         {result.rows.map((chat) => (
           <article className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={chat.id}>
-            <div className="flex min-w-0 items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-gray-900 dark:text-gray-100" title={chat.title}>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="break-words font-medium text-gray-900 dark:text-gray-100" title={chat.title}>
                   <ChatTitle chatId={chat.id} title={chat.title} />
                 </div>
                 <Metadata>
-                  {chat.repository ? <Badge>{chat.repository}</Badge> : <span>No repository</span>}
-                  {chat.messageCount != null ? <span>{chat.messageCount} message{chat.messageCount === 1 ? "" : "s"}</span> : null}
+                  {chat.mode ? <Badge>{chat.mode}</Badge> : null}
+                  {chat.repository ? (
+                    <EntityReference kind="repository" repositoryId={chat.repositoryId} repositorySlug={chat.repository} />
+                  ) : (
+                    <span>No repository</span>
+                  )}
+                  {chat.messageCount != null ? (
+                    <span>
+                      {chat.messageCount} message{chat.messageCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  {chat.attachedJobsCount != null ? (
+                    <span>
+                      {chat.attachedJobsCount} attached Job{chat.attachedJobsCount === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
                 </Metadata>
               </div>
-              {chat.updatedAt ? <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={chat.updatedAt} title={chat.updatedAt}>{timestamp(chat.updatedAt)}</time> : null}
+              {chat.updatedAt ? (
+                <time className="text-2xs text-gray-500 dark:text-gray-400 sm:shrink-0" dateTime={chat.updatedAt} title={chat.updatedAt}>
+                  {timestamp(chat.updatedAt)}
+                </time>
+              ) : null}
             </div>
+            {chat.attachedJobs.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {chat.attachedJobs.map((job) => (
+                  <span
+                    className="inline-flex min-h-7 max-w-full flex-wrap items-center gap-1 rounded border border-border px-2 py-1"
+                    key={job.id}
+                  >
+                    <EntityReference id={job.id} kind="job" slug={job.slug} />
+                    {job.title ? <span className="break-words text-text-secondary">{job.title}</span> : null}
+                    {job.state ? <StatePill state={job.state} /> : null}
+                    {job.repository ? <EntityReference kind="repository" repositoryId={job.repositoryId} repositorySlug={job.repository} /> : null}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </article>
         ))}
       </div>
@@ -257,12 +374,22 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
                 <Metadata>
                   {hit.repository ? <Badge>{hit.repository}</Badge> : <span>No repository</span>}
                   {hit.role ? <Badge>{hit.role}</Badge> : null}
-                  <span>{matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat</span>
+                  <span>
+                    {matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat
+                  </span>
                 </Metadata>
               </div>
-              {hit.createdAt ? <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={hit.createdAt} title={hit.createdAt}>{timestamp(hit.createdAt)}</time> : null}
+              {hit.createdAt ? (
+                <time className="shrink-0 text-2xs text-gray-500 dark:text-gray-400" dateTime={hit.createdAt} title={hit.createdAt}>
+                  {timestamp(hit.createdAt)}
+                </time>
+              ) : null}
             </div>
-            {hit.snippet ? <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300"><Snippet text={hit.snippet} /></p> : null}
+            {hit.snippet ? (
+              <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
+                <Snippet text={hit.snippet} />
+              </p>
+            ) : null}
           </article>
         ))}
       </div>
@@ -301,7 +428,11 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {result.chatId && result.chatTitle ? <ChatTitle chatId={result.chatId} title={result.chatTitle} /> : <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>}
+        {result.chatId && result.chatTitle ? (
+          <ChatTitle chatId={result.chatId} title={result.chatTitle} />
+        ) : (
+          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
+        )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
         {result.hasMore ? <Badge>more messages available</Badge> : null}
       </div>
@@ -323,10 +454,18 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
                       <Metadata>
                         {message.role ? <Badge>{message.role}</Badge> : null}
                         {message.sender ? <span>{message.sender}</span> : null}
-                        {message.createdAt ? <time dateTime={message.createdAt} title={message.createdAt}>{timestamp(message.createdAt)}</time> : null}
-                        {result.chatId ? <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink> : <span>message {message.id}</span>}
+                        {message.createdAt ? (
+                          <time dateTime={message.createdAt} title={message.createdAt}>
+                            {timestamp(message.createdAt)}
+                          </time>
+                        ) : null}
+                        {result.chatId ? (
+                          <InternalLink href={messageHref(result.chatId, message.id)}>message {message.id}</InternalLink>
+                        ) : (
+                          <span>message {message.id}</span>
+                        )}
                       </Metadata>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{message.content}</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-text-secondary">{message.content}</p>
                     </li>
                   ))}
                 </ol>
@@ -335,7 +474,7 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
           </div>
         </div>
       )}
-      {result.hasMore && result.nextPage != null ? <div className="text-2xs text-gray-500 dark:text-gray-400">Next page: {result.nextPage}</div> : null}
+      {result.hasMore && result.nextPage != null ? <div className="text-2xs text-text-muted">Next page: {result.nextPage}</div> : null}
     </CardShell>
   )
 }

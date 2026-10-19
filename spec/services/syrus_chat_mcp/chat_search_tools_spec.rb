@@ -65,6 +65,7 @@ RSpec.describe "Mcp::Tools chat search tools" do
         message_id: stronger.id,
         chat_title: "Current chat",
         mode: "coding",
+        repository_id: repository.id,
         repository: repository.slug,
         attached_jobs_count: 1,
         attached_jobs: [
@@ -73,6 +74,7 @@ RSpec.describe "Mcp::Tools chat search tools" do
             slug: job.slug,
             title: "Search attached Job",
             state: "implemented",
+            repository_id: repository.id,
             repository: repository.slug
           }
         ],
