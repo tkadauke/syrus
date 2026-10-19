@@ -53,7 +53,12 @@ export function MediaPreviewShell({
           {item.thumbnailChildren ? (
             item.thumbnailChildren
           ) : item.src ? (
-            <img alt={item.alt ?? item.title} className="h-full w-full object-contain transition group-hover/media:scale-[1.02]" loading="lazy" src={item.src} />
+            <img
+              alt={item.alt ?? item.title}
+              className="h-full w-full object-contain transition group-hover/media:scale-[1.02]"
+              loading="lazy"
+              src={item.src}
+            />
           ) : (
             <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">
               {item.fallbackLabel ?? "Preview"}
@@ -63,7 +68,13 @@ export function MediaPreviewShell({
         <span className="block truncate px-2 pt-1 text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{item.title}</span>
         {item.subtitle || item.badge ? (
           <span className="flex items-center justify-between gap-2 px-2 pb-1 text-2xs text-gray-500 dark:text-gray-400">
-            {item.subtitle ? <span className="truncate" title={item.subtitle}>{item.subtitle}</span> : <span />}
+            {item.subtitle ? (
+              <span className="truncate" title={item.subtitle}>
+                {item.subtitle}
+              </span>
+            ) : (
+              <span />
+            )}
             {item.badge ? <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 uppercase dark:bg-gray-800">{item.badge}</span> : null}
           </span>
         ) : null}
@@ -118,7 +129,9 @@ function MediaPreviewModal({
         </div>
         <div className="min-h-0 overflow-auto p-4">
           <div className="flex min-h-48 items-center justify-center rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
-            {item.previewChildren ? item.previewChildren : item.src ? (
+            {item.previewChildren ? (
+              item.previewChildren
+            ) : item.src ? (
               <img alt={item.alt ?? item.title} className="max-h-[calc(100dvh-16rem)] max-w-full object-contain" src={item.src} />
             ) : (
               <div className="px-4 py-8 text-center text-xs text-gray-500 dark:text-gray-400">{item.fallbackLabel ?? "No preview is available."}</div>
@@ -126,12 +139,16 @@ function MediaPreviewModal({
           </div>
           {visibleMeta.length > 0 ? (
             <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-              {visibleMeta.map((row) => <MediaPreviewMetaRow key={row.label} row={row} />)}
+              {visibleMeta.map((row) => (
+                <MediaPreviewMetaRow key={row.label} row={row} />
+              ))}
             </dl>
           ) : null}
           {item.actions && item.actions.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {item.actions.map((action) => <MediaPreviewActionButton action={action} key={`${action.label}-${action.href ?? action.copyValue ?? ""}`} />)}
+              {item.actions.map((action) => (
+                <MediaPreviewActionButton action={action} key={`${action.label}-${action.href ?? action.copyValue ?? ""}`} />
+              ))}
             </div>
           ) : null}
         </div>
