@@ -178,6 +178,7 @@
     "start": "Incipe",
     "error": "Epicum incipere non potuit."
   },
+  "copy_text": "Textum describe",
   "copy": {
     "copy_to_clipboard": "Describe {{slug}} in tabellam",
     "copied": "Descriptum",
