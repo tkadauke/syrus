@@ -240,7 +240,7 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
   const resultTag = parseTag(parsed)
   const inputTag = tagFromInput(context)
   const tag = resultTag || inputTag
-  const success = isPlainObject(parsed) && parsed.success === true
+  const success = resultTag != null || (isPlainObject(parsed) && parsed.success === true)
   const pending = parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
   if (!tag && !success && !parsedError && !context.resultError) return null
 
@@ -258,10 +258,12 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
 
 export function tagActionSummary(result: TagAction) {
   const verb = result.action === "create" ? "Created" : result.action === "add" ? "Added" : "Removed"
+  const command = result.action === "create" ? "Create" : result.action === "add" ? "Add" : "Remove"
   const target = result.tag?.name || (result.tag?.id ? `tag ${result.tag.id}` : "tag")
   const job = result.jobId ? ` · JOB-${result.jobId}` : ""
   if (result.error) return `${verb} ${target} failed${job}`
   if (result.pending) return `${verb.replace(/ed$/, "ing")} ${target}${job}`
+  if (!result.success) return `${command} ${target} returned an unexpected response${job}`
   return `${verb} ${target}${job}`
 }
 
@@ -269,11 +271,11 @@ export function TagActionCard({ result }: { result: TagAction }) {
   const title = result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"
   if (result.error) return <ErrorCard title={title} message={result.error} />
 
-  const state = result.pending ? "pending" : result.success || result.tag ? "success" : "unknown"
+  const state = result.pending ? "pending" : result.success ? "success" : "unknown"
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={state} tone={result.pending ? undefined : "success"} />
+        <StatePill state={state} tone={result.pending || !result.success ? undefined : "success"} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{title}</span>
         {result.tag ? <TagChip tag={result.tag} /> : null}
       </div>
@@ -285,6 +287,7 @@ export function TagActionCard({ result }: { result: TagAction }) {
         {result.jobId ? <Row label="Job" value={`JOB-${result.jobId}`} /> : null}
         {result.tag?.id ? <Row label="Tag" value={result.tag.id} /> : null}
       </dl>
+      {!result.pending && !result.success ? <EmptyState>Unexpected tool response.</EmptyState> : null}
     </CardShell>
   )
 }
