@@ -434,6 +434,7 @@ export type ChatPendingActionInline = {
   reason?: string | null
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
+  outcome?: Record<string, unknown>
   resource_title?: string
   resource_url?: string
   app_confirm_path: string

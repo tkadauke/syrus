@@ -42,6 +42,12 @@ module PendingActions
 
     def presentation_label = "Spawn chat"
 
+    def tool_card_outcome
+      members = (action.pending_action_group&.chat_pending_actions || [ action ]).sort_by(&:id)
+      chat_ids = members.filter_map { |member| Integer(member.payload.to_h["spawned_chat_id"], exception: false) }
+      chat_ids.any? ? { chat_ids: chat_ids } : nil
+    end
+
     private
 
     def target_repository

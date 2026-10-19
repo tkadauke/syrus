@@ -26,8 +26,7 @@ module Admin
       "credential_store_ssh_exec" => "generic",
       "open_in_coding_mode" => "generic",
       "reset_workspace" => "hidden",
-      "restack_epic" => "generic",
-      "spawn_chats" => "deferred"
+      "restack_epic" => "generic"
     }.freeze
 
     class << self
