@@ -119,6 +119,14 @@ describe("MarkdownPreview", () => {
 })
 
 describe("TextPreview", () => {
+  it("can show supplemental full text in the modal without adding it to the preview", () => {
+    render(<TextPreview modalLabel="Log details" modalText={'message\n\nContext\n{"request":"req-1"}'} text="message" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("message")
+    expect(screen.queryByText(/req-1/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Log details" })).toHaveTextContent("req-1")
+  })
   it("truncates from the head by default and normalizes CRLF", () => {
     expect(truncateTextLines("one\r\ntwo\r\nthree", { maxLines: 2 })).toEqual({
       preview: "one\ntwo…",
