@@ -1110,7 +1110,7 @@ RSpec.describe RunJob, :ci_only do
         details: { "hostname" => "worker-a" }
       )
       routing = DistributedRunAdmissionRouter::Decision.new(
-        action: "reroute", queue_name: "resume-storage-b", delay: nil,
+        action: "reroute", queue_name: "worker-worker-b", delay: nil,
         details: {
           "routing_decision" => "healthy_alternative",
           "routed_worker" => "worker-b",
@@ -1122,7 +1122,7 @@ RSpec.describe RunJob, :ci_only do
 
       expect {
         RunJob.perform_now(run.id)
-      }.to have_enqueued_job(RunJob).with(run.id).on_queue("resume-storage-b")
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("worker-worker-b")
 
       queued = ActiveJob::Base.queue_adapter.enqueued_jobs.last
       expect(queued[:priority]).to eq(Job::PRIORITY_TO_SQ.fetch("urgent"))
@@ -1130,7 +1130,7 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.reload.artifact("run_host_admission")).to include(
         "action" => "reroute",
         "routing_decision" => "healthy_alternative",
-        "routed_queue" => "resume-storage-b"
+        "routed_queue" => "worker-worker-b"
       )
     end
 
@@ -1141,7 +1141,7 @@ RSpec.describe RunJob, :ci_only do
       run.save!
 
       expect {
-        RunJob.new.send(:dispatch_run, run.id, queue: "resume-storage-b")
+        RunJob.new.send(:dispatch_run, run.id, queue: "worker-worker-b")
       }.not_to have_enqueued_job(RunJob)
     end
 

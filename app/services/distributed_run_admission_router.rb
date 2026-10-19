@@ -29,7 +29,7 @@ class DistributedRunAdmissionRouter
     if alternative
       return Decision.new(
         action: "reroute",
-        queue_name: Workflow.resume_queue_name(alternative.fetch("worker_storage_key")),
+        queue_name: WorkerStorageIdentity.dispatch_queue_name(hostname: alternative.fetch("hostname")),
         delay: nil,
         details: {
           "routing_decision" => "healthy_alternative",
@@ -76,8 +76,8 @@ class DistributedRunAdmissionRouter
   def eligible_workers
     workers = Array(RunQueueResolver.resolve(run: run).details["live_workers"])
     workers.select do |worker|
-      worker["eligible"] && worker["worker_storage_key"].present? &&
-        Array(worker["queues"]).include?(Workflow.resume_queue_name(worker["worker_storage_key"]))
+      dispatch_queue = WorkerStorageIdentity.dispatch_queue_name(hostname: worker["hostname"])
+      worker["eligible"] && Array(worker["queues"]).include?(dispatch_queue)
     end
   end
 
