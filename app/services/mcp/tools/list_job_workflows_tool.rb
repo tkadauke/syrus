@@ -22,7 +22,7 @@ module Mcp::Tools
       def call(job_id:, server_context:)
         job = find_job!(job_id)
 
-        Mcp::Tools.success(workflows: workflow_index_for(job))
+        Mcp::Tools.success(job_id: job.id, workflows: workflow_index_for(job))
       end
 
       def workflow_index_for(job)
