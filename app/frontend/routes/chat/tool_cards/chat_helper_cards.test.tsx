@@ -191,6 +191,70 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("goal is not active")).toBeInTheDocument()
   })
 
+  it("renders blocked goal metadata, structured details, linked markdown, and the returned previous status", () => {
+    const longReason = `Waiting for **repository access** from JOB-42 at https://example.test/access. ${"Additional context. ".repeat(40)}`
+    const input = {
+      reason: longReason,
+      details: { provider: "github", permission: "contents:write", nested: { repository: "acme/widgets" } }
+    }
+    const parsedResult = {
+      goal_id: 17,
+      status: "blocked",
+      previous_status: "paused",
+      reason: longReason,
+      details: input.details,
+      chat_session_id: 8,
+      chat_title: "Release planning",
+      chat_path: "/chats/8"
+    }
+
+    render(
+      <MemoryRouter>{markGoalBlockedToolCard.renderExpanded(context("mcp__syrus-chat-sidecar__mark_goal_blocked", { input, parsedResult }))}</MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: /Goal #17 · Release planning/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("paused -> blocked")).toBeInTheDocument()
+    expect(screen.getByText("repository access").tagName).toBe("STRONG")
+    expect(screen.getByText("JOB-42").closest("a")).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.test/access" })).toHaveAttribute("href", "https://example.test/access")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    expect(screen.getByText("Blocked details")).toBeInTheDocument()
+    expect(screen.getByText("contents:write")).toBeInTheDocument()
+    expect(screen.getByText('{"repository":"acme/widgets"}')).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+  })
+
+  it("normalizes blocked goal result envelopes and preserves older responses", () => {
+    const payload = { goal_id: 17, status: "blocked", reason: "Waiting for input" }
+    const contexts = [
+      context("mark_goal_blocked", { parsedResult: payload }),
+      context("mark_goal_blocked", { resultBody: JSON.stringify(payload) }),
+      context("mcp__syrus-chat-sidecar__mark_goal_blocked", {
+        parsedResult: { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+      })
+    ]
+
+    for (const toolContext of contexts) {
+      expect(toolContext.toolName).toBe("mark_goal_blocked")
+      expect(markGoalBlockedToolCard.collapsedSummary?.(toolContext)).toBe("Goal #17 -> blocked")
+    }
+
+    render(<>{markGoalBlockedToolCard.renderExpanded(contexts[0])}</>)
+    expect(screen.getByText("unknown -> blocked")).toBeInTheDocument()
+  })
+
+  it("renders blocked goal pending, empty-detail, and no-active-goal error states", () => {
+    const pending = context("mark_goal_blocked", { input: { reason: "Waiting for **approval**", details: {} } })
+    expect(markGoalBlockedToolCard.collapsedSummary?.(pending)).toBe("Goal blocked transition pending")
+    const { rerender } = render(<>{markGoalBlockedToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("approval").tagName).toBe("STRONG")
+    expect(screen.getByText("No structured blocked details were provided.")).toBeInTheDocument()
+    expect(screen.getByText("Waiting for the goal transition to finish.")).toBeInTheDocument()
+
+    rerender(<>{markGoalBlockedToolCard.renderExpanded(context("mark_goal_blocked", { resultBody: "active goal not found", resultError: true }))}</>)
+    expect(screen.getByText("active goal not found")).toBeInTheDocument()
+  })
+
   it("renders rename_chat old and new titles when available", () => {
     const parsedResult = { session_id: 42, previous_title: "Old title", title: "Release planning" }
 

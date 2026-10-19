@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "goal MCP tools" do
   let(:user) { Factories.user }
-  let(:chat) { ChatSession.create!(user: user) }
+  let(:chat) { ChatSession.create!(user: user, title: "Release planning") }
   let(:server_context) { { chat_session: chat } }
 
   it "lets the agent complete the active goal" do
@@ -44,6 +44,16 @@ RSpec.describe "goal MCP tools" do
     expect(response).not_to be_error
     expect(goal.reload).to have_attributes(status: "blocked", terminal_reason: "waiting_for_credentials")
     expect(goal.terminal_details).to eq("provider" => "github")
+    expect(JSON.parse(response.content.first.fetch(:text))).to include(
+      "goal_id" => goal.id,
+      "status" => "blocked",
+      "previous_status" => "active",
+      "reason" => "waiting_for_credentials",
+      "details" => { "provider" => "github" },
+      "chat_session_id" => chat.id,
+      "chat_title" => "Release planning",
+      "chat_path" => "/chats/#{chat.id}"
+    )
   end
 
   it "rejects blocked results without a reason" do

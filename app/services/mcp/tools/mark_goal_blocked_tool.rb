@@ -28,6 +28,7 @@ module Mcp::Tools
         normalized_reason = Mcp::Tools.utf8(reason).strip
         return Mcp::Tools.invalid("reason is required") if normalized_reason.blank?
 
+        previous_status = goal.status
         goal.block!(reason: normalized_reason, details: details)
         chat_session.messages.create!(
           role: "system",
@@ -38,7 +39,16 @@ module Mcp::Tools
           }
         )
         chat_session.broadcast_controls
-        Mcp::Tools.success(goal_id: goal.id, status: goal.status, reason: goal.terminal_reason)
+        Mcp::Tools.success(
+          goal_id: goal.id,
+          status: goal.status,
+          previous_status: previous_status,
+          reason: goal.terminal_reason,
+          details: goal.terminal_details,
+          chat_session_id: chat_session.id,
+          chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
+          chat_path: "/chats/#{chat_session.id}"
+        )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
