@@ -6370,20 +6370,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       job: job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: "codex",
-      state: "cancelled",
-      finished_at: 2.minutes.ago,
+      state: "queued",
       created_at: 4.minutes.ago
-    )
-    StateTransition.create!(
-      subject: replacement,
-      from_state: "queued",
-      to_state: "cancelled",
-      event_name: "cancel",
-      source: "reconciler",
-      metadata: {
-        "reason_key" => "cancel_terminal_workflow_active_descendants",
-        "repair_action" => "cancel_terminal_workflow_active_descendants"
-      }
     )
 
     result = nil
@@ -6400,6 +6388,15 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload.run_failure_classification).to have_attributes(
       classification: "provider_transient",
       retryable: true
+    )
+    expect(replacement.reload).to be_cancelled
+    expect(StateTransition.for_subject(replacement).recent.first).to have_attributes(
+      source: "reconciler",
+      to_state: "cancelled",
+      metadata: include(
+        "reason_key" => "cancel_terminal_workflow_active_descendants",
+        "repair_action" => "cancel_terminal_workflow_active_descendants"
+      )
     )
   end
 
