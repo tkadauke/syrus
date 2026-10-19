@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import addJobTagToolCard from "./add_job_tag"
 import createTagToolCard from "./create_tag"
 import listOpenIssuesToolCard from "./list_open_issues"
@@ -92,16 +93,50 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("JOB-8")).toBeInTheDocument()
   })
 
-  it("renders create, add, and remove tag outcomes", () => {
+  it("renders create input and result details without an empty affected-Jobs section", () => {
     const created = { id: 10, name: "area:ui", color: "blue", job_ids: [] }
+    const createdContext = context("create_tag", { input: { name: "area:ui", color: "blue" }, parsedResult: created })
 
-    expect(createTagToolCard.collapsedSummary?.(context("create_tag", { parsedResult: created }))).toBe("Created area:ui")
-    render(<>{createTagToolCard.renderExpanded(context("create_tag", { parsedResult: created }))}</>)
+    expect(createTagToolCard.collapsedSummary?.(createdContext)).toBe("Created area:ui")
+    const { container } = render(<>{createTagToolCard.renderExpanded(createdContext)}</>)
     expect(screen.getByText("Create tag")).toBeInTheDocument()
-    expect(screen.getByText("area:ui")).toBeInTheDocument()
+    expect(screen.getAllByText("area:ui")).toHaveLength(3)
+    expect(screen.getByText("Requested name")).toBeInTheDocument()
+    expect(screen.getByText("Requested color")).toBeInTheDocument()
+    expect(screen.getByText("Created name")).toBeInTheDocument()
+    expect(screen.getByText("Created color")).toBeInTheDocument()
+    expect(screen.queryByText("Affected Jobs")).not.toBeInTheDocument()
+    expect(container.querySelector("[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
 
     expect(addJobTagToolCard.collapsedSummary?.(context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe("Added tag 10 · JOB-7")
     expect(removeJobTagToolCard.collapsedSummary?.(context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe("Removed tag 10 · JOB-7")
+  })
+
+  it("renders a pending create from input alone", () => {
+    const pending = context("create_tag", { input: { name: "area:api", color: "gray" } })
+
+    expect(createTagToolCard.collapsedSummary?.(pending)).toBe("Creating area:api")
+    render(<>{createTagToolCard.renderExpanded(pending)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getAllByText("area:api")).toHaveLength(2)
+    expect(screen.queryByText("Created name")).not.toBeInTheDocument()
+  })
+
+  it("normalizes provider-qualified names and MCP result envelopes", () => {
+    const envelopes = [
+      { structured_content: { id: 11, name: "priority", color: "amber", job_ids: [] } },
+      { content: [{ type: "text", text: JSON.stringify({ id: 12, name: "priority", color: "amber", job_ids: [] }) }] }
+    ]
+
+    for (const [index, envelope] of envelopes.entries()) {
+      const normalizedContext = context(normalizedToolName(index === 0 ? "mcp__syrus__create_tag" : "syrus-chat-sidecar.create_tag"), {
+        input: { name: "priority", color: "amber" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      expect(normalizedContext.toolName).toBe("create_tag")
+      expect(createTagToolCard.collapsedSummary?.(normalizedContext)).toBe("Created priority")
+    }
   })
 
   it("renders duplicate and invalid tag errors", () => {
@@ -119,8 +154,11 @@ describe("issue, tag, and artifact tool cards", () => {
     })
 
     expect(createTagToolCard.collapsedSummary?.(duplicate)).toBe("Created area:ui failed")
-    render(<>{addJobTagToolCard.renderExpanded(invalid)}</>)
+    const { rerender } = render(<>{createTagToolCard.renderExpanded(duplicate)}</>)
     expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Name has already been taken")).toBeInTheDocument()
+
+    rerender(<>{addJobTagToolCard.renderExpanded(invalid)}</>)
     expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
   })
 
