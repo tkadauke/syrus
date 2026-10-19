@@ -1540,6 +1540,7 @@
   "ops_no_recurring_tasks_found_d9c892": "No recurring tasks found.",
   "ops_no_active_workers_found_7970c5": "No active workers found.",
   "ops_no_processes_found_59c7bd": "No processes found.",
+  "ops_processes_could_not_be_loaded": "Processes could not be loaded.",
   "ops_job_c4d232": "JOB-",
   "ops_jobs_437736": "Jobs",
   "ops_current_base_21b77b": "Current base",

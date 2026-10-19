@@ -1540,6 +1540,7 @@
   "ops_no_recurring_tasks_found_d9c892": "Nulla recurring munuss inventum.",
   "ops_no_active_workers_found_7970c5": "Nulla active workers inventum.",
   "ops_no_processes_found_59c7bd": "Nulla processus inventum.",
+  "ops_processes_could_not_be_loaded": "Processus onerari non potuerunt.",
   "ops_job_c4d232": "JOB-",
   "ops_jobs_437736": "Jobs",
   "ops_current_base_21b77b": "Praesens base",

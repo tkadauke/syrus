@@ -1,6 +1,7 @@
 import i18n from "../../../i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
+import { CardShell, displayValue, EmptyState, EntityReference, numberValue, Row, StatePill } from "../toolCardUi"
+import { TextPreview } from "../toolCardMarkdown"
 import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_list_processes (the tool-card work).
@@ -8,6 +9,7 @@ import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adm
 // resource usage, timing, and the Run/Workflow it's attributed to.
 type ProcessRow = {
   key: string
+  id: string
   kind: string | null
   hostname: string
   pid: string | null
@@ -24,10 +26,12 @@ type ProcessRow = {
 function parseRow(value: unknown, index: number): ProcessRow | null {
   if (!isPlainObject(value)) return null
   const hostname = displayValue(value.hostname)
-  if (!hostname) return null
+  const id = displayValue(value.id)
+  if (!hostname || !id) return null
 
   return {
-    key: `${displayValue(value.id) ?? index}`,
+    key: `${id}-${index}`,
+    id,
     kind: displayValue(value.kind),
     hostname,
     pid: displayValue(value.pid),
@@ -64,24 +68,58 @@ function StateBadge({ state }: { state: string | null }) {
 }
 
 function renderExpanded(context: ToolCardContext) {
+  const state = displayValue(context.input?.state) ?? "running"
+  const kind = displayValue(context.input?.kind) ?? "All"
+  const limit = displayValue(context.input?.limit) ?? "20"
+
+  const filters = (
+    <div className="grid grid-cols-3 gap-2">
+      <Row label={i18n.t("chat:ops_state_a72502")} value={state} />
+      <Row label={i18n.t("chat:ops_kind_e00ac2")} value={kind} />
+      <Row label={i18n.t("chat:tool_card_issue_filter_limit")} value={limit} />
+    </div>
+  )
+
+  if (context.resultError) {
+    return (
+      <CardShell>
+        {filters}
+        <EmptyState>{i18n.t("chat:ops_processes_could_not_be_loaded")}</EmptyState>
+        {context.resultBody ? <TextPreview maxLines={4} text={context.resultBody} title={i18n.t("chat:ops_error_details_20be86")} /> : null}
+      </CardShell>
+    )
+  }
+
   const rows = processRows(context)
   if (!rows) return null
 
-  if (rows.length === 0) return <EmptyState>{i18n.t("chat:ops_no_processes_found_59c7bd")}</EmptyState>
+  if (rows.length === 0)
+    return (
+      <CardShell>
+        {filters}
+        <EmptyState>{i18n.t("chat:ops_no_processes_found_59c7bd")}</EmptyState>
+      </CardShell>
+    )
 
   return (
     <CardShell>
-      <Table>
+      {filters}
+      <Table responsive>
         <THead
-          columns={["kind", "host", "pid", "state", "cpu", "rss", "started", "heartbeat", "run_workflow", "outcome"].map((key) =>
+          columns={["id", "kind", "host", "pid", "state", "cpu", "rss", "started", "heartbeat", "run", "workflow", "outcome"].map((key) =>
             i18n.t(`chat:admin_column_${key}`)
           )}
         />
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
+              <Td mono primary>
+                <EntityReference id={row.id} kind="artifact" wrap="nowrap" />
+              </Td>
               <Td>{row.kind || "—"}</Td>
-              <Td mono>{row.hostname}</Td>
+              <Td mono>
+                <EntityReference id={row.hostname} kind="artifact" wrap="nowrap" />
+              </Td>
               <Td mono>{row.pid || "—"}</Td>
               <Td>
                 <StateBadge state={row.state} />
@@ -90,7 +128,10 @@ function renderExpanded(context: ToolCardContext) {
               <Td mono>{formatBytesLarge(row.rss)}</Td>
               <Td mono>{row.startedAt || "—"}</Td>
               <Td mono>{row.lastHeartbeatAt || "—"}</Td>
-              <Td mono>{row.runId ? `RUN-${row.runId}` : row.workflowId ? `WF-${row.workflowId}` : "—"}</Td>
+              <Td mono>{row.runId ? <EntityReference href={`/admin/runs/${row.runId}/transcript`} id={row.runId} kind="run" wrap="nowrap" /> : "—"}</Td>
+              <Td mono>
+                {row.workflowId ? <EntityReference href={`/admin/workflows/${row.workflowId}`} id={row.workflowId} kind="workflow" wrap="nowrap" /> : "—"}
+              </Td>
               <Td>{row.outcome || "—"}</Td>
             </tr>
           ))}
