@@ -3,8 +3,10 @@ module Admin
     STUCK_ITEMS_PER_PAGE = 50
     STUCK_SORTS = %w[severity status kind detail context age].freeze
 
-    def initialize(params: {})
+    def initialize(params: {}, stuck_per_page: STUCK_ITEMS_PER_PAGE, stable_stuck_order: false)
       @params = params
+      @stuck_per_page = stuck_per_page
+      @stable_stuck_order = stable_stuck_order
     end
 
     def as_json(*)
@@ -290,14 +292,14 @@ module Admin
     end
 
     def paginated_items(items)
-      items.slice(stuck_offset_for(items), STUCK_ITEMS_PER_PAGE) || []
+      items.slice(stuck_offset_for(items), stuck_per_page) || []
     end
 
     def pagination_for(items)
       total = items.size
       {
         page: stuck_page_for(items),
-        per_page: STUCK_ITEMS_PER_PAGE,
+        per_page: stuck_per_page,
         total: total,
         total_pages: total_pages_for(items),
         first_item: total.zero? ? 0 : stuck_offset_for(items) + 1,
@@ -308,11 +310,11 @@ module Admin
     end
 
     def stuck_offset
-      (stuck_page_for(stuck_items) - 1) * STUCK_ITEMS_PER_PAGE
+      (stuck_page_for(stuck_items) - 1) * stuck_per_page
     end
 
     def stuck_offset_for(items)
-      (stuck_page_for(items) - 1) * STUCK_ITEMS_PER_PAGE
+      (stuck_page_for(items) - 1) * stuck_per_page
     end
 
     def stuck_page
@@ -337,7 +339,7 @@ module Admin
     end
 
     def total_pages_for(items)
-      [ (items.size.to_f / STUCK_ITEMS_PER_PAGE).ceil, 1 ].max
+      [ (items.size.to_f / stuck_per_page).ceil, 1 ].max
     end
 
     def stuck_page_path(page)
@@ -426,6 +428,7 @@ module Admin
     end
 
     def sorted_stuck_items(items)
+      return items.sort_by { |item| stable_stuck_sort_key(item) } if stable_stuck_order? && !stuck_sort
       return items unless stuck_sort
 
       ranked_items = items.map { |item| [ item, stuck_sort_value(item, stuck_sort) ] }
@@ -434,6 +437,25 @@ module Admin
       sorted_items.reverse! if stuck_direction == "desc"
 
       (sorted_items + blank_items).map(&:first)
+    end
+
+    def stable_stuck_order?
+      @stable_stuck_order
+    end
+
+    def stuck_per_page
+      @stuck_per_page
+    end
+
+    def stable_stuck_sort_key(item)
+      row = item.with_indifferent_access
+      [
+        row[:kind].to_s,
+        row[:job_id] || Float::INFINITY,
+        row[:workflow_id] || Float::INFINITY,
+        row[:run_id] || Float::INFINITY,
+        row[:detail].to_s
+      ]
     end
 
     def stuck_sort
