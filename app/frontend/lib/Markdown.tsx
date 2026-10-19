@@ -7,7 +7,7 @@ import { detectFenceLanguage } from "./highlighter"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type SlugTone = "default" | "inverted"
+export type SlugTone = "default" | "inverted"
 type RenderInlineOptions = {
   linkifySlugs?: boolean
   linkifyUrls?: boolean
