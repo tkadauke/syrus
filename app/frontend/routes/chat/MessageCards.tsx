@@ -24,7 +24,7 @@ import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } fro
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
 import { NO_ARGUMENTS_SENTINEL, TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
-import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardRendererFor } from "../../pluginToolCards"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardPendingBody, pluginToolCardRendererFor } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -750,7 +750,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : expanded ? pluginToolCardPendingBody(toolCardContext(call)) : null}
               {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">

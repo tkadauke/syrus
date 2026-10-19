@@ -1,5 +1,5 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { CardShell, Row, SectionLabel, StatePill, displayValue } from "./toolCardUi"
+import { CardShell, EntityReference, Row, SectionLabel, StatePill, displayValue } from "./toolCardUi"
 import { MarkdownPreview } from "./toolCardMarkdown"
 
 const PINNED_PREVIEW_LINES = 8
@@ -67,7 +67,12 @@ export function PinnedContextCard({
         <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {chatId ? <Row label="Chat" value={chatId} /> : null}
+        {chatId ? (
+          <div className="min-w-0">
+            <SectionLabel>Chat</SectionLabel>
+            <EntityReference id={chatId} kind="chat" />
+          </div>
+        ) : null}
         {pinnedContextId ? <Row label="Pinned context" value={pinnedContextId} /> : null}
         <Row label="Lines" value={String(lineCount)} />
         <Row label="Characters" value={String(result.content.length)} />
@@ -99,6 +104,35 @@ export function PinnedContextCard({
           maxLines={PINNED_PREVIEW_LINES}
           modalLabel="Pinned context"
           text={result.content}
+        />
+      </div>
+    </CardShell>
+  )
+}
+
+export function PendingPinnedContextCard({ content }: { content: string | null }) {
+  const value = content ?? ""
+  const lineCount = value === "" ? 0 : value.split("\n").length
+
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatePill state="pending" tone="info" />
+        <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
+      </div>
+      <dl className="grid gap-1 sm:grid-cols-2">
+        <Row label="Lines" value={String(lineCount)} />
+        <Row label="Characters" value={String(value.length)} />
+      </dl>
+      <div>
+        <SectionLabel>Requested context</SectionLabel>
+        <MarkdownPreview
+          emptyLabel="No pinned context was provided."
+          linkifyUrls
+          maxChars={PINNED_PREVIEW_CHARS}
+          maxLines={PINNED_PREVIEW_LINES}
+          modalLabel="Requested pinned context"
+          text={value}
         />
       </div>
     </CardShell>
