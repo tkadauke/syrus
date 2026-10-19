@@ -15,7 +15,7 @@ module Prompts
 
         Syrus has already inspected the after-artifact provenance and filtered out obvious auth/sign-in/error-wall captures when they do not match the changed surface. Start the preview, navigate to the same screens represented by these after screenshots, capture matching before screenshots, and call `submit_visual_artifact` once per matching baseline image.
 
-        Use type "#{@baseline_type}" for every baseline screenshot. Use the exact same title as the paired after screenshot so Syrus can pair them; if a screen cannot be reproduced on the base revision, do not invent an image.
+        Use type "#{@baseline_type}" for every baseline screenshot. Use the exact same title and `subject` as the paired after screenshot so Syrus can pair them and the capture tool can scroll the same subject into view and verify that it is visible. Re-resolve a ref with `browser_snapshot` after navigation or `browser_resize`; do not reuse a stale ref. If a screen or its subject cannot be reproduced on the base revision, do not invent an image.
 
         After screenshots to reproduce:
 
@@ -32,8 +32,13 @@ module Prompts
         title = artifact["title"].presence || "Screenshot #{index + 1}"
         url = artifact["image_url"]
         provenance = artifact_provenance(artifact)
-        "- #{title}: #{url}#{provenance}"
+        subject = artifact_subject(artifact)
+        "- #{title}: #{url}; subject: #{subject.inspect}#{provenance}"
       end.join("\n")
+    end
+
+    def artifact_subject(artifact)
+      artifact["subject"].presence || artifact.dig("payload", "subject").presence
     end
 
     def artifact_provenance(artifact)

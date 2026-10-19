@@ -292,6 +292,10 @@ module Prompts
            `hover` for `:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards, hover-revealed
            controls) that `click` cannot exercise — don't default to "skipped" just because the behavior
            only appears on hover.
+           For UI changes inside long pages or lists (for example, chat tool cards), navigate to the most
+           isolated route that renders the subject under review, such as the admin Tool Card Catalog,
+           instead of capturing it in a long page. Include nearby context only when it is needed to judge
+           the change.
            For click/fill/hover/single-element screenshots, call `browser_snapshot` first and copy the exact
            `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
            refs, pass an undefined target, or call click/fill/hover when the element is absent. If the element
@@ -324,7 +328,7 @@ module Prompts
         4. By default, test the change at both a desktop viewport
            (#{viewport_label(DESKTOP_VIEWPORT)}) and a mobile viewport
            (#{viewport_label(MOBILE_VIEWPORT)}) via `browser_resize`, capturing screenshots at each
-           with `submit_visual_artifact(capture_current_browser: true, ...)` and titling them clearly
+           with `submit_visual_artifact(capture_current_browser: true, subject: ..., ...)` and titling them clearly
            (e.g. "Desktop — ..." / "Mobile — ..."). If your tool schema does not expose
            `capture_current_browser`, omit `image_path` and `image_base64`; the tool defaults to the
            same current-browser capture path. Use that path rather than copying Playwright temp files or
@@ -333,12 +337,17 @@ module Prompts
            irrelevant (a mobile-nav-only bug
            report, a component hidden below a desktop breakpoint, an admin-only desktop tool) — but if
            you skip a viewport, state why in your critique so it is an auditable judgment call, not a silent omission.
+           Every `submit_visual_artifact` call must pass `subject`: either an exact `browser_snapshot` ref
+           for the element under review or a CSS selector, preferably a stable `data-testid`. The tool uses
+           it to scroll the subject into view and verify that it is visible before capture. A screenshot
+           that does not show the subject of the Job is not evidence and must not be submitted.
            `browser_resize` fully re-applies the
            viewport each time, so there's no need to reset between calls; but a resize triggers a
-           layout reflow, so re-run `browser_snapshot` before the next click/fill after resizing —
-           never reuse refs captured at the previous viewport size.
+           layout reflow, so re-run `browser_snapshot` after every resize to re-resolve the subject as well
+           as before the next click/fill — never reuse refs captured at the previous viewport size.
         5. Capture "after" screenshots of what you tested with the image-artifact submit tool so an
-           operator can see the result.
+           operator can see the subject at both desktop and mobile viewports unless you documented an
+           allowed viewport exception above.
         6. Call `submit_visual_review` with your verdict and critique.
         7. Always call `stop_preview` before you finish, whether or not you started one.
       TEXT
