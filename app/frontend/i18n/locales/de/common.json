@@ -6,7 +6,33 @@
   },
   "loading": "Laden...",
   "show_more": "Mehr anzeigen",
+  "copy_content": "Inhalt kopieren",
+  "copy_markdown": "Markdown kopieren",
+  "empty_file": "Leere Datei.",
   "show_less": "Weniger anzeigen",
+  "text_preview": {
+    "earlier_lines_one": "… {{count}} frühere Zeile",
+    "earlier_lines_other": "… {{count}} frühere Zeilen",
+    "earlier_text": "… früherer Text",
+    "lines_omitted_one": "… {{count}} Zeile ausgelassen",
+    "lines_omitted_other": "… {{count}} Zeilen ausgelassen",
+    "text_omitted": "… Text ausgelassen"
+  },
+  "ssh_exec_card": {
+    "succeeded": "SSH-Befehl erfolgreich (Exit {{status}})",
+    "failed": "SSH-Befehl fehlgeschlagen (Exit {{status}})",
+    "target": "Ziel",
+    "command": "Befehl",
+    "stdout": "stdout",
+    "stderr": "stderr"
+  },
+  "markdown_preview": {
+    "empty": "Kein Text vorhanden.",
+    "dialog_label": "Vollständige Markdown-Vorschau",
+    "title": "Vollständiger Text",
+    "copy": "Kopieren",
+    "close": "Vorschau schließen"
+  },
   "workflows": "Arbeitsabläufe",
   "file_preview": {
     "dialog_label": "Dateivorschau für {{title}}",
@@ -179,6 +205,7 @@
     "error": "Epic konnte nicht gestartet werden."
   },
   "copy": {
+    "copy_text": "Kopieren",
     "copy_to_clipboard": "{{slug}} in die Zwischenablage kopieren",
     "copied": "Kopiert",
     "copy": "{{slug}} kopieren"

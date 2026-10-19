@@ -1,8 +1,16 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import type { MarkdownLinkHandler } from "../../lib/Markdown"
 
 const SUMMARY_CHARS = 88
+const QUESTION_SLUG_HREF_FALLBACKS = { DOC: "/design_docs/:id" }
+const QUESTION_OPTION_CLASS = [
+  "inline-flex min-h-11 w-full min-w-0 max-w-full items-center rounded-[var(--radius-pill)]",
+  "bg-neutral-surface px-2 py-0.5 text-2xs text-neutral-text ring-1 ring-neutral-border",
+  "sm:min-h-0 sm:w-auto"
+].join(" ")
 
 export function compactSummary(value: string | null, maxChars = SUMMARY_CHARS) {
   if (!value) return null
@@ -14,10 +22,7 @@ function errorMessage(context: ToolCardContext, fallback: string) {
   return displayValue(context.resultBody) ?? fallback
 }
 
-export type CardState<T> =
-  | { kind: "success"; data: T }
-  | { kind: "error"; message: string }
-  | { kind: "malformed" }
+export type CardState<T> = { kind: "success"; data: T } | { kind: "error"; message: string } | { kind: "malformed" }
 
 export function successOrError<T>(context: ToolCardContext, fallbackError: string, parse: (parsed: Record<string, unknown>) => T | null): CardState<T> {
   if (context.resultError) return { kind: "error", message: errorMessage(context, fallbackError) }
@@ -42,9 +47,7 @@ export function StatusCard({ title, status, children }: { title: string; status?
 export function ErrorCard({ title, message }: { title: string; message: string }) {
   return (
     <StatusCard title={title} status="failed">
-      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-        {message}
-      </div>
+      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{message}</div>
     </StatusCard>
   )
 }
@@ -72,21 +75,25 @@ export function questionsFromInput(input: Record<string, unknown> | undefined): 
     if (!isPlainObject(item)) return []
     const question = displayValue(item.question)
     if (!question) return []
-    const options = Array.isArray(item.options) ? item.options.flatMap((option) => {
-      const label = displayValue(option)
-      return label ? [label] : []
-    }) : []
+    const options = Array.isArray(item.options)
+      ? item.options.flatMap((option) => {
+          const label = displayValue(option)
+          return label ? [label] : []
+        })
+      : []
 
-    return [{
-      key: `${index}-${question}`,
-      question,
-      options,
-      multiple: item.multiple === true
-    }]
+    return [
+      {
+        key: `${index}-${question}`,
+        question,
+        options,
+        multiple: item.multiple === true
+      }
+    ]
   })
 }
 
-export function QuestionList({ questions }: { questions: AskedQuestion[] }) {
+export function QuestionList({ questions, onLinkClick }: { questions: AskedQuestion[]; onLinkClick?: MarkdownLinkHandler }) {
   if (questions.length === 0) return <EmptyState>Question text was not included with this transcript entry.</EmptyState>
 
   return (
@@ -98,14 +105,38 @@ export function QuestionList({ questions }: { questions: AskedQuestion[] }) {
             <div className="flex min-w-0 gap-2">
               <span className="shrink-0 font-mono text-2xs text-gray-500 dark:text-gray-400">#{index + 1}</span>
               <div className="min-w-0 flex-1">
-                <div className="whitespace-pre-wrap break-words font-medium text-gray-900 dark:text-gray-100">{question.question}</div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  <MarkdownPreview
+                    linkifySlugs
+                    linkifyUrls
+                    maxChars={500}
+                    maxLines={4}
+                    onLinkClick={onLinkClick}
+                    slugHrefFallbacks={QUESTION_SLUG_HREF_FALLBACKS}
+                    text={question.question}
+                  />
+                </div>
                 {question.options.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Badge>{question.multiple ? "multi-select" : "single-select"}</Badge>
-                    {question.options.map((option) => <Badge key={option}>{option}</Badge>)}
+                    {question.options.map((option) => (
+                      <div className={QUESTION_OPTION_CLASS} data-testid="question-option" key={option}>
+                        <MarkdownPreview
+                          linkifySlugs
+                          linkifyUrls
+                          maxChars={240}
+                          maxLines={3}
+                          onLinkClick={onLinkClick}
+                          slugHrefFallbacks={QUESTION_SLUG_HREF_FALLBACKS}
+                          text={option}
+                        />
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="mt-1"><Badge>free text</Badge></div>
+                  <div className="mt-1">
+                    <Badge>free text</Badge>
+                  </div>
                 )}
               </div>
             </div>

@@ -6,7 +6,33 @@
   },
   "loading": "Oneratur...",
   "show_more": "Ostende plus",
+  "copy_content": "Describe contentum",
+  "copy_markdown": "Markdown exscribe",
+  "empty_file": "Fasciculus vacuus.",
   "show_less": "Ostende minus",
+  "text_preview": {
+    "earlier_lines_one": "… {{count}} linea prior",
+    "earlier_lines_other": "… {{count}} lineae priores",
+    "earlier_text": "… textus prior",
+    "lines_omitted_one": "… {{count}} linea omissa",
+    "lines_omitted_other": "… {{count}} lineae omissae",
+    "text_omitted": "… textus omissus"
+  },
+  "ssh_exec_card": {
+    "succeeded": "Praeceptum SSH successit (exitus {{status}})",
+    "failed": "Praeceptum SSH defecit (exitus {{status}})",
+    "target": "Meta",
+    "command": "Praeceptum",
+    "stdout": "stdout",
+    "stderr": "stderr"
+  },
+  "markdown_preview": {
+    "empty": "Nullus textus praebitus est.",
+    "dialog_label": "Praevisio Markdown plena",
+    "title": "Textus plenus",
+    "copy": "Describe",
+    "close": "Claude praevisionem"
+  },
   "workflows": "Cursus operum",
   "file_preview": {
     "dialog_label": "Praevisio plicae {{title}}",
@@ -179,6 +205,7 @@
     "error": "Epicum incipere non potuit."
   },
   "copy": {
+    "copy_text": "Copia",
     "copy_to_clipboard": "Describe {{slug}} in tabellam",
     "copied": "Descriptum",
     "copy": "Describe {{slug}}"

@@ -427,10 +427,28 @@ module ChatSerialization
 
       { resource_title: epic.title, resource_url: epic_path(epic) }
     when "create_repo_document", "delete_repo_document"
-      document = Document.find_by(id: payload["document_id"])
+      document = if action.action == "create_repo_document" && action.result.is_a?(Document)
+        action.result
+      else
+        Document.find_by(id: payload["document_id"])
+      end
       return nil unless document
 
-      { resource_title: document.title }
+      repository = document.repository
+      url = document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : document.google_docs_url
+      {
+        resource_title: document.title,
+        resource_url: url,
+        document: {
+          id: document.id,
+          title: document.title,
+          repository_id: repository&.id,
+          repository_slug: repository&.slug,
+          content_type: document.content_type,
+          size_bytes: document.byte_size,
+          url: url
+        }
+      }
     when "submit_coding_changes"
       repository = action.user.repositories.active.find_by(id: payload["repository_id"])
       return nil unless repository
