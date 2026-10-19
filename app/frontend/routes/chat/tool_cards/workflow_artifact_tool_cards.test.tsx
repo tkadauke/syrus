@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listArtifactsToolCard from "./list_artifacts"
@@ -79,7 +79,7 @@ describe("workflow artifact tool cards", () => {
   it("renders a read_artifact image result inline", () => {
     const parsedResult = [{ type: "image", data: "abc123", mimeType: "image/png" }]
     const toolContext = context("read_artifact", {
-      input: { workflow_id: 28622, type: "visual_review_screenshot_1" },
+      input: { workflow_id: 28622, job_id: 7705, type: "visual_review_screenshot_1" },
       parsedResult
     })
 
@@ -88,7 +88,33 @@ describe("workflow artifact tool cards", () => {
     render(<>{readArtifactToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByRole("img", { name: "visual_review_screenshot_1" })).toHaveAttribute("src", "data:image/png;base64,abc123")
     expect(screen.getAllByText("visual_review_screenshot_1").length).toBeGreaterThan(0)
-    expect(screen.getByText("Workflow 28622")).toBeInTheDocument()
+    const workflowLinks = screen.getAllByText("WF-28622")
+    expect(workflowLinks.some((link) => link.closest("a")?.getAttribute("href") === "/jobs/7705?tab=workflows#workflow-28622")).toBe(true)
+
+    fireEvent.click(screen.getByRole("button", { name: "Open visual_review_screenshot_1" }))
+    expect(screen.getByRole("dialog", { name: "visual_review_screenshot_1" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "data:image/png;base64,abc123")
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("download")
+  })
+
+  it.each([
+    ["wrapped MCP", { content: [{ type: "image", data: "wrapped", mimeType: "image/png" }] }],
+    ["structured content", { structured_content: { content: [{ type: "image", data: "structured", mime_type: "image/webp" }] } }],
+    ["Codex output", { output: { content: [{ type: "output_image", image_url: "data:image/jpeg;base64,codex" }] } }],
+    ["Muse payload", { payload: { result: { content: [{ type: "image", source: { type: "base64", media_type: "image/gif", data: "muse" } }] } } }]
+  ])("renders an image from the %s envelope", (_label, parsedResult) => {
+    render(
+      <>
+        {readArtifactToolCard.renderExpanded(
+          context("read_artifact", {
+            input: { workflow_id: 28622, type: "capture" },
+            parsedResult
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("img", { name: "capture" }).getAttribute("src")).toMatch(/^data:image\/(png|webp|jpeg|gif);base64,/)
   })
 
   it("renders a read_artifact failure with the error message", () => {
@@ -99,15 +125,26 @@ describe("workflow artifact tool cards", () => {
       parsedResult: null
     })
 
-    expect(readArtifactToolCard.collapsedSummary?.(toolContext)).toBe("Failed to read artifact: missing_type")
+    expect(readArtifactToolCard.collapsedSummary?.(toolContext)).toBe('Artifact read failed: Error: no image artifact found for type "missing_type"')
 
     render(<>{readArtifactToolCard.renderExpanded(toolContext)}</>)
-    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Artifact read failed")).toBeInTheDocument()
     expect(screen.getByText('Error: no image artifact found for type "missing_type"')).toBeInTheDocument()
   })
 
-  it("falls back to the generic renderer for a malformed read_artifact payload", () => {
-    expect(readArtifactToolCard.collapsedSummary?.(context("read_artifact", { parsedResult: { oops: true } }))).toBeNull()
-    expect(readArtifactToolCard.renderExpanded(context("read_artifact", { parsedResult: { oops: true } }))).toBeNull()
+  it("renders informative cards for text, empty, and pending results", () => {
+    const text = context("read_artifact", {
+      input: { workflow_id: 28622, type: "large_capture" },
+      parsedResult: { content: [{ type: "text", text: "Artifact exceeds the inline size limit." }] }
+    })
+    expect(readArtifactToolCard.collapsedSummary?.(text)).toBe("Artifact response: large_capture")
+    const { rerender } = render(<>{readArtifactToolCard.renderExpanded(text)}</>)
+    expect(screen.getByText("Artifact exceeds the inline size limit.")).toBeInTheDocument()
+
+    rerender(<>{readArtifactToolCard.renderExpanded(context("read_artifact", { parsedResult: { oops: true } }))}</>)
+    expect(screen.getByText("The artifact result did not contain an image or message.")).toBeInTheDocument()
+
+    rerender(<>{readArtifactToolCard.renderExpanded(context("read_artifact", { input: { type: "capture" } }))}</>)
+    expect(screen.getByText("Waiting for the artifact result.")).toBeInTheDocument()
   })
 })
