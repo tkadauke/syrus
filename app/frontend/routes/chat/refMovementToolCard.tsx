@@ -1,5 +1,6 @@
 import { isPlainObject } from "@app/pluginToolCards"
-import { Badge, displayValue, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { Badge, displayValue, EntityReference, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared core-field parsing/rendering for the ref-movement action record
 // (the tool-card work), returned by both dispatch_ref_movement_action and
@@ -9,9 +10,9 @@ import { Badge, displayValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 // only share this core-fields block. Lives outside `tool_cards/` for the
 // same reason as toolCardUi.tsx.
 export type RefMovementCore = {
-  actionId: string
-  actionName: string
-  state: string
+  actionId: string | null
+  actionName: string | null
+  state: string | null
   blockedReason: string | null
   sourceKind: string | null
   sourceRef: string | null
@@ -34,7 +35,7 @@ export function parseRefMovementCore(value: unknown): RefMovementCore | null {
   const actionId = displayValue(value.ref_movement_action_id)
   const actionName = displayValue(value.action_name)
   const state = displayValue(value.state)
-  if (!actionId || !actionName || !state) return null
+  if (!actionId && !actionName && !state) return null
 
   return {
     actionId,
@@ -53,38 +54,50 @@ export function parseRefMovementCore(value: unknown): RefMovementCore | null {
 }
 
 export function refMovementCollapsedSummary(core: RefMovementCore): string {
-  const action = core.actionName.replace(/_/g, " ")
+  const action = core.actionName?.replace(/_/g, " ") || (core.actionId ? `Ref movement ${core.actionId}` : "Ref movement")
   if (core.state === "blocked") return `${action} blocked${core.blockedReason ? `: ${core.blockedReason}` : ""}`
-  return `${action} (${core.state})`
+  return core.state ? `${action} (${core.state})` : action
 }
 
 export function RefMovementCoreFields({ core }: { core: RefMovementCore }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{core.actionName}</span>
-        <StatePill state={core.state} />
+        {core.actionName ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{core.actionName}</span> : null}
+        {core.state ? <StatePill state={core.state} /> : null}
         {core.mode ? <Badge>{core.mode}</Badge> : null}
       </div>
+      {core.actionId ? <Row label="Ref-movement action ID" value={core.actionId} /> : null}
       {core.blockedReason ? (
-        <div className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{core.blockedReason}</div>
+        <div className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <MarkdownPreview modalLabel="Full blocked reason" text={core.blockedReason} />
+        </div>
       ) : null}
       {core.sourceRef || core.targetRef ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {core.sourceRef ? <Row label={core.sourceKind ? `Source (${core.sourceKind})` : "Source"} value={core.sourceRef} /> : null}
+          {core.sourceRef ? <Row label={core.sourceKind ? `Source (${core.sourceKind})` : "Source"} value={core.sourceRef} wrap /> : null}
           {core.targetRef ? (
             <Row
-              label={`${core.targetKind ? `Target (${core.targetKind})` : "Target"}${core.targetRepository ? ` · ${core.targetRepository}` : ""}${core.targetInferred ? " · inferred" : ""}`}
+              label={`${core.targetKind ? `Target (${core.targetKind})` : "Target"}${core.targetInferred ? " · inferred" : ""}`}
               value={core.targetRef}
+              wrap
             />
           ) : null}
         </dl>
+      ) : null}
+      {core.targetRepository ? (
+        <div>
+          <SectionLabel>Target repository</SectionLabel>
+          <EntityReference href={`https://github.com/${core.targetRepository}`} kind="repository" repositorySlug={core.targetRepository} />
+        </div>
       ) : null}
       {core.gradePhases.length > 0 ? (
         <div>
           <SectionLabel>Grade phases</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {core.gradePhases.map((phase) => <Badge key={phase}>{phase}</Badge>)}
+            {core.gradePhases.map((phase) => (
+              <Badge key={phase}>{phase}</Badge>
+            ))}
           </div>
         </div>
       ) : null}
