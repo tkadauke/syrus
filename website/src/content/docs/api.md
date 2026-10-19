@@ -474,8 +474,11 @@ curl -G https://syrus.example.com/api/v1/admin/repositories/123/tests \
   -d state=flaky -d sort=failure_rate -d direction=desc
 ```
 
+Each test row includes links to its latest Run, Workflow, and Job when those
+records are available.
+
 `GET /api/v1/admin/repositories/:repository_id/tests/:id` returns one test's
-execution history, duration points, and related Run/Job references.
+execution history, duration points, and related Run/Workflow/Job references.
 
 `GET /api/v1/admin/jobs/:job_id/test_results` returns the ingested test
 results for a Job's most recent Workflow with test data — compact by

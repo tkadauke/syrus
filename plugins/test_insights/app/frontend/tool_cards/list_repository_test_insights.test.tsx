@@ -24,7 +24,7 @@ const failingTest = {
   avg_duration_ms: 1500,
   last_duration_ms: 1200,
   interesting_reasons: ["failing", "slow"],
-  fingerprint: "abc123def456",
+  fingerprint: "abc123def456abc123def456abc123def456abc123def456",
   last_seen_at: "2026-10-18T10:00:00Z",
   last_failed_at: "2026-10-17T09:00:00Z",
   total_count: 10,
@@ -78,7 +78,7 @@ describe("list_repository_test_insights tool card", () => {
               filter: "failing",
               sort: "last_failed",
               direction: "desc",
-              query: "widget",
+              query: "a very long query value that must wrap instead of being truncated on a narrow card",
               grader_name: "rspec",
               lookback: 50,
               summary_window: 100,
@@ -102,13 +102,14 @@ describe("list_repository_test_insights tool card", () => {
     expect(screen.getByText("1.20s")).toBeInTheDocument()
     expect(screen.getByText("5 failed / 5 passed of 10")).toBeInTheDocument()
     expect(screen.getByText("1.10s / 1.90s (10)")).toBeInTheDocument()
-    expect(screen.getByText("abc123def456")).toBeInTheDocument()
+    expect(screen.getByText("abc123def456abc123def456abc123def456abc123def456")).toHaveClass("break-all")
+    expect(screen.getByText("a very long query value that must wrap instead of being truncated on a narrow card")).toHaveClass("break-all")
     expect(screen.getByRole("link", { name: "RUN-9" })).toHaveAttribute("href", "/jobs/3?tab=workflows#run-9")
     expect(screen.getByRole("link", { name: "WF-8" })).toHaveAttribute("href", "/jobs/3?tab=workflows#workflow-8")
     expect(screen.getByRole("link", { name: "JOB-3" })).toHaveAttribute("href", "/jobs/3")
     expect(screen.getByText("min failure rate")).toBeInTheDocument()
     expect(screen.getByText("0.25")).toBeInTheDocument()
-    for (const value of ["last_failed", "desc", "widget", "rspec", "50", "100", "25"]) expect(screen.getByText(value)).toBeInTheDocument()
+    for (const value of ["last_failed", "desc", "rspec", "50", "100", "25"]) expect(screen.getByText(value)).toBeInTheDocument()
   })
 
   it("flags a flaky test in the category column", () => {
