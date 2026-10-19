@@ -90,7 +90,16 @@ module Api
             return
           end
 
-          job.accept_triage!
+          if job.triaging_reason_placement_confirmation?
+            decision = params[:placement_decision].to_s
+            unless %w[suggested linux].include?(decision)
+              render_error("validation_failed", lifecycle_t("placement_decision_required"), status: :unprocessable_content)
+              return
+            end
+            job.accept_placement_confirmation!(decision)
+          else
+            job.accept_triage!
+          end
           render_job(job.reload, message: lifecycle_t("accepted"), changed: [ "state", "runs" ])
         end
 

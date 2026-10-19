@@ -47,8 +47,9 @@ class Job < ApplicationRecord
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
-  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain proposed_job ].freeze
+  TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain placement_confirmation proposed_job ].freeze
   APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
+  PLACEMENT_RECOMMENDATION_STATUSES = %w[ pending accepted rejected ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
   # lower numbers first, so urgent (-10) runs before high (0), medium (10),
   # and low (20). The gap of 10 between levels leaves room for future additions
@@ -138,6 +139,7 @@ class Job < ApplicationRecord
   validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
   validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true
+  validates :placement_recommendation_status, inclusion: { in: PLACEMENT_RECOMMENDATION_STATUSES }, allow_nil: true
   validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
   validate  :branch_name_is_valid, if: -> { branch_name.present? }
   validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
@@ -906,10 +908,36 @@ class Job < ApplicationRecord
   # is cleared rather than carried into execution.
   def accept_triage!
     return false unless awaiting_triage_decision?
+    return false if triaging_reason_placement_confirmation?
 
     next_reason = triaging_reason_proposed_job? ? "proposed_job" : "classifier_pending"
     update!(triaging_reason: next_reason, triaging_uncertainty_reason: nil)
     advance_after_triage! if may_advance_after_triage?
+    true
+  end
+
+  def accept_placement_confirmation!(decision)
+    return false unless triaging? && triaging_reason_placement_confirmation?
+
+    transaction do
+      choices = {
+        "suggested" => [ placement_recommendation.to_h["profile"], "accepted" ],
+        "linux" => [ "linux", "rejected" ]
+      }
+      profile_name, recommendation_status = choices.fetch(decision.to_s) do
+        raise ArgumentError, "placement decision must be suggested or linux"
+      end
+      profile = ExecutionPlacementProfile.fetch(profile_name)
+
+      PlannedExecutionRequirement.new(
+        capabilities: profile.capabilities,
+        source: "operator_confirmed"
+      ).assign_to(self)
+      self.placement_recommendation_status = recommendation_status
+      self.triaging_reason = "classifier_pending"
+      save!
+      advance_after_triage!
+    end
     true
   end
 
@@ -925,7 +953,7 @@ class Job < ApplicationRecord
   end
 
   def awaiting_triage_decision?
-    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_proposed_job?)
+    triaging? && (triaging_reason_classifier_uncertain? || triaging_reason_placement_confirmation? || triaging_reason_proposed_job?)
   end
 
   def ready_for_execution?

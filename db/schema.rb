@@ -1788,6 +1788,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
     t.datetime "branch_cleanup_attempted_at"
     t.string "emergency_land_source_sha"
     t.json "emergency_land_skipped_controls"
+    t.json "placement_recommendation"
+    t.string "placement_recommendation_status"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"

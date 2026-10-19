@@ -88,6 +88,22 @@ export type JobRecord = {
   validity: string
   triaging_reason?: string | null
   triaging_uncertainty_reason?: string | null
+  planned_execution?: {
+    project_label?: string | null
+    target_label?: string | null
+    capabilities?: Record<string, string[] | null | undefined> | null
+    source?: string | null
+  }
+  placement_recommendation?: {
+    profile: string
+    label: string
+    capabilities: Record<string, string[]>
+    explanation?: string | null
+    confidence?: number | null
+    provenance: string
+    status?: string | null
+    compatible_worker_available?: boolean | null
+  } | null
   credential_mode: string | null
   agent_provider: string | null
   agent_provider_label?: string | null
