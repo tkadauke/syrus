@@ -168,7 +168,8 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending",
     label: "Pending result",
-    input: { workflow_id: 28622, type: "visual_review_screenshot" }
+    input: { workflow_id: 28622, type: "visual_review_screenshot" },
+    parsedResult: null
   }
 ]
 
