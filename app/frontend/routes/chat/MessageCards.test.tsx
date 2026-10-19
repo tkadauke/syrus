@@ -1317,6 +1317,40 @@ describe("tool result rendering", () => {
     })
   })
 
+  it("renders read_artifact image content alongside structured workflow metadata", () => {
+    const envelope = {
+      content: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }],
+      structured_content: { workflow_id: 28622, job_id: 7705 }
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read artifact",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_artifact",
+          raw_name: "mcp__syrus-chat-sidecar__read_artifact",
+          detail: "visual_review_screenshot",
+          display_label: "Read artifact",
+          progress_label: "Reading",
+          raw_payload: { workflow_id: 28622, type: "visual_review_screenshot" },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Artifact: visual_review_screenshot"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Read artifact")
+
+    expect(screen.getByRole("img", { name: "visual_review_screenshot" })).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=")
+    expect(screen.getAllByText("WF-28622").some((label) => label.closest("a")?.getAttribute("href") === "/jobs/7705?tab=workflows#workflow-28622")).toBe(true)
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
       content: [{ type: "text", text: JSON.stringify({
