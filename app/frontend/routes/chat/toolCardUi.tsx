@@ -135,7 +135,7 @@ export function InternalLink({ href, children }: { href: string; children: React
 }
 
 export type ToolCardEntityKind =
-  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
+  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "commit" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -219,6 +219,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     href: (reference) => displayValue(reference.prUrl),
     copyValue: slugCopyValue
   },
+  commit: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },

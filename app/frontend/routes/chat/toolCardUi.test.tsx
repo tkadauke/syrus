@@ -51,6 +51,11 @@ describe("EntityReference", () => {
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
+    [
+      { kind: "commit", id: "abc1234", label: "abc1234", slug: "abc123456789", href: "https://github.com/acme/widgets/commit/abc123456789" },
+      "abc1234",
+      "https://github.com/acme/widgets/commit/abc123456789"
+    ],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string]>)("links %s references", (reference, label, href) => {
     renderReference(reference)
@@ -95,6 +100,14 @@ describe("EntityReference", () => {
     expect(screen.getByRole("link", { name: "the theming work" })).toHaveAttribute("href", "/epics/7")
     fireEvent.click(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("EPIC-7")
+  })
+
+  it("shows a short commit while copying its full SHA", () => {
+    renderReference({ kind: "commit", id: "abc1234", label: "abc1234", slug: "abc123456789", href: "https://github.com/acme/widgets/commit/abc123456789" })
+
+    expect(screen.getByRole("link", { name: "abc1234" })).toHaveAttribute("href", "https://github.com/acme/widgets/commit/abc123456789")
+    fireEvent.click(screen.getByRole("button", { name: "Copy abc123456789 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("abc123456789")
   })
 
   it.each([
