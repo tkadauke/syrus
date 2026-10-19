@@ -1,46 +1,94 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, displayValue, EmptyState, InternalLink, StatePill } from "../toolCardUi"
+import { Table, TBody, Td, THead } from "../adminToolCard"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
+import { MarkdownPreview } from "../toolCardMarkdown"
 
-// Core-owned tool card for admin_stuck_jobs (the Tier 1 tool-card work). Renders
-// the admin stuck-Job watchlist as a compact ops dashboard: kind, severity/
-// attention state, detail, stuck reason context, and a recommended-action
-// hint where the repair plan provides one.
 type StuckItemRow = {
   key: string
-  jobId: string | null
-  jobPath: string | null
+  id: string | null
   title: string | null
+  state: string | null
   kind: string
+  severity: string | null
+  reconcilerSeverity: string | null
   attentionState: string | null
   detail: string | null
-  stepKind: string | null
   ageLabel: string | null
-  repairAction: string | null
+  ageSeconds: string | null
+  runId: string | null
+  runState: string | null
+  workflowId: string | null
+  workflowSlug: string | null
+  workflowPath: string | null
+  workflowState: string | null
+  workflowTriggerKind: string | null
+  jobId: string | null
+  jobState: string | null
+  jobPath: string | null
+  stepKind: string | null
+  lastHeartbeatAt: string | null
+  hasTranscript: boolean | null
+  issue: unknown
+  repairPlan: Record<string, unknown> | null
+  repairExecution: Record<string, unknown> | null
+}
+
+function booleanValue(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null
+}
+
+function serializedValue(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === "string") return value || null
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return null
+  }
 }
 
 function parseRow(value: unknown, index: number): StuckItemRow | null {
   if (!isPlainObject(value)) return null
   const kind = displayValue(value.kind)
   if (!kind) return null
-
+  const jobId = displayValue(value.job_id)
+  const workflowId = displayValue(value.workflow_id)
+  const runId = displayValue(value.run_id)
   return {
-    key: `${displayValue(value.job_id) ?? index}-${kind}`,
-    jobId: displayValue(value.job_id ?? value.id),
-    jobPath: displayValue(value.job_path),
+    key: `${jobId ?? "job"}-${workflowId ?? "workflow"}-${runId ?? "run"}-${kind}-${index}`,
+    id: displayValue(value.id),
     title: displayValue(value.title),
+    state: displayValue(value.state),
     kind,
+    severity: displayValue(value.severity),
+    reconcilerSeverity: displayValue(value.reconciler_severity),
     attentionState: displayValue(value.attention_state),
     detail: displayValue(value.detail),
-    stepKind: displayValue(value.step_kind),
     ageLabel: displayValue(value.age_label),
-    repairAction: isPlainObject(value.repair_plan) ? displayValue(value.repair_plan.action) : null
+    ageSeconds: displayValue(value.age_seconds),
+    runId,
+    runState: displayValue(value.run_state),
+    workflowId,
+    workflowSlug: displayValue(value.workflow_slug),
+    workflowPath: displayValue(value.workflow_path),
+    workflowState: displayValue(value.workflow_state),
+    workflowTriggerKind: displayValue(value.workflow_trigger_kind),
+    jobId,
+    jobState: displayValue(value.job_state),
+    jobPath: displayValue(value.job_path),
+    stepKind: displayValue(value.step_kind),
+    lastHeartbeatAt: displayValue(value.last_heartbeat_at),
+    hasTranscript: booleanValue(value.has_transcript),
+    issue: value.issue,
+    repairPlan: isPlainObject(value.repair_plan) ? value.repair_plan : null,
+    repairExecution: isPlainObject(value.repair_execution) ? value.repair_execution : null
   }
 }
 
 function stuckRows(context: ToolCardContext): StuckItemRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.items)) return null
-
   return parsed.items.flatMap((item, index) => {
     const row = parseRow(item, index)
     return row ? [row] : []
@@ -48,6 +96,7 @@ function stuckRows(context: ToolCardContext): StuckItemRow[] | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
+  if (context.resultError) return "Could not load stuck Jobs"
   const rows = stuckRows(context)
   if (!rows) return null
   const parsed = context.parsedResult
@@ -56,86 +105,145 @@ function collapsedSummary(context: ToolCardContext) {
   return total ? `${rows.length} of ${total} stuck items` : `${rows.length} stuck item${rows.length === 1 ? "" : "s"}`
 }
 
-function JobCell({ row }: { row: StuckItemRow }) {
-  if (!row.jobId) return <>—</>
-  const label = row.title ? `JOB-${row.jobId} — ${row.title}` : `JOB-${row.jobId}`
-  return row.jobPath ? <InternalLink href={row.jobPath}>{label}</InternalLink> : <span className="font-mono">{label}</span>
+function LabeledValue({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
+  const displayed = serializedValue(value)
+  return (
+    <div className="min-w-0">
+      <span className="mr-1 text-2xs font-medium uppercase tracking-wide text-text-muted">{label}</span>
+      <span className={`${mono ? "font-mono" : ""} break-words [overflow-wrap:anywhere] text-text-primary`}>{displayed ?? "—"}</span>
+    </div>
+  )
+}
+
+function RepairPlan({ plan, execution }: { plan: Record<string, unknown> | null; execution: Record<string, unknown> | null }) {
+  if (!plan && !execution) return <>—</>
+  const steps = Array.isArray(plan?.execution_steps) ? plan.execution_steps : []
+  return (
+    <div className="min-w-0 space-y-1.5 whitespace-normal">
+      {plan ? (
+        <>
+          <LabeledValue label="Action" value={displayValue(plan.action)?.replace(/_/g, " ")} />
+          <LabeledValue label="Issue kind" value={plan.issue_kind} />
+          <LabeledValue label="Automatic" value={plan.auto_executable} />
+          <LabeledValue label="Target" value={[displayValue(plan.target_type), displayValue(plan.target_id)].filter(Boolean).join(" ")} mono />
+          <LabeledValue label="Affected" value={plan.affected_ids} mono />
+          <LabeledValue label="Preconditions" value={plan.preconditions} mono />
+          <LabeledValue label="Retry after" value={plan.retry_after} mono />
+          <LabeledValue label="Check after" value={plan.check_after} mono />
+          {displayValue(plan.reason) ? (
+            <MarkdownPreview maxLines={3} text={String(plan.reason)} title="Reason" />
+          ) : (
+            <LabeledValue label="Reason" value={null} />
+          )}
+          <div>
+            <span className="text-2xs font-medium uppercase tracking-wide text-text-muted">Steps</span>
+            {steps.length ? (
+              <ol className="ml-4 list-decimal space-y-0.5">
+                {steps.map((step, index) => (
+                  <li className="break-words" key={`${index}-${serializedValue(step)}`}>
+                    {serializedValue(step)}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div>—</div>
+            )}
+          </div>
+        </>
+      ) : null}
+      {execution ? (
+        <div className="border-t border-border pt-1.5">
+          <LabeledValue label="Execution action" value={execution.action} />
+          <LabeledValue
+            label="Execution target"
+            value={[displayValue(execution.target_type), displayValue(execution.target_id)].filter(Boolean).join(" ")}
+            mono
+          />
+          <LabeledValue label="Execution status" value={execution.status} />
+          <LabeledValue label="Execution message" value={execution.message} />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function renderExpanded(context: ToolCardContext) {
+  if (context.resultError) return <EmptyState>Could not load stuck Jobs.</EmptyState>
   const rows = stuckRows(context)
   if (!rows) return null
-
   if (rows.length === 0) return <EmptyState>No stuck Jobs found.</EmptyState>
-
   const parsed = context.parsedResult
   const pagination = isPlainObject(parsed) && isPlainObject(parsed.pagination) ? parsed.pagination : null
   const page = pagination ? displayValue(pagination.page) : null
   const totalPages = pagination ? displayValue(pagination.total_pages) : null
-
   return (
-    <>
-      {page && totalPages ? (
-        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          Page {page} of {totalPages}
-        </p>
-      ) : null}
-      <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-            <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Job
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Kind
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Attention
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Detail
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Step
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Age
-              </th>
-              <th className="px-2 py-1 font-semibold" scope="col">
-                Next action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td className="max-w-[14rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200">
-                  <JobCell row={row} />
-                </td>
-                <td className="whitespace-nowrap px-2 py-1">
+    <CardShell>
+      {page && totalPages ? <p className="mb-1 text-xs text-text-muted">Page {page} of {totalPages}</p> : null}
+      <Table responsive>
+        <THead columns={["Job", "Workflow", "Run", "Severity", "Diagnostic", "Timing", "Repair plan"]} />
+        <TBody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <Td primary wrap>
+                <div className="space-y-1">
+                  <EntityReference
+                    href={row.jobPath}
+                    id={row.jobId}
+                    kind="job"
+                    label={row.jobId ? `JOB-${row.jobId}${row.title ? ` — ${row.title}` : ""}` : row.title}
+                  />
+                  <LabeledValue label="Record id" value={row.id} mono />
+                  <LabeledValue label="State" value={row.state} />
+                  <LabeledValue label="Job state" value={row.jobState} />
+                </div>
+              </Td>
+              <Td wrap>
+                <div className="space-y-1">
+                  <EntityReference href={row.workflowPath} id={row.workflowId} jobId={row.jobId} kind="workflow" />
+                  <LabeledValue label="Slug" value={row.workflowSlug} mono />
+                  <LabeledValue label="State" value={row.workflowState} />
+                  <LabeledValue label="Trigger" value={row.workflowTriggerKind} />
+                </div>
+              </Td>
+              <Td wrap>
+                <div className="space-y-1">
+                  <EntityReference id={row.runId} jobId={row.jobId} kind="run" workflowId={row.workflowId} />
+                  <LabeledValue label="State" value={row.runState} />
+                  <LabeledValue label="Step" value={row.stepKind} />
+                  <LabeledValue label="Transcript" value={row.hasTranscript} />
+                </div>
+              </Td>
+              <Td wrap>
+                <div className="space-y-1">
+                  {row.severity ? <StatePill state={row.severity} /> : "—"}
+                  <LabeledValue label="Reconciler" value={row.reconcilerSeverity} />
+                  <div>{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</div>
+                </div>
+              </Td>
+              <Td wrap>
+                <div className="min-w-0 space-y-1.5">
                   <Badge>{row.kind.replace(/_/g, " ")}</Badge>
-                </td>
-                <td className="whitespace-nowrap px-2 py-1">{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</td>
-                <td className="max-w-[20rem] truncate px-2 py-1 text-gray-600 dark:text-gray-300" title={row.detail ?? undefined}>
-                  {row.detail || "—"}
-                </td>
-                <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.stepKind || "—"}</td>
-                <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.ageLabel || "—"}</td>
-                <td className="whitespace-nowrap px-2 py-1 text-text-secondary">{row.repairAction ? row.repairAction.replace(/_/g, " ") : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+                  {row.detail ? <MarkdownPreview maxLines={4} text={row.detail} title="Detail" /> : <LabeledValue label="Detail" value={null} />}
+                  <LabeledValue label="Issue" value={row.issue} mono />
+                </div>
+              </Td>
+              <Td wrap>
+                <div className="space-y-1">
+                  <LabeledValue label="Age" value={row.ageLabel} />
+                  <LabeledValue label="Seconds" value={row.ageSeconds} mono />
+                  <LabeledValue label="Heartbeat" value={row.lastHeartbeatAt} mono />
+                </div>
+              </Td>
+              <Td wrap>
+                <RepairPlan execution={row.repairExecution} plan={row.repairPlan} />
+              </Td>
+            </tr>
+          ))}
+        </TBody>
+      </Table>
+    </CardShell>
   )
 }
 
-const adminStuckJobsToolCard: ToolCardRenderer = {
-  toolName: "admin_stuck_jobs",
-  collapsedSummary,
-  renderExpanded
-}
-
+const adminStuckJobsToolCard: ToolCardRenderer = { toolName: "admin_stuck_jobs", collapsedSummary, renderExpanded }
 export default adminStuckJobsToolCard
