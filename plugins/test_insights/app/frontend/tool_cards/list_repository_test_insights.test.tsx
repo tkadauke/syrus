@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import listRepositoryTestInsightsToolCard from "./list_repository_test_insights"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -23,8 +24,22 @@ const failingTest = {
   avg_duration_ms: 1500,
   last_duration_ms: 1200,
   interesting_reasons: ["failing", "slow"],
-  links: { app_path: "/repositories/1?tab=tests&test_id=42" }
+  fingerprint: "abc123def456",
+  last_seen_at: "2026-10-18T10:00:00Z",
+  last_failed_at: "2026-10-17T09:00:00Z",
+  total_count: 10,
+  failed_count: 5,
+  passed_count: 5,
+  runtime_summary: { sample_count: 10, p50_duration_ms: 1100, p95_duration_ms: 1900 },
+  links: { app_path: "/repositories/1?tab=tests&test_id=42" },
+  latest: {
+    run: { slug: "RUN-9", path: "/jobs/3?tab=workflows#run-9" },
+    workflow: { slug: "WF-8", path: "/jobs/3?tab=workflows#workflow-8" },
+    job: { slug: "JOB-3", path: "/jobs/3" }
+  }
 }
+
+const repository = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
 
 const flakyTest = {
   id: 43,
@@ -52,17 +67,48 @@ describe("list_repository_test_insights tool card", () => {
     expect(listRepositoryTestInsightsToolCard.collapsedSummary?.(context({ parsedResult: { tests: [failingTest] } }))).toBe("1 test")
   })
 
-  it("renders a dense table row with name, file, category, status, failure rate, and durations", () => {
-    render(<>{listRepositoryTestInsightsToolCard.renderExpanded(context({ parsedResult: { tests: [failingTest] } }))}</>)
+  it("renders a wrapping repository row with every metric and link", () => {
+    render(
+      <>
+        {listRepositoryTestInsightsToolCard.renderExpanded(
+          context({
+            input: { filters: { min_failure_rate: 0.25 } },
+            parsedResult: {
+              repository,
+              filter: "failing",
+              sort: "last_failed",
+              direction: "desc",
+              query: "widget",
+              grader_name: "rspec",
+              lookback: 50,
+              summary_window: 100,
+              limit: 25,
+              tests: [failingTest]
+            }
+          })
+        )}
+      </>
+    )
 
+    expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/repositories/1")
     const link = screen.getByRole("link", { name: "does something important" })
     expect(link).toHaveAttribute("href", "/repositories/1?tab=tests&test_id=42")
-    expect(screen.getByText("spec/foo_spec.rb")).toBeInTheDocument()
-    expect(screen.getByText("failing")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "spec/foo_spec.rb" })).toHaveAttribute("href", "https://github.com/acme/widgets/blob/HEAD/spec/foo_spec.rb")
+    expect(screen.getAllByText("failing")).toHaveLength(2)
     expect(screen.getByText("slow")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("50%")).toBeInTheDocument()
-    expect(screen.getByText("1.50s / 1.20s")).toBeInTheDocument()
+    expect(screen.getByText("1.50s")).toBeInTheDocument()
+    expect(screen.getByText("1.20s")).toBeInTheDocument()
+    expect(screen.getByText("5 failed / 5 passed of 10")).toBeInTheDocument()
+    expect(screen.getByText("1.10s / 1.90s (10)")).toBeInTheDocument()
+    expect(screen.getByText("abc123def456")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-9" })).toHaveAttribute("href", "/jobs/3?tab=workflows#run-9")
+    expect(screen.getByRole("link", { name: "WF-8" })).toHaveAttribute("href", "/jobs/3?tab=workflows#workflow-8")
+    expect(screen.getByRole("link", { name: "JOB-3" })).toHaveAttribute("href", "/jobs/3")
+    expect(screen.getByText("min failure rate")).toBeInTheDocument()
+    expect(screen.getByText("0.25")).toBeInTheDocument()
+    for (const value of ["last_failed", "desc", "widget", "rspec", "50", "100", "25"]) expect(screen.getByText(value)).toBeInTheDocument()
   })
 
   it("flags a flaky test in the category column", () => {
@@ -77,6 +123,36 @@ describe("list_repository_test_insights tool card", () => {
     render(<>{listRepositoryTestInsightsToolCard.renderExpanded(context({ parsedResult: { tests: [] } }))}</>)
 
     expect(screen.getByText("No tests match this query.")).toBeInTheDocument()
+  })
+
+  it("keeps degraded and pending rows visible", () => {
+    render(
+      <>
+        {listRepositoryTestInsightsToolCard.renderExpanded(
+          context({
+            parsedResult: {
+              tests: [
+                { id: 50, name: "still queued", last_status: "pending" },
+                { id: 51, error_serializing: "broken association" }
+              ]
+            }
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("still queued")).toBeInTheDocument()
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText(/broken association/)).toBeInTheDocument()
+    expect(screen.getByText("Unavailable test")).toBeInTheDocument()
+  })
+
+  it("uses the common provider name and envelope normalizers", () => {
+    const payload = { repository, tests: [failingTest] }
+    const envelope = { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+    expect(normalizedToolName("mcp__syrus__list_repository_test_insights")).toBe(listRepositoryTestInsightsToolCard.toolName)
+    expect(listRepositoryTestInsightsToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(envelope) }))).toBe(
+      "1 test in acme/widgets"
+    )
   })
 
   it("falls back to null for a malformed payload", () => {
