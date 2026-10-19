@@ -124,6 +124,17 @@ describe("list_design_docs tool card", () => {
     expect(listDesignDocsToolCard.collapsedSummary?.(context({ resultError: true }))).toBe("Could not list design docs")
   })
 
+  it("keeps rendering a structured design-doc list when the provider also marks the result as errored", () => {
+    const parsedResult = { design_docs: [{ id: 21, doc_ref: "DOC-21", title: "K8s Cluster Viewer", state: "draft" }] }
+
+    render(<>{listDesignDocsToolCard.renderExpanded(context({ parsedResult, resultError: true }))}</>)
+
+    expect(screen.getByRole("link", { name: "DOC-21" })).toHaveAttribute("href", "/design_docs/21")
+    expect(screen.getByText("K8s Cluster Viewer")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expect(listDesignDocsToolCard.collapsedSummary?.(context({ parsedResult, resultError: true }))).toBe("1 design doc")
+  })
+
   it("renders provider-agnostically after tool-name and MCP-envelope normalization", () => {
     const payload = { design_docs: [{ id: 20, doc_ref: "DOC-20", title: "Wrapped doc", state: "draft" }] }
     const envelopes = [{ structured_content: payload }, { content: [{ type: "text", text: JSON.stringify(payload) }] }]
