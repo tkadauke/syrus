@@ -250,6 +250,7 @@ module Steps
       fresh_workflow = workflow.reload
       prepared = fresh_workflow.artifact("prepared_workspace").to_h
       return false if fresh_workflow.artifact("prepare_failure").present?
+      return false unless PreparedWorkspaceState.new(workspace.path).prepared_for?(plan.commands)
 
       prepared["prepare_fingerprint"] == PreparedWorkspaceArchive.prepare_fingerprint_for(plan)
     end
