@@ -1,4 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import i18n from "../../../i18n"
+import { useT } from "../../../hooks/useT"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { MarkdownPreview } from "../toolCardMarkdown"
@@ -96,9 +98,9 @@ function stuckRows(context: ToolCardContext): StuckItemRow[] | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Could not load stuck Jobs"
+  if (context.resultError) return i18n.t("chat:admin_stuck_jobs.error_summary")
   const rows = stuckRows(context)
-  return rows ? `${rows.length} stuck item${rows.length === 1 ? "" : "s"}` : null
+  return rows ? i18n.t("chat:admin_stuck_jobs.item_count", { count: rows.length }) : null
 }
 
 function LabeledValue({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
@@ -112,27 +114,32 @@ function LabeledValue({ label, value, mono = false }: { label: string; value: un
 }
 
 function RepairPlan({ plan, execution }: { plan: Record<string, unknown> | null; execution: Record<string, unknown> | null }) {
+  const { t } = useT("chat")
   if (!plan && !execution) return <>—</>
   const steps = Array.isArray(plan?.execution_steps) ? plan.execution_steps : []
   return (
     <div className="min-w-0 space-y-1.5 whitespace-normal">
       {plan ? (
         <>
-          <LabeledValue label="Action" value={displayValue(plan.action)?.replace(/_/g, " ")} />
-          <LabeledValue label="Issue kind" value={plan.issue_kind} />
-          <LabeledValue label="Automatic" value={plan.auto_executable} />
-          <LabeledValue label="Target" value={[displayValue(plan.target_type), displayValue(plan.target_id)].filter(Boolean).join(" ")} mono />
-          <LabeledValue label="Affected" value={plan.affected_ids} mono />
-          <LabeledValue label="Preconditions" value={plan.preconditions} mono />
-          <LabeledValue label="Retry after" value={plan.retry_after} mono />
-          <LabeledValue label="Check after" value={plan.check_after} mono />
+          <LabeledValue label={t("admin_stuck_jobs.action")} value={displayValue(plan.action)?.replace(/_/g, " ")} />
+          <LabeledValue label={t("admin_stuck_jobs.issue_kind")} value={plan.issue_kind} />
+          <LabeledValue label={t("admin_stuck_jobs.automatic")} value={plan.auto_executable} />
+          <LabeledValue
+            label={t("admin_stuck_jobs.target")}
+            value={[displayValue(plan.target_type), displayValue(plan.target_id)].filter(Boolean).join(" ")}
+            mono
+          />
+          <LabeledValue label={t("admin_stuck_jobs.affected")} value={plan.affected_ids} mono />
+          <LabeledValue label={t("admin_stuck_jobs.preconditions")} value={plan.preconditions} mono />
+          <LabeledValue label={t("admin_stuck_jobs.retry_after")} value={plan.retry_after} mono />
+          <LabeledValue label={t("admin_stuck_jobs.check_after")} value={plan.check_after} mono />
           {displayValue(plan.reason) ? (
-            <MarkdownPreview maxLines={3} text={String(plan.reason)} title="Reason" />
+            <MarkdownPreview maxLines={3} text={String(plan.reason)} title={t("admin_stuck_jobs.reason")} />
           ) : (
-            <LabeledValue label="Reason" value={null} />
+            <LabeledValue label={t("admin_stuck_jobs.reason")} value={null} />
           )}
           <div>
-            <span className="text-2xs font-medium uppercase tracking-wide text-text-muted">Steps</span>
+            <span className="text-2xs font-medium uppercase tracking-wide text-text-muted">{t("admin_stuck_jobs.steps")}</span>
             {steps.length ? (
               <ol className="ml-4 list-decimal space-y-0.5">
                 {steps.map((step, index) => (
@@ -149,29 +156,30 @@ function RepairPlan({ plan, execution }: { plan: Record<string, unknown> | null;
       ) : null}
       {execution ? (
         <div className="border-t border-border pt-1.5">
-          <LabeledValue label="Execution action" value={execution.action} />
+          <LabeledValue label={t("admin_stuck_jobs.execution_action")} value={execution.action} />
           <LabeledValue
-            label="Execution target"
+            label={t("admin_stuck_jobs.execution_target")}
             value={[displayValue(execution.target_type), displayValue(execution.target_id)].filter(Boolean).join(" ")}
             mono
           />
-          <LabeledValue label="Execution status" value={execution.status} />
-          <LabeledValue label="Execution message" value={execution.message} />
+          <LabeledValue label={t("admin_stuck_jobs.execution_status")} value={execution.status} />
+          <LabeledValue label={t("admin_stuck_jobs.execution_message")} value={execution.message} />
         </div>
       ) : null}
     </div>
   )
 }
 
-function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <EmptyState>Could not load stuck Jobs.</EmptyState>
+function StuckJobsCard({ context }: { context: ToolCardContext }) {
+  const { t } = useT("chat")
+  if (context.resultError) return <EmptyState>{t("admin_stuck_jobs.error")}</EmptyState>
   const rows = stuckRows(context)
   if (!rows) return null
-  if (rows.length === 0) return <EmptyState>No stuck Jobs found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{t("admin_stuck_jobs.empty")}</EmptyState>
   return (
     <CardShell>
       <Table responsive>
-        <THead columns={["Job", "Workflow", "Run", "Severity", "Diagnostic", "Timing", "Repair plan"]} />
+        <THead columns={["job", "workflow", "run", "severity", "diagnostic", "timing", "repair_plan"].map((key) => t(`admin_stuck_jobs.${key}`))} />
         <TBody>
           {rows.map((row) => (
             <tr key={row.key}>
@@ -183,46 +191,50 @@ function renderExpanded(context: ToolCardContext) {
                     kind="job"
                     label={row.jobId ? `JOB-${row.jobId}${row.title ? ` — ${row.title}` : ""}` : row.title}
                   />
-                  <LabeledValue label="Record id" value={row.id} mono />
-                  <LabeledValue label="State" value={row.state} />
-                  <LabeledValue label="Job state" value={row.jobState} />
+                  <LabeledValue label={t("admin_stuck_jobs.record_id")} value={row.id} mono />
+                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.state} />
+                  <LabeledValue label={t("admin_stuck_jobs.job_state")} value={row.jobState} />
                 </div>
               </Td>
               <Td wrap>
                 <div className="space-y-1">
                   <EntityReference href={row.workflowPath} id={row.workflowId} jobId={row.jobId} kind="workflow" />
-                  <LabeledValue label="Slug" value={row.workflowSlug} mono />
-                  <LabeledValue label="State" value={row.workflowState} />
-                  <LabeledValue label="Trigger" value={row.workflowTriggerKind} />
+                  <LabeledValue label={t("admin_stuck_jobs.slug")} value={row.workflowSlug} mono />
+                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.workflowState} />
+                  <LabeledValue label={t("admin_stuck_jobs.trigger")} value={row.workflowTriggerKind} />
                 </div>
               </Td>
               <Td wrap>
                 <div className="space-y-1">
                   <EntityReference id={row.runId} jobId={row.jobId} kind="run" workflowId={row.workflowId} />
-                  <LabeledValue label="State" value={row.runState} />
-                  <LabeledValue label="Step" value={row.stepKind} />
-                  <LabeledValue label="Transcript" value={row.hasTranscript} />
+                  <LabeledValue label={t("admin_stuck_jobs.state")} value={row.runState} />
+                  <LabeledValue label={t("admin_stuck_jobs.step")} value={row.stepKind} />
+                  <LabeledValue label={t("admin_stuck_jobs.transcript")} value={row.hasTranscript} />
                 </div>
               </Td>
               <Td wrap>
                 <div className="space-y-1">
                   {row.severity ? <StatePill state={row.severity} /> : "—"}
-                  <LabeledValue label="Reconciler" value={row.reconcilerSeverity} />
+                  <LabeledValue label={t("admin_stuck_jobs.reconciler")} value={row.reconcilerSeverity} />
                   <div>{row.attentionState ? <StatePill state={row.attentionState} /> : "—"}</div>
                 </div>
               </Td>
               <Td wrap>
                 <div className="min-w-0 space-y-1.5">
                   <Badge>{row.kind.replace(/_/g, " ")}</Badge>
-                  {row.detail ? <MarkdownPreview maxLines={4} text={row.detail} title="Detail" /> : <LabeledValue label="Detail" value={null} />}
-                  <LabeledValue label="Issue" value={row.issue} mono />
+                  {row.detail ? (
+                    <MarkdownPreview maxLines={4} text={row.detail} title={t("admin_stuck_jobs.detail")} />
+                  ) : (
+                    <LabeledValue label={t("admin_stuck_jobs.detail")} value={null} />
+                  )}
+                  <LabeledValue label={t("admin_stuck_jobs.issue")} value={row.issue} mono />
                 </div>
               </Td>
               <Td wrap>
                 <div className="space-y-1">
-                  <LabeledValue label="Age" value={row.ageLabel} />
-                  <LabeledValue label="Seconds" value={row.ageSeconds} mono />
-                  <LabeledValue label="Heartbeat" value={row.lastHeartbeatAt} mono />
+                  <LabeledValue label={t("admin_stuck_jobs.age")} value={row.ageLabel} />
+                  <LabeledValue label={t("admin_stuck_jobs.seconds")} value={row.ageSeconds} mono />
+                  <LabeledValue label={t("admin_stuck_jobs.heartbeat")} value={row.lastHeartbeatAt} mono />
                 </div>
               </Td>
               <Td wrap>
@@ -234,6 +246,11 @@ function renderExpanded(context: ToolCardContext) {
       </Table>
     </CardShell>
   )
+}
+
+function renderExpanded(context: ToolCardContext) {
+  if (!context.resultError && !stuckRows(context)) return null
+  return <StuckJobsCard context={context} />
 }
 
 const adminStuckJobsToolCard: ToolCardRenderer = { toolName: "admin_stuck_jobs", collapsedSummary, renderExpanded }
