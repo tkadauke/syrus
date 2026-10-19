@@ -409,7 +409,9 @@ fallback provider triples (legacy actions that omit `type` remain route actions)
 and reserve a weighted strategy for future load balancing. A `type: hold` action
 is a terminal successful routing decision: broader scopes are not consulted and
 the explanation contains the matched hold rather than presenting provider
-exhaustion as a routing failure.
+exhaustion as a routing failure. A held workflow remains queued with no Run;
+dispatch preserves the structured hold decision instead of substituting the
+hardcoded provider fallback.
 Candidate providers come from the enabled agent-provider plugin catalog,
 model choices come from that provider's `.available_models`, and
 `effort_level` can be left blank to use the provider default. Editor options

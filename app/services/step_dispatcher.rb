@@ -1,5 +1,6 @@
 class StepDispatcher
   LOOP_EXHAUSTED_AFTER_GRADER_FAILURE = "loop_exhausted_after_grader_failure".freeze
+  PROVIDER_ROUTING_HOLD_REASON = "provider_routing_hold".freeze
   # When a Step transitions to `succeeded`, find the next runnable
   # step in its workflow's chain and create a Run on it. If there
   # is no next runnable step (chain end OR all downstream steps
@@ -26,6 +27,13 @@ class StepDispatcher
     first = workflow.first_step
     return unless first
     return if first.runs.any?
+
+    if provider_routing_held?(workflow)
+      Rails.logger.info(
+        "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held by provider routing rule"
+      )
+      return
+    end
 
     if workflow.job.closed? && !redeploy_on_closed_job?(workflow)
       cancel_unstartable_closed_job_workflow!(workflow)
@@ -161,6 +169,7 @@ class StepDispatcher
 
     refresh_default_workflow_agent_provider!(workflow)
     run_provider_candidate = run_provider_candidate_for(first, workflow)
+    return if run_provider_candidate.nil?
 
     provider_pause = ProviderAvailabilityPause.call(
       workflow: workflow,
@@ -231,6 +240,10 @@ class StepDispatcher
     workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
+  end
+
+  def self.provider_routing_held?(workflow)
+    workflow.artifact("agent_provider_routing_decision").to_h["held"] == true
   end
 
   # Rebase and stack-rebase workflows must proceed even when main is broken —
@@ -560,12 +573,14 @@ class StepDispatcher
 
         refresh_default_workflow_agent_provider!(workflow)
         run_provider_candidate = run_provider_candidate_for(step, workflow)
+        return nil if run_provider_candidate.nil?
 
         if check_phase_admission && provider_availability_deferred?(step, workflow, candidate: run_provider_candidate)
           return nil
         end
         workflow.reload
         run_provider_candidate = run_provider_candidate_for(step, workflow)
+        return nil if run_provider_candidate.nil?
 
         if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
           return nil
@@ -659,13 +674,21 @@ class StepDispatcher
     )
     return current_candidate unless step_specific_provider_task_key?(step, workflow)
 
-    ProviderRouting::AvailabilitySelector.call(
+    selection = ProviderRouting::AvailabilitySelector.call(
       job: workflow.job,
       task_key: step.kind,
       trigger: provider_invocation_for(step),
       workflow_trigger_kind: workflow.trigger_kind,
       original_candidate: current_candidate
-    ).candidate
+    )
+    if selection.held?
+      workflow.update!(
+        artifacts: workflow.artifacts.to_h.merge("agent_provider_routing_decision" => selection.artifact)
+      )
+      return nil
+    end
+
+    selection.candidate
   end
 
   def self.provider_task_key_for(step, workflow)
