@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
 import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
 
 describe("MarkdownPreview", () => {
+  afterEach(() => setSlugReferenceRegistryForTests(null))
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
@@ -23,10 +27,10 @@ describe("MarkdownPreview", () => {
     expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
   })
 
-  it("renders nothing for empty or whitespace-only text", () => {
-    const { container } = render(<MarkdownPreview text={"  \n\t "} />)
+  it("renders an empty state for empty or whitespace-only text", () => {
+    render(<MarkdownPreview text={"  \n\t "} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText("No content provided.")).toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {
@@ -41,6 +45,35 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("supports a character cap and passes link behavior to the preview and modal", () => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: false,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/jobs/:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+    const onLinkClick = vi.fn((_, event) => event.preventDefault())
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={30} onLinkClick={onLinkClick} text={`JOB-42 https://example.test ${"details ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
   })
 })
 

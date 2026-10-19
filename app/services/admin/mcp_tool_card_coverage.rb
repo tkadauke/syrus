@@ -18,7 +18,6 @@ module Admin
     EXPLICIT_CARD_STATUSES = {
       "retire_terminal_work_unit" => "generic",
       "assign_job_to_epic" => "generic",
-      "delete_design_doc" => "generic",
       "force_fail_job" => "generic",
       "get_spending" => "deferred",
       "manual_agentic_run" => "generic",
