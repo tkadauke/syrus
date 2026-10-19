@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { SpendingCard, spendingCost, spendingResult, spendingWindow } from "../spendingToolCard"
+import { invalidSpendingWindow, SpendingCard, spendingCost, spendingResult, spendingWindow } from "../spendingToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
   const result = spendingResult(context)
@@ -12,6 +12,7 @@ const getSpendingToolCard: ToolCardRenderer = {
   toolName: "get_spending",
   collapsedSummary,
   renderExpanded: (context) => {
+    if (context.resultError && !invalidSpendingWindow(context)) return null
     if (!context.resultError && spendingWindow(context) && !spendingResult(context)) return null
     return <SpendingCard context={context} />
   }
