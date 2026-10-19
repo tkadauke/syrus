@@ -7,6 +7,13 @@
   "loading": "Loading...",
   "show_more": "Show more",
   "show_less": "Show less",
+  "markdown_preview": {
+    "empty": "No text provided.",
+    "dialog_label": "Full markdown preview",
+    "title": "Full text",
+    "copy": "Copy",
+    "close": "Close preview"
+  },
   "workflows": "Workflows",
   "file_preview": {
     "dialog_label": "File preview for {{title}}",

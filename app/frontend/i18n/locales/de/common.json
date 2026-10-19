@@ -7,6 +7,13 @@
   "loading": "Laden...",
   "show_more": "Mehr anzeigen",
   "show_less": "Weniger anzeigen",
+  "markdown_preview": {
+    "empty": "Kein Text vorhanden.",
+    "dialog_label": "Vollständige Markdown-Vorschau",
+    "title": "Vollständiger Text",
+    "copy": "Kopieren",
+    "close": "Vorschau schließen"
+  },
   "workflows": "Arbeitsabläufe",
   "file_preview": {
     "dialog_label": "Dateivorschau für {{title}}",
