@@ -1133,11 +1133,16 @@ module App
     end
 
     def compatible_worker_available(capabilities)
-      workflow = Struct.new(:trigger_kind, :planned_execution_capabilities, :job, keyword_init: true).new(
-        trigger_kind: "initial", planned_execution_capabilities: capabilities, job: @job
+      workflow = Workflow.new(
+        trigger_kind: "initial",
+        planned_execution_capabilities: capabilities,
+        job: @job
       )
-      step = Struct.new(:placement_policy, :details, keyword_init: true).new(
-        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, details: {}
+      step = Step.new(
+        workflow: workflow,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+        details: {},
+        kind: "prepare"
       )
       !RunQueueResolver.resolve_candidate(workflow: workflow, step: step).blocked?
     rescue StandardError
