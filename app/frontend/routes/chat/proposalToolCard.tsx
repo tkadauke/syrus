@@ -1,4 +1,4 @@
-import { type ReactNode } from "react"
+import { type MouseEvent, type ReactNode } from "react"
 import type { ToolCardContext } from "../../pluginToolCards"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { MarkdownPreview } from "./toolCardMarkdown"
@@ -282,7 +282,13 @@ function DetailValue({ label, children }: { label: string; children: ReactNode }
 // dependencies, materialized result), not the full interactive proposal
 // card (ProposalCards.tsx's ProposalCard), which already renders separately
 // for the same chat_proposal item and owns edit/confirm/reject controls.
-export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome }) {
+export function ProposalOutcomeCard({
+  proposal,
+  onLinkClick
+}: {
+  proposal: ProposalOutcome
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+}) {
   const hasDetails =
     proposal.repository ||
     proposal.targetEpicLabel ||
@@ -310,6 +316,7 @@ export function ProposalOutcomeCard({ proposal }: { proposal: ProposalOutcome })
         linkifyUrls
         maxChars={960}
         modalLabel={`Full ${humanizeKind(proposal.kind)} description`}
+        onLinkClick={onLinkClick}
         text={proposal.body}
         title="Description"
       />

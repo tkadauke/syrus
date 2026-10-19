@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { MouseEvent, ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 export { isPlainObject } from "./toolCardParsing"
 
@@ -28,6 +28,9 @@ export type ToolCardContext = {
   resultError: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Lets cards participate in the owning surface's Markdown navigation
+  // behavior (for example, opening chat workspace file links in preview).
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
   // Current state of the ChatPendingAction this tool call created, read
   // fresh off the owning tool_use message on every payload fetch (that's
   // where ChatPendingAction::anchor_to_tool_call! anchors it, not the

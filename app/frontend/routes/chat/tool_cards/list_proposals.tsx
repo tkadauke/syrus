@@ -35,7 +35,7 @@ function renderExpanded(context: ToolCardContext) {
     <div className="mt-1 grid min-w-0 max-w-full gap-2 sm:grid-cols-2" data-testid="proposal-list">
       {rows.map((proposal) => (
         <div className="min-w-0 max-w-full" key={proposal.slug}>
-          <ProposalOutcomeCard proposal={proposal} />
+          <ProposalOutcomeCard onLinkClick={context.onLinkClick} proposal={proposal} />
         </div>
       ))}
     </div>

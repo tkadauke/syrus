@@ -704,6 +704,56 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("routes proposal body workspace links through the chat source preview", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "README.md", content: "# Proposal source", binary: false, too_large: false })
+    const result = {
+      proposals: [
+        {
+          slug: "inspect-source",
+          title: "Inspect source",
+          body: "[Open source](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/README.md)",
+          kind: "job",
+          state: "proposed"
+        }
+      ]
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List proposals",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_proposals",
+          raw_name: "list_proposals",
+          detail: "No arguments",
+          display_label: "List proposals",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expandToolGroup("List proposals")
+    fireEvent.click(screen.getByRole("link", { name: "Open source" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import listProposalsToolCard from "./list_proposals"
@@ -72,6 +72,7 @@ describe("list_proposals tool card", () => {
   })
 
   it("normalizes provider-prefixed names and differently shaped MCP envelopes", () => {
+    const onLinkClick = vi.fn()
     const payload = {
       proposals: [
         {
@@ -88,7 +89,7 @@ describe("list_proposals tool card", () => {
       ]
     }
     const parsedResult = normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(payload) }] })
-    const normalizedContext = context({ toolName: normalizedToolName("mcp__syrus-chat-sidecar__list_proposals"), parsedResult })
+    const normalizedContext = context({ toolName: normalizedToolName("mcp__syrus-chat-sidecar__list_proposals"), parsedResult, onLinkClick })
 
     expect(normalizedContext.toolName).toBe("list_proposals")
     render(<>{listProposalsToolCard.renderExpanded(normalizedContext)}</>)
@@ -98,7 +99,9 @@ describe("list_proposals tool card", () => {
     expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
     expect(screen.getByRole("link", { name: "EPIC-10" })).toHaveAttribute("href", "/epics/10")
     expect(screen.getByRole("link", { name: "JOB-11" })).toHaveAttribute("href", "/jobs/11")
-    expect(screen.getByRole("link", { name: "https://example.test/details" })).toBeInTheDocument()
+    const url = screen.getByRole("link", { name: "https://example.test/details" })
+    fireEvent.click(url)
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/details", expect.any(Object))
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
   })
 
