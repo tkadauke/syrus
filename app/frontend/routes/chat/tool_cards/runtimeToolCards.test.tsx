@@ -132,6 +132,7 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-words")
     expect(screen.getAllByRole("link", { name: "Stream" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "Stream" })[0]).toHaveAttribute("target", "_blank")
+    expect(screen.queryByRole("link", { name: "Latest frame" })).not.toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Open Latest frame" })).toHaveLength(2)
     expect(screen.getByAltText("Latest frame for Runtime #1")).toHaveAttribute("src", "/runtime/7/frame?latest_frame_at=2026-09-10T12%3A00%3A05Z")
     expect(screen.getAllByText("url").length).toBeGreaterThan(0)
