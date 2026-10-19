@@ -30,7 +30,12 @@ function collapsedSummary(context: ToolCardContext) {
 
 function renderExpanded(context: ToolCardContext) {
   const error = errorText(context)
-  if (error) return <Notice tone="danger" title="Unable to read local diff">{error} Connect or restart the local daemon, then try again.</Notice>
+  if (error)
+    return (
+      <Notice tone="danger" title="Unable to read local diff">
+        {error} Connect or restart the local daemon, then try again.
+      </Notice>
+    )
   const diff = parseDiff(context)
   if (diff == null) return null
   if (!diff.trim()) return <EmptyState>No uncommitted changes.</EmptyState>
