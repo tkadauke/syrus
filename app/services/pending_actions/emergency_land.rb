@@ -13,14 +13,9 @@ module PendingActions
       normalized_branch = GitBranchName.normalize(payload["branch_name"])
 
       job.with_lock do
-        raise ArgumentError, "Emergency land is not enabled on this instance" unless Feature.emergency_land_enabled?
-        raise ArgumentError, "emergency_land is only available in Coding Mode chat sessions" unless chat_session.coding?
-        raise ArgumentError, "job is not in coding state" unless job.coding?
-        raise ArgumentError, "job is not linked to this chat session" unless job.linked_chat_id == chat_session.id
         raise ArgumentError, "chat_session_id does not match this chat session" if payload["chat_session_id"].present? && payload["chat_session_id"].to_i != chat_session.id
-        raise ArgumentError, "Emergency land requires repository admin permissions" unless ::EmergencyLand::Permission.granted?(user: user, repository: job.repository)
-        raise ArgumentError, "branch_name is required because this Job does not have a pushed branch recorded" if normalized_branch.blank? && job.branch_name.blank?
-        raise ArgumentError, "branch_name is not a valid branch name" if normalized_branch.present? && !GitBranchName.valid?(normalized_branch)
+        eligibility = ::EmergencyLand::Eligibility.call(chat_session: chat_session, job: job, branch_name: normalized_branch, user: user)
+        raise ArgumentError, eligibility.message unless eligibility.eligible?
 
         job.update!(branch_name: normalized_branch) if normalized_branch.present? && job.branch_name != normalized_branch
 

@@ -156,4 +156,18 @@ RSpec.describe Mcp::Tools::EmergencyLandTool do
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("branch_name is required")
   end
+
+  it "names the failed state precondition and the next action" do
+    job = Factories.job_record(user: owner, repository: repository, state: "implemented",
+                               branch_name: "syrus/incident", pr_number: nil)
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include(
+      "not in coding state",
+      "current: implemented",
+      "open_in_coding_mode"
+    )
+  end
 end

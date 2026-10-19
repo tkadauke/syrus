@@ -16,7 +16,11 @@ module Mcp::Tools
       branch; open that Job in Coding Mode and use complete_implement_step
       instead. Branches that already belong to a Syrus Job in this repository
       are refused because this tool creates a new Job rather than updating the
-      existing one.
+      existing one. This requires an active Coding Mode checkout in the selected
+      repository and committed changes on branch (or the checkout's current
+      branch when omitted). The call creates only a pending action. Confirmation
+      creates one new direct Job plus its coding_handoff Workflow and WorkUnit,
+      then starts that work through admission control and worker-queue routing.
       Only available when the coding_mode feature is enabled.
     DESC
 
