@@ -243,7 +243,7 @@ class StepDispatcher
   end
 
   def self.provider_routing_held?(workflow)
-    workflow.artifact("agent_provider_routing_decision").to_h["held"] == true
+    workflow.provider_routing_holds.active.exists?
   end
 
   # Rebase and stack-rebase workflows must proceed even when main is broken —
@@ -637,7 +637,8 @@ class StepDispatcher
         job: workflow.job,
         task_key: task_key,
         workflow_trigger_kind: workflow.trigger_kind,
-        original_candidate: current_candidate
+        original_candidate: current_candidate,
+        released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
       )
     end
     desired_candidate = routed_selection&.candidate ||
@@ -679,14 +680,18 @@ class StepDispatcher
       task_key: step.kind,
       trigger: provider_invocation_for(step),
       workflow_trigger_kind: workflow.trigger_kind,
-      original_candidate: current_candidate
+      original_candidate: current_candidate,
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
     )
     if selection.held?
       workflow.update!(
         artifacts: workflow.artifacts.to_h.merge("agent_provider_routing_decision" => selection.artifact)
       )
+      ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: selection, step: step)
       return nil
     end
+
+    ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: selection, step: step)
 
     selection.candidate
   end

@@ -403,6 +403,7 @@ Rails.application.routes.draw do
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
           get "stuck", to: "stuck#index"
+          post "provider_routing_holds/:id/release", to: "provider_routing_holds#release"
           post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
           post "jobs/:job_id/force_fail", to: "job_lifecycle#force_fail", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
           get "activity", to: "workflow_activity#index"
