@@ -97,7 +97,7 @@ export function Row({ label, value }: { label: string; value: string }) {
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>
+      <Text as="div" className="whitespace-pre-wrap break-words font-mono text-xs" title={value}>
         {value}
       </Text>
     </div>
