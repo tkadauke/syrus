@@ -1525,7 +1525,7 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Unknown tool")
 
-    expect(screen.getByText('{"label":')).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
   })
 
   it("redacts raw details, fallback output, summaries, and copied payloads for unknown tool cards", async () => {

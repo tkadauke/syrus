@@ -28,6 +28,9 @@ export type ToolCardContext = {
   resultError: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Owning chat when rendered in a chat surface. Admin transcripts and
+  // catalog fixtures do not necessarily have one.
+  chatSessionId?: number | string
   // Current state of the ChatPendingAction this tool call created, read
   // fresh off the owning tool_use message on every payload fetch (that's
   // where ChatPendingAction::anchor_to_tool_call! anchors it, not the
