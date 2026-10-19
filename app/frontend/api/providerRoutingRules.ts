@@ -26,10 +26,7 @@ export type ProviderRoutingCandidate = {
 }
 
 export type ProviderRoutingTrigger =
-  | { type: "default" }
-  | { type: "step"; kind: string }
-  | { type: "chat_role"; role: string }
-  | { type: "legacy_task"; task_key: string }
+  { type: "default" } | { type: "step"; kind: string } | { type: "chat_role"; role: string } | { type: "legacy_task"; task_key: string }
 
 export type ProviderRoutingConditions = {
   workflow_trigger_kind?: string[]
