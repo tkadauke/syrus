@@ -289,6 +289,33 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes the created repository document result in an inline pending action" do
+    action = chat.pending_actions.create!(
+      action: "create_repo_document",
+      requested_by: "agent",
+      payload: { "repository_id" => repository.id, "title" => "Runbook", "body" => "# Ship safely" }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Create it?" })
+
+    expect(action.confirm!).to be(true)
+    document = action.reload.result
+    payload = described_class.messages([ message.reload ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      resource_title: "Runbook",
+      resource_url: "/api/v1/app/repository_documents/#{document.id}/file",
+      document: {
+        id: document.id,
+        title: "Runbook",
+        repository_id: repository.id,
+        repository_slug: repository.slug,
+        content_type: "text/markdown",
+        size_bytes: 13,
+        url: "/api/v1/app/repository_documents/#{document.id}/file"
+      }
+    )
+  end
+
   it "includes restack_epic pending action details without an attached repository" do
     admin = Factories.user(admin: true)
     epic = Factories.epic(user: admin, repository: Factories.repository(user: admin), title: "Repair topology")

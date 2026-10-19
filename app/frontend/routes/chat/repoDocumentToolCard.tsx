@@ -191,8 +191,8 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
   if (!pending) return null
 
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
-  const document = isPlainObject(parsed.document) ? parsed.document : parsed
   const live = context.livePendingAction
+  const document: Record<string, unknown> = live?.document ? { ...live.document } : isPlainObject(parsed.document) ? parsed.document : parsed
   const body = displayValue(context.input?.body)
   const documentId =
     displayValue(context.input?.document_id) || displayValue(context.input?.id) || displayValue(document.document_id) || displayValue(document.id)
@@ -202,7 +202,7 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
     pending,
     title: displayValue(context.input?.title) || displayValue(document.title) || displayValue(live?.resource_title),
     documentId,
-    repositoryId: displayValue(context.input?.repository_id),
+    repositoryId: displayValue(context.input?.repository_id) || displayValue(document.repository_id),
     repositorySlug:
       displayValue(context.input?.repository_slug) ||
       displayValue(context.input?.repository) ||
