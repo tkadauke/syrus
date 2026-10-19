@@ -8,6 +8,7 @@ import deleteElementToolCard from "./delete_element"
 import drawArrowToolCard from "./draw_arrow"
 import drawEmbedToolCard from "./draw_embed"
 import drawFrameToolCard from "./draw_frame"
+import { examples as drawFrameExamples } from "./draw_frame"
 import drawFreedrawToolCard from "./draw_freedraw"
 import drawImageToolCard from "./draw_image"
 import drawLineToolCard, { examples as drawLineExamples } from "./draw_line"
@@ -143,6 +144,44 @@ describe("whiteboard element-action tool cards", () => {
 
     for (const value of ["diamond", "10", "20", "300", "120", "#ffcc00"]) expect(screen.getByText(value)).toBeInTheDocument()
     expect(screen.getByLabelText("#ffcc00")).toHaveStyle({ backgroundColor: "#ffcc00" })
+  })
+
+  it("shows a frame name, bounds, contained elements, id, and version with wrapping-safe layout", () => {
+    const input = {
+      type: "magicframe",
+      name: "Release overview",
+      x: 14,
+      y: 24,
+      width: 320,
+      height: 180,
+      element_ids: ["shape-with-a-very-long-id", "text-2"]
+    }
+
+    render(<>{drawFrameToolCard.renderExpanded(context({ toolName: "draw_frame", input, parsedResult: { id: "frame-1", version: 6 } }))}</>)
+
+    for (const value of ["Release overview", "14", "24", "320", "180", "shape-with-a-very-long-id", "text-2", "frame-1", "v6"])
+      expect(screen.getByText(value)).toBeInTheDocument()
+    expect(screen.getByText("shape-with-a-very-long-id")).toHaveClass("break-all")
+    expect(screen.getByText("shape-with-a-very-long-id").parentElement).toHaveClass("flex-wrap")
+  })
+
+  it("accepts a frame label and wrapped provider-agnostic result envelope", () => {
+    const parsedResult = { result: { id: "wrapped-frame", version: 3 } }
+    const input = { label: "System map", x: 0, y: 0, width: 800, height: 600 }
+
+    expect(drawFrameToolCard.collapsedSummary?.(context({ toolName: "draw_frame", input, parsedResult }))).toBe("Drew frame · wrapped-frame")
+    render(<>{drawFrameToolCard.renderExpanded(context({ toolName: "draw_frame", input, parsedResult }))}</>)
+
+    expect(screen.getByText("System map")).toBeInTheDocument()
+    expect(screen.getByText("wrapped-frame")).toBeInTheDocument()
+    expect(screen.getByText("v3")).toBeInTheDocument()
+  })
+
+  it("provides catalog examples for full, wrapped, failed, and empty frame results", () => {
+    expect(drawFrameExamples.map(({ id }) => id)).toEqual(["named_frame_with_children", "wrapped_result", "invalid_bounds", "pending"])
+    expect(drawFrameExamples.every(({ sourceType }) => sourceType === "generic")).toBe(true)
+    expect(drawFrameExamples.find(({ id }) => id === "invalid_bounds")).toMatchObject({ resultError: true })
+    expect(drawFrameExamples.find(({ id }) => id === "pending")).toMatchObject({ resultBody: "" })
   })
 
   it("shows type-aware line and freehand details", () => {
