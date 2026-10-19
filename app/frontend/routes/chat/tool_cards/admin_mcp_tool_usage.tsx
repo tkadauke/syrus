@@ -59,7 +59,13 @@ type UsageCard = {
   serverBreakdown: BreakdownRow[]
   sidecarModeBreakdown: BreakdownRow[]
   authorityBreakdown: BreakdownRow[]
-  startupTiming: { turnsObserved: number; stalledTurns: number; rows: StartupTimingRow[] }
+  startupTiming: {
+    window: UsageWindow
+    filters: { provider: string | null; serverName: string | null }
+    turnsObserved: number
+    stalledTurns: number
+    rows: StartupTimingRow[]
+  }
   unusedAdvertisedTools: string[]
   customCardGaps: {
     rankedGaps: CardGapRow[]
@@ -186,6 +192,8 @@ function parseRecentCall(value: unknown, index: number): RecentCall | null {
 
 function parseStartupTiming(value: unknown) {
   const section = isPlainObject(value) ? value : {}
+  const window = isPlainObject(section.window) ? section.window : {}
+  const filters = isPlainObject(section.filters) ? section.filters : {}
   const rows = Array.isArray(section.phase_latency) ? section.phase_latency.flatMap((value, index) => {
     if (!isPlainObject(value)) return []
     const phase = displayValue(value.phase)
@@ -193,10 +201,16 @@ function parseStartupTiming(value: unknown) {
     if (!phase || count == null) return []
     return [{ key: `${phase}-${index}`, phase, count, avgMs: numberValue(value.avg_ms), p50Ms: numberValue(value.p50_ms), p95Ms: numberValue(value.p95_ms), maxMs: numberValue(value.max_ms) }]
   }) : []
-  return { turnsObserved: numberValue(section.turns_observed) ?? 0, stalledTurns: numberValue(section.stalled_turns) ?? 0, rows }
+  return {
+    window: { start: displayValue(window.start), end: displayValue(window.end) },
+    filters: { provider: displayValue(filters.provider), serverName: displayValue(filters.server_name) },
+    turnsObserved: numberValue(section.turns_observed) ?? 0,
+    stalledTurns: numberValue(section.stalled_turns) ?? 0,
+    rows
+  }
 }
 
-const INPUT_KEYS = ["window", "since", "start", "end", "limit", "recent_limit", "tool", "tool_name", "server", "server_name"] as const
+const INPUT_KEYS = ["surface", "window", "since", "start", "end", "limit", "recent_limit", "tool", "tool_name", "server", "server_name"] as const
 
 function parseInput(input: Record<string, unknown> | undefined) {
   if (!input) return []
@@ -452,10 +466,17 @@ function formatMs(value: number | null) {
 }
 
 function StartupTiming({ section }: { section: UsageCard["startupTiming"] }) {
+  const window = section.window.start && section.window.end
+    ? `${section.window.start} to ${section.window.end}`
+    : section.window.start || section.window.end || "unavailable"
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <SectionLabel>Startup timing</SectionLabel>
+        <Badge>Window: {window}</Badge>
+        <Badge>Provider: {section.filters.provider || "all"}</Badge>
+        <Badge>Server: {section.filters.serverName || "all"}</Badge>
         <Badge>{section.turnsObserved} turns observed</Badge>
         <Badge>{section.stalledTurns} stalled</Badge>
       </div>
