@@ -268,8 +268,8 @@ module App
           base
         end
       when "create_repo_document", "delete_repo_document"
-        if (document = cached_document(payload["document_id"]))
-          base.merge(resource_title: document.title)
+        if (document = pending_action_document(action, payload))
+          base.merge(repository_document_resource(document))
         else
           base
         end
@@ -635,6 +635,31 @@ module App
       return if id <= 0
 
       @documents_by_id[id] ||= Document.find_by(id: id)
+    end
+
+    def pending_action_document(action, payload)
+      return action.result if action.action == "create_repo_document" && action.result.is_a?(Document)
+
+      cached_document(payload["document_id"])
+    end
+
+    def repository_document_resource(document)
+      repository = document.repository
+      url = document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : document.google_docs_url
+
+      {
+        resource_title: document.title,
+        resource_url: url,
+        document: {
+          id: document.id,
+          title: document.title,
+          repository_id: repository&.id,
+          repository_slug: repository&.slug,
+          content_type: document.content_type,
+          size_bytes: document.byte_size,
+          url: url
+        }
+      }
     end
 
     def cached_repository_epic(repository, id)

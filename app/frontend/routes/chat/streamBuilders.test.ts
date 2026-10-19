@@ -45,6 +45,15 @@ describe("pendingActionCardData", () => {
       action_type: null,
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
+      document: {
+        id: 22,
+        title: "Runbook",
+        repository_id: 9,
+        repository_slug: "acme/widgets",
+        content_type: "text/markdown",
+        size_bytes: 13,
+        url: "/api/v1/app/repository_documents/22/file"
+      },
       app_confirm_path: "/api/v1/app/chats/122/pending_actions/501/confirm",
       app_reject_path: "/api/v1/app/chats/122/pending_actions/501/reject",
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
@@ -55,6 +64,7 @@ describe("pendingActionCardData", () => {
       detail: "**Branch:** syrus/chat-42-handoff-7",
       resource_title: "acme/widgets",
       resource_url: "/repositories/9",
+      document: action.document,
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
     })
   })
