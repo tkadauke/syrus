@@ -101,6 +101,11 @@ The visual reviewer should inspect the running app and screenshots, not run
 builds or full test suites. Deterministic build and test checks belong in
 graders.
 
+When the reviewed UI is below the fold, screenshot submission can identify a
+subject by CSS selector or by its exact browser snapshot ref. Syrus waits for
+that element to become visible and centers it before capturing, so the saved
+evidence shows the interface under review.
+
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
 `.syrus.yml`, and their seed notes are shown when that project preview is one
