@@ -44,7 +44,7 @@ export function parseTestIdentityRef(value: unknown): TestIdentityRef | null {
 
 export function TestIdentityLink({ test }: { test: TestIdentityRef }) {
   if (test.appPath) return <InternalLink href={test.appPath}>{test.name}</InternalLink>
-  return <span className="font-medium text-gray-800 dark:text-gray-100">{test.name}</span>
+  return <span className="break-words font-medium text-text-primary">{test.name}</span>
 }
 
 export function parseReasons(value: unknown, key: string): string[] {
@@ -73,7 +73,7 @@ export function ReasonBadges({ reasons }: { reasons: string[] }) {
 }
 
 export function TestStatusPill({ status }: { status: string | null }) {
-  if (!status) return <span className="text-gray-400 dark:text-gray-500">—</span>
+  if (!status) return <span className="text-text-subtle">—</span>
 
   const tone = status === "passed" ? "success" : status === "skipped" ? "neutral" : "failure"
   return <StatePill state={t(`status_${status}`, { defaultValue: status })} tone={tone} />
@@ -104,8 +104,10 @@ export function RefLink({ target }: { target: RunJobRef | null }) {
   if (!target) return null
   const job = target.slug.match(/^JOB-(\d+)$/)
   const run = target.slug.match(/^RUN-(\d+)$/)
+  const workflow = target.slug.match(/^WF-(\d+)$/)
   if (job) return <EntityReference href={target.path} id={job[1]} kind="job" slug={target.slug} wrap="nowrap" />
   if (run) return <EntityReference href={target.path} id={run[1]} kind="run" slug={target.slug} wrap="nowrap" />
+  if (workflow) return <EntityReference href={target.path} id={workflow[1]} kind="workflow" slug={target.slug} wrap="nowrap" />
   if (!target.path) return <EntityReference kind="artifact" slug={target.slug} wrap="nowrap" />
   return <InternalLink href={target.path}>{target.slug}</InternalLink>
 }
@@ -129,12 +131,14 @@ export function FailureSnippet({ failure }: { failure: FailureSnippetData }) {
 
   return (
     <div className="space-y-1">
-      {message ? <Text as="div" className="whitespace-pre-wrap break-words" tone="danger">{message}</Text> : null}
+      {message ? (
+        <Text as="div" className="whitespace-pre-wrap break-words" tone="danger">
+          {message}
+        </Text>
+      ) : null}
       {backtrace || output ? (
         <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
-          <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">
-            {t("tool_backtrace_output")}
-          </summary>
+          <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">{t("tool_backtrace_output")}</summary>
           {backtrace ? <CodeSurface className="mt-1" code={backtrace} copyLabel="Copy backtrace" maxHeightClassName="max-h-72" /> : null}
           {output ? <CodeSurface className="mt-1" code={output} copyLabel="Copy output" maxHeightClassName="max-h-72" /> : null}
         </details>
@@ -149,13 +153,14 @@ export function Flakiness({ flakiness }: { flakiness: unknown }) {
   const score = numberValue(flakiness.score)
   return (
     <Pill className="text-2xs font-semibold" tone="warning">
-      {t("tool_flaky")}{score != null ? ` (${Math.round(score * 100)}%)` : ""}
+      {t("tool_flaky")}
+      {score != null ? ` (${Math.round(score * 100)}%)` : ""}
     </Pill>
   )
 }
 
 export function TableShell({ children }: { children: ReactNode }) {
-  return <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">{children}</div>
+  return <div className="mt-1 overflow-x-auto rounded border border-border">{children}</div>
 }
 
 export function t(key: string, options?: Record<string, unknown>) {

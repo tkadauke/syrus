@@ -98,5 +98,22 @@
   "tool_recent_record": "Registrum recens",
   "tool_recent_record_value": "{{failed}} defecerunt / {{passed}} transierunt ex {{total}}",
   "tool_recent_executions": "Executiones recentes",
-  "tool_recent_executions_limit": " (usque ad {{count}})"
+  "tool_recent_executions_limit": " (usque ad {{count}})",
+  "tool_repository_tests_summary_one": "{{count}} probatio in {{repository}}",
+  "tool_repository_tests_summary_other": "{{count}} probationes in {{repository}}",
+  "tool_unavailable_test": "Probatio non praesto",
+  "tool_serialization_error": "Haec probatio onerari non potuit",
+  "tool_query_settings": "Praecepta quaestionis",
+  "tool_last_duration": "Duratio ultima",
+  "tool_last_seen": "Novissime visa",
+  "tool_last_failed": "Novissime defecit",
+  "tool_runtime_p50_p95": "Duratio p50 / p95 (exempla)",
+  "tool_setting_filter": "Filtrum",
+  "tool_setting_sort": "Ordo",
+  "tool_setting_direction": "Directio",
+  "tool_setting_query": "Quaestio",
+  "tool_setting_grader_name": "Aestimator",
+  "tool_setting_lookback": "Retrospectus",
+  "tool_setting_summary_window": "Fenestra summaria",
+  "tool_setting_limit": "Finis"
 }
