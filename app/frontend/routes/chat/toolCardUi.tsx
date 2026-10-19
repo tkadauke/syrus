@@ -91,13 +91,13 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value, wrap = false }: { label: string; value: string; wrap?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>
+      <Text as="div" className={`${wrap ? "break-all" : "truncate"} font-mono text-xs`} title={value}>
         {value}
       </Text>
     </div>
@@ -134,7 +134,7 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
-export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal"
+export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "issue" | "artifact" | "repository" | "proposal"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -147,6 +147,7 @@ export type EntityReferenceProps = {
   repositoryId?: number | string | null
   repositorySlug?: string | null
   prUrl?: string | null
+  issueUrl?: string | null
   className?: string
   wrap?: "break" | "nowrap"
 }
@@ -177,6 +178,19 @@ const idHref = (prefix: string) => (reference: EntityReferenceProps) => {
 const repositoryHref = (reference: EntityReferenceProps) => {
   const id = compactEntityValue(reference.repositoryId) ?? compactEntityValue(reference.id)
   return id ? `/repositories/${id}` : null
+}
+
+function safeEntityHref(value: unknown): string | null {
+  const href = displayValue(value)
+  if (!href) return null
+  if (/^\/(?!\/)/.test(href)) return href
+
+  try {
+    const url = new URL(href)
+    return url.protocol === "http:" || url.protocol === "https:" ? href : null
+  } catch (_error) {
+    return null
+  }
 }
 
 const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDefinition> = {
@@ -214,7 +228,15 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
       const id = compactEntityValue(reference.id)
       return id ? `PR #${id}` : null
     },
-    href: (reference) => displayValue(reference.prUrl),
+    href: (reference) => safeEntityHref(reference.prUrl),
+    copyValue: slugCopyValue
+  },
+  issue: {
+    label: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `#${id}` : null
+    },
+    href: (reference) => safeEntityHref(reference.issueUrl),
     copyValue: slugCopyValue
   },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
@@ -228,7 +250,7 @@ export function entityReferenceLabel(reference: EntityReferenceProps): string | 
 }
 
 export function entityReferenceHref(reference: EntityReferenceProps): string | null {
-  const explicit = displayValue(reference.href)
+  const explicit = safeEntityHref(reference.href)
   if (explicit) return explicit
   return ENTITY_REFERENCE_DEFINITIONS[reference.kind].href(reference)
 }
