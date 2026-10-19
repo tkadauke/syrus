@@ -1,5 +1,6 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, Row } from "../toolCardUi"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { MarkdownPreview } from "../../../components/MarkdownPreview"
+import { CardShell, displayValue, EmptyState, EntityReference, StatePill } from "../toolCardUi"
 import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 // Core-owned tool card for detach_repository, the symmetric counterpart to
@@ -7,8 +8,10 @@ import { stringFromInput, ToolFailureSummaryCard, toolFailureCollapsedSummary, t
 // the chat's effective repository, the note the tool returns about what
 // (if anything) is now effective for file browsing.
 type DetachRepositoryResult = {
+  id: string
   slug: string
-  remainingSlugs: string[]
+  detached: boolean
+  remainingRepositories: Array<{ id: string; slug: string }>
   note: string | null
 }
 
@@ -30,13 +33,21 @@ function parseResult(context: ToolCardContext): DetachRepositoryResult | null {
   if (!slug) return null
 
   const remaining = Array.isArray(parsed.remaining_repositories) ? parsed.remaining_repositories : []
-  const remainingSlugs = remaining
-    .map((entry) => (isPlainObject(entry) ? displayValue(entry.slug) : null))
-    .filter((value): value is string => Boolean(value))
+  const id = displayValue(parsed.repository.id)
+  if (!id) return null
+
+  const remainingRepositories = remaining.flatMap((entry) => {
+    if (!isPlainObject(entry)) return []
+    const remainingId = displayValue(entry.id)
+    const remainingSlug = displayValue(entry.slug)
+    return remainingId && remainingSlug ? [{ id: remainingId, slug: remainingSlug }] : []
+  })
 
   return {
+    id,
     slug,
-    remainingSlugs,
+    detached: parsed.detached === true,
+    remainingRepositories,
     note: displayValue(parsed.note)
   }
 }
@@ -58,15 +69,39 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-text-primary">{result.slug}</span>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <EntityReference kind="repository" repositoryId={result.id} repositorySlug={result.slug} />
+        <StatePill state={result.detached ? "detached" : "pending"} tone={result.detached ? "success" : "warning"} />
       </div>
-      <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Remaining repositories" value={result.remainingSlugs.length ? result.remainingSlugs.join(", ") : "none"} />
-      </dl>
-      {result.note ? <p className="text-sm text-text-secondary">{result.note}</p> : null}
+      <div>
+        <div className="text-2xs font-semibold uppercase text-text-muted">Repository ID</div>
+        <div className="break-all font-mono text-xs text-text-primary">{result.id}</div>
+      </div>
+      <div>
+        <div className="text-2xs font-semibold uppercase text-text-muted">Remaining repositories</div>
+        {result.remainingRepositories.length ? (
+          <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-2">
+            {result.remainingRepositories.map((repository) => (
+              <EntityReference key={repository.id} kind="repository" repositoryId={repository.id} repositorySlug={repository.slug} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState>No repositories remain attached.</EmptyState>
+        )}
+      </div>
+      {result.note ? (
+        noteIsProse(result.note) ? (
+          <MarkdownPreview linkifyUrls maxChars={240} text={result.note} />
+        ) : (
+          <span className="break-words text-sm text-text-secondary [overflow-wrap:anywhere]">{result.note}</span>
+        )
+      ) : null}
     </CardShell>
   )
+}
+
+function noteIsProse(note: string) {
+  return /[.!?](?:\s|$)/.test(note) || note.includes("\n") || /(?:^|\n)\s*(?:#|[-*>]|\d+[.)])\s/.test(note)
 }
 
 const detachRepositoryToolCard: ToolCardRenderer = {
@@ -76,6 +111,31 @@ const detachRepositoryToolCard: ToolCardRenderer = {
 }
 
 export default detachRepositoryToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "detached_with_remaining_repository",
+    label: "Detached with another repository remaining",
+    input: { slug: "tkadauke/syrus" },
+    parsedResult: {
+      repository: { id: 1, slug: "tkadauke/syrus" },
+      detached: true,
+      remaining_repositories: [{ id: 2, slug: "tkadauke/other" }],
+      note: "This was the chat's effective repository. **tkadauke/other** is now effective for file browsing."
+    }
+  },
+  {
+    id: "no_repositories_remaining",
+    label: "No repositories remaining",
+    input: { slug: "tkadauke/syrus" },
+    parsedResult: {
+      repository: { id: 1, slug: "tkadauke/syrus" },
+      detached: true,
+      remaining_repositories: [],
+      note: "This was the chat's only attached repository. Attach a repository before browsing source."
+    }
+  }
+]
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
