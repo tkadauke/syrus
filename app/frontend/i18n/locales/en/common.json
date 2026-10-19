@@ -7,6 +7,22 @@
   "loading": "Loading...",
   "show_more": "Show more",
   "show_less": "Show less",
+  "text_preview": {
+    "earlier_lines_one": "… {{count}} earlier line",
+    "earlier_lines_other": "… {{count}} earlier lines",
+    "earlier_text": "… earlier text",
+    "lines_omitted_one": "… {{count}} line omitted",
+    "lines_omitted_other": "… {{count}} lines omitted",
+    "text_omitted": "… text omitted"
+  },
+  "ssh_exec_card": {
+    "succeeded": "SSH command succeeded (exit {{status}})",
+    "failed": "SSH command failed (exit {{status}})",
+    "target": "Target",
+    "command": "Command",
+    "stdout": "stdout",
+    "stderr": "stderr"
+  },
   "workflows": "Workflows",
   "file_preview": {
     "dialog_label": "File preview for {{title}}",

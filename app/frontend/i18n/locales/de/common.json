@@ -7,6 +7,22 @@
   "loading": "Laden...",
   "show_more": "Mehr anzeigen",
   "show_less": "Weniger anzeigen",
+  "text_preview": {
+    "earlier_lines_one": "… {{count}} frühere Zeile",
+    "earlier_lines_other": "… {{count}} frühere Zeilen",
+    "earlier_text": "… früherer Text",
+    "lines_omitted_one": "… {{count}} Zeile ausgelassen",
+    "lines_omitted_other": "… {{count}} Zeilen ausgelassen",
+    "text_omitted": "… Text ausgelassen"
+  },
+  "ssh_exec_card": {
+    "succeeded": "SSH-Befehl erfolgreich (Exit {{status}})",
+    "failed": "SSH-Befehl fehlgeschlagen (Exit {{status}})",
+    "target": "Ziel",
+    "command": "Befehl",
+    "stdout": "stdout",
+    "stderr": "stderr"
+  },
   "workflows": "Arbeitsabläufe",
   "file_preview": {
     "dialog_label": "Dateivorschau für {{title}}",

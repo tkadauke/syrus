@@ -7,6 +7,22 @@
   "loading": "Oneratur...",
   "show_more": "Ostende plus",
   "show_less": "Ostende minus",
+  "text_preview": {
+    "earlier_lines_one": "… {{count}} linea prior",
+    "earlier_lines_other": "… {{count}} lineae priores",
+    "earlier_text": "… textus prior",
+    "lines_omitted_one": "… {{count}} linea omissa",
+    "lines_omitted_other": "… {{count}} lineae omissae",
+    "text_omitted": "… textus omissus"
+  },
+  "ssh_exec_card": {
+    "succeeded": "Praeceptum SSH successit (exitus {{status}})",
+    "failed": "Praeceptum SSH defecit (exitus {{status}})",
+    "target": "Meta",
+    "command": "Praeceptum",
+    "stdout": "stdout",
+    "stderr": "stderr"
+  },
   "workflows": "Cursus operum",
   "file_preview": {
     "dialog_label": "Praevisio plicae {{title}}",
