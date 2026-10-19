@@ -107,6 +107,11 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(displayValue).filter((item): item is string => Boolean(item)) : []
 }
 
+function repositoryLabel(value: unknown): string | null {
+  if (!isPlainObject(value)) return displayValue(value)
+  return displayValue(value.slug) || displayValue(value.full_name) || displayValue(value.name)
+}
+
 function dependencyRequirements(value: unknown): DependencyRequirement[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -194,13 +199,15 @@ export function parseProposalOutcome(
     kind: displayValue(value.kind) || "job",
     state,
     labels: stringList(value.labels),
-    repository: displayValue(value.repository),
-    dependencies: stringList(value.dependencies),
+    repository: repositoryLabel(value.repository ?? value.repository_slug),
+    dependencies: stringList(value.dependencies ?? value.depends_on_proposal_slugs ?? input.depends_on),
     jobDependencyIds: stringList(value.depends_on_job_ids ?? input.depends_on_job_ids),
     epicDependencyIds: stringList(value.depends_on_epic_ids ?? input.depends_on_epic_ids),
     dependencyRequirements: dependencyRequirements(value.dependency_requirements ?? input.dependency_requirements),
-    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : displayValue(input.epic_id),
-    targetEpicLabel: isPlainObject(value.target_epic) ? displayValue(value.target_epic.label) : null,
+    targetEpicId: isPlainObject(value.target_epic) ? displayValue(value.target_epic.id) : displayValue(value.target_epic_id ?? input.epic_id),
+    targetEpicLabel: isPlainObject(value.target_epic)
+      ? displayValue(value.target_epic.label) || displayValue(value.target_epic.title) || displayValue(value.target_epic.slug)
+      : displayValue(value.target_epic_label),
     investigation: value.investigation === true,
     initialJobState: displayValue(value.initial_job_state) || (value.route_to_backlog === true ? "backlog" : null),
     providerSetting: displayValue(value.provider_setting) || displayValue(input.provider),
