@@ -159,6 +159,7 @@ RSpec.describe "DesignDocs MCP tool sets" do
       expect(payload).to include(
         state: "pending",
         doc_ref: doc.display_id,
+        design_doc_id: doc.id,
         title: doc.title,
         confirmation_required: true
       )
