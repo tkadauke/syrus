@@ -8,6 +8,7 @@ type TopRun = { jobId: number; title: string; cost: number }
 type SpendingResult = { cost: number; inputTokens: number; outputTokens: number; byDay: SpendPoint[]; topRuns: TopRun[] }
 
 const WINDOWS = new Set(["7d", "30d", "90d"])
+const INVALID_WINDOW_MESSAGE = "window must be one of 7d, 30d, 90d"
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -53,6 +54,10 @@ export function spendingWindow(context: ToolCardContext) {
   return WINDOWS.has(window) ? window : null
 }
 
+export function invalidSpendingWindow(context: ToolCardContext) {
+  return spendingWindow(context) == null || (context.resultError && context.resultBody.toLowerCase().includes(INVALID_WINDOW_MESSAGE))
+}
+
 function DailySpend({ points }: { points: SpendPoint[] }) {
   const { t } = useT("spending")
   const maximum = Math.max(...points.map((point) => point.cost), 0)
@@ -77,13 +82,15 @@ function DailySpend({ points }: { points: SpendPoint[] }) {
 export function SpendingCard({ context }: { context: ToolCardContext }) {
   const { t } = useT("spending")
   const window = spendingWindow(context)
-  if (!window || context.resultError) {
+  if (invalidSpendingWindow(context)) {
     return (
       <CardShell>
         <Text tone="danger">{t("tool_invalid_window")}</Text>
       </CardShell>
     )
   }
+
+  if (context.resultError) return null
 
   const result = spendingResult(context)
   if (!result) return null

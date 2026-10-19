@@ -73,6 +73,13 @@ describe("get_spending tool card", () => {
     expect(screen.getByText("Window must be one of 7d, 30d, 90d.")).toBeInTheDocument()
   })
 
+  it("falls back to generic rendering for unrelated tool errors", () => {
+    const unrelatedError = context({ input: { window: "30d" }, resultError: true, resultBody: "permission denied" })
+
+    expect(getSpendingToolCard.collapsedSummary?.(unrelatedError)).toBeNull()
+    expect(getSpendingToolCard.renderExpanded(unrelatedError)).toBeNull()
+  })
+
   it("falls back for malformed successful payloads", () => {
     expect(getSpendingToolCard.collapsedSummary?.(context({ parsedResult: { total_cost_usd: 2 } }))).toBeNull()
     expect(getSpendingToolCard.renderExpanded(context({ parsedResult: { total_cost_usd: 2 } }))).toBeNull()
