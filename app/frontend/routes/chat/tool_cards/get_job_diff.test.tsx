@@ -70,7 +70,8 @@ describe("get_job_diff tool card", () => {
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("JOB-4221")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "RUN-9" })).toHaveAttribute("href", "/admin/runs/9/transcript")
+    expect(screen.queryByRole("link", { name: "RUN-9" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy RUN-9 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("1 file")).toBeInTheDocument()
     expect(screen.getByText("+1")).toBeInTheDocument()
     expect(screen.getByText("-1")).toBeInTheDocument()

@@ -62,7 +62,6 @@ describe("EntityReference", () => {
     [{ kind: "chat", id: 5 }, "CHAT-5", "/chats/5"],
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
-    [{ kind: "run", id: 11 }, "RUN-11", "/admin/runs/11/transcript"],
     [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12", "https://github.com/acme/widgets/issues/12"],
     [{ kind: "issue", id: 13, repositorySlug: "acme/widgets" }, "#13", "https://github.com/acme/widgets/issues/13"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
@@ -114,6 +113,7 @@ describe("EntityReference", () => {
 
   it.each([
     [{ kind: "workflow", id: 14 }, "WF-14"],
+    [{ kind: "run", id: 11 }, "RUN-11"],
     [{ kind: "issue", id: 14 }, "#14"],
     [{ kind: "repository", slug: "owner/private-repo" }, "owner/private-repo"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
@@ -137,5 +137,6 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+    expect(entityReferenceHref({ kind: "run", id: 11 })).toBeNull()
   })
 })

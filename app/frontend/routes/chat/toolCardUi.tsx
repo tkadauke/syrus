@@ -220,9 +220,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     href: (reference) => {
       const jobId = compactEntityValue(reference.jobId)
       const workflowId = compactEntityValue(reference.workflowId)
-      if (jobId && workflowId) return `/jobs/${jobId}?tab=workflows#workflow-${workflowId}`
-      const id = numberValue(reference.id)
-      return id ? `/admin/runs/${id}/transcript` : null
+      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
     },
     copyValue: slugCopyValue
   },
