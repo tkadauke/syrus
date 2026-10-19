@@ -25,11 +25,17 @@ end
 # targeted rows when a UI surface is otherwise impossible to exercise, but avoid
 # broad scenario dumps that slow previews or obscure real empty-state behavior.
 if Rails.env.development?
-  %w[claude_agent codex_agent].each do |plugin_name|
+  begin
+  preview_settings = AppSetting.current
+  preview_settings.update!(beta_mode_enabled: true) unless preview_settings.beta_mode_enabled?
+
+  %w[claude_agent codex_agent syrus_dev].each do |plugin_name|
     plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
     plugin_record.update!(enabled: true) unless plugin_record.enabled?
   end
+  Syrus::PluginRegistry.clear_plugin_record_cache!
 
+  # These non-functional placeholders let chat render; sending fails by design.
   demo_user = User.find_or_initialize_by(email_address: "demo@syrus.local")
   demo_user.assign_attributes(
     name: "Demo Operator",
@@ -37,7 +43,9 @@ if Rails.env.development?
     last_name: "Operator",
     global_role: "admin",
     agent_provider: "codex",
-    chat_provider: "codex"
+    chat_provider: "codex",
+    codex_auth_mode: "api_key",
+    codex_api_key: "sk-preview-placeholder"
   )
   demo_user.password = "password" if demo_user.new_record? || demo_user.password_digest.blank?
   demo_user.save!
@@ -54,7 +62,9 @@ if Rails.env.development?
     github_handle: "ada",
     profile_bio: "Keeps the analytical engines honest.",
     agent_provider: "codex",
-    chat_provider: "codex"
+    chat_provider: "codex",
+    codex_auth_mode: "api_key",
+    codex_api_key: "sk-preview-placeholder"
   )
   teammate_user.password = "password" if teammate_user.new_record? || teammate_user.password_digest.blank?
   teammate_user.save!
@@ -960,5 +970,8 @@ if Rails.env.development?
       title: "Dashboard onboarding sketch",
       chat_session: demo_chat
     )
+  end
+  rescue StandardError => e
+    warn "[seeds] skipping development preview fixtures: #{e.class}: #{e.message}"
   end
 end
