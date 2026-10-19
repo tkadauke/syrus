@@ -32,6 +32,12 @@ type DocumentAction = {
   documentUrl: string | null
 }
 
+function titleFromPendingMessage(message: string | null): string | null {
+  if (!message) return null
+  const match = message.match(/\b(?:create|delete)\s+document\s+["“]([^"”]+)["”]/i)
+  return match?.[1]?.trim() || null
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
 }
@@ -196,11 +202,16 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
   const body = displayValue(context.input?.body)
   const documentId =
     displayValue(context.input?.document_id) || displayValue(context.input?.id) || displayValue(document.document_id) || displayValue(document.id)
+  const title =
+    displayValue(context.input?.title) ||
+    displayValue(document.title) ||
+    displayValue(live?.resource_title) ||
+    (pending.kind === "dry_run_evidence" ? null : titleFromPendingMessage(pending.message))
 
   return {
     action,
     pending,
-    title: displayValue(context.input?.title) || displayValue(document.title) || displayValue(live?.resource_title),
+    title,
     documentId,
     repositoryId: displayValue(context.input?.repository_id) || displayValue(document.repository_id),
     repositorySlug:
@@ -228,6 +239,7 @@ function actionNoun(action: "create" | "delete") {
 
 export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
   const documentLabel = result.title || (result.documentId ? `Document #${result.documentId}` : null)
+  const documentUrl = result.documentUrl || (result.repositoryId ? `/repositories/${result.repositoryId}/documents` : null)
 
   return (
     <CardShell>
@@ -238,10 +250,10 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.title ? <Row label="Title" value={result.title} /> : null}
-        {documentLabel && result.documentUrl ? (
+        {documentLabel && documentUrl ? (
           <div className="min-w-0">
             <SectionLabel>Document</SectionLabel>
-            <EntityReference href={result.documentUrl} id={result.documentId} kind="artifact" label={documentLabel} slug={documentLabel} />
+            <EntityReference href={documentUrl} id={result.documentId} kind="artifact" label={documentLabel} slug={documentLabel} wrap="break" />
           </div>
         ) : result.documentId ? (
           <Row label="Ref" value={result.documentId} />

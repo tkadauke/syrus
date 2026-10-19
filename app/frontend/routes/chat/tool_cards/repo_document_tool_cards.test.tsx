@@ -120,7 +120,7 @@ describe("repository document tool cards", () => {
 
     expect(screen.getByText("Create document")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
-    expect(screen.getByText("API Guide")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "API Guide" })).toHaveAttribute("href", "/repositories/7/documents")
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/7")
     expect(screen.getByText("text/markdown")).toBeInTheDocument()
     expect(screen.getByText(/B$/)).toBeInTheDocument()
@@ -195,37 +195,92 @@ describe("repository document tool cards", () => {
     expect(screen.getByText("2.0 KB")).toBeInTheDocument()
   })
 
-  it("renders a delete document pending outcome with confirmation/error state", () => {
+  it("renders a delete document pending outcome with its extracted title, link, and Markdown context", () => {
     const parsedResult = {
       pending_action_id: 502,
-      state: "failed",
-      message: 'Delete document "Old notes"?',
-      reason: "Document disappeared before confirmation."
+      state: "pending",
+      message: 'Delete document "Old notes"? This affects **shared context**.',
+      reason: "Requested by [cleanup policy](https://example.test/cleanup)."
     }
     const input = { document_id: 99 }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { input, parsedResult }))).toBe(
-      'Delete document 99 · Delete document "Old notes"?'
+      'Delete Old notes · Delete document "Old notes"? This affects **shared context**.'
     )
     render(<>{deleteRepoDocumentToolCard.renderExpanded(context("delete_repo_document", { input, parsedResult }))}</>)
 
     expect(screen.getByText("Delete document")).toBeInTheDocument()
-    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Old notes")).toBeInTheDocument()
     expect(screen.getByText("99")).toBeInTheDocument()
-    expect(screen.getByText("Document disappeared before confirmation.")).toBeInTheDocument()
+    expect(screen.getByText("shared context", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "cleanup policy" })).toHaveAttribute("href", "https://example.test/cleanup")
   })
 
-  it("summarizes failed delete outcomes even when collapsed rendering lacks tool input", () => {
+  it("reflects a rejected live pending state and its reason", () => {
     const parsedResult = {
       pending_action_id: 502,
-      state: "failed",
+      state: "pending",
       message: 'Delete document "Old notes"?',
-      reason: "Document disappeared before confirmation."
+      reason: "Original reason."
+    }
+    const livePendingAction = {
+      id: 502,
+      action: "delete_repo_document",
+      state: "rejected" as const,
+      label: "Delete document Old notes",
+      detail: "document_id: 99",
+      reason: "Keep this for the launch.",
+      document: {
+        id: 99,
+        title: "Old notes",
+        repository_id: 7,
+        repository_slug: "tkadauke/syrus",
+        content_type: "text/markdown",
+        size_bytes: 128
+      },
+      resource_title: "Old notes",
+      app_confirm_path: "/confirm",
+      app_reject_path: "/reject"
     }
 
-    expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { parsedResult, resultError: true }))).toBe(
-      'Delete document "Old notes"?'
-    )
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(context("delete_repo_document", { input: { document_id: 99 }, parsedResult, livePendingAction }))}</>)
+
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    expect(screen.getByText("Keep this for the launch.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Old notes" })).toHaveAttribute("href", "/repositories/7/documents")
+  })
+
+  it("renders document-not-found failures with recovery context", () => {
+    const failed = context("delete_repo_document", {
+      input: { document_id: 404 },
+      resultBody: "document not found",
+      resultError: true
+    })
+
+    expect(deleteRepoDocumentToolCard.collapsedSummary?.(failed)).toBe("Delete repository document failed: document not found")
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Delete repository document failed")).toBeInTheDocument()
+    expect(screen.getByText("document not found")).toBeInTheDocument()
+    expect(screen.getByText("Delete document 404")).toBeInTheDocument()
+    expect(screen.getByText(/Confirm that the document still exists/)).toBeInTheDocument()
+  })
+
+  it("normalizes differently shaped provider envelopes for delete results", () => {
+    const payload = { pending_action_id: 505, state: "pending", message: 'Delete document "Draft"?' }
+    const envelopes = [
+      ["mcp__syrus-chat-sidecar__delete_repo_document", { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }],
+      ["syrus-chat-deferred-sidecar.delete_repo_document", { structured_content: payload, content: [{ type: "text", text: "ignored" }] }]
+    ] as const
+
+    for (const [rawName, envelope] of envelopes) {
+      const toolName = normalizedToolName(rawName)
+      const cardContext = context(toolName, { input: { document_id: 17 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(toolName).toBe("delete_repo_document")
+      expect(deleteRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe('Delete Draft · Delete document "Draft"?')
+    }
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {
