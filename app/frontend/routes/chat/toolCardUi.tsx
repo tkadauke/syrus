@@ -97,7 +97,7 @@ export function Row({ label, value, wrap = false }: { label: string; value: stri
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className={`${wrap ? "break-all sm:truncate" : "truncate"} font-mono text-xs`} title={value}>
+      <Text as="div" className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`} title={value}>
         {value}
       </Text>
     </div>
