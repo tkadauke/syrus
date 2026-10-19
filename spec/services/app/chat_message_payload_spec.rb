@@ -66,6 +66,38 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
   end
 
+  it "batch-loads spawned chat outcomes without querying each pending-action group" do
+    message_ids = 3.times.map do |group_index|
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat,
+        member_attributes: 2.times.map do |member_index|
+          {
+            action: "spawn_chat",
+            payload: {
+              "prompt" => "Chat #{group_index}-#{member_index}",
+              "batch_size" => 2,
+              "spawned_chat_id" => 100 + (group_index * 2) + member_index
+            }
+          }
+        end
+      )
+      anchor = group.chat_pending_actions.order(:id).first
+      chat.messages.create!(
+        role: "tool_use",
+        tool_name: "spawn_chats",
+        tool_use_id: "spawn-#{group_index}",
+        pending_action: anchor,
+        content: { "type" => "tool_use", "id" => "spawn-#{group_index}", "name" => "spawn_chats", "input" => {} }
+      ).id
+    end
+    messages = chat.messages.where(id: message_ids).order(:id).to_a
+
+    queries = capture_sql { described_class.messages(messages, repository: repository) }
+
+    expect(queries.grep(/FROM ["`]?pending_action_groups["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?chat_pending_actions["`]?/i).size).to eq(2)
+  end
+
   it "includes sidechain + parent_tool_use_id for a subagent's nested tool call" do
     message = chat.messages.create!(
       role: "tool_use", tool_name: "Read", tool_use_id: "sub1",
