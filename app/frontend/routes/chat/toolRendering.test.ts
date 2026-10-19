@@ -265,6 +265,17 @@ describe("normalizedToolCardParsedResult", () => {
     })).toEqual({ job: { id: 2, state: "running" } })
   })
 
+  it("preserves binary content alongside structured metadata", () => {
+    expect(normalizedToolCardParsedResult({
+      content: [{ type: "image", data: "abc123", mimeType: "image/png" }],
+      structured_content: { workflow_id: 1, job_id: 2 }
+    })).toEqual({
+      workflow_id: 1,
+      job_id: 2,
+      content: [{ type: "image", data: "abc123", mimeType: "image/png" }]
+    })
+  })
+
   it("leaves direct unwrapped payloads unchanged", () => {
     const payload = { job: { id: 3, state: "queued" } }
 
