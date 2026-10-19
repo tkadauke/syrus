@@ -1,6 +1,8 @@
+import type { ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
-import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, SectionLabel, StatePill, WrappingRow } from "./toolCardUi"
 
 type SubjectKind = "job" | "epic"
 const SUBJECT_ENTITY_KIND: Record<SubjectKind, "job" | "epic"> = { job: "job", epic: "epic" }
@@ -34,7 +36,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
 }
 
-type DetailRow = { label: string; value: string }
+type DetailRow = { label: string; value: ReactNode; markdown?: string }
 
 type MaintenanceCard = {
   definition: MaintenanceToolDefinition
@@ -49,6 +51,7 @@ type MaintenanceCard = {
   message: string | null
   rows: DetailRow[]
   dependencies: string[]
+  showsDependencies: boolean
 }
 
 function subjectPrefix(kind: SubjectKind) {
@@ -95,22 +98,33 @@ function targetIdsFor(context: ToolCardContext, definition: MaintenanceToolDefin
 }
 
 function errorMessage(context: ToolCardContext) {
-  if (!context.resultError) return null
-  return firstValue(objectValue(context.parsedResult, "error"), objectValue(context.parsedResult, "message"), context.resultBody)
+  if (!context.resultError && !displayValue(objectValue(context.parsedResult, "error"))) return null
+  const message = firstValue(objectValue(context.parsedResult, "error"), objectValue(context.parsedResult, "message"), context.resultBody)
+  if (!message) return null
+  const stripped = message.replace(/^Error:\s*/i, "")
+  return stripped === "not_authorized" ? "Not authorized" : stripped
 }
 
-function pushRow(rows: DetailRow[], label: string, value: unknown) {
+function pushRow(rows: DetailRow[], label: string, value: unknown, markdown = false) {
   const displayed = displayValue(value)
-  if (displayed) rows.push({ label, value: displayed })
+  if (displayed) rows.push({ label, value: displayed, markdown: markdown ? displayed : undefined })
 }
 
-function dependencyLabel(context: ToolCardContext, result: Record<string, unknown>) {
+function pushNodeRow(rows: DetailRow[], label: string, value: ReactNode | null) {
+  if (value != null) rows.push({ label, value })
+}
+
+function entityValue(kind: SubjectKind, id: string): ReactNode {
+  return <EntityReference id={id} kind={SUBJECT_ENTITY_KIND[kind]} />
+}
+
+function dependencyLabel(context: ToolCardContext, result: Record<string, unknown>): ReactNode | null {
   const dependsOnJobId = firstValue(objectValue(context.input, "depends_on_job_id"))
-  if (dependsOnJobId) return `JOB-${dependsOnJobId}`
+  if (dependsOnJobId) return entityValue("job", dependsOnJobId)
   const dependsOnEpicId = firstValue(objectValue(context.input, "depends_on_epic_id"))
-  if (dependsOnEpicId) return `EPIC-${dependsOnEpicId}`
+  if (dependsOnEpicId) return entityValue("epic", dependsOnEpicId)
   const removedFromEpicId = firstValue(result.removed_from_epic_id)
-  if (removedFromEpicId) return `EPIC-${removedFromEpicId}`
+  if (removedFromEpicId) return entityValue("epic", removedFromEpicId)
   return null
 }
 
@@ -122,36 +136,54 @@ function dependencyList(definition: MaintenanceToolDefinition, result: Record<st
   ]
 }
 
-function buildRows(context: ToolCardContext, result: Record<string, unknown>) {
+function buildRows(context: ToolCardContext, result: Record<string, unknown>, showNewState: boolean) {
   const rows: DetailRow[] = []
   pushRow(rows, "Before", result.previous_state)
-  pushRow(rows, "After", result.new_state)
+  if (showNewState) pushRow(rows, "After", result.new_state)
   pushRow(rows, "Previous priority", result.previous_priority)
-  pushRow(rows, "New priority", result.new_priority)
-  pushRow(rows, "Title", result.title)
-  pushRow(rows, "Description", result.description)
+  pushRow(rows, "New priority", result.new_priority || objectValue(context.input, "new_priority") || objectValue(context.input, "priority"))
+  pushRow(rows, "Title", result.title || objectValue(context.input, "title"))
+  pushRow(rows, "Description", result.description || objectValue(context.input, "description"), true)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
-  pushRow(rows, "Dependency", dependencyLabel(context, result))
+  pushNodeRow(rows, "Dependency", dependencyLabel(context, result))
   pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
-  pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
-  pushRow(rows, "Reason", result.reason)
+  const removedId = firstValue(result.removed_from_epic_id)
+  if (displayValue(result.removed_from_epic_title)) pushRow(rows, "Removed from", result.removed_from_epic_title)
+  else pushNodeRow(rows, "Removed from", removedId ? entityValue("epic", removedId) : null)
+  pushRow(rows, "Reason", result.reason || objectValue(context.input, "reason"), true)
+  pushRow(rows, "Comment", result.comment || objectValue(context.input, "comment"), true)
   return rows
+}
+
+function linkifiedText(text: string): ReactNode {
+  const parts = text.split(/\b((?:JOB|EPIC)-\d+)\b/g)
+  return parts.map((part, index) => {
+    const match = part.match(/^(JOB|EPIC)-(\d+)$/)
+    return match ? <EntityReference key={`${part}-${index}`} id={match[2]} kind={match[1] === "JOB" ? "job" : "epic"} /> : part
+  })
 }
 
 export function parseJobEpicMaintenanceResult(context: ToolCardContext): MaintenanceCard | null {
   const definition = DEFINITIONS[context.toolName]
   if (!definition) return null
 
-  const result = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const frozenResult = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const pendingIdFromResult = firstValue(frozenResult.pending_action_id, frozenResult.pending_confirmation_id)
+  const live = context.livePendingAction
+  const liveMatch = live && pendingIdFromResult && displayValue(live.id) === pendingIdFromResult ? live : null
+  const afterSnapshot = liveMatch && isPlainObject(liveMatch.after_snapshot) ? liveMatch.after_snapshot : {}
+  const result = { ...frozenResult, ...afterSnapshot }
   const targetId = targetIdFor(context, definition)
   const targetIds = targetIdsFor(context, definition)
-  const pendingId = firstValue(result.pending_action_id, result.pending_confirmation_id)
+  const pendingId = pendingIdFromResult
   const pendingGroupId = firstValue(result.pending_action_group_id)
   const memberCount = numberValue(result.member_count)
-  const failed = context.resultError
-  const message = errorMessage(context) || displayValue(result.message)
-  const state = firstValue(result.state, result.new_state, failed ? "failed" : null, pendingId ? "pending" : "success") || "success"
+  const failed = context.resultError || displayValue(frozenResult.error) != null
+  const message = errorMessage(context) || firstValue(liveMatch?.execution_error, liveMatch?.reason, result.message)
+  const state = firstValue(liveMatch?.state, failed ? "failed" : null, result.state, result.new_state, pendingId ? "pending" : "success") || "success"
+  const transitionSucceeded = !pendingId || ["confirmed", "executed", "succeeded", "success"].includes(state)
+  const hasNewState = transitionSucceeded && displayValue(result.new_state) != null
   const hasRecognizedResult = [
     "job_id",
     "epic_id",
@@ -186,11 +218,12 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     pendingGroupId,
     memberCount,
     state,
-    hasNewState: displayValue(result.new_state) != null,
+    hasNewState,
     failed,
     message,
-    rows: buildRows(context, result),
-    dependencies: dependencyList(definition, result)
+    rows: buildRows(context, result, hasNewState),
+    dependencies: dependencyList(definition, result),
+    showsDependencies: definition.toolName.includes("dependency") || result.depends_on !== undefined || result.depends_on_job_ids !== undefined || result.depends_on_epic_ids !== undefined
   }
 }
 
@@ -220,22 +253,23 @@ export function jobEpicMaintenanceCollapsedSummary(context: ToolCardContext) {
 }
 
 export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
-  const target = targetSummary(card)
-
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={card.state} tone={card.failed ? "failure" : undefined} />
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.definition.actionLabel}</span>
-        {card.targetId ? <Badge><EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge> : target ? <Badge>{target}</Badge> : null}
+        {card.targetId ? <Badge><EntityReference id={card.targetId} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge> : null}
+        {card.targetIds.map((id) => <Badge key={id}><EntityReference id={id} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} /></Badge>)}
         {card.pendingId ? <Badge>pending #{card.pendingId}</Badge> : null}
         {card.pendingGroupId ? <Badge>group #{card.pendingGroupId}</Badge> : null}
         {card.memberCount != null ? <Badge>{card.memberCount} {card.memberCount === 1 ? "action" : "actions"}</Badge> : null}
       </div>
-      {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
+      {card.message ? (card.failed ? <div className="break-words text-xs text-danger-text [overflow-wrap:anywhere]">{linkifiedText(card.message)}</div> : <MarkdownPreview text={card.message} />) : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {card.rows.map((row) => <Row key={`${row.label}-${row.value}`} label={row.label} value={row.value} />)}
+          {card.rows.map((row, index) => (
+            <WrappingRow key={`${row.label}-${index}`} label={row.label} value={row.markdown ? <MarkdownPreview text={row.markdown} /> : row.value} />
+          ))}
         </dl>
       ) : null}
       {card.dependencies.length > 0 ? (
@@ -253,7 +287,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
             })}
           </div>
         </div>
-      ) : null}
+      ) : card.showsDependencies ? <EmptyState>No dependencies</EmptyState> : null}
     </CardShell>
   )
 }

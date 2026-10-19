@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName, parseJsonText } from "../toolRendering"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
@@ -29,6 +30,16 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
     parsedResult: {},
     ...overrides
   }
+}
+
+function normalizedContext(toolName: string, rawResult: unknown, input?: Record<string, unknown>): ToolCardContext {
+  const resultBody = typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult)
+  const parsed = typeof rawResult === "string" ? parseJsonText(rawResult) ?? rawResult : rawResult
+  return context(normalizedToolName(toolName), {
+    input,
+    resultBody,
+    parsedResult: normalizedToolCardParsedResult(parsed)
+  })
 }
 
 const CARDS: Array<[string, ToolCardRenderer]> = [
@@ -124,6 +135,55 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Rebase canceled by operator.")).toBeInTheDocument()
     expect(screen.getByText("rejected")).toBeInTheDocument()
     expect(screen.getByText("Feedback poll rejected.")).toBeInTheDocument()
+  })
+
+  it("uses the live pending action outcome and hides a frozen pending transition", () => {
+    const pending = context("approve_job", {
+      input: { job_id: 47 },
+      parsedResult: { job_id: 47, pending_action_id: 10, state: "pending", previous_state: "implemented", new_state: "approved" }
+    })
+    const rejected = context("approve_job", {
+      ...pending,
+      livePendingAction: {
+        id: 10,
+        action: "approve_job",
+        state: "rejected",
+        label: "Approve Job",
+        detail: null,
+        reason: "Approval rejected.",
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    })
+
+    render(<>{approveJobCard.renderExpanded(pending)}{approveJobCard.renderExpanded(rejected)}</>)
+
+    expect(screen.queryByText("After")).not.toBeInTheDocument()
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    expect(screen.getByText("Approval rejected.")).toBeInTheDocument()
+  })
+
+  it("shows the executed transition from a live pending action snapshot", () => {
+    const ctx = context("approve_job", {
+      input: { job_id: 48 },
+      parsedResult: { job_id: 48, pending_action_id: 11, state: "pending", previous_state: "implemented", new_state: "approved" },
+      livePendingAction: {
+        id: 11,
+        action: "approve_job",
+        state: "confirmed",
+        label: "Approve Job",
+        detail: null,
+        after_snapshot: { new_state: "approved" },
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    })
+
+    render(<>{approveJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+    expect(screen.getByText("approved")).toBeInTheDocument()
   })
 
   it("renders dependency add and remove details for Job and Epic targets", () => {
@@ -223,6 +283,78 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Old Epic")).toBeInTheDocument()
   })
 
+  it("falls back to requested input metadata and linkifies error slugs", () => {
+    const update = context("update_job", {
+      input: { job_id: 74, title: "Requested title", description: "A **longer** requested body", priority: "high", reason: "Because", comment: "Please review" },
+      parsedResult: { job_id: 74, state: "pending" }
+    })
+    const failure = context("approve_job", {
+      input: { job_ids: [1, 2] },
+      resultError: true,
+      resultBody: "Error: JOB-1, JOB-2 are not approvable",
+      parsedResult: { error: "Error: JOB-1, JOB-2 are not approvable" }
+    })
+
+    render(<>{updateJobCard.renderExpanded(update)}{approveJobCard.renderExpanded(failure)}</>)
+
+    expect(screen.getByText("Requested title")).toBeInTheDocument()
+    expect(screen.getByText("longer", { exact: false })).toBeInTheDocument()
+    expect(screen.getByText("high")).toBeInTheDocument()
+    expect(screen.getByText("Because")).toBeInTheDocument()
+    expect(screen.getByText("Please review")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: /JOB-[12]/ })).toHaveLength(4)
+    expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
+  })
+
+  it("humanizes authorization errors and offers Show more for long messages", () => {
+    const unauthorized = context("approve_job", {
+      input: { job_id: 75 },
+      parsedResult: { error: "not_authorized" }
+    })
+    const longMessage = context("cancel_job", {
+      input: { job_id: 76 },
+      parsedResult: { pending_action_id: 20, state: "pending", message: "x".repeat(1_000) }
+    })
+
+    render(<>{approveJobCard.renderExpanded(unauthorized)}{cancelJobCard.renderExpanded(longMessage)}</>)
+
+    expect(screen.getByText("Not authorized")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("renders linked bulk targets and explicit empty dependency state", () => {
+    const bulk = context("approve_job", {
+      input: { job_ids: [81, 82] },
+      parsedResult: { pending_action_group_id: 3, pending_action_id: 16, state: "pending", member_count: 2 }
+    })
+    const dependencies = context("remove_job_dependency", {
+      input: { job_id: 83, depends_on_job_id: 80 },
+      parsedResult: { job_id: 83, depends_on_job_ids: [], depends_on_epic_ids: [] }
+    })
+
+    render(<>{approveJobCard.renderExpanded(bulk)}{removeJobDependencyCard.renderExpanded(dependencies)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-81" })).toHaveAttribute("href", "/jobs/81")
+    expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
+    expect(screen.getByText("No dependencies")).toBeInTheDocument()
+  })
+
+  it("accepts contexts produced by the shared MCP result normalizers", () => {
+    const textEnvelope = normalizedContext("mcp__syrus__approve_job", {
+      content: [{ type: "text", text: JSON.stringify({ job_id: 90, previous_state: "implemented", new_state: "approved" }) }]
+    })
+    const structured = normalizedContext("approve_job", {
+      structured_content: { job_id: 91, previous_state: "implemented", new_state: "approved" }
+    })
+    const stringResult = normalizedContext("approve_job", "plain result", { job_id: 92 })
+    const collapsedInput = normalizedContext("approve_job", { job_id: 93, previous_state: "implemented", new_state: "approved" }, undefined)
+
+    expect(approveJobCard.collapsedSummary?.(textEnvelope)).toBe("Approved · JOB-90")
+    expect(approveJobCard.collapsedSummary?.(structured)).toBe("Approved · JOB-91")
+    expect(approveJobCard.renderExpanded(stringResult)).not.toBeNull()
+    expect(approveJobCard.collapsedSummary?.(collapsedInput)).toBe("Approved · JOB-93")
+  })
+
   it("renders close-success details and grouped pending confirmations", () => {
     const close = context("close_job_successfully", {
       input: { job_id: 80, closure_reason: "no_changes" },
@@ -236,7 +368,8 @@ describe("Job and Epic maintenance tool cards", () => {
     render(<>{closeJobSuccessfullyCard.renderExpanded(close)}{approveJobCard.renderExpanded(bulk)}</>)
 
     expect(screen.getByText("no_changes")).toBeInTheDocument()
-    expect(screen.getByText("2 JOBs")).toBeInTheDocument()
+    expect(screen.getByText("JOB-81")).toBeInTheDocument()
+    expect(screen.getByText("JOB-82")).toBeInTheDocument()
     expect(screen.getByText("group #3")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
   })

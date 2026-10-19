@@ -104,6 +104,19 @@ export function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Opt-in row for cards whose values are links, prose, or identifiers that
+// must remain readable on narrow screens. Keep Row's compact default intact.
+export function WrappingRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <Text as="div" variant="label" tone="muted">
+        {label}
+      </Text>
+      <div className="min-w-0 break-words text-xs text-text-primary [overflow-wrap:anywhere]">{value}</div>
+    </div>
+  )
+}
+
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <Text as="div" variant="label" tone="muted">
