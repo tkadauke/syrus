@@ -69,7 +69,7 @@ describe("list_wakeups tool card", () => {
     render(<MemoryRouter>{listWakeupsToolCard.renderExpanded(context({ parsedResult: { wakeups: [wakeup] } }))}</MemoryRouter>)
 
     expect(screen.getByRole("table")).toHaveClass("block", "md:table", "table-fixed")
-    expect(screen.getByText("WAKEUP-7")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WAKEUP-7" })).toHaveAttribute("href", "/chats/42")
     expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("42 min")).toBeInTheDocument()

@@ -113,6 +113,8 @@ describe("EntityReference", () => {
     expect(entityReferenceLabel({ kind: "workflow", id: 14 })).toBe("WF-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14, jobId: 8 })).toBe("/jobs/8?tab=workflows#workflow-14")
     expect(entityReferenceHref({ kind: "workflow", id: 14 })).toBeNull()
+    expect(entityReferenceHref({ kind: "wakeup", id: 1, chatId: 9 })).toBe("/chats/9")
+    expect(entityReferenceHref({ kind: "wakeup", id: 1 })).toBeNull()
   })
 
   it.each([
