@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
-import { CardShell, displayValue, numberValue, Row, SectionLabel } from "../toolCardUi"
+import { CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
 // Core-owned tool card for get_job_diff (the Tier 1 tool-card work). Shows a
@@ -67,7 +67,7 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">JOB-{card.jobId}</span>
-        {card.runId ? <span className="font-mono text-gray-500 dark:text-gray-400">RUN-{card.runId}</span> : null}
+        {card.runId ? <EntityReference id={card.runId} kind="run" /> : null}
       </div>
       <DiffStatBadges stats={stats} />
       {(card.page ?? 1) > 1 || card.hasNextPage ? <div className="text-text-secondary text-xs">{i18n.t("chat:tool_card_diff_page_only_stats")}</div> : null}

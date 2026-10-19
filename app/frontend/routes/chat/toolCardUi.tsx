@@ -91,13 +91,13 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value, wrap = false }: { label: string; value: string; wrap?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>
+      <Text as="div" className={`${wrap ? "whitespace-normal break-all" : "truncate"} font-mono text-xs`} title={value}>
         {value}
       </Text>
     </div>
@@ -134,7 +134,7 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
-export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal"
+export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "issue" | "artifact" | "repository" | "proposal"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -147,6 +147,7 @@ export type EntityReferenceProps = {
   repositoryId?: number | string | null
   repositorySlug?: string | null
   prUrl?: string | null
+  issueUrl?: string | null
   className?: string
   wrap?: "break" | "nowrap"
 }
@@ -179,6 +180,30 @@ const repositoryHref = (reference: EntityReferenceProps) => {
   return id ? `/repositories/${id}` : null
 }
 
+function safeReferenceHref(value: unknown): string | null {
+  const href = displayValue(value)
+  if (!href) return null
+  if (href.startsWith("/") && !href.startsWith("//")) return href
+
+  try {
+    const url = new URL(href)
+    return ["http:", "https:"].includes(url.protocol) ? href : null
+  } catch {
+    return null
+  }
+}
+
+function githubIssueHref(reference: EntityReferenceProps): string | null {
+  const explicit = safeReferenceHref(reference.issueUrl)
+  if (explicit) return explicit
+
+  const id = numberValue(reference.id)
+  const repositorySlug = displayValue(reference.repositorySlug)
+  const parts = repositorySlug?.split("/") ?? []
+  if (!id || parts.length !== 2 || parts.some((part) => !part || part === "." || part === "..")) return null
+  return `https://github.com/${parts.map(encodeURIComponent).join("/")}/issues/${id}`
+}
+
 const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDefinition> = {
   job: { label: (reference) => prefixedEntityLabel("JOB", reference.id), href: idHref("/jobs"), copyValue: slugCopyValue, hoverKind: "job" },
   epic: { label: (reference) => prefixedEntityLabel("EPIC", reference.id), href: idHref("/epics"), copyValue: slugCopyValue, hoverKind: "epic" },
@@ -195,7 +220,9 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     href: (reference) => {
       const jobId = compactEntityValue(reference.jobId)
       const workflowId = compactEntityValue(reference.workflowId)
-      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+      if (jobId && workflowId) return `/jobs/${jobId}?tab=workflows#workflow-${workflowId}`
+      const id = numberValue(reference.id)
+      return id ? `/admin/runs/${id}/transcript` : null
     },
     copyValue: slugCopyValue
   },
@@ -214,7 +241,15 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
       const id = compactEntityValue(reference.id)
       return id ? `PR #${id}` : null
     },
-    href: (reference) => displayValue(reference.prUrl),
+    href: (reference) => safeReferenceHref(reference.prUrl),
+    copyValue: slugCopyValue
+  },
+  issue: {
+    label: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `#${id}` : null
+    },
+    href: githubIssueHref,
     copyValue: slugCopyValue
   },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
@@ -228,7 +263,7 @@ export function entityReferenceLabel(reference: EntityReferenceProps): string | 
 }
 
 export function entityReferenceHref(reference: EntityReferenceProps): string | null {
-  const explicit = displayValue(reference.href)
+  const explicit = safeReferenceHref(reference.href)
   if (explicit) return explicit
   return ENTITY_REFERENCE_DEFINITIONS[reference.kind].href(reference)
 }

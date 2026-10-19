@@ -6,7 +6,11 @@ import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, 
 
 describe("toolCardUi CardShell", () => {
   it("cannot define a wider minimum width than its chat column", () => {
-    render(<CardShell><div>Card contents</div></CardShell>)
+    render(
+      <CardShell>
+        <div>Card contents</div>
+      </CardShell>
+    )
 
     expect(screen.getByText("Card contents").parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
   })
@@ -20,6 +24,19 @@ describe("toolCardUi Row", () => {
     expect(screen.getByText("plugins/browser/app/frontend/browserToolCard.tsx")).toBeInTheDocument()
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
+  })
+
+  it("truncates by default and only wraps long unbroken values when requested", () => {
+    const value = "a".repeat(100)
+    const { rerender } = render(<Row label="SHA" value={value} />)
+
+    expect(screen.getByText(value)).toHaveClass("truncate")
+    expect(screen.getByText(value)).not.toHaveClass("break-all")
+
+    rerender(<Row label="SHA" value={value} wrap />)
+    expect(screen.getByText(value)).toHaveClass("whitespace-normal", "break-all")
+    expect(screen.getByText(value)).not.toHaveClass("truncate")
+    expect(screen.getByText("SHA")).not.toHaveClass("break-all")
   })
 })
 
@@ -45,6 +62,9 @@ describe("EntityReference", () => {
     [{ kind: "chat", id: 5 }, "CHAT-5", "/chats/5"],
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
+    [{ kind: "run", id: 11 }, "RUN-11", "/admin/runs/11/transcript"],
+    [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12", "https://github.com/acme/widgets/issues/12"],
+    [{ kind: "issue", id: 13, repositorySlug: "acme/widgets" }, "#13", "https://github.com/acme/widgets/issues/13"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
     [{ kind: "repository", repositoryId: 6, repositorySlug: "acme/widgets" }, "acme/widgets", "/repositories/6"]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string]>)("links %s references", (reference, label, href) => {
@@ -94,7 +114,7 @@ describe("EntityReference", () => {
 
   it.each([
     [{ kind: "workflow", id: 14 }, "WF-14"],
-    [{ kind: "run", id: 2, jobId: 8 }, "RUN-2"],
+    [{ kind: "issue", id: 14 }, "#14"],
     [{ kind: "repository", slug: "owner/private-repo" }, "owner/private-repo"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]
   ] as Array<[ComponentProps<typeof EntityReference>, string]>)("falls back to copyable text when no route can be derived for %s", (reference, label) => {
@@ -103,6 +123,14 @@ describe("EntityReference", () => {
     expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: `Copy ${label} to clipboard` }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(label)
+  })
+
+  it("rejects unsafe explicit and issue URLs", () => {
+    renderReference({ kind: "issue", id: 15, issueUrl: "javascript:alert(1)" })
+
+    expect(screen.queryByRole("link", { name: "#15" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy #15 to clipboard" })).toBeInTheDocument()
+    expect(entityReferenceHref({ kind: "job", id: 1, href: "javascript:alert(1)" })).toBe("/jobs/1")
   })
 
   it("exposes pure label and href helpers for table-oriented cards", () => {
