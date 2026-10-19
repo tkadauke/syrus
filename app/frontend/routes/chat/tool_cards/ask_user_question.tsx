@@ -30,13 +30,17 @@ function parseAskUserQuestion(context: ToolCardContext) {
   })
 }
 
+function requestIsPending(context: ToolCardContext) {
+  return context.parsedResult == null && !context.resultBody.trim()
+}
+
 function collapsedSummary(context: ToolCardContext) {
   const failureSummary = toolFailureCollapsedSummary(context, failureConfig)
   if (failureSummary) return failureSummary
 
   const parsed = parseAskUserQuestion(context)
   if (parsed.kind === "error") return "Question request failed"
-  if (parsed.kind === "malformed") return context.resultBody.trim() ? "Question request returned an unexpected response" : "Question request pending"
+  if (parsed.kind === "malformed") return requestIsPending(context) ? "Question request pending" : "Question request returned an unexpected response"
   return `Question request #${parsed.data.questionId} recorded`
 }
 
@@ -46,7 +50,7 @@ function renderExpanded(context: ToolCardContext) {
   const parsed = parseAskUserQuestion(context)
   if (parsed.kind === "error") return <ToolFailureSummaryCard config={failureConfig} context={context} />
   if (parsed.kind === "malformed") {
-    if (!context.resultBody.trim()) {
+    if (requestIsPending(context)) {
       return (
         <StatusCard title="Question request" status="pending">
           <QuestionList questions={questionsFromInput(context.input)} />
