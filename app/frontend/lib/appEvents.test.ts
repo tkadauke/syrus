@@ -1590,6 +1590,7 @@ function chatJobStatusPendingProposal(id: number, overrides: Record<string, unkn
     title: "Add greeting helper",
     state: "proposed",
     anchor_message_id: 5,
+    dependency_ids: [],
     active_children_count: null,
     created_at: "2026-05-30T12:00:00.000Z",
     ...overrides

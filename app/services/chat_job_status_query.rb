@@ -23,7 +23,7 @@ class ChatJobStatusQuery
     @chat_session.proposals
       .proposed
       .where(parent_proposal_id: nil, kind: PENDING_PROPOSAL_KINDS)
-      .includes(:message_anchors)
+      .includes(:message_anchors, :dependency_edges)
       .order(created_at: :desc, id: :desc)
       .map { |proposal| App::ChatMessagePayload.job_status_proposal_json(proposal) }
   end

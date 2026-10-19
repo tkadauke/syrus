@@ -181,6 +181,27 @@ function proposalActionPath(chatId: string | number, proposalId: number, action:
   return `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/proposals/${proposalId}/${action}`
 }
 
+function proposalsInConfirmationOrder(proposals: ChatJobStatusPendingProposal[]) {
+  const selectedIds = new Set(proposals.map((proposal) => proposal.id))
+  const remaining = new Map(proposals.map((proposal) => [proposal.id, proposal]))
+  const ordered: ChatJobStatusPendingProposal[] = []
+
+  while (remaining.size > 0) {
+    const ready = proposals.filter((proposal) => {
+      if (!remaining.has(proposal.id)) return false
+      return (proposal.dependency_ids || []).every((dependencyId) => !selectedIds.has(dependencyId) || !remaining.has(dependencyId))
+    })
+    if (ready.length === 0) return proposals
+
+    for (const proposal of ready) {
+      ordered.push(proposal)
+      remaining.delete(proposal.id)
+    }
+  }
+
+  return ordered
+}
+
 function ProposedProposalsSection({
   chatId,
   proposals,
@@ -199,7 +220,8 @@ function ProposedProposalsSection({
   const bulkAction = useMutation({
     mutationFn: async (action: BulkProposalAction) => {
       let firstError: unknown = null
-      for (const proposal of selectedProposals) {
+      const actionableProposals = action === "reject" ? selectedProposals : proposalsInConfirmationOrder(selectedProposals)
+      for (const proposal of actionableProposals) {
         try {
           if (action === "reject") {
             await rejectChatProposal(proposalActionPath(chatId, proposal.id, "reject"))
