@@ -1,23 +1,11 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import { pendingActionToolCard } from "../pendingActionToolCard"
 
-// Pending-action tool card (the pending-action tool-card work). All of the parsing and
-// presentation lives in ../pendingActionToolCard so the whole family stays
-// consistent; this file only binds it to one MCP tool name.
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const wakeProviderAdmissionToolCard: ToolCardRenderer = {
-  toolName: "wake_provider_admission",
-  collapsedSummary,
-  renderExpanded
-}
+const wakeProviderAdmissionToolCard = pendingActionToolCard("wake_provider_admission", {
+  inputFields: [
+    { key: "provider", format: "badge" },
+    { key: "user_id", label: "User", format: "badge" },
+    { key: "reason", format: "markdown" }
+  ]
+})
 
 export default wakeProviderAdmissionToolCard
