@@ -926,6 +926,10 @@ describing it in prose. The attached media becomes a Job attachment the
 implementing agent sees automatically on the very next feedback round.
 When the chat agent lists available media, the transcript shows a compact
 thumbnail gallery with raw tool details still available for debugging.
+Read-only GitHub lookup results receive the same purpose-built treatment. The
+open-PR card shows the requested state and limit, links each PR and available
+head/base branch, includes creation and update times, and stacks its fields on
+small screens instead of forcing a wide horizontal table.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.

@@ -614,5 +614,25 @@
     "chat_session": "Chat session",
     "run_id": "Run ID",
     "current_message_id": "Current message ID"
-  }
+  },
+  "tool_card_open_prs_query": "{{state}} · limit {{limit}}",
+  "tool_card_open_prs_summary_one": "{{count}} pull request · {{query}}",
+  "tool_card_open_prs_summary_other": "{{count}} pull requests · {{query}}",
+  "tool_card_open_prs_state_open": "open",
+  "tool_card_open_prs_state_closed": "closed",
+  "tool_card_open_prs_state_merged": "merged",
+  "tool_card_open_prs_filter": "Filter",
+  "tool_card_open_prs_limit": "Limit",
+  "tool_card_open_prs_pr": "PR",
+  "tool_card_open_prs_title": "Title",
+  "tool_card_open_prs_refs": "Refs",
+  "tool_card_open_prs_draft": "Draft",
+  "tool_card_open_prs_mergeability": "Mergeability",
+  "tool_card_open_prs_created": "Created",
+  "tool_card_open_prs_updated": "Updated",
+  "tool_card_open_prs_checking": "checking",
+  "tool_card_open_prs_mergeable": "mergeable",
+  "tool_card_open_prs_conflicts": "conflicts",
+  "tool_card_open_prs_empty": "No pull requests found.",
+  "tool_card_open_prs_error": "Unable to list pull requests."
 }

@@ -614,5 +614,25 @@
     "chat_session": "Sessio colloquii",
     "run_id": "ID cursus",
     "current_message_id": "ID nuntii praesentis"
-  }
+  },
+  "tool_card_open_prs_query": "{{state}} · finis {{limit}}",
+  "tool_card_open_prs_summary_one": "{{count}} petitio extrahendi · {{query}}",
+  "tool_card_open_prs_summary_other": "{{count}} petitiones extrahendi · {{query}}",
+  "tool_card_open_prs_state_open": "aperta",
+  "tool_card_open_prs_state_closed": "clausa",
+  "tool_card_open_prs_state_merged": "coniuncta",
+  "tool_card_open_prs_filter": "Colum",
+  "tool_card_open_prs_limit": "Finis",
+  "tool_card_open_prs_pr": "PR",
+  "tool_card_open_prs_title": "Titulus",
+  "tool_card_open_prs_refs": "Relationes",
+  "tool_card_open_prs_draft": "Adumbratio",
+  "tool_card_open_prs_mergeability": "Coniungibilitas",
+  "tool_card_open_prs_created": "Creata",
+  "tool_card_open_prs_updated": "Renovata",
+  "tool_card_open_prs_checking": "examinatur",
+  "tool_card_open_prs_mergeable": "coniungibilis",
+  "tool_card_open_prs_conflicts": "conflictus",
+  "tool_card_open_prs_empty": "Nullae petitiones extrahendi inventae sunt.",
+  "tool_card_open_prs_error": "Petitiones extrahendi enumerari non potuerunt."
 }
