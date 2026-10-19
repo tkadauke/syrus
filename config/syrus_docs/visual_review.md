@@ -312,8 +312,11 @@ inspects the after screenshots' page provenance, starts the same
 preview/browser capture flow on that before revision, asks the agent to
 capture matching baseline screenshots, then persists a
 `visual_diff_comparison` typed artifact with `before` (merge-base) and
-`after` (PR/head) images side by side. This work does not block approval or
-landing; automatically queued comparisons are cancelled or skipped once the
+`after` (PR/head) images. The Job review UI overlays each matching pair in an
+interactive slider, with the after image on the left and the before image on
+the right. The divider supports pointer, touch, and keyboard input; tapping
+without dragging opens a full-size, swipeable before/after preview. This work
+does not block approval or landing; automatically queued comparisons are cancelled or skipped once the
 Job has already moved to approval/landing, while operators can still request
 an explicit rerun from the Job detail actions.
 
