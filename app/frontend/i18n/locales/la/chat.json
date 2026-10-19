@@ -555,5 +555,18 @@
   "card_preview_pending_one": "{{count}} pendens",
   "card_preview_pending_other": "{{count}} pendentia",
   "tool_card_diff_page_only_stats": "Numeri mutationum ad hanc paginam tantum pertinent.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines",
+  "tool_card_tags_loading_summary": "Notae onerantur",
+  "tool_card_tags_error_summary": "Notae enumerari non potuerunt",
+  "tool_card_tags_count_zero": "Nullae notae",
+  "tool_card_tags_count_one": "{{count}} nota",
+  "tool_card_tags_count_other": "{{count}} notae",
+  "tool_card_tags_empty": "Nullae notae inventae sunt.",
+  "tool_card_tags_section_one": "{{count}} nota",
+  "tool_card_tags_section_other": "{{count}} notae",
+  "tool_card_tags_jobs_count_one": "{{count}} Job",
+  "tool_card_tags_jobs_count_other": "{{count}} Jobs",
+  "tool_card_tags_error_title": "Notas enumera",
+  "tool_card_tags_error_fallback": "Notae enumerari non potuerunt.",
+  "tool_card_tags_loading": "Notae onerantur…"
 }

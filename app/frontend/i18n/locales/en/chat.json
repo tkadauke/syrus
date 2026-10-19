@@ -555,5 +555,18 @@
   "card_preview_pending_one": "{{count}} pending",
   "card_preview_pending_other": "{{count}} pending",
   "tool_card_diff_page_only_stats": "Change counts are for this page only.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: diff page {{page}} out of range"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: diff page {{page}} out of range",
+  "tool_card_tags_loading_summary": "Loading tags",
+  "tool_card_tags_error_summary": "Could not list tags",
+  "tool_card_tags_count_zero": "No tags",
+  "tool_card_tags_count_one": "{{count}} tag",
+  "tool_card_tags_count_other": "{{count}} tags",
+  "tool_card_tags_empty": "No tags found.",
+  "tool_card_tags_section_one": "{{count}} tag",
+  "tool_card_tags_section_other": "{{count}} tags",
+  "tool_card_tags_jobs_count_one": "{{count}} Job",
+  "tool_card_tags_jobs_count_other": "{{count}} Jobs",
+  "tool_card_tags_error_title": "List tags",
+  "tool_card_tags_error_fallback": "Unable to list tags.",
+  "tool_card_tags_loading": "Loading tags…"
 }
