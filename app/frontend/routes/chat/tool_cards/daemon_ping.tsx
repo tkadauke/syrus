@@ -17,9 +17,7 @@ function parseDaemonPing(context: ToolCardContext): DaemonPing | null {
 
   return {
     ok: parsed.ok,
-    identity: isPlainObject(parsed.identity)
-      ? Object.entries(parsed.identity).map(([key, value]) => ({ key, value: identityValue(value) }))
-      : []
+    identity: isPlainObject(parsed.identity) ? Object.entries(parsed.identity).map(([key, value]) => ({ key, value: identityValue(value) })) : []
   }
 }
 
@@ -48,7 +46,9 @@ function renderExpanded(context: ToolCardContext) {
           {ping.identity.map((entry) => (
             <div className="min-w-0" key={entry.key}>
               <dt className="text-2xs font-medium uppercase text-text-muted">{entry.key.replace(/_/g, " ")}</dt>
-              <dd><IdentityValue field={entry.key} value={entry.value} /></dd>
+              <dd>
+                <IdentityValue field={entry.key} value={entry.value} />
+              </dd>
             </div>
           ))}
         </dl>

@@ -24,10 +24,7 @@ describe("daemon_ping tool card", () => {
     expect(daemonPingToolCard.collapsedSummary?.(context(HEALTHY))).toBe("daemon ping ok")
   })
 
-  it.each([
-    "mcp__syrus-chat-sidecar__daemon_ping",
-    "mcp__syrus-chat-deferred-sidecar__daemon_ping"
-  ])("renders all identity fields for %s", (rawName) => {
+  it.each(["mcp__syrus-chat-sidecar__daemon_ping", "mcp__syrus-chat-deferred-sidecar__daemon_ping"])("renders all identity fields for %s", (rawName) => {
     const toolContext = providerContext(rawName, HEALTHY)
     expect(toolContext.toolName).toBe("daemon_ping")
     render(<>{daemonPingToolCard.renderExpanded(toolContext)}</>)
