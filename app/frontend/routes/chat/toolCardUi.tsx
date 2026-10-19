@@ -126,9 +126,9 @@ export function EmptyState({ children }: { children: ReactNode }) {
   )
 }
 
-export function InternalLink({ href, children }: { href: string; children: ReactNode }) {
+export function InternalLink({ href, children, className = "" }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <a className="font-mono font-medium text-brand hover:underline dark:text-brand-emphasis" href={href}>
+    <a className={`font-mono font-medium text-brand hover:underline dark:text-brand-emphasis ${className}`.trim()} href={href}>
       {children}
     </a>
   )
