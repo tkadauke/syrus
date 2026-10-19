@@ -23,6 +23,13 @@ describe("search_jobs tool card", () => {
     expect(searchJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("37 matching Jobs")
   })
 
+  it.each([
+    { structured_content: { total: 37, results: [{ id: 1, state: "open" }] } },
+    { content: [{ type: "text", text: JSON.stringify({ total: 37, results: [{ id: 1, state: "open" }] }) }] }
+  ])("preserves the total from alternate MCP envelopes", (parsedResult) => {
+    expect(searchJobsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("37 matching Jobs")
+  })
+
   it("renders a dense table with one row per matching Job", () => {
     const parsedResult = {
       total: 1,
