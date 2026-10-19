@@ -126,7 +126,16 @@ describe("chat search/history tool cards", () => {
           snippet: "Found <b>needle</b> in the queue.",
           created_at: "2026-09-01T12:00:00Z",
           attached_jobs_count: 1,
-          attached_jobs: [{ id: 101, slug: "repair-queue", title: "Repair queue", state: "running" }]
+          attached_jobs: [
+            {
+              id: 101,
+              slug: "repair-queue",
+              title: "Repair queue",
+              state: "running",
+              repository_id: 8,
+              repository: "acme/worker"
+            }
+          ]
         },
         {
           chat_session_id: 42,
@@ -150,6 +159,7 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByText("coding")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "acme/widgets" })[0]).toHaveAttribute("href", "/repositories/7")
     expect(screen.getByRole("link", { name: "repair-queue" })).toHaveAttribute("href", "/jobs/101")
+    expect(screen.getByRole("link", { name: "acme/worker" })).toHaveAttribute("href", "/repositories/8")
     expect(screen.getByText("20")).toBeInTheDocument()
   })
 
