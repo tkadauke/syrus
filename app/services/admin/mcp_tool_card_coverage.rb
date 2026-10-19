@@ -24,6 +24,7 @@ module Admin
       "read_provider_routing_rules" => "generic",
       "explain_provider_routing" => "generic",
       "mutate_provider_routing_rules" => "generic",
+      "credential_store_ssh_exec" => "generic",
       "reset_workspace" => "hidden",
       "restack_epic" => "generic",
       "override_job_planned_execution" => "generic"
