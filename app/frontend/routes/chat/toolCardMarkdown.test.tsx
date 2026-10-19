@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import type { MouseEvent } from "react"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -41,5 +46,46 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("supports character bounds, link handling, modal copy, and an empty state", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/jobs/:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+    const onLinkClick = vi.fn((_, event: MouseEvent<HTMLAnchorElement>) => event.preventDefault())
+    const text = `See JOB-42 and https://example.test/docs. ${"More details. ".repeat(20)}`
+    const { rerender } = render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={80} onLinkClick={onLinkClick} text={text} />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test/docs" }))
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/docs", expect.anything())
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy content" }))
+    expect(writeText).toHaveBeenCalledWith(text)
+
+    rerender(
+      <MemoryRouter>
+        <MarkdownPreview emptyState={<div>No content available.</div>} text="  " />
+      </MemoryRouter>
+    )
+    expect(screen.getByText("No content available.")).toBeInTheDocument()
   })
 })
