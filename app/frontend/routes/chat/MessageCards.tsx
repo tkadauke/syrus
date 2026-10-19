@@ -750,7 +750,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded && (toolCallSettled(call) || callHasExpandedCard(call)) ? <ToolResultBody call={call} /> : null}
               {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
@@ -807,6 +807,11 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // below exactly as an unregistered tool's error would.
   const pluginBody = pluginToolCardExpandedBody(toolCardContext(call))
   if (pluginBody != null) return <>{pluginBody}</>
+
+  // Registered cards may have a useful in-flight view derived entirely from
+  // the tool input. If such a card declines an unsettled call, preserve the
+  // prior live-call behavior instead of rendering an empty generic result.
+  if (!toolCallSettled(call)) return null
 
   if (call.result_error) return <ToolErrorCard call={call} />
 
