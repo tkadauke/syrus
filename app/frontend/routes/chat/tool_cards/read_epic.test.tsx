@@ -158,13 +158,15 @@ describe("read_epic tool card", () => {
   })
 
   it("renders error and pending cards", () => {
-    const { rerender } = render(<>{readEpicToolCard.renderExpanded(context({ resultError: true, resultBody: "Epic not found" }))}</>)
+    const { rerender } = render(<>{readEpicToolCard.renderExpanded(context({ input: { id: 291 }, resultError: true, resultBody: "Epic not found" }))}</>)
     expect(screen.getByText("Epic not found")).toBeInTheDocument()
-    expect(readEpicToolCard.collapsedSummary?.(context({ resultError: true }))).toBe("Failed to read Epic")
+    expect(screen.getByRole("link", { name: "EPIC-291" })).toHaveAttribute("href", "/epics/291")
+    expect(readEpicToolCard.collapsedSummary?.(context({ input: { id: 291 }, resultError: true }))).toBe("Failed to read EPIC-291")
 
-    rerender(<>{readEpicToolCard.renderExpanded(context())}</>)
+    rerender(<>{readEpicToolCard.renderExpanded(context({ input: { epic_id: 292 } }))}</>)
     expect(screen.getByText("Waiting for the Epic result.")).toBeInTheDocument()
-    expect(readEpicToolCard.collapsedSummary?.(context())).toBe("Reading Epic…")
+    expect(screen.getByRole("link", { name: "EPIC-292" })).toHaveAttribute("href", "/epics/292")
+    expect(readEpicToolCard.collapsedSummary?.(context({ input: { epic_id: 292 } }))).toBe("Reading EPIC-292…")
   })
 
   it("omits optional sections when fields are missing", () => {
