@@ -109,9 +109,7 @@ describe("chat helper tool cards", () => {
 
   it("renders an explicit unpin target and linked, wrapping result details", () => {
     const unpinned = { session_id: 43, title: "A release-planning title long enough to wrap", pinned: false, message: "Chat unpinned." }
-    const { container } = render(
-      <>{unpinChatToolCard.renderExpanded(context("unpin_chat", { input: { chat_session_id: 43 }, parsedResult: unpinned }))}</>
-    )
+    const { container } = render(<>{unpinChatToolCard.renderExpanded(context("unpin_chat", { input: { chat_session_id: 43 }, parsedResult: unpinned }))}</>)
 
     expect(screen.getByText("Requested target")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "CHAT-43" })).toHaveLength(2)
