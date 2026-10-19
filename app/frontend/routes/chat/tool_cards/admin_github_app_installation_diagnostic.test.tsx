@@ -78,14 +78,14 @@ const HEALTHY_PAYLOAD = {
           installation_id: 10,
           effective_client_installation_id: 10,
           installation: {
-            id: 10,
-            account_login: "tkadauke",
-            account_id: 20,
-            account_type: "Organization",
-            github_installation_id: 999,
-            installed_at: "2026-01-01T00:00:00Z",
-            removed_at: null,
-            active: true
+            id: 11,
+            account_login: "member-account",
+            account_id: 21,
+            account_type: "User",
+            github_installation_id: 1000,
+            installed_at: "2026-02-01T00:00:00Z",
+            removed_at: "2026-03-01T00:00:00Z",
+            active: false
           }
         }
       ],
@@ -124,6 +124,14 @@ describe("admin_github_app_installation_diagnostic tool card", () => {
     expect(screen.getAllByText("tkadauke/syrus")).toHaveLength(2)
     expect(screen.getAllByText("Organization").length).toBeGreaterThan(0)
     expect(screen.getByText("operator@example.com")).toBeInTheDocument()
+    expect(screen.getByText("11")).toBeInTheDocument()
+    expect(screen.getByText("member-account")).toBeInTheDocument()
+    expect(screen.getByText("21")).toBeInTheDocument()
+    expect(screen.getByText("User")).toBeInTheDocument()
+    expect(screen.getByText("1000")).toBeInTheDocument()
+    expect(screen.getByText("2026-02-01T00:00:00Z")).toBeInTheDocument()
+    expect(screen.getByText("2026-03-01T00:00:00Z")).toBeInTheDocument()
+    expect(screen.getByText("removed")).toBeInTheDocument()
     expect(screen.getByText("120")).toBeInTheDocument()
     expect(screen.getByText("3")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open scoped GitHub App installation" })).toHaveAttribute("target", "_blank")
