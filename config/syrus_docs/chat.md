@@ -545,6 +545,15 @@ create a new CodingHandoff Job rather than update that existing Job, so the
 chat MCP tool refuses existing Job branches and points the agent back to
 `open_in_coding_mode` plus `complete_implement_step`.
 
+An explicit `submit_coding_changes(branch:)` value names the branch the worker
+must find in that repository's chat checkout; request time does not assert that
+it is currently checked out. After confirmation, worker-side capture rejects a
+missing checkout, a different active branch, a dirty tree, or no committed
+changes before creating a Job. Normally the request remains a pending action
+for operator confirmation. An active Chat Goal with `auto_submit_jobs` instead
+auto-enqueues confirmation immediately, so the tool returns `confirming` and
+capture may enter the chat worker queue without a separate operator click.
+
 Repository skill commands, one per skill resolved for the chat's attached
 repository (`/skill-name key=value ...`), are appended to the palette
 dynamically — they are not part of the fixed command list above and vary per

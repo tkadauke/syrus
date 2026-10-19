@@ -12,7 +12,7 @@ module Mcp::Tools
     description <<~DESC
       Request a retry workflow for one or more Syrus Jobs in this repository.
       Candidate Job states are
-      #{Mcp::ControlToolContracts.states(Mcp::ControlToolContracts::RETRY_JOB_STATES)};
+      #{Mcp::ControlToolContracts.states(RetryWorkflowEligibility::CANDIDATE_JOB_STATES)};
       the shared eligibility predicate also rejects a current passing PR, active
       Run, duplicate retry, superseded retry, landing failure, or an initial
       Workflow that has never run, and its error names the valid next action.

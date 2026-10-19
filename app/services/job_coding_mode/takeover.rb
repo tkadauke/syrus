@@ -1,6 +1,7 @@
 module JobCodingMode
   class Takeover
     Error = Class.new(StandardError)
+    CLAIMABLE_JOB_STATES = %w[implemented approved].freeze
 
     Result = Data.define(:job, :chat_session, :created_chat, :queued_message)
     GITHUB_TOKEN_REQUIRED_MESSAGE = "Connect a GitHub token for this repository before opening it in Coding Mode.".freeze
@@ -66,7 +67,7 @@ module JobCodingMode
     private
 
     def validate_job!
-      unless @job.implemented? || @job.approved? || (@job.coding? && @job.linked_chat_id.present?)
+      unless CLAIMABLE_JOB_STATES.include?(@job.state) || (@job.coding? && @job.linked_chat_id.present?)
         raise Error, "Only implemented or approved Jobs can be opened in Coding Mode."
       end
       raise Error, "Job does not have a branch yet." if @job.branch_name.blank?
