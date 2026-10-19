@@ -58,6 +58,7 @@ describe("refresh_pr_checks tool card", () => {
     render(<>{refreshPrChecksToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByText("(repair-ci)")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "PR #314" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/314")
     expect(screen.getByText("Prior state")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
@@ -91,6 +92,7 @@ describe("refresh_pr_checks tool card", () => {
 
     const name = screen.getByText("a-very-long-check-name-that-needs-to-wrap-on-mobile")
     expect(name.closest("a")).toBeNull()
+    expect(name).toHaveClass("min-w-0", "break-words", "[overflow-wrap:anywhere]")
     expect(screen.queryByRole("link", { name: /a-very-long/ })).not.toBeInTheDocument()
   })
 
