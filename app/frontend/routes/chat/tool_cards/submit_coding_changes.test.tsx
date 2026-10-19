@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import type { ChatPendingActionInline } from "../../../api/chats"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import submitCodingChangesToolCard from "./submit_coding_changes"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -22,14 +23,19 @@ describe("submit_coding_changes tool card", () => {
   it("summarizes the collapsed row with the tool's own message", () => {
     const context_ = context({
       input: { branch: "syrus/coding-322", title: "Add dark mode toggle", description: "Adds a toggle." },
-      parsedResult: { pending_action_id: 88, state: "pending", message: "Submit coding changes is pending operator confirmation. Once confirmed, a Job will be created and the CodingHandoff workflow (graders, summarize, PR open) will be dispatched for branch 'syrus/coding-322'." }
+      parsedResult: {
+        pending_action_id: 88,
+        state: "pending",
+        message:
+          "Submit coding changes is pending operator confirmation. Once confirmed, a Job will be created and the CodingHandoff workflow (graders, summarize, PR open) will be dispatched for branch 'syrus/coding-322'."
+      }
     })
     expect(submitCodingChangesToolCard.collapsedSummary?.(context_)).toContain("pending operator confirmation")
   })
 
-  it("renders branch, title, pending state, and message on success", () => {
+  it("renders repository, branch, title, description, pending state, and message on success", () => {
     const context_ = context({
-      input: { branch: "syrus/coding-322", title: "Add dark mode toggle", description: "Adds a toggle." },
+      input: { repository_id: 42, branch: "syrus/coding-322", title: "Add dark mode toggle", description: "Adds a **theme toggle**." },
       parsedResult: { pending_action_id: 88, state: "pending", message: "Submit coding changes is pending operator confirmation." }
     })
     render(<>{submitCodingChangesToolCard.renderExpanded(context_)}</>)
@@ -38,6 +44,9 @@ describe("submit_coding_changes tool card", () => {
     expect(screen.getByText("#88")).toBeInTheDocument()
     expect(screen.getByText("Add dark mode toggle")).toBeInTheDocument()
     expect(screen.getByText("syrus/coding-322")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository #42" })).toHaveAttribute("href", "/repositories/42")
+    expect(screen.getByText("theme toggle")).toBeInTheDocument()
+    expect(screen.getByText("theme toggle").tagName).toBe("STRONG")
     expect(screen.getByText("Submit coding changes is pending operator confirmation.")).toBeInTheDocument()
   })
 
@@ -49,6 +58,7 @@ describe("submit_coding_changes tool card", () => {
     render(<>{submitCodingChangesToolCard.renderExpanded(context_)}</>)
 
     expect(screen.getByText("confirming")).toBeInTheDocument()
+    expect(screen.getByText("Auto-confirmed")).toBeInTheDocument()
     expect(screen.getByText("Submit coding changes was auto-confirmed by the active goal policy.")).toBeInTheDocument()
   })
 
@@ -59,6 +69,8 @@ describe("submit_coding_changes tool card", () => {
       state: "confirmed",
       label: "Submit coding changes",
       detail: null,
+      resource_title: "JOB-322 · Add dark mode toggle",
+      resource_url: "/jobs/322",
       app_confirm_path: "/api/v1/app/chats/1/pending_actions/88/confirm",
       app_reject_path: "/api/v1/app/chats/1/pending_actions/88/reject"
     }
@@ -71,6 +83,7 @@ describe("submit_coding_changes tool card", () => {
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
     expect(screen.queryByText("pending")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-322 · Add dark mode toggle" })).toHaveAttribute("href", "/jobs/322")
   })
 
   it("ignores a live pending action for a different id", () => {
@@ -101,9 +114,56 @@ describe("submit_coding_changes tool card", () => {
     expect(screen.queryByText("Title")).not.toBeInTheDocument()
   })
 
-  it("falls back to null for a malformed or error payload", () => {
+  it("accepts the legacy pending_confirmation_id through the shared parser", () => {
+    render(<>{submitCodingChangesToolCard.renderExpanded(context({ parsedResult: { pending_confirmation_id: 91, state: "pending" } }))}</>)
+    expect(screen.getByText("#91")).toBeInTheDocument()
+  })
+
+  it("shows long description and message markdown in Show more dialogs", () => {
+    const description = `A **detailed** implementation.\n${"Description text ".repeat(100)}`
+    const message = `Handoff **queued**.\n${"Status text ".repeat(100)}`
+    render(
+      <>
+        {submitCodingChangesToolCard.renderExpanded(
+          context({
+            input: { description },
+            parsedResult: { pending_action_id: 88, state: "pending", message }
+          })
+        )}
+      </>
+    )
+
+    const buttons = screen.getAllByRole("button", { name: "Show more" })
+    expect(buttons).toHaveLength(2)
+    fireEvent.click(buttons[0])
+    expect(screen.getByRole("dialog", { name: "Full description" })).toBeInTheDocument()
+  })
+
+  it("renders content text and structured content envelopes after shared normalization", () => {
+    const result = { pending_action_id: 88, state: "pending", message: "Ready for confirmation." }
+    const contentEnvelope = { content: [{ type: "text", text: JSON.stringify(result) }], structured_content: null }
+    const structuredEnvelope = { content: [{ type: "text", text: "ignored" }], structured_content: result }
+
+    for (const envelope of [contentEnvelope, structuredEnvelope]) {
+      const { unmount } = render(<>{submitCodingChangesToolCard.renderExpanded(context({ parsedResult: normalizedToolCardParsedResult(envelope) }))}</>)
+      expect(screen.getByText("Ready for confirmation.")).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it("is resolved for an agent-prefixed MCP tool name", () => {
+    const name = normalizedToolName("mcp__syrus-chat-sidecar__submit_coding_changes")
+    expect(name).toBe("submit_coding_changes")
+    expect(pluginToolCardRendererFor(name)).toBe(submitCodingChangesToolCard)
+  })
+
+  it("renders error results and falls back for malformed success payloads", () => {
     expect(submitCodingChangesToolCard.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(submitCodingChangesToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
-    expect(submitCodingChangesToolCard.renderExpanded(context({ resultError: true, parsedResult: null, resultBody: "Error: title is required" }))).toBeNull()
+
+    const errorContext = context({ input: { title: "Broken handoff" }, resultError: true, parsedResult: null, resultBody: "Error: title is required" })
+    render(<>{submitCodingChangesToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("Submit coding changes failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: title is required")).toBeInTheDocument()
   })
 })
