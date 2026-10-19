@@ -1519,6 +1519,14 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(payload.fetch(:instances).first).not_to have_key(:capability_diagnostics)
   end
 
+  it "returns the source repository URL when the deployment identifies it" do
+    stub_const("ENV", ENV.to_h.merge("SYRUS_GITHUB_REPO" => "operator/syrus"))
+
+    payload = payload_for(call_tool(admin_session, "admin_version"))
+
+    expect(payload.fetch(:repository_url)).to eq("https://github.com/operator/syrus")
+  end
+
   it "keeps admin_version compact even when health and capability diagnostics are large" do
     12.times do |i|
       hostname = "syrus-worker-#{i}"

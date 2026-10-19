@@ -13,6 +13,7 @@ module Mcp::Tools
         return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
 
         Mcp::Tools.success(
+          repository_url: repository_url,
           request_handler: {
             hostname: SyrusVersion.hostname,
             role: SyrusVersion.role,
@@ -26,6 +27,11 @@ module Mcp::Tools
 
       def admin?(server_context)
         server_context.fetch(:chat_session).user.admin?
+      end
+
+      def repository_url
+        repository = ENV["SYRUS_GITHUB_REPO"].presence
+        "https://github.com/#{repository}" if repository
       end
 
       def instance_payload(instance)
