@@ -32,6 +32,28 @@ RSpec.describe VisualReviewEvidenceGuard do
     expect(reason).to include("preview environment was blocked")
   end
 
+  it "recognizes blocker-first skipped reviews with missing provider credentials" do
+    reason = described_class.blocked_evidence_reason(
+      job: job,
+      artifacts: [],
+      verdict: "skipped",
+      critique: "Blocked by missing Codex credentials."
+    )
+
+    expect(reason).to include("preview environment was blocked")
+  end
+
+  it "recognizes blocker-first skipped reviews with an unavailable preview" do
+    reason = described_class.blocked_evidence_reason(
+      job: job,
+      artifacts: [],
+      verdict: "skipped",
+      critique: "Blocked because the preview is unavailable."
+    )
+
+    expect(reason).to include("preview environment was blocked")
+  end
+
   it "does not classify a non-visual skipped review as an environment blocker" do
     reason = described_class.blocked_evidence_reason(
       job: job,
