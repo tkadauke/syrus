@@ -49,10 +49,11 @@ module ProviderRoutingRuleSerialization
       repository_id: rule.repository_id,
       job_id: rule.job_id,
       position: rule.position,
+      enabled: rule.enabled?,
       task_key: rule.task_key,
       trigger: rule.trigger,
       conditions: rule.conditions,
-      action: rule.action,
+      action: rule.serialized_action,
       candidates: Array(rule.action_candidates).map { |candidate| provider_routing_candidate_json(candidate) },
       created_at: rule.created_at&.iso8601,
       updated_at: rule.updated_at&.iso8601
@@ -72,6 +73,9 @@ module ProviderRoutingRuleSerialization
       },
       action_strategies: ProviderRoutingRule::ACTION_STRATEGIES.map do |strategy|
         provider_routing_option_json(strategy, strategy.humanize)
+      end,
+      action_types: ProviderRoutingRule::ACTION_TYPES.map do |type|
+        provider_routing_option_json(type, type.humanize)
       end,
       condition_keys: ProviderRoutingRule::CONDITION_KEYS.map do |key|
         provider_routing_option_json(key, key.humanize)
@@ -111,6 +115,7 @@ module ProviderRoutingRuleSerialization
     attrs = params.require(:provider_routing_rule).permit(
       :task_key,
       :position,
+      :enabled,
       trigger: {},
       conditions: {},
       action: {},
@@ -124,6 +129,7 @@ module ProviderRoutingRuleSerialization
 
     {
       position: attrs[:position],
+      enabled: attrs[:enabled],
       task_key: task_key,
       trigger: trigger || provider_routing_legacy_trigger_for(task_key),
       conditions: provider_routing_payload_hash(attrs[:conditions]),

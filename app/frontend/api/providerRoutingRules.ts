@@ -42,8 +42,10 @@ export type ProviderRoutingConditions = {
 }
 
 export type ProviderRoutingAction = {
-  strategy: string
-  candidates: ProviderRoutingCandidate[]
+  type?: "route" | "hold"
+  strategy?: string
+  candidates?: ProviderRoutingCandidate[]
+  reason?: string
   name?: string
   [key: string]: unknown
 }
@@ -56,6 +58,7 @@ export type ProviderRoutingRule = {
   repository_id?: number | null
   job_id?: number | null
   position?: number
+  enabled?: boolean
   task_key: string
   trigger?: ProviderRoutingTrigger
   conditions?: ProviderRoutingConditions
@@ -80,6 +83,7 @@ export type ProviderRoutingRegistryOptions = {
     workflow_trigger_kinds?: ProviderRoutingRegistryOption[]
   }
   action_strategies?: ProviderRoutingRegistryOption[]
+  action_types?: ProviderRoutingRegistryOption[]
   condition_keys?: ProviderRoutingRegistryOption[]
 }
 
@@ -104,6 +108,7 @@ export type ProviderRoutingRulesPayload = {
 export type ProviderRoutingRuleInput = {
   task_key: string
   position?: number
+  enabled?: boolean
   trigger?: ProviderRoutingTrigger
   conditions?: ProviderRoutingConditions
   action?: ProviderRoutingAction
