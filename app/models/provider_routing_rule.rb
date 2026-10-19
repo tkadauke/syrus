@@ -48,7 +48,7 @@ class ProviderRoutingRule < ApplicationRecord
       "day_time" => day_time_condition_result(now),
       "repository" => repository_condition_result(job&.repository),
       "job_metadata" => job_metadata_condition_result(job),
-      "usage" => passive_condition_result("usage"),
+      "usage" => ProviderRouting::Conditions::Usage.evaluate(condition: conditions["usage"], job: job, now: now),
       "budget" => passive_condition_result("budget")
     }
     trigger_result = {
@@ -160,6 +160,7 @@ class ProviderRoutingRule < ApplicationRecord
     validate_day_time_condition
     validate_repository_condition
     validate_job_metadata_condition
+    validate_usage_condition
   end
 
   def validate_workflow_trigger_condition
@@ -175,6 +176,22 @@ class ProviderRoutingRule < ApplicationRecord
     return if value.blank?
 
     errors.add(:conditions, "#{key} must be an object") unless value.is_a?(Hash)
+  end
+
+  def validate_usage_condition
+    value = conditions["usage"]
+    return if value.blank? || !value.is_a?(Hash)
+
+    unknown = value.keys - ProviderRouting::Conditions::Usage::KEYS
+    errors.add(:conditions, "usage contains unknown keys: #{unknown.join(', ')}") if unknown.any?
+    errors.add(:conditions, "usage states must be an array") if value.key?("states") && !value["states"].is_a?(Array)
+    ProviderRouting::Conditions::Usage::COMPARATORS.each_key do |key|
+      next unless value.key?(key)
+
+      Float(value[key])
+    rescue ArgumentError, TypeError
+      errors.add(:conditions, "usage #{key} must be numeric")
+    end
   end
 
   def validate_day_time_condition
