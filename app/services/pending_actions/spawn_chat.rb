@@ -19,7 +19,7 @@ module PendingActions
         origin_chat_session: chat_session,
         target_chat_session: spawned,
         opened_by_user: user,
-        max_hops: ChatBridgeThread::SPAWN_MAX_HOPS
+        max_hops: ChatBridgeThread::DEFAULT_MAX_HOPS
       )
       action.update!(payload: payload.merge(
         "spawned_chat_id" => spawned.id,

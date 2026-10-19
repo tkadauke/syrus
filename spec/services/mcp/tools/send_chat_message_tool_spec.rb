@@ -51,12 +51,21 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       expect(wakeup.metadata).to include("requested_by" => "cross_chat", "thread_id" => thread.id)
     end
 
-    it "honors a custom max_hops" do
+    it "honors an explicit smaller max_hops and closes at that cap" do
       message = operator_message(origin_chat)
 
-      call(chat_session: origin_chat, current_message: message, text: "hi", target_chat_session_id: target_chat.id, max_hops: 2)
+      first_response = call(chat_session: origin_chat, current_message: message, text: "hi", target_chat_session_id: target_chat.id, max_hops: 2)
+      thread = ChatBridgeThread.sole
+      second_response = call(
+        chat_session: target_chat,
+        current_message: operator_message(target_chat),
+        text: "reply",
+        thread_id: thread.id
+      )
 
-      expect(ChatBridgeThread.sole.max_hops).to eq(2)
+      expect(payload(first_response)).to include(state: "open", hop_count: 1, max_hops: 2)
+      expect(payload(second_response)).to include(state: "closed", hop_count: 2, max_hops: 2)
+      expect(thread.reload).to be_closed
     end
 
     it "rejects opening a new thread from an automated/system-originated turn" do
