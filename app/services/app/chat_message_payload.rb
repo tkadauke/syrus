@@ -254,6 +254,9 @@ module App
       base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
 
+      presenter_resource = ::App::Presentation.pending_action_resource(action)
+      return base.merge(presenter_resource) if presenter_resource
+
       case action.action.presence || action.action_type
       when *ChatPendingAction::JOB_RESOURCE_ACTIONS
         if (job = cached_action_job(action, payload["job_id"]))

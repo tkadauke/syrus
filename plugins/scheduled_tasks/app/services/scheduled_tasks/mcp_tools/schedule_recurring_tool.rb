@@ -70,6 +70,10 @@ module ScheduledTasks
 
           Mcp::Tools.success(
             pending_confirmation_id: action.id,
+            label: label,
+            prompt: prompt,
+            schedule_input: schedule_input,
+            cron_expression: preview.cron_expression,
             schedule_explanation: preview.schedule_explanation,
             next_fire_at: next_fire_at&.iso8601
           )

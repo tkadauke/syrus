@@ -145,6 +145,7 @@ export type ToolCardEntityKind =
   | "artifact"
   | "repository"
   | "proposal"
+  | "pending_action"
   | "wakeup"
   | "scheduled_task"
   | "preview_panel"
@@ -238,6 +239,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
   proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  pending_action: { label: (reference) => prefixedEntityLabel("ACTION", reference.id), href: noHref, copyValue: slugCopyValue },
   wakeup: { label: (reference) => prefixedEntityLabel("WAKEUP", reference.id), href: noHref, copyValue: slugCopyValue },
   scheduled_task: { label: (reference) => prefixedEntityLabel("TASK", reference.id), href: idHref("/scheduled_tasks"), copyValue: slugCopyValue },
   preview_panel: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },

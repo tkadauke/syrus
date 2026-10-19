@@ -54,6 +54,13 @@ module PendingActions
       ].compact.join("\n\n").presence
     end
 
+    def presentation_resource
+      task = action.result
+      return nil unless task.is_a?(ScheduledTasks::Task)
+
+      { resource_title: task.name, resource_url: "/scheduled_tasks/#{task.id}" }
+    end
+
     private
 
     def repository_write_access?

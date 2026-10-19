@@ -11,6 +11,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
+        ScheduledTasks::McpTools::ScheduleRecurringTool,
         ScheduledTasks::McpTools::ListScheduledTasksTool,
         ScheduledTasks::McpTools::ReadScheduledTaskTool,
         ScheduledTasks::McpTools::UpdateScheduledTaskTool,
@@ -19,6 +20,22 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
         ScheduledTasks::McpTools::DeleteScheduledTaskTool
       ],
       server_context: { chat_session: chat_session }
+    )
+  end
+
+  it "returns the complete recurring-task preview for tool cards" do
+    response = call_tool("schedule_recurring",
+      label: "Weekly review",
+      prompt: "Review **open work**.",
+      schedule_input: "0 9 * * 1")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(
+      pending_confirmation_id: be_present,
+      label: "Weekly review",
+      prompt: "Review **open work**.",
+      schedule_input: "0 9 * * 1",
+      cron_expression: "0 9 * * 1"
     )
   end
 

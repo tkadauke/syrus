@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import i18n from "i18next"
 import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 
 // Shared presentation helpers for the scheduled_tasks plugin's chat tool
 // cards (the pending-action tool-card work). Lives outside `tool_cards/` on purpose: core's
@@ -100,7 +101,7 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <EntityReference href={`/scheduled_tasks/${task.id}`} kind="artifact" slug={`#${task.id}`} wrap="nowrap" />
+        <EntityReference id={task.id} kind="scheduled_task" wrap="nowrap" />
         <StatePill state={task.state} />
         {task.kind ? <Badge>{task.kind.replace(/_/g, " ")}</Badge> : null}
         {task.enabled === false ? <Badge>{t("tool_disabled")}</Badge> : null}
@@ -108,8 +109,15 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{task.label}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {task.cadence ? <Row label={t("tool_col_cadence")} value={task.scheduleTimezone ? `${task.cadence} (${task.scheduleTimezone})` : task.cadence} /> : null}
-        {task.repositorySlug ? <Row label={t("tool_repository")} value={task.repositorySlug} /> : null}
+        {task.cadence ? (
+          <Row label={t("tool_col_cadence")} value={task.scheduleTimezone ? `${task.cadence} (${task.scheduleTimezone})` : task.cadence} />
+        ) : null}
+        {task.repositorySlug ? (
+          <div className="min-w-0">
+            <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
+            <EntityReference kind="repository" repositorySlug={task.repositorySlug} />
+          </div>
+        ) : null}
         {nextFire ? <Row label={t("tool_col_next_fire")} value={nextFire} /> : null}
         {task.lastFiredAt ? <Row label={t("tool_last_fired")} value={task.lastFiredAt} /> : null}
         {task.lastSuccessfulFireAt ? <Row label={t("tool_last_success")} value={task.lastSuccessfulFireAt} /> : null}
@@ -122,16 +130,11 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
 // Small `<details>` disclosure for the long prompt text read/update return.
 // Deliberately a local copy of core's explain_stuck_job pattern — that one
 // is a private component, not shared API.
-export function PromptDisclosure({ prompt }: { prompt: string }) {
-  return (
-    <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-        {t("tool_prompt")}
-      </summary>
-      <div className="mt-1 whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{prompt}</div>
-    </details>
-  )
+export function PromptPreview({ prompt }: { prompt: string }) {
+  return <MarkdownPreview emptyLabel={t("tool_prompt_empty")} maxChars={720} modalLabel={t("tool_prompt_full")} text={prompt} title={t("tool_prompt")} />
 }
+
+export const PromptDisclosure = PromptPreview
 
 // pause/resume/delete all answer with the same tiny
 // `{ scheduled_task_id, label, ... }` acknowledgement shape.
@@ -162,7 +165,7 @@ export function ScheduledTaskOutcomeCard({
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={pill} tone={tone} />
-        <EntityReference href={`/scheduled_tasks/${outcome.id}`} kind="artifact" slug={`#${outcome.id}`} wrap="nowrap" />
+        <EntityReference id={outcome.id} kind="scheduled_task" wrap="nowrap" />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{outcome.label}</div>
       {detail ? <div className="text-gray-600 dark:text-gray-300">{detail}</div> : null}

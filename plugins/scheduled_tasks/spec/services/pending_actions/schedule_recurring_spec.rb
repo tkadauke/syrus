@@ -23,6 +23,20 @@ RSpec.describe PendingActions::ScheduleRecurring do
 
       expect(described_class.new(action).presentation_label).to eq("Schedule recurring")
     end
+
+    it "links the created task after confirmation" do
+      action = chat_session.pending_actions.create!(
+        action_type: "schedule_recurring",
+        payload: { "label" => "Nightly rebuild", "cron_expression" => "0 2 * * *", "prompt" => "Rebuild caches." }
+      )
+      task = ScheduledTasks::Task.create!(user: user, repository: repository, kind: "cron", name: "Nightly rebuild", cron_expression: "0 2 * * *", prompt: "Rebuild caches.")
+      action.update!(result: task)
+
+      expect(described_class.new(action).presentation_resource).to eq(
+        resource_title: "Nightly rebuild",
+        resource_url: "/scheduled_tasks/#{task.id}"
+      )
+    end
   end
 
   describe "authorization" do
