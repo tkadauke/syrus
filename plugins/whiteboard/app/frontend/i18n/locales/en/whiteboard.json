@@ -12,6 +12,7 @@
   "tool_field_type": "Type",
   "tool_field_width": "Width",
   "tool_field_height": "Height",
+  "tool_field_id": "Element ID",
   "tool_field_from": "From",
   "tool_field_to": "To",
   "tool_field_label": "Label",
