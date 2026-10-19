@@ -199,7 +199,6 @@
   "tool_pending": "Das Werkzeugergebnis wird erwartet.",
   "tool_repositories": "Repositories:",
   "tool_repository_number": "Repository {{id}}",
-  "tool_collaborator_number": "Benutzer {{id}}",
   "tool_collaborators": "Mitarbeitende",
   "tool_propose_title": "Designdokument vorschlagen",
   "tool_propose_error_summary": "Designdokument konnte nicht vorgeschlagen werden",

@@ -199,7 +199,6 @@
   "tool_pending": "Eventus instrumenti exspectatur.",
   "tool_repositories": "Repositoria:",
   "tool_repository_number": "Repositorium {{id}}",
-  "tool_collaborator_number": "Usor {{id}}",
   "tool_collaborators": "Collaboratores",
   "tool_propose_title": "Documentum consilii propone",
   "tool_propose_error_summary": "Documentum consilii proponi non potuit",
