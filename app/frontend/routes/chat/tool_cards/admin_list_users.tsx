@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
+import { Badge, CardShell, CopyableValue, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_list_users (the tool-card work). Renders
@@ -37,7 +37,10 @@ function userRows(context: ToolCardContext): UserRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.users)) return null
 
-  return parsed.users.flatMap((user, index) => { const row = parseRow(user, index); return row ? [row] : [] })
+  return parsed.users.flatMap((user, index) => {
+    const row = parseRow(user, index)
+    return row ? [row] : []
+  })
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -48,27 +51,42 @@ function collapsedSummary(context: ToolCardContext) {
 
 function renderExpanded(context: ToolCardContext) {
   const rows = userRows(context)
-  if (!rows) return null
+  if (!rows) {
+    if (!context.resultError) return null
+    const parsed = context.parsedResult
+    const message = isPlainObject(parsed) ? displayValue(parsed.message) || displayValue(parsed.error) : null
+    return <EmptyState>{message || "Unable to list users."}</EmptyState>
+  }
 
-  if (rows.length === 0) return <EmptyState>No users found.</EmptyState>
+  const limit = numberValue(context.input?.limit)
 
   return (
     <CardShell>
-      <Table>
-        <THead columns={["Email", "Admin", "Provider", "Scheduling", "Created", "Jobs"]} />
-        <TBody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <Td maxWidth title={row.email ?? undefined}>{row.email || "—"}</Td>
-              <Td>{row.admin ? <Badge>admin</Badge> : "—"}</Td>
-              <Td>{row.agentProvider || "—"}</Td>
-              <Td>{row.schedulingPaused ? <StatePill state="paused" tone="warning" /> : <StatePill state="active" tone="success" />}</Td>
-              <Td mono>{row.createdAt || "—"}</Td>
-              <Td mono>{row.jobCount ?? "—"}</Td>
-            </tr>
-          ))}
-        </TBody>
-      </Table>
+      <Row label="Requested limit" value={limit == null ? "default (20)" : String(limit)} />
+      {rows.length === 0 ? (
+        <EmptyState>No users found.</EmptyState>
+      ) : (
+        <Table responsive>
+          <THead columns={["ID", "Email", "Admin", "Provider", "Scheduling", "Created", "Jobs"]} />
+          <TBody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <Td mono primary>
+                  <CopyableValue value={row.id} />
+                </Td>
+                <Td maxWidth title={row.email ?? undefined} wrap>
+                  {row.email || "—"}
+                </Td>
+                <Td>{row.admin ? <Badge>admin</Badge> : "—"}</Td>
+                <Td>{row.agentProvider || "—"}</Td>
+                <Td>{row.schedulingPaused ? <StatePill state="paused" tone="warning" /> : <StatePill state="active" tone="success" />}</Td>
+                <Td mono>{row.createdAt || "—"}</Td>
+                <Td mono>{row.jobCount ?? "—"}</Td>
+              </tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
     </CardShell>
   )
 }
