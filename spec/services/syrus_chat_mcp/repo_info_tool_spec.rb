@@ -40,7 +40,14 @@ RSpec.describe Mcp::Tools::RepoInfoTool do
     payload = response_payload(response).fetch(:repository)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(payload).to include(slug: "acme/widgets", default_branch: "trunk", trigger_label: "syrus", agent_provider: "claude")
+    expect(payload).to include(
+      id: repository.id,
+      slug: "acme/widgets",
+      url: "https://github.com/acme/widgets",
+      default_branch: "trunk",
+      trigger_label: "syrus",
+      agent_provider: "claude"
+    )
     expect(payload[:recent_commits]).to contain_exactly(include(sha: "abc123", subject: "Polish the tablets"))
     expect(payload[:branches]).to contain_exactly(include(name: "trunk", sha: "abc123"), include(name: "syrus/issue-1", sha: "def456"))
   end
