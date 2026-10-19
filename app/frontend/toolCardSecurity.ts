@@ -36,7 +36,7 @@ export function redactToolCardText(text: string, redactBareSecretIdentifier = tr
     .replace(/\b(gh[pousr]_[A-Za-z0-9_]{20,})\b/g, REDACTED)
     .replace(/\b(sk-[A-Za-z0-9_-]{20,})\b/g, REDACTED)
 
-  if (!redactBareSecretIdentifier || /^[A-Z][A-Z0-9_]*$/.test(redacted)) return redacted
+  if (!redactBareSecretIdentifier) return redacted
 
   return redacted.replace(/\b[A-Za-z0-9._-]*(?:credential|password|secret|token)[A-Za-z0-9._-]{6,}\b(?!\s*[:=])/gi, REDACTED)
 }
