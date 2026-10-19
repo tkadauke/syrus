@@ -76,9 +76,9 @@ module PendingActions
           StateTransition.with_source("reconciler") do
             WorkUnits::WorkflowCancellation.cancel!(
               workflow,
-              reason: "operator_stale_work_repair",
+              reason: WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
               artifacts: {
-                "cancelled_reason" => "operator_stale_work_repair",
+                "cancelled_reason" => WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
                 "cancelled_by_operator_repair_at" => Time.current.iso8601,
                 "operator_repair_reason" => reason
               }
