@@ -3,6 +3,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import type { MarkdownLinkHandler } from "../../lib/Markdown"
+import i18n from "../../i18n"
 
 const SUMMARY_CHARS = 88
 const QUESTION_SLUG_HREF_FALLBACKS = { DOC: "/design_docs/:id" }
@@ -147,9 +148,21 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
   )
 }
 
-export function OptionalReason({ reason }: { reason: string | null }) {
+export function OptionalReason({ reason, onLinkClick, title }: { reason: string | null; onLinkClick?: MarkdownLinkHandler; title?: string }) {
   if (!reason) return null
-  return <Row label="Reason" value={reason} />
+  return (
+    <div className="min-w-0 sm:col-span-2">
+      <MarkdownPreview
+        linkifySlugs
+        linkifyUrls
+        maxChars={500}
+        maxLines={4}
+        onLinkClick={onLinkClick}
+        text={reason}
+        title={title || i18n.t("chat:tool_card_reason")}
+      />
+    </div>
+  )
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

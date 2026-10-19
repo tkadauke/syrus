@@ -44,6 +44,17 @@ RSpec.describe "goal MCP tools" do
     expect(response).not_to be_error
     expect(goal.reload).to have_attributes(status: "blocked", terminal_reason: "waiting_for_credentials")
     expect(goal.terminal_details).to eq("provider" => "github")
+    payload = JSON.parse(response.content.first.fetch(:text))
+    expect(payload).to include(
+      "goal_id" => goal.id,
+      "previous_status" => "active",
+      "status" => "blocked",
+      "reason" => "waiting_for_credentials",
+      "details" => { "provider" => "github" },
+      "chat_session_id" => chat.id,
+      "chat_title" => chat.title,
+      "chat_path" => "/chats/#{chat.id}"
+    )
   end
 
   it "rejects blocked results without a reason" do
