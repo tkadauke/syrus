@@ -57,6 +57,13 @@ describe("ingest_pull_request tool card", () => {
     expect(screen.getByRole("link", { name: "EPIC-12" })).toBeInTheDocument()
   })
 
+  it.each([{}, { state: "queued", kind: "external_pr" }, "not-a-job"])("renders an incomplete state for a Job payload without identity: %j", (job) => {
+    render(<>{ingestPullRequestToolCard.renderExpanded(context({ parsedResult: { ...result, job } }))}</>)
+
+    expect(screen.getByText("The ingestion result included incomplete Job details.")).toBeInTheDocument()
+    expect(screen.queryByText("No Job was created for this classification.")).not.toBeInTheDocument()
+  })
+
   it.each([
     ["content text", { content: [{ type: "text", text: JSON.stringify(result) }] }, result],
     ["structured content", { structured_content: result }, result]

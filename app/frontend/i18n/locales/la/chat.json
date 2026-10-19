@@ -581,5 +581,23 @@
   "card_preview_pending_one": "{{count}} pendens",
   "card_preview_pending_other": "{{count}} pendentia",
   "tool_card_diff_page_only_stats": "Numeri mutationum ad hanc paginam tantum pertinent.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: pagina differentiarum {{page}} extra fines",
+  "ingest_pull_request": {
+    "failure_title": "Receptio petitionis incorporationis",
+    "attempted": "Petitionem incorporationis recipe",
+    "attempted_with_number": "PR #{{prNumber}} recipe",
+    "recovery": "Repositorium adiunctum, numerum petitionis, classificationem et nuntium validationis ante novum conatum inspice.",
+    "summary_ingested": "PR #{{prNumber}} ut {{jobLabel}} recepta",
+    "summary_already_ingested": "PR #{{prNumber}} iam ut {{jobLabel}} recepta",
+    "classification_override": "Classificatio substituta",
+    "classification_override_not_applied": "Classificatio substituta (non adhibita)",
+    "classification_auto_detected": "Classificatio automatice reperta",
+    "status_ingested": "recepta",
+    "status_already_ingested": "iam recepta",
+    "no_job": "Nullum Opus pro hac classificatione creatum est.",
+    "incomplete_job": "Eventus receptionis indicia Operis imperfecta continet.",
+    "example_auto_detected": "Receptio automatice reperta",
+    "example_override_without_job": "Classificatio substituta sine Opere",
+    "example_not_found": "Petitio incorporationis non inventa"
+  }
 }

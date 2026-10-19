@@ -581,5 +581,23 @@
   "card_preview_pending_one": "{{count}} pending",
   "card_preview_pending_other": "{{count}} pending",
   "tool_card_diff_page_only_stats": "Change counts are for this page only.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: diff page {{page}} out of range"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: diff page {{page}} out of range",
+  "ingest_pull_request": {
+    "failure_title": "Pull request ingestion",
+    "attempted": "Ingest pull request",
+    "attempted_with_number": "Ingest PR #{{prNumber}}",
+    "recovery": "Check the repository attachment, pull request number, classification, and validation message before retrying.",
+    "summary_ingested": "PR #{{prNumber}} ingested as {{jobLabel}}",
+    "summary_already_ingested": "PR #{{prNumber}} already ingested as {{jobLabel}}",
+    "classification_override": "Classification override",
+    "classification_override_not_applied": "Classification override (not applied)",
+    "classification_auto_detected": "Auto-detected classification",
+    "status_ingested": "ingested",
+    "status_already_ingested": "already ingested",
+    "no_job": "No Job was created for this classification.",
+    "incomplete_job": "The ingestion result included incomplete Job details.",
+    "example_auto_detected": "Auto-detected ingestion",
+    "example_override_without_job": "Classification override without a Job",
+    "example_not_found": "Pull request not found"
+  }
 }
