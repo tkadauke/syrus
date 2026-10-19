@@ -8,7 +8,7 @@ import drawEmbedToolCard from "./draw_embed"
 import drawFrameToolCard from "./draw_frame"
 import drawFreedrawToolCard from "./draw_freedraw"
 import drawImageToolCard from "./draw_image"
-import drawLineToolCard from "./draw_line"
+import drawLineToolCard, { examples as drawLineExamples } from "./draw_line"
 import drawShapeToolCard from "./draw_shape"
 import drawTextToolCard from "./draw_text"
 import moveElementToolCard from "./move_element"
@@ -150,11 +150,10 @@ describe("whiteboard element-action tool cards", () => {
             input: {
               x: 1,
               y: 2,
-              points: [
-                [0, 0],
-                [5, 5],
-                [10, 0]
-              ],
+              type: "arrow",
+              width: 10,
+              height: 20,
+              points: [[0, 0], { x: 5, y: 5 }, [10, 0]],
               color: "red",
               stroke_width: 3,
               start_arrowhead: "dot",
@@ -166,7 +165,14 @@ describe("whiteboard element-action tool cards", () => {
       </>
     )
     expect(screen.getByText("3 points")).toBeInTheDocument()
-    for (const value of ["red", "3", "dot", "arrow"]) expect(screen.getByText(value)).toBeInTheDocument()
+    expect(screen.getByText("(0, 0) → (10, 0)")).toBeInTheDocument()
+    for (const value of ["red", "3", "dot", "10", "20"]) expect(screen.getByText(value)).toBeInTheDocument()
+    expect(screen.getAllByText("arrow")).toHaveLength(2)
+    expect(screen.getByLabelText("red")).toHaveAttribute("style", "background-color: red;")
+    const points = screen.getByText("3 points").closest("details")
+    expect(points).toHaveClass("min-w-0", "max-w-full")
+    expect(points?.querySelector("ol")).toHaveClass("sm:grid-cols-2")
+    expect(points?.querySelectorAll("li")).toHaveLength(3)
     unmount()
 
     render(
@@ -287,6 +293,52 @@ describe("whiteboard element-action tool cards", () => {
   it("renders a pending state when no result has arrived", () => {
     expect(drawShapeToolCard.collapsedSummary?.(context())).toBe("Drew shape pending")
     render(<>{drawShapeToolCard.renderExpanded(context())}</>)
+    expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
+  })
+
+  it("handles wrapped line results and exports provider-agnostic catalog examples", () => {
+    const input = {
+      points: [
+        [0, 1],
+        [20, 30]
+      ],
+      stroke_width: 4,
+      color: "#123456",
+      start_arrowhead: "none",
+      end_arrowhead: "triangle"
+    }
+    render(<>{drawLineToolCard.renderExpanded(context({ toolName: "draw_line", input, parsedResult: { result: { id: "wrapped-line", version: 8 } } }))}</>)
+
+    for (const value of ["wrapped-line", "v8", "2 points", "(0, 1) → (20, 30)", "4", "none", "triangle", "#123456"])
+      expect(screen.getByText(value)).toBeInTheDocument()
+    expect(drawLineExamples.map((example) => example.id)).toEqual(["styled_polyline", "pending", "element_limit"])
+    expect(drawLineExamples.every((example) => example.sourceType === "generic")).toBe(true)
+  })
+
+  it("renders line failure and empty-result states through the shared cards", () => {
+    const failed = context({
+      toolName: "draw_line",
+      input: {
+        x: 1,
+        y: 2,
+        points: [
+          [0, 0],
+          [10, 10]
+        ]
+      },
+      resultError: true,
+      resultBody: "Canvas element limit exceeded",
+      parsedResult: { error_class: "Whiteboard::Canvas::ElementLimitExceeded", message: "Canvas element limit exceeded" }
+    })
+    expect(drawLineToolCard.collapsedSummary?.(failed)).toBe("Drew line failed: Canvas element limit exceeded")
+    const { unmount } = render(<>{drawLineToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Drew line failed")).toBeInTheDocument()
+    expect(screen.getByText("Whiteboard::Canvas::ElementLimitExceeded")).toBeInTheDocument()
+    unmount()
+
+    const pending = context({ toolName: "draw_line", input: { x: 1, y: 2 } })
+    expect(drawLineToolCard.collapsedSummary?.(pending)).toBe("Drew line pending")
+    render(<>{drawLineToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
   })
 })
