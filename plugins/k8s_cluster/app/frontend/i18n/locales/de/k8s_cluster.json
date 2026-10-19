@@ -289,6 +289,8 @@
   "tool_card_filter_placeholder": "Ressourcen filtern",
   "tool_card_health": "Zustand",
   "tool_card_generated_at": "Erzeugt um",
+  "col_annotations": "Annotationen",
+  "col_labels": "Labels",
   "tool_card_items": "Einträge",
   "tool_card_default_container": "Standard",
   "tool_card_log_preview": "Log-Vorschau",

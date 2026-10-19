@@ -645,6 +645,7 @@ function collectionKey(kind: CardKind) {
 }
 
 function singularKey(kind: CardKind) {
+  if (kind === "namespaces") return "namespace"
   if (kind === "deployments") return "deployment"
   if (kind === "statefulsets") return "stateful_set"
   if (kind === "daemonsets") return "daemon_set"
@@ -724,6 +725,8 @@ function columnsFor(kind: CardKind): Column[] {
     return [
       { key: "name", label: t("col_name") },
       { key: "status", label: t("col_status"), tone: (row) => (displayValue(row.status) === "Active" ? "success" : "warning") },
+      { key: "labels", label: t("col_labels") },
+      { key: "annotations", label: t("col_annotations") },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -970,7 +973,11 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
         {card.name ? (
           <>
             <span>/</span>
-            <span className="break-all">{card.name}</span>
+            {card.kind === "namespaces" ? (
+              <EntityReference kind="namespace" id={card.clusterId} label={card.name} wrap="break" />
+            ) : (
+              <span className="break-all">{card.name}</span>
+            )}
           </>
         ) : null}
       </div>
@@ -1201,6 +1208,14 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     conditions: Array.isArray(status.conditions) ? status.conditions : []
   }
 
+  if (kind === "namespaces")
+    return {
+      ...base,
+      status: status.phase,
+      labels: metadataKeysSummary(metadata.labels),
+      annotations: metadataKeysSummary(metadata.annotations)
+    }
+
   if (kind === "deployments")
     return {
       ...base,
@@ -1260,6 +1275,12 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     }
   if (kind === "secrets") return row
   return row
+}
+
+function metadataKeysSummary(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  const keys = Object.keys(value).sort()
+  return keys.length > 0 ? `${keys.length}: ${keys.join(", ")}` : "-"
 }
 
 export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExample[] {

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import configMapsToolCard from "./k8s_cluster_configmaps"
 import cronJobsToolCard from "./k8s_cluster_cronjobs"
 import daemonSetsToolCard from "./k8s_cluster_daemonsets"
@@ -328,6 +329,60 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("ReadWriteOnce")).toBeInTheDocument()
     expect(screen.getByText("FailedScheduling")).toBeInTheDocument()
     expect(screen.getByText("Pod / web-1")).toBeInTheDocument()
+  })
+
+  it("renders namespace describes from every MCP envelope with linked scope and safe metadata summaries", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      namespace: {
+        metadata: {
+          name: "payments",
+          creationTimestamp: "2026-09-01T00:00:00Z",
+          labels: { owner: "private-team-name", environment: "production" },
+          annotations: { "example.test/contact": "secret-contact@example.test", "kubectl.kubernetes.io/last-applied-configuration": "secret-manifest" }
+        },
+        status: { phase: "Active" }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_namespaces")
+      const cardContext = context({ toolName, input: { cluster_id: 7, name: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(toolName).toBe("k8s_cluster_namespaces")
+      expect(namespacesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 1 namespaces")
+      const rendered = render(<>{namespacesToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByText("Active")).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Age" })).toBeInTheDocument()
+      expect(screen.getByText("2: environment, owner")).toBeInTheDocument()
+      expect(screen.getByText("2: example.test/contact, kubectl.kubernetes.io/last-applied-configuration")).toBeInTheDocument()
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.queryByText(/private-team-name|secret-contact|secret-manifest/)).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders namespace list, empty, and error results without generic fallback", () => {
+    const listContext = context({
+      toolName: "k8s_cluster_namespaces",
+      input: { cluster_id: 7 },
+      parsedResult: { available: true, namespaces: [{ name: "default", status: "Active", created_at: "2026-09-01T00:00:00Z" }] }
+    })
+    expect(namespacesToolCard.renderExpanded(listContext)).not.toBeNull()
+
+    render(<>{namespacesToolCard.renderExpanded(context({ toolName: "k8s_cluster_namespaces", parsedResult: { available: true, namespaces: [] } }))}</>)
+    expect(screen.getByText("No namespaces returned.")).toBeInTheDocument()
+
+    const errorContext = context({ toolName: "k8s_cluster_namespaces", input: { cluster_id: 7, name: "missing" }, resultBody: "Error: Namespace not found", resultError: true, parsedResult: null })
+    render(<>{namespacesToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("Namespace not found")).toBeInTheDocument()
   })
 
   it("renders overview totals and metrics-unavailable warnings without dumping raw JSON", () => {
