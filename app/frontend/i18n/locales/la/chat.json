@@ -395,6 +395,7 @@
   "proposal_investigation_label": "Investigatio",
   "proposal_investigation_value": "Tantum lectio, nullum PR exspectatur",
   "proposal_provider": "Provisor",
+  "proposal_priority": "Prioritas",
   "proposal_provider_default": "Default",
   "proposal_capabilities": "Facultates",
   "aria_confirm_proposal_to_backlog": "Propositum ad backlog confirmare",

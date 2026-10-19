@@ -51,6 +51,46 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  it "stores mixed child priorities and defaults omitted priorities to medium" do
+    response = call_tool(
+      epic: {
+        slug: "prioritized-epic",
+        title: "Prioritized Epic",
+        description: "Schedule children intentionally.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        { slug: "urgent-child", title: "Urgent child", description: "Do this first.", priority: "urgent" },
+        { slug: "default-child", title: "Default child", description: "Do this normally." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    children = response_payload(response).fetch(:child_jobs).index_by { |child| child.fetch(:slug) }
+    expect(children.fetch("urgent-child")).to include(priority: "urgent")
+    expect(children.fetch("default-child")).to include(priority: "medium")
+    expect(chat_session.proposals.find_by!(slug: "urgent-child")).to have_attributes(priority: "urgent")
+    expect(chat_session.proposals.find_by!(slug: "default-child")).to have_attributes(priority: "medium")
+  end
+
+  it "rejects an invalid child priority before creating the bundle" do
+    response = call_tool(
+      epic: {
+        slug: "invalid-priority-epic",
+        title: "Invalid priority Epic",
+        description: "This should be rejected.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        { slug: "invalid-child", title: "Invalid child", description: "Do not create this.", priority: "critical" }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include('"urgent", "high", "medium", "low"')
+    expect(chat_session.proposals.find_by(slug: "invalid-priority-epic")).to be_nil
+  end
+
   it "tells agents to declare where work runs and that the text is never read" do
     schema = described_class.input_schema_value.to_h
     child_schema = schema.fetch(:properties).fetch(:jobs).fetch(:items)

@@ -759,6 +759,12 @@ advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
 
+`propose_job` accepts `priority`, and `propose_epic_with_jobs` accepts a
+`jobs[].priority` for each child. Valid values are `urgent`, `high`, `medium`,
+and `low`; omission defaults to `medium`. The proposal card displays the
+selected priority, and confirmation copies it onto the Job before the initial
+state transition, so admission and the first queued Run use that priority.
+
 `propose_job` requires `planned_execution.capabilities`, and
 `propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
 every child Job. Callers must choose explicit execution capabilities before the

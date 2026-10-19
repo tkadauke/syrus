@@ -83,6 +83,18 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "materializes mixed child priorities" do
+    proposal = epic_proposal
+    urgent = child_for(proposal, "urgent").tap { |child| child.update!(priority: "urgent") }
+    low = child_for(proposal, "low").tap { |child| child.update!(priority: "low") }
+    depend_on(low, urgent)
+
+    described_class.new(user: user).file!(proposal)
+
+    expect(urgent.reload.job).to have_attributes(priority: "urgent")
+    expect(low.reload.job).to have_attributes(priority: "low")
+  end
+
   it "refuses to materialize pre-existing bundles for read-tier collaborators" do
     repository
     collaborator = Factories.user(email_address: "materializer-reader@example.com", admin: false)

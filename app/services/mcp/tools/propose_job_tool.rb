@@ -71,6 +71,8 @@ module Mcp::Tools
       the Job inherits the repository/user default provider at confirmation
       time. Unknown provider values are rejected before the proposal card is
       created.
+      Set priority to urgent, high, medium, or low to control the Job's first
+      scheduling decision. It defaults to medium.
       Set planned_execution to declare where the work has to run. Nothing
       reads the proposal text to guess this, so if the work needs a host other
       than Linux you must say so here. Supported dimensions are os, arch,
@@ -116,6 +118,7 @@ module Mcp::Tools
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a standalone read-only investigation Job (no PR expected) instead of a normal implementation Job. Use this for exploratory spike, audit-only, discovery-only, or investigation-style work rather than placing that work inside an Epic. Defaults to false." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
+        priority: { type: "string", enum: Job::PRIORITIES, description: "Job scheduling priority. Defaults to medium." },
         planned_execution: {
           type: "object",
           properties: {
@@ -132,7 +135,7 @@ module Mcp::Tools
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, planned_execution: nil, for_active_goal: false)
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -155,6 +158,8 @@ module Mcp::Tools
         end
         return Mcp::Tools.invalid("title is required") if title.empty?
         return Mcp::Tools.invalid("description is required") if description.empty?
+        priority = priority.to_s
+        return Mcp::Tools.invalid("priority must be one of: #{Job::PRIORITIES.join(', ')}") unless Job::PRIORITIES.include?(priority)
         provider_setting, provider_error = normalize_provider_setting(provider)
         return Mcp::Tools.invalid(provider_error) if provider_error
         planned_execution_attrs = planned_execution_attributes(planned_execution)
@@ -213,6 +218,7 @@ module Mcp::Tools
             route_to_backlog: ActiveModel::Type::Boolean.new.cast(route_to_backlog),
             investigation: ActiveModel::Type::Boolean.new.cast(investigation),
             provider_setting: provider_setting,
+            priority: priority,
             **planned_execution_attrs,
             **goal_attrs
           )
