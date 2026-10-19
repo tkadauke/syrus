@@ -46,7 +46,7 @@ import {
   typedToolResult,
   type TypedToolResult
 } from "./toolRendering"
-import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardRendererFor } from "../../pluginToolCards"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardPendingBody, pluginToolCardRendererFor } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -937,7 +937,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
                 {detail ? `(${detail})` : ""}
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? <ToolResultBody call={call} chatSessionId={chatSessionId} /> : null}
+              {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
+                <ToolResultBody call={call} chatSessionId={chatSessionId} />
+              ) : expanded ? (
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId))
+              ) : null}
               {expanded ? (
                 <RawToolDetails
                   payload={{

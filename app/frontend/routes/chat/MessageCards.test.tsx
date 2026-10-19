@@ -1451,6 +1451,36 @@ describe("tool result rendering", () => {
     expect(screen.getAllByText("WF-28622").some((label) => label.closest("a")?.getAttribute("href") === "/jobs/7705?tab=workflows#workflow-28622")).toBe(true)
   })
 
+  it("renders registered pending-card input before a tool result exists", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Update pinned context",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "update_pinned_context",
+          raw_name: "mcp__syrus-chat-sidecar__update_pinned_context",
+          detail: "",
+          display_label: "Update pinned context",
+          progress_label: "Updating",
+          raw_payload: { content: "Keep **JOB-42** in view." },
+          result_body: "",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Update pinned context")
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByText("Keep", { exact: false })).toBeInTheDocument()
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
       content: [

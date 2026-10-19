@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue } from "../toolCardUi"
-import { ErrorCard, MalformedCard, StatusCard, successOrError } from "../chatHelperToolCard"
-import { parsePinnedContextResult, pinnedContextIdentifiers, PinnedContextCard } from "../pinnedContextToolCard"
+import { ErrorCard, MalformedCard, successOrError } from "../chatHelperToolCard"
+import { parsePinnedContextResult, PendingPinnedContextCard, pinnedContextIdentifiers, PinnedContextCard } from "../pinnedContextToolCard"
 
 function parseUpdate(context: ToolCardContext) {
   return successOrError(context, "Pinned context update failed.", () => parsePinnedContextResult(context))
@@ -18,7 +18,6 @@ function renderExpanded(context: ToolCardContext) {
   const parsed = parseUpdate(context)
   if (parsed.kind === "error") return <ErrorCard title="Pinned context" message={parsed.message} />
   if (parsed.kind === "malformed") {
-    if (context.resultBody === "") return <StatusCard title="Pinned context" status="pending" />
     return <MalformedCard title="Pinned context" />
   }
 
@@ -27,10 +26,15 @@ function renderExpanded(context: ToolCardContext) {
   return <PinnedContextCard {...identifiers} inputContent={displayValue(context.input?.content)} result={parsed.data} />
 }
 
+function renderPending(context: ToolCardContext) {
+  return <PendingPinnedContextCard content={displayValue(context.input?.content)} />
+}
+
 const updatePinnedContextToolCard: ToolCardRenderer = {
   toolName: "update_pinned_context",
   collapsedSummary,
-  renderExpanded
+  renderExpanded,
+  renderPending
 }
 
 export default updatePinnedContextToolCard
