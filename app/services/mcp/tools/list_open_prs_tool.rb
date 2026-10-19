@@ -1,4 +1,5 @@
 require "mcp"
+require "cgi"
 
 module Mcp::Tools
   class ListOpenPrsTool < MCP::Tool
@@ -81,7 +82,7 @@ module Mcp::Tools
         ref = branch&.ref
         return unless repository_url.present? && ref.present?
 
-        "#{repository_url}/tree/#{ref}"
+        "#{repository_url}/tree/#{CGI.escapeURIComponent(ref)}"
       end
     end
   end

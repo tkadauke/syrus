@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import i18n from "@app/i18n"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import listOpenPrsToolCard from "./list_open_prs"
 
@@ -54,7 +55,7 @@ describe("list_open_prs tool card", () => {
     expect(screen.getByText("mergeable")).toBeInTheDocument()
     expect(screen.getByText("conflicts")).toBeInTheDocument()
     expect(screen.getByText("checking")).toBeInTheDocument()
-    expect(screen.getByText("draft")).toBeInTheDocument()
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0)
     expect(screen.getByText("May 3, 2026")).toHaveAttribute("datetime", "2026-05-03T09:00:00Z")
     expect(screen.getByText("Filter:").parentElement).toHaveTextContent("Filter:openLimit:3")
     expect(screen.getByRole("table")).toHaveClass("block", "sm:table")
@@ -71,6 +72,19 @@ describe("list_open_prs tool card", () => {
   it("renders a dedicated error state", () => {
     render(<>{listOpenPrsToolCard.renderExpanded(context({ resultError: true, parsedResult: { error: "GitHub unavailable" } }))}</>)
     expect(screen.getByText("GitHub unavailable")).toBeInTheDocument()
+  })
+
+  it("localizes labels, states, and empty results", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      const cardContext = context({ input: { state: "merged", limit: 4 }, parsedResult: { pull_requests: [] } })
+      expect(listOpenPrsToolCard.collapsedSummary?.(cardContext)).toBe("0 Pull Requests · zusammengeführt · Limit 4")
+      render(<>{listOpenPrsToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByText("zusammengeführt")).toBeInTheDocument()
+      expect(screen.getByText("Keine Pull Requests gefunden.")).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage("en")
+    }
   })
 
   it("renders an explicit empty state for a well-formed empty list", () => {
