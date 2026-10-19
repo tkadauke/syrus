@@ -273,6 +273,15 @@ function CopyOnlyIconButton({ value }: { value: string }) {
   )
 }
 
+export function CopyableValue({ value }: { value: string }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1 font-mono">
+      <span className="break-all">{value}</span>
+      <CopyOnlyIconButton value={value} />
+    </span>
+  )
+}
+
 function entityLabelWrapClass(reference: EntityReferenceProps) {
   return reference.wrap === "nowrap" ? "whitespace-nowrap" : "break-all"
 }
