@@ -79,7 +79,7 @@ const CARDS: { card: ToolCardRenderer; action: string; input: Record<string, unk
     card: drawEmbedToolCard,
     action: "Drew embed",
     input: { type: "iframe", link: "https://example.com/card", x: 15, y: 25, width: 400, height: 225 },
-    expectedDetails: ["iframe", "https://example.com/card", "15", "25", "400", "225"]
+    expectedDetails: ["iframe", "https://example.com/card", "15 / 25", "400 × 225"]
   },
   {
     card: drawImageToolCard,
@@ -229,7 +229,38 @@ describe("whiteboard element-action tool cards", () => {
     )
     const link = screen.getByRole("link", { name: "https://example.com/embed" })
     expect(link).toHaveAttribute("target", "_blank")
-    expect(link).toHaveAttribute("rel", "noreferrer")
+    expect(link).toHaveAttribute("rel", "noreferrer noopener")
+    expect(screen.getByText("example.com")).toBeInTheDocument()
+    expect(link).toHaveClass("min-w-0")
+    expect(link.querySelector(".break-all")).toHaveTextContent("https://example.com/embed")
+    unmount()
+
+    render(
+      <>
+        {drawEmbedToolCard.renderExpanded(
+          context({
+            input: { type: "embeddable", link: "javascript:alert(1)", x: 5, y: 6, width: 320, height: 180 },
+            parsedResult: { id: "embed-unsafe", version: 2 }
+          })
+        )}
+      </>
+    )
+    expect(screen.queryByRole("link", { name: /javascript:/ })).not.toBeInTheDocument()
+    expect(screen.getByText("javascript:alert(1)")).toHaveClass("break-all")
+    expect(screen.getByText("javascript:alert(1)").parentElement).toHaveAttribute("aria-invalid", "true")
+    unmount()
+
+    render(
+      <>
+        {drawEmbedToolCard.renderExpanded(
+          context({
+            input: { type: "iframe", link: "https://example.com/embed", x: 10, y: 20, width: 640, height: 360 },
+            parsedResult: { result: { id: "wrapped-embed", version: 9 } }
+          })
+        )}
+      </>
+    )
+    for (const value of ["iframe", "10 / 20", "640 × 360", "wrapped-embed", "v9"]) expect(screen.getByText(value)).toBeInTheDocument()
     unmount()
 
     render(
@@ -241,6 +272,29 @@ describe("whiteboard element-action tool cards", () => {
     )
     expect(screen.getByText("Important").tagName).toBe("STRONG")
     expect(screen.getByText("24")).toBeInTheDocument()
+  })
+
+  it("renders draw_embed pending, malformed, and failure states", () => {
+    expect(drawEmbedToolCard.collapsedSummary?.(context({ toolName: "draw_embed" }))).toBe("Drew embed pending")
+    const { unmount } = render(<>{drawEmbedToolCard.renderExpanded(context({ toolName: "draw_embed" }))}</>)
+    expect(screen.getByText("Waiting for a result")).toBeInTheDocument()
+    unmount()
+
+    const malformed = render(<>{drawEmbedToolCard.renderExpanded(context({ toolName: "draw_embed", parsedResult: {} }))}</>)
+    expect(screen.getByText("Result did not include an element ID")).toBeInTheDocument()
+    malformed.unmount()
+
+    const failed = context({
+      toolName: "draw_embed",
+      input: { type: "iframe", link: "https://example.com/embed", x: 1, y: 2, width: 0, height: 4 },
+      resultError: true,
+      resultBody: "width must be positive",
+      parsedResult: { message: "width must be positive", retryable: false }
+    })
+    expect(drawEmbedToolCard.collapsedSummary?.(failed)).toBe("Drew embed failed: width must be positive")
+    render(<>{drawEmbedToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Drew embed failed")).toBeInTheDocument()
+    expect(screen.getByText("width must be positive")).toBeInTheDocument()
   })
 
   it("renders a specific failure card for a failed draw_arrow call", () => {
