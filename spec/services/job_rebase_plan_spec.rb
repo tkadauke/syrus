@@ -24,6 +24,7 @@ RSpec.describe JobRebasePlan do
     expect(plan).to include(
       "job_id" => job.id,
       "slug" => job.slug,
+      "repository_slug" => repository.slug,
       "current_base" => "main",
       "target_base" => repository.default_branch,
       "pr_number" => 2265,

@@ -1007,6 +1007,7 @@ export function PendingActionCard({
 
   return (
     <ConfirmationCard
+      id={`pending-action-${pendingAction.id}`}
       muted={Boolean(terminalLabel)}
       tone={isEmergencyLand ? "warning" : "default"}
       header={
@@ -1166,6 +1167,7 @@ export function PendingActionGroupCard({
 
   return (
     <ConfirmationCard
+      id={`pending-action-group-${pendingActionGroup.id}`}
       muted={Boolean(terminalLabel)}
       header={
         <>
