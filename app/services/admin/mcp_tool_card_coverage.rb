@@ -19,7 +19,6 @@ module Admin
       "retire_terminal_work_unit" => "generic",
       "assign_job_to_epic" => "generic",
       "force_fail_job" => "generic",
-      "get_spending" => "deferred",
       "manual_agentic_run" => "generic",
       "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
