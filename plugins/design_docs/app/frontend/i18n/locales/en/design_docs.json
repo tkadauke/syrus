@@ -218,6 +218,7 @@
   "tool_propose_error_summary": "Could not propose design doc",
   "tool_propose_pending_summary": "Proposing design doc",
   "tool_proposed_content": "Proposed content",
+  "tool_proposed_title": "Proposed title",
   "tool_created_content": "Created content",
   "tool_no_proposed_content": "No proposed content was provided.",
   "tool_no_created_content": "The created design doc has no content.",
