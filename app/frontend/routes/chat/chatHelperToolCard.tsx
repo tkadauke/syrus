@@ -5,6 +5,11 @@ import { MarkdownPreview } from "./toolCardMarkdown"
 import type { MarkdownLinkHandler } from "../../lib/Markdown"
 
 const SUMMARY_CHARS = 88
+const QUESTION_OPTION_CLASS = [
+  "inline-flex min-h-11 w-full min-w-0 max-w-full items-center rounded-[var(--radius-pill)]",
+  "bg-neutral-surface px-2 py-0.5 text-2xs text-neutral-text ring-1 ring-neutral-border",
+  "sm:min-h-0 sm:w-auto"
+].join(" ")
 
 export function compactSummary(value: string | null, maxChars = SUMMARY_CHARS) {
   if (!value) return null
@@ -106,9 +111,9 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Badge>{question.multiple ? "multi-select" : "single-select"}</Badge>
                     {question.options.map((option) => (
-                      <span className="inline-flex min-h-11 min-w-0 max-w-full items-center break-words [overflow-wrap:anywhere] sm:min-h-0" key={option}>
-                        <Badge wrap>{option}</Badge>
-                      </span>
+                      <div className={QUESTION_OPTION_CLASS} data-testid="question-option" key={option}>
+                        <MarkdownPreview linkifySlugs linkifyUrls maxChars={240} maxLines={3} onLinkClick={onLinkClick} text={option} />
+                      </div>
                     ))}
                   </div>
                 ) : (
