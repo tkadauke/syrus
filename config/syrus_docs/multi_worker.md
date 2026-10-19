@@ -69,8 +69,8 @@ roster. Each instance entry includes its database ID, hostname, role, version,
 start and heartbeat timestamps, and the latest data-root usage snapshot
 (health level, used percentage, reporting hostname, path, available and total
 bytes, and observation time). When `SYRUS_GITHUB_REPO` identifies the running
-source repository, the result also includes its GitHub URL so the chat card can
-link each revision to its commit. The responsive card marks the instance that
+source repository, the SPA bootstrap exposes the current revision URL so the
+chat card can link each revision to its commit. The responsive card marks the instance that
 handled the request and makes hostnames and revisions copyable; mixed revisions
 remain called out during rolling deploys. Use `read_worker_health` for the
 larger capability, probe, and historical-health payloads.
