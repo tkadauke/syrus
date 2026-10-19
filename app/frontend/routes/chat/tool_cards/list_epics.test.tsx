@@ -72,8 +72,24 @@ describe("list_epics tool card", () => {
     expect(screen.getByText("No Epics found.")).toBeInTheDocument()
     expect(screen.getByText("State: ready")).toBeInTheDocument()
     expect(screen.getByText("Limit: 5")).toBeInTheDocument()
-    rerender(<>{listEpicsToolCard.renderExpanded(context({ resultError: true, resultBody: "permission denied" }))}</>)
+    rerender(<>{listEpicsToolCard.renderExpanded(context({ input: { state: "archived", limit: 8 }, resultError: true, resultBody: "permission denied" }))}</>)
     expect(screen.getByText("permission denied")).toBeInTheDocument()
+    expect(screen.getByText("State: archived")).toBeInTheDocument()
+    expect(screen.getByText("Limit: 8")).toBeInTheDocument()
+    expect(screen.queryByText(/Result limit reached/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [0, 1, true],
+    [-5, 1, true],
+    [500, 100, false],
+    [1.9, 1, true]
+  ])("shows the backend-effective limit for requested limit %s", (requested, effective, limitReached) => {
+    render(<>{listEpicsToolCard.renderExpanded(context({ input: { limit: requested }, parsedResult: { epics: [epic] } }))}</>)
+    expect(screen.getByText(`Limit: ${effective}`)).toBeInTheDocument()
+    const hint = screen.queryByText(/Result limit reached/)
+    if (limitReached) expect(hint).toBeInTheDocument()
+    else expect(hint).not.toBeInTheDocument()
   })
 
   it("falls back to null for malformed successful payloads", () => {

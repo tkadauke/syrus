@@ -67,14 +67,20 @@ function errorMessage(context: ToolCardContext) {
   return displayValue(context.resultBody) || "Unable to list Epics."
 }
 
-function QuerySummary({ context, rowCount }: { context: ToolCardContext; rowCount: number }) {
+function effectiveLimit(value: unknown) {
+  const requested = numberValue(value)
+  if (requested == null) return 20
+  return Math.min(100, Math.max(1, Math.trunc(requested)))
+}
+
+function QuerySummary({ context, rowCount }: { context: ToolCardContext; rowCount: number | null }) {
   const state = displayValue(context.input?.state)
-  const limit = numberValue(context.input?.limit) ?? 20
+  const limit = effectiveLimit(context.input?.limit)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-text-muted">
       <span>State: {state || "non-archived"}</span>
       <span>Limit: {limit}</span>
-      {rowCount >= limit ? <span className="font-medium text-warning">Result limit reached; more Epics may be available.</span> : null}
+      {rowCount != null && rowCount >= limit ? <span className="font-medium text-warning">Result limit reached; more Epics may be available.</span> : null}
     </div>
   )
 }
@@ -159,7 +165,13 @@ function MobileList({ rows }: { rows: EpicRow[] }) {
 
 function renderExpanded(context: ToolCardContext) {
   const error = errorMessage(context)
-  if (error) return <EmptyState>{error}</EmptyState>
+  if (error)
+    return (
+      <CardShell>
+        <QuerySummary context={context} rowCount={null} />
+        <EmptyState>{error}</EmptyState>
+      </CardShell>
+    )
   const rows = epicRows(context)
   if (!rows) return null
   return (
