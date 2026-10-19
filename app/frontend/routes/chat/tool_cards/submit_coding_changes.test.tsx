@@ -33,6 +33,18 @@ describe("submit_coding_changes tool card", () => {
     expect(submitCodingChangesToolCard.collapsedSummary?.(context_)).toContain("pending operator confirmation")
   })
 
+  it("removes Markdown syntax from the collapsed summary", () => {
+    const context_ = context({
+      parsedResult: {
+        pending_action_id: 88,
+        state: "confirming",
+        message: "Submit coding changes was **auto-confirmed** for [`syrus/coding-322`](/branches/322)."
+      }
+    })
+
+    expect(submitCodingChangesToolCard.collapsedSummary?.(context_)).toBe("Submit coding changes was auto-confirmed for syrus/coding-322.")
+  })
+
   it("renders branch, title, pending state, and message on success", () => {
     const context_ = context({
       input: { branch: "syrus/coding-322", title: "Add dark mode toggle", description: "Adds a toggle." },
