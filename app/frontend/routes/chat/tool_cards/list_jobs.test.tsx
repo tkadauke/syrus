@@ -37,20 +37,53 @@ describe("list_jobs tool card", () => {
   it("renders a dense table with one row per Job", () => {
     const parsedResult = {
       jobs: [
-        { id: 4048, repository_slug: "tkadauke/syrus", issue_title: "Add tool cards", state: "running", pr_number: 12, priority: "high" },
+        {
+          id: 4048,
+          repository_slug: "tkadauke/syrus",
+          kind: "issue",
+          issue_number: 91,
+          pr_number: 12,
+          branch_name: "syrus/cards/mobile-layout",
+          state: "closed",
+          closure_reason: "implemented",
+          agent_provider: "codex",
+          job_provider_setting: "default",
+          priority: "high",
+          issue_title: "Add **readable** tool cards",
+          goal_provenance: { chat_goal_id: 77 },
+          created_at: "2026-10-18T10:00:00Z",
+          updated_at: "2026-10-19T11:30:00Z"
+        },
         { id: 4049, repository_slug: "tkadauke/syrus", issue_title: "Fix bug", state: "queued", pr_number: null, priority: "medium" }
       ]
     }
 
-    render(<>{listJobsToolCard.renderExpanded(context({ input: { state: "open", label: "syrus:skip-prepare", limit: 10 }, parsedResult }))}</>)
+    const { container } = render(
+      <>{listJobsToolCard.renderExpanded(context({ input: { state: "open", label: "syrus:skip-prepare", limit: 10 }, parsedResult }))}</>
+    )
 
     expect(screen.getByRole("table")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-4048" })).toHaveAttribute("href", "/jobs/4048")
-    expect(screen.getByText("Add tool cards")).toBeInTheDocument()
+    expect(screen.getByText("readable")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "PR #12" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/12")
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("link", { name: "syrus/cards/mobile-layout" })).toHaveAttribute(
+      "href",
+      "https://github.com/tkadauke/syrus/tree/syrus%2Fcards%2Fmobile-layout"
+    )
+    expect(screen.getByText("Kind:").parentElement).toHaveTextContent("issue")
+    expect(screen.getByText("Issue:").parentElement).toHaveTextContent("#91")
+    expect(screen.getByText("implemented")).toBeInTheDocument()
+    expect(screen.getByText("Agent:").parentElement).toHaveTextContent("codex")
+    expect(screen.getByText("Setting:").parentElement).toHaveTextContent("default")
+    expect(screen.getByText("Goal:").parentElement).toHaveTextContent("#77")
+    expect(screen.getByText("Created:").parentElement).toHaveTextContent("2026-10-18T10:00:00Z")
+    expect(screen.getByText("Updated:").parentElement).toHaveTextContent("2026-10-19T11:30:00Z")
     expect(screen.getByRole("link", { name: "JOB-4049" })).toHaveAttribute("href", "/jobs/4049")
     expect(screen.getByText("Fix bug")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Copy tkadauke/syrus to clipboard" })).toHaveLength(2)
+    expect(container.querySelector("table")).toHaveClass("block", "sm:table")
+    expect(container.querySelector('td[data-label="Source"]')).toBeInTheDocument()
+    expect(container.querySelector('td[data-label="Lifecycle"]')).toBeInTheDocument()
     expect(screen.getByText(/Showing 2, limit 10/)).toHaveTextContent("Label: syrus:skip-prepare")
   })
 

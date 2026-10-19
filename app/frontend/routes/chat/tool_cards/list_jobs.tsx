@@ -8,7 +8,7 @@ function jobRows(context: ToolCardContext): JobRow[] | null {
   const parsed = jobResult(context, "jobs")
   if (!parsed) return null
 
-  return parsed.flatMap((job) => {
+  return parsed.items.flatMap((job) => {
     const row = parseJobRow(job)
     return row ? [row] : []
   })
