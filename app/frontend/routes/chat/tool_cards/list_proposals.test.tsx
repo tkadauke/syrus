@@ -14,7 +14,12 @@ describe("list_proposals tool card", () => {
   })
 
   it("summarizes the proposal count", () => {
-    const parsedResult = { proposals: [{ slug: "a", state: "proposed", kind: "job" }, { slug: "b", state: "confirmed", kind: "epic" }] }
+    const parsedResult = {
+      proposals: [
+        { slug: "a", state: "proposed", kind: "job" },
+        { slug: "b", state: "confirmed", kind: "epic" }
+      ]
+    }
     expect(listProposalsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 proposals")
   })
 
@@ -86,10 +91,7 @@ describe("list_proposals tool card", () => {
 
   it("accepts normalized structured-content and text MCP envelopes", () => {
     const payload = { proposals: [{ slug: "wrapped", title: "Wrapped", state: "proposed", kind: "job" }] }
-    const envelopes = [
-      { structured_content: payload },
-      { content: [{ type: "text", text: JSON.stringify(payload) }] }
-    ]
+    const envelopes = [{ structured_content: payload }, { content: [{ type: "text", text: JSON.stringify(payload) }] }]
 
     for (const envelope of envelopes) {
       const parsedResult = normalizedToolCardParsedResult(envelope)

@@ -30,7 +30,9 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <div className="mt-1 grid min-w-0 gap-2">
-      {rows.map((proposal) => <ProposalOutcomeCard key={proposal.slug} onLinkClick={context.onLinkClick} proposal={proposal} />)}
+      {rows.map((proposal) => (
+        <ProposalOutcomeCard key={proposal.slug} onLinkClick={context.onLinkClick} proposal={proposal} />
+      ))}
     </div>
   )
 }
