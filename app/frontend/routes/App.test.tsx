@@ -661,15 +661,13 @@ describe("App", () => {
   })
 
   it("renders the sign-in route and submits credentials through the auth API", async () => {
-    const fetchSpy = vi
-      .spyOn(window, "fetch")
-      .mockImplementation(
-        async () =>
-          new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Try another email address or password." } }), {
-            status: 422,
-            headers: { "Content-Type": "application/json" }
-          })
-      )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Try another email address or password." } }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" }
+        })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -12879,23 +12877,21 @@ describe("App", () => {
   it("blocks sending a ready walkthrough alongside image attachments", async () => {
     // Gemini must be configured or the drop opens the setup sheet instead of
     // creating a walkthrough draft (chatPayload defaults gemini_configured off).
-    const fetchSpy = vi
-      .spyOn(window, "fetch")
-      .mockImplementation(
-        async () =>
-          new Response(
-            JSON.stringify({
-              ...chatPayload(),
-              gemini_configured: true,
-              paths: {
-                ...chatPayload().paths,
-                app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs",
-                app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry"
-              }
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-      )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ...chatPayload(),
+            gemini_configured: true,
+            paths: {
+              ...chatPayload().paths,
+              app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs",
+              app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry"
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    )
     // jsdom implements neither media metadata nor URL.createObjectURL, so the
     // real measureVideoDuration would hang the intake await; resolve it here.
     vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockImplementation(async () => 30)
@@ -13485,14 +13481,7 @@ describe("App", () => {
       expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(calc(-142px - env(safe-area-inset-top)))" })
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
       const hiddenHeaderScrim = screen.getByTestId("mobile-chat-hidden-header-scrim")
-      expect(hiddenHeaderScrim).toHaveClass(
-        "fixed",
-        "top-0",
-        "h-32",
-        "from-gray-950/80",
-        "backdrop-blur-md",
-        "backdrop-saturate-150"
-      )
+      expect(hiddenHeaderScrim).toHaveClass("fixed", "top-0", "h-32", "from-gray-950/80", "backdrop-blur-md", "backdrop-saturate-150")
       expect(hiddenHeaderScrim.parentElement).toBe(document.body)
       expect(hiddenHeaderScrim).not.toHaveClass("h-14")
       expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
