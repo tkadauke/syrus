@@ -158,7 +158,7 @@ function updateToolGroupState(group: ChatToolGroupItem) {
 }
 
 function toolCallSettled(call: ChatToolGroupCall) {
-  return call.result_settled === true || call.result_body !== ""
+  return call.result_settled === true || call.result_error || call.result_body !== ""
 }
 
 function canJoinToolGroup(group: ChatToolGroupItem, nextToolName: string, nextToolLabel: string) {

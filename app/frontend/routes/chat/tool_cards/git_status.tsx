@@ -75,7 +75,8 @@ function errorText(context: ToolCardContext): string | null {
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return "Git status failed"
+  const error = errorText(context)
+  if (error) return `Git status unavailable: ${error}`
   const status = parseStatus(context)
   if (status == null) return context.parsedResult == null && !context.resultBody.trim() ? "No git status returned" : null
   const rows = statusRows(status)
