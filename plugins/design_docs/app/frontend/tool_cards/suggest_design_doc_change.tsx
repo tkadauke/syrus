@@ -9,6 +9,7 @@ type Suggestion = {
   changeSummary: string
   conflictReason: string
   suggestedByKind: string | null
+  suggestedBy: { id: number | null; name: string | null; emailAddress: string | null } | null
   originalMarkdown: string
   proposedMarkdown: string
   baseVersionNumber: number | null
@@ -20,6 +21,14 @@ type SuggestDesignDocChange = { summary: DesignDocSummary; suggestion: Suggestio
 
 function textValue(value: unknown) {
   return typeof value === "string" ? value : ""
+}
+
+function authorValue(value: unknown): Suggestion["suggestedBy"] {
+  if (!isPlainObject(value)) return null
+  const id = numberValue(value.id)
+  const name = displayValue(value.name)
+  const emailAddress = displayValue(value.email_address)
+  return id != null || name != null || emailAddress != null ? { id, name, emailAddress } : null
 }
 
 function resultObject(parsed: unknown): Record<string, unknown> | null {
@@ -56,6 +65,7 @@ function suggestDesignDocChange(context: ToolCardContext): SuggestDesignDocChang
       changeSummary: textValue(suggestion.change_summary),
       conflictReason: textValue(suggestion.conflict_reason),
       suggestedByKind: displayValue(suggestion.suggested_by_kind),
+      suggestedBy: authorValue(suggestion.suggested_by),
       originalMarkdown: textValue(suggestion.original_markdown),
       proposedMarkdown: textValue(suggestion.proposed_markdown ?? suggestion.suggested_markdown),
       baseVersionNumber: numberValue(suggestion.base_version_number) ?? numberValue(context.input?.base_version_number),
@@ -109,6 +119,22 @@ function renderExpanded(context: ToolCardContext) {
       <div className="break-words text-sm font-medium text-text-primary">{result.summary.title}</div>
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {suggestion.suggestedByKind ? <Row label={t("tool_suggested_by")} value={suggestion.suggestedByKind} /> : null}
+        {suggestion.suggestedBy ? (
+          <div className="min-w-0">
+            <div className="text-2xs font-medium text-text-muted">{t("tool_author")}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
+              {suggestion.suggestedBy.name ? <span className="break-words font-medium text-text-primary">{suggestion.suggestedBy.name}</span> : null}
+              {suggestion.suggestedBy.emailAddress ? (
+                <a className="break-all text-brand hover:underline" href={`mailto:${suggestion.suggestedBy.emailAddress}`}>
+                  {suggestion.suggestedBy.emailAddress}
+                </a>
+              ) : null}
+              {!suggestion.suggestedBy.name && !suggestion.suggestedBy.emailAddress && suggestion.suggestedBy.id != null ? (
+                <span className="font-mono text-text-muted">#{suggestion.suggestedBy.id}</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {result.versionNumber != null ? <Row label={t("tool_version_label")} value={String(result.versionNumber)} /> : null}
         {suggestion.baseVersionNumber != null ? <Row label={t("tool_base_version")} value={String(suggestion.baseVersionNumber)} /> : null}
         {suggestion.occurrenceIndex != null ? <Row label={t("tool_occurrence")} value={String(suggestion.occurrenceIndex)} /> : null}
@@ -173,6 +199,7 @@ const exampleResult = {
     state: "pending",
     change_type: "block_edit",
     suggested_by_kind: "agent",
+    suggested_by: { id: 8, name: "Ada Lovelace", email_address: "ada@example.test" },
     original_markdown: "## Old heading\nOld wording.",
     proposed_markdown: "## New heading\nImproved wording for DOC-29.",
     change_summary: "Clarifies **target discovery**.",
