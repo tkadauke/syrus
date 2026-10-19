@@ -6,6 +6,7 @@
   },
   "loading": "Laden...",
   "show_more": "Mehr anzeigen",
+  "copy_content": "Inhalt kopieren",
   "show_less": "Weniger anzeigen",
   "text_preview": {
     "earlier_lines_one": "… {{count}} frühere Zeile",

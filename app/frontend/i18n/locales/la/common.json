@@ -6,6 +6,7 @@
   },
   "loading": "Oneratur...",
   "show_more": "Ostende plus",
+  "copy_content": "Describe contentum",
   "show_less": "Ostende minus",
   "text_preview": {
     "earlier_lines_one": "… {{count}} linea prior",
