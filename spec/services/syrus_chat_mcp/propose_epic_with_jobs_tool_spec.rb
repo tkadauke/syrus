@@ -294,7 +294,26 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     ui = chat_session.proposals.find_by!(slug: "ui")
 
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to include(slug: "m3-proposals", state: "proposed", kind: "epic")
+    payload = response_payload(response)
+    expect(payload).to include(
+      slug: "m3-proposals",
+      title: "M3 proposals",
+      description: "Make proposal review atomic.",
+      state: "proposed",
+      kind: "epic"
+    )
+    expect(payload.fetch(:child_jobs)).to include(
+      include(
+        id: schema.id,
+        slug: "schema",
+        title: "Add proposal schema",
+        description: "Persist the grouped proposal shape.",
+        target_repo: repository.slug,
+        planned_execution: include(capabilities: { os: [ "linux" ] }),
+        media: [],
+        materialized: nil
+      )
+    )
     expect(proposal).to have_attributes(kind: "epic", repository: repository, title: "M3 proposals")
     expect(proposal.depends_on_job_ids).to eq([ prerequisite_job.id ])
     expect(proposal.child_proposals).to contain_exactly(schema, ui)

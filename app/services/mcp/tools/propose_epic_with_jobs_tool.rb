@@ -615,6 +615,8 @@ module Mcp::Tools
         {
           id: proposal.id,
           slug: proposal.slug,
+          title: proposal.title,
+          description: proposal.body,
           state: proposal.state,
           kind: proposal.kind,
           target_epic: Mcp::Tools.target_epic_payload(proposal),
@@ -625,14 +627,20 @@ module Mcp::Tools
             {
               id: child.id,
               slug: child.slug,
+              title: child.title,
+              description: child.body,
               state: child.state,
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
               dependency_requirements: child.dependency_requirements || [],
               provider_setting: child.provider_setting,
+              provider: child.provider_setting,
+              planned_execution: child.planned_execution_json,
+              media: child.media_ids || [],
               goal_provenance: App::GoalProvenancePayload.for(child),
-              depends_on: child.dependencies.order(:slug).pluck(:slug)
+              depends_on: child.dependencies.order(:slug).pluck(:slug),
+              materialized: Mcp::Tools.materialized_payload(child)
             }
           end
         }

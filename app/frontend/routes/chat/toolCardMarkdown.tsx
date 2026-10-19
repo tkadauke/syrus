@@ -237,7 +237,6 @@ export function truncateTextLines(
 
   return { preview: `${clipped}…`, truncated: true, totalLines: lines.length }
 }
-
 export function truncateMarkdown(text: string, maxLines: number, maxChars?: number): TruncatedMarkdown {
   const normalized = text.replace(/\r\n?/g, "\n")
   const lines = normalized.split("\n")
