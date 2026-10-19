@@ -40,7 +40,7 @@ function OutputSection({ label, output }: { label: string; output: string }) {
   if (!output) return null
   return (
     <Disclosure label={label}>
-      <TextPreview maxLines={OUTPUT_LINE_LIMIT} modalLabel={`Full ${label}`} text={output} truncate="headTail" />
+      <TextPreview maxLines={OUTPUT_LINE_LIMIT} text={output} truncate="headTail" />
     </Disclosure>
   )
 }

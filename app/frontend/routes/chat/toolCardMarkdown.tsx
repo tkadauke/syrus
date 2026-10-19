@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from "react"
+import i18n from "i18next"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { CopyIcon } from "../../components/CopyableSlug"
@@ -165,8 +166,9 @@ export function truncateTextLines(
 
   if (mode === "tail") {
     const tail = lines.slice(-safeMaxLines).join("\n")
-    const clipped = tail.length > safeMaxChars ? tail.slice(-safeMaxChars) : tail
-    const marker = omittedLines > 0 ? `… ${omittedLines} earlier ${omittedLines === 1 ? "line" : "lines"}` : "… earlier text"
+    const characterClipped = tail.length > safeMaxChars
+    const clipped = characterClipped ? tail.slice(-safeMaxChars) : tail
+    const marker = characterClipped ? i18n.t("common:text_preview.earlier_text") : i18n.t("common:text_preview.earlier_lines", { count: omittedLines })
     return { preview: `${marker}\n${clipped}`, truncated: true, totalLines: lines.length }
   }
 
@@ -177,9 +179,10 @@ export function truncateTextLines(
     const tail = tailLines > 0 ? lines.slice(-tailLines).join("\n") : ""
     const headChars = Math.ceil(safeMaxChars / 2)
     const tailChars = Math.floor(safeMaxChars / 2)
+    const characterClipped = head.length > headChars || tail.length > tailChars
     const clippedHead = head.slice(0, headChars)
     const clippedTail = tail.slice(-tailChars)
-    const marker = omittedLines > 0 ? `… ${omittedLines} ${omittedLines === 1 ? "line" : "lines"} omitted` : "… text omitted"
+    const marker = characterClipped ? i18n.t("common:text_preview.text_omitted") : i18n.t("common:text_preview.lines_omitted", { count: omittedLines })
     return { preview: [clippedHead, marker, clippedTail].filter(Boolean).join("\n"), truncated: true, totalLines: lines.length }
   }
 
