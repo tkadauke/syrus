@@ -18,20 +18,19 @@ function normalizedContext(rawName: string, parsedResult: unknown, overrides: Pa
 
 describe("cancel_local_mode tool card", () => {
   it("registers examples for implemented, closed, failure, and empty outcomes", () => {
-    expect(examples.map((example) => example.id)).toEqual([
-      "returned_to_implemented",
-      "returned_to_closed",
-      "failure",
-      "empty"
-    ])
+    expect(examples.map((example) => example.id)).toEqual(["returned_to_implemented", "returned_to_closed", "failure", "empty"])
   })
 
   it("renders a content[0].text envelope from an mcp-prefixed tool name", () => {
     const payload = { job_id: 51, job_state: "implemented", message: "Returned `JOB-51` to implemented." }
-    const toolContext = normalizedContext("mcp__syrus-chat-sidecar__cancel_local_mode", {
-      content: [{ type: "text", text: JSON.stringify(payload) }],
-      structured_content: null
-    }, { input: { job_id: 51 } })
+    const toolContext = normalizedContext(
+      "mcp__syrus-chat-sidecar__cancel_local_mode",
+      {
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structured_content: null
+      },
+      { input: { job_id: 51 } }
+    )
 
     expect(toolContext.toolName).toBe("cancel_local_mode")
     render(<>{cancelLocalModeToolCard.renderExpanded(toolContext)}</>)
@@ -42,10 +41,14 @@ describe("cancel_local_mode tool card", () => {
   })
 
   it("renders a structured_content envelope and closed outcome", () => {
-    const toolContext = normalizedContext("mcp__custom__cancel_local_mode", {
-      content: [{ type: "text", text: "ignored" }],
-      structured_content: { job_id: 52, job_state: "closed", message: "Cancellation complete." }
-    }, { input: { job_id: "52" } })
+    const toolContext = normalizedContext(
+      "mcp__custom__cancel_local_mode",
+      {
+        content: [{ type: "text", text: "ignored" }],
+        structured_content: { job_id: 52, job_state: "closed", message: "Cancellation complete." }
+      },
+      { input: { job_id: "52" } }
+    )
 
     render(<>{cancelLocalModeToolCard.renderExpanded(toolContext)}</>)
 

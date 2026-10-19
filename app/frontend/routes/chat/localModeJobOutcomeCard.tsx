@@ -42,7 +42,15 @@ export function localModeJobIdFromInput(context: ToolCardContext): string | null
   return displayValue(context.input?.job_id)
 }
 
-export function LocalModeJobOutcomeCard({ result, requestedJobId, stateTransition = false }: { result: LocalModeJobOutcome; requestedJobId?: string | null; stateTransition?: boolean }) {
+export function LocalModeJobOutcomeCard({
+  result,
+  requestedJobId,
+  stateTransition = false
+}: {
+  result: LocalModeJobOutcome
+  requestedJobId?: string | null
+  stateTransition?: boolean
+}) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -51,14 +59,17 @@ export function LocalModeJobOutcomeCard({ result, requestedJobId, stateTransitio
         {result.repositorySlug ? <EntityReference kind="repository" repositorySlug={result.repositorySlug} /> : null}
       </div>
       <div className="text-xs text-text-secondary">
-        {stateTransition ? "Job returned to " : "Job state: "}<strong>{result.jobState.replace(/_/g, " ")}</strong>.
+        {stateTransition ? "Job returned to " : "Job state: "}
+        <strong>{result.jobState.replace(/_/g, " ")}</strong>.
       </div>
       {result.branchName || requestedJobId ? (
         <dl className="grid gap-2 sm:grid-cols-2">
           {requestedJobId ? (
             <div className="min-w-0">
               <dt className="text-2xs font-semibold uppercase text-text-muted">Requested Job</dt>
-              <dd><EntityReference id={requestedJobId} kind="job" /></dd>
+              <dd>
+                <EntityReference id={requestedJobId} kind="job" />
+              </dd>
             </div>
           ) : null}
           {result.branchName ? <WrappingRow copyable label="Branch" value={result.branchName} /> : null}
@@ -72,7 +83,14 @@ export function LocalModeJobOutcomeCard({ result, requestedJobId, stateTransitio
 export function LocalModeJobOutcomeEmptyCard({ requestedJobId }: { requestedJobId?: string | null }) {
   return (
     <EmptyState>
-      No job outcome was returned{requestedJobId ? <> for <EntityReference id={requestedJobId} kind="job" /></> : null}. Use Raw details to inspect the response.
+      No job outcome was returned
+      {requestedJobId ? (
+        <>
+          {" "}
+          for <EntityReference id={requestedJobId} kind="job" />
+        </>
+      ) : null}
+      . Use Raw details to inspect the response.
     </EmptyState>
   )
 }

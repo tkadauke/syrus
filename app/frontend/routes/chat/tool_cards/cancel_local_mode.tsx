@@ -1,5 +1,11 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
-import { LocalModeJobOutcomeCard, LocalModeJobOutcomeEmptyCard, localModeJobIdFromInput, localModeJobOutcomeSummary, parseLocalModeJobOutcome } from "../localModeJobOutcomeCard"
+import {
+  LocalModeJobOutcomeCard,
+  LocalModeJobOutcomeEmptyCard,
+  localModeJobIdFromInput,
+  localModeJobOutcomeSummary,
+  parseLocalModeJobOutcome
+} from "../localModeJobOutcomeCard"
 import { ToolFailureSummaryCard, toolFailureCollapsedSummary, toolFailureDetected, type ToolFailureConfig } from "../toolFailureSummaryCard"
 
 const failureConfig: ToolFailureConfig = {
@@ -29,7 +35,11 @@ function renderExpanded(context: ToolCardContext) {
 
   const result = parseLocalModeJobOutcome(context.parsedResult)
   const requestedJobId = localModeJobIdFromInput(context)
-  return result ? <LocalModeJobOutcomeCard requestedJobId={requestedJobId} result={result} stateTransition /> : <LocalModeJobOutcomeEmptyCard requestedJobId={requestedJobId} />
+  return result ? (
+    <LocalModeJobOutcomeCard requestedJobId={requestedJobId} result={result} stateTransition />
+  ) : (
+    <LocalModeJobOutcomeEmptyCard requestedJobId={requestedJobId} />
+  )
 }
 
 const cancelLocalModeToolCard: ToolCardRenderer = {
