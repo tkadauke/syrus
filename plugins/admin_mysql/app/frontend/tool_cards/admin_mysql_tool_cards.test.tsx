@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import killQueryToolCard from "./admin_mysql_kill_query"
 import statusToolCard from "./admin_mysql_status"
+import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -31,6 +32,8 @@ const healthyPayload = {
     slow_query_log: "ON",
     log_output: "TABLE",
     long_query_time: 1,
+    wait_timeout: 600,
+    interactive_timeout: 900,
     version: "8.4.0"
   },
   status: {
@@ -64,11 +67,15 @@ const healthyPayload = {
     rows: [
       {
         digest_text: "SELECT * FROM workflows WHERE state = ?",
+        schema_name: "syrus_production",
         count: 12,
         total_seconds: 4.2,
         avg_seconds: 0.35,
         max_seconds: 1.2,
-        rows_examined: 1200
+        rows_examined: 1200,
+        rows_sent: 12,
+        first_seen: "2026-09-10T10:00:00Z",
+        last_seen: "2026-09-10T12:00:00Z"
       }
     ]
   },
@@ -88,8 +95,8 @@ describe("Admin MySQL tool cards", () => {
     expect(pluginToolCardRendererFor("admin_mysql_kill_query")).not.toBeNull()
   })
 
-  it("renders healthy status with connection health and query counts without sensitive connection details", () => {
-    const cardContext = context({ parsedResult: healthyPayload })
+  it("renders every connection, variable, process, and digest field", () => {
+    const cardContext = context({ input: { limit: 25 }, parsedResult: healthyPayload })
 
     expect(statusToolCard.collapsedSummary?.(cardContext)).toBe("MySQL healthy · 1 active")
     render(<>{statusToolCard.renderExpanded(cardContext)}</>)
@@ -99,9 +106,20 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.getByText("SELECT COUNT(*) FROM jobs")).toBeInTheDocument()
     expect(screen.getByText("Statement digests")).toBeInTheDocument()
     expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
-    expect(screen.queryByText("sensitive_user")).not.toBeInTheDocument()
-    expect(screen.queryByText("db.internal")).not.toBeInTheDocument()
-    expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
+    expect(screen.getByText("Adapter")).toBeInTheDocument()
+    expect(screen.getByText("Mysql2")).toBeInTheDocument()
+    expect(screen.getByText("Aborted connects")).toBeInTheDocument()
+    expect(screen.getByText("Max connection errors")).toBeInTheDocument()
+    expect(screen.getByText("limit: 25")).toBeInTheDocument()
+    expect(screen.getByText("wait_timeout: 600")).toBeInTheDocument()
+    expect(screen.getByText("interactive_timeout: 900")).toBeInTheDocument()
+    expect(screen.getAllByText("sensitive_user")).toHaveLength(2)
+    expect(screen.getAllByText("db.internal")).toHaveLength(2)
+    expect(screen.getAllByText("syrus_production").length).toBeGreaterThan(1)
+    expect(screen.getByText("0.35s avg")).toBeInTheDocument()
+    expect(screen.getByText("12 rows sent")).toBeInTheDocument()
+    expect(screen.getByText("first: 2026-09-10T10:00:00Z")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy 88 to clipboard" })).toBeInTheDocument()
   })
 
   it("renders degraded status when process rows are locked or waiting", () => {
@@ -137,7 +155,8 @@ describe("Admin MySQL tool cards", () => {
         error: {
           class: "Mysql2::Error",
           message: "The Syrus MySQL user cannot read Performance Schema statement digests.",
-          hint: "Grant SELECT on performance_schema.events_statements_summary_by_digest."
+          hint: "Grant SELECT on performance_schema.events_statements_summary_by_digest.",
+          setup_sql: ["GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO CURRENT_USER;"]
         }
       },
       slow_log: {
@@ -155,6 +174,8 @@ describe("Admin MySQL tool cards", () => {
     render(<>{statusToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("The Syrus MySQL user cannot read Performance Schema statement digests.")).toBeInTheDocument()
+    expect(screen.getByText("Mysql2::Error")).toBeInTheDocument()
+    expect(screen.getByText("GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO CURRENT_USER;")).toBeInTheDocument()
     expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
   })
 
@@ -215,6 +236,7 @@ describe("Admin MySQL tool cards", () => {
             user_host: "sensitive_user[db.internal]",
             query_time: "00:00:12.000000",
             lock_time: "00:00:02.000000",
+            rows_sent: 2,
             rows_examined: 45000,
             database: "syrus_production",
             sql_text: longSql
@@ -228,9 +250,73 @@ describe("Admin MySQL tool cards", () => {
     render(<>{statusToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("00:00:12.000000 query")).toBeInTheDocument()
-    expect(screen.getAllByText(/Show full payload/).length).toBeGreaterThan(0)
-    expect(screen.queryByText("sensitive_user[db.internal]")).not.toBeInTheDocument()
-    expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
+    expect(screen.getByText("2 rows sent")).toBeInTheDocument()
+    expect(screen.getByText("database: syrus_production")).toBeInTheDocument()
+    expect(screen.getByText("user: sensitive_user[db.internal]")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
+  })
+
+  it("expands capped process, digest, and slow-log lists inline", () => {
+    const processRows = Array.from({ length: 9 }, (_, index) => ({
+      id: 100 + index,
+      command: "Query",
+      time_seconds: index,
+      state: "executing",
+      info: `SELECT ${index}`
+    }))
+    const digestRows = Array.from({ length: 4 }, (_, index) => ({ digest_text: `DIGEST ${index}`, count: 1 }))
+    const slowRows = Array.from({ length: 4 }, (_, index) => ({ start_time: `time-${index}`, sql_text: `SLOW ${index}` }))
+
+    render(
+      <>
+        {statusToolCard.renderExpanded(
+          context({
+            parsedResult: {
+              ...healthyPayload,
+              process_list: processRows,
+              statement_digests: { available: true, rows: digestRows },
+              slow_log: { available: true, rows: slowRows }
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.queryByText("SELECT 8")).not.toBeInTheDocument()
+    expect(screen.queryByText("DIGEST 3")).not.toBeInTheDocument()
+    expect(screen.queryByText("SLOW 3")).not.toBeInTheDocument()
+    screen.getAllByRole("button", { name: /Show all/ }).forEach((button) => fireEvent.click(button))
+    expect(screen.getByText("SELECT 8")).toBeInTheDocument()
+    expect(screen.getByText("DIGEST 3")).toBeInTheDocument()
+    expect(screen.getByText("SLOW 3")).toBeInTheDocument()
+  })
+
+  it("redacts secrets in SQL and tool-level errors", () => {
+    const secret = "super-secret-database-password"
+    const parsedResult = {
+      ...healthyPayload,
+      process_list: [{ id: 99, command: "Query", info: `SELECT * FROM users WHERE password='${secret}'` }]
+    }
+    const { unmount } = render(<>{statusToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.queryByText(new RegExp(secret))).not.toBeInTheDocument()
+    expect(screen.getByText(/password='\[redacted\]'/)).toBeInTheDocument()
+    unmount()
+
+    render(<>{statusToolCard.renderExpanded(context({ resultBody: `password=${secret}`, resultError: true, parsedResult: null }))}</>)
+    expect(screen.queryByText(new RegExp(secret))).not.toBeInTheDocument()
+    expect(screen.getByText("password=[redacted]")).toBeInTheDocument()
+  })
+
+  it("selects the same card and payload for prefixed, structured, and content-text MCP results", () => {
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__admin_mysql_status")).toBe("admin_mysql_status")
+    expect(pluginToolCardRendererFor(normalizedToolName("mcp__syrus-chat-sidecar__admin_mysql_status"))).toBe(statusToolCard)
+
+    const structured = normalizedToolCardParsedResult({ structured_content: healthyPayload, content: [] })
+    const text = normalizedToolCardParsedResult({ structured_content: null, content: [{ type: "text", text: JSON.stringify(healthyPayload) }] })
+    expect(structured).toEqual(healthyPayload)
+    expect(text).toEqual(healthyPayload)
+    expect(statusToolCard.collapsedSummary?.(context({ parsedResult: structured }))).toBe("MySQL healthy · 1 active")
+    expect(statusToolCard.collapsedSummary?.(context({ parsedResult: text }))).toBe("MySQL healthy · 1 active")
   })
 
   it("renders admin_mysql_kill_query as a pending operator confirmation", () => {
