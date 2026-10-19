@@ -395,6 +395,15 @@ describe("ProposalCard layout", () => {
     expect(screen.getByText("urgent")).toBeInTheDocument()
   })
 
+  it.each([
+    ["Epic", { kind: "epic", kind_label: "Epic", epic_bundle: true }],
+    ["GitHub issue", { kind: "github_issue", kind_label: "GitHub issue" }]
+  ])("does not show a fabricated Job priority on %s proposals", (_label, overrides) => {
+    renderProposalCard(proposal(overrides))
+
+    expect(screen.queryByText("Priority")).not.toBeInTheDocument()
+  })
+
   it("places the slug before dependencies and above the title", () => {
     renderProposalCard(proposal({
       title: "Search cards",
