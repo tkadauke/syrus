@@ -66,7 +66,7 @@ describe("read_test_insight tool card", () => {
                 last_duration_ms: 910
               },
               history_limit: 25,
-              history: [],
+              history: [historyEntry],
               duration_points: [
                 { test_case_id: 1, duration_ms: 700 },
                 { test_case_id: 2, duration_ms: 910 }
@@ -90,8 +90,9 @@ describe("read_test_insight tool card", () => {
     expect(screen.getByRole("link", { name: "spec/foo_spec.rb" })).toHaveAttribute("href", "https://github.com/acme/widgets/blob/HEAD/spec/foo_spec.rb")
     expect(screen.getByRole("img", { name: "Runtime across 2 samples" })).toBeInTheDocument()
     expect(screen.getByText("No")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "RUN-200" })).toHaveAttribute("href", "/admin/runs/200")
-    expect(screen.getByRole("link", { name: "JOB-10" })).toHaveAttribute("href", "/jobs/10")
+    expect(screen.getAllByRole("link", { name: "RUN-200" })).toHaveLength(2)
+    for (const runLink of screen.getAllByRole("link", { name: "RUN-200" })) expect(runLink).toHaveAttribute("href", "/jobs/10?tab=workflows#run-200")
+    for (const jobLink of screen.getAllByRole("link", { name: "JOB-10" })) expect(jobLink).toHaveAttribute("href", "/jobs/10")
   })
 
   it("renders recent executions with a run/job link and failure snippet", () => {
@@ -112,6 +113,13 @@ describe("read_test_insight tool card", () => {
 
     expect(screen.getByText("No recent executions.")).toBeInTheDocument()
     expect(screen.getByText("No runtime samples.")).toBeInTheDocument()
+  })
+
+  it("renders pending status with an informational tone", () => {
+    render(<>{readTestInsightToolCard.renderExpanded(context({ parsedResult: { test: { ...test, last_status: "pending" }, history: [] } }))}</>)
+
+    expect(screen.getByText("pending").parentElement).toHaveClass("bg-info-surface")
+    expect(screen.getByText("pending").parentElement).not.toHaveClass("bg-danger-surface")
   })
 
   it("keeps serialization failures as degraded history rows", () => {

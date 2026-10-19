@@ -75,7 +75,13 @@ export function ReasonBadges({ reasons }: { reasons: string[] }) {
 export function TestStatusPill({ status }: { status: string | null }) {
   if (!status) return <span className="text-text-subtle">—</span>
 
-  const tone = status === "passed" ? "success" : status === "skipped" ? "neutral" : "failure"
+  const tone = {
+    passed: "success",
+    skipped: "neutral",
+    pending: "info",
+    queued: "info",
+    running: "info"
+  }[status] as "success" | "neutral" | "info" | undefined
   return <StatePill state={t(`status_${status}`, { defaultValue: status })} tone={tone} />
 }
 
