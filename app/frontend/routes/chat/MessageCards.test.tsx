@@ -673,6 +673,40 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("routes tool-card markdown workspace links through the chat source preview", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "app/models/job.rb", content: "class Job\nend\n", binary: false, too_large: false })
+    const result = { thread_id: 7, state: "open", hop_count: 1, max_hops: 6, hops_remaining: 5, target_chat_session_id: 42, message_id: 99 }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Send chat message",
+      calls: [{
+        message_id: 1,
+        tool_name: "send_chat_message",
+        raw_name: "mcp__syrus-chat-sidecar__send_chat_message",
+        detail: "",
+        display_label: "Send chat message",
+        progress_label: "Sending",
+        raw_payload: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)" },
+        result_body: JSON.stringify(result),
+        result_json: result,
+        result_settled: true,
+        result_error: false,
+        result_kind: "record",
+        result_summary: ""
+      }],
+      summary_label: "Send chat message",
+      collapsed_by_default: true
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><ToolGroup item={item} payload={makePayload()} /></MemoryRouter></QueryClientProvider>)
+    expandToolGroup("Send chat message")
+    fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "app/models/job.rb")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
