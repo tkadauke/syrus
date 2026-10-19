@@ -2,6 +2,7 @@ class ProviderRoutingRule < ApplicationRecord
   SCOPE_TYPES = %w[ user repository job ].freeze
   DEFAULT_TASK_KEY = "default".freeze
   TRIGGER_TYPES = %w[ default step chat_role legacy_task ].freeze
+  ACTION_TYPES = %w[ route hold ].freeze
   ACTION_STRATEGIES = %w[ fallback_order weighted ].freeze
   CONDITION_KEYS = %w[ workflow_trigger_kind usage budget day_time repository job_metadata ].freeze
 
@@ -29,8 +30,12 @@ class ProviderRoutingRule < ApplicationRecord
   def scope_type_job? = scope_type == "job"
 
   def action_candidates
-    Array(action.to_h["candidates"].presence || candidates)
+    action_definition.candidates
   end
+
+  def action_type = action_definition.type
+  def hold_action? = action_definition.hold?
+  def serialized_action = action_definition.serialize
 
   def matches?(invocation:, job: nil, workflow_trigger_kind: nil, now: Time.current)
     match_details(invocation: invocation, job: job, workflow_trigger_kind: workflow_trigger_kind, now: now)["matched"]
@@ -218,12 +223,12 @@ class ProviderRoutingRule < ApplicationRecord
       return
     end
 
-    strategy = action["strategy"].to_s
-    errors.add(:action, "has unknown strategy #{strategy.inspect}") unless ACTION_STRATEGIES.include?(strategy)
-    errors.add(:action, "candidates must be an array") unless action["candidates"].is_a?(Array)
+    action_definition.validate(self)
   end
 
   def candidates_are_valid
+    return if hold_action?
+
     candidate_list = action_candidates
 
     unless candidates.is_a?(Array) && candidate_list.is_a?(Array)
@@ -236,6 +241,10 @@ class ProviderRoutingRule < ApplicationRecord
     candidate_list.each_with_index do |candidate, index|
       validate_candidate(candidate, index, valid_providers)
     end
+  end
+
+  def action_definition
+    Action.for(action, legacy_candidates: candidates)
   end
 
   def validate_candidate(candidate, index, valid_providers)

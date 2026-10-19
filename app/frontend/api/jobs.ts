@@ -190,11 +190,13 @@ export type ProviderRoutingResolution = {
     scope_type?: string
     scope_id?: number
     position?: number
+    enabled?: boolean
     trigger?: Record<string, unknown>
     conditions?: ProviderRoutingConditions
   } | null
   condition_results?: Record<string, unknown> | null
   final_action?: {
+    type?: "route" | "hold"
     strategy?: string
     candidates?: ProviderRoutingCandidate[]
     [key: string]: unknown

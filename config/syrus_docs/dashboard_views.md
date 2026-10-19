@@ -193,7 +193,8 @@ before user-scoped defaults. Triggers describe actual invocation surfaces
 kinds); workflow trigger kind is a condition on an existing workflow context.
 The resolver records `agent_provider_routing_decision` with a
 `routing_resolution` explanation showing the matched scope, rule, condition
-results, and final candidate action when it chooses the initial Workflow
+results, and final route-or-hold action. Disabled rules remain ordered but are
+skipped during matching. For a route action, it records the initial Workflow
 provider/model/effort candidate; provider availability can then skip
 unavailable candidates before the first Run starts.
 If an unstarted workflow automatically moves from one candidate to another, it

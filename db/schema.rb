@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_142911) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2679,6 +2679,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_032543) do
     t.json "trigger", null: false
     t.json "conditions", null: false
     t.json "action", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["job_id"], name: "index_provider_routing_rules_on_job_id"
     t.index ["repository_id"], name: "index_provider_routing_rules_on_repository_id"
     t.index ["scope_type", "scope_id", "position"], name: "idx_provider_routing_rules_scope_position_unique", unique: true
