@@ -309,11 +309,12 @@ describe("ChatWorkspacePanel coding files", () => {
       retryAfter: 30
     }))
 
-    renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
-
-    await waitFor(() => expect(fetchCodingFileTree).toHaveBeenCalledTimes(1))
     vi.useFakeTimers()
     try {
+      renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
+
       await act(async () => vi.advanceTimersByTimeAsync(3_200))
       expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
     } finally {
