@@ -138,7 +138,7 @@ module TestInsights
       latest_cases = TestIdentity.latest_cases_for(ids).to_a
       return {} if latest_cases.empty?
 
-      TestCase.includes(test_run: { run: :job })
+      TestCase.includes(test_run: { run: [ :job, { step: :workflow } ] })
         .where(id: latest_cases.map(&:id))
         .index_by(&:test_identity_id)
     end
@@ -207,6 +207,7 @@ module TestInsights
       test_run = test_case.test_run
       run = test_run.run
       job = run.job
+      workflow = run.workflow
 
       {
         test_case: {
@@ -226,6 +227,12 @@ module TestInsights
           type: "Run",
           slug: "RUN-#{run.id}",
           path: "#{job_path(job, tab: "workflows")}#run-#{run.id}"
+        },
+        workflow: workflow && {
+          id: workflow.id,
+          type: "Workflow",
+          slug: "WF-#{workflow.id}",
+          path: "#{job_path(job, tab: "workflows")}#workflow-#{workflow.id}"
         },
         job: {
           id: job.id,
