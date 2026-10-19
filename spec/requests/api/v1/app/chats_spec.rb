@@ -6507,6 +6507,35 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(detail).not_to include("coding_handoff")
   end
 
+  it "links the created Job for a confirmed unanchored submit_coding_changes pending action" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Add dark mode toggle")
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      state: "confirmed",
+      confirmed_at: Time.current,
+      payload: {
+        "repository_id" => repository.id,
+        "job_id" => job.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "resource_title" => "Add dark mode toggle",
+        "resource_url" => "/jobs/#{job.id}"
+      )
+    )
+  end
+
   it "labels an unanchored reconcile_job_state repair action and links its target Job instead of rendering a blank card" do
     admin = Factories.user(admin: true)
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "ops")

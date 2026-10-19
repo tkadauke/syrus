@@ -107,6 +107,15 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(workflow).to have_attributes(trigger_kind: "coding_handoff")
   end
 
+  it "records the created Job on the pending action after dispatch succeeds" do
+    action = pending_action
+
+    described_class.perform_now(action.id)
+
+    job = Job.order(:created_at).last
+    expect(action.reload.payload).to include("job_id" => job.id)
+  end
+
   it "seeds PR title, body, and empty test-plan artifacts on the workflow" do
     action = pending_action
 

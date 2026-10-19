@@ -284,7 +284,9 @@ module App
           base
         end
       when "submit_coding_changes"
-        if (repo = cached_user_repository(action.user, payload["repository_id"]))
+        if (job = cached_action_job(action, payload["job_id"]))
+          base.merge(resource_title: job.issue_title, resource_url: job_path(job))
+        elsif (repo = cached_user_repository(action.user, payload["repository_id"]))
           base.merge(resource_title: repo.slug, resource_url: repository_path(repo))
         else
           base
