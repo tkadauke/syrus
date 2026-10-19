@@ -396,14 +396,20 @@ Rules are owned by a user even when they are scoped to a repository or a Job.
 Within each user, repository, or Job scope they have an explicit `position`;
 the resolver walks rules in order and uses the first matching rule, with
 Job-scoped rules before repository-scoped rules and repository-scoped rules
-before user-scoped rules. Existing `task_key` rows continue to work through a
+before user-scoped rules. Disabled rules keep their position and remain visible
+through the API, but the resolver skips them; reorder requests must still name
+every enabled and disabled rule in the scope exactly once. Existing `task_key` rows continue to work through a
 legacy trigger shape, but new rules store a structured `trigger` for actual
 agent invocations: agentic `Step::Kind` values or chat
 `AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget predicates,
 day/time windows, repository predicates, and Job metadata predicates live in
 the structured `conditions` payload. Provider selection lives in the
-structured `action` payload, which currently supports ordered fallback
-provider triples and reserves a weighted strategy for future load balancing.
+structured `action` payload. Route actions use `type: route` with ordered
+fallback provider triples (legacy actions that omit `type` remain route actions)
+and reserve a weighted strategy for future load balancing. A `type: hold` action
+is a terminal successful routing decision: broader scopes are not consulted and
+the explanation contains the matched hold rather than presenting provider
+exhaustion as a routing failure.
 Candidate providers come from the enabled agent-provider plugin catalog,
 model choices come from that provider's `.available_models`, and
 `effort_level` can be left blank to use the provider default. Editor options
