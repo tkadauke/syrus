@@ -143,7 +143,7 @@ module Workflows
         "effort_level_selection" => effort_level_selection
       )
 
-      Workflow.transaction do
+      workflow = Workflow.transaction do
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
@@ -164,6 +164,8 @@ module Workflows
         steps.each_cons(2) { |s, nxt| nxt.update!(depends_on_ids: [ s.id ]) }
         wf
       end
+      ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: routed_selection)
+      workflow
     end
 
     def self.steps_for(_job)

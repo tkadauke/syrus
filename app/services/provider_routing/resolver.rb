@@ -70,19 +70,20 @@ module ProviderRouting
       resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).candidates
     end
 
-    def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
-      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).resolve
+    def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, released_hold_rule_ids: released_hold_rule_ids).resolve
     end
 
     def self.rule_configured?(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, include_default: true)
       new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).send(:rule_configured?, include_default: include_default)
     end
 
-    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
       @job = job
       @task_key = task_key.to_s
       @trigger = trigger
       @workflow_trigger_kind = workflow_trigger_kind
+      @released_hold_rule_ids = Array(released_hold_rule_ids).map(&:to_i)
     end
 
     def call
@@ -99,7 +100,7 @@ module ProviderRouting
 
     private
 
-    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :released_hold_rule_ids
 
     def job_override_candidates
       return nil if job.job_provider_setting_default?
@@ -271,6 +272,7 @@ module ProviderRouting
     def matching_rule_from(rules)
       rules.each do |rule|
         next unless rule.enabled?
+        next if rule.hold_action? && released_hold_rule_ids.include?(rule.id)
 
         invocations(include_default: true).each do |candidate_invocation|
           details = rule.match_details(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind)
