@@ -1,6 +1,28 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, truncateMarkdown } from "./toolCardMarkdown"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+  Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+})
+
+afterEach(() => setSlugReferenceRegistryForTests(null))
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -41,5 +63,28 @@ describe("MarkdownPreview", () => {
     const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
 
     expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("honors a character limit and links URLs and Syrus references", () => {
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={80} text={`See JOB-42 and https://example.test/path for details. ${"More text. ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.test/path" })).toHaveAttribute("href", "https://example.test/path")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("shows a caller-supplied empty state and copies complete modal text", () => {
+    const text = "Long content. ".repeat(100)
+    const { rerender } = render(<MarkdownPreview emptyState={<span>No prose supplied.</span>} text="  " />)
+    expect(screen.getByText("No prose supplied.")).toBeInTheDocument()
+
+    rerender(<MarkdownPreview maxChars={40} text={text} title="Question" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(screen.getByRole("button", { name: "Copy Question to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
   })
 })
