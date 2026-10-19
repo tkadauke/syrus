@@ -267,6 +267,13 @@ RSpec.describe TestInsights::Query do
     expect(test.dig(:latest, :test_case, :id)).to eq(test_case.id)
     expect(test.dig(:latest, :test_run, :id)).to eq(test_case.test_run_id)
     expect(test.dig(:latest, :run, :slug)).to eq("RUN-#{test_case.test_run.run_id}")
+    workflow = test_case.test_run.run.workflow
+    expect(test.dig(:latest, :workflow)).to include(
+      id: workflow.id,
+      type: "Workflow",
+      slug: "WF-#{workflow.id}",
+      path: Rails.application.routes.url_helpers.job_path(workflow.job, tab: "workflows") + "#workflow-#{workflow.id}"
+    )
     expect(test.dig(:latest, :job, :slug)).to eq(test_case.test_run.run.job.slug)
   end
 

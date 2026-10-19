@@ -1,5 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, EmptyState, EntityReference, InternalLink, numberValue, Row, SectionLabel } from "@app/routes/chat/toolCardUi"
+import { CardShell, displayValue, EmptyState, EntityReference, InternalLink, numberValue, SectionLabel } from "@app/routes/chat/toolCardUi"
 import {
   formatFailureRate,
   formatMs,
@@ -34,6 +34,15 @@ type TestRow = TestIdentityRef & {
   error: string | null
 }
 type ListCard = { repository: RepositoryRef | null; rows: TestRow[]; settings: Array<[string, string]> }
+
+function WrappingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="whitespace-pre-wrap break-all font-mono text-xs text-text-primary">{value}</dd>
+    </div>
+  )
+}
 
 function parseRepository(value: unknown): RepositoryRef | null {
   if (!isPlainObject(value)) return null
@@ -143,22 +152,22 @@ function TestRowCard({ row, repository }: { row: TestRow; repository: Repository
         </div>
       ) : null}
       <dl className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
-        <Row label={t("tool_col_failure_rate")} value={formatFailureRate(row.failureRate)} />
-        <Row label={t("tool_avg_duration")} value={formatMs(row.avgDurationMs)} />
-        <Row label={t("tool_last_duration")} value={formatMs(row.lastDurationMs)} />
-        <Row
+        <WrappingRow label={t("tool_col_failure_rate")} value={formatFailureRate(row.failureRate)} />
+        <WrappingRow label={t("tool_avg_duration")} value={formatMs(row.avgDurationMs)} />
+        <WrappingRow label={t("tool_last_duration")} value={formatMs(row.lastDurationMs)} />
+        <WrappingRow
           label={t("tool_recent_record")}
           value={
             row.totalCount == null ? "—" : t("tool_recent_record_value", { failed: row.failedCount ?? 0, passed: row.passedCount ?? 0, total: row.totalCount })
           }
         />
-        <Row label={t("tool_last_seen")} value={row.lastSeenAt ?? "—"} />
-        <Row label={t("tool_last_failed")} value={row.lastFailedAt ?? "—"} />
-        <Row
+        <WrappingRow label={t("tool_last_seen")} value={row.lastSeenAt ?? "—"} />
+        <WrappingRow label={t("tool_last_failed")} value={row.lastFailedAt ?? "—"} />
+        <WrappingRow
           label={t("tool_runtime_p50_p95")}
           value={row.runtime ? `${formatMs(row.runtime.p50)} / ${formatMs(row.runtime.p95)} (${row.runtime.sampleCount ?? 0})` : "—"}
         />
-        <Row label={t("tool_fingerprint")} value={row.fingerprint ?? "—"} />
+        <WrappingRow label={t("tool_fingerprint")} value={row.fingerprint ?? "—"} />
       </dl>
       {row.run || row.job || row.workflow ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -182,7 +191,7 @@ function renderExpanded(context: ToolCardContext) {
           <SectionLabel>{t("tool_query_settings")}</SectionLabel>
           <dl className="mt-1 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
             {card.settings.map(([label, value]) => (
-              <Row key={label} label={label} value={value} />
+              <WrappingRow key={label} label={label} value={value} />
             ))}
           </dl>
         </div>
