@@ -2,7 +2,8 @@ import i18n from "i18next"
 import type { ReactNode } from "react"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, EmptyState, FilterableList, LargeTextPreview, PreviewTextBlock, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
+import { CardShell, Disclosure, EmptyState, FilterableList, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
+import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
 import { formatBytes, formatAge, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -304,7 +305,9 @@ function KubectlTextPreview({ label, text, truncation }: { label: string; text: 
   return (
     <div className="space-y-1">
       {truncation ? <StatePill state={truncationLabel(truncation)} tone="warning" /> : null}
-      <LargeTextPreview label={label} text={text} />
+      <Disclosure label={label}>
+        <TextPreview modalLabel={`${label} — full output`} text={text} truncate="headTail" />
+      </Disclosure>
     </div>
   )
 }
@@ -802,7 +805,7 @@ function PodLogsBody({ card }: { card: ParsedCard }) {
         <DetailRow label={t("logs_tail_lines_label")} value={String(lines.length)} />
       </div>
       <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
-        {(visibleLines) => <PreviewTextBlock emptyLabel={t("logs_empty")} maxLines={80} text={visibleLines.join("\n")} />}
+        {(visibleLines) => <TextPreview maxLines={80} modalLabel={t("logs_pod_label")} text={visibleLines.join("\n")} truncate="tail" />}
       </FilterableList>
     </CardShell>
   )
