@@ -377,8 +377,9 @@ RSpec.describe "SPA shell", type: :request do
     get app_shell_path
 
     expect(response).to have_http_status(:ok)
+    expect(response.body).to include('<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">')
     expect(response.body).to include('<meta name="apple-mobile-web-app-title" content="Syrus">')
-    expect(response.body).to include('<meta name="apple-mobile-web-app-status-bar-style" content="default">')
+    expect(response.body).to include('<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">')
     expect(response.body).to include('<meta name="theme-color" content="#c9704b">')
     expect(response.body).to include('<link rel="icon" href="/icon.png?v=2" type="image/png">')
     expect(response.body).to include('<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">')

@@ -13485,7 +13485,13 @@ describe("App", () => {
       expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-142px)" })
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
       const hiddenHeaderScrim = screen.getByTestId("mobile-chat-hidden-header-scrim")
-      expect(hiddenHeaderScrim).toHaveClass("h-32", "backdrop-blur-md", "backdrop-saturate-150")
+      expect(hiddenHeaderScrim).toHaveClass(
+        "top-[calc(-1*env(safe-area-inset-top))]",
+        "h-32",
+        "from-gray-950/80",
+        "backdrop-blur-md",
+        "backdrop-saturate-150"
+      )
       expect(hiddenHeaderScrim).not.toHaveClass("h-14")
       expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
       expect(stream).not.toHaveClass("pt-12")
