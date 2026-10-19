@@ -29,6 +29,20 @@ describe("MarkdownPreview", () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it("can render an explicit empty state", () => {
+    render(<MarkdownPreview emptyLabel="No description provided." text=" " />)
+    expect(screen.getByText("No description provided.")).toBeInTheDocument()
+  })
+
+  it("honors a character limit, linkifies URLs, and copies from the modal", () => {
+    const text = `See https://example.test/details ${"more ".repeat(50)}`
+    render(<MarkdownPreview linkifyUrls maxChars={40} text={text} title="Details" />)
+
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy" })).toBeInTheDocument()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 
