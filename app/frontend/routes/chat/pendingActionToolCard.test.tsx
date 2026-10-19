@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
+import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
+import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
   return {
@@ -106,6 +107,15 @@ describe("pending action tool card: standard shape", () => {
     expect(screen.getByText("Landing has been blocked for six hours.")).toBeInTheDocument()
   })
 
+  it("renders message references and email addresses as links", () => {
+    renderResult(standardPayload({ message: "Pause user #42 (operator@example.com) for workflow #77 and process #9?" }))
+
+    expect(screen.getByRole("link", { name: "user #42" })).toHaveAttribute("href", "/admin/users/42")
+    expect(screen.getByRole("link", { name: "operator@example.com" })).toHaveAttribute("href", "mailto:operator@example.com")
+    expect(screen.getByRole("link", { name: "workflow #77" })).toHaveAttribute("href", "/admin/workflows/77")
+    expect(screen.getByRole("link", { name: "process #9" })).toHaveAttribute("href", "/admin/processes/9")
+  })
+
   it("omits the reason section when the tool never sets one", () => {
     renderResult(standardPayload())
 
@@ -146,6 +156,59 @@ describe("pending action tool card: standard shape", () => {
     const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), null))
 
     expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+})
+
+describe("pending action tool card: configured inputs", () => {
+  const card = pendingActionToolCard("admin_retry_step", {
+    inputFields: [
+      { key: "workflow_id", format: "entity", entityKind: "workflow" },
+      { key: "workflow_ids", label: "Workflows", format: "entity_list", entityKind: "workflow" },
+      { key: "step_slug", label: "Step", format: "badge" },
+      { key: "positive_evidence", format: "markdown" }
+    ]
+  })
+
+  it("echoes single targets, bulk targets, badges, and markdown prose", () => {
+    const cardContext = {
+      ...context(standardPayload()),
+      input: {
+        workflow_id: 12,
+        workflow_ids: [13, 14],
+        step_slug: "graders",
+        positive_evidence: "New **successful** invocation"
+      }
+    }
+    render(<>{card.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: /WF-12/ })).toHaveAttribute("href", "/admin/workflows/12")
+    expect(screen.getByRole("link", { name: /WF-13/ })).toHaveAttribute("href", "/admin/workflows/13")
+    expect(screen.getByRole("link", { name: /WF-14/ })).toHaveAttribute("href", "/admin/workflows/14")
+    expect(screen.getByText("graders")).toBeInTheDocument()
+    expect(screen.getByText("successful").tagName).toBe("STRONG")
+  })
+
+  it("links the pending action back to its chat when live context is available", () => {
+    render(<>{card.renderExpanded({ ...context(standardPayload(), liveAction()), input: {} })}</>)
+
+    expect(screen.getByRole("link", { name: "#501" })).toHaveAttribute("href", "/chats/1")
+  })
+
+  it("normalizes MCP names and both supported result envelopes before parsing", () => {
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__admin_pause_runs")).toBe("admin_pause_runs")
+    expect(parsePendingActionResult(context(normalizedToolCardParsedResult({ structured_content: standardPayload() })))).toMatchObject({
+      pendingActionId: "501"
+    })
+    expect(
+      parsePendingActionResult(context(normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(standardPayload()) }] })))
+    ).toMatchObject({ pendingActionId: "501" })
+  })
+
+  it("returns null for tool errors so the shared error presentation can render them", () => {
+    const errorContext = { ...context({ error: "workflow not found" }), resultError: true }
+
+    expect(card.collapsedSummary?.(errorContext)).toBeNull()
+    expect(card.renderExpanded(errorContext)).toBeNull()
   })
 })
 
