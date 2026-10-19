@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { formatRelativeDate } from "../../lib/relativeTime"
 
@@ -171,8 +171,9 @@ function tagRows(context: ToolCardContext): TagRow[] | null {
 }
 
 export function tagListSummary(context: ToolCardContext) {
+  if (context.resultError) return "Could not list tags"
   const rows = tagRows(context)
-  if (!rows) return null
+  if (!rows) return context.parsedResult == null && context.resultBody === "" ? "Loading tags" : null
   return rows.length === 0 ? "No tags" : `${rows.length} tag${rows.length === 1 ? "" : "s"}`
 }
 
@@ -214,24 +215,39 @@ export function TagListCard({ rows }: { rows: TagRow[] }) {
 
   return (
     <CardShell>
-      <div className="flex flex-wrap gap-1">
-        {rows.map((tag, index) => <TagChip key={tag.id || `${tag.name}-${index}`} tag={tag} />)}
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Tags</SectionLabel>
+        <span className="text-2xs text-gray-500 dark:text-gray-400">{rows.length} total</span>
       </div>
-      <div>
-        <SectionLabel>Affected Jobs</SectionLabel>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).length > 0
-            ? Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).map((id) => <Badge key={id}>JOB-{id}</Badge>)
-            : <span className="text-gray-500 dark:text-gray-400">No tagged Jobs.</span>}
-        </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {rows.map((tag, index) => {
+          const jobIds = Array.from(new Set(tag.jobIds))
+          return (
+            <div className="flex flex-col gap-2 py-2 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between" key={tag.id || `${tag.name}-${index}`}>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <TagChip tag={tag} />
+                {tag.color ? <span className="font-mono text-2xs text-gray-500 dark:text-gray-400">{tag.color}</span> : null}
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-1 sm:max-w-3/5 sm:justify-end">
+                <span className="mr-1 text-2xs text-gray-500 dark:text-gray-400">{jobIds.length} {jobIds.length === 1 ? "Job" : "Jobs"}</span>
+                {jobIds.map((id) => <Badge key={id}><EntityReference id={id} kind="job" /></Badge>)}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </CardShell>
   )
 }
 
 export function renderTagList(context: ToolCardContext): ReactNode | null {
+  if (context.resultError) return <ErrorCard title="List tags" message={context.resultBody || "Unable to list tags."} />
   const rows = tagRows(context)
-  return rows ? <TagListCard rows={rows} /> : null
+  if (rows) return <TagListCard rows={rows} />
+  if (context.parsedResult == null && context.resultBody === "") {
+    return <CardShell><StatePill state="pending" /></CardShell>
+  }
+  return null
 }
 
 export function parseTagAction(context: ToolCardContext, action: TagAction["action"]): TagAction | null {
@@ -344,11 +360,11 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
           {artifact.path ? <span className="font-mono text-gray-600 dark:text-gray-300">preview available in raw details</span> : null}
         </div>
       ) : null}
-      {artifact.message ? <div className={error ? "text-red-700 dark:text-red-300" : "text-gray-700 dark:text-gray-300"}>{artifact.message}</div> : null}
+      {artifact.message ? <div className={error ? "text-danger-text" : "text-text-secondary"}>{artifact.message}</div> : null}
       {artifact.preview ? (
         <div>
           <SectionLabel>Preview</SectionLabel>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{artifact.preview}</pre>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-surface p-2 font-mono text-2xs text-text-secondary">{artifact.preview}</pre>
         </div>
       ) : null}
     </CardShell>

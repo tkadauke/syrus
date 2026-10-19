@@ -76,7 +76,7 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("No tags found.")).toBeInTheDocument()
   })
 
-  it("renders multiple tags with affected Jobs", () => {
+  it("renders tag colors, counts, and linked Jobs per tag", () => {
     const parsedResult = {
       tags: [
         { id: 1, name: "area:auth", color: "#123abc", job_ids: [7, 8] },
@@ -89,8 +89,27 @@ describe("issue, tag, and artifact tool cards", () => {
 
     expect(screen.getByText("area:auth")).toBeInTheDocument()
     expect(screen.getByText("urgent")).toBeInTheDocument()
-    expect(screen.getByText("JOB-7")).toBeInTheDocument()
-    expect(screen.getByText("JOB-8")).toBeInTheDocument()
+    expect(screen.getByText("#123abc")).toBeInTheDocument()
+    expect(screen.getByText("red")).toBeInTheDocument()
+    expect(screen.getByText("2 Jobs")).toBeInTheDocument()
+    expect(screen.getByText("1 Job")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(screen.getAllByRole("link", { name: "JOB-8" })).toHaveLength(2)
+    expect(screen.getByText("JOB-7").closest("div")?.parentElement).toHaveTextContent("area:auth")
+    expect(screen.getAllByText("JOB-8")[1].closest("div")?.parentElement).toHaveTextContent("urgent")
+  })
+
+  it("renders pending and error tag-list states", () => {
+    const pending = context("list_tags")
+    expect(listTagsToolCard.collapsedSummary?.(pending)).toBe("Loading tags")
+    const { rerender } = render(<>{listTagsToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+
+    const failed = context("list_tags", { resultBody: "Unable to load tags", resultError: true })
+    expect(listTagsToolCard.collapsedSummary?.(failed)).toBe("Could not list tags")
+    rerender(<>{listTagsToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Unable to load tags")).toBeInTheDocument()
   })
 
   it("renders create input and result details without an empty affected-Jobs section", () => {
@@ -153,6 +172,24 @@ describe("issue, tag, and artifact tool cards", () => {
       })
       expect(normalizedContext.toolName).toBe("create_tag")
       expect(createTagToolCard.collapsedSummary?.(normalizedContext)).toBe("Created priority")
+    }
+  })
+
+  it("normalizes differently shaped list_tags envelopes", () => {
+    const envelopes = [
+      { structured_content: { tags: [{ id: 1, name: "priority", color: "amber", job_ids: [7] }] } },
+      { content: [{ type: "text", text: JSON.stringify({ tags: [{ id: 2, name: "area:ui", color: "blue", job_ids: [8] }] }) }] }
+    ]
+
+    for (const [index, envelope] of envelopes.entries()) {
+      const normalizedContext = context(normalizedToolName(index === 0 ? "mcp__syrus__list_tags" : "syrus-chat-sidecar.list_tags"), {
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      expect(normalizedContext.toolName).toBe("list_tags")
+      expect(listTagsToolCard.collapsedSummary?.(normalizedContext)).toBe("1 tag")
+      const { unmount } = render(<>{listTagsToolCard.renderExpanded(normalizedContext)}</>)
+      expect(screen.getByRole("link", { name: `JOB-${index + 7}` })).toBeInTheDocument()
+      unmount()
     }
   })
 
