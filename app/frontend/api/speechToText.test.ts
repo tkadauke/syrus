@@ -101,6 +101,29 @@ describe("transcribeChatAudio", () => {
     await expect(promise).resolves.toMatchObject({ transcript: { text: "recovered" } })
   })
 
+  it("retries once for 504 and then resolves", async () => {
+    const requests: FakeXMLHttpRequest[] = []
+    vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))
+    const promise = transcribeChatAudio({ chatSessionId: 42, file: new Blob(["audio"]), filename: "dictation.webm" })
+
+    requests[0].respond(504, { error: { code: "speech_to_text_timeout", message: "timed out" } })
+    expect(requests).toHaveLength(2)
+    requests[1].respond(200, { transcript: { text: "recovered", source: "backend_batch", confidence: null } })
+    await expect(promise).resolves.toMatchObject({ transcript: { text: "recovered" } })
+  })
+
+  it("stops after one retry when a retryable response repeats", async () => {
+    const requests: FakeXMLHttpRequest[] = []
+    vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))
+    const promise = transcribeChatAudio({ chatSessionId: 42, file: new Blob(["audio"]), filename: "dictation.webm" })
+
+    requests[0].respond(503, { error: { code: "speech_to_text_backend_unavailable", message: "unavailable" } })
+    requests[1].respond(504, { error: { code: "speech_to_text_timeout", message: "still timed out" } })
+
+    await expect(promise).rejects.toMatchObject({ status: 504, code: "speech_to_text_timeout" })
+    expect(requests).toHaveLength(2)
+  })
+
   it("does not retry 4xx responses", async () => {
     const requests: FakeXMLHttpRequest[] = []
     vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))

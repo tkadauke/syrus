@@ -35,6 +35,10 @@ server has a 10-second header timeout, while streaming sessions have a
 `speech_to_text_backend_unavailable` (503). The composer retries those two
 statuses once, never retries a 4xx response, and preserves existing and partial
 composer text if finalization fails.
+The gateway independently parses the multipart upload before proxying it. It
+rejects a missing, empty, undersized, oversized, unsupported, or
+signature-invalid audio part with a 4xx response, so malformed uploads cannot
+surface as whisper.cpp availability failures.
 
 Rails forwards its request ID as `X-Request-ID`. Gateway logs label the client
 request as `ingress` and the whisper.cpp call as `upstream`, using the same ID;
