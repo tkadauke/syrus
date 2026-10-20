@@ -145,6 +145,7 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
+        {memory.deletedAt ? <Row label={t("tool_deleted_at")} value={memory.deletedAt} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>
@@ -182,13 +183,13 @@ export function parseMemoryToolError(context: ToolCardContext): MemoryToolError 
   return { message: cleaned, duplicateMemoryId: cleaned.match(/memory #(\d+)/i)?.[1] ?? null }
 }
 
-export function ErrorCard({ error }: { error: MemoryToolError }) {
+export function ErrorCard({ error, title = t("tool_error_title") }: { error: MemoryToolError; title?: string }) {
   const duplicate = error.duplicateMemoryId
   const parts = duplicate ? error.message.split(new RegExp(`(memory #${duplicate})`, "i")) : [error.message]
 
   return (
     <div className="mt-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface p-3 text-sm text-danger-text" role="alert">
-      <div className="font-semibold">{t("tool_error_title")}</div>
+      <div className="font-semibold">{title}</div>
       <div className="mt-1 break-words">
         {parts.map((part, index) =>
           part.toLowerCase() === `memory #${duplicate}` ? <MemoryRef id={duplicate!} key={`${part}-${index}`} label={part} /> : part
