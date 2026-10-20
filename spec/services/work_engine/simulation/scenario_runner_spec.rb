@@ -17,6 +17,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     failed_unit_running_workflow_queued_tail
     failed_unit_unfailed_intent
     grader_fanout_worker_loss_stays_in_loop
+    healthy_reenqueue_loop_clears_affinity
     happy_path_epic_job_depends_on_external_job_lands
     happy_path_epic_merge_train_lands
     happy_path_epic_with_job_dependencies_lands
@@ -43,6 +44,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     single_initial_success
     stale_active_merge_train_blocks_landing
     stale_initial_intent_after_successful_retry
+    stalled_intake_reclassifies
     succeeded_merge_train_failed_member_reconciliation
     succeeded_unit_unsatisfied_intent
     superseded_ci_repair_base_resolves

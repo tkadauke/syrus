@@ -428,6 +428,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       cumulative_cost_usd: 0
     },
     chat_available: false,
+    chat_provider_display_name: "Claude",
     turn_in_flight: false,
     agent_busy: false,
     switching_provider: false,
@@ -517,7 +518,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       {!payload.chat_available ? (
-        <UnavailableChatNotice prefix={prefix} />
+        <UnavailableChatNotice prefix={prefix} provider={payload.chat_provider_display_name || "AI provider"} />
       ) : (
         <ChatWorkspace
           chatId={chatId}
@@ -535,7 +536,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   )
 }
 
-function UnavailableChatNotice({ prefix }: { prefix: string }) {
+function UnavailableChatNotice({ prefix, provider }: { prefix: string; provider: string }) {
   const { t } = useT("chat")
   const isDesktopChrome = useMediaQuery("(min-width: 1024px)", true)
   const { revealHeader, topInset } = useMobileChatHeaderControls()
@@ -550,9 +551,9 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-4" data-testid="unavailable-chat-shell" style={mobileStyle}>
       <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-        <div className="font-semibold">{t("credentials_required_title")}</div>
+        <div className="font-semibold">{t("credentials_required_title", { provider })}</div>
         <p className="mt-1">
-          {t("credentials_required_body_prefix")}{" "}
+          {t("credentials_required_body_prefix", { provider })}{" "}
           <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
             {t("credentials_required_link")}
           </Link>{" "}

@@ -882,6 +882,7 @@ export type ChatPayload = {
   message?: string | null
   chat: ChatRecord
   chat_available: boolean
+  chat_provider_display_name?: string
   turn_in_flight: boolean
   agent_busy: boolean
   agent_activity?: ChatAgentActivity | null

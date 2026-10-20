@@ -123,6 +123,49 @@ RSpec.describe Steps::VisualReview do
     )
   end
 
+  it "records a visible warning when every screenshot is blocked evidence" do
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("visual_review_iterations", [
+        {
+          "iteration" => review_step.iteration,
+          "critique" => "The intended chat was unavailable.",
+          "verdict" => "approved",
+          "artifacts" => [ { "text" => "Codex credentials are required.", "page" => { "path" => "/chats/1" } } ]
+        }
+      ])
+    end
+    allow(handler).to receive(:discard_reviewer_workspace_changes)
+
+    expect { handler.call }.to change { workflow.workflow_warnings.count }.by(1)
+
+    expect(workflow.reload.workflow_warnings.sole).to have_attributes(
+      kind: "visual_review_blocked_evidence",
+      severity: "medium",
+      step: review_step
+    )
+    expect(workflow.artifact("visual_review_blocked_evidence")).to include(
+      "reason" => include("credentials"),
+      "run_id" => run.id
+    )
+  end
+
+  it "records a visible warning when the reviewer skips for an environment blocker" do
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("visual_review_iterations", [
+        {
+          "iteration" => review_step.iteration,
+          "critique" => "Blocked by missing Codex credentials.",
+          "verdict" => "skipped",
+          "artifacts" => []
+        }
+      ])
+    end
+    allow(handler).to receive(:discard_reviewer_workspace_changes)
+
+    expect { handler.call }.to change { workflow.workflow_warnings.count }.by(1)
+    expect(workflow.reload.workflow_warnings.sole.title).to include("blocked evidence")
+  end
+
   it "records a structured infrastructure skip and warning without invoking the reviewer when preview preparation fails" do
     failure = PreviewPreparation::Error.new(
       "preview seed failed (timed out): bin/seed",

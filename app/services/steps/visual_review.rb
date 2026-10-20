@@ -49,10 +49,40 @@ module Steps
                    evidence: { tool: "submit_visual_review" })
       end
 
+      record_blocked_evidence_warning!(review_iterations.last)
+
       VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
     end
 
     private
+
+    def record_blocked_evidence_warning!(iteration)
+      reason = iteration["blocked_evidence_reason"].presence || VisualReviewEvidenceGuard.blocked_evidence_reason(
+        job: job,
+        artifacts: Array(iteration["artifacts"]),
+        verdict: iteration["verdict"],
+        critique: iteration["critique"],
+        prompt: run.prompt
+      )
+      return if reason.blank?
+
+      evidence = {
+        "reason" => reason,
+        "verdict" => iteration["verdict"],
+        "run_id" => run.id,
+        "step_id" => step.id
+      }
+      workflow.set_artifact!("visual_review_blocked_evidence", evidence)
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "visual_review_blocked_evidence",
+        severity: "medium",
+        title: "Visual review completed with blocked evidence: #{reason}",
+        evidence: evidence
+      )
+      log("[visual_review] warning: #{reason}")
+    end
 
     def prepare_previews!
       workflow.set_artifact!("visual_review_preview_preparation_failure", nil)

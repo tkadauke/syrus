@@ -46,7 +46,8 @@ module ChatSerialization
           chat_json(chat_session, counts: counts, turn_in_flight: turn_in_flight, agent_busy: agent_busy, turn_retry_state: turn_retry_state)
             .merge(agent_activity: agent_activity)
         end,
-        chat_available: Current.user.chat_available?,
+        chat_available: Current.user.chat_provider_configured?(chat_session.effective_chat_provider),
+        chat_provider_display_name: chat_provider_label(chat_session.effective_chat_provider),
         turn_in_flight: turn_in_flight,
         agent_busy: agent_busy,
         agent_activity: agent_activity,

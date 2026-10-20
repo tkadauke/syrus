@@ -197,6 +197,8 @@ class CodexInvocation
         startup_timing.record("process_spawn", started_at: process_start_requested_at, pid: process.try(:pid))
         process_started.call(process)
       },
+      max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
+      on_output_line_too_long: AgentInvocation.oversized_event_handler("Codex"),
       on_output_line: ->(line) do
         startup_timing.record("first_agent_event", started_at: output_start_requested_at, once: true)
         update = process_event(line, log_sink)

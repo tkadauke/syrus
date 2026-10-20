@@ -2209,6 +2209,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   it "returns the chat data payload with raw messages" do
+    user.update!(chat_provider: "codex", codex_api_key: "sk-test")
+    allow(ChatProviders).to receive(:display_name).and_call_original
+    allow(ChatProviders).to receive(:display_name).with("codex").and_return("Codex Chat")
     sign_in_as(user)
     document = repository.repository_documents.create!(
       user: user,
@@ -2253,6 +2256,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("chat", "agent_busy")).to eq(false)
     expect(body.dig("chat", "turn_retry_state")).to be_nil
     expect(body["chat_available"]).to eq(true)
+    expect(body["chat_provider_display_name"]).to eq("Codex Chat")
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
     expect(body["turn_retry_state"]).to be_nil
@@ -2307,6 +2311,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("whiteboard", "elements", 0, "id")).to eq("box-1")
     expect(body.dig("whiteboard", "appState")).to eq("viewBackgroundColor" => "#ffffff")
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
+  end
+
+  it "reports credential availability for the chat's pinned provider" do
+    chat = ChatSession.create!(user: user, repository: repository, chat_provider: "codex")
+    sign_in_as(user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "chat_available" => false,
+      "chat_provider_display_name" => "Codex"
+    )
   end
 
   describe "POST /api/v1/app/chats/:id/retry_turn" do
