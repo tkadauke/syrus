@@ -196,7 +196,23 @@ by a different user. If the theme being deleted is the user's current
 `color_theme`, it first reassigns the user to their default built-in theme
 (`Theme.terracotta` -- the same fallback `User#seed_default_color_theme`
 uses for new users) so `color_theme_id` never dangles, then destroys the
-theme.
+theme. A successful response includes both identity and display context for
+the deleted theme and any activated fallback:
+
+```json
+{
+  "deleted_theme_id": 42,
+  "deleted_theme_name": "Copper Night",
+  "fallback_theme_id": 1,
+  "fallback_theme_name": "Terracotta"
+}
+```
+
+Both fallback fields are `null` when the deleted theme was not active. The
+names let chat cards remain self-describing after the deleted record is gone;
+the IDs remain the stable references used by clients. Error responses for a
+built-in theme or a theme owned by someone else remain failed MCP results and
+do not delete or reassign anything.
 
 ## Opening the preview
 
