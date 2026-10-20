@@ -126,14 +126,41 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("Theme ID")).toBeInTheDocument()
   })
 
-  it("renders update_user_theme outcome and handles malformed theme payloads without throwing", () => {
-    const cardContext = context({ toolName: "update_user_theme", parsedResult: { ...theme, name: "Sunset Console v2" } })
+  it("renders a partial update with changed fields, optional old swatches, and both resulting palettes", () => {
+    const cardContext = context({
+      toolName: "update_user_theme",
+      input: { theme_id: 12, name: "Sunset Console v2", light: { brand: "#123456" }, dark: { brand: "#abcdef" } },
+      parsedResult: {
+        ...theme,
+        name: "Sunset Console v2",
+        tokens: { ...tokens, light: { ...tokens.light, brand: "#123456" }, dark: { ...tokens.dark, brand: "#abcdef" } },
+        previous_theme: { ...theme }
+      }
+    })
 
     expect(updateUserThemeToolCard.collapsedSummary?.(cardContext)).toBe("Updated Sunset Console v2 (THEME-12)")
     render(<>{updateUserThemeToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("updated")).toBeInTheDocument()
-    expect(screen.getByText("Sunset Console v2")).toBeInTheDocument()
+    expect(screen.getByText("Changed fields")).toBeInTheDocument()
+    expect(screen.getByText("Sunset Console →")).toBeInTheDocument()
+    expect(screen.getByText("light.brand")).toBeInTheDocument()
+    expect(screen.getByText("dark.brand")).toBeInTheDocument()
+    expect(screen.getByLabelText("old #b6492e")).toBeInTheDocument()
+    expect(screen.getByLabelText("new #123456")).toBeInTheDocument()
+    expect(screen.getByLabelText("brand #123456")).toBeInTheDocument()
+    expect(screen.getByLabelText("brand #abcdef")).toBeInTheDocument()
+  })
+
+  it("renders an update without invented old values and handles malformed payloads", () => {
+    const cardContext = context({
+      toolName: "update_user_theme",
+      input: { theme_id: 12, light: { brand: "#123456" } },
+      parsedResult: { ...theme, tokens: { ...tokens, light: { ...tokens.light, brand: "#123456" } } }
+    })
+    render(<>{updateUserThemeToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.queryByLabelText(/^old /)).not.toBeInTheDocument()
+    expect(screen.getByLabelText("new #123456")).toBeInTheDocument()
 
     render(<>{updateUserThemeToolCard.renderExpanded(context({ toolName: "update_user_theme", parsedResult: { id: 12, tokens } }))}</>)
     expect(screen.getByText("Theme update returned an unexpected theme payload.")).toBeInTheDocument()
@@ -203,6 +230,40 @@ describe("Theming Tools tool cards", () => {
       const cardContext = context({ parsedResult: normalizedToolCardParsedResult(envelope) })
       expect(previewThemeToolCard.collapsedSummary?.(cardContext)).toBe("Previewed Envelope Draft (THEME-8)")
     })
+  })
+
+  it("renders update payloads normalized from direct and MCP content envelopes", () => {
+    const payload = { ...theme, name: "Envelope Update" }
+    const envelopes = [payload, { structured_content: payload }, { content: [{ type: "text", text: JSON.stringify(payload) }] }]
+
+    envelopes.forEach((envelope) => {
+      const cardContext = context({ toolName: "update_user_theme", parsedResult: normalizedToolCardParsedResult(envelope) })
+      expect(updateUserThemeToolCard.collapsedSummary?.(cardContext)).toBe("Updated Envelope Update (THEME-12)")
+    })
+  })
+
+  it("renders structured not-found/ownership and contrast update errors", () => {
+    const unavailable = context({
+      toolName: "update_user_theme",
+      resultError: true,
+      resultBody: "No custom theme with id 99 owned by you was found.",
+      parsedResult: null
+    })
+    render(<>{updateUserThemeToolCard.renderExpanded(unavailable)}</>)
+    expect(screen.getByText("not found")).toBeInTheDocument()
+    expect(screen.getByText("Theme not found or unavailable")).toBeInTheDocument()
+    expect(screen.queryByText(unavailable.resultBody)).not.toBeInTheDocument()
+
+    const contrast = context({
+      toolName: "update_user_theme",
+      resultError: true,
+      resultBody:
+        "Contrast check failed -- fix these before saving: dark text-primary (#111111) on surface (#000000) has contrast 1.1:1, needs at least 4.5:1 for WCAG AA.",
+      parsedResult: null
+    })
+    render(<>{updateUserThemeToolCard.renderExpanded(contrast)}</>)
+    expect(screen.getByText("text-primary (#111111) → surface (#000000)")).toBeInTheDocument()
+    expect(screen.getByText("1.1:1")).toBeInTheDocument()
   })
 
   it("renders an explicit preview card for an empty pending result", () => {
