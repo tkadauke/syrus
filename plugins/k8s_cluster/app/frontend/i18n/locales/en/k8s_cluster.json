@@ -439,6 +439,7 @@
   "kubectl_card_credential_id": "Credential ID",
   "kubectl_card_credential_type": "Credential type",
   "kubectl_card_secret_output_enabled": "Secret output allowed",
+  "kubectl_card_secret_output_suppressed": "Command output is hidden because secret output was allowed. Review it only in the secured execution environment.",
   "kubectl_card_risky_command_enabled": "Risky command allowed",
   "kubectl_card_copy_command": "Copy command",
   "kubectl_card_stdout": "stdout",
