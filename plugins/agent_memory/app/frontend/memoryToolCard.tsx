@@ -192,6 +192,7 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
+        {memory.deletedAt ? <Row label={t("tool_deleted_at")} value={memory.deletedAt} /> : null}
         {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
       </dl>
       <div>
