@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { discoveredToolCardEntries, pluginToolCardRendererFor, toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, toolPresentation } from "@app/routes/chat/toolRendering"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import configMapsToolCard from "./k8s_cluster_configmaps"
@@ -184,6 +184,23 @@ describe("Kubernetes cluster tool cards", () => {
     expect(kubectlToolCard.collapsedSummary?.(cardContext)).toContain("permission denied")
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByText("Permission error")).toBeInTheDocument()
+  })
+
+  it("keeps safe credential metadata in the redacted policy-denied catalog example", () => {
+    const example = kubectlExamples.find((candidate) => candidate.id === "policy_denied")!
+    const exampleContext = toolCardContextForExample("k8s_cluster_kubectl", example)
+    const cardContext = {
+      ...exampleContext,
+      input: redactToolCardValue(exampleContext.input) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(exampleContext.parsedResult)
+    }
+
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Permission error")).toBeInTheDocument()
+    expect(screen.getByText("prod-k3s")).toBeInTheDocument()
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("k8s_cluster.kubeconfig")).toBeInTheDocument()
+    expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
   })
 
   it("does not leak secret-capable stderr through the failure notice", () => {
