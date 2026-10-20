@@ -84,7 +84,7 @@ export function MarkdownPreview({
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
   const [open, setOpen] = useState(false)
-  const [visuallyClipped, setVisuallyClipped] = useState(false)
+  const [visuallyTruncated, setVisuallyTruncated] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
@@ -93,22 +93,22 @@ export function MarkdownPreview({
   useLayoutEffect(() => {
     const preview = previewRef.current
     if (!preview || truncated.truncated) {
-      setVisuallyClipped(false)
+      setVisuallyTruncated(false)
       return
     }
 
-    const measure = () => setVisuallyClipped(preview.scrollHeight > preview.clientHeight + 1)
+    const measure = () => setVisuallyTruncated(preview.scrollHeight > preview.clientHeight + 1)
     measure()
 
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure)
-      return () => window.removeEventListener("resize", measure)
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure)
+      observer.observe(preview)
+      return () => observer.disconnect()
     }
 
-    const observer = new ResizeObserver(measure)
-    observer.observe(preview)
-    return () => observer.disconnect()
-  }, [maxLines, normalized, truncated.truncated])
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [normalized, maxLines, truncated.truncated])
 
   if (!normalized) {
     if (emptyState !== undefined) return <>{emptyState}</>
@@ -128,6 +128,7 @@ export function MarkdownPreview({
       }
     : undefined
   const dialogLabel = modalLabel || title || t("show_more")
+  const expandable = truncated.truncated || visuallyTruncated
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
@@ -141,7 +142,7 @@ export function MarkdownPreview({
         {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated || visuallyClipped ? (
+      {expandable ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
