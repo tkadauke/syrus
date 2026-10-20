@@ -1,17 +1,37 @@
 import type { ReactNode } from "react"
+import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import {
+  Badge,
+  CardShell,
+  Disclosure,
+  displayValue,
+  EmptyState,
+  EntityReference,
+  InternalLink,
+  Row,
+  SectionLabel,
+  StatePill
+} from "@app/routes/chat/toolCardUi"
 
 export type ThemeTokens = Record<string, string>
-
+export type ContrastWarning = {
+  text: string
+  mode: string | null
+  foreground: string | null
+  background: string | null
+  ratio: string | null
+  requiredRatio: string | null
+}
 export type ThemePayload = {
   id: string
   slug: string | null
   name: string
   builtIn: boolean | null
   position: string | null
-  tokens: Record<string, ThemeTokens>
-  warnings: string[]
+  colorTokens: Record<string, ThemeTokens>
+  extendedTokens: Record<string, ThemeTokens>
+  warnings: ContrastWarning[]
 }
 
 const TOKEN_ORDER = [
@@ -29,115 +49,159 @@ const TOKEN_ORDER = [
   "neutral",
   "on-brand"
 ]
+const COLOR_MODES = ["light", "dark"] as const
+export function t(key: string, options?: Record<string, unknown>) {
+  return i18n.t(`theming_tools:${key}`, options)
+}
 
 function stringTokens(value: unknown): ThemeTokens | null {
   if (!isPlainObject(value)) return null
-
-  const entries = Object.entries(value).flatMap(([key, rawValue]) => {
-    const color = displayValue(rawValue)
-    return color ? [[key, color] as const] : []
+  const entries = Object.entries(value).flatMap(([key, raw]) => {
+    const token = displayValue(raw)
+    return token ? [[key, token] as const] : []
   })
-  return entries.length > 0 ? Object.fromEntries(entries) : null
+  return entries.length ? Object.fromEntries(entries) : null
 }
 
-// Theme#public_payload's `tokens` hash now always carries the non-color
-// shape/shadow/spacing/density/typography groups (Theme::EXTENDED_TOKEN_GROUPS)
-// alongside "light"/"dark" (Theme#tokens_with_defaults backfills every group on
-// every read). Those groups hold CSS lengths/shadows/font stacks, not colors --
-// iterating every top-level key here used to treat them as extra color "modes"
-// and render values like "0.375rem" as color swatch backgrounds. Restricting to
-// the actual color modes keeps this card showing only what it's designed to
-// show; rendering the extended groups is a separate, not-yet-built card.
-const COLOR_MODES = ["light", "dark"] as const
+function parseTokens(value: unknown) {
+  const colorTokens: Record<string, ThemeTokens> = {}
+  const extendedTokens: Record<string, ThemeTokens> = {}
+  if (!isPlainObject(value)) return { colorTokens, extendedTokens }
+  Object.entries(value).forEach(([group, raw]) => {
+    const tokens = stringTokens(raw)
+    if (tokens) ((COLOR_MODES as readonly string[]).includes(group) ? colorTokens : extendedTokens)[group] = tokens
+  })
+  return { colorTokens, extendedTokens }
+}
 
-function parseTokens(value: unknown): Record<string, ThemeTokens> {
-  if (!isPlainObject(value)) return {}
-
-  return Object.fromEntries(
-    COLOR_MODES.flatMap((mode) => {
-      const tokens = stringTokens(value[mode])
-      return tokens ? [[mode, tokens] as const] : []
-    })
+export function parseContrastWarning(value: unknown): ContrastWarning | null {
+  const text = displayValue(value)
+  if (!text) return null
+  const match = text.match(
+    /^(\S+)\s+(.+?)\s+(?:\(([^)]+)\)\s+)?on\s+(.+?)\s+(?:\(([^)]+)\)\s+)?has contrast\s+([\d.]+):1(?:,\s+needs at least\s+([\d.]+):1.*)?$/i
   )
+  return {
+    text,
+    mode: match?.[1] ?? null,
+    foreground: match ? `${match[2]}${match[3] ? ` (${match[3]})` : ""}` : null,
+    background: match ? `${match[4]}${match[5] ? ` (${match[5]})` : ""}` : null,
+    ratio: match?.[6] ?? null,
+    requiredRatio: match?.[7] ?? null
+  }
 }
 
 export function parseTheme(value: unknown): ThemePayload | null {
   if (!isPlainObject(value)) return null
-
   const id = displayValue(value.id) ?? displayValue(value.theme_id)
   const name = displayValue(value.name)
   if (!id || !name) return null
-
   const warnings = Array.isArray(value.contrast_warnings)
-    ? value.contrast_warnings.flatMap((warning) => {
-      const text = displayValue(warning)
-      return text ? [text] : []
-    })
+    ? value.contrast_warnings.flatMap((raw) => {
+        const warning = parseContrastWarning(raw)
+        return warning ? [warning] : []
+      })
     : []
-
   return {
     id,
     slug: displayValue(value.slug),
     name,
     builtIn: typeof value.built_in === "boolean" ? value.built_in : null,
     position: displayValue(value.position),
-    tokens: parseTokens(value.tokens),
+    ...parseTokens(value.tokens),
     warnings
   }
 }
 
-export function parseThemeResult(context: ToolCardContext): ThemePayload | null {
+export function parseThemeResult(context: ToolCardContext) {
   return parseTheme(context.parsedResult)
 }
-
 export function themeRows(context: ToolCardContext): ThemePayload[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.themes)) return null
-
-  return parsed.themes.flatMap((entry) => {
-    const theme = parseTheme(entry)
+  return parsed.themes.flatMap((raw) => {
+    const theme = parseTheme(raw)
     return theme ? [theme] : []
   })
 }
-
-export function themeListSummary(context: ToolCardContext): string | null {
+export function themeListSummary(context: ToolCardContext) {
   const rows = themeRows(context)
-  if (!rows) return null
-
-  return `${rows.length} theme${rows.length === 1 ? "" : "s"}`
+  return rows ? t("summary_theme_count", { count: rows.length }) : null
 }
 
-function ErrorCard({ action, context }: { action: string; context: ToolCardContext }) {
+function errorWarnings(body: string) {
+  const details = body.match(/Contrast check failed\s*--\s*fix these before [^:]+:\s*(.+)\.?$/is)?.[1]
+  if (!details) return []
+  return details
+    .replace(/\.$/, "")
+    .split(/;\s*/)
+    .flatMap((raw) => {
+      const warning = parseContrastWarning(raw)
+      return warning ? [warning] : []
+    })
+}
+
+function ContrastWarnings({ warnings }: { warnings: ContrastWarning[] }) {
   return (
-    <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        <StatePill state="error" tone="failure" />
-        <span className="font-medium text-gray-900 dark:text-gray-100">{action} failed</span>
-      </div>
-      <div className="whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">{context.resultBody}</div>
-    </CardShell>
-  )
-}
-
-export function errorSummary(action: string, context: ToolCardContext): string | null {
-  return context.resultError ? `${action} failed` : null
-}
-
-export function renderError(action: string, context: ToolCardContext): ReactNode | null {
-  return context.resultError ? <ErrorCard action={action} context={context} /> : null
-}
-
-function ThemeHeader({ theme, outcome }: { theme: ThemePayload; outcome: string }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <StatePill state={outcome} tone={outcome === "preview" ? "info" : "success"} />
-      <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{theme.id}</span>
-      {theme.builtIn === true ? <Badge>built in</Badge> : theme.builtIn === false ? <Badge>custom</Badge> : null}
-      {theme.slug ? <Badge>{theme.slug}</Badge> : null}
+    <div>
+      <SectionLabel>{t("contrast_warnings")}</SectionLabel>
+      <ul className="mt-1 space-y-1">
+        {warnings.map((warning, index) => (
+          <li className="min-w-0 rounded border border-warning-border bg-warning-bg px-2 py-1 text-xs text-warning-text" key={`${warning.text}-${index}`}>
+            {warning.foreground && warning.background && warning.ratio ? (
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="font-medium">{warning.mode}</span>
+                <span className="break-words font-mono">
+                  {warning.foreground} → {warning.background}
+                </span>
+                <span className="whitespace-nowrap">{t("contrast_ratio", { ratio: warning.ratio })}</span>
+                {warning.requiredRatio ? (
+                  <span className="whitespace-nowrap text-text-muted">{t("contrast_required", { ratio: warning.requiredRatio })}</span>
+                ) : null}
+              </div>
+            ) : (
+              <span className="break-words">{warning.text}</span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
 
+function ErrorCard({ action, context }: { action: string; context: ToolCardContext }) {
+  const warnings = errorWarnings(context.resultBody)
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatePill state={t("state_error")} tone="failure" />
+        <span className="font-medium text-text-primary">{t("action_failed", { action })}</span>
+      </div>
+      {warnings.length ? (
+        <ContrastWarnings warnings={warnings} />
+      ) : (
+        <div className="whitespace-pre-wrap break-words text-text-secondary">{context.resultBody || t("empty_error")}</div>
+      )}
+    </CardShell>
+  )
+}
+export function errorSummary(action: string, context: ToolCardContext): string | null {
+  return context.resultError ? t("action_failed", { action }) : null
+}
+export function renderError(action: string, context: ToolCardContext): ReactNode | null {
+  return context.resultError ? <ErrorCard action={action} context={context} /> : null
+}
+
+function ThemeHeader({ theme, outcome, draft }: { theme: ThemePayload; outcome: string; draft: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <StatePill state={outcome} tone={draft ? "info" : "success"} />
+      <EntityReference href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`} id={theme.id} kind="theme" wrap="nowrap" />
+      {draft ? <Badge>{t("draft")}</Badge> : null}
+      {theme.builtIn === true ? <Badge>{t("built_in")}</Badge> : theme.builtIn === false ? <Badge>{t("custom")}</Badge> : null}
+      {theme.slug ? <Badge>{theme.slug}</Badge> : null}
+    </div>
+  )
+}
 function Swatch({ name, color }: { name: string; color: string }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
@@ -146,103 +210,140 @@ function Swatch({ name, color }: { name: string; color: string }) {
         className="h-4 w-4 shrink-0 rounded border border-black/10 dark:border-white/20"
         style={{ backgroundColor: color }}
       />
-      <span className="truncate font-mono text-2xs text-gray-600 dark:text-gray-300" title={`${name}: ${color}`}>
+      <span className="truncate font-mono text-2xs text-text-secondary" title={`${name}: ${color}`}>
         {name}
       </span>
     </div>
   )
 }
-
 function ModeSwatches({ mode, tokens }: { mode: string; tokens: ThemeTokens }) {
-  const orderedEntries = TOKEN_ORDER.flatMap((key) => tokens[key] ? [[key, tokens[key]] as const] : [])
-  const extraEntries = Object.entries(tokens).filter(([key]) => !TOKEN_ORDER.includes(key))
-  const entries = [...orderedEntries, ...extraEntries]
-
-  if (entries.length === 0) return null
-
-  return (
+  const entries = [
+    ...TOKEN_ORDER.flatMap((key) => (tokens[key] ? [[key, tokens[key]] as const] : [])),
+    ...Object.entries(tokens).filter(([key]) => !TOKEN_ORDER.includes(key))
+  ]
+  return entries.length ? (
     <div>
       <SectionLabel>{mode}</SectionLabel>
       <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3">
-        {entries.slice(0, 13).map(([key, color]) => <Swatch color={color} key={`${mode}-${key}`} name={key} />)}
+        {entries.map(([key, color]) => (
+          <Swatch color={color} key={`${mode}-${key}`} name={key} />
+        ))}
       </div>
     </div>
+  ) : null
+}
+function TokenGroups({ groups, label }: { groups: Record<string, ThemeTokens>; label: string }) {
+  if (!Object.keys(groups).length) return null
+  return (
+    <Disclosure label={label}>
+      <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
+        {Object.entries(groups).map(([group, tokens]) => (
+          <div className="min-w-0" key={group}>
+            <SectionLabel>{group}</SectionLabel>
+            {Object.entries(tokens).map(([key, value]) => (
+              <div className="flex min-w-0 flex-wrap justify-between gap-x-3" key={key}>
+                <dt className="break-words font-mono text-xs text-text-secondary">{key}</dt>
+                <dd className="break-all font-mono text-xs text-text-primary">{value}</dd>
+              </div>
+            ))}
+          </div>
+        ))}
+      </dl>
+    </Disclosure>
   )
 }
 
-export function ThemeCard({ theme, outcome }: { theme: ThemePayload; outcome: string }) {
-  const tokenEntries = Object.entries(theme.tokens)
-
+export function ThemeCard({
+  theme,
+  outcome,
+  draft = false,
+  overrides = {}
+}: {
+  theme: ThemePayload
+  outcome: string
+  draft?: boolean
+  overrides?: Record<string, ThemeTokens>
+}) {
+  const colors = Object.entries(theme.colorTokens)
   return (
     <CardShell>
-      <ThemeHeader outcome={outcome} theme={theme} />
-      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{theme.name}</div>
+      <ThemeHeader draft={draft} outcome={outcome} theme={theme} />
+      <div className="break-words text-sm font-medium text-text-primary">{theme.name}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Theme ID" value={theme.id} />
-        {theme.position ? <Row label="Position" value={theme.position} /> : null}
+        <Row label={t("theme_id")} value={theme.id} />
+        {theme.position ? <Row label={t("position")} value={theme.position} /> : null}
       </dl>
-      {tokenEntries.length > 0 ? (
+      {draft ? <InternalLink href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`}>{t("open_preview")}</InternalLink> : null}
+      {colors.length ? (
         <div className="grid gap-2 sm:grid-cols-2">
-          {tokenEntries.map(([mode, tokens]) => <ModeSwatches key={mode} mode={mode} tokens={tokens} />)}
+          {colors.map(([mode, tokens]) => (
+            <ModeSwatches key={mode} mode={mode} tokens={tokens} />
+          ))}
         </div>
-      ) : null}
-      {theme.warnings.length > 0 ? (
-        <div>
-          <SectionLabel>Contrast warnings</SectionLabel>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-gray-700 dark:text-gray-300">
-            {theme.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
-          </ul>
-        </div>
-      ) : null}
+      ) : (
+        <EmptyState>{t("no_tokens")}</EmptyState>
+      )}
+      <TokenGroups groups={theme.extendedTokens} label={t("additional_tokens")} />
+      <TokenGroups groups={overrides} label={t("input_overrides")} />
+      {theme.warnings.length ? <ContrastWarnings warnings={theme.warnings} /> : null}
     </CardShell>
   )
 }
 
+export function inputTokenOverrides(input: Record<string, unknown> | undefined): Record<string, ThemeTokens> {
+  if (!input) return {}
+  return Object.fromEntries(
+    Object.entries(input).flatMap(([group, raw]) => {
+      const tokens = stringTokens(raw)
+      return tokens ? [[group, tokens] as const] : []
+    })
+  )
+}
 export function MalformedThemeCard({ action }: { action: string }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state="unreadable" tone="warning" />
-        <span className="font-medium text-gray-900 dark:text-gray-100">{action} returned an unexpected theme payload.</span>
+        <StatePill state={t("state_unreadable")} tone="warning" />
+        <span className="font-medium text-text-primary">{t("unexpected_payload", { action })}</span>
       </div>
     </CardShell>
   )
 }
 
 export function ThemeListBody({ rows }: { rows: ThemePayload[] }) {
-  if (rows.length === 0) return <EmptyState>No custom themes yet.</EmptyState>
-
+  if (!rows.length) return <EmptyState>{t("no_custom_themes")}</EmptyState>
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+    <div className="mt-1 overflow-x-auto rounded border border-border">
       <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+        <thead className="bg-surface-raised text-2xs uppercase text-text-muted">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Theme</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Status</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Palette</th>
+            <th className="px-2 py-1 font-semibold">{t("theme")}</th>
+            <th className="px-2 py-1 font-semibold">{t("status")}</th>
+            <th className="px-2 py-1 font-semibold">{t("palette")}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
+        <tbody className="divide-y divide-border bg-surface">
           {rows.map((theme) => (
             <tr key={theme.id}>
               <td className="px-2 py-1">
-                <div className="font-medium text-gray-900 dark:text-gray-100">{theme.name}</div>
-                <div className="font-mono text-2xs text-gray-500 dark:text-gray-400">#{theme.id}{theme.slug ? ` · ${theme.slug}` : ""}</div>
+                <div className="font-medium text-text-primary">{theme.name}</div>
+                <EntityReference href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`} id={theme.id} kind="theme" slug={theme.slug} />
               </td>
               <td className="whitespace-nowrap px-2 py-1">
-                {theme.builtIn === true ? <StatePill state="built in" tone="neutral" /> : <StatePill state="custom" tone="info" />}
+                <StatePill state={theme.builtIn ? t("built_in") : t("custom")} tone={theme.builtIn ? "neutral" : "info"} />
               </td>
               <td className="min-w-[12rem] px-2 py-1">
                 <div className="flex flex-wrap gap-1">
-                  {Object.entries(theme.tokens.light ?? {}).slice(0, 6).map(([key, color]) => (
-                    <span
-                      aria-label={`${theme.name} ${key} ${color}`}
-                      className="h-4 w-4 rounded border border-black/10 dark:border-white/20"
-                      key={`${theme.id}-${key}`}
-                      style={{ backgroundColor: color }}
-                      title={`${key}: ${color}`}
-                    />
-                  ))}
+                  {Object.entries(theme.colorTokens.light ?? {})
+                    .slice(0, 6)
+                    .map(([key, color]) => (
+                      <span
+                        aria-label={`${theme.name} ${key} ${color}`}
+                        className="h-4 w-4 rounded border border-black/10 dark:border-white/20"
+                        key={`${theme.id}-${key}`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
                 </div>
               </td>
             </tr>
@@ -252,30 +353,21 @@ export function ThemeListBody({ rows }: { rows: ThemePayload[] }) {
     </div>
   )
 }
-
 export type DeleteThemeOutcome = { deletedThemeId: string; fallbackThemeId: string | null }
-
 export function parseDeleteOutcome(context: ToolCardContext): DeleteThemeOutcome | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
-
-  const deletedThemeId = displayValue(parsed.deleted_theme_id)
-  if (!deletedThemeId) return null
-
-  return {
-    deletedThemeId,
-    fallbackThemeId: displayValue(parsed.fallback_theme_id)
-  }
+  const id = displayValue(parsed.deleted_theme_id)
+  return id ? { deletedThemeId: id, fallbackThemeId: displayValue(parsed.fallback_theme_id) } : null
 }
-
 export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state="deleted" tone="success" />
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{outcome.deletedThemeId}</span>
+        <StatePill state={t("state_deleted")} tone="success" />
+        <EntityReference id={outcome.deletedThemeId} kind="theme" />
       </div>
-      {outcome.fallbackThemeId ? <Row label="Fallback active theme" value={`#${outcome.fallbackThemeId}`} /> : null}
+      {outcome.fallbackThemeId ? <Row label={t("fallback_active_theme")} value={`THEME-${outcome.fallbackThemeId}`} /> : null}
     </CardShell>
   )
 }

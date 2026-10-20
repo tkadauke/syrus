@@ -1,12 +1,12 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { errorSummary, renderError, themeListSummary, themeRows, ThemeListBody } from "../themeToolCard"
+import { errorSummary, renderError, t, themeListSummary, themeRows, ThemeListBody } from "../themeToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
-  return errorSummary("Theme list", context) ?? themeListSummary(context)
+  return errorSummary(t("action_list"), context) ?? themeListSummary(context)
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const error = renderError("Theme list", context)
+  const error = renderError(t("action_list"), context)
   if (error) return error
 
   const rows = themeRows(context)
