@@ -41,6 +41,7 @@ export type MarkdownPreviewProps = {
 }
 
 export type TextPreviewProps = {
+  fullText?: string
   text: string
   emptyLabel?: string
   modalText?: string
@@ -158,6 +159,7 @@ export function MarkdownPreview({
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
 export function TextPreview({
+  fullText,
   text,
   emptyLabel,
   modalText,
@@ -178,8 +180,8 @@ export function TextPreview({
   if (empty) return emptyLabel ? <div className="text-xs italic text-text-muted">{emptyLabel}</div> : null
 
   const dialogLabel = modalLabel || title || t("show_more")
-  const completeText = modalText ?? text
-  const showModal = truncated.truncated || modalText != null
+  const completeText = modalText ?? fullText ?? text
+  const showModal = truncated.truncated || modalText != null || completeText !== text
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
