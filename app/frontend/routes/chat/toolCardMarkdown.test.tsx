@@ -104,13 +104,17 @@ describe("MarkdownPreview", () => {
 
   it("supports a character limit and passes link behavior through both views", () => {
     const onLinkClick = vi.fn()
-    render(<MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />)
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />
+      </MemoryRouter>
+    )
     fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
     expect(onLinkClick).toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     const dialog = screen.getByRole("dialog")
     expect(dialog).toHaveTextContent("JOB-42")
-    expect(within(dialog).getByRole("button", { name: /Copy/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
   })
 
   it.each([
