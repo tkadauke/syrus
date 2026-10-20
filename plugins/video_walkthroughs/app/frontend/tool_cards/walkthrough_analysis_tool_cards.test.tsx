@@ -70,7 +70,9 @@ describe("video walkthrough analysis tool cards", () => {
     expect(screen.getByText("Low contrast helper text")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Open Save button does nothing" })).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Save button does nothing at 1:12" })).toHaveAttribute("src", "data:image/jpeg;base64,jpeg")
-    expect(screen.getByRole("link", { name: "WALKTHROUGH-42" })).toHaveAttribute("href", "/api/v1/app/video_walkthroughs/42")
+    expect(screen.getByText("WALKTHROUGH-42")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "WALKTHROUGH-42" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy WALKTHROUGH-42 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("[01:12] I click save and nothing happens.")).toBeInTheDocument()
     expect(screen.getByText("Should drafts autosave?")).toBeInTheDocument()
   })
@@ -178,6 +180,21 @@ describe("video walkthrough analysis tool cards", () => {
 
     expect(screen.getByText("Save failed", { selector: "strong" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "https://example.test/settings" })).toHaveAttribute("href", "https://example.test/settings")
+  })
+
+  it("renders the complete report when recognized and shifted headings are mixed", () => {
+    const report = [
+      "## Session overview",
+      "**The renamed summary remains visible.**",
+      "",
+      "## Issues found (1)",
+      "- **Save button does nothing** (high, settings, at 01:12)",
+      "  The parsed issue remains available too."
+    ].join("\n")
+    render(<>{getWalkthroughAnalysisToolCard.renderExpanded(context({ parsedResult: { content: [{ type: "text", text: report }] } }))}</>)
+
+    expect(screen.getByText("The renamed summary remains visible.", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getAllByText("Save button does nothing").length).toBeGreaterThan(0)
   })
 
   it("renders pending and provider-specific error guidance", () => {
