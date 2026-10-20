@@ -394,6 +394,48 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("Pod / web-1")).toBeInTheDocument()
   })
 
+  it("renders node lists identically from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      nodes: [
+        {
+          name: "node-envelope-1",
+          ready: true,
+          roles: ["worker"],
+          kubelet_version: "v1.31.3",
+          internal_ip: "10.0.0.13",
+          capacity_cpu: "8",
+          capacity_memory: "32Gi",
+          allocatable_cpu: "7500m",
+          allocatable_memory: "29Gi",
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_nodes")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(toolName).toBe("k8s_cluster_nodes")
+      expect(nodesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 · 1 nodes")
+      const rendered = render(<>{nodesToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("button", { name: "Copy node-envelope-1 to clipboard" })).toBeInTheDocument()
+      expect(screen.getByText("v1.31.3")).toBeInTheDocument()
+      expect(screen.getByText("10.0.0.13")).toBeInTheDocument()
+      expect(screen.getByText("8 vCPU / 32.0 GB")).toBeInTheDocument()
+      expect(screen.getByText("7.5 vCPU / 29.0 GB")).toBeInTheDocument()
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
   it("renders node describes from every MCP envelope with operational details and redacted label values", () => {
     const payload = {
       available: true,
