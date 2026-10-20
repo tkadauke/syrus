@@ -439,6 +439,7 @@
   "kubectl_card_credential_id": "ID credentialis",
   "kubectl_card_credential_type": "Genus credentialis",
   "kubectl_card_secret_output_enabled": "Exitus secretus permissus",
+  "kubectl_card_secret_output_suppressed": "Exitus imperii celatur quia exitus secretus permissus est. Eum tantum in ambitu executionis munito inspice.",
   "kubectl_card_risky_command_enabled": "Imperium periculosum permissum",
   "kubectl_card_copy_command": "Imperium exscribe",
   "kubectl_card_stdout": "stdout",
