@@ -605,6 +605,26 @@ describe("Kubernetes cluster tool cards", () => {
     }
   })
 
+  it("preserves each event namespace in cluster-wide mixed-namespace results", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_events",
+      input: { cluster_id: 7 },
+      parsedResult: {
+        available: true,
+        events: [
+          { namespace: "payments", name: "payment-event", type: "Warning", reason: "Failed", message: "Payment failed" },
+          { namespace: "shipping", name: "shipping-event", type: "Normal", reason: "Scheduled", message: "Shipping scheduled" }
+        ]
+      }
+    })
+
+    render(<>{eventsToolCard.renderExpanded(cardContext)}</>)
+
+    expect(eventsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 · 2 events · 1 warning")
+    expect(screen.getByText("payments")).toBeInTheDocument()
+    expect(screen.getByText("shipping")).toBeInTheDocument()
+  })
+
   it("renders PVC describes from every MCP envelope with safe operational details", () => {
     const payload = {
       available: true,
