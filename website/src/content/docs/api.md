@@ -741,6 +741,12 @@ user's active color theme, Syrus first falls back to the default built-in
 Terracotta theme. Built-in themes and another user's custom themes are not
 editable through these endpoints.
 
+The equivalent `delete_user_theme` chat tool returns
+`deleted_theme_id`/`deleted_theme_name` and
+`fallback_theme_id`/`fallback_theme_name` on success. The fallback fields are
+`null` when deleting the theme did not change the user's active theme. This
+keeps transcripts readable after the deleted theme record no longer exists.
+
 `PATCH /api/v1/app/themes/reorder` accepts `ids`, an ordered array of owned
 custom theme IDs, and persists their zero-based positions. Any custom themes
 owned by the user but omitted from `ids` are kept after the submitted order.
