@@ -910,7 +910,7 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByRole("link", { name: "missing" })).toHaveAttribute("href", "/k8s_clusters/7")
   })
 
-  it("renders overview totals and metrics-unavailable warnings without dumping raw JSON", () => {
+  it("renders overview section availability, reason, totals, and generated time", () => {
     const cardContext = context({
       toolName: "k8s_cluster_overview",
       input: { cluster_id: 7 },
@@ -930,8 +930,103 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{overviewToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("metrics.k8s.io is not available")).toBeInTheDocument()
+    expect(screen.getByText("Unavailable")).toBeInTheDocument()
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("metrics_unavailable")).toBeInTheDocument()
     expect(screen.getAllByText("125m").length).toBeGreaterThan(0)
     expect(screen.getAllByText("256.0 MB").length).toBeGreaterThan(0)
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+  })
+
+  it("renders overview empty and error states with the requested cluster scope", () => {
+    const empty = render(
+      <>
+        {overviewToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_overview",
+            input: { cluster_id: 7 },
+            parsedResult: {
+              generated_at: "2026-09-30T12:00:00Z",
+              nodes: { available: true, items: [], total_cpu_millicores: 0, total_memory_bytes: 0 },
+              pods: { available: true, items: [], total_cpu_millicores: 0, total_memory_bytes: 0 }
+            }
+          })
+        )}
+      </>
+    )
+    expect(screen.getAllByText("No items returned.")).toHaveLength(2)
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    empty.unmount()
+
+    render(
+      <>
+        {overviewToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_overview",
+            input: { cluster_id: 7 },
+            resultBody: "Error: Kubernetes API unavailable",
+            resultError: true,
+            parsedResult: null
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+  })
+
+  it("renders filterable, linked, responsive overview metrics from every MCP envelope and can show all rows", () => {
+    const pods = Array.from({ length: 101 }, (_, index) => ({
+      namespace: index === 100 ? "payments" : "default",
+      name: `web-${index + 1}`,
+      cpu_millicores: index === 100 ? 1500 : 125,
+      memory_bytes: index === 100 ? 1_073_741_824 : 268_435_456,
+      private_token: "must-not-render"
+    }))
+    const payload = {
+      generated_at: "2026-09-30T12:00:00Z",
+      nodes: {
+        available: true,
+        items: [{ name: "node-a", cpu_millicores: 2250, memory_bytes: 8_589_934_592, private_token: "must-not-render" }],
+        total_cpu_millicores: 2250,
+        total_memory_bytes: 8_589_934_592
+      },
+      pods: { available: true, items: pods, total_cpu_millicores: 14_000, total_memory_bytes: 27_917_287_424 }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_overview")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{overviewToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_overview")
+      expect(screen.getByRole("link", { name: "node-a" })).toHaveAttribute("href", "/k8s_clusters/7?tab=nodes&node=node-a")
+      expect(screen.queryByRole("link", { name: "web-101" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show all 101 rows" })).toBeInTheDocument()
+      expect(screen.getAllByPlaceholderText("Filter resources")).toHaveLength(2)
+      expect(screen.getAllByText("2.25 vCPU").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("8.0 GB").length).toBeGreaterThan(0)
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Show all 101 rows" }))
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=pods&namespace=payments")
+      expect(screen.getByRole("link", { name: "web-101" })).toHaveAttribute("href", "/k8s_clusters/7?tab=pods&namespace=payments&pod=web-101")
+
+      fireEvent.change(screen.getAllByPlaceholderText("Filter resources")[1], { target: { value: "payments" } })
+      expect(screen.getByText("1 of 101")).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "web-1" })).not.toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "web-101" })).toBeInTheDocument()
+
+      const responsiveBody = screen.getByRole("link", { name: "web-101" }).closest("tbody")
+      expect(responsiveBody).toHaveClass("block")
+      expect(responsiveBody).toHaveClass("sm:table-row-group")
+      rendered.unmount()
+    }
   })
 
   it("renders workload cards with readiness, selectors, rollout counts, and recent conditions", () => {
