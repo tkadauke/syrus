@@ -13,7 +13,7 @@ function renderModal() {
       recommendation={{
         profile: "macos_desktop",
         label: "macOS desktop",
-        capabilities: { os: [ "macos" ], arch: [ "arm64" ] },
+        capabilities: { os: ["macos"], arch: ["arm64"] },
         explanation: "The desktop package must be tested on macOS.",
         provenance: "ingestion_classifier",
         compatible_worker_available: true
@@ -33,10 +33,7 @@ describe("PlacementConfirmationModal", () => {
     expect(screen.getByText("A compatible worker is currently available.")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Accept using Linux" }))
-    expect(mutate).toHaveBeenCalledWith(
-      { method: "post", path: "/api/v1/app/jobs/7/accept_triage", body: { placement_decision: "linux" } },
-      expect.any(Object)
-    )
+    expect(mutate).toHaveBeenCalledWith({ method: "post", path: "/api/v1/app/jobs/7/accept_triage", body: { placement_decision: "linux" } }, expect.any(Object))
 
     fireEvent.click(screen.getByRole("button", { name: "Accept with suggested placement" }))
     expect(mutate).toHaveBeenCalledWith(

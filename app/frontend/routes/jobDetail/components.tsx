@@ -11,7 +11,14 @@ import { Input } from "../../components/Input"
 import { Notice, Pill, Section, surfaceClasses, Text, Timeline, type NoticeTone } from "../../components/ui"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
-import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
+import {
+  fetchJobAttachmentContent,
+  fetchJobTimeline,
+  type JobAttachment,
+  type JobDependency,
+  type JobDependencyTarget,
+  type JobDetailPayload
+} from "../../api/jobs"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
 import { useJobCommand } from "./command"
@@ -32,8 +39,17 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the run-transcript log stream. Kept in a leaf module so both the route file and
 // the workflow/step/run render subtree can import them without a circular edge.
 
-export function SmallPill({ children, tone = "neutral", wrap = false, ...props }: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success"; wrap?: boolean } & HTMLAttributes<HTMLSpanElement>) {
-  return <Pill tone={tone} wrap={wrap} {...props}>{children}</Pill>
+export function SmallPill({
+  children,
+  tone = "neutral",
+  wrap = false,
+  ...props
+}: { children: ReactNode; tone?: "neutral" | "info" | "warning" | "danger" | "success"; wrap?: boolean } & HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <Pill tone={tone} wrap={wrap} {...props}>
+      {children}
+    </Pill>
+  )
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
@@ -94,30 +110,61 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
     const grossMemoryBudget = wait.details.host_memory_budget_bytes ?? 0
     const memoryBudget = wait.details.host_memory_effective_budget_bytes ?? Math.max(grossMemoryBudget - (wait.details.grader_memory_reserve_bytes ?? 0), 0)
     const bindingTerms = wait.details.resource_guard_binding_terms ?? []
-    const binding = bindingTerms.map((term) => {
-      if (term === "compute_units") return t("run_queue_wait.binding_compute", { active: wait.details.active_compute_units, candidate: wait.details.candidate_compute_units, capacity: wait.details.host_compute_capacity })
-      if (term === "memory_reservation") return t("run_queue_wait.binding_reservation", { active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
-      if (term === "measured_memory") return t("run_queue_wait.binding_measured", { current: formatBytes(wait.details.current_memory_bytes ?? 0), candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0), budget: formatBytes(memoryBudget) })
-      return term
-    }).join("; ")
-    const message = wait.kind === "start_blocked" && reason
-      ? t("run_queue_wait.start_blocked", { reason: t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason }) })
-      : t(`run_queue_wait.${wait.kind}`, {
-          queue: wait.details.queue_name,
-          count: wait.details.live_worker_count,
-          queues: wait.details.live_worker_queues?.join(", "),
-          time: wait.details.scheduled_at ? formatRelativeDate(new Date(wait.details.scheduled_at)) : "",
-          reason,
-          deferralCount: wait.details.deferral_count,
-          deferred: wait.details.first_deferred_at ? formatRelativeDate(new Date(wait.details.first_deferred_at)) : "",
-          binding
-        })
+    const binding = bindingTerms
+      .map((term) => {
+        if (term === "compute_units")
+          return t("run_queue_wait.binding_compute", {
+            active: wait.details.active_compute_units,
+            candidate: wait.details.candidate_compute_units,
+            capacity: wait.details.host_compute_capacity
+          })
+        if (term === "memory_reservation")
+          return t("run_queue_wait.binding_reservation", {
+            active: formatBytes(wait.details.active_reserved_memory_bytes ?? 0),
+            candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0),
+            budget: formatBytes(memoryBudget)
+          })
+        if (term === "measured_memory")
+          return t("run_queue_wait.binding_measured", {
+            current: formatBytes(wait.details.current_memory_bytes ?? 0),
+            candidate: formatBytes(wait.details.candidate_reserved_memory_bytes ?? 0),
+            budget: formatBytes(memoryBudget)
+          })
+        return term
+      })
+      .join("; ")
+    const message =
+      wait.kind === "start_blocked" && reason
+        ? t("run_queue_wait.start_blocked", { reason: t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason }) })
+        : t(`run_queue_wait.${wait.kind}`, {
+            queue: wait.details.queue_name,
+            count: wait.details.live_worker_count,
+            queues: wait.details.live_worker_queues?.join(", "),
+            time: wait.details.scheduled_at ? formatRelativeDate(new Date(wait.details.scheduled_at)) : "",
+            reason,
+            deferralCount: wait.details.deferral_count,
+            deferred: wait.details.first_deferred_at ? formatRelativeDate(new Date(wait.details.first_deferred_at)) : "",
+            binding
+          })
     const linkPath = presentation.link === "workers" ? "/admin/queue/workers" : "/admin/queue/pending"
     return (
       <Notice className="mt-2 px-3 py-2 text-xs" tone={presentation.tone}>
-        <span className="font-semibold">{t("run_queued_waiting", { id: run.id })}{elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}</span>
+        <span className="font-semibold">
+          {t("run_queued_waiting", { id: run.id })}
+          {elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}
+        </span>
         <span className="mt-1 block">
-          {message}{presentation.link ? <> {t("run_queue_wait.check")} <Link className="underline" to={withRoutePrefix(linkPath, prefix)}>{t(`run_queue_wait.${presentation.link}_link`)}</Link>.</> : null}
+          {message}
+          {presentation.link ? (
+            <>
+              {" "}
+              {t("run_queue_wait.check")}{" "}
+              <Link className="underline" to={withRoutePrefix(linkPath, prefix)}>
+                {t(`run_queue_wait.${presentation.link}_link`)}
+              </Link>
+              .
+            </>
+          ) : null}
         </span>
       </Notice>
     )
@@ -125,7 +172,10 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
 
   return (
     <Notice className="mt-2 px-3 py-2 text-xs" tone="info">
-      <span className="font-semibold">{t("run_running", { id: run.id })}{elapsed ? ` · ${elapsed}` : ""}</span>
+      <span className="font-semibold">
+        {t("run_running", { id: run.id })}
+        {elapsed ? ` · ${elapsed}` : ""}
+      </span>
       <span> {t("run_running_suffix", { date: run.started_at ? formatRelativeDate(new Date(run.started_at)) : "-" })}</span>
       {activeProcess ? (
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-info">
@@ -150,7 +200,13 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   return kind ? labels[kind] || kind : null
 }
 
-export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>; fillHeight?: boolean }) {
+export function RunTranscriptLogs({
+  logs,
+  fillHeight = false
+}: {
+  logs: NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>
+  fillHeight?: boolean
+}) {
   const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
@@ -172,30 +228,62 @@ export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: NonNulla
   return (
     <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
-        <TranscriptMessageRow chunk={log.chunk} kind={log.kind} key={log.id} label={transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`} sequence={log.sequence} />
+        <TranscriptMessageRow
+          chunk={log.chunk}
+          kind={log.kind}
+          key={log.id}
+          label={transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}
+          sequence={log.sequence}
+        />
       ))}
     </ol>
   )
 }
 
-export function TranscriptPagination({ hasOlder, onPageChange, page, totalPages }: { hasOlder: boolean; onPageChange: (page: number) => void; page: number; totalPages: number }) {
+export function TranscriptPagination({
+  hasOlder,
+  onPageChange,
+  page,
+  totalPages
+}: {
+  hasOlder: boolean
+  onPageChange: (page: number) => void
+  page: number
+  totalPages: number
+}) {
   const { t } = useT("jobs")
   if (totalPages <= 1) return null
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs">
-      <span className="text-text-muted">
-        {hasOlder ? t("transcript_older_rows_hidden") : t("transcript_page", { page, total: totalPages })}
-      </span>
+      <span className="text-text-muted">{hasOlder ? t("transcript_older_rows_hidden") : t("transcript_page", { page, total: totalPages })}</span>
       <div className="flex gap-2">
-        {page > 1 ? <Button onClick={() => onPageChange(page - 1)} variant="secondary">{t("transcript_newer")}</Button> : null}
-        {hasOlder ? <Button onClick={() => onPageChange(page + 1)} variant="secondary">{t("transcript_older")}</Button> : null}
+        {page > 1 ? (
+          <Button onClick={() => onPageChange(page - 1)} variant="secondary">
+            {t("transcript_newer")}
+          </Button>
+        ) : null}
+        {hasOlder ? (
+          <Button onClick={() => onPageChange(page + 1)} variant="secondary">
+            {t("transcript_older")}
+          </Button>
+        ) : null}
       </div>
     </div>
   )
 }
 
-export function TagsPanel({ payload, command, embedded = false, canManageTags }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; embedded?: boolean; canManageTags: boolean }) {
+export function TagsPanel({
+  payload,
+  command,
+  embedded = false,
+  canManageTags
+}: {
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  embedded?: boolean
+  canManageTags: boolean
+}) {
   const { t } = useT("jobs")
   const [tagName, setTagName] = useState("")
   const [addingTag, setAddingTag] = useState(false)
@@ -206,7 +294,12 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
     event.preventDefault()
     command.mutate(
       { method: "post", path: payload.paths.app_tags_path, body: { tag_name: tagName } },
-      { onSuccess: () => { setTagName(""); setAddingTag(false) } }
+      {
+        onSuccess: () => {
+          setTagName("")
+          setAddingTag(false)
+        }
+      }
     )
   }
 
@@ -235,33 +328,46 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
       {canManageTags ? (
         addingTag ? (
           <form className="flex items-center gap-2" onSubmit={submit}>
-            <Input className="w-40" fullWidth={false} list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder={t("tags_placeholder")} required value={tagName} />
+            <Input
+              className="w-40"
+              fullWidth={false}
+              list="job-tag-options"
+              onChange={(event) => setTagName(event.target.value)}
+              placeholder={t("tags_placeholder")}
+              required
+              value={tagName}
+            />
             <datalist id="job-tag-options">
-              {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
+              {payload.tag_options.map((tag) => (
+                <option key={tag.id} value={tag.name} />
+              ))}
             </datalist>
-            <Button disabled={command.isPending} type="submit" variant="secondary">{t("tags_add")}</Button>
-            <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">{t("tags_cancel")}</button>
+            <Button disabled={command.isPending} type="submit" variant="secondary">
+              {t("tags_add")}
+            </Button>
+            <button
+              className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={command.isPending}
+              onClick={() => setAddingTag(false)}
+              type="button"
+            >
+              {t("tags_cancel")}
+            </button>
           </form>
         ) : (
-          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingTag(true)} type="button">{t("tags_add_tag")}</button>
+          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingTag(true)} type="button">
+            {t("tags_add_tag")}
+          </button>
         )
       ) : null}
     </div>
   )
 
   if (embedded) {
-    return (
-      <div className="mt-3 border-t border-border pt-3">
-        {content}
-      </div>
-    )
+    return <div className="mt-3 border-t border-border pt-3">{content}</div>
   }
 
-  return (
-    <Section.Root>
-      {content}
-    </Section.Root>
-  )
+  return <Section.Root>{content}</Section.Root>
 }
 
 export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) {
@@ -278,29 +384,37 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
   }
 
   const message = job.needs_attention_reason
-    ? (reasonKeys[job.needs_attention_reason]
-        ? t(reasonKeys[job.needs_attention_reason])
-        : t("attention_reason_fallback", { reason: job.needs_attention_reason }))
+    ? reasonKeys[job.needs_attention_reason]
+      ? t(reasonKeys[job.needs_attention_reason])
+      : t("attention_reason_fallback", { reason: job.needs_attention_reason })
     : t("attention_generic")
 
-  const gracePeriodText = job.grace_period_expires_at ? (() => {
-    const expires = new Date(job.grace_period_expires_at)
-    const now = new Date()
-    const ms = expires.getTime() - now.getTime()
-    if (ms <= 0) return t("grace_expired")
-    const totalSeconds = Math.floor(ms / 1000)
-    const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor((totalSeconds % 86400) / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    if (days > 0) return t("grace_cleanup_days", { days, hours })
-    if (hours > 0) return t("grace_cleanup_hours", { hours, minutes })
-    return t("grace_cleanup_minutes", { minutes })
-  })() : null
+  const gracePeriodText = job.grace_period_expires_at
+    ? (() => {
+        const expires = new Date(job.grace_period_expires_at)
+        const now = new Date()
+        const ms = expires.getTime() - now.getTime()
+        if (ms <= 0) return t("grace_expired")
+        const totalSeconds = Math.floor(ms / 1000)
+        const days = Math.floor(totalSeconds / 86400)
+        const hours = Math.floor((totalSeconds % 86400) / 3600)
+        const minutes = Math.floor((totalSeconds % 3600) / 60)
+        if (days > 0) return t("grace_cleanup_days", { days, hours })
+        if (hours > 0) return t("grace_cleanup_hours", { hours, minutes })
+        return t("grace_cleanup_minutes", { minutes })
+      })()
+    : null
 
   return (
     <Notice title={t("action_needed")} tone="warning">
-      <Text as="p" tone="warning">{message}</Text>
-      {gracePeriodText ? <Text className="mt-1" tone="warning">{gracePeriodText}</Text> : null}
+      <Text as="p" tone="warning">
+        {message}
+      </Text>
+      {gracePeriodText ? (
+        <Text className="mt-1" tone="warning">
+          {gracePeriodText}
+        </Text>
+      ) : null}
     </Notice>
   )
 }
@@ -316,9 +430,13 @@ export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) 
 
   return (
     <Notice title={t(proposed ? "triage_proposed_title" : placement ? "placement_confirmation_title" : "triage_uncertain_title")} tone="warning">
-      <Text as="p" tone="warning">{t(proposed ? "triage_proposed_body" : placement ? "placement_confirmation_body" : "triage_uncertain_body")}</Text>
+      <Text as="p" tone="warning">
+        {t(proposed ? "triage_proposed_body" : placement ? "placement_confirmation_body" : "triage_uncertain_body")}
+      </Text>
       {!proposed && !placement && job.triaging_uncertainty_reason ? (
-        <Text className="mt-2 text-xs" tone="warning" variant="mono">{job.triaging_uncertainty_reason}</Text>
+        <Text className="mt-2 text-xs" tone="warning" variant="mono">
+          {job.triaging_uncertainty_reason}
+        </Text>
       ) : null}
     </Notice>
   )
@@ -340,11 +458,11 @@ export function FeedbackSourceBadge({ source }: { source: unknown }) {
     attributedTo,
     confirmedBy ? `confirmed by ${confirmedBy}` : null,
     action === "replace" ? "(replaced)" : null
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
 
-  return (
-    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
-  )
+  return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</p>
 }
 
 export function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
@@ -380,36 +498,61 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
         type="button"
       >
         <svg aria-hidden="true" className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
-          <path clipRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" fillRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+            fillRule="evenodd"
+          />
         </svg>
-        {t("section_timeline")} <Text as="span" className="font-normal" muted variant="caption">{t("timeline_runs", { count: runsCount })}</Text>
+        {t("section_timeline")}{" "}
+        <Text as="span" className="font-normal" muted variant="caption">
+          {t("timeline_runs", { count: runsCount })}
+        </Text>
       </button>
       {expanded ? (
         <div className="border-t border-border px-4 pb-4">
-          {timeline.isPending ? <Text className="mt-3" muted>{t("timeline_loading")}</Text> : null}
-          {timeline.isError ? <Text className="mt-3" tone="danger">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</Text> : null}
+          {timeline.isPending ? (
+            <Text className="mt-3" muted>
+              {t("timeline_loading")}
+            </Text>
+          ) : null}
+          {timeline.isError ? (
+            <Text className="mt-3" tone="danger">
+              {errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}
+            </Text>
+          ) : null}
           {timeline.data && timeline.data.events.length > 0 ? (
             <Timeline.Root className="mt-3">
               {timeline.data.events.map((event, index) => (
                 <Timeline.ActivityRow
                   key={`${event.at}-${event.title}-${index}`}
-                  meta={(
+                  meta={
                     <>
                       {event.source}
                       {event.ref_label ? (
                         <>
                           {" · "}
                           {event.workflow_path ? (
-                            <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
-                          ) : event.ref_label}
+                            <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                              {event.ref_label}
+                            </Link>
+                          ) : (
+                            event.ref_label
+                          )}
                         </>
                       ) : null}
                     </>
-                  )}
+                  }
                   timestamp={<RelativeTimestamp value={event.at} />}
-                  title={event.workflow_path ? (
-                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
-                    ) : event.title}
+                  title={
+                    event.workflow_path ? (
+                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                        {event.title}
+                      </Link>
+                    ) : (
+                      event.title
+                    )
+                  }
                   details={event.detail ? <Text muted>{event.detail}</Text> : null}
                 />
               ))}
@@ -429,7 +572,9 @@ export function AttachmentPreview({ attachments }: { attachments: JobAttachment[
     <Section.Root>
       <Section.Title>{t("section_attachments")}</Section.Title>
       <Section.Body className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" padding="md">
-        {attachments.slice(0, 6).map((attachment) => <AttachmentCard attachment={attachment} key={attachment.id} />)}
+        {attachments.slice(0, 6).map((attachment) => (
+          <AttachmentCard attachment={attachment} key={attachment.id} />
+        ))}
       </Section.Body>
     </Section.Root>
   )
@@ -453,15 +598,25 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
     <article className={surfaceClasses("panel", "sm", "text-sm")}>
       <div className="font-medium text-text-primary">
         {previewable ? (
-          <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">{title}</button>
+          <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">
+            {title}
+          </button>
         ) : attachment.file_path ? (
-          <a className="hover:underline" href={attachment.file_path}>{title}</a>
+          <a className="hover:underline" href={attachment.file_path}>
+            {title}
+          </a>
         ) : (
           title
         )}
       </div>
       <Text as="div" className="mt-1" muted variant="caption">
-        {attachment.google_doc_url ? <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
+        {attachment.google_doc_url ? (
+          <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">
+            {t("attachment_google_doc")}
+          </a>
+        ) : (
+          attachment.content_type || attachment.attachment_type
+        )}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </Text>
       {previewOpen && imagePreviewable ? (
@@ -475,12 +630,7 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
         />
       ) : null}
       {previewOpen && textPreviewable ? (
-        <FilePreviewModal
-          onClose={() => setPreviewOpen(false)}
-          path={attachment.filename || title}
-          query={fileContent}
-          rawHref={attachment.file_path || "#"}
-        />
+        <FilePreviewModal onClose={() => setPreviewOpen(false)} path={attachment.filename || title} query={fileContent} rawHref={attachment.file_path || "#"} />
       ) : null}
     </article>
   )
@@ -528,7 +678,10 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2 italic text-gray-500 dark:text-gray-400">
-      <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300" />
+      <span
+        aria-hidden="true"
+        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300"
+      />
       <span>{t("generating_title")}</span>
     </span>
   )
@@ -572,7 +725,9 @@ export function DependencyLink({ dependency }: { dependency: JobDependency }) {
 
   if (epicTarget) {
     return (
-      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>{label}</Link>
+      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>
+        {label}
+      </Link>
     )
   }
 

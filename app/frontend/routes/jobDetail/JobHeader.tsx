@@ -14,7 +14,6 @@ import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand, type CommandInput } from "./command"
 import { menuButtonClass } from "./formatting"
 
-
 type HeaderAction = {
   key: string
   label: string
@@ -75,18 +74,39 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
 // Shared with JobDetail.tsx so the header button and the panel it opens
 // gate the "submit feedback directly" action on the exact same condition.
 export function canSubmitFeedbackDirectly(payload: JobDetailPayload) {
-  return payload.actions.can_submit_feedback ?? (payload.actions.can_write !== false && ["implemented", "failed", "no_change_needed"].includes(payload.job.state))
+  return (
+    payload.actions.can_submit_feedback ?? (payload.actions.can_write !== false && ["implemented", "failed", "no_change_needed"].includes(payload.job.state))
+  )
 }
 
 export function ChatBubbleIcon() {
   return (
-    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 17 0Z" />
     </svg>
   )
 }
 
-export function HeaderActions({ payload, command, onToggleFeedbackPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; onToggleFeedbackPanel: () => void; onApprove?: () => void }) {
+export function HeaderActions({
+  payload,
+  command,
+  onToggleFeedbackPanel,
+  onApprove
+}: {
+  payload: JobDetailPayload
+  command: ReturnType<typeof useJobCommand>
+  onToggleFeedbackPanel: () => void
+  onApprove?: () => void
+}) {
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
@@ -162,36 +182,23 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
     <>
       <div className="flex flex-wrap items-center justify-end gap-2" data-tour="job-approve">
         {primaryAction ? (
-          primaryAction.key === "approve" && onApprove
-            ? (
-              <button
-                className={buttonClass(primaryAction.tone)}
-                data-tour="job-approve"
-                disabled={command.isPending}
-                onClick={onApprove}
-                type="button"
-              >
-                {primaryAction.label}
-              </button>
-            )
-            : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation"
-              ? (
-                <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementConfirmationOpen(true)} type="button">
-                  {primaryAction.label}
-                </button>
-              )
-            : primaryAction.key === "retry_with"
-              ? (
-                <button
-                  className={buttonClass(primaryAction.tone)}
-                  disabled={command.isPending}
-                  onClick={() => openRetryDialog(primaryAction)}
-                  type="button"
-                >
-                  {primaryAction.label}
-                </button>
-              )
-            : <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>{primaryAction.label}</CommandButton>
+          primaryAction.key === "approve" && onApprove ? (
+            <button className={buttonClass(primaryAction.tone)} data-tour="job-approve" disabled={command.isPending} onClick={onApprove} type="button">
+              {primaryAction.label}
+            </button>
+          ) : primaryAction.key === "accept_triage" && payload.job.triaging_reason === "placement_confirmation" ? (
+            <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => setPlacementConfirmationOpen(true)} type="button">
+              {primaryAction.label}
+            </button>
+          ) : primaryAction.key === "retry_with" ? (
+            <button className={buttonClass(primaryAction.tone)} disabled={command.isPending} onClick={() => openRetryDialog(primaryAction)} type="button">
+              {primaryAction.label}
+            </button>
+          ) : (
+            <CommandButton command={command} input={primaryAction.input} tone={primaryAction.tone}>
+              {primaryAction.label}
+            </CommandButton>
+          )
         ) : null}
         {overflowExtraItems.length > 0 || overflowActions.length > 0 ? (
           <HeaderActionsMenu
@@ -204,7 +211,9 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
         ) : null}
       </div>
       {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
-      {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
+      {unapproveAction ? (
+        <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} />
+      ) : null}
       {retryAction ? (
         <JobShortcut
           description={retryAction.label}
@@ -216,15 +225,29 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
           }}
         />
       ) : null}
-      {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="alt+x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
-      {stopLandingAction ? <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="alt+s" onTrigger={() => command.mutate(stopLandingAction.input)} /> : null}
-      {reopenAction ? <JobShortcut description={reopenAction.label} group={shortcutGroup} keys="alt+o" onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })} /> : null}
+      {cancelAction ? (
+        <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="alt+x" onTrigger={() => command.mutate(cancelAction.input)} />
+      ) : null}
+      {stopLandingAction ? (
+        <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="alt+s" onTrigger={() => command.mutate(stopLandingAction.input)} />
+      ) : null}
+      {reopenAction ? (
+        <JobShortcut
+          description={reopenAction.label}
+          group={shortcutGroup}
+          keys="alt+o"
+          onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })}
+        />
+      ) : null}
       {pinAction ? <JobShortcut description={pinAction.label} group={shortcutGroup} keys="alt+p" onTrigger={() => command.mutate(pinAction.input)} /> : null}
       {retryFeedbackOpen ? (
         <RetryFeedbackDialog
           command={command}
           input={retryFeedbackInput || { method: "post", path: payload.actions.retry_implementation_action?.path || payload.paths.app_run_again_path }}
-          onClose={() => { setRetryFeedbackOpen(false); setRetryFeedbackInput(null) }}
+          onClose={() => {
+            setRetryFeedbackOpen(false)
+            setRetryFeedbackInput(null)
+          }}
           payload={payload}
         />
       ) : null}
@@ -240,7 +263,12 @@ export function HeaderActions({ payload, command, onToggleFeedbackPanel, onAppro
   )
 }
 
-export function PlacementConfirmationModal({ command, onClose, path, recommendation }: {
+export function PlacementConfirmationModal({
+  command,
+  onClose,
+  path,
+  recommendation
+}: {
   command: ReturnType<typeof useJobCommand>
   onClose: () => void
   path: string
@@ -250,17 +278,15 @@ export function PlacementConfirmationModal({ command, onClose, path, recommendat
   const capabilities = Object.entries(recommendation.capabilities)
     .map(([dimension, values]) => `${dimension}: ${values.join(", ")}`)
     .join(" · ")
-  const availability = recommendation.compatible_worker_available == null
-    ? t("placement_worker_unknown")
-    : recommendation.compatible_worker_available
-      ? t("placement_worker_available")
-      : t("placement_worker_unavailable")
+  const availability =
+    recommendation.compatible_worker_available == null
+      ? t("placement_worker_unknown")
+      : recommendation.compatible_worker_available
+        ? t("placement_worker_available")
+        : t("placement_worker_unavailable")
 
   function accept(decision: "suggested" | "linux") {
-    command.mutate(
-      { method: "post", path, body: { placement_decision: decision } },
-      { onSuccess: () => onClose() }
-    )
+    command.mutate({ method: "post", path, body: { placement_decision: decision } }, { onSuccess: () => onClose() })
   }
 
   return (
@@ -274,9 +300,15 @@ export function PlacementConfirmationModal({ command, onClose, path, recommendat
         {recommendation.explanation ? <p className="text-sm text-gray-700 dark:text-gray-300">{recommendation.explanation}</p> : null}
         <p className="text-sm text-gray-700 dark:text-gray-300">{availability}</p>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button disabled={command.isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
-          <Button disabled={command.isPending} onClick={() => accept("linux")} variant="secondary">{t("accept_using_linux")}</Button>
-          <Button disabled={command.isPending} onClick={() => accept("suggested")} variant="primary">{t("accept_suggested_placement")}</Button>
+          <Button disabled={command.isPending} onClick={onClose} variant="secondary">
+            {t("cancel")}
+          </Button>
+          <Button disabled={command.isPending} onClick={() => accept("linux")} variant="secondary">
+            {t("accept_using_linux")}
+          </Button>
+          <Button disabled={command.isPending} onClick={() => accept("suggested")} variant="primary">
+            {t("accept_suggested_placement")}
+          </Button>
         </div>
       </div>
     </Modal>
@@ -343,7 +375,9 @@ export function JobFeedbackPanel({
   return (
     <section aria-labelledby="job-feedback-title" className="rounded border border-brand/30 bg-brand/10 p-4">
       <form className="space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">{t("feedback_panel_title")}</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">
+          {t("feedback_panel_title")}
+        </h2>
         <textarea
           className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
@@ -354,16 +388,22 @@ export function JobFeedbackPanel({
         />
         {canOpenInCodingMode ? <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_coding_mode_panel_description")}</p> : null}
         {!canOpenInCodingMode && codingModeBlockedReason ? <p className="text-xs text-gray-600 dark:text-gray-400">{codingModeBlockedReason}</p> : null}
-        {feedbackError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(feedbackError, t("feedback_error"))}</p> : null}
-        {codingModeError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(codingModeError, t("request_changes_error"))}</p> : null}
+        {feedbackError ? (
+          <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(feedbackError, t("feedback_error"))}
+          </p>
+        ) : null}
+        {codingModeError ? (
+          <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(codingModeError, t("request_changes_error"))}
+          </p>
+        ) : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={isPending} onClick={onCancel} variant="secondary">
+            {t("cancel")}
+          </Button>
           {canOpenInCodingMode ? (
-            <Button
-              disabled={isPending || !trimmedBody}
-              onClick={() => onSubmitToCodingMode(trimmedBody)}
-              variant="secondary"
-            >
+            <Button disabled={isPending || !trimmedBody} onClick={() => onSubmitToCodingMode(trimmedBody)} variant="secondary">
               {isCodingModePending ? t("submitting") : t("submit_request_changes_in_coding_mode")}
             </Button>
           ) : null}
@@ -384,14 +424,35 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   const available: HeaderAction[] = []
 
   if (actions.can_start) available.push({ key: "start", label: t("start_run"), input: { method: "post", path: paths.app_start_path }, tone: "primary" })
-  if (actions.can_release_from_backlog) available.push({ key: "release_from_backlog", label: t("release_from_backlog"), input: { method: "post", path: paths.app_release_from_backlog_path }, tone: "primary" })
-  if (actions.can_move_to_backlog && paths.app_move_to_backlog_path) available.push({ key: "move_to_backlog", label: t("move_to_backlog"), input: { method: "post", path: paths.app_move_to_backlog_path }, tone: "secondary" })
+  if (actions.can_release_from_backlog)
+    available.push({
+      key: "release_from_backlog",
+      label: t("release_from_backlog"),
+      input: { method: "post", path: paths.app_release_from_backlog_path },
+      tone: "primary"
+    })
+  if (actions.can_move_to_backlog && paths.app_move_to_backlog_path)
+    available.push({ key: "move_to_backlog", label: t("move_to_backlog"), input: { method: "post", path: paths.app_move_to_backlog_path }, tone: "secondary" })
   // Shown only while the classifier could not place the Job, which is the one
   // triage state that waits on a person rather than on Syrus.
-  if (actions.can_accept_triage && paths.app_accept_triage_path) available.push({ key: "accept_triage", label: t("accept_triage"), input: { method: "post", path: paths.app_accept_triage_path }, tone: "success" })
-  if (actions.can_reject_triage && paths.app_reject_triage_path) available.push({ key: "reject_triage", label: t("reject_triage"), input: { method: "post", path: paths.app_reject_triage_path, confirm: t("confirm_reject_triage") }, tone: "danger" })
-  if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
-  if (actions.can_recheck_pr_checks && paths.app_recheck_pr_checks_path) available.push({ key: "recheck_pr_checks", label: t("recheck_pr_checks"), input: { method: "post", path: paths.app_recheck_pr_checks_path }, tone: "secondary" })
+  if (actions.can_accept_triage && paths.app_accept_triage_path)
+    available.push({ key: "accept_triage", label: t("accept_triage"), input: { method: "post", path: paths.app_accept_triage_path }, tone: "success" })
+  if (actions.can_reject_triage && paths.app_reject_triage_path)
+    available.push({
+      key: "reject_triage",
+      label: t("reject_triage"),
+      input: { method: "post", path: paths.app_reject_triage_path, confirm: t("confirm_reject_triage") },
+      tone: "danger"
+    })
+  if (actions.can_poll_feedback)
+    available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
+  if (actions.can_recheck_pr_checks && paths.app_recheck_pr_checks_path)
+    available.push({
+      key: "recheck_pr_checks",
+      label: t("recheck_pr_checks"),
+      input: { method: "post", path: paths.app_recheck_pr_checks_path },
+      tone: "secondary"
+    })
   if (actions.can_rebase) {
     available.push({
       key: "rebase",
@@ -404,7 +465,13 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
       tone: "secondary"
     })
   }
-  if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: t("check_mergeability"), input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
+  if (actions.can_check_mergeability)
+    available.push({
+      key: "check_mergeability",
+      label: t("check_mergeability"),
+      input: { method: "post", path: paths.app_check_mergeability_path },
+      tone: "secondary"
+    })
   if (actions.can_send_job_upstream) {
     available.push({
       key: "send_job_upstream",
@@ -413,18 +480,85 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
       tone: "secondary"
     })
   }
-  if (actions.can_retry_pr_ingestion) available.push({ key: "retry_pr_ingestion", label: t("retry_pr_ingestion"), input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") }, tone: "primary" })
-  if (actions.can_run_visual_review) available.push({ key: "run_visual_review", label: t("run_visual_review"), input: { method: "post", path: paths.app_visual_review_path }, tone: "secondary" })
-  if (actions.can_run_visual_diff) available.push({ key: "run_visual_diff", label: t("run_visual_diff"), input: { method: "post", path: paths.app_visual_diff_path }, tone: "secondary" })
-  if (actions.retry_failed_step_action) available.push({ key: "retry_failed_step", label: actions.retry_failed_step_action.label, input: { method: "post", path: actions.retry_failed_step_action.path }, tone: "primary" })
-  if (actions.retry_implementation_action) available.push({ key: "retry_with", label: t("retry_with"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: actions.retry_failed_step_action ? "secondary" : "primary" })
-  if (actions.can_restart) available.push({ key: "restart", label: t("start_over"), input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") }, tone: "secondary" })
-  if (actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented") available.push({ key: "approve", label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"), input: { method: "post", path: paths.app_approve_path }, tone: "success" })
-  if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
-  if (actions.can_close_investigation) available.push({ key: "close_investigation", label: t("close_investigation"), input: { method: "post", path: paths.app_close_investigation_path, confirm: t("confirm_close_investigation") }, tone: "success" })
-  if (actions.can_open_in_local_mode) available.push({ key: "open_in_local_mode", label: t("open_in_local_mode"), input: { method: "post", path: paths.app_open_in_local_mode_path }, tone: "secondary" })
-  if (actions.can_cancel_local_mode) available.push({ key: "cancel_local_mode", label: t("cancel_local_mode"), input: { method: "post", path: paths.app_cancel_local_mode_path, confirm: t("confirm_cancel_local_mode") }, tone: "danger" })
-  if (actions.can_stop_landing) available.push({ key: "stop_landing", label: t("stop_landing"), input: { method: "post", path: paths.app_stop_landing_path, confirm: t("confirm_stop_landing") }, tone: "danger" })
+  if (actions.can_retry_pr_ingestion)
+    available.push({
+      key: "retry_pr_ingestion",
+      label: t("retry_pr_ingestion"),
+      input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") },
+      tone: "primary"
+    })
+  if (actions.can_run_visual_review)
+    available.push({
+      key: "run_visual_review",
+      label: t("run_visual_review"),
+      input: { method: "post", path: paths.app_visual_review_path },
+      tone: "secondary"
+    })
+  if (actions.can_run_visual_diff)
+    available.push({ key: "run_visual_diff", label: t("run_visual_diff"), input: { method: "post", path: paths.app_visual_diff_path }, tone: "secondary" })
+  if (actions.retry_failed_step_action)
+    available.push({
+      key: "retry_failed_step",
+      label: actions.retry_failed_step_action.label,
+      input: { method: "post", path: actions.retry_failed_step_action.path },
+      tone: "primary"
+    })
+  if (actions.retry_implementation_action)
+    available.push({
+      key: "retry_with",
+      label: t("retry_with"),
+      input: { method: "post", path: actions.retry_implementation_action.path },
+      tone: actions.retry_failed_step_action ? "secondary" : "primary"
+    })
+  if (actions.can_restart)
+    available.push({
+      key: "restart",
+      label: t("start_over"),
+      input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") },
+      tone: "secondary"
+    })
+  if (actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
+    available.push({
+      key: "approve",
+      label: payload.job.landing_failure_reason ? t("reapprove") : t("approve"),
+      input: { method: "post", path: paths.app_approve_path },
+      tone: "success"
+    })
+  if (actions.can_unapprove)
+    available.push({
+      key: "unapprove",
+      label: t("unapprove"),
+      input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") },
+      tone: "secondary"
+    })
+  if (actions.can_close_investigation)
+    available.push({
+      key: "close_investigation",
+      label: t("close_investigation"),
+      input: { method: "post", path: paths.app_close_investigation_path, confirm: t("confirm_close_investigation") },
+      tone: "success"
+    })
+  if (actions.can_open_in_local_mode)
+    available.push({
+      key: "open_in_local_mode",
+      label: t("open_in_local_mode"),
+      input: { method: "post", path: paths.app_open_in_local_mode_path },
+      tone: "secondary"
+    })
+  if (actions.can_cancel_local_mode)
+    available.push({
+      key: "cancel_local_mode",
+      label: t("cancel_local_mode"),
+      input: { method: "post", path: paths.app_cancel_local_mode_path, confirm: t("confirm_cancel_local_mode") },
+      tone: "danger"
+    })
+  if (actions.can_stop_landing)
+    available.push({
+      key: "stop_landing",
+      label: t("stop_landing"),
+      input: { method: "post", path: paths.app_stop_landing_path, confirm: t("confirm_stop_landing") },
+      tone: "danger"
+    })
   if (actions.can_cancel) {
     const backlogged = payload.job.state === "backlog"
     available.push({
@@ -435,9 +569,21 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
     })
   }
   if (actions.can_reopen) available.push({ key: "reopen", label: t("reopen"), input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
-  if (actions.can_mark_valid) available.push({ key: "mark_valid", label: t("mark_valid"), input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
-  if (actions.can_open_in_coding_mode) available.push({ key: "open_in_coding_mode", label: t("open_in_coding_mode"), input: { method: "post", path: paths.app_open_in_coding_mode_path }, tone: "secondary" })
-  available.push({ key: "pin", label: payload.pinned ? t("unpin") : t("pin"), input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path }, tone: "secondary" })
+  if (actions.can_mark_valid)
+    available.push({ key: "mark_valid", label: t("mark_valid"), input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
+  if (actions.can_open_in_coding_mode)
+    available.push({
+      key: "open_in_coding_mode",
+      label: t("open_in_coding_mode"),
+      input: { method: "post", path: paths.app_open_in_coding_mode_path },
+      tone: "secondary"
+    })
+  available.push({
+    key: "pin",
+    label: payload.pinned ? t("unpin") : t("pin"),
+    input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path },
+    tone: "secondary"
+  })
 
   return available
 }
@@ -521,7 +667,19 @@ const MENU_WIDTH_PX = 224
 
 type MenuPosition = { top: number; left?: number; right?: number }
 
-function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onActionClick }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; dataTourFeedback?: boolean; extraItems: OverflowExtraItem[]; onActionClick: (action: HeaderAction) => void }) {
+function HeaderActionsMenu({
+  actions,
+  command,
+  dataTourFeedback,
+  extraItems,
+  onActionClick
+}: {
+  actions: HeaderAction[]
+  command: ReturnType<typeof useJobCommand>
+  dataTourFeedback?: boolean
+  extraItems: OverflowExtraItem[]
+  onActionClick: (action: HeaderAction) => void
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
@@ -545,9 +703,7 @@ function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onA
     const rect = buttonRef.current?.getBoundingClientRect()
     if (rect) {
       setMenuPosition(
-        rect.right - MENU_WIDTH_PX >= 0
-          ? { top: rect.bottom + 4, right: window.innerWidth - rect.right }
-          : { top: rect.bottom + 4, left: rect.left }
+        rect.right - MENU_WIDTH_PX >= 0 ? { top: rect.bottom + 4, right: window.innerWidth - rect.right } : { top: rect.bottom + 4, left: rect.left }
       )
     }
     setOpen(true)
@@ -567,51 +723,69 @@ function HeaderActionsMenu({ actions, command, dataTourFeedback, extraItems, onA
       >
         ⋯
       </Button>
-      {open && menuPosition ? createPortal(
-        // Rendered through a portal at a fixed viewport position (rather than
-        // absolutely inside the header) so it always paints above ordinary
-        // page content — like the review sidebar's sticky column, which
-        // otherwise forms its own stacking context that can sit in front of
-        // an absolutely-positioned descendant of the header. z-20 keeps it
-        // consistent with other in-page dropdown menus, still under the
-        // z-30+ modal/backdrop layers.
-        <div
-          className="fixed z-20 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          ref={menuRef}
-          role="menu"
-          style={menuPosition}
-        >
-          {extraItems.map((item) => (
-            <button
-              className={menuButtonClass(item.tone)}
-              key={item.key}
-              onClick={() => { closeMenu(); item.onSelect() }}
-              role="menuitem"
-              type="button"
+      {open && menuPosition
+        ? createPortal(
+            // Rendered through a portal at a fixed viewport position (rather than
+            // absolutely inside the header) so it always paints above ordinary
+            // page content — like the review sidebar's sticky column, which
+            // otherwise forms its own stacking context that can sit in front of
+            // an absolutely-positioned descendant of the header. z-20 keeps it
+            // consistent with other in-page dropdown menus, still under the
+            // z-30+ modal/backdrop layers.
+            <div
+              className="fixed z-20 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              ref={menuRef}
+              role="menu"
+              style={menuPosition}
             >
-              {item.label}
-            </button>
-          ))}
-          {actions.map((action) => (
-            <button
-              className={menuButtonClass(action.tone)}
-              disabled={command.isPending}
-              key={action.key}
-              onClick={() => { closeMenu(); onActionClick(action) }}
-              role="menuitem"
-              type="button"
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>,
-        document.body
-      ) : null}
+              {extraItems.map((item) => (
+                <button
+                  className={menuButtonClass(item.tone)}
+                  key={item.key}
+                  onClick={() => {
+                    closeMenu()
+                    item.onSelect()
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+              {actions.map((action) => (
+                <button
+                  className={menuButtonClass(action.tone)}
+                  disabled={command.isPending}
+                  key={action.key}
+                  onClick={() => {
+                    closeMenu()
+                    onActionClick(action)
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
     </>
   )
 }
 
-function RetryFeedbackDialog({ command, input, onClose, payload }: { command: ReturnType<typeof useJobCommand>; input: RetryPostInput; onClose: () => void; payload: JobDetailPayload }) {
+function RetryFeedbackDialog({
+  command,
+  input,
+  onClose,
+  payload
+}: {
+  command: ReturnType<typeof useJobCommand>
+  input: RetryPostInput
+  onClose: () => void
+  payload: JobDetailPayload
+}) {
   const { t } = useT("jobs")
   const defaultProvider = payload.job.agent_provider || ""
   const [provider, setProvider] = useState(defaultProvider)
@@ -625,18 +799,22 @@ function RetryFeedbackDialog({ command, input, onClose, payload }: { command: Re
     const body = { ...(input.body as Record<string, unknown> | undefined) }
     if (provider && provider !== defaultProvider) body.agent_provider = provider
     if (trimmedFeedback) body.retry_context = trimmedFeedback
-    command.mutate(
-      { ...input, method: "post", body },
-      { onSuccess: onClose }
-    )
+    command.mutate({ ...input, method: "post", body }, { onSuccess: onClose })
   }
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-gray-900/40 p-4" role="presentation">
-      <section aria-labelledby="retry-feedback-title" className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900" role="dialog" aria-modal="true">
+      <section
+        aria-labelledby="retry-feedback-title"
+        className="w-full max-w-lg rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="retry-feedback-title">{t("retry_feedback_title")}</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="retry-feedback-title">
+              {t("retry_feedback_title")}
+            </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("retry_feedback_description")}</p>
           </div>
           <button
@@ -653,14 +831,11 @@ function RetryFeedbackDialog({ command, input, onClose, payload }: { command: Re
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-provider">
             {t("retry_provider_label")}
           </label>
-          <Select
-            disabled={command.isPending}
-            id="retry-provider"
-            onChange={(event) => setProvider(event.target.value)}
-            value={provider}
-          >
+          <Select disabled={command.isPending} id="retry-provider" onChange={(event) => setProvider(event.target.value)} value={provider}>
             {providerOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </Select>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-feedback-text">
@@ -675,7 +850,9 @@ function RetryFeedbackDialog({ command, input, onClose, payload }: { command: Re
             value={feedback}
           />
           <div className="flex flex-wrap justify-end gap-2">
-            <Button disabled={command.isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
+            <Button disabled={command.isPending} onClick={onClose} variant="secondary">
+              {t("cancel")}
+            </Button>
             <Button disabled={command.isPending} type="submit" variant="primary">
               {command.isPending ? t("retrying") : t("retry")}
             </Button>
