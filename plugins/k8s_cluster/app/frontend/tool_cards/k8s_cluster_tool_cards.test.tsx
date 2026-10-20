@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { discoveredToolCardEntries, pluginToolCardRendererFor, toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, toolPresentation } from "@app/routes/chat/toolRendering"
+import { redactToolCardValue } from "@app/toolCardSecurity"
 import configMapsToolCard from "./k8s_cluster_configmaps"
 import cronJobsToolCard from "./k8s_cluster_cronjobs"
 import daemonSetsToolCard from "./k8s_cluster_daemonsets"
@@ -19,7 +20,7 @@ import podLogsToolCard from "./k8s_cluster_pod_logs"
 import podsToolCard from "./k8s_cluster_pods"
 import pvcsToolCard from "./k8s_cluster_pvcs"
 import restartRolloutToolCard from "./k8s_cluster_restart_rollout"
-import scaleDeploymentToolCard from "./k8s_cluster_scale_deployment"
+import scaleDeploymentToolCard, { examples as scaleDeploymentExamples } from "./k8s_cluster_scale_deployment"
 import secretsToolCard, { examples as secretExamples } from "./k8s_cluster_secrets"
 import servicesToolCard from "./k8s_cluster_services"
 import setNodeCordonToolCard from "./k8s_cluster_set_node_cordon"
@@ -75,14 +76,21 @@ describe("Kubernetes cluster tool cards", () => {
     expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "k8s_cluster" })
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
-    expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
+    expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "validation_failure", "api_failure", "permission_denied"])
+    expect(scaleDeploymentExamples.map((example) => example.id)).toEqual([
+      "successful_action",
+      "no_op",
+      "validation_failure",
+      "api_failure",
+      "permission_denied"
+    ])
     expect(kubectlExamples.map((example) => example.id)).toEqual(["successful_get", "policy_denied"])
   })
 
   it("summarizes credential-backed kubectl output without rendering raw credential payloads", () => {
     const cardContext = context({
       toolName: "k8s_cluster_kubectl",
-      input: { credential: "prod-k3s", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
+      input: { credential: "prod-k3s", cluster: "production", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
       parsedResult: {
         ok: true,
         status: 0,
@@ -90,6 +98,7 @@ describe("Kubernetes cluster tool cards", () => {
         stderr: { text: "", truncated: false },
         command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
         target: { kube_context: "prod", kube_namespace: "default" },
+        safe_metadata: { cluster: "production", context: "prod", host: "https://kube.example.test" },
         credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
       }
     })
@@ -98,6 +107,10 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("prod-k3s")).toBeInTheDocument()
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("k8s_cluster.kubeconfig")).toBeInTheDocument()
+    expect(screen.getByText("https://kube.example.test")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy command" })).toBeInTheDocument()
     expect(screen.getByText(/web 1\/1 Running/)).toBeInTheDocument()
     expect(screen.queryByText(/token/)).not.toBeInTheDocument()
   })
@@ -125,6 +138,91 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("API failed")).toBeInTheDocument()
     expect(screen.getAllByText(/namespaces "nope" not found/).length).toBeGreaterThan(0)
     expect(screen.queryByText(JSON.stringify(parsedResult))).not.toBeInTheDocument()
+    expect(screen.getByText("stderr").closest("details")).toHaveAttribute("open")
+  })
+
+  it("normalizes every kubectl MCP envelope, preserves safe credential metadata, and suppresses secret-capable output", () => {
+    const payload = {
+      ok: true,
+      status: 0,
+      stdout: {
+        text: "apiVersion: v1\nkind: Secret\ndata:\n  tls.crt: YXJiaXRyYXJ5LWNlcnRpZmljYXRl\nstringData:\n  arbitrary-app-key: visible-secret-value",
+        truncated: false
+      },
+      stderr: { text: "", truncated: false },
+      credential: { credential_id: 42, credential_name: "ops-kubeconfig", credential_type: "kubeconfig" },
+      target: { kube_context: "ops", kube_namespace: "monitoring" },
+      safe_metadata: { cluster: "ops", context: "ops", host: "kube.internal" }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored" }] },
+      { content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const cardContext = context({
+        toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_kubectl"),
+        input: { args: ["get", "pods"], allow_secret_output: true, allow_risky_command: true },
+        parsedResult: redactToolCardValue(normalizedToolCardParsedResult(envelope))
+      })
+
+      const view = render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByText("ops-kubeconfig")).toBeInTheDocument()
+      expect(screen.getByText("42")).toBeInTheDocument()
+      expect(screen.getByText("kubeconfig")).toBeInTheDocument()
+      expect(screen.getByText("Secret output allowed")).toBeInTheDocument()
+      expect(screen.getByText("Risky command allowed")).toBeInTheDocument()
+      expect(screen.getByText(/Command output is hidden because secret output was allowed/)).toBeInTheDocument()
+      expect(screen.queryByText(/tls\.crt|YXJiaXRyYXJ5|arbitrary-app-key|visible-secret-value/)).not.toBeInTheDocument()
+      expect(screen.queryByText("stdout")).not.toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it("classifies kubectl policy denials separately from validation errors", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { args: ["get", "secrets"] },
+      resultBody: "Error: kubectl command could expose secret values",
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(kubectlToolCard.collapsedSummary?.(cardContext)).toContain("permission denied")
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Permission error")).toBeInTheDocument()
+  })
+
+  it("keeps safe credential metadata in the redacted policy-denied catalog example", () => {
+    const example = kubectlExamples.find((candidate) => candidate.id === "policy_denied")!
+    const exampleContext = toolCardContextForExample("k8s_cluster_kubectl", example)
+    const cardContext = {
+      ...exampleContext,
+      input: redactToolCardValue(exampleContext.input) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(exampleContext.parsedResult)
+    }
+
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Permission error")).toBeInTheDocument()
+    expect(screen.getByText("prod-k3s")).toBeInTheDocument()
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("k8s_cluster.kubeconfig")).toBeInTheDocument()
+    expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+  })
+
+  it("does not leak secret-capable stderr through the failure notice", () => {
+    const secret = "arbitrary-app-key: visible-secret-value"
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { args: ["get", "secret", "app", "-o", "yaml"], allow_secret_output: true },
+      resultError: true,
+      parsedResult: { ok: false, status: 1, stdout: { text: "" }, stderr: { text: secret } }
+    })
+
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("kubectl exited with status 1")).toBeInTheDocument()
+    expect(screen.queryByText(/arbitrary-app-key|visible-secret-value/)).not.toBeInTheDocument()
+    expect(screen.queryByText("stderr")).not.toBeInTheDocument()
   })
 
   it("shows when kubectl stdout or stderr was capped", () => {
@@ -141,22 +239,36 @@ describe("Kubernetes cluster tool cards", () => {
 
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
 
-    expect(screen.getByText("truncated · 4.0 KB omitted")).toBeInTheDocument()
-    expect(screen.getByText("truncated · 2.0 KB omitted")).toBeInTheDocument()
+    expect(screen.getByText("64.0 KB returned · 4.0 KB omitted")).toBeInTheDocument()
+    expect(screen.getByText("64.0 KB returned · 2.0 KB omitted")).toBeInTheDocument()
+  })
+
+  it("shows the tail of failed kubectl output", () => {
+    const stderr = Array.from({ length: 9 }, (_, index) => `error line ${index + 1}`).join("\n")
+    render(
+      <>
+        {kubectlToolCard.renderExpanded(
+          context({ toolName: "k8s_cluster_kubectl", resultError: true, parsedResult: { ok: false, status: 1, stderr: { text: stderr } } })
+        )}
+      </>
+    )
+
+    const preview = screen.getByTestId("text-preview-content")
+    expect(preview).not.toHaveTextContent("error line 1")
+    expect(preview).toHaveTextContent("error line 9")
   })
 
   it("summarizes successful action acknowledgements with action, target, scope, and result", () => {
     const cardContext = context({
       toolName: "k8s_cluster_scale_deployment",
-      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5, reason: "Scale for morning traffic" },
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
       parsedResult: {
         available: true,
         generated_at: "2026-09-30T12:00:00Z",
         deployment: "web",
         namespace: "default",
         before: { replicas: 2 },
-        after: { replicas: 5 },
-        audit_id: "audit-123"
+        after: { replicas: 5 }
       }
     })
 
@@ -166,9 +278,233 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("Set replicas to 5")).toBeInTheDocument()
     expect(screen.getByText("2 replicas")).toBeInTheDocument()
     expect(screen.getByText("5 replicas")).toBeInTheDocument()
-    expect(screen.getByText("Scale for morning traffic")).toBeInTheDocument()
-    expect(screen.getByText("audit-123")).toBeInTheDocument()
+    expect(screen.queryByText("Reason")).not.toBeInTheDocument()
+    expect(screen.queryByText("Audit")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("link", { name: "default" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=default")
+    expect(screen.getByRole("link", { name: "default/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=default&deployment=web")
     expect(screen.getByText("Confirm desired and ready replica counts converge.")).toBeInTheDocument()
+  })
+
+  it("renders restart rollout audit evidence from every MCP envelope with links and redaction", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      deployment: "web",
+      namespace: "payments",
+      before: { restarted_at: "2026-09-29T08:15:00Z", bearer_token: "top-secret-value" },
+      after: { restarted_at: "2026-09-30T12:00:00Z" }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_restart_rollout")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "web" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { unmount } = render(<>{restartRolloutToolCard.renderExpanded(cardContext)}</>)
+
+      expect(screen.getByText("restartedAt=2026-09-29T08:15:00Z")).toBeInTheDocument()
+      expect(screen.getByText("restartedAt=2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.getByText("Generated at 2026-09-30T12:00:01Z")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "payments/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=payments&deployment=web")
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("renders scale deployment changes identically from every agent envelope", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      deployment: "api",
+      namespace: "payments",
+      before: { replicas: 2, bearer_token: "top-secret-value" },
+      after: { replicas: 6 }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_scale_deployment")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api", replicas: 6 },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { container, unmount } = render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+      expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toBe("Scale deployment payments/api in Cluster 7 / payments · succeeded")
+      expect(screen.getByText("Set replicas to 6")).toBeInTheDocument()
+      expect(screen.getByText("2 replicas")).toBeInTheDocument()
+      expect(screen.getByText("6 replicas")).toBeInTheDocument()
+      expect(screen.getByText("Generated at 2026-09-30T12:00:01Z")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=payments")
+      expect(screen.getByRole("link", { name: "payments/api" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=payments&deployment=api")
+      expect(container.querySelector(".grid.gap-2.sm\\:grid-cols-2")).toBeInTheDocument()
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("renders delete pod ownership, outcome, snapshot, links, and availability from every agent envelope", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      pod: "api-7d9b-abc",
+      namespace: "payments",
+      before: {
+        node_name: "worker-2",
+        phase: "Running",
+        restart_count: 4,
+        owner_kind: "ReplicaSet",
+        owner_name: "api-7d9b",
+        bearer_token: "top-secret-value"
+      },
+      after: { deleted: true }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_delete_pod")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api-7d9b-abc" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { container, unmount } = render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+      expect(deletePodToolCard.collapsedSummary?.(cardContext)).toBe("Delete pod payments/api-7d9b-abc in Cluster 7 / payments · succeeded")
+      expect(screen.getByText("true")).toBeInTheDocument()
+      expect(screen.getByText("ReplicaSet/api-7d9b")).toBeInTheDocument()
+      expect(screen.getByText("ReplicaSet/api-7d9b will recreate this pod")).toBeInTheDocument()
+      expect(screen.getByText("worker-2")).toBeInTheDocument()
+      expect(screen.getByText("phase=Running")).toBeInTheDocument()
+      expect(screen.getByText("4")).toBeInTheDocument()
+      expect(screen.getByText("deleted")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=payments")
+      expect(screen.getByRole("link", { name: "payments/api-7d9b-abc" })).toHaveAttribute(
+        "href",
+        "/k8s_clusters/7?tab=pods&namespace=payments&pod=api-7d9b-abc"
+      )
+      expect(container.querySelector(".grid.gap-2.sm\\:grid-cols-2.lg\\:grid-cols-3")).toBeInTheDocument()
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("explains that deleting a bare pod removes it permanently", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_delete_pod",
+      input: { cluster_id: 7, namespace: "default", name: "one-shot" },
+      parsedResult: {
+        available: true,
+        pod: "one-shot",
+        namespace: "default",
+        before: { node_name: "worker-1", phase: "Succeeded", restart_count: 0, owner_kind: null, owner_name: null },
+        after: { deleted: true }
+      }
+    })
+
+    render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Bare pod")).toBeInTheDocument()
+    expect(screen.getByText("Permanently removed; no controller will recreate it")).toBeInTheDocument()
+  })
+
+  it("does not claim deletion or bare-pod permanence for an error envelope", () => {
+    const cardContext = context({
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_delete_pod"),
+      input: { cluster_id: 7, namespace: "default", name: "one-shot" },
+      resultBody: 'Error: pods "one-shot" not found',
+      resultError: true,
+      parsedResult: normalizedToolCardParsedResult({
+        structured_content: null,
+        content: [{ type: "text", text: 'Error: pods "one-shot" not found' }]
+      })
+    })
+
+    render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Missing resource")).toBeInTheDocument()
+    expect(screen.getByText('pods "one-shot" not found')).toBeInTheDocument()
+    expect(screen.queryByText("Bare pod")).not.toBeInTheDocument()
+    expect(screen.queryByText("Permanently removed; no controller will recreate it")).not.toBeInTheDocument()
+    expect(screen.queryByText("deleted")).not.toBeInTheDocument()
+  })
+
+  it("distinguishes changed and already-at-target scale results", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
+      parsedResult: {
+        available: true,
+        deployment: "web",
+        namespace: "default",
+        before: { replicas: 5 },
+        after: { replicas: 5 }
+      }
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toBe("Scale deployment default/web in Cluster 7 / default · no-op")
+    render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("no-op")).toBeInTheDocument()
+    expect(screen.getAllByText("5 replicas")).toHaveLength(2)
+  })
+
+  it.each([
+    ["writes disabled", "Write access is disabled for Kubernetes cluster 7", "Permission error", "permission denied"],
+    ["forbidden", 'deployments.apps "web" is forbidden: RBAC denied the request', "Permission error", "permission denied"],
+    ["not found", 'deployments.apps "web" not found', "Missing resource", "missing resource"],
+    ["validation", "replicas must be a non-negative integer", "Validation failure", "validation failed"]
+  ])("renders scale deployment %s failures", (_failureClass, message, title, state) => {
+    const cardContext = context({
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_scale_deployment"),
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
+      resultBody: `Error: ${message}`,
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toContain(state)
+    const { unmount } = render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText(title)).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.getByText("Set replicas to 5")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "default/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=default&deployment=web")
+    unmount()
+  })
+
+  it("does not invent replica state for pre-request scale failures", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: -1 },
+      resultBody: "Error: replicas must be a non-negative integer",
+      resultError: true,
+      parsedResult: null
+    })
+
+    render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.queryByText("0 replicas")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Not available")).toHaveLength(2)
   })
 
   it("marks no-op acknowledgements when previous and current state match", () => {
@@ -237,6 +573,7 @@ describe("Kubernetes cluster tool cards", () => {
 
     expect(screen.getByText("Validation failure")).toBeInTheDocument()
     expect(screen.getByText("Permission error")).toBeInTheDocument()
+    expect(screen.getByText("Write access is disabled for Kubernetes cluster 7")).toBeInTheDocument()
     expect(screen.getByText("Missing resource")).toBeInTheDocument()
     expect(screen.getByText("Backend/API error")).toBeInTheDocument()
   })
@@ -909,7 +1246,7 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByRole("link", { name: "missing" })).toHaveAttribute("href", "/k8s_clusters/7")
   })
 
-  it("renders overview totals and metrics-unavailable warnings without dumping raw JSON", () => {
+  it("renders overview section availability, reason, totals, and generated time", () => {
     const cardContext = context({
       toolName: "k8s_cluster_overview",
       input: { cluster_id: 7 },
@@ -929,8 +1266,103 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{overviewToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("metrics.k8s.io is not available")).toBeInTheDocument()
+    expect(screen.getByText("Unavailable")).toBeInTheDocument()
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("metrics_unavailable")).toBeInTheDocument()
     expect(screen.getAllByText("125m").length).toBeGreaterThan(0)
     expect(screen.getAllByText("256.0 MB").length).toBeGreaterThan(0)
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+  })
+
+  it("renders overview empty and error states with the requested cluster scope", () => {
+    const empty = render(
+      <>
+        {overviewToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_overview",
+            input: { cluster_id: 7 },
+            parsedResult: {
+              generated_at: "2026-09-30T12:00:00Z",
+              nodes: { available: true, items: [], total_cpu_millicores: 0, total_memory_bytes: 0 },
+              pods: { available: true, items: [], total_cpu_millicores: 0, total_memory_bytes: 0 }
+            }
+          })
+        )}
+      </>
+    )
+    expect(screen.getAllByText("No items returned.")).toHaveLength(2)
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    empty.unmount()
+
+    render(
+      <>
+        {overviewToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_overview",
+            input: { cluster_id: 7 },
+            resultBody: "Error: Kubernetes API unavailable",
+            resultError: true,
+            parsedResult: null
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+  })
+
+  it("renders filterable, linked, responsive overview metrics from every MCP envelope and can show all rows", () => {
+    const pods = Array.from({ length: 101 }, (_, index) => ({
+      namespace: index === 100 ? "payments" : "default",
+      name: `web-${index + 1}`,
+      cpu_millicores: index === 100 ? 1500 : 125,
+      memory_bytes: index === 100 ? 1_073_741_824 : 268_435_456,
+      private_token: "must-not-render"
+    }))
+    const payload = {
+      generated_at: "2026-09-30T12:00:00Z",
+      nodes: {
+        available: true,
+        items: [{ name: "node-a", cpu_millicores: 2250, memory_bytes: 8_589_934_592, private_token: "must-not-render" }],
+        total_cpu_millicores: 2250,
+        total_memory_bytes: 8_589_934_592
+      },
+      pods: { available: true, items: pods, total_cpu_millicores: 14_000, total_memory_bytes: 27_917_287_424 }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_overview")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{overviewToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_overview")
+      expect(screen.getByRole("link", { name: "node-a" })).toHaveAttribute("href", "/k8s_clusters/7?tab=nodes&node=node-a")
+      expect(screen.queryByRole("link", { name: "web-101" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show all 101 rows" })).toBeInTheDocument()
+      expect(screen.getAllByPlaceholderText("Filter resources")).toHaveLength(2)
+      expect(screen.getAllByText("2.25 vCPU").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("8.0 GB").length).toBeGreaterThan(0)
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Show all 101 rows" }))
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=pods&namespace=payments")
+      expect(screen.getByRole("link", { name: "web-101" })).toHaveAttribute("href", "/k8s_clusters/7?tab=pods&namespace=payments&pod=web-101")
+
+      fireEvent.change(screen.getAllByPlaceholderText("Filter resources")[1], { target: { value: "payments" } })
+      expect(screen.getByText("1 of 101")).toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "web-1" })).not.toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "web-101" })).toBeInTheDocument()
+
+      const responsiveBody = screen.getByRole("link", { name: "web-101" }).closest("tbody")
+      expect(responsiveBody).toHaveClass("block")
+      expect(responsiveBody).toHaveClass("sm:table-row-group")
+      rendered.unmount()
+    }
   })
 
   it("renders workload cards with readiness, selectors, rollout counts, and recent conditions", () => {
@@ -1072,6 +1504,7 @@ describe("Kubernetes cluster tool cards", () => {
                   name: "web",
                   type: "ClusterIP",
                   cluster_ip: "10.0.0.10",
+                  external_ips: ["203.0.113.10", "2001:db8::10"],
                   ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }],
                   selector: { app: "web" },
                   ready_addresses: 0,
@@ -1096,6 +1529,7 @@ describe("Kubernetes cluster tool cards", () => {
                   hosts: ["app.example.test"],
                   rules: [{ host: "app.example.test", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }],
                   tls_hosts: ["app.example.test"],
+                  load_balancer_addresses: ["203.0.113.30"],
                   created_at: "2026-09-01T00:00:00Z"
                 }
               ]
@@ -1106,10 +1540,191 @@ describe("Kubernetes cluster tool cards", () => {
     )
 
     expect(screen.getByText("80/TCP -> 8080")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.10, 2001:db8::10")).toBeInTheDocument()
     expect(screen.getByText("No ready targets")).toBeInTheDocument()
-    expect(screen.getAllByText("app.example.test").length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText("web:80")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy default to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy default/web to clipboard" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "app.example.test" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "app.example.test" })[0]).toHaveAttribute("href", "https://app.example.test")
+    expect(screen.getAllByRole("link", { name: "app.example.test" })[0]).toHaveAttribute("rel", "noopener noreferrer")
+    expect(screen.getByText("app.example.test/")).toBeInTheDocument()
+    expect(screen.getByText("(Prefix)")).toBeInTheDocument()
+    expect(screen.getByText("→ web:80")).toBeInTheDocument()
     expect(screen.getByText("nginx")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.30")).toBeInTheDocument()
+  })
+
+  it("renders service fields identically from every MCP envelope without exposing unrelated sensitive values", () => {
+    const payload = {
+      available: true,
+      services: [
+        {
+          namespace: "payments",
+          name: "api",
+          type: "LoadBalancer",
+          cluster_ip: "10.0.0.20",
+          external_ips: ["203.0.113.20"],
+          ports: [{ name: "https", port: 443, target_port: "http", protocol: "TCP" }],
+          selector: { app: "api", tier: "frontend" },
+          ready_addresses: 1,
+          not_ready_addresses: 1,
+          missing_target_warning: false,
+          private_token: "must-not-render"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_services")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{servicesToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_services")
+      expect(servicesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 · 1 services · 1 warning")
+      expect(screen.getByText("LoadBalancer")).toBeInTheDocument()
+      expect(screen.getByText("10.0.0.20")).toBeInTheDocument()
+      expect(screen.getByText("203.0.113.20")).toBeInTheDocument()
+      expect(screen.getByText("443/TCP -> http")).toBeInTheDocument()
+      expect(screen.getByText("app=api, tier=frontend")).toBeInTheDocument()
+      expect(screen.getByText("1/2 ready")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Copy payments/api to clipboard" })).toBeInTheDocument()
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders service empty and error states with their requested scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, services: [] }
+    })
+    const empty = render(<>{servicesToolCard.renderExpanded(emptyContext)}</>)
+    expect(servicesToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 services")
+    expect(screen.getByText("No services returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{servicesToolCard.renderExpanded(errorContext)}</>)
+    expect(servicesToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+    expect(screen.getByText("api")).toBeInTheDocument()
+  })
+
+  it("renders ingress mappings identically from every MCP envelope without exposing unrelated sensitive values", () => {
+    const payload = {
+      available: true,
+      ingresses: [
+        {
+          namespace: "payments",
+          name: "api",
+          ingress_class: "nginx",
+          hosts: ["api.example.test"],
+          rules: [
+            {
+              host: "api.example.test",
+              paths: [
+                { path: "/v1", path_type: "Prefix", service_name: "api-v1", service_port: "http" },
+                { path: "/health", path_type: "Exact", service_name: "health", service_port: 8080 }
+              ]
+            }
+          ],
+          tls_hosts: ["api.example.test"],
+          load_balancer_addresses: ["lb.example.test"],
+          private_token: "must-not-render"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_ingresses")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{ingressesToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_ingresses")
+      expect(screen.getByText("api.example.test/v1")).toBeInTheDocument()
+      expect(screen.getByText("(Prefix)")).toBeInTheDocument()
+      expect(screen.getByText("→ api-v1:http")).toBeInTheDocument()
+      expect(screen.getByText("api.example.test/health")).toBeInTheDocument()
+      expect(screen.getByText("(Exact)")).toBeInTheDocument()
+      expect(screen.getByText("→ health:8080")).toBeInTheDocument()
+      expect(screen.getByText("lb.example.test")).toBeInTheDocument()
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      expect(screen.getByRole("columnheader", { name: "Backend" }).closest("thead")).toHaveClass("hidden", "sm:table-header-group")
+      const backendCell = screen.getByText("→ api-v1:http").closest("td")
+      expect(backendCell).toHaveAttribute("data-label", "Backend")
+      expect(backendCell).toHaveClass("grid", "sm:table-cell", "max-w-none", "sm:max-w-80")
+      expect(backendCell).toHaveTextContent("Backendapi.example.test/v1 (Prefix)→ api-v1:http")
+      expect(screen.getByText("api.example.test/v1").parentElement?.parentElement).toHaveClass("min-w-0", "sm:min-w-56")
+      rendered.unmount()
+    }
+  })
+
+  it("renders ingress empty and error states with their requested scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_ingresses",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, ingresses: [] }
+    })
+    const empty = render(<>{ingressesToolCard.renderExpanded(emptyContext)}</>)
+    expect(ingressesToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 ingresses")
+    expect(screen.getByText("No ingresses returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_ingresses",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{ingressesToolCard.renderExpanded(errorContext)}</>)
+    expect(ingressesToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+  })
+
+  it("normalizes describe-shaped service ports and external IPs", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      parsedResult: {
+        available: true,
+        service: {
+          metadata: { namespace: "payments", name: "api", creationTimestamp: "2026-09-01T00:00:00Z" },
+          spec: {
+            type: "LoadBalancer",
+            clusterIP: "10.0.0.20",
+            externalIPs: ["203.0.113.20"],
+            ports: [{ name: "https", port: 443, targetPort: "http", protocol: "TCP" }],
+            selector: { app: "api" }
+          }
+        }
+      }
+    })
+
+    expect(servicesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / api · 1 services")
+    render(<>{servicesToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("443/TCP -> http")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.20")).toBeInTheDocument()
+    expect(screen.getByText("10.0.0.20")).toBeInTheDocument()
+    expect(screen.getByText("app=api")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy payments/api to clipboard" })).toBeInTheDocument()
   })
 
   it("normalizes describe-shaped ingress backends before rendering", () => {
@@ -1145,7 +1760,8 @@ describe("Kubernetes cluster tool cards", () => {
     expect(ingressesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web · 1 ingresses")
     render(<>{ingressesToolCard.renderExpanded(cardContext)}</>)
 
-    expect(screen.getByText("web:80")).toBeInTheDocument()
+    expect(screen.getByText("app.example.test/")).toBeInTheDocument()
+    expect(screen.getByText("→ web:80")).toBeInTheDocument()
     expect(screen.queryByText("No backend")).not.toBeInTheDocument()
   })
 
@@ -1206,25 +1822,286 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.queryByText("super-secret-value")).not.toBeInTheDocument()
   })
 
-  it("renders pod logs with searchable truncated preview metadata", () => {
-    const cardContext = context({
-      toolName: "k8s_cluster_pod_logs",
-      input: { cluster_id: 7, namespace: "default", name: "web-1", container: "web" },
-      parsedResult: {
-        available: true,
-        pod: "web-1",
-        namespace: "default",
-        container: "web",
-        log: "2026-09-30T12:00:00Z boot complete\n2026-09-30T12:00:01Z request complete"
+  it("renders responsive ConfigMap key listings from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      config_maps: [
+        {
+          namespace: "payments",
+          name: "api-config",
+          key_count: 3,
+          key_names: ["api-token.txt", "LOG_LEVEL", "tls.crt"],
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_configmaps")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{configMapsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_configmaps")
+      expect(configMapsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 1 ConfigMaps")
+      expect(screen.getByText("api-token.txt, LOG_LEVEL, tls.crt")).toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      expect(screen.getByText("api-token.txt, LOG_LEVEL, tls.crt").closest("td")).toHaveAttribute("data-label", "Key names")
+      rendered.unmount()
+    }
+  })
+
+  it("renders metadata-only Secret list results from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      secrets: [
+        {
+          namespace: "payments",
+          name: "api-secret",
+          type: "kubernetes.io/tls",
+          key_count: 2,
+          key_names: ["PASSWORD", "TLS_TOKEN"],
+          immutable: true,
+          owner_references: ["Deployment/api"],
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_secrets")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_secrets")
+      expect(screen.getByText("PASSWORD, TLS_TOKEN")).toBeInTheDocument()
+      expect(screen.getByText("kubernetes.io/tls")).toBeInTheDocument()
+      expect(screen.getByText("Deployment/api")).toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      rendered.unmount()
+    }
+  })
+
+  it("renders redaction-safe Secret describe metadata without mangling key names", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      secret: {
+        name: "api-secret",
+        namespace: "payments",
+        type: "Opaque",
+        key_count: 2,
+        key_names: ["DATABASE_PASSWORD", "SERVICE_TOKEN"],
+        immutable: false,
+        owner_references: ["Deployment/api"],
+        created_at: "2026-09-01T00:00:00Z"
       }
     })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
 
-    expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 2 log lines")
+    for (const envelope of envelopes) {
+      const cardContext = context({
+        toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_secrets"),
+        input: { cluster_id: 7, namespace: "payments", name: "api-secret" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(screen.getByText("DATABASE_PASSWORD, SERVICE_TOKEN")).toBeInTheDocument()
+      expect(screen.getByText("Opaque")).toBeInTheDocument()
+      expect(screen.getByText("Deployment/api")).toBeInTheDocument()
+      expect(screen.getByText("No")).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("never renders or indexes raw Secret values", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_secrets",
+      parsedResult: {
+        available: true,
+        secrets: [
+          {
+            metadata: { namespace: "payments", name: "api-secret", creationTimestamp: "2026-09-01T00:00:00Z" },
+            type: "Opaque",
+            data: { password: "hunter2" }
+          }
+        ]
+      }
+    })
+    const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.queryByText("hunter2")).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Filter resources"), { target: { value: "hunter2" } })
+    expect(screen.getByText("0 of 1")).toBeInTheDocument()
+    expect(screen.queryByText("hunter2")).not.toBeInTheDocument()
+    rendered.unmount()
+  })
+
+  it("safely describes ConfigMap text and binary keys from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      config_map: {
+        metadata: { name: "api-config", namespace: "payments", creationTimestamp: "2026-09-01T00:00:00Z" },
+        data: {
+          "api-token.txt": "password=hunter2\nmode=production",
+          "public-url": "https://example.test/" + "x".repeat(5_000)
+        },
+        binaryData: { "logo.bin": "AAECAwQ=", "malformed.bin": "bad!" }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_configmaps")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api-config" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const rendered = render(<>{configMapsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(configMapsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / api-config · 1 ConfigMaps")
+      expect(screen.getByText("api-token.txt")).toBeInTheDocument()
+      expect(screen.getByText(/password=\[redacted\]/)).toBeInTheDocument()
+      expect(screen.queryByText(/hunter2/)).not.toBeInTheDocument()
+      expect(screen.getByText("logo.bin")).toBeInTheDocument()
+      expect(screen.getByText("5 B")).toBeInTheDocument()
+      expect(screen.getByText("malformed.bin")).toBeInTheDocument()
+      expect(screen.getByText("4 B")).toBeInTheDocument()
+      expect(screen.getAllByText("binary")).toHaveLength(2)
+      expect(screen.getAllByText("Binary value is not previewed.")).toHaveLength(2)
+      expect(screen.getByText("Displayed value capped at 4.0 KB.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders ConfigMap empty and error states with requested input scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_configmaps",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, config_maps: [] }
+    })
+    const empty = render(<>{configMapsToolCard.renderExpanded(emptyContext)}</>)
+    expect(configMapsToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 ConfigMaps")
+    expect(screen.getByText("No ConfigMaps returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_configmaps",
+      input: { cluster_id: 7, namespace: "payments", name: "api-config" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{configMapsToolCard.renderExpanded(errorContext)}</>)
+    expect(configMapsToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api-config · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+  })
+
+  it("renders redacted tail-first pod logs and all metadata from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      pod: "web-1",
+      namespace: "result-namespace",
+      container: "web",
+      log: [
+        "first line",
+        ...Array.from({ length: 79 }, (_, index) => `middle line ${index}`),
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+        "API_KEY=top-secret-value",
+        "DATABASE_URL=https://db-user:db-password@example.test/app",
+        "final line"
+      ].join("\n")
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pod_logs")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "default", name: "web-1", container: "web", previous: true, timestamps: true, tail_lines: 200 },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+
+      expect(toolName).toBe("k8s_cluster_pod_logs")
+      expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 84 log lines")
+      const rendered = render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
+      expect(screen.getByText("result-namespace")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "web-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=logs&namespace=result-namespace&pod=web-1")
+      expect(screen.getByRole("button", { name: "Copy result-namespace/web-1 to clipboard" })).toBeInTheDocument()
+      expect(screen.getByText("200")).toBeInTheDocument()
+      expect(screen.getByText("84")).toBeInTheDocument()
+      expect(screen.getAllByText("Yes")).toHaveLength(2)
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
+      expect(screen.getByTestId("text-preview-content")).toHaveTextContent("final line")
+      expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("first line")
+      expect(screen.getByText(/Bearer \[redacted\]/)).toBeInTheDocument()
+      expect(screen.getByTestId("text-preview-content").textContent?.match(/\[redacted\]/g)).toHaveLength(3)
+      expect(screen.queryByText(/top-secret-value|db-password|abcdefghijklmnopqrstuvwxyz/)).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText("Search logs…"), { target: { value: "final line" } })
+      expect(screen.getByTestId("text-preview-content")).toHaveTextContent("final line")
+      expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("middle line")
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+      const dialog = screen.getByRole("dialog", { name: "Full pod log" })
+      expect(within(dialog).getByText(/first line/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/final line/)).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("keeps pod-log empty and error states friendly", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "web-1", tail_lines: 50 },
+      parsedResult: { available: true, pod: "web-1", namespace: "default", log: "" }
+    })
+    const empty = render(<>{podLogsToolCard.renderExpanded(emptyContext)}</>)
+    expect(screen.getByText("No log output.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "missing" },
+      resultBody: "Error: pod not found",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{podLogsToolCard.renderExpanded(errorContext)}</>)
+    expect(podLogsToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / default / missing · error")
+    expect(screen.getByText("pod not found")).toBeInTheDocument()
+  })
+
+  it("does not count a terminal log newline as a returned line", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "web-1", tail_lines: 50 },
+      parsedResult: { available: true, pod: "web-1", namespace: "default", log: "first\n\nthird\n" }
+    })
+    expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 3 log lines")
     render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
-
-    expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
-    expect(screen.getAllByText("web-1").length).toBeGreaterThan(0)
-    expect(screen.getByText(/boot complete/)).toBeInTheDocument()
+    expect(screen.getByText("3")).toBeInTheDocument()
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("first\n\nthird", { normalizeWhitespace: false })
   })
 
   it("renders empty and error cases as friendly card bodies", () => {

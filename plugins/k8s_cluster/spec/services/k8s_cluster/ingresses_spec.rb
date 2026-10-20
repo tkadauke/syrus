@@ -27,7 +27,8 @@ RSpec.describe K8sCluster::Ingresses do
             }
           }
         ]
-      }
+      },
+      "status" => { "loadBalancer" => { "ingress" => [ { "ip" => "203.0.113.10" }, { "hostname" => "lb.example.com" } ] } }
     }
   end
 
@@ -42,6 +43,7 @@ RSpec.describe K8sCluster::Ingresses do
       expect(row[:ingress_class]).to eq("nginx")
       expect(row[:hosts]).to eq([ "web.example.com" ])
       expect(row[:tls_hosts]).to eq([ "web.example.com" ])
+      expect(row[:load_balancer_addresses]).to eq([ "203.0.113.10", "lb.example.com" ])
       expect(row[:rules].first[:paths].first).to include(service_name: "web", service_port: 80)
     end
 
@@ -65,6 +67,7 @@ RSpec.describe K8sCluster::Ingresses do
       expect(row[:rules]).to eq([])
       expect(row[:tls_hosts]).to eq([])
       expect(row[:ingress_class]).to be_nil
+      expect(row[:load_balancer_addresses]).to eq([ "203.0.113.10", "lb.example.com" ])
     end
 
     it "supports named service ports" do

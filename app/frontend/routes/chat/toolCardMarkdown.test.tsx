@@ -151,13 +151,13 @@ describe("MarkdownPreview", () => {
 })
 
 describe("TextPreview", () => {
-  it("can show supplemental full text in the modal without adding it to the preview", () => {
-    render(<TextPreview modalLabel="Log details" modalText={'message\n\nContext\n{"request":"req-1"}'} text="message" />)
+  it("opens complete text when the inline text is a filtered subset", () => {
+    render(<TextPreview modalLabel="Complete output" modalText={"first\nmatching\nlast"} text="matching" />)
 
-    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("message")
-    expect(screen.queryByText(/req-1/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("matching")
+    expect(screen.queryByText("first")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    expect(screen.getByRole("dialog", { name: "Log details" })).toHaveTextContent("req-1")
+    expect(screen.getByRole("dialog", { name: "Complete output" })).toHaveTextContent("first\nmatching\nlast", { normalizeWhitespace: false })
   })
   it("truncates from the head by default and normalizes CRLF", () => {
     expect(truncateTextLines("one\r\ntwo\r\nthree", { maxLines: 2 })).toEqual({
@@ -241,6 +241,13 @@ describe("TextPreview", () => {
     render(<TextPreview maxLines={2} text={"one\ntwo\nthree\nfour"} truncate="tail" />)
 
     expect(screen.getByTestId("text-preview-content")).toHaveTextContent("… 2 earlier lines\nthree\nfour", { normalizeWhitespace: false })
+  })
+
+  it("can preserve long lines for horizontal scrolling", () => {
+    render(<TextPreview text="one very long log line" wrap={false} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
+    expect(screen.getByTestId("text-preview-content")).not.toHaveClass("break-words")
   })
 })
 

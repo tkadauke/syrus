@@ -1,7 +1,7 @@
 module K8sCluster
   # The Kubernetes Secret resource kind, redacted server-side: both list
   # and describe return metadata only (name, namespace, type, key names,
-  # key count, created_at). Secret data values - base64-encoded in the
+  # key count, immutability, owner references, created_at). Secret data values - base64-encoded in the
   # API response's `data` map - are never extracted, so they can appear
   # in no payload, log line, or tool response built from these methods.
   # AgenticAudit already logs only result byte sizes rather than payloads,
@@ -36,6 +36,9 @@ module K8sCluster
 
     def summary(item)
       key_names = ((item["data"] || {}).keys).uniq.sort
+      owners = Array(item.dig("metadata", "ownerReferences")).filter_map do |owner|
+        [ owner["kind"], owner["name"] ].compact_blank.join("/").presence
+      end
 
       {
         name: item.dig("metadata", "name"),
@@ -43,6 +46,8 @@ module K8sCluster
         type: item["type"],
         key_count: key_names.length,
         key_names: key_names,
+        immutable: item["immutable"] == true,
+        owner_references: owners,
         created_at: item.dig("metadata", "creationTimestamp")
       }
     end

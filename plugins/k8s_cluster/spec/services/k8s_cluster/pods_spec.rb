@@ -7,13 +7,18 @@ RSpec.describe K8sCluster::Pods do
   let(:cluster) { Factories.kubernetes_cluster(api_server_url: "https://k8s.example.com:6443") }
   let(:base) { "https://k8s.example.com:6443" }
 
-  def pod(name: "web-1", namespace: "default", phase: "Running", ready_count: 1, container_count: 1, restart_count: 0, container_names: nil)
+  def pod(name: "web-1", namespace: "default", phase: "Running", ready_count: 1, container_count: 1, restart_count: 0, container_names: nil, owner: nil)
     statuses = Array.new(ready_count) { { "ready" => true, "restartCount" => restart_count } } +
       Array.new(container_count - ready_count) { { "ready" => false, "restartCount" => restart_count } }
     names = container_names || Array.new(container_count) { "app" }
 
     {
-      "metadata" => { "name" => name, "namespace" => namespace, "creationTimestamp" => "2026-01-01T00:00:00Z" },
+      "metadata" => {
+        "name" => name,
+        "namespace" => namespace,
+        "creationTimestamp" => "2026-01-01T00:00:00Z",
+        "ownerReferences" => owner ? [ owner ] : []
+      },
       "spec" => { "nodeName" => "node-1", "containers" => names.map { |container_name| { "name" => container_name } } },
       "status" => { "phase" => phase, "podIP" => "10.0.0.5", "containerStatuses" => statuses }
     }
@@ -122,17 +127,49 @@ RSpec.describe K8sCluster::Pods do
   end
 
   describe "#delete" do
-    it "deletes the pod and reports its phase before deletion" do
+    it "deletes the pod and reports its operational snapshot and controller owner" do
       stub_core_discovery(base)
-      stub_kube_get("#{base}/api/v1/namespaces/default/pods/web-1", pod(phase: "Running"))
+      stub_kube_get(
+        "#{base}/api/v1/namespaces/default/pods/web-1",
+        pod(phase: "Running", container_count: 2, restart_count: 3, owner: { "kind" => "ReplicaSet", "name" => "web-7d9b", "controller" => true })
+      )
       stub_request(:delete, "#{base}/api/v1/namespaces/default/pods/web-1").to_return(
         status: 200, headers: { "Content-Type" => "application/json" }, body: { "status" => "Success" }.to_json
       )
 
       payload = described_class.new(cluster).delete("web-1", namespace: "default")
 
-      expect(payload[:before][:phase]).to eq("Running")
+      expect(payload[:before]).to eq(
+        node_name: "node-1",
+        phase: "Running",
+        restart_count: 6,
+        owner_kind: "ReplicaSet",
+        owner_name: "web-7d9b"
+      )
       expect(payload[:after][:deleted]).to be(true)
+    end
+
+    it "reports an unowned pod without inventing a controller" do
+      stub_core_discovery(base)
+      stub_kube_get("#{base}/api/v1/namespaces/default/pods/web-1", pod)
+      stub_request(:delete, "#{base}/api/v1/namespaces/default/pods/web-1").to_return(status: 200, body: {}.to_json)
+
+      payload = described_class.new(cluster).delete("web-1", namespace: "default")
+
+      expect(payload[:before].slice(:owner_kind, :owner_name)).to eq(owner_kind: nil, owner_name: nil)
+    end
+
+    it "does not treat a non-controller owner reference as the recreating controller" do
+      stub_core_discovery(base)
+      stub_kube_get(
+        "#{base}/api/v1/namespaces/default/pods/web-1",
+        pod(owner: { "kind" => "Job", "name" => "observer", "controller" => false })
+      )
+      stub_request(:delete, "#{base}/api/v1/namespaces/default/pods/web-1").to_return(status: 200, body: {}.to_json)
+
+      payload = described_class.new(cluster).delete("web-1", namespace: "default")
+
+      expect(payload[:before].slice(:owner_kind, :owner_name)).to eq(owner_kind: nil, owner_name: nil)
     end
 
     it "raises NotFound when the pod does not exist" do

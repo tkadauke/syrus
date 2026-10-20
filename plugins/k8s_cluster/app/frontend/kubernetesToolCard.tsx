@@ -1,7 +1,7 @@
 import i18n from "i18next"
 import { useState, type ReactNode } from "react"
 import { Button } from "@app/components/Button"
-import { DataTable, Notice } from "@app/components/ui"
+import { CodeSurface, DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import {
   CardShell,
@@ -15,6 +15,7 @@ import {
   numberValue
 } from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview, TextPreview } from "@app/routes/chat/toolCardMarkdown"
+import { redactToolCardText } from "@app/toolCardSecurity"
 import { formatBytes, formatAge, formatKubernetesCpu, formatKubernetesMemory, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -97,12 +98,15 @@ type ParsedActionCard = {
   requestedChange: string
   previousState: string | null
   currentState: string | null
-  reason: string | null
-  audit: string | null
+  clusterId: string | null
+  namespace: string | null
+  resourceName: string | null
   generatedAt: string | null
   followUpChecks: string[]
   errorKind: ActionErrorKind | null
   errorMessage: string | null
+  available: boolean | null
+  before: Record<string, unknown>
 }
 type ParsedKubectlCard = {
   ok: boolean
@@ -110,7 +114,15 @@ type ParsedKubectlCard = {
   status: string
   command: string
   scope: string
-  credential: string
+  credentialId: string
+  credentialName: string
+  credentialType: string
+  cluster: string
+  context: string
+  host: string
+  allowSecretOutput: boolean
+  allowRiskyCommand: boolean
+  permissionDenied: boolean
   stdout: string
   stderr: string
   stdoutTruncation: TextBlockTruncation | null
@@ -140,12 +152,33 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 }
 
 const ROW_LIMIT = 100
+const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses", "configmaps", "secrets"])
+const CONFIG_MAP_VALUE_DISPLAY_LIMIT = 4_096
+const CONFIG_MAP_VALUE_PREVIEW_LIMIT = 320
+const RESPONSIVE_TABLE_BODY_CLASSES = [
+  "block divide-y-0 space-y-2 bg-transparent",
+  "[&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)] [&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1",
+  "sm:table-row-group sm:divide-y sm:space-y-0 sm:bg-surface",
+  "sm:[&>tr]:table-row sm:[&>tr]:h-[var(--data-table-row-min-height)] sm:[&>tr]:rounded-none sm:[&>tr]:border-0 sm:[&>tr]:py-0"
+].join(" ")
+const RESPONSIVE_TABLE_CELL_CLASSES = [
+  "grid min-w-0 max-w-none grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)]",
+  "items-start gap-3 px-3 py-1 text-text-secondary",
+  "sm:table-cell sm:max-w-80 sm:px-2"
+].join(" ")
 
 const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_restart_rollout: "restart_rollout",
   k8s_cluster_scale_deployment: "scale_deployment",
   k8s_cluster_delete_pod: "delete_pod",
   k8s_cluster_set_node_cordon: "set_node_cordon"
+}
+
+const ACTION_RESOURCE_LINKS: Record<ActionKind, { tab: string; key: string }> = {
+  restart_rollout: { tab: "deployments", key: "deployment" },
+  scale_deployment: { tab: "deployments", key: "deployment" },
+  delete_pod: { tab: "pods", key: "pod" },
+  set_node_cordon: { tab: "nodes", key: "node" }
 }
 
 const TOOL_ARGUMENT_SUMMARIES: Partial<Record<K8sToolName, () => string>> = {
@@ -200,19 +233,31 @@ function renderExpandedKubectl(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={kubectlStateLabel(card)} tone={kubectlStateTone(card)} />
-        <span className="font-mono text-xs text-text-primary">{card.command}</span>
+        {card.allowSecretOutput ? <StatePill state={t("kubectl_card_secret_output_enabled")} tone="warning" /> : null}
+        {card.allowRiskyCommand ? <StatePill state={t("kubectl_card_risky_command_enabled")} tone="warning" /> : null}
       </div>
-      {card.errorMessage ? <Notice tone="danger">{card.errorMessage}</Notice> : null}
-      <div className="grid gap-2 sm:grid-cols-3">
+      <CodeSurface code={card.command} copyLabel={t("kubectl_card_copy_command")} maxHeightClassName="max-h-24" />
+      {card.errorMessage ? (
+        <Notice tone="danger" title={kubectlErrorTitle(card)}>
+          {card.errorMessage}
+        </Notice>
+      ) : null}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <DetailRow label={t("action_card_scope")} value={card.scope} />
         <DetailRow label={t("kubectl_card_status")} value={card.status} />
-        <DetailRow label={t("kubectl_card_credential")} value={card.credential} />
+        <DetailRow label={t("kubectl_card_cluster")} value={card.cluster} />
+        <DetailRow label={t("kubectl_card_context")} value={card.context} />
+        <DetailRow label={t("kubectl_card_host")} value={card.host} />
+        <DetailRow label={t("kubectl_card_credential_name")} value={card.credentialName} />
+        <DetailRow label={t("kubectl_card_credential_id")} value={card.credentialId} />
+        <DetailRow label={t("kubectl_card_credential_type")} value={card.credentialType} />
       </div>
+      {card.allowSecretOutput ? <Notice tone="warning">{t("kubectl_card_secret_output_suppressed")}</Notice> : null}
       {card.stdout || card.stdoutTruncation ? (
-        <KubectlTextPreview label={t("kubectl_card_stdout")} text={card.stdout} truncation={card.stdoutTruncation} />
+        <KubectlTextPreview failed={!card.ok} label={t("kubectl_card_stdout")} text={card.stdout} truncation={card.stdoutTruncation} />
       ) : null}
       {card.stderr || card.stderrTruncation ? (
-        <KubectlTextPreview label={t("kubectl_card_stderr")} text={card.stderr} truncation={card.stderrTruncation} />
+        <KubectlTextPreview defaultOpen={!card.ok} failed={!card.ok} label={t("kubectl_card_stderr")} text={card.stderr} truncation={card.stderrTruncation} />
       ) : null}
     </CardShell>
   )
@@ -239,7 +284,7 @@ function renderExpandedAction(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={actionStateLabel(card.resultState, card.errorKind)} tone={actionStateTone(card)} />
         <span className="text-xs font-medium text-text-primary">{card.actionLabel}</span>
-        <span className="font-mono text-xs text-text-muted">{card.target}</span>
+        <ActionTarget card={card} />
       </div>
       {card.errorMessage ? (
         <Notice tone="danger" title={actionErrorTitle(card.errorKind)}>
@@ -247,13 +292,12 @@ function renderExpandedAction(context: ToolCardContext) {
         </Notice>
       ) : null}
       <div className="grid gap-2 sm:grid-cols-2">
-        <DetailRow label={t("action_card_scope")} value={card.scope} />
+        <ActionScope card={card} />
         <DetailRow label={t("action_card_requested_change")} value={card.requestedChange} />
         <DetailRow label={t("action_card_previous_state")} value={card.previousState || t("action_card_not_available")} />
         <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
-        <DetailRow label={t("action_card_reason")} value={card.reason || t("action_card_reason_not_provided")} />
-        <DetailRow label={t("action_card_audit")} value={card.audit || t("action_card_audit_recorded")} />
       </div>
+      {card.kind === "delete_pod" && card.resultState === "succeeded" ? <DeletePodDetails card={card} /> : null}
       {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
       <div className="space-y-1">
         <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_follow_up_checks")}</div>
@@ -265,6 +309,54 @@ function renderExpandedAction(context: ToolCardContext) {
       </div>
     </CardShell>
   )
+}
+
+function DeletePodDetails({ card }: { card: ParsedActionCard }) {
+  const ownerKind = displayValue(card.before.owner_kind)
+  const ownerName = displayValue(card.before.owner_name)
+  const owner = ownerKind && ownerName ? `${ownerKind}/${ownerName}` : t("delete_pod_bare_owner")
+  const outcome = ownerKind && ownerName ? t("delete_pod_controller_outcome", { kind: ownerKind, name: ownerName }) : t("delete_pod_bare_outcome")
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <DetailRow label={t("delete_pod_available")} value={card.available === null ? t("action_card_not_available") : String(card.available)} />
+      <DetailRow label={t("delete_pod_owner")} value={owner} />
+      <DetailRow label={t("delete_pod_outcome")} value={outcome} />
+      <DetailRow label={t("delete_pod_node")} value={displayValue(card.before.node_name) || t("action_card_not_available")} />
+      <DetailRow label={t("delete_pod_phase")} value={displayValue(card.before.phase) || t("action_card_not_available")} />
+      <DetailRow label={t("delete_pod_restarts")} value={displayValue(card.before.restart_count) || t("action_card_not_available")} />
+    </div>
+  )
+}
+
+function ActionScope({ card }: { card: ParsedActionCard }) {
+  if (!card.clusterId) return <DetailRow label={t("action_card_scope")} value={card.scope} />
+
+  return (
+    <div className="min-w-0">
+      <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_scope")}</div>
+      <div className="flex flex-wrap items-center gap-x-1 text-xs text-text-primary">
+        <EntityReference kind="cluster" id={card.clusterId} label={t("tool_card_scope_cluster", { cluster: card.clusterId })} />
+        {card.namespace ? (
+          <>
+            <span>/</span>
+            <EntityReference
+              href={clusterResourceHref({ cluster_id: card.clusterId, namespace: card.namespace }, "namespaces")}
+              kind="namespace"
+              label={card.namespace}
+            />
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function ActionTarget({ card }: { card: ParsedActionCard }) {
+  const resource = ACTION_RESOURCE_LINKS[card.kind]
+  const href = clusterResourceHref({ cluster_id: card.clusterId, namespace: card.namespace }, resource.tab, resource.key, card.resourceName)
+
+  return <EntityReference href={href} kind="artifact" label={card.target} slug={card.target} wrap="break" />
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -305,13 +397,15 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
   if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
   if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
+  if (card.kind === "configmaps" && card.name) return <ConfigMapDescribeBody card={card} configMap={card.rows[0]} />
+  if (card.kind === "secrets" && card.name) return <SecretDescribeBody card={card} secret={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
     <div className="mt-1 space-y-2">
       <SummaryStrip card={card} />
       <FilterableList itemText={(row) => JSON.stringify(row)} items={card.rows} placeholder={t("tool_card_filter_placeholder")}>
-        {(visibleRows) => <KubernetesTable columns={columns} rows={visibleRows.slice(0, ROW_LIMIT)} />}
+        {(visibleRows) => <KubernetesTable columns={columns} responsive={RESPONSIVE_TABLE_KINDS.has(card.kind)} rows={visibleRows.slice(0, ROW_LIMIT)} />}
       </FilterableList>
       {card.rows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: card.rows.length })}</InlineNotice> : null}
       {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
@@ -322,36 +416,66 @@ function renderExpanded(context: ToolCardContext) {
 function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const payload = "ok" in parsed && "status" in parsed
-  const stdout = textBlockValue(parsed.stdout)
-  const stderr = textBlockValue(parsed.stderr)
-  const errorMessage = payload && parsed.ok !== true ? kubectlFailureMessage(stderr, parsed.status) : parseErrorMessage(context)
+  const input = context.input || {}
+  const allowSecretOutput = input.allow_secret_output === true
+  const safeStdout = redactToolCardText(textBlockValue(parsed.stdout))
+  const safeStderr = redactToolCardText(textBlockValue(parsed.stderr))
+  const parsedError = payload && parsed.ok !== true ? kubectlFailureMessage(safeStderr, parsed.status) : parseErrorMessage(context)
+  const permissionDenied = kubectlPermissionDeniedText(parsedError || safeStderr)
+  const errorMessage = allowSecretOutput && parsedError ? kubectlFailureMessage("", parsed.status) : parsedError
   const command = kubectlCommand(parsed, context.input || {})
   const statusValue = displayValue(parsed.status)
-  const credential = isPlainObject(parsed.credential) ? displayValue(parsed.credential.credential_name) || displayValue(parsed.credential.credential_id) : null
+  const credential = isPlainObject(parsed.credential) ? parsed.credential : {}
+  const metadata = isPlainObject(parsed.safe_metadata) ? parsed.safe_metadata : {}
+  const target = isPlainObject(parsed.target) ? parsed.target : {}
+  const unknown = t("action_card_unknown")
 
   return {
     ok: parsed.ok === true,
     payload,
-    status: statusValue || (errorMessage ? t("tool_card_error") : t("action_card_unknown")),
+    status: statusValue ? t("kubectl_card_status_value", { status: statusValue }) : errorMessage ? t("tool_card_error") : t("action_card_unknown"),
     command,
-    scope: kubectlScope(parsed, context.input || {}),
-    credential: credential || displayValue((context.input || {}).credential) || t("action_card_unknown"),
-    stdout,
-    stderr,
-    stdoutTruncation: textBlockTruncation(parsed.stdout),
-    stderrTruncation: textBlockTruncation(parsed.stderr),
+    scope: kubectlScope(parsed, input),
+    credentialId: displayValue(credential.credential_id) || displayValue(parsed.credential_id) || unknown,
+    credentialName: displayValue(credential.credential_name) || displayValue(parsed.credential_name) || displayValue(input.credential) || unknown,
+    credentialType: displayValue(credential.credential_type) || displayValue(parsed.credential_type) || unknown,
+    cluster: displayValue(metadata.cluster) || displayValue(input.cluster) || displayValue(input.cluster_id) || unknown,
+    context:
+      displayValue(metadata.context) || displayValue(metadata.kube_context) || displayValue(target.kube_context) || displayValue(input.kube_context) || unknown,
+    host: displayValue(metadata.host) || unknown,
+    allowSecretOutput,
+    allowRiskyCommand: input.allow_risky_command === true,
+    permissionDenied,
+    stdout: allowSecretOutput ? "" : safeStdout,
+    stderr: allowSecretOutput ? "" : safeStderr,
+    stdoutTruncation: allowSecretOutput ? null : textBlockTruncation(parsed.stdout),
+    stderrTruncation: allowSecretOutput ? null : textBlockTruncation(parsed.stderr),
     errorMessage
   }
 }
 
 function kubectlStateLabel(card: ParsedKubectlCard) {
   if (card.ok) return t("action_state_succeeded")
+  if (kubectlPermissionDenied(card)) return t("action_failure_permission")
   return card.payload ? t("action_failure_api") : t("action_failure_validation")
 }
 
 function kubectlStateTone(card: ParsedKubectlCard) {
   if (card.ok) return "success"
   return card.payload ? "failure" : "warning"
+}
+
+function kubectlPermissionDenied(card: ParsedKubectlCard) {
+  return card.permissionDenied
+}
+
+function kubectlPermissionDeniedText(text: string) {
+  return /(?:permission|policy|forbidden|not allowed|access (?:is )?disabled|could expose secret)/i.test(text)
+}
+
+function kubectlErrorTitle(card: ParsedKubectlCard) {
+  if (kubectlPermissionDenied(card)) return t("action_error_permission_title")
+  return card.payload ? t("action_error_api_title") : t("action_error_validation_title")
 }
 
 function kubectlFailureMessage(stderr: string, status: unknown) {
@@ -363,18 +487,32 @@ function kubectlFailureMessage(stderr: string, status: unknown) {
   return t("kubectl_card_exited", { status: displayValue(status) || t("action_card_unknown") })
 }
 
-function KubectlTextPreview({ label, text, truncation }: { label: string; text: string; truncation: TextBlockTruncation | null }) {
+function KubectlTextPreview({
+  defaultOpen = false,
+  failed,
+  label,
+  text,
+  truncation
+}: {
+  defaultOpen?: boolean
+  failed: boolean
+  label: string
+  text: string
+  truncation: TextBlockTruncation | null
+}) {
   return (
     <div className="space-y-1">
       {truncation ? <StatePill state={truncationLabel(truncation)} tone="warning" /> : null}
-      <Disclosure label={label}>
-        <TextPreview text={text} truncate="headTail" />
+      <Disclosure defaultOpen={defaultOpen} label={label}>
+        <TextPreview modalLabel={label} text={text} truncate={failed ? "tail" : "head"} />
       </Disclosure>
     </div>
   )
 }
 
 function truncationLabel(truncation: TextBlockTruncation) {
+  if (truncation.bytes !== null && truncation.omittedBytes !== null)
+    return t("kubectl_card_truncated_bytes_omitted", { bytes: formatBytes(truncation.bytes), omittedBytes: formatBytes(truncation.omittedBytes) })
   if (truncation.omittedBytes !== null) return t("kubectl_card_truncated_omitted", { bytes: formatBytes(truncation.omittedBytes) })
   if (truncation.bytes !== null) return t("kubectl_card_truncated_bytes", { bytes: formatBytes(truncation.bytes) })
   return t("tool_card_truncated")
@@ -448,7 +586,18 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
   const parsedRows = rowsForKind(kind, parsed)
   if (!parsedRows) return null
   const clusterId = displayValue((context.input || {}).cluster_id)
-  const rows = ["pods", "events"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
+  const rows =
+    kind === "pod_logs"
+      ? parsedRows.map((row) => ({
+          ...row,
+          container: row.container ?? context.input?.container,
+          previous: context.input?.previous === true,
+          requested_tail_lines: context.input?.tail_lines,
+          timestamps: context.input?.timestamps === true
+        }))
+      : ["pods", "events", "services"].includes(kind)
+        ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId }))
+        : parsedRows
   return {
     kind,
     rows,
@@ -480,6 +629,9 @@ function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
   const before = isPlainObject(parsed.before) ? parsed.before : {}
   const after = isPlainObject(parsed.after) ? parsed.after : {}
   const input = context.input || {}
+  const clusterId = displayValue(input.cluster_id)
+  const namespace = displayValue(parsed.namespace) || displayValue(input.namespace)
+  const resourceName = displayValue(parsed.deployment) || displayValue(parsed.pod) || displayValue(parsed.node) || displayValue(input.name)
   const target = actionTarget(kind, parsed, input)
   const errorKind = errorMessage ? classifyActionError(errorMessage) : null
   const resultState = errorMessage ? "failed" : actionNoOp(kind, before, after) ? "no_op" : "succeeded"
@@ -493,12 +645,15 @@ function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
     requestedChange: requestedChange(kind, input, parsed),
     previousState: previousState(kind, before),
     currentState: currentState(kind, after),
-    reason: displayValue(input.reason) || displayValue(parsed.reason) || displayValue(parsed.audit_reason),
-    audit: displayValue(parsed.audit_id) || displayValue(parsed.audit_url) || displayValue(parsed.audit),
+    clusterId,
+    namespace,
+    resourceName,
     generatedAt: displayValue(parsed.generated_at),
     followUpChecks: followUpChecks(kind, parsed, input, resultState, errorKind),
     errorKind,
-    errorMessage
+    errorMessage,
+    available: typeof parsed.available === "boolean" ? parsed.available : null,
+    before
   }
 }
 
@@ -540,7 +695,10 @@ function requestedChange(kind: ActionKind, input: Record<string, unknown>, parse
 
 function previousState(kind: ActionKind, before: Record<string, unknown>) {
   if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(before.restarted_at) || t("action_card_none") })
-  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(before.replicas) || "0" })
+  if (kind === "scale_deployment") {
+    const replicas = displayValue(before.replicas)
+    return replicas === null ? null : t("action_state_replicas", { value: replicas })
+  }
   if (kind === "delete_pod") return t("action_state_pod_phase", { value: displayValue(before.phase) || t("action_card_unknown") })
   if ("unschedulable" in before) return before.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
   return null
@@ -548,7 +706,10 @@ function previousState(kind: ActionKind, before: Record<string, unknown>) {
 
 function currentState(kind: ActionKind, after: Record<string, unknown>) {
   if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(after.restarted_at) || t("action_card_none") })
-  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(after.replicas) || "0" })
+  if (kind === "scale_deployment") {
+    const replicas = displayValue(after.replicas)
+    return replicas === null ? null : t("action_state_replicas", { value: replicas })
+  }
   if (kind === "delete_pod") return after.deleted === true ? t("action_state_deleted") : null
   if ("unschedulable" in after) return after.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
   return null
@@ -557,7 +718,7 @@ function currentState(kind: ActionKind, after: Record<string, unknown>) {
 function actionNoOp(kind: ActionKind, before: Record<string, unknown>, after: Record<string, unknown>) {
   if (kind === "restart_rollout") return "restarted_at" in before && "restarted_at" in after && before.restarted_at === after.restarted_at
   if (kind === "scale_deployment") return "replicas" in before && "replicas" in after && before.replicas === after.replicas
-  if (kind === "delete_pod") return after.deleted === false
+  if (kind === "delete_pod") return false
   if (kind === "set_node_cordon") return before.unschedulable === after.unschedulable
   return false
 }
@@ -644,10 +805,104 @@ function rowsForKind(kind: CardKind, parsed: Record<string, unknown>) {
   if (!Array.isArray(rows)) {
     const single = singularKey(kind)
     const row = single ? parsed[single] : null
-    if (isPlainObject(row)) return [summarizeRawResource(kind, row as K8sRow)]
+    if (isPlainObject(row)) return [kind === "secrets" ? secretMetadata(row) : summarizeRawResource(kind, row as K8sRow)]
     return null
   }
-  return rows.filter(isPlainObject) as K8sRow[]
+  const objectRows = rows.filter(isPlainObject) as K8sRow[]
+  return kind === "secrets" ? objectRows.map(secretMetadata) : objectRows
+}
+
+function SecretDescribeBody({ card, secret }: { card: ParsedCard; secret: K8sRow }) {
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-2xs font-semibold uppercase text-text-muted">{t("col_type")}</span>
+        <StatePill state={displayValue(secret.type) || "-"} tone="neutral" />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <DetailRow label={t("col_name")} value={displayValue(secret.name) || "-"} />
+        <DetailRow label={t("col_namespace")} value={displayValue(secret.namespace) || "-"} />
+        <DetailRow label={t("col_keys")} value={String(numberValue(secret.key_count) ?? 0)} />
+        <DetailRow label={t("col_immutable")} value={secret.immutable === true ? t("yes") : t("no")} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(secret.created_at))} />
+      </div>
+      <DetailRow label={t("col_owner_references")} value={arrayText(secret.owner_references)} />
+      <DetailRow label={t("col_key_names")} value={arrayText(secret.key_names)} />
+    </CardShell>
+  )
+}
+
+function ConfigMapDescribeBody({ card, configMap }: { card: ParsedCard; configMap: K8sRow }) {
+  const entries = configMapEntries(configMap)
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <DetailRow label={t("col_name")} value={displayValue(configMap.name) || "-"} />
+        <DetailRow label={t("col_namespace")} value={displayValue(configMap.namespace) || "-"} />
+        <DetailRow label={t("col_keys")} value={String(entries.length)} />
+      </div>
+      {entries.length === 0 ? (
+        <EmptyState>{t("config_map_no_keys")}</EmptyState>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((entry) => (
+            <section
+              className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface px-3 py-2"
+              key={`${entry.binary ? "binary" : "text"}:${entry.name}`}
+            >
+              <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                <span className="break-all font-mono text-xs font-semibold text-text-primary">{entry.name}</span>
+                {entry.binary ? <StatePill state={t("config_map_binary")} tone="neutral" /> : null}
+                <span className="text-xs text-text-muted">{formatBytes(entry.bytes)}</span>
+              </div>
+              {entry.binary ? (
+                <p className="text-xs text-text-muted">{t("config_map_binary_not_previewed")}</p>
+              ) : (
+                <TextPreview
+                  maxChars={CONFIG_MAP_VALUE_PREVIEW_LIMIT}
+                  maxLines={8}
+                  modalLabel={t("config_map_value_for", { key: entry.name })}
+                  text={entry.preview}
+                />
+              )}
+              {entry.capped ? (
+                <p className="mt-1 text-xs text-text-muted">{t("config_map_value_capped", { size: formatBytes(CONFIG_MAP_VALUE_DISPLAY_LIMIT) })}</p>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      )}
+    </CardShell>
+  )
+}
+
+function configMapEntries(configMap: K8sRow) {
+  const data = isPlainObject(configMap.data) ? configMap.data : {}
+  const binaryData = isPlainObject(configMap.binaryData) ? configMap.binaryData : {}
+  const textEntries = Object.entries(data).map(([name, value]) => configMapEntry(name, value, false))
+  const binaryEntries = Object.entries(binaryData).map(([name, value]) => configMapEntry(name, value, true))
+  return [...textEntries, ...binaryEntries].sort((left, right) => left.name.localeCompare(right.name))
+}
+
+function configMapEntry(name: string, value: unknown, binary: boolean) {
+  const raw = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value)
+  const encoded = new TextEncoder().encode(raw)
+  const bytes = binary ? (base64DecodedSize(raw) ?? encoded.length) : encoded.length
+  const capped = !binary && encoded.length > CONFIG_MAP_VALUE_DISPLAY_LIMIT
+  const display = capped ? new TextDecoder().decode(encoded.slice(0, CONFIG_MAP_VALUE_DISPLAY_LIMIT)) : raw
+  return { name, binary, bytes, capped, preview: redactToolCardText(display) }
+}
+
+function base64DecodedSize(value: string) {
+  const normalized = value.replace(/\s/g, "")
+  if (normalized.length === 0) return 0
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(normalized)) return null
+
+  const padding = normalized.endsWith("==") ? 2 : normalized.endsWith("=") ? 1 : 0
+  return (normalized.length / 4) * 3 - padding
 }
 
 function collectionKey(kind: CardKind) {
@@ -862,15 +1117,31 @@ function columnsFor(kind: CardKind): Column[] {
   }
   if (kind === "services") {
     return [
-      { key: "namespace", label: t("col_namespace") },
-      { key: "name", label: t("col_name") },
+      {
+        key: "namespace",
+        label: t("col_namespace"),
+        render: (row) => (
+          <EntityReference
+            kind="artifact"
+            href={displayValue(row.cluster_id) ? `/k8s_clusters/${encodeURIComponent(displayValue(row.cluster_id) || "")}` : null}
+            label={displayValue(row.namespace)}
+            slug={displayValue(row.namespace)}
+          />
+        )
+      },
+      {
+        key: "name",
+        label: t("col_name"),
+        render: (row) => <EntityReference kind="artifact" label={displayValue(row.name)} slug={serviceContext(row)} wrap="break" />
+      },
       { key: "type", label: t("col_type") },
-      { key: "cluster_ip", label: t("col_cluster_ip") },
-      { key: "ports", label: t("col_ports"), render: (row) => portsText(row.ports) },
+      { key: "cluster_ip", label: t("col_cluster_ip"), render: (row) => wrappedText(valueText(row.cluster_ip)) },
+      { key: "external_ips", label: t("col_external_ips"), render: (row) => wrappedText(arrayText(row.external_ips)) },
+      { key: "ports", label: t("col_ports"), render: (row) => wrappedText(portsText(row.ports)) },
       {
         key: "endpoints",
         label: t("col_endpoints"),
-        render: endpointsText,
+        render: (row) => wrappedText(endpointsText(row)),
         tone: (row) =>
           row.missing_target_warning === true || (numberValue(row.not_ready_addresses) ?? 0) > 0
             ? "warning"
@@ -878,7 +1149,7 @@ function columnsFor(kind: CardKind): Column[] {
               ? "success"
               : "neutral"
       },
-      { key: "selector", label: t("col_selector"), render: (row) => selectorText(row.selector) },
+      { key: "selector", label: t("col_selector"), render: (row) => wrappedText(selectorText(row.selector)) },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -886,15 +1157,16 @@ function columnsFor(kind: CardKind): Column[] {
     return [
       { key: "namespace", label: t("col_namespace") },
       { key: "name", label: t("col_name") },
-      { key: "hosts", label: t("col_hosts"), render: (row) => arrayText(row.hosts) },
+      { key: "hosts", label: t("col_hosts"), render: (row) => ingressHostLinks(row.hosts) },
       {
         key: "backend",
         label: t("col_backend"),
-        render: (row) => ingressBackends(row).join(", ") || t("tool_card_missing_backend"),
+        render: (row) => <IngressBackendMappings row={row} />,
         tone: (row) => (ingressBackends(row).length === 0 ? "warning" : "neutral")
       },
-      { key: "tls_hosts", label: t("col_tls"), render: (row) => arrayText(row.tls_hosts) },
+      { key: "tls_hosts", label: t("col_tls"), render: (row) => ingressHostLinks(row.tls_hosts) },
       { key: "ingress_class", label: t("col_ingress_class") },
+      { key: "load_balancer_addresses", label: t("col_load_balancer"), render: (row) => wrappedText(arrayText(row.load_balancer_addresses)) },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -905,6 +1177,12 @@ function columnsFor(kind: CardKind): Column[] {
       ...(kind === "secrets" ? [{ key: "type", label: t("col_type") }] : []),
       { key: "key_count", label: t("col_keys") },
       { key: "key_names", label: t("col_key_names"), render: (row) => arrayText(row.key_names) },
+      ...(kind === "secrets"
+        ? [
+            { key: "immutable", label: t("col_immutable"), render: (row: K8sRow) => (row.immutable === true ? t("yes") : t("no")) },
+            { key: "owner_references", label: t("col_owner_references"), render: (row: K8sRow) => arrayText(row.owner_references) }
+          ]
+        : []),
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -949,10 +1227,14 @@ function workloadReplicaColumns(currentKey: "available_replicas" | "current_repl
   ]
 }
 
-function KubernetesTable({ columns, rows }: { columns: Column[]; rows: K8sRow[] }) {
+function KubernetesTable({ columns, responsive = false, rows }: { columns: Column[]; responsive?: boolean; rows: K8sRow[] }) {
   return (
-    <DataTable.Root className="min-w-max text-left text-xs" density="compact">
-      <DataTable.Header>
+    <DataTable.Root
+      className={responsive ? "block min-w-0 text-left text-xs sm:table sm:min-w-max" : "min-w-max text-left text-xs"}
+      density="compact"
+      wrapperClassName={responsive ? "overflow-visible sm:overflow-x-auto" : ""}
+    >
+      <DataTable.Header className={responsive ? "hidden sm:table-header-group" : ""}>
         <DataTable.Row>
           {columns.map((column) => (
             <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column.key}>
@@ -961,11 +1243,16 @@ function KubernetesTable({ columns, rows }: { columns: Column[]; rows: K8sRow[] 
           ))}
         </DataTable.Row>
       </DataTable.Header>
-      <DataTable.Body>
+      <DataTable.Body className={responsive ? RESPONSIVE_TABLE_BODY_CLASSES : ""}>
         {rows.map((row, index) => (
           <DataTable.Row key={rowKey(row, index)}>
             {columns.map((column) => (
-              <DataTable.Cell className="max-w-80 px-2 py-1 text-text-secondary" key={column.key}>
+              <DataTable.Cell
+                className={responsive ? RESPONSIVE_TABLE_CELL_CLASSES : "max-w-80 px-2 py-1 text-text-secondary"}
+                data-label={responsive ? column.label : undefined}
+                key={column.key}
+              >
+                {responsive ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{column.label}</span> : null}
                 {cell(column, row)}
               </DataTable.Cell>
             ))}
@@ -1255,19 +1542,40 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
 
 function PodLogsBody({ card }: { card: ParsedCard }) {
   const row = card.rows[0] || {}
-  const lines = logLines(row.log)
+  const fullLog = redactToolCardText(displayValue(row.log) || "")
+  const lines = logLines(fullLog)
+  const requestedTailLines = numberValue(row.requested_tail_lines)
 
   return (
     <CardShell>
       <SummaryStrip card={card} />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <DetailRow label={t("logs_pod_label")} value={displayValue(row.pod) || "-"} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("logs_pod_label")}</div>
+          <EntityReference
+            href={clusterResourceHref({ ...row, cluster_id: card.clusterId }, "logs", "pod", row.pod)}
+            kind="artifact"
+            label={displayValue(row.pod) || "-"}
+            slug={[displayValue(row.namespace), displayValue(row.pod)].filter(Boolean).join("/")}
+            wrap="break"
+          />
+        </div>
+        <DetailRow label={t("col_namespace")} value={displayValue(row.namespace) || "-"} />
         <DetailRow label={t("logs_container_label")} value={displayValue(row.container) || t("tool_card_default_container")} />
-        <DetailRow label={t("logs_tail_lines_label")} value={String(lines.length)} />
+        <DetailRow label={t("logs_requested_lines_label")} value={requestedTailLines === null ? "-" : String(requestedTailLines)} />
+        <DetailRow label={t("logs_returned_lines_label")} value={String(lines.length)} />
+        <DetailRow label={t("logs_previous_label")} value={row.previous === true ? t("yes") : t("no")} />
+        <DetailRow label={t("logs_timestamps_label")} value={row.timestamps === true ? t("yes") : t("no")} />
       </div>
-      <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
-        {(visibleLines) => <TextPreview maxLines={80} text={visibleLines.join("\n")} truncate="tail" />}
-      </FilterableList>
+      {lines.length === 0 ? (
+        <EmptyState>{t("logs_empty")}</EmptyState>
+      ) : (
+        <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
+          {(visibleLines) => (
+            <TextPreview modalText={fullLog} maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />
+          )}
+        </FilterableList>
+      )}
     </CardShell>
   )
 }
@@ -1276,23 +1584,32 @@ function OverviewBody({ card, overview }: { card: ParsedCard; overview: Overview
   return (
     <CardShell>
       <SummaryStrip card={card} />
-      <OverviewSection title={t("overview_node_usage")} section={overview.nodes} />
-      <OverviewSection title={t("overview_pod_usage")} section={overview.pods} />
+      <OverviewSection clusterId={card.clusterId} kind="nodes" title={t("overview_node_usage")} section={overview.nodes} />
+      <OverviewSection clusterId={card.clusterId} kind="pods" title={t("overview_pod_usage")} section={overview.pods} />
     </CardShell>
   )
 }
 
-function OverviewSection({ section, title }: { section: OverviewSection; title: string }) {
+function OverviewSection({ clusterId, kind, section, title }: { clusterId: string | null; kind: "nodes" | "pods"; section: OverviewSection; title: string }) {
+  const [showAll, setShowAll] = useState(false)
+
   if (!section.available) {
     return (
-      <Notice title={title} tone="warning">
-        {section.message || section.reason || t("overview_metrics_unavailable")}
-      </Notice>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-text-primary">{title}</span>
+          <StatePill state={t("overview_unavailable")} tone="warning" />
+        </div>
+        <Notice tone="warning">{section.message || t("overview_metrics_unavailable")}</Notice>
+        {section.reason ? <DetailRow label={t("overview_unavailable_reason")} value={section.reason} /> : null}
+      </div>
     )
   }
 
+  const rows: K8sRow[] = section.items.map((row) => ({ ...row, cluster_id: clusterId }))
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-semibold text-text-primary">{title}</span>
         <StatePill state={t("tool_card_resource_count", { count: section.items.length, resource: t("tool_card_items") })} tone="success" />
@@ -1300,20 +1617,68 @@ function OverviewSection({ section, title }: { section: OverviewSection; title: 
         <span className="text-text-muted">{formatBytes(section.totalMemoryBytes)}</span>
       </div>
       {section.items.length > 0 ? (
-        <KubernetesTable
-          columns={[
-            { key: "namespace", label: t("col_namespace") },
-            { key: "name", label: t("col_name") },
-            { key: "cpu_millicores", label: t("col_cpu"), render: (row) => formatMillicores(numberValue(row.cpu_millicores) ?? 0) },
-            { key: "memory_bytes", label: t("col_memory"), render: (row) => formatBytes(numberValue(row.memory_bytes) ?? 0) }
-          ]}
-          rows={section.items.slice(0, ROW_LIMIT)}
-        />
+        <FilterableList
+          itemText={(row) =>
+            [
+              displayValue(row.namespace),
+              displayValue(row.name),
+              formatMillicores(numberValue(row.cpu_millicores) ?? 0),
+              formatBytes(numberValue(row.memory_bytes) ?? 0)
+            ]
+              .filter(Boolean)
+              .join(" ")
+          }
+          items={rows}
+          placeholder={t("tool_card_filter_placeholder")}
+        >
+          {(visibleRows) => (
+            <div className="space-y-2">
+              <KubernetesTable columns={overviewColumns(kind)} responsive rows={showAll ? visibleRows : visibleRows.slice(0, ROW_LIMIT)} />
+              {!showAll && visibleRows.length > ROW_LIMIT ? (
+                <Button onClick={() => setShowAll(true)} size="sm" variant="secondary">
+                  {t("overview_show_all_rows", { count: visibleRows.length })}
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </FilterableList>
       ) : (
         <EmptyState>{t("tool_card_empty", { resource: t("tool_card_items") })}</EmptyState>
       )}
     </div>
   )
+}
+
+function overviewColumns(kind: "nodes" | "pods"): Column[] {
+  const nameColumn: Column = {
+    key: "name",
+    label: t("col_name"),
+    render: (row) => (
+      <EntityReference
+        href={clusterResourceHref(row, kind, kind === "nodes" ? "node" : "pod", row.name)}
+        kind={kind === "nodes" ? "node" : "artifact"}
+        label={displayValue(row.name)}
+        slug={kind === "pods" ? podContext(row) : displayValue(row.name)}
+      />
+    )
+  }
+  const usageColumns: Column[] = [
+    { key: "cpu_millicores", label: t("col_cpu"), render: (row) => formatMillicores(numberValue(row.cpu_millicores) ?? 0) },
+    { key: "memory_bytes", label: t("col_memory"), render: (row) => formatBytes(numberValue(row.memory_bytes) ?? 0) }
+  ]
+  if (kind === "nodes") return [nameColumn, ...usageColumns]
+
+  return [
+    {
+      key: "namespace",
+      label: t("col_namespace"),
+      render: (row) => (
+        <EntityReference href={clusterResourceHref(row, "pods")} kind="namespace" id={displayValue(row.cluster_id)} label={displayValue(row.namespace)} />
+      )
+    },
+    nameColumn,
+    ...usageColumns
+  ]
 }
 
 function InlineNotice({ children }: { children: string }) {
@@ -1412,7 +1777,7 @@ function portsText(value: unknown) {
       .map((port) => {
         const portNumber = displayValue(port.port)
         const protocol = displayValue(port.protocol)
-        const targetPort = displayValue(port.target_port)
+        const targetPort = displayValue(port.target_port) || displayValue(port.targetPort)
         return `${portNumber || "?"}${protocol ? `/${protocol}` : ""}${targetPort ? ` -> ${targetPort}` : ""}`
       })
       .join(", ") || "-"
@@ -1428,25 +1793,68 @@ function endpointsText(row: K8sRow) {
 }
 
 function ingressBackends(row: K8sRow) {
+  return ingressBackendMappings(row).map((mapping) => mapping.backend)
+}
+
+function ingressHostLinks(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return "-"
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {value.map((entry) => {
+        const host = displayValue(entry)
+        if (!host) return null
+        return (
+          <a className="break-all text-link hover:underline" href={`https://${host}`} key={host} rel="noopener noreferrer" target="_blank">
+            {host}
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
+function IngressBackendMappings({ row }: { row: K8sRow }) {
+  const mappings = ingressBackendMappings(row)
+  if (mappings.length === 0) return t("tool_card_missing_backend")
+  return (
+    <div className="flex min-w-0 flex-col gap-1 whitespace-normal sm:min-w-56">
+      {mappings.map((mapping, index) => (
+        <div className="grid grid-cols-1 gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto]" key={`${mapping.host}-${mapping.path}-${index}`}>
+          <span className="break-all font-mono">
+            {mapping.host}
+            {mapping.path} <span className="text-text-muted">({mapping.pathType})</span>
+          </span>
+          <span className="break-all font-mono sm:text-right">→ {mapping.backend}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ingressBackendMappings(row: K8sRow) {
   if (!Array.isArray(row.rules)) return []
   return row.rules.filter(isPlainObject).flatMap((rule) => {
     if (!Array.isArray(rule.paths)) return []
-    return rule.paths
-      .filter(isPlainObject)
-      .map((path) => {
-        const service = isPlainObject(path.backend) && isPlainObject(path.backend.service) ? path.backend.service : null
-        const servicePort = service && isPlainObject(service.port) ? service.port : null
-        const serviceName = displayValue(path.service_name) || displayValue(service?.name)
-        const port = displayValue(path.service_port) || displayValue(servicePort?.number) || displayValue(servicePort?.name)
-        return [serviceName, port].filter(Boolean).join(":")
-      })
-      .filter(Boolean)
+    const host = displayValue(rule.host) || "*"
+    return rule.paths.filter(isPlainObject).flatMap((path) => {
+      const service = isPlainObject(path.backend) && isPlainObject(path.backend.service) ? path.backend.service : null
+      const servicePort = service && isPlainObject(service.port) ? service.port : null
+      const serviceName = displayValue(path.service_name) || displayValue(service?.name)
+      const port = displayValue(path.service_port) || displayValue(servicePort?.number) || displayValue(servicePort?.name)
+      const backend = [serviceName, port].filter(Boolean).join(":")
+      if (!backend) return []
+      return [{ host, path: displayValue(path.path) || "/", pathType: displayValue(path.path_type) || displayValue(path.pathType) || "-", backend }]
+    })
   })
 }
 
 function logLines(value: unknown) {
   const log = displayValue(value) ?? ""
-  return log ? log.split("\n") : []
+  if (!log) return []
+
+  const lines = log.split("\n")
+  if (lines.at(-1) === "") lines.pop()
+  return lines
 }
 
 function ingressRuleSummaries(rules: unknown) {
@@ -1479,6 +1887,14 @@ function ingressHosts(rules: unknown) {
 function tlsHosts(tls: unknown) {
   if (!Array.isArray(tls)) return []
   return tls.flatMap((entry) => (isPlainObject(entry) && Array.isArray(entry.hosts) ? entry.hosts : []))
+}
+
+function ingressLoadBalancerAddresses(loadBalancer: unknown) {
+  if (!isPlainObject(loadBalancer) || !Array.isArray(loadBalancer.ingress)) return []
+  return loadBalancer.ingress
+    .filter(isPlainObject)
+    .map((entry) => displayValue(entry.ip) || displayValue(entry.hostname))
+    .filter((entry): entry is string => Boolean(entry))
 }
 
 function involvedObject(value: unknown) {
@@ -1531,6 +1947,14 @@ function podContext(row: K8sRow) {
 
 function pvcContext(row: K8sRow) {
   return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function serviceContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function wrappedText(value: string) {
+  return <span className="block whitespace-normal break-words">{value}</span>
 }
 
 function containerStateText(value: unknown) {
@@ -1706,23 +2130,66 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
       last_schedule_time: status.lastScheduleTime
     }
   if (kind === "services")
-    return { ...base, type: spec.type, cluster_ip: spec.clusterIP, ports: Array.isArray(spec.ports) ? spec.ports : [], selector: spec.selector }
+    return {
+      ...base,
+      type: spec.type,
+      cluster_ip: spec.clusterIP,
+      external_ips: Array.isArray(spec.externalIPs) ? spec.externalIPs : [],
+      ports: Array.isArray(spec.ports) ? spec.ports : [],
+      selector: spec.selector
+    }
   if (kind === "ingresses")
     return {
       ...base,
       ingress_class: spec.ingressClassName,
       hosts: ingressHosts(spec.rules),
       rules: ingressRuleSummaries(spec.rules),
-      tls_hosts: tlsHosts(spec.tls)
+      tls_hosts: tlsHosts(spec.tls),
+      load_balancer_addresses: ingressLoadBalancerAddresses(status.loadBalancer)
     }
   if (kind === "configmaps")
     return {
       ...base,
-      key_count: Object.keys(isPlainObject(row.data) ? row.data : {}).length,
-      key_names: Object.keys(isPlainObject(row.data) ? row.data : {}).sort()
+      data: isPlainObject(row.data) ? row.data : {},
+      binaryData: isPlainObject(row.binaryData) ? row.binaryData : {},
+      key_count: [...Object.keys(isPlainObject(row.data) ? row.data : {}), ...Object.keys(isPlainObject(row.binaryData) ? row.binaryData : {})].filter(
+        (key, index, keys) => keys.indexOf(key) === index
+      ).length,
+      key_names: [...Object.keys(isPlainObject(row.data) ? row.data : {}), ...Object.keys(isPlainObject(row.binaryData) ? row.binaryData : {})]
+        .filter((key, index, keys) => keys.indexOf(key) === index)
+        .sort()
     }
-  if (kind === "secrets") return row
   return row
+}
+
+// Keep this projection at the payload boundary: Secret values must never reach
+// rendering or FilterableList's search index, even if a caller supplies a raw
+// Kubernetes Secret instead of the server's metadata-only summary.
+function secretMetadata(row: K8sRow): K8sRow {
+  const metadata = isPlainObject(row.metadata) ? row.metadata : {}
+  const source = Object.keys(metadata).length > 0 ? metadata : row
+  const ownerReferences = Array.isArray(source.ownerReferences)
+    ? source.ownerReferences
+        .filter(isPlainObject)
+        .map((owner) => [displayValue(owner.kind), displayValue(owner.name)].filter(Boolean).join("/"))
+        .filter(Boolean)
+    : Array.isArray(row.owner_references)
+      ? row.owner_references.map(displayValue).filter(Boolean)
+      : []
+  const keyNames = Array.isArray(row.key_names)
+    ? row.key_names.map(displayValue).filter((value): value is string => Boolean(value))
+    : Object.keys(isPlainObject(row.data) ? row.data : {}).sort()
+
+  return {
+    name: source.name,
+    namespace: source.namespace,
+    type: row.type,
+    key_count: numberValue(row.key_count) ?? keyNames.length,
+    key_names: keyNames,
+    immutable: row.immutable === true,
+    owner_references: ownerReferences,
+    created_at: source.creationTimestamp || row.created_at
+  }
 }
 
 function metadataKeysSummary(value: unknown) {
@@ -1767,9 +2234,8 @@ export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExamp
 
 export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): ToolCardExample[] {
   const kind = ACTION_KINDS[toolName]
-  return [
+  const examples: ToolCardExample[] = [
     { id: "successful_action", label: "Successful action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "success") },
-    { id: "no_op", label: "No-op action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "noop") },
     {
       id: "validation_failure",
       label: "Validation failure",
@@ -1792,6 +2258,9 @@ export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): T
       resultError: true
     }
   ]
+  if (kind !== "delete_pod")
+    examples.splice(1, 0, { id: "no_op", label: "No-op action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "noop") })
+  return examples
 }
 
 export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName): ToolCardExample[] {
@@ -1807,25 +2276,34 @@ export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName)
         stderr: { text: "", truncated: false },
         command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
         target: { kube_context: "prod", kube_namespace: "default" },
-        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" },
+        safe_metadata: { cluster: "production", context: "prod", host: "kube.example.test" }
       }
     },
     {
       id: "policy_denied",
       label: "Policy denied",
       input: { credential: "prod-k3s", kube_context: "prod", args: ["get", "secrets", "-o", "yaml"] },
-      resultBody: "Error: kubectl command could expose secret values",
+      parsedResult: {
+        ok: false,
+        status: 1,
+        stdout: { text: "", truncated: false },
+        stderr: { text: "Error from server (Forbidden): secrets is forbidden by cluster policy", truncated: false },
+        command: { executable: "kubectl", args: ["--context", "prod", "get", "secrets", "-o", "yaml"] },
+        target: { kube_context: "prod" },
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" },
+        safe_metadata: { cluster: "production", context: "prod", host: "kube.example.test" }
+      },
       resultError: true
     }
   ]
 }
 
 function actionExampleInput(kind: ActionKind, variant: "success" | "validation" = "success") {
-  if (kind === "restart_rollout") return { cluster_id: 7, namespace: "default", name: "web", reason: "Refresh config after secret rotation" }
-  if (kind === "scale_deployment")
-    return { cluster_id: 7, namespace: "default", name: "web", replicas: variant === "validation" ? -1 : 5, reason: "Scale for morning traffic" }
-  if (kind === "delete_pod") return { cluster_id: 7, namespace: "default", name: "web-7d9b", reason: "Force reschedule after repeated readiness failures" }
-  return { cluster_id: 7, name: "node-1", cordoned: true, reason: "Drain window preparation" }
+  if (kind === "restart_rollout") return { cluster_id: 7, namespace: "default", name: "web" }
+  if (kind === "scale_deployment") return { cluster_id: 7, namespace: "default", name: "web", replicas: variant === "validation" ? -1 : 5 }
+  if (kind === "delete_pod") return { cluster_id: 7, namespace: "default", name: "web-7d9b" }
+  return { cluster_id: 7, name: "node-1", cordoned: true }
 }
 
 function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
@@ -1837,8 +2315,7 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       deployment: "web",
       namespace: "default",
       before: { restarted_at: variant === "noop" ? "2026-09-30T11:00:00Z" : null },
-      after: { restarted_at: "2026-09-30T11:00:00Z" },
-      audit_id: "k8s-audit-123"
+      after: { restarted_at: "2026-09-30T11:00:00Z" }
     }
   }
   if (kind === "scale_deployment") {
@@ -1848,8 +2325,7 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       deployment: "web",
       namespace: "default",
       before: { replicas: variant === "noop" ? 5 : 2 },
-      after: { replicas: 5 },
-      audit_id: "k8s-audit-123"
+      after: { replicas: 5 }
     }
   }
   if (kind === "delete_pod") {
@@ -1858,9 +2334,8 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       generated_at,
       pod: "web-7d9b",
       namespace: "default",
-      before: { phase: variant === "noop" ? "Succeeded" : "Running" },
-      after: { deleted: variant !== "noop" },
-      audit_id: "k8s-audit-123"
+      before: { node_name: "node-1", phase: "Running", restart_count: 2, owner_kind: "ReplicaSet", owner_name: "web-7d9b" },
+      after: { deleted: true }
     }
   }
   return {
