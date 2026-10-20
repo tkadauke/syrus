@@ -20,15 +20,19 @@ const FOLLOW_REFETCH_INTERVAL_MS = 10_000
 const LOG_OUTPUT_CLASSES =
   "max-h-[32rem] overflow-auto rounded border border-gray-200 dark:border-gray-800 bg-gray-950 p-3 text-xs text-gray-100"
 
-export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: number; initialPod?: string | null; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
-  const [selectedPodKey, setSelectedPodKey] = useState<string | null>(null)
+  const [selectedPodKey, setSelectedPodKey] = useState<string | null>(() => (initialPod ? [namespace, initialPod].filter(Boolean).join("/") : null))
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null)
   const [tailLines, setTailLines] = useState<number>(DEFAULT_TAIL_LINES)
   const [previous, setPrevious] = useState(false)
   const [timestamps, setTimestamps] = useState(false)
   const [follow, setFollow] = useState(false)
   const [logQuery, setLogQuery] = useState("")
+
+  useEffect(() => {
+    if (initialPod) setSelectedPodKey([namespace, initialPod].filter(Boolean).join("/"))
+  }, [initialPod, namespace])
 
   const pods = useQuery({
     queryKey: [ "k8s_cluster", "pods", clusterId, namespace ],

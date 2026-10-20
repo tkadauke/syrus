@@ -107,7 +107,7 @@ function setupFetchMock(initial = [stagingCluster()]) {
         })
       )
     }
-    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods$/.test(url) && method === "GET") {
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods(?:\?|$)/.test(url) && method === "GET") {
       return Promise.resolve(
         jsonResponse({
           available: true,
@@ -127,6 +127,11 @@ function setupFetchMock(initial = [stagingCluster()]) {
             }
           ]
         })
+      )
+    }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods\/[^/]+\/logs\?/.test(url) && method === "GET") {
+      return Promise.resolve(
+        jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", namespace: "default", pod: "web-1", container: "app", log: "linked log line" })
       )
     }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/cronjobs$/.test(url) && method === "GET") {
@@ -192,6 +197,17 @@ describe("KubernetesClusters", () => {
     expect(screen.getByText("https://staging.k8s.internal:6443")).toBeInTheDocument()
     expect(screen.getByText("Bearer token")).toBeInTheDocument()
     expect(document.body.textContent).not.toContain("s3cret-token")
+  })
+
+  it("opens a linked cluster logs context directly from its path and query", async () => {
+    setupFetchMock()
+    renderClusters("/k8s_clusters/1?tab=logs&namespace=default&pod=web-1")
+
+    expect(await screen.findByRole("heading", { name: "Browsing Staging" })).toBeInTheDocument()
+    expect(await screen.findByText("linked log line")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cluster view" })).toHaveTextContent("Logs")
+    expect(screen.getByRole("button", { name: "Namespace" })).toHaveTextContent("default")
+    expect(screen.getByRole("button", { name: "Pod" })).toHaveTextContent("default/web-1")
   })
 
   it("shows the empty state when there are no clusters", async () => {
