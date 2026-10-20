@@ -313,7 +313,21 @@ describe("Kubernetes cluster tool cards", () => {
             toolName: "k8s_cluster_nodes",
             parsedResult: {
               available: true,
-              nodes: [{ name: "node-1", ready: false, roles: ["worker"], capacity_cpu: "8", capacity_memory: "32Gi", created_at: "2026-09-01T00:00:00Z" }]
+              generated_at: "2026-09-30T12:00:00Z",
+              nodes: [
+                {
+                  name: "node-1",
+                  ready: false,
+                  roles: ["worker"],
+                  kubelet_version: "v1.31.2",
+                  internal_ip: "10.0.0.12",
+                  capacity_cpu: "8",
+                  capacity_memory: "32Gi",
+                  allocatable_cpu: "7600m",
+                  allocatable_memory: "30Gi",
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
             }
           })
         )}
@@ -365,11 +379,102 @@ describe("Kubernetes cluster tool cards", () => {
     )
 
     expect(screen.getByRole("columnheader", { name: "Roles" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Kubelet" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Internal IP" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Allocatable" })).toBeInTheDocument()
     expect(screen.getByText("Not ready")).toBeInTheDocument()
+    expect(screen.getByText("v1.31.2")).toBeInTheDocument()
+    expect(screen.getByText("10.0.0.12")).toBeInTheDocument()
+    expect(screen.getByText("7.6 vCPU / 30.0 GB")).toBeInTheDocument()
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy node-1 to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("default").length).toBeGreaterThan(0)
     expect(screen.getByText("ReadWriteOnce")).toBeInTheDocument()
     expect(screen.getByText("FailedScheduling")).toBeInTheDocument()
     expect(screen.getByText("Pod / web-1")).toBeInTheDocument()
+  })
+
+  it("renders node describes from every MCP envelope with operational details and redacted label values", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      node: {
+        metadata: {
+          name: "node-1",
+          creationTimestamp: "2026-09-01T00:00:00Z",
+          labels: { "node-role.kubernetes.io/worker": "", owner: "private-team-name" }
+        },
+        spec: { taints: [{ key: "dedicated", value: "batch", effect: "NoSchedule" }] },
+        status: {
+          capacity: { cpu: "8", memory: "32Gi" },
+          allocatable: { cpu: "7600m", memory: "30Gi" },
+          addresses: [
+            { type: "InternalIP", address: "10.0.0.12" },
+            { type: "Hostname", address: "node-1" }
+          ],
+          conditions: [{ type: "Ready", status: "False", reason: "KubeletNotReady", message: "container runtime is unavailable" }],
+          nodeInfo: { kubeletVersion: "v1.31.2", operatingSystem: "linux", architecture: "amd64" }
+        }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_nodes")
+      const cardContext = context({ toolName, input: { cluster_id: 7, name: "node-1" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(nodesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / node-1 · 1 nodes · 1 warning")
+      const rendered = render(<>{nodesToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getAllByRole("button", { name: "Copy node-1 to clipboard" }).length).toBeGreaterThan(0)
+      expect(screen.getByText("KubeletNotReady")).toBeInTheDocument()
+      expect(screen.getByText("container runtime is unavailable")).toBeInTheDocument()
+      expect(screen.getByText("dedicated=batch:NoSchedule")).toBeInTheDocument()
+      expect(screen.getByText("InternalIP: 10.0.0.12, Hostname: node-1")).toBeInTheDocument()
+      expect(screen.getByText("2: node-role.kubernetes.io/worker, owner")).toBeInTheDocument()
+      expect(screen.getByText(/kubeletVersion: v1.31.2/)).toBeInTheDocument()
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.queryByText("private-team-name")).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders node empty and error states with their input scope", () => {
+    const empty = render(
+      <>
+        {nodesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_nodes",
+            input: { cluster_id: 7 },
+            parsedResult: { available: true, generated_at: "2026-09-30T12:00:00Z", nodes: [] }
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("No nodes returned.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    empty.unmount()
+
+    render(
+      <>
+        {nodesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_nodes",
+            input: { cluster_id: 7, name: "missing-node" },
+            resultBody: "Error: Node not found",
+            resultError: true,
+            parsedResult: null
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("Node not found")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("button", { name: "Copy missing-node to clipboard" })).toBeInTheDocument()
   })
 
   it("renders namespace describes from every MCP envelope with linked scope and safe metadata summaries", () => {
