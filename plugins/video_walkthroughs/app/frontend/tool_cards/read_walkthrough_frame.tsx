@@ -149,7 +149,7 @@ function WalkthroughFrameCardBody({ card }: { card: WalkthroughFrameCard }) {
         {card.walkthroughId ? (
           <div className="min-w-0">
             <SectionLabel>Walkthrough</SectionLabel>
-            <EntityReference id={card.walkthroughId} kind="walkthrough" />
+            <EntityReference id={card.walkthroughId} kind="walkthrough" wrap="nowrap" />
           </div>
         ) : null}
         {card.timestamp ? <Row label="Timestamp" value={card.timestamp} /> : null}
