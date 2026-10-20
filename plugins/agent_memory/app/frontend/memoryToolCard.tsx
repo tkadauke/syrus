@@ -182,13 +182,13 @@ export function parseMemoryToolError(context: ToolCardContext): MemoryToolError 
   return { message: cleaned, duplicateMemoryId: cleaned.match(/memory #(\d+)/i)?.[1] ?? null }
 }
 
-export function ErrorCard({ error }: { error: MemoryToolError }) {
+export function ErrorCard({ error, title = t("tool_error_title") }: { error: MemoryToolError; title?: string }) {
   const duplicate = error.duplicateMemoryId
   const parts = duplicate ? error.message.split(new RegExp(`(memory #${duplicate})`, "i")) : [error.message]
 
   return (
     <div className="mt-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface p-3 text-sm text-danger-text" role="alert">
-      <div className="font-semibold">{t("tool_error_title")}</div>
+      <div className="font-semibold">{title}</div>
       <div className="mt-1 break-words">
         {parts.map((part, index) =>
           part.toLowerCase() === `memory #${duplicate}` ? <MemoryRef id={duplicate!} key={`${part}-${index}`} label={part} /> : part
