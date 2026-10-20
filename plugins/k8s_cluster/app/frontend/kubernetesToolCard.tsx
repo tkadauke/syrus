@@ -1047,7 +1047,8 @@ function EventRow({ row }: { row: K8sRow }) {
         <span className="ml-auto text-2xs text-text-muted">{t("event_count", { count: numberValue(row.count) ?? 0 })}</span>
       </div>
       <MarkdownPreview linkifyUrls maxChars={320} modalLabel={t("event_message_details")} text={message} />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DetailRow label={t("col_namespace")} value={displayValue(row.namespace) || "-"} />
         <div className="min-w-0">
           <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_object")}</div>
           {involvedObjectReference(row)}
