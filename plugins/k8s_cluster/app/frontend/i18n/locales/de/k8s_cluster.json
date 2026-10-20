@@ -320,6 +320,7 @@
   "tool_card_log_preview": "Log-Vorschau",
   "tool_card_missing_backend": "Kein Backend",
   "tool_card_missing_targets": "Keine bereiten Ziele",
+  "col_external_ips": "Externe IPs",
   "tool_card_no_resources": "Keine Ressourcen",
   "tool_card_no_warnings": "Keine Warnungen",
   "tool_card_node": "Node",

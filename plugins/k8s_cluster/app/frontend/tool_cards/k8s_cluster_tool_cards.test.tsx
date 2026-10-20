@@ -1072,6 +1072,7 @@ describe("Kubernetes cluster tool cards", () => {
                   name: "web",
                   type: "ClusterIP",
                   cluster_ip: "10.0.0.10",
+                  external_ips: ["203.0.113.10", "2001:db8::10"],
                   ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }],
                   selector: { app: "web" },
                   ready_addresses: 0,
@@ -1106,10 +1107,80 @@ describe("Kubernetes cluster tool cards", () => {
     )
 
     expect(screen.getByText("80/TCP -> 8080")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.10, 2001:db8::10")).toBeInTheDocument()
     expect(screen.getByText("No ready targets")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy default to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy default/web to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("app.example.test").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText("web:80")).toBeInTheDocument()
     expect(screen.getByText("nginx")).toBeInTheDocument()
+  })
+
+  it("renders service fields identically from every MCP envelope without exposing unrelated sensitive values", () => {
+    const payload = {
+      available: true,
+      services: [
+        {
+          namespace: "payments",
+          name: "api",
+          type: "LoadBalancer",
+          cluster_ip: "10.0.0.20",
+          external_ips: ["203.0.113.20"],
+          ports: [{ name: "https", port: 443, target_port: "http", protocol: "TCP" }],
+          selector: { app: "api", tier: "frontend" },
+          ready_addresses: 1,
+          not_ready_addresses: 1,
+          missing_target_warning: false,
+          private_token: "must-not-render"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_services")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{servicesToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_services")
+      expect(servicesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 · 1 services · 1 warning")
+      expect(screen.getByText("LoadBalancer")).toBeInTheDocument()
+      expect(screen.getByText("10.0.0.20")).toBeInTheDocument()
+      expect(screen.getByText("203.0.113.20")).toBeInTheDocument()
+      expect(screen.getByText("443/TCP -> http")).toBeInTheDocument()
+      expect(screen.getByText("app=api, tier=frontend")).toBeInTheDocument()
+      expect(screen.getByText("1/2 ready")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Copy payments/api to clipboard" })).toBeInTheDocument()
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders service empty and error states with their requested scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, services: [] }
+    })
+    const empty = render(<>{servicesToolCard.renderExpanded(emptyContext)}</>)
+    expect(servicesToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 services")
+    expect(screen.getByText("No services returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{servicesToolCard.renderExpanded(errorContext)}</>)
+    expect(servicesToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+    expect(screen.getByText("api")).toBeInTheDocument()
   })
 
   it("normalizes describe-shaped ingress backends before rendering", () => {
