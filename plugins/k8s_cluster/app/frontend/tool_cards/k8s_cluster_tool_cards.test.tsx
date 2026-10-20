@@ -269,7 +269,17 @@ describe("Kubernetes cluster tool cards", () => {
         available: true,
         truncated: true,
         pods: [
-          { namespace: "default", name: "web-1", status: "Running", ready: "1/1", restart_count: 0, node_name: "node-1", created_at: "2026-09-30T10:00:00Z" },
+          {
+            namespace: "default",
+            name: "web-1",
+            status: "Running",
+            ready: "1/1",
+            restart_count: 0,
+            pod_ip: "10.42.0.8",
+            container_names: ["web", "metrics"],
+            node_name: "node-1",
+            created_at: "2026-09-30T10:00:00Z"
+          },
           {
             namespace: "default",
             name: "worker-1",
@@ -290,7 +300,112 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByRole("columnheader", { name: "Restarts" })).toBeInTheDocument()
     expect(screen.getByText("CrashLoopBackOff")).toBeInTheDocument()
     expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("10.42.0.8")).toBeInTheDocument()
+    expect(screen.getByText("web, metrics")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "default" })[0]).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("link", { name: "web-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=logs&namespace=default&pod=web-1")
+    expect(screen.getByRole("link", { name: "node-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=nodes&namespace=default&node=node-1")
+    expect(screen.getByRole("button", { name: "Copy default/web-1 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("Showing partial results — the server capped this list.")).toBeInTheDocument()
+  })
+
+  it("renders pod describes from every MCP envelope with safe operational details", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      pod: {
+        metadata: {
+          namespace: "payments",
+          name: "api-1",
+          creationTimestamp: "2026-09-30T10:00:00Z",
+          labels: { app: "api", owner: "private-team-name" },
+          ownerReferences: [{ kind: "ReplicaSet", name: "api-7d9b" }]
+        },
+        spec: {
+          nodeName: "node-2",
+          containers: [{ name: "api", image: "example/api:v2", args: ["--token=secret-argument"], env: [{ name: "TOKEN", value: "secret-value" }] }]
+        },
+        status: {
+          phase: "Running",
+          podIP: "10.42.0.9",
+          podIPs: [{ ip: "10.42.0.9" }, { ip: "fd00::9" }],
+          conditions: [{ type: "Ready", status: "False", reason: "ContainersNotReady", message: "container api is not ready" }],
+          containerStatuses: [
+            {
+              name: "api",
+              ready: false,
+              restartCount: 3,
+              state: { waiting: { reason: "CrashLoopBackOff", message: "back-off" } },
+              lastState: { terminated: { reason: "Error", message: "secret termination detail" } }
+            }
+          ]
+        }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pods")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api-1" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+
+      expect(toolName).toBe("k8s_cluster_pods")
+      expect(podsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / api-1 · 1 pods · 1 warning")
+      const rendered = render(<>{podsToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByRole("link", { name: "api-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=logs&namespace=payments&pod=api-1")
+      expect(screen.getByRole("button", { name: "Copy payments/api-1 to clipboard" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "node-2" })).toHaveAttribute("href", "/k8s_clusters/7?tab=nodes&namespace=payments&node=node-2")
+      expect(screen.getByText("10.42.0.9, fd00::9")).toBeInTheDocument()
+      expect(screen.getByText("ReplicaSet/api-7d9b")).toBeInTheDocument()
+      expect(screen.getByText("2: app, owner")).toBeInTheDocument()
+      expect(screen.getByText("example/api:v2")).toBeInTheDocument()
+      expect(screen.getByText("waiting: CrashLoopBackOff")).toBeInTheDocument()
+      expect(screen.getByText("Error")).toBeInTheDocument()
+      expect(screen.getByText("ContainersNotReady")).toBeInTheDocument()
+      expect(screen.getByText("container api is not ready")).toBeInTheDocument()
+      expect(screen.queryByText(/private-team-name|secret-value|secret-argument|secret termination detail/)).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders pod lists identically from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      pods: [
+        {
+          namespace: "default",
+          name: "web-envelope-1",
+          status: "Running",
+          ready: "2/2",
+          restart_count: 0,
+          pod_ip: "10.42.0.10",
+          container_names: ["web", "metrics"],
+          node_name: "node-envelope-1"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pods")
+      const cardContext = context({ toolName, input: { cluster_id: 7 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{podsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(podsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 · 1 pods")
+      expect(screen.getByRole("link", { name: "web-envelope-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=logs&namespace=default&pod=web-envelope-1")
+      expect(screen.getByText("10.42.0.10")).toBeInTheDocument()
+      expect(screen.getByText("web, metrics")).toBeInTheDocument()
+      rendered.unmount()
+    }
   })
 
   it("filters the complete resource result before limiting the table preview", () => {
