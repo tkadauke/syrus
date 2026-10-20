@@ -20,6 +20,7 @@ export function redactToolCardValue(value: unknown, parentKey = ""): unknown {
 
 export function redactToolCardText(text: string, redactBareSecretIdentifier = true): string {
   const redacted = text
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, `$1${REDACTED}@`)
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, `$1${REDACTED}`)
     .replace(new RegExp(`(["'])(${INLINE_SECRET_KEY_PATTERN})\\1(\\s*:\\s*)(["'])[^"']{6,}\\4`, "gi"), `$1$2$1$3$4${REDACTED}$4`)
     .replace(
