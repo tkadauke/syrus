@@ -240,8 +240,13 @@ RSpec.describe "Mcp::Tools shared memory tools" do
       memory = create_repo_memory(content: "Publishable.")
 
       publish_response = call_tool("publish_memory", memory_id: memory.id)
+      expect(payload(publish_response)[:previous_published]).to be false
       expect(payload(publish_response).dig(:memory, :published)).to be true
       expect(memory.reload).to be_published
+
+      republish_response = call_tool("publish_memory", memory_id: memory.id)
+      expect(payload(republish_response)[:previous_published]).to be true
+      expect(payload(republish_response).dig(:memory, :published)).to be true
 
       unpublish_response = call_tool("unpublish_memory", memory_id: memory.id)
       expect(payload(unpublish_response).dig(:memory, :published)).to be false
