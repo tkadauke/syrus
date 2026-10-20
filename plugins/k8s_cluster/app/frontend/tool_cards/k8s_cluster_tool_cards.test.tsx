@@ -23,7 +23,7 @@ import restartRolloutToolCard from "./k8s_cluster_restart_rollout"
 import scaleDeploymentToolCard, { examples as scaleDeploymentExamples } from "./k8s_cluster_scale_deployment"
 import secretsToolCard, { examples as secretExamples } from "./k8s_cluster_secrets"
 import servicesToolCard from "./k8s_cluster_services"
-import setNodeCordonToolCard from "./k8s_cluster_set_node_cordon"
+import setNodeCordonToolCard, { examples as setNodeCordonExamples } from "./k8s_cluster_set_node_cordon"
 import statefulSetsToolCard from "./k8s_cluster_statefulsets"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -84,6 +84,7 @@ describe("Kubernetes cluster tool cards", () => {
       "api_failure",
       "permission_denied"
     ])
+    expect(setNodeCordonExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
     expect(kubectlExamples.map((example) => example.id)).toEqual(["successful_get", "policy_denied"])
   })
 
@@ -525,6 +526,64 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("no-op")).toBeInTheDocument()
     expect(screen.getAllByText("unschedulable").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText("Read the node to confirm it is unschedulable.")).toBeInTheDocument()
+  })
+
+  it("renders node cordon state, links, safety guidance, and redaction from every agent envelope", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      node: "worker-2",
+      before: { unschedulable: false, bearer_token: "top-secret-value" },
+      after: { unschedulable: true }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const cardContext = context({
+        toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_set_node_cordon"),
+        input: { cluster_id: 7, name: "worker-2", cordoned: true },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { container, unmount } = render(<>{setNodeCordonToolCard.renderExpanded(cardContext)}</>)
+
+      expect(setNodeCordonToolCard.collapsedSummary?.(cardContext)).toBe("Cordon node worker-2 in Cluster 7 · succeeded")
+      expect(screen.getByText("Mark node unschedulable")).toBeInTheDocument()
+      expect(screen.getByText("schedulable")).toBeInTheDocument()
+      expect(screen.getByText("unschedulable")).toBeInTheDocument()
+      expect(screen.getByText("true")).toBeInTheDocument()
+      expect(screen.getByText("Controls scheduling of new pods on this node")).toBeInTheDocument()
+      expect(screen.getByText("Cordoning does not evict or move pods already running on the node.")).toBeInTheDocument()
+      expect(screen.getByText("Generated at 2026-09-30T12:00:01Z")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "worker-2" })).toHaveAttribute("href", "/k8s_clusters/7?tab=nodes&node=worker-2")
+      expect(container.querySelector(".grid.gap-2.sm\\:grid-cols-2")).toBeInTheDocument()
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("renders an uncordon request and its before and after scheduling state", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_set_node_cordon",
+      input: { cluster_id: 7, name: "worker-2", cordoned: false },
+      parsedResult: {
+        available: true,
+        node: "worker-2",
+        before: { unschedulable: true },
+        after: { unschedulable: false }
+      }
+    })
+
+    render(<>{setNodeCordonToolCard.renderExpanded(cardContext)}</>)
+
+    expect(setNodeCordonToolCard.collapsedSummary?.(cardContext)).toBe("Uncordon node worker-2 in Cluster 7 · succeeded")
+    expect(screen.getByText("Mark node schedulable")).toBeInTheDocument()
+    expect(screen.getByText("unschedulable")).toBeInTheDocument()
+    expect(screen.getByText("schedulable")).toBeInTheDocument()
   })
 
   it("distinguishes validation, permission, missing resource, and API failures", () => {
