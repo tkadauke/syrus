@@ -236,9 +236,7 @@ export function Td({
       data-label={responsiveLabel ?? undefined}
       title={title}
     >
-      {responsiveLabel ? (
-        <span className={`${RESPONSIVE_LABEL_CLASSES} ${responsiveLabelClass}`}>{responsiveLabel}</span>
-      ) : null}
+      {responsiveLabel ? <span className={`${RESPONSIVE_LABEL_CLASSES} ${responsiveLabelClass}`}>{responsiveLabel}</span> : null}
       {children}
     </DataTable.Cell>
   )

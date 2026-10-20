@@ -188,11 +188,7 @@ function StuckJobsCard({ context }: { context: ToolCardContext }) {
   const totalPages = pagination ? displayValue(pagination.total_pages) : null
   return (
     <CardShell>
-      {page && totalPages ? (
-        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          {t("admin_stuck_jobs.page_position", { page, totalPages })}
-        </p>
-      ) : null}
+      {page && totalPages ? <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{t("admin_stuck_jobs.page_position", { page, totalPages })}</p> : null}
       <div className="pb-24 sm:pb-0">
         <Table responsive="container">
           <THead columns={["job", "workflow", "run", "severity", "diagnostic", "timing", "repair_plan"].map((key) => t(`admin_stuck_jobs.${key}`))} />
