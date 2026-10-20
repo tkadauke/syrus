@@ -249,6 +249,14 @@ describe("TextPreview", () => {
     expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
     expect(screen.getByTestId("text-preview-content")).not.toHaveClass("break-words")
   })
+
+  it("opens complete text when the inline text is a filtered subset", () => {
+    render(<TextPreview modalText={"first\nmatching\nlast"} modalLabel="Complete output" text="matching" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("matching")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Complete output" })).toHaveTextContent("first\nmatching\nlast", { normalizeWhitespace: false })
+  })
 })
 
 describe("MarkdownPreview link handling", () => {
