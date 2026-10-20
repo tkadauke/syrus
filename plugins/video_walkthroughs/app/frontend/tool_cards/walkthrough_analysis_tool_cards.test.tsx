@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
-import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { pluginToolCardRendererFor, toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
 import analyzeWalkthroughSegmentToolCard, { examples as segmentExamples } from "./analyze_walkthrough_segment"
 import getWalkthroughAnalysisToolCard, { examples as fullAnalysisExamples } from "./get_walkthrough_analysis"
@@ -242,6 +242,21 @@ describe("video walkthrough analysis tool cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     expect(screen.getByRole("dialog", { name: "Complete segment analysis" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy Analysis to clipboard" })).toBeInTheDocument()
+  })
+
+  it("renders the empty segment catalog fixture as a neutral zero-finding result", () => {
+    const example = segmentExamples.find((candidate) => candidate.id === "segment_empty")
+    expect(example).toBeDefined()
+    const cardContext = toolCardContextForExample("analyze_walkthrough_segment", example!)
+
+    expect(analyzeWalkthroughSegmentToolCard.collapsedSummary?.(cardContext)).toBe("Segment 1:10–1:30: no findings")
+
+    render(<>{analyzeWalkthroughSegmentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("no findings")).toBeInTheDocument()
+    expect(screen.getByText("No segment analysis was returned.")).toBeInTheDocument()
+    expect(screen.queryByText("analyzed")).not.toBeInTheDocument()
+    expect(screen.queryByText("1 finding")).not.toBeInTheDocument()
   })
 
   it.each([
