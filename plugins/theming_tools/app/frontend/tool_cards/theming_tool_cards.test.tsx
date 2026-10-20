@@ -266,6 +266,10 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("1.1:1")).toBeInTheDocument()
   })
 
+  it("summarizes update arguments with the theme reference instead of raw JSON", () => {
+    expect(updateUserThemeToolCard.argumentSummary?.({ theme_id: 12, light: { "text-primary": "#fefefe" } })).toBe("THEME-12")
+  })
+
   it("renders an explicit preview card for an empty pending result", () => {
     const cardContext = context({ resultBody: "", parsedResult: null })
     render(<>{previewThemeToolCard.renderExpanded(cardContext)}</>)

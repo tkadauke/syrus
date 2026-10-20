@@ -231,6 +231,13 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "Cancel requested · JOB-44 · pending #7" })
   })
 
+  it("uses a registered card's concise argument summary instead of serializing structured input", () => {
+    const presentation = toolPresentation("update_user_theme", { theme_id: 12, light: { "text-primary": "#fefefe" } })
+
+    expect(presentation.argument_summary).toBe("THEME-12")
+    expect(presentation.argument_summary).not.toContain("text-primary")
+  })
+
   it("passes tool inputs to plugin collapsed summaries for empty Browser results", () => {
     const result = toolResultPresentation("browser_resize", "", false, "", { width: 390, height: 844 })
 

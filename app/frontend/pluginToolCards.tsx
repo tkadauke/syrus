@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ChatPendingActionInline } from "./api/chats"
+import { redactToolCardText, redactToolCardValue } from "./toolCardSecurity"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -42,6 +43,9 @@ export type ToolCardContext = {
 
 export type ToolCardRenderer = {
   toolName: string
+  // Concise tool-call argument label shown beside the tool name. Use this
+  // when the generic argument formatter would serialize a structured input.
+  argumentSummary?: (input: Record<string, unknown>) => string | null | undefined
   // One-line summary shown in the collapsed row. Return null/undefined
   // (or omit this) to keep the generic count/text summary.
   collapsedSummary?: (context: ToolCardContext) => string | null | undefined
@@ -220,6 +224,20 @@ export function renderToolCard(renderer: ToolCardRenderer | null | undefined, co
 
 export function pluginToolCardCollapsedSummary(context: ToolCardContext): string | null {
   return summarizeToolCard(pluginToolCardRendererFor(context.toolName), context)
+}
+
+export function pluginToolCardArgumentSummary(toolName: string, input: Record<string, unknown>): string | null {
+  const renderer = pluginToolCardRendererFor(toolName)
+  if (!renderer?.argumentSummary) return null
+
+  try {
+    const redactedInput = redactToolCardValue(input) as Record<string, unknown>
+    const summary = renderer.argumentSummary(redactedInput)
+    return summary ? redactToolCardText(summary) : null
+  } catch (error) {
+    logCardError("argumentSummary", toolName, error)
+    return null
+  }
 }
 
 export function pluginToolCardExpandedBody(context: ToolCardContext): ReactNode | null {
