@@ -76,7 +76,7 @@ describe("Kubernetes cluster tool cards", () => {
     expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "k8s_cluster" })
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
-    expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
+    expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "validation_failure", "api_failure", "permission_denied"])
     expect(scaleDeploymentExamples.map((example) => example.id)).toEqual([
       "successful_action",
       "no_op",
@@ -355,6 +355,76 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
       unmount()
     })
+  })
+
+  it("renders delete pod ownership, outcome, snapshot, links, and availability from every agent envelope", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      pod: "api-7d9b-abc",
+      namespace: "payments",
+      before: {
+        node_name: "worker-2",
+        phase: "Running",
+        restart_count: 4,
+        owner_kind: "ReplicaSet",
+        owner_name: "api-7d9b",
+        bearer_token: "top-secret-value"
+      },
+      after: { deleted: true }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_delete_pod")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api-7d9b-abc" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { container, unmount } = render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+      expect(deletePodToolCard.collapsedSummary?.(cardContext)).toBe("Delete pod payments/api-7d9b-abc in Cluster 7 / payments · succeeded")
+      expect(screen.getByText("true")).toBeInTheDocument()
+      expect(screen.getByText("ReplicaSet/api-7d9b")).toBeInTheDocument()
+      expect(screen.getByText("ReplicaSet/api-7d9b will recreate this pod")).toBeInTheDocument()
+      expect(screen.getByText("worker-2")).toBeInTheDocument()
+      expect(screen.getByText("phase=Running")).toBeInTheDocument()
+      expect(screen.getByText("4")).toBeInTheDocument()
+      expect(screen.getByText("deleted")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=payments")
+      expect(screen.getByRole("link", { name: "payments/api-7d9b-abc" })).toHaveAttribute(
+        "href",
+        "/k8s_clusters/7?tab=pods&namespace=payments&pod=api-7d9b-abc"
+      )
+      expect(container.querySelector(".grid.gap-2.sm\\:grid-cols-2.lg\\:grid-cols-3")).toBeInTheDocument()
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("explains that deleting a bare pod removes it permanently", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_delete_pod",
+      input: { cluster_id: 7, namespace: "default", name: "one-shot" },
+      parsedResult: {
+        available: true,
+        pod: "one-shot",
+        namespace: "default",
+        before: { node_name: "worker-1", phase: "Succeeded", restart_count: 0, owner_kind: null, owner_name: null },
+        after: { deleted: true }
+      }
+    })
+
+    render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Bare pod")).toBeInTheDocument()
+    expect(screen.getByText("Permanently removed; no controller will recreate it")).toBeInTheDocument()
   })
 
   it("distinguishes changed and already-at-target scale results", () => {
