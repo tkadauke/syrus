@@ -37,15 +37,17 @@ describe("git_diff tool card", () => {
   })
 
   it("renders a large diff behind the shared bounded preview", () => {
-    const manyFiles = Array.from({ length: 50 }, (_, i) => [
-      `diff --git a/file${i}.rb b/file${i}.rb`,
-      "index 1234567..89abcde 100644",
-      `--- a/file${i}.rb`,
-      `+++ b/file${i}.rb`,
-      "@@ -1,1 +1,2 @@",
-      " line",
-      "+added line"
-    ].join("\n")).join("\n")
+    const manyFiles = Array.from({ length: 50 }, (_, i) =>
+      [
+        `diff --git a/file${i}.rb b/file${i}.rb`,
+        "index 1234567..89abcde 100644",
+        `--- a/file${i}.rb`,
+        `+++ b/file${i}.rb`,
+        "@@ -1,1 +1,2 @@",
+        " line",
+        "+added line"
+      ].join("\n")
+    ).join("\n")
 
     render(<>{gitDiffToolCard.renderExpanded(context({ parsedResult: { diff: manyFiles } }))}</>)
     expect(screen.getByText(/50 files/)).toBeInTheDocument()
@@ -57,15 +59,18 @@ describe("git_diff tool card", () => {
   })
 
   it("renders daemon failures with recovery guidance", () => {
-    render(<>{gitDiffToolCard.renderExpanded(context({ toolName: "mcp__local__git_diff", resultBody: "Local daemon not connected.", parsedResult: "Local daemon not connected." }))}</>)
+    render(
+      <>
+        {gitDiffToolCard.renderExpanded(
+          context({ toolName: "mcp__local__git_diff", resultBody: "Local daemon not connected.", parsedResult: "Local daemon not connected." })
+        )}
+      </>
+    )
     expect(screen.getByText(/Connect or restart the local daemon/)).toBeInTheDocument()
   })
 
   it("accepts payloads normalized from content text and structured content envelopes", () => {
-    const envelopes = [
-      { content: [{ type: "text", text: JSON.stringify({ diff: SMALL_DIFF }) }] },
-      { structured_content: { diff: SMALL_DIFF }, content: [] }
-    ]
+    const envelopes = [{ content: [{ type: "text", text: JSON.stringify({ diff: SMALL_DIFF }) }] }, { structured_content: { diff: SMALL_DIFF }, content: [] }]
     for (const envelope of envelopes) {
       const parsedResult = normalizedToolCardParsedResult(envelope)
       expect(gitDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("+1 -0 across 1 file")
