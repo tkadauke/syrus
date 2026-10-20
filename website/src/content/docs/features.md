@@ -870,15 +870,16 @@ that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Existing
 workflow pins are not rewritten.
-Dashboard and repository bulk retry choose a narrower recovery path first:
-resume a failed agentic step when possible, retry the failed step while its
-workspace remains available, retry or rebuild landing workflows for landing
-failures, and use a full implementation retry only as the fallback. Bulk retry
-responses include action and skipped-reason counts, including active Runs,
-already-current passing PRs, duplicate retry workflows, and open provider
-circuits. When a short synthesis step cannot resume the provider session,
-Syrus can retry it from durable Job, summary, and diff context instead of
-discarding the completed implementation.
+Dashboard bulk retry acts only on the Jobs an operator explicitly selects. It
+can use each Job's configured provider or a provider chosen for that retry, and
+chooses a narrower recovery path first: resume a failed agentic step when
+possible, retry the failed step while its workspace remains available, retry
+or rebuild landing workflows for landing failures, and use a full
+implementation retry only as the fallback. Bulk retry responses include action
+and skipped-reason counts, including active Runs, already-current passing PRs,
+duplicate retry workflows, and open provider circuits. When a short synthesis
+step cannot resume the provider session, Syrus can retry it from durable Job,
+summary, and diff context instead of discarding the completed implementation.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.
