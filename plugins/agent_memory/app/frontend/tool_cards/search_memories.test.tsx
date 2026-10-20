@@ -70,11 +70,11 @@ describe("search_memories tool card", () => {
     )
 
     expect(screen.getByText("Query")).toBeInTheDocument()
-    expect(screen.getAllByText("Linear")).toHaveLength(2)
+    expect(screen.getAllByText("Linear")).toHaveLength(3)
     expect(screen.getByText("Requested scope")).toBeInTheDocument()
     expect(screen.getByText("Limit")).toBeInTheDocument()
     expect(screen.getByText("20")).toBeInTheDocument()
-    expect(screen.getAllByText("reference")).toHaveLength(2)
+    expect(screen.getAllByText("reference")).toHaveLength(3)
     expect(screen.getAllByRole("link", { name: /MEMORY-3/ })[0]).toHaveAttribute("href", "/memories")
     expect(screen.getAllByRole("link", { name: /repository #5/i })[0]).toHaveAttribute("href", "/repositories/5")
     expect(screen.getAllByText("private")).toHaveLength(2)
@@ -96,9 +96,11 @@ describe("search_memories tool card", () => {
     )
 
     expect(container.querySelector("mark[data-search-highlight]")).toHaveTextContent("Linear")
-    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
-    expect(screen.getByRole("link", { name: "https://example.com/guide" })).toHaveAttribute("href", "https://example.com/guide")
-    fireEvent.click(screen.getByText("Show more"))
+    expect(screen.getAllByRole("link", { name: "JOB-42" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "JOB-42" })[0]).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getAllByRole("link", { name: "https://example.com/guide" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "https://example.com/guide" })[0]).toHaveAttribute("href", "https://example.com/guide")
+    fireEvent.click(screen.getAllByText("Show more")[0])
     expect(within(screen.getByRole("dialog")).getByText(/More searchable content/)).toBeInTheDocument()
   })
 
@@ -130,7 +132,8 @@ describe("search_memories tool card", () => {
 
     const redacted = normalizedToolCardParsedResult(redactToolCardValue({ memories: [{ ...match, content: "password=hunter2-secret" }] }))
     render(<>{searchMemoriesToolCard.renderExpanded(context({ input: { query: "password" }, parsedResult: redacted }))}</>)
-    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("password=[redacted]")
+    expect(screen.getAllByTestId("markdown-preview-content")).toHaveLength(2)
+    for (const preview of screen.getAllByTestId("markdown-preview-content")) expect(preview).toHaveTextContent("password=[redacted]")
     expect(screen.queryByText(/hunter2-secret/)).not.toBeInTheDocument()
   })
 
