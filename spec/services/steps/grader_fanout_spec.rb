@@ -56,6 +56,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     @git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(@git)
     allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
+    allow(@git).to receive(:run).with("rev-parse", "origin/main", chdir: anything).and_return("base123\n")
     allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
     allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return("")
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
@@ -70,6 +71,14 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   def write_config(contents)
     File.write(@ws_path.join(".syrus.yml"), contents)
+  end
+
+  it "captures the base SHA for collection on a worker without the workflow checkout" do
+    write_config("grade:\n  steps: []\n")
+
+    handler.call
+
+    expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY)).to eq("base123")
   end
 
   def write_grade_config(command)
