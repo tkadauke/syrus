@@ -35,5 +35,9 @@
   "theme": "Thema",
   "status": "Status",
   "palette": "Colorum copia",
-  "fallback_active_theme": "Thema subsidiarium activum"
+  "fallback_active_theme": "Thema subsidiarium activum",
+  "no_fallback_theme": "Thema activum mutari non debuit.",
+  "delete_theme": "Thema dele",
+  "delete_theme_ref": "THEME-{{id}} dele",
+  "delete_recovery": "Elige unum ex propriis thematibus; themata innata deleri non possunt."
 }

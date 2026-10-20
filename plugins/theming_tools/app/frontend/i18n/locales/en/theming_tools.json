@@ -35,5 +35,9 @@
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",
-  "fallback_active_theme": "Fallback active theme"
+  "fallback_active_theme": "Fallback active theme",
+  "no_fallback_theme": "The active theme did not need to change.",
+  "delete_theme": "Delete theme",
+  "delete_theme_ref": "Delete THEME-{{id}}",
+  "delete_recovery": "Choose one of your own custom themes; built-in themes cannot be deleted."
 }

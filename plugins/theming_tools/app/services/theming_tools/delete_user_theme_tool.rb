@@ -32,8 +32,14 @@ module ThemingTools
           user.update!(color_theme: fallback)
         end
 
+        deleted_theme_name = theme.name
         theme.destroy!
-        Mcp::Tools.success(deleted_theme_id: theme.id, fallback_theme_id: fallback&.id)
+        Mcp::Tools.success(
+          deleted_theme_id: theme.id,
+          deleted_theme_name:,
+          fallback_theme_id: fallback&.id,
+          fallback_theme_name: fallback&.name
+        )
       end
     end
   end

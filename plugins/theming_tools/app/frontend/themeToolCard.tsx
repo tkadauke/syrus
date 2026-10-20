@@ -353,12 +353,24 @@ export function ThemeListBody({ rows }: { rows: ThemePayload[] }) {
     </div>
   )
 }
-export type DeleteThemeOutcome = { deletedThemeId: string; fallbackThemeId: string | null }
+export type DeleteThemeOutcome = {
+  deletedThemeId: string
+  deletedThemeName: string | null
+  fallbackThemeId: string | null
+  fallbackThemeName: string | null
+}
 export function parseDeleteOutcome(context: ToolCardContext): DeleteThemeOutcome | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
-  const id = displayValue(parsed.deleted_theme_id)
-  return id ? { deletedThemeId: id, fallbackThemeId: displayValue(parsed.fallback_theme_id) } : null
+  const id = displayValue(parsed.deleted_theme_id) ?? displayValue(context.input?.theme_id)
+  return id
+    ? {
+        deletedThemeId: id,
+        deletedThemeName: displayValue(parsed.deleted_theme_name),
+        fallbackThemeId: displayValue(parsed.fallback_theme_id),
+        fallbackThemeName: displayValue(parsed.fallback_theme_name)
+      }
+    : null
 }
 export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
   return (
@@ -367,12 +379,18 @@ export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
         <StatePill state={t("state_deleted")} tone="success" />
         <EntityReference id={outcome.deletedThemeId} kind="theme" />
       </div>
+      {outcome.deletedThemeName ? <div className="break-words text-sm font-medium text-text-primary">{outcome.deletedThemeName}</div> : null}
       {outcome.fallbackThemeId ? (
         <div className="min-w-0">
           <SectionLabel>{t("fallback_active_theme")}</SectionLabel>
-          <EntityReference href={`/design_system?theme_id=${encodeURIComponent(outcome.fallbackThemeId)}`} id={outcome.fallbackThemeId} kind="theme" />
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            {outcome.fallbackThemeName ? <span className="break-words text-sm text-text-primary">{outcome.fallbackThemeName}</span> : null}
+            <EntityReference href={`/design_system?theme_id=${encodeURIComponent(outcome.fallbackThemeId)}`} id={outcome.fallbackThemeId} kind="theme" />
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <EmptyState>{t("no_fallback_theme")}</EmptyState>
+      )}
     </CardShell>
   )
 }
