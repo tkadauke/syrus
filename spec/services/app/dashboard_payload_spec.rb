@@ -1519,6 +1519,50 @@ RSpec.describe App::DashboardPayload, :ci_only do
       )
     end
 
+    it "prefers the current WorkUnit blocker over historical main-health evidence" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "main_broken" => true }
+      )
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "stack_dependencies_not_ready",
+        blocked_details: { "start_blocked_reason" => "stack_dependencies_not_ready" }
+      )
+
+      item = call(subject: "job")[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item[:start_blocked_reason]).to eq("stack_dependencies_not_ready")
+    end
+
+    it "serializes an active main-health WorkUnit block" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "main_branch_health",
+        blocked_details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
+      )
+
+      item = call(subject: "job")[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item[:start_blocked_reason]).to eq(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
+    end
+
+    it "does not turn historical main-health evidence into a current blocker after recovery" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+
+      item = call(subject: "job")[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item[:start_blocked_reason]).to be_nil
+    end
+
     it "includes nil start_blocked_reason when no blocked workflow exists" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       Workflow.create!(job: job, trigger_kind: "initial", state: "queued")

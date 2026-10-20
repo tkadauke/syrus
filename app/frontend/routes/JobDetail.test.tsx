@@ -439,6 +439,28 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("main_branch_health")).not.toBeInTheDocument()
   })
 
+  it("shows the authoritative dependency blocker instead of historical main-health context", () => {
+    renderJobDetail(
+      jobPayload({
+        repository: {
+          ...jobPayload().repository,
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        },
+        job: {
+          ...baseJob(),
+          state: "queued",
+          start_blocked_reason: "stack_dependencies_not_ready"
+        }
+      })
+    )
+
+    expect(screen.getByText("Waiting on dependency")).toBeInTheDocument()
+    expect(screen.queryByText("Main branch broken")).not.toBeInTheDocument()
+    expect(screen.queryByText(/waiting for main branch health/i)).not.toBeInTheDocument()
+  })
+
   it("renders no blocked panel when nothing is blocking the job", () => {
     renderJobDetail(jobPayload({ job: { ...baseJob(), state: "running", start_blocked_reason: null } }))
 
@@ -1149,7 +1171,7 @@ describe("JobDetailView", () => {
   it("shows the waiting banner when a queued job is blocked by unhealthy main branch", () => {
     renderJobDetail(
       jobPayload({
-        job: { ...baseJob(), state: "queued", main_branch_repair: false },
+        job: { ...baseJob(), state: "queued", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
         repository: {
           id: 2,
           slug: "acme/widgets",

@@ -2007,7 +2007,7 @@ function mainHealthBannerVisible(payload: JobDetailPayload) {
   if (payload.repository.main_health !== "broken") return false
   if (!payload.repository.main_branch_repair_blocks_work) return false
 
-  return payload.job.state === "queued" || MAIN_HEALTH_REASONS.includes(payload.job.start_blocked_reason ?? "")
+  return payload.job.main_branch_repair || MAIN_HEALTH_REASONS.includes(payload.job.start_blocked_reason ?? "")
 }
 
 // Every reason Syrus is not working on this job, not just admission budget.
