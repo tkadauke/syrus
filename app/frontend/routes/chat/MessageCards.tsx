@@ -735,11 +735,11 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+      <summary className="flex min-w-0 cursor-pointer flex-wrap items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="min-w-0 break-words font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
-        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
+        <span className="order-last min-w-0 basis-full break-words pl-5 font-mono text-gray-600 [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-auto sm:pl-0 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
@@ -750,7 +750,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{detail ? `(${detail})` : ""}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
-              {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
+              {expanded && (toolCallSettled(call) || callHasExpandedCard(call)) ? <ToolResultBody call={call} /> : null}
               {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
@@ -807,6 +807,10 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // below exactly as an unregistered tool's error would.
   const pluginBody = pluginToolCardExpandedBody(toolCardContext(call))
   if (pluginBody != null) return <>{pluginBody}</>
+
+  // Registered cards may opt into the live no-result state. If a card
+  // declines it, keep the historical empty pending body.
+  if (!toolCallSettled(call)) return null
 
   if (call.result_error) return <ToolErrorCard call={call} />
 

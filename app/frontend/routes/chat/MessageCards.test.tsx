@@ -746,6 +746,33 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
+  it("renders a registered card's pending body before a tool result arrives", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group", tool: "Publish memory", summary_label: "Publish memory", outcome_label: "Running",
+      calls: [{ message_id: 22, tool_name: "publish_memory", raw_name: "mcp__syrus__publish_memory", detail: "22", display_label: "Publish memory", progress_label: "Thinking", raw_payload: { memory_id: 22 }, result_body: "", result_settled: false, result_error: false, result_kind: "unknown", result_summary: "" }]
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Publish memory")
+
+    expect(screen.getByText("Requested memory")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /MEMORY-22/ })).toHaveAttribute("href", "/memories")
+    expect(screen.getByText("Publishing memory...")).toBeInTheDocument()
+  })
+
+  it("gives grouped result details a full mobile row", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group", tool: "Publish memory", summary_label: "Publish memory (5)", outcome_label: "Done",
+      calls: Array.from({ length: 5 }, (_, index) => ({ message_id: index + 1, tool_name: "publish_memory", raw_name: "publish_memory", detail: String(index + 20), display_label: "Publish memory", progress_label: "Thinking", raw_payload: { memory_id: index + 20 }, result_body: "done", result_settled: true, result_error: false, result_kind: "text" as const, result_summary: "Published" }))
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const summary = screen.getByText("Publish memory (5)").closest("summary")
+    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(summary?.querySelector("span.order-last")).toHaveClass("basis-full", "sm:basis-auto")
+  })
+
   it("keeps an expanded tool group open when a streamed call joins it", () => {
     const firstCall = {
       message_id: 1,
