@@ -116,13 +116,15 @@ export function parsePendingActionResult(context: ToolCardContext): PendingActio
   // older payload's id while the message itself moved on).
   const live = context.livePendingAction
   const liveMatch = live && displayValue(live.id) === pendingActionId ? live : null
+  const liveGroup = context.livePendingActionGroup
+  const liveGroupMatch = groupId && liveGroup && displayValue(liveGroup.id) === groupId ? liveGroup : null
 
   return {
     kind: groupId || memberCount != null ? "bulk" : "standard",
     pendingActionId,
-    state: liveMatch?.state ?? state,
+    state: liveGroupMatch?.state ?? liveMatch?.state ?? state,
     message: displayValue(value.message),
-    reason: liveMatch?.reason || displayValue(value.reason),
+    reason: liveGroupMatch?.reason || liveMatch?.reason || displayValue(value.reason),
     memberCount,
     groupId
   }
@@ -330,9 +332,9 @@ function PendingActionInputs({ input, fields }: { input: Record<string, unknown>
   )
 }
 
-function pendingActionHref(context: ToolCardContext, id: string) {
-  const path = context.livePendingAction?.app_confirm_path
-  const chatId = path?.match(/\/chats\/(\d+)\/pending_actions\//)?.[1]
+function pendingActionHref(context: ToolCardContext) {
+  const path = context.livePendingActionGroup?.app_confirm_path || context.livePendingAction?.app_confirm_path
+  const chatId = path?.match(/\/chats\/(\d+)\/pending_action(?:_group)?s\//)?.[1]
   return chatId ? `/chats/${chatId}` : null
 }
 
@@ -346,7 +348,7 @@ function PendingActionConfiguredCard({
   options: PendingActionToolCardOptions
 }) {
   if (result.kind === "dry_run_evidence") return <PendingActionResultCard result={result} />
-  const href = pendingActionHref(context, result.pendingActionId)
+  const href = pendingActionHref(context)
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
