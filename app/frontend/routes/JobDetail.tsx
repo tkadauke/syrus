@@ -424,6 +424,9 @@ export function JobDetailView({
       {mainHealthBannerVisible(payload) ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
           <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>
+          {!payload.job.main_branch_repair && payload.job.start_blocked_reason ? (
+            <StartBlockedReasonPill reason={payload.job.start_blocked_reason} />
+          ) : null}
           {!payload.job.main_branch_repair ? (
             <Link
               className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -2020,6 +2023,7 @@ function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const reason = payload.job.start_blocked_reason
   if (!reason) return null
+  if (MAIN_HEALTH_REASONS.includes(reason) && !mainHealthBannerVisible(payload)) return null
   if (mainHealthBannerVisible(payload)) return null
 
   const breakdown = payload.job.start_blocked_breakdown
