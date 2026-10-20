@@ -895,7 +895,15 @@ export function ChatCommandOutputSurface({
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload }: { chatSessionId?: number | string; item: ChatToolGroupItem; payload?: ChatPayload }) {
+export const ToolGroup = memo(function ToolGroup({
+  chatSessionId,
+  item,
+  payload
+}: {
+  chatSessionId?: number | string
+  item: ChatToolGroupItem
+  payload?: ChatPayload
+}) {
   const [open, setOpen] = useState(false)
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
 
@@ -968,7 +976,12 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload 
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} payload={payload} />
+                    <ToolGroup
+                      chatSessionId={chatSessionId}
+                      item={nestedGroup}
+                      key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
+                      payload={payload}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -1005,7 +1018,15 @@ function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call))?.renderWhilePending === true
 }
 
-function ToolResultBody({ call, chatSessionId, onLinkClick }: { call: ChatToolGroupItem["calls"][number]; chatSessionId?: number | string; onLinkClick?: ToolCardContext["onLinkClick"] }) {
+function ToolResultBody({
+  call,
+  chatSessionId,
+  onLinkClick
+}: {
+  call: ChatToolGroupItem["calls"][number]
+  chatSessionId?: number | string
+  onLinkClick?: ToolCardContext["onLinkClick"]
+}) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -1048,7 +1069,11 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSessionId?: number | string, onLinkClick?: ToolCardContext["onLinkClick"]): ToolCardContext {
+export function toolCardContext(
+  call: ChatToolGroupItem["calls"][number],
+  chatSessionId?: number | string,
+  onLinkClick?: ToolCardContext["onLinkClick"]
+): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
