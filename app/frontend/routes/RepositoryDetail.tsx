@@ -37,7 +37,6 @@ import {
   fetchRepositoryDetail,
   pollRepositoryDetail,
   releaseNeedsTriageRepositoryJob,
-  retryFailedRepositoryJobs,
   runInsightAnalysis,
   runRepositoryRecommendation,
   type InsightScheduleConfigRecord,
@@ -739,16 +738,9 @@ function Actions({
   const search = queryKey[3]
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
-  const retry = payload.retry_failed_jobs
+  const retryStatus = payload.provider_retry_status
   const poll = useMutation({
     mutationFn: () => pollRepositoryDetail(appendSearch(payload.paths.app_poll_repository_path, search), payload.pagination.page),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || null)
-    }
-  })
-  const retryFailed = useMutation({
-    mutationFn: () => retryFailedRepositoryJobs(appendSearch(payload.paths.app_retry_failed_jobs_repository_path, search), payload.pagination.page),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || null)
@@ -763,18 +755,12 @@ function Actions({
       onNotice((updated as { message?: string | null }).message || t("repository.insight_started"))
     }
   })
-  const disabled = poll.isPending || retryFailed.isPending
+  const disabled = poll.isPending
 
   function pollNow() {
     onNotice(null)
     setMoreOpen(false)
     poll.mutate()
-  }
-
-  function retryFailedJobs() {
-    onNotice(null)
-    setMoreOpen(false)
-    retryFailed.mutate()
   }
 
   function startInsight() {
@@ -818,11 +804,6 @@ function Actions({
                   {t("repository.poll_now")}
                 </button>
               ) : null}
-              {payload.can_edit && retry.count > 0 ? (
-                <button className={menuItemClass()} disabled={disabled || retry.provider_circuit.open} onClick={retryFailedJobs} role="menuitem" type="button">
-                  {t("repository.retry_failed_with", { count: retry.count, provider: retry.agent_provider_label })}
-                </button>
-              ) : null}
               <Link
                 className={menuItemClass()}
                 onClick={() => setMoreOpen(false)}
@@ -861,13 +842,15 @@ function Actions({
           ) : null}
         </div>
       </div>
-      {retry.provider_circuit.open ? (
+      {retryStatus.provider_circuit.open ? (
         <PanelMessage tone="warning">
-          {t("repository.retries_paused", { provider: retry.agent_provider_label, reason: retry.provider_circuit.reason || t("repository.provider_degraded") })}
+          {t("repository.retries_paused", {
+            provider: retryStatus.agent_provider_label,
+            reason: retryStatus.provider_circuit.reason || t("repository.provider_degraded")
+          })}
         </PanelMessage>
       ) : null}
       {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, t("repository.poll_failed"))}</PanelMessage> : null}
-      {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, t("repository.retry_failed_command_failed"))}</PanelMessage> : null}
       {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, t("repository.insight_start_failed"))}</PanelMessage> : null}
     </>
   )
@@ -1195,7 +1178,7 @@ function InsightScheduleBadge({ config }: { config: InsightScheduleConfigRecord 
       <TonePill tone="green">
         {t("repository.insight_scheduling_badge_on", {
           min: config.min_jobs_since_last_run,
-          max: config.max_jobs_since_last_run,
+          max: config.max_jobs_since_last_run
         })}
       </TonePill>
     )

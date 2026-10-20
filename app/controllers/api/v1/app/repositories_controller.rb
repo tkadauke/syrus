@@ -155,41 +155,6 @@ module Api
           render json: repositories_payload(message: I18n.t("api.repositories.unarchived", slug: repository.slug))
         end
 
-        def retry_failed_jobs
-          return unless (repository = find_repository_for_admin_mutation)
-          eligible = retryable_failed_jobs(repository)
-          if eligible.empty?
-            render_error("validation_failed", I18n.t("api.repositories.no_failed_jobs"), status: :unprocessable_content)
-            return
-          end
-
-          agent_provider = repository.effective_agent_provider
-          result = SmartRetryEnqueuer.call_many(
-            jobs: eligible,
-            agent_provider: agent_provider,
-            provider_validation: :none,
-            automatic: true,
-            by_user: Current.user
-          )
-          unless result.success?
-            render_error("validation_failed", result.first_error || I18n.t("api.repositories.no_failed_jobs"), status: :unprocessable_content)
-            return
-          end
-          @inactive_retryable_failed_job_ids_by_repository&.delete(repository.id)
-
-          render json: repository_detail_payload(
-            repository.reload,
-            page: detail_page,
-            message: I18n.t("api.repositories.retry_enqueued", count: result.affected_job_ids.size, provider: agent_provider.titleize),
-            extra: {
-              retry_summary: {
-                actions: result.action_summary,
-                skipped: result.skip_summary
-              }
-            }
-          )
-        end
-
         def run_main_branch_graders
           return unless (repository = find_repository_for_admin_mutation)
           if repository.archived?
@@ -419,7 +384,7 @@ module Api
                 ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
               end,
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
-              retry_failed_jobs: PerformanceLogging.phase("repository_detail.retry_failed_jobs", repository_id: repository.id) { retry_failed_jobs_json(repository) },
+              provider_retry_status: PerformanceLogging.phase("repository_detail.provider_retry_status", repository_id: repository.id) { provider_retry_status_json(repository) },
               can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
               can_release_triage_jobs: can_release_triage_jobs?(repository),
               needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
@@ -439,7 +404,6 @@ module Api
                 edit_repository_path: edit_repository_path(repository),
                 app_poll_repository_path: "/api/v1/app/repositories/#{repository.id}/poll",
                 app_archive_repository_path: "/api/v1/app/repositories/#{repository.id}/archive",
-                app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
                 app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job",
                 app_resume_landing_repository_path: "/api/v1/app/repositories/#{repository.id}/resume_landing",
                 app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
@@ -655,10 +619,9 @@ module Api
           { running: counts[:running], queued: counts[:queued], failed_7d: counts[:failed_7d] }
         end
 
-        def retry_failed_jobs_json(repository)
+        def provider_retry_status_json(repository)
           circuit = ProviderCircuitBreaker.call(repository.effective_agent_provider, include_logs: false)
           {
-            count: retryable_failed_jobs_count(repository),
             agent_provider: repository.effective_agent_provider,
             agent_provider_label: agent_provider_label(repository.effective_agent_provider),
             provider_circuit: circuit.as_json
@@ -707,15 +670,6 @@ module Api
             ClassifyIssueJob.enqueue_for_job!(job)
           elsif job.may_advance_after_triage?
             job.advance_after_triage!
-          end
-        end
-
-        def provider_circuit_message(circuit)
-          label = agent_provider_label(circuit.provider)
-          if circuit.retry_after
-            I18n.t("api.repositories.circuit_open_until", label: label, until: circuit.retry_after.to_fs(:db))
-          else
-            I18n.t("api.repositories.circuit_open", label: label)
           end
         end
 
@@ -1061,55 +1015,6 @@ module Api
             I18n.t("api.repositories.main_branch_repair_active", slug: repository.slug)
           else
             I18n.t("api.repositories.main_branch_repair_unavailable", slug: repository.slug)
-          end
-        end
-
-        def retryable_failed_jobs(repository)
-          retryable_failed_jobs_scope(repository, inactive_job_ids: inactive_retryable_failed_job_ids(repository)).to_a
-        end
-
-        def retryable_failed_jobs_count(repository)
-          retryable_failed_jobs_count_scope(repository).count
-        end
-
-        def retryable_failed_jobs_scope(repository, inactive_job_ids: nil)
-          base = repository.jobs.open_threads
-          candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
-
-          if inactive_job_ids
-            return repository.jobs.none if inactive_job_ids.empty?
-
-            return candidates.where(id: inactive_job_ids)
-          end
-
-          candidates.where(id: inactive_retryable_failed_job_ids(repository))
-        end
-
-        def retryable_failed_jobs_count_scope(repository)
-          base = repository.jobs.open_threads
-          candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
-          active_candidate_job_ids = WorkUnitMember
-            .joins(:work_unit)
-            .where(job_id: candidates.select(:id), work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
-            .select(:job_id)
-
-          candidates.where.not(id: active_candidate_job_ids)
-        end
-
-        def inactive_retryable_failed_job_ids(repository)
-          @inactive_retryable_failed_job_ids_by_repository ||= {}
-          @inactive_retryable_failed_job_ids_by_repository[repository.id] ||= begin
-            base = repository.jobs.open_threads
-            candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
-            candidate_ids = candidates.reorder(nil).pluck(:id)
-
-            if candidate_ids.empty?
-              []
-            else
-              active_candidate_job_ids = WorkUnits::Ownership.active_units_by_job_id(candidate_ids).keys
-
-              candidate_ids - active_candidate_job_ids
-            end
           end
         end
 

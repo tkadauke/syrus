@@ -59,7 +59,8 @@ RSpec.describe "Repositories", type: :request do
         [ :post, "/repositories/1/poll" ],
         [ :post, "/repositories/1/archive" ],
         [ :post, "/repositories/1/unarchive" ],
-        [ :post, "/repositories/1/retry_failed_jobs" ]
+        [ :post, "/repositories/1/retry_failed_jobs" ],
+        [ :post, "/api/v1/app/repositories/1/retry_failed_jobs" ]
       ].each do |method, path|
         expect {
           Rails.application.routes.recognize_path(path, method: method)

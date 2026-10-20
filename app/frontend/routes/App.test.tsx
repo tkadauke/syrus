@@ -661,15 +661,13 @@ describe("App", () => {
   })
 
   it("renders the sign-in route and submits credentials through the auth API", async () => {
-    const fetchSpy = vi
-      .spyOn(window, "fetch")
-      .mockImplementation(
-        async () =>
-          new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Try another email address or password." } }), {
-            status: 422,
-            headers: { "Content-Type": "application/json" }
-          })
-      )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Try another email address or password." } }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" }
+        })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -9924,24 +9922,6 @@ describe("App", () => {
         )
       }
 
-      if (path === "/api/v1/app/repositories/3/retry_failed_jobs" && init?.method === "POST") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              ...repositoryDetailPayload(),
-              message: "Retry enqueued for 1 failed job with Codex.",
-              retry_failed_jobs: {
-                count: 0,
-                agent_provider: "codex",
-                agent_provider_label: "Codex",
-                provider_circuit: closedProviderCircuit("codex")
-              }
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
-      }
-
       return Promise.resolve(new Response(JSON.stringify(repositoryDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
@@ -9966,20 +9946,6 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Polling acme/widgets now.")).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
-    fireEvent.click(screen.getByRole("menuitem", { name: "Retry 1 failed with Codex" }))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/retry_failed_jobs",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          body: JSON.stringify({ page: 1 })
-        })
-      )
-    })
-    expect(await screen.findByText("Retry enqueued for 1 failed job with Codex.")).toBeInTheDocument()
 
     // Archive lives in the edit form's danger zone now, not the detail
     // page's "More actions" menu.
@@ -12879,23 +12845,21 @@ describe("App", () => {
   it("blocks sending a ready walkthrough alongside image attachments", async () => {
     // Gemini must be configured or the drop opens the setup sheet instead of
     // creating a walkthrough draft (chatPayload defaults gemini_configured off).
-    const fetchSpy = vi
-      .spyOn(window, "fetch")
-      .mockImplementation(
-        async () =>
-          new Response(
-            JSON.stringify({
-              ...chatPayload(),
-              gemini_configured: true,
-              paths: {
-                ...chatPayload().paths,
-                app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs",
-                app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry"
-              }
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-      )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ...chatPayload(),
+            gemini_configured: true,
+            paths: {
+              ...chatPayload().paths,
+              app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs",
+              app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry"
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    )
     // jsdom implements neither media metadata nor URL.createObjectURL, so the
     // real measureVideoDuration would hang the intake await; resolve it here.
     vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockImplementation(async () => 30)
@@ -18147,8 +18111,7 @@ function repositoryDetailPayload() {
       queued: 1,
       failed_7d: 1
     },
-    retry_failed_jobs: {
-      count: 1,
+    provider_retry_status: {
       agent_provider: "codex",
       agent_provider_label: "Codex",
       provider_circuit: closedProviderCircuit("codex")
@@ -18202,7 +18165,6 @@ function repositoryDetailPayload() {
       edit_repository_path: "/repositories/3/edit",
       app_poll_repository_path: "/api/v1/app/repositories/3/poll",
       app_archive_repository_path: "/api/v1/app/repositories/3/archive",
-      app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/3/retry_failed_jobs",
       repositories_path: "/repositories",
       repository_documents_path: "/repositories/3/documents",
       repository_scheduled_tasks_path: "/repositories/3/scheduled_tasks",
