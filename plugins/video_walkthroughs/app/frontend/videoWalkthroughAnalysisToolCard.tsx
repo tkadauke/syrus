@@ -1,5 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 
 type ContentBlock = Record<string, unknown>
 
@@ -22,9 +24,12 @@ type MediaReference = {
   label: string
   timestamp: string | null
   mimeType: string | null
+  src: string
 }
 
 type FullAnalysisCard = {
+  walkthroughId: string | null
+  report: string | null
   summary: string | null
   sections: WalkthroughSection[]
   issues: WalkthroughIssue[]
@@ -33,6 +38,7 @@ type FullAnalysisCard = {
   openQuestions: string[]
   media: MediaReference[]
   empty: boolean
+  pending: boolean
   error: string | null
 }
 
@@ -79,7 +85,7 @@ function textBlocks(context: ToolCardContext): string[] {
 }
 
 function firstReportText(context: ToolCardContext): string | null {
-  return textBlocks(context).find((text) => text.includes("## Session summary") || text.includes("## Issues found")) ?? null
+  return textBlocks(context).find((text) => !text.match(/^Screenshot — .+ \(at .+\):$/) && !text.match(/^\s*[\[{]/)) ?? null
 }
 
 function sectionText(report: string, heading: string): string | null {
@@ -91,10 +97,13 @@ function sectionText(report: string, heading: string): string | null {
 function parseFullAnalysis(context: ToolCardContext): FullAnalysisCard | null {
   const report = firstReportText(context)
   const error = context.resultError ? textBlocks(context).join("\n").trim() || "Walkthrough analysis failed." : null
-  if (!report && !error) return null
+  const walkthroughId = displayValue(context.input?.walkthrough_id)
+  if (!report && !error && !walkthroughId) return null
 
   const issues = report ? parseIssues(report) : []
   return {
+    walkthroughId,
+    report,
     summary: report ? sectionText(report, "Session summary") : null,
     sections: report ? parseSections(report) : [],
     issues,
@@ -103,6 +112,7 @@ function parseFullAnalysis(context: ToolCardContext): FullAnalysisCard | null {
     openQuestions: report ? bulletTexts(sectionText(report, "Open questions from the analysis")) : [],
     media: mediaReferences(context),
     empty: Boolean(report?.includes("(none") || (issues.length === 0 && report?.includes("## Issues found"))),
+    pending: !report && !error,
     error
   }
 }
@@ -184,10 +194,14 @@ function mediaReferences(context: ToolCardContext): MediaReference[] {
       }
     }
     if (block.type === "image") {
+      const data = displayValue(block.data)
+      const mimeType = displayValue(block.mimeType) || displayValue(block.mime_type) || "image/jpeg"
+      if (!data) continue
       media.push({
         label: pendingLabel || displayValue(block.title) || "Walkthrough frame",
         timestamp: pendingTimestamp,
-        mimeType: displayValue(block.mimeType) || displayValue(block.mime_type) || null
+        mimeType,
+        src: data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`
       })
       pendingLabel = null
       pendingTimestamp = null
@@ -201,6 +215,7 @@ export function fullAnalysisSummary(context: ToolCardContext) {
   const card = parseFullAnalysis(context)
   if (!card) return null
   if (card.error) return "Walkthrough analysis failed"
+  if (card.pending) return "Walkthrough analysis pending"
   const segments = card.sections.length === 1 ? "1 segment" : `${card.sections.length} segments`
   const issues = card.issueCount === 1 ? "1 issue" : `${card.issueCount} issues`
   const media = card.media.length > 0 ? `, ${card.media.length} frame${card.media.length === 1 ? "" : "s"}` : ""
@@ -218,18 +233,24 @@ function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough analysis</Badge>
         <StatePill
-          state={card.error ? "failed" : card.empty ? "no issues" : "issues found"}
-          tone={card.error ? "failure" : card.empty ? "success" : "warning"}
+          state={card.error ? "failed" : card.pending ? "pending" : card.empty ? "no issues" : "issues found"}
+          tone={card.error ? "failure" : card.pending ? "neutral" : card.empty ? "success" : "warning"}
         />
-        {!card.error ? (
+        {!card.error && !card.pending ? (
           <Badge>
             {card.issueCount} issue{card.issueCount === 1 ? "" : "s"}
           </Badge>
         ) : null}
       </div>
+      {card.walkthroughId ? (
+        <div className="text-xs text-text-muted">
+          Walkthrough: <EntityReference href={`/api/v1/app/video_walkthroughs/${card.walkthroughId}`} id={card.walkthroughId} kind="walkthrough" />
+        </div>
+      ) : null}
       {card.error ? <RecoveryPanel message={card.error} /> : null}
-      {card.summary ? <p className="text-sm text-text-primary">{card.summary}</p> : null}
-      {!card.error ? (
+      {card.pending ? <EmptyState>The walkthrough analysis is still pending. Retry after analysis completes.</EmptyState> : null}
+      {card.summary ? <MarkdownPreview linkifyUrls maxChars={900} maxLines={5} modalLabel="Session summary" text={card.summary} /> : null}
+      {!card.error && !card.pending ? (
         <dl className="grid gap-1 sm:grid-cols-3">
           <Row label="Segments" value={String(card.sections.length)} />
           <Row label="Issues" value={String(card.issueCount)} />
@@ -250,6 +271,9 @@ function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
             ))}
           </div>
         </Disclosure>
+      ) : null}
+      {!card.error && !card.pending && card.report && !hasRecognizedSections(card.report) ? (
+        <MarkdownPreview linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Walkthrough analysis report" text={card.report} />
       ) : null}
     </CardShell>
   )
@@ -295,13 +319,7 @@ function IssuesList({ issues }: { issues: WalkthroughIssue[] }) {
               {issue.surface ? <span>{issue.surface}</span> : null}
             </div>
             {issue.details.length > 0 ? (
-              <ul className="mt-1 space-y-0.5 text-xs text-text-secondary">
-                {issue.details.map((detail, index) => (
-                  <li className="break-words" key={`${detail}-${index}`}>
-                    {detail}
-                  </li>
-                ))}
-              </ul>
+              <MarkdownPreview className="mt-1 text-text-secondary" linkifyUrls maxChars={700} maxLines={4} text={issue.details.join("\n\n")} />
             ) : null}
           </div>
         ))}
@@ -314,17 +332,26 @@ function MediaList({ media }: { media: MediaReference[] }) {
   return (
     <div className="space-y-1">
       <SectionLabel>Frame references</SectionLabel>
-      <div className="grid gap-1 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">
         {media.map((item, index) => (
-          <div className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1.5" key={`${item.label}-${index}`}>
-            <div className="truncate text-sm font-medium text-text-primary" title={item.label}>
-              {item.label}
-            </div>
-            <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
-              {item.timestamp ? <span className="font-mono">{item.timestamp}</span> : null}
-              {item.mimeType ? <span>{item.mimeType}</span> : null}
-            </div>
-          </div>
+          <MediaPreviewShell
+            item={{
+              title: item.label,
+              subtitle: item.timestamp,
+              src: item.src,
+              alt: `${item.label}${item.timestamp ? ` at ${item.timestamp}` : ""}`,
+              badge: item.mimeType?.split("/").pop()?.toUpperCase(),
+              meta: [
+                { label: "Timestamp", value: item.timestamp },
+                { label: "Label", value: item.label, copyValue: item.label },
+                { label: "Content type", value: item.mimeType }
+              ],
+              actions: [{ label: "Copy image", copyValue: item.src }]
+            }}
+            key={`${item.label}-${index}`}
+            modalLabel={`${item.label} frame`}
+            thumbnailClassName="w-full"
+          />
         ))}
       </div>
     </div>
@@ -457,16 +484,26 @@ function SegmentBody({ card }: { card: SegmentCard }) {
 }
 
 function RecoveryPanel({ message }: { message: string }) {
+  const guidance = recoveryGuidance(message)
   return (
     <div className="space-y-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-2 py-1.5">
       <div className="text-sm font-medium text-danger-text">{message}</div>
-      <ul className="space-y-0.5 text-xs text-danger-text">
-        <li>Check that the walkthrough is analyzed and belongs to this chat.</li>
-        <li>Retry a shorter time range if Gemini quota or segment length caused the failure.</li>
-        <li>Record a fresh walkthrough if the stored video or retained upload expired.</li>
-      </ul>
+      <div className="text-xs text-danger-text">{guidance}</div>
     </div>
   )
+}
+
+function recoveryGuidance(message: string) {
+  if (/quota|rate.?limit/i.test(message)) return "Gemini quota is temporarily unavailable. Wait briefly, then retry the analysis."
+  if (/api.?key|key.*(?:invalid|reject|unauthor)/i.test(message))
+    return "The Gemini API key was rejected. Ask an administrator to verify the plugin credentials, then retry."
+  if (/pruned|expired|stored video|upload.*(?:missing|unavailable)/i.test(message))
+    return "The retained video is unavailable. Record and submit a fresh walkthrough."
+  return "Check that the walkthrough belongs to this chat and has finished analyzing, then retry."
+}
+
+function hasRecognizedSections(report: string) {
+  return /^## (?:Session summary|Sections|Issues found)(?: |$)/m.test(report)
 }
 
 export const fullAnalysisExamples: ToolCardExample[] = [
@@ -526,6 +563,21 @@ export const fullAnalysisExamples: ToolCardExample[] = [
           ].join("\n")
         }
       ]
+    }
+  },
+  {
+    id: "pending_analysis",
+    label: "Pending analysis",
+    input: { walkthrough_id: 44 },
+    parsedResult: {}
+  },
+  {
+    id: "failed_analysis",
+    label: "Analysis failure",
+    input: { walkthrough_id: 45 },
+    resultError: true,
+    parsedResult: {
+      content: [{ type: "text", text: "Gemini API key rejected." }]
     }
   }
 ]
