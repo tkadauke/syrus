@@ -723,10 +723,19 @@ function configMapEntries(configMap: K8sRow) {
 function configMapEntry(name: string, value: unknown, binary: boolean) {
   const raw = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value)
   const encoded = new TextEncoder().encode(raw)
-  const bytes = encoded.length
-  const capped = bytes > CONFIG_MAP_VALUE_DISPLAY_LIMIT
+  const bytes = binary ? (base64DecodedSize(raw) ?? encoded.length) : encoded.length
+  const capped = !binary && encoded.length > CONFIG_MAP_VALUE_DISPLAY_LIMIT
   const display = capped ? new TextDecoder().decode(encoded.slice(0, CONFIG_MAP_VALUE_DISPLAY_LIMIT)) : raw
   return { name, binary, bytes, capped, preview: redactToolCardText(display) }
+}
+
+function base64DecodedSize(value: string) {
+  const normalized = value.replace(/\s/g, "")
+  if (normalized.length === 0) return 0
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(normalized)) return null
+
+  const padding = normalized.endsWith("==") ? 2 : normalized.endsWith("=") ? 1 : 0
+  return (normalized.length / 4) * 3 - padding
 }
 
 function collectionKey(kind: CardKind) {
