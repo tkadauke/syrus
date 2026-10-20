@@ -739,7 +739,7 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
@@ -825,7 +825,7 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
+export function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
@@ -839,7 +839,7 @@ function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCallSettled(call: ChatToolGroupItem["calls"][number]) {
-  return call.result_settled === true || call.result_body !== ""
+  return call.result_settled === true || call.result_error || call.result_body !== ""
 }
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
@@ -903,7 +903,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
         <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
         {outcome ? <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : "neutral"}>{outcome}</Pill> : null}
         {argumentSummary ? <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400">{argumentSummary}</span> : null}
-        {resultSummary ? <span className="shrink-0 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</span> : null}
+        {resultSummary ? <span className="min-w-0 flex-1 break-words font-mono text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{resultSummary}</span> : null}
         {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
       </summary>
       {open ? <div className="px-3 pb-3"><RawToolDetails payload={{ name: tool?.raw_name || tool?.name || name, input: tool?.raw_payload || null, result: tool?.payload || fallback }} /></div> : null}

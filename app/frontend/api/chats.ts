@@ -1618,6 +1618,7 @@ export type ChatJobStatusPendingProposal = {
   title: string | null
   state: string
   anchor_message_id: number | null
+  dependency_ids?: number[]
   active_children_count: number | null
   created_at: string | null
 }

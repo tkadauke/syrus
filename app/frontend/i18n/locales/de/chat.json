@@ -340,6 +340,11 @@
   "job_status_hide_closed": "Abgeschlossene ausblenden",
   "job_status_show_closed": "Abgeschlossene anzeigen",
   "job_status_proposed_title": "Vorgeschlagen",
+  "job_status_select_all_proposals": "Alle Vorschläge auswählen",
+  "job_status_select_proposal": "{{title}} auswählen",
+  "job_status_reject_selected": "Ablehnen",
+  "job_status_backlog_epic_unavailable": "Epic-Vorschläge können nicht ins Backlog verschoben werden.",
+  "job_status_bulk_action_error": "Nicht alle ausgewählten Vorschläge konnten aktualisiert werden.",
   "job_status_proposal_kind_job": "Job",
   "job_status_proposal_kind_syrus_issue": "Job",
   "job_status_proposal_kind_epic": "Epic",
@@ -576,5 +581,23 @@
   "card_preview_pending_one": "{{count}} ausstehend",
   "card_preview_pending_other": "{{count}} ausstehend",
   "tool_card_diff_page_only_stats": "Die Änderungszahlen gelten nur für diese Seite.",
-  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs"
+  "tool_card_diff_page_out_of_range": "JOB-{{jobId}}: Diff-Seite {{page}} außerhalb des Bereichs",
+  "ingest_pull_request": {
+    "failure_title": "Pull-Request-Übernahme",
+    "attempted": "Pull Request übernehmen",
+    "attempted_with_number": "PR #{{prNumber}} übernehmen",
+    "recovery": "Prüfen Sie das verknüpfte Repository, die Pull-Request-Nummer, die Klassifizierung und die Validierungsmeldung, bevor Sie es erneut versuchen.",
+    "summary_ingested": "PR #{{prNumber}} als {{jobLabel}} übernommen",
+    "summary_already_ingested": "PR #{{prNumber}} bereits als {{jobLabel}} übernommen",
+    "classification_override": "Klassifizierung überschrieben",
+    "classification_override_not_applied": "Klassifizierung überschrieben (nicht angewendet)",
+    "classification_auto_detected": "Automatisch erkannte Klassifizierung",
+    "status_ingested": "übernommen",
+    "status_already_ingested": "bereits übernommen",
+    "no_job": "Für diese Klassifizierung wurde kein Job erstellt.",
+    "incomplete_job": "Das Übernahmeergebnis enthält unvollständige Job-Details.",
+    "example_auto_detected": "Automatisch erkannte Übernahme",
+    "example_override_without_job": "Klassifizierungsüberschreibung ohne Job",
+    "example_not_found": "Pull Request nicht gefunden"
+  }
 }

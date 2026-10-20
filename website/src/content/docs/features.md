@@ -763,7 +763,10 @@ progressive composer text remains intact when transcription fails.
 Once the current chat session has a pending or confirmed proposal, or a Job
 directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
 section at the top lists this chat's own pending Job and Epic proposals, each
-linking back to the message where it was posted. Below that, confirmed
+linking back to the message where it was posted. Operators can select proposals
+individually or all at once, then send the selection to the backlog, start
+implementation, or reject it; Epic proposals can be implemented or rejected
+but cannot be routed to the backlog. Below that, confirmed
 proposals are grouped into their respective Epics (collapsible, with a
 done/total progress pill), with remaining standalone Jobs shown as a flat
 list. Each confirmed-Job card displays the Job state, the active workflow

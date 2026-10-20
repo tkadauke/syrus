@@ -13,10 +13,7 @@ function renderPanel(chatId: number | string = 8, onSelectMessage?: (messageId: 
       <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
         <LocationProbe />
         <Routes>
-          <Route
-            element={<ChatJobStatusPanel chatId={chatId} onSelectMessage={onSelectMessage} />}
-            path="/app-shell/chats/:id"
-          />
+          <Route element={<ChatJobStatusPanel chatId={chatId} onSelectMessage={onSelectMessage} />} path="/app-shell/chats/:id" />
           <Route element={<div data-testid="job-detail" />} path="/app-shell/jobs/:id" />
         </Routes>
       </MemoryRouter>
@@ -38,7 +35,12 @@ function renderPanelWithClient(queryClient: QueryClient, chatId: number | string
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function jobItem(overrides: Partial<ChatJobStatusItem & { kind: "job" }> = {}): ChatJobStatusItem {
@@ -123,9 +125,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows the workflow step when present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ workflow_step: "implement" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ workflow_step: "implement" })]))
 
     renderPanel()
 
@@ -133,20 +133,22 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("renders an active queued feedback workflow instead of plain implemented review state", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "implemented",
-        workflow_step: "chat_feedback",
-        active_workflow: {
-          id: 15652,
-          slug: "WF-552",
-          state: "queued",
-          trigger_kind: "chat_feedback",
-          step: "chat_feedback"
-        },
-        blocker: null
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "implemented",
+          workflow_step: "chat_feedback",
+          active_workflow: {
+            id: 15652,
+            slug: "WF-552",
+            state: "queued",
+            trigger_kind: "chat_feedback",
+            step: "chat_feedback"
+          },
+          blocker: null
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -157,9 +159,7 @@ describe("ChatJobStatusPanel job cards", () => {
   })
 
   it("shows a PR link when pr_number and pr_url are set", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ pr_number: 7, pr_url: "https://github.com/acme/widgets/pull/7" })]))
 
     renderPanel()
 
@@ -221,11 +221,13 @@ describe("ChatJobStatusPanel job cards", () => {
 
 describe("ChatJobStatusPanel blocker banner", () => {
   it("shows an amber (not red, not the warning token) blocker banner for awaiting_review, since it is an expected step, not a failure", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          blocker: { reason: "awaiting_review", description: "Waiting for PR review and approval" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -243,12 +245,14 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a red landing failed banner for landing_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "landing",
-        blocker: { reason: "landing_failed", description: "Auto-merge failed" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "landing",
+          blocker: { reason: "landing_failed", description: "Auto-merge failed" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -260,12 +264,14 @@ describe("ChatJobStatusPanel blocker banner", () => {
   })
 
   it("shows a red dependency failed banner for dependency_failed blockers", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({
-        state: "queued",
-        blocker: { reason: "dependency_failed", description: "A dependency failed" }
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({
+          state: "queued",
+          blocker: { reason: "dependency_failed", description: "A dependency failed" }
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -356,9 +362,7 @@ describe("ChatJobStatusPanel epic tree", () => {
   })
 
   it("keeps the epic slug badge from shrinking so a long title can't squeeze it into a character-by-character wrap", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({ title: "A very long epic title that competes for space with the slug badge" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem({ title: "A very long epic title that competes for space with the slug badge" })]))
 
     renderPanel()
 
@@ -393,9 +397,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("does not show the hide-closed button when no jobs are closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ state: "running" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ state: "running" })]))
 
     renderPanel()
 
@@ -404,9 +406,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when at least one standalone job is closed", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ state: "closed" })]))
 
     renderPanel()
 
@@ -414,10 +414,12 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed standalone jobs when the toggle is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
-      jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
+        jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
+      ])
+    )
 
     renderPanel()
 
@@ -431,9 +433,7 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows closed jobs again when the toggle is clicked a second time", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })]))
 
     renderPanel()
 
@@ -446,14 +446,40 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides closed children inside an epic but keeps open children visible", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
-          { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Open child",
+              state: "running",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            },
+            {
+              kind: "job",
+              job_id: 11,
+              slug: "JOB-11",
+              title: "Closed child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T11:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -468,13 +494,27 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("hides the entire epic when all its children are closed and hide is active", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Done child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -486,13 +526,27 @@ describe("ChatJobStatusPanel hide closed", () => {
   })
 
   it("shows the hide-closed button when an epic has at least one closed child", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      epicItem({
-        children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
-        ]
-      })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse([
+        epicItem({
+          children: [
+            {
+              kind: "job",
+              job_id: 10,
+              slug: "JOB-10",
+              title: "Closed child",
+              state: "closed",
+              workflow_step: null,
+              active_workflow: null,
+              pr_number: null,
+              pr_url: null,
+              blocker: null,
+              updated_at: "2026-01-01T12:00:00Z"
+            }
+          ]
+        })
+      ])
+    )
 
     renderPanel()
 
@@ -541,6 +595,7 @@ function pendingProposal(overrides: Partial<ChatJobStatusPendingProposal> = {}):
     title: "Survey aqueduct route",
     state: "proposed",
     anchor_message_id: 42,
+    dependency_ids: [],
     active_children_count: null,
     created_at: "2026-05-30T12:00:00.000Z",
     ...overrides
@@ -549,10 +604,12 @@ function pendingProposal(overrides: Partial<ChatJobStatusPendingProposal> = {}):
 
 describe("ChatJobStatusPanel pending proposals", () => {
   it("renders a pending Job proposal card above confirmed job status cards", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_proposals: [pendingProposal()],
-      items: [jobItem({ title: "Confirmed job" })]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_proposals: [pendingProposal()],
+        items: [jobItem({ title: "Confirmed job" })]
+      })
+    )
 
     renderPanel()
 
@@ -563,10 +620,12 @@ describe("ChatJobStatusPanel pending proposals", () => {
   })
 
   it("renders a pending Epic proposal card with its kind and active child count", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_proposals: [pendingProposal({ id: 2, kind: "epic", title: "Aqueduct renovation epic", active_children_count: 3 })],
-      items: []
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_proposals: [pendingProposal({ id: 2, kind: "epic", title: "Aqueduct renovation epic", active_children_count: 3 })],
+        items: []
+      })
+    )
 
     renderPanel()
 
@@ -577,10 +636,12 @@ describe("ChatJobStatusPanel pending proposals", () => {
 
   it("calls onSelectMessage with the proposal's anchor message id when a pending card is clicked", async () => {
     const onSelectMessage = vi.fn()
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_proposals: [pendingProposal({ anchor_message_id: 99 })],
-      items: []
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_proposals: [pendingProposal({ anchor_message_id: 99 })],
+        items: []
+      })
+    )
 
     renderPanel(8, onSelectMessage)
 
@@ -591,10 +652,12 @@ describe("ChatJobStatusPanel pending proposals", () => {
   })
 
   it("shows the proposed section instead of the confirmed-empty message when only pending proposals exist", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      pending_proposals: [pendingProposal()],
-      items: []
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        pending_proposals: [pendingProposal()],
+        items: []
+      })
+    )
 
     renderPanel()
 
@@ -609,6 +672,110 @@ describe("ChatJobStatusPanel pending proposals", () => {
 
     expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
   })
+
+  it("reveals bulk actions after selection and implements selected Jobs and Epics", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      return Promise.resolve(
+        jsonResponse({
+          pending_proposals: [
+            pendingProposal({ id: 1, title: "Survey aqueduct route" }),
+            pendingProposal({ id: 2, kind: "epic", title: "Aqueduct renovation epic", active_children_count: 3 })
+          ],
+          items: []
+        })
+      )
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("Survey aqueduct route")).toBeInTheDocument()
+    expect(screen.queryByTestId("proposal-bulk-actions")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all proposals" }))
+    expect(screen.getByTestId("proposal-bulk-actions")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Backlog" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Implement" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2))
+    const postCalls = fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")
+    expect(String(postCalls[0][0])).toContain("/chats/8/proposals/1/confirm")
+    expect(JSON.parse(String(postCalls[0][1]?.body))).toEqual({ route_to_backlog: false })
+    expect(String(postCalls[1][0])).toContain("/chats/8/proposals/2/confirm")
+    expect(JSON.parse(String(postCalls[1][1]?.body))).toEqual({ start: true })
+  })
+
+  it("confirms selected dependencies before their dependents", async () => {
+    const confirmed = new Set<number>()
+    const postOrder: number[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") {
+        const proposalId = Number(String(input).match(/proposals\/(\d+)\/confirm/)?.[1])
+        postOrder.push(proposalId)
+        if (proposalId === 2 && !confirmed.has(1)) confirmed.add(1)
+        if (confirmed.has(proposalId)) {
+          return Promise.resolve(jsonResponse({ error: { message: "Proposal is already confirmed." } }, 422))
+        }
+        confirmed.add(proposalId)
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      }
+      return Promise.resolve(
+        jsonResponse({
+          pending_proposals: [
+            pendingProposal({ id: 2, title: "Build on the foundation", dependency_ids: [1] }),
+            pendingProposal({ id: 1, title: "Lay the foundation" })
+          ],
+          items: []
+        })
+      )
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all proposals" }))
+    fireEvent.click(screen.getByRole("button", { name: "Implement" }))
+
+    await waitFor(() => expect(postOrder).toEqual([1, 2]))
+    await waitFor(() => expect(screen.queryByTestId("proposal-bulk-actions")).not.toBeInTheDocument())
+    expect(screen.queryByText("Could not update all selected proposals.")).not.toBeInTheDocument()
+  })
+
+  it("routes selected Job proposals to backlog", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      return Promise.resolve(jsonResponse({ pending_proposals: [pendingProposal()], items: [] }))
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select Survey aqueduct route" }))
+    fireEvent.click(screen.getByRole("button", { name: "Backlog" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true))
+    const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
+    expect(String(postCall?.[0])).toContain("/chats/8/proposals/1/confirm")
+    expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ route_to_backlog: true })
+  })
+
+  it("rejects every selected proposal", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected." }))
+      return Promise.resolve(
+        jsonResponse({
+          pending_proposals: [pendingProposal({ id: 1 }), pendingProposal({ id: 2, title: "Inspect reservoir" })],
+          items: []
+        })
+      )
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all proposals" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2))
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST").map(([input]) => String(input))).toEqual([
+      expect.stringContaining("/chats/8/proposals/1/reject"),
+      expect.stringContaining("/chats/8/proposals/2/reject")
+    ])
+  })
 })
 
 describe("ChatJobStatusPanel live updates", () => {
@@ -618,9 +785,7 @@ describe("ChatJobStatusPanel live updates", () => {
       pending_proposals: [],
       items: [jobItem({ title: "Cached status" })]
     })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
-      jobItem({ title: "Refetched status" })
-    ]))
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ title: "Refetched status" })]))
 
     renderPanelWithClient(queryClient)
 
@@ -639,9 +804,11 @@ describe("ChatJobStatusPanel live updates", () => {
 
     expect(await screen.findByText("First load")).toBeInTheDocument()
 
-    window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
-      detail: { job_id: 42, chat_session_id: 8 }
-    }))
+    window.dispatchEvent(
+      new CustomEvent("syrus:job-status-changed", {
+        detail: { job_id: 42, chat_session_id: 8 }
+      })
+    )
 
     expect(await screen.findByText("After update")).toBeInTheDocument()
   })
@@ -658,9 +825,11 @@ describe("ChatJobStatusPanel live updates", () => {
     expect(await screen.findByText("Stable title")).toBeInTheDocument()
     const fetchCountBefore = callCount
 
-    window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
-      detail: { job_id: 42, chat_session_id: 99 }
-    }))
+    window.dispatchEvent(
+      new CustomEvent("syrus:job-status-changed", {
+        detail: { job_id: 42, chat_session_id: 99 }
+      })
+    )
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(callCount).toBe(fetchCountBefore)
@@ -680,7 +849,7 @@ describe("ChatJobStatusPanel pending proposal live updates", () => {
         type: "chat.updated",
         resource: "chat",
         id: 8,
-        changed: [ "proposal" ],
+        changed: ["proposal"],
         payload: {
           action: "update_proposal",
           proposal_id: 1,
@@ -695,7 +864,7 @@ describe("ChatJobStatusPanel pending proposal live updates", () => {
   it("removes a pending proposal card live the moment an update_proposal broadcast confirms or rejects it", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "8", "job_status"], {
-      pending_proposals: [ pendingProposal({ id: 1, title: "Survey aqueduct route" }) ],
+      pending_proposals: [pendingProposal({ id: 1, title: "Survey aqueduct route" })],
       items: []
     })
     renderPanelWithClient(queryClient)
@@ -707,7 +876,7 @@ describe("ChatJobStatusPanel pending proposal live updates", () => {
         type: "chat.updated",
         resource: "chat",
         id: 8,
-        changed: [ "proposal" ],
+        changed: ["proposal"],
         payload: {
           action: "update_proposal",
           proposal_id: 1,
@@ -731,7 +900,7 @@ describe("ChatJobStatusPanel pending proposal live updates", () => {
         type: "chat.updated",
         resource: "chat",
         id: 99,
-        changed: [ "proposal" ],
+        changed: ["proposal"],
         payload: {
           action: "update_proposal",
           proposal_id: 2,

@@ -6,7 +6,11 @@ import { CardShell, EntityReference, entityReferenceHref, entityReferenceLabel, 
 
 describe("toolCardUi CardShell", () => {
   it("cannot define a wider minimum width than its chat column", () => {
-    render(<CardShell><div>Card contents</div></CardShell>)
+    render(
+      <CardShell>
+        <div>Card contents</div>
+      </CardShell>
+    )
 
     expect(screen.getByText("Card contents").parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
   })
@@ -17,7 +21,8 @@ describe("toolCardUi Row", () => {
     render(<Row label="Path" value="plugins/browser/app/frontend/browserToolCard.tsx" />)
 
     expect(screen.getByText("Path")).toBeInTheDocument()
-    expect(screen.getByText("plugins/browser/app/frontend/browserToolCard.tsx")).toBeInTheDocument()
+    expect(screen.getByText("plugins/browser/app/frontend/browserToolCard.tsx")).toHaveClass("whitespace-pre-wrap", "break-words")
+    expect(screen.getByText("plugins/browser/app/frontend/browserToolCard.tsx")).not.toHaveClass("truncate")
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })

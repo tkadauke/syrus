@@ -1117,6 +1117,41 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
+  it("renders a git status card's concrete error when a failed call has no result body", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Git status",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "git_status",
+          raw_name: "mcp__syrus-chat-sidecar__git_status",
+          detail: "No arguments",
+          display_label: "Git status",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: "",
+          result_json: { error: "Local Mode daemon is not connected" },
+          result_error: true,
+          result_kind: "error",
+          result_summary: "Git status unavailable: Local Mode daemon is not connected",
+          result_settled: false
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
+    expect(summary).toHaveClass("break-words")
+
+    expandToolGroup("Git status")
+
+    expect(screen.getAllByText("Git status unavailable: Local Mode daemon is not connected")).toHaveLength(2)
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
   it("renders plugin card bodies for settled Browser calls with empty result content", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -1477,6 +1512,32 @@ describe("tool result rendering", () => {
     openRawDetails()
 
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
+  })
+
+  it("lets standalone structured tool error summaries shrink and wrap on mobile", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 12,
+      role: "tool_use",
+      text: "Local Mode daemon is not connected",
+      bookmarkable: false,
+      tool: {
+        name: "git_status",
+        raw_name: "mcp__syrus-chat-sidecar__git_status",
+        display_label: "Git status",
+        argument_summary: "",
+        raw_payload: {},
+        result_kind: "error",
+        result_summary: "Git status unavailable: Local Mode daemon is not connected",
+        payload: { error: "Local Mode daemon is not connected" },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    })
+
+    const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
+    expect(summary).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
+    expect(summary).not.toHaveClass("shrink-0")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
