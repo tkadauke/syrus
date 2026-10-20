@@ -32,6 +32,7 @@
   "empty_error": "Instrumentum thematis sine nuntio erroris defecit.",
   "unexpected_payload": "{{action}} structuram thematis inopinatam rettulit.",
   "no_custom_themes": "Nulla themata propria adhuc sunt.",
+  "built_ins_excluded": "Themata innata ex hoc indice excluduntur.",
   "theme": "Thema",
   "status": "Status",
   "palette": "Colorum copia",
