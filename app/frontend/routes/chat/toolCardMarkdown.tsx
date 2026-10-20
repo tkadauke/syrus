@@ -47,6 +47,7 @@ export type TextPreviewProps = {
   modalLabel?: string
   title?: string
   truncate?: TextTruncationMode
+  wrap?: boolean
 }
 
 export type TextTruncationMode = "head" | "tail" | "headTail"
@@ -151,7 +152,16 @@ export function MarkdownPreview({
 
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
-export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
+export function TextPreview({
+  text,
+  lang = null,
+  maxLines = DEFAULT_MAX_LINES,
+  maxChars,
+  title,
+  modalLabel,
+  truncate = "head",
+  wrap = true
+}: TextPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
@@ -166,7 +176,11 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
       <CodeSurface
-        className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
+        className={
+          wrap
+            ? "max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
+            : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-muted"
+        }
         code={truncated.preview}
         data-testid="text-preview-content"
         lang={lang}
@@ -201,12 +215,16 @@ export function TextPreview({ text, lang = null, maxLines = DEFAULT_MAX_LINES, m
         </header>
         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
           <CodeSurface
-            className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
+            className={
+              wrap
+                ? "max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
+                : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-primary"
+            }
             code={text}
             lang={lang}
             maxHeightClassName="max-h-none"
           >
-            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{text}</code>}
+            {lang ? undefined : <code className={wrap ? "break-words [overflow-wrap:anywhere]" : "whitespace-pre"}>{text}</code>}
           </CodeSurface>
         </div>
       </Modal>
