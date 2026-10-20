@@ -48,6 +48,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/processes/:id api/v1/app/admin/spawned_processes#show
     GET /api/v1/app/admin/runs/:run_id/transcript api/v1/app/admin/transcripts#show
     GET /api/v1/app/admin/mcp_tool_usage api/v1/app/admin/mcp_tool_usage#show
+    POST /api/v1/app/admin/provider_routing_holds/:id/release api/v1/app/admin/provider_routing_holds#release
     POST /api/v1/app/admin/users/:id/pause_scheduling api/v1/app/admin/users#pause_scheduling
     POST /api/v1/app/admin/users/:id/unpause_scheduling api/v1/app/admin/users#unpause_scheduling
     GET /api/v1/app/admin/users api/v1/app/admin/users#index

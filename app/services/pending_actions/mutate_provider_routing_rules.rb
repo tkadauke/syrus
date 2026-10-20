@@ -50,8 +50,12 @@ module PendingActions
     end
 
     def scope_label
-      scope = payload.fetch("scope")
-      "#{scope.fetch('scope_type').humanize} ##{scope.fetch('scope_id')}"
+      scope = payload["scope"].to_h
+      type = scope["scope_type"].presence
+      id = scope["scope_id"].presence
+      return "Provider routing rules" unless type && id
+
+      "#{type.humanize} ##{id}"
     end
 
     def format_rules(rules)
