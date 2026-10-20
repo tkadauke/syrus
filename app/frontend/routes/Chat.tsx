@@ -1267,7 +1267,9 @@ function ChatWorkspace({
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => initialLinkedTab || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const initialPanelStateRef = useRef<ReturnType<typeof initialWorkspacePanelState> | null>(null)
-  if (initialPanelStateRef.current === null) initialPanelStateRef.current = initialWorkspacePanelState(payload)
+  if (initialPanelStateRef.current === null) {
+    initialPanelStateRef.current = initialLinkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
+  }
   const [panelCollapsed, setPanelCollapsed] = useState(initialPanelStateRef.current.collapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
@@ -1286,7 +1288,7 @@ function ChatWorkspace({
   const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader, topInset: mobileChatTopInset } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
-  const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
+  const showMobileWorkspaceTabs = initialLinkedTab !== null || mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
   const mobileWorkspacePanelStyle =
@@ -1295,11 +1297,13 @@ function ChatWorkspace({
       : undefined
 
   useLayoutEffect(() => {
-    const nextPanelState = initialWorkspacePanelState(payload)
+    const linkedTab = linkedWorkspaceTab(payload, window.location.hash)
+    const nextPanelState = linkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
-    setActiveMobileTab("chat")
+    if (linkedTab) setActiveTab(linkedTab)
+    setActiveMobileTab(linkedTab || "chat")
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
     setPendingJobsTabRequest(false)
@@ -1307,6 +1311,15 @@ function ChatWorkspace({
     suppressNextComposerMediaSwitchRef.current = false
     revealHeader()
   }, [payload.chat.id, revealHeader])
+
+  useEffect(() => {
+    const match = window.location.hash.match(/^#(walkthrough-\d+)$/)
+    if (!match || initialLinkedTab === null) return
+    if (isDesktop ? panelCollapsed : showMobileChatColumn) return
+
+    const frame = window.requestAnimationFrame(() => document.getElementById(match[1])?.scrollIntoView({ block: "nearest" }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [initialLinkedTab, isDesktop, panelCollapsed, showMobileChatColumn])
 
   useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
