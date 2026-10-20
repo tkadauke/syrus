@@ -416,9 +416,15 @@ describe("JobDetailView", () => {
   // reason === "workflow_admission_budget", so a running job stopped
   // mid-chain on main-branch health explained itself nowhere on its own
   // detail page.
-  it("explains a running job blocked on main-branch health", () => {
+  it("explains a running job blocked by the live main-health gate", () => {
     renderJobDetail(
       jobPayload({
+        repository: {
+          ...jobPayload().repository,
+          main_health: "broken",
+          landing_paused: true,
+          main_branch_repair_blocks_work: true
+        },
         job: {
           ...baseJob(),
           state: "running",
@@ -431,12 +437,12 @@ describe("JobDetailView", () => {
       })
     )
 
-    expect(screen.getByText("Waiting to continue")).toBeInTheDocument()
-    expect(screen.getByText(/default branch is failing its required checks/)).toBeInTheDocument()
+    expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
     // The canonical WorkUnit slug must resolve to real copy, not fall
     // through to the raw string.
     expect(screen.getByText("Main branch broken")).toBeInTheDocument()
     expect(screen.queryByText("main_branch_health")).not.toBeInTheDocument()
+    expect(screen.queryByText("Waiting to continue")).not.toBeInTheDocument()
   })
 
   it("shows the authoritative dependency blocker instead of historical main-health context", () => {
@@ -1273,10 +1279,27 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
   })
 
+  it("does not show a stale main-health blocker after repository health recovers", () => {
+    renderJobDetail(
+      jobPayload({
+        job: { ...baseJob(), state: "queued", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
+        repository: {
+          ...jobPayload().repository,
+          main_health: "healthy",
+          landing_paused: false,
+          main_branch_repair_blocks_work: true
+        }
+      })
+    )
+
+    expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Main branch broken")).not.toBeInTheDocument()
+  })
+
   it("does not show the waiting banner when main branch repair does not block work", () => {
     renderJobDetail(
       jobPayload({
-        job: { ...baseJob(), state: "queued", main_branch_repair: false },
+        job: { ...baseJob(), state: "queued", main_branch_repair: false, start_blocked_reason: "main_branch_health" },
         repository: {
           id: 2,
           slug: "acme/widgets",
@@ -1296,6 +1319,7 @@ describe("JobDetailView", () => {
 
     expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Main branch broken")).not.toBeInTheDocument()
   })
 
   it("shows a clickable link to repository settings when the landing queue is blocked by disabled auto-merge", () => {

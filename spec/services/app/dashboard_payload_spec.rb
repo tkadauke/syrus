@@ -1540,6 +1540,13 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "serializes an active main-health WorkUnit block" do
+      repo.update!(
+        risk_profile: "production",
+        main_branch_health_enabled: true,
+        main_branch_repair_blocks_work: true,
+        landing_paused: true,
+        ci_health: "broken"
+      )
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
       backfill_work_unit(
@@ -1554,9 +1561,27 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:start_blocked_reason]).to eq(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
     end
 
-    it "does not turn historical main-health evidence into a current blocker after recovery" do
+    it "does not serialize a stale main-health WorkUnit block after recovery" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "main_branch_health")
+
+      item = call(subject: "job")[:items].find { |candidate| candidate[:id] == job.id }
+
+      expect(item[:start_blocked_reason]).to be_nil
+    end
+
+    it "does not serialize a stale main-health WorkUnit block when policy no longer blocks work" do
+      repo.update!(
+        risk_profile: "standard",
+        main_branch_health_enabled: true,
+        main_branch_repair_blocks_work: false,
+        landing_paused: true,
+        ci_health: "broken"
+      )
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "main_branch_health")
 
       item = call(subject: "job")[:items].find { |candidate| candidate[:id] == job.id }
 
