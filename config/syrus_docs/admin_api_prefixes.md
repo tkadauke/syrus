@@ -89,6 +89,7 @@ update that reviewed list so route changes cannot quietly increase the split.
 The token-only operator API is missing these existing app-admin capabilities:
 
 - WorkUnit diagnostics;
+- provider-routing hold release controls;
 - settings and secret clearing;
 - feature flags;
 - retention settings and archive downloads;

@@ -80,6 +80,13 @@ RSpec.describe "Mcp::Tools provider routing tools" do
     expect(rule.reload).not_to be_enabled
   end
 
+  it "renders a safe presentation fallback before a proposal payload is populated" do
+    pending = ChatPendingAction.new(action: "mutate_provider_routing_rules", payload: {})
+
+    expect(PendingActions::MutateProviderRoutingRules.new(pending).presentation_detail)
+      .to eq("Review the proposed provider-routing rule changes before confirming.")
+  end
+
   it "presents candidate and condition updates distinctly before confirmation" do
     rule = ProviderRoutingRule.create!(
       scope_type: "user",

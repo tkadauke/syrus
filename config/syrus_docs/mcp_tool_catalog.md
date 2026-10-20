@@ -108,6 +108,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `delete_proposal` | chat | essential | write | no | - | - | - | - |
 | `detach_repository` | chat | essential | write | no | - | - | - | - |
 | `emergency_land` | chat | essential | write | no | `chat:coding` | - | - | `emergency_land` |
+| `explain_provider_routing` | chat | essential | read | no | - | - | - | - |
 | `force_fail_job` | chat | essential | write | yes | - | - | - | - |
 | `force_landing_recheck` | chat | essential | write | yes | - | - | - | - |
 | `force_rebase` | chat | essential | write | yes | - | - | - | - |
@@ -123,6 +124,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `mark_ci_repair_noop` | chat | essential | write | yes | - | - | - | - |
 | `mark_goal_blocked` | chat | essential | write | no | - | - | - | - |
 | `mark_goal_completed` | chat | essential | write | no | - | - | - | - |
+| `mutate_provider_routing_rules` | chat | essential | write | no | - | - | - | - |
 | `open_in_coding_mode` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `open_in_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
 | `override_landing_blocker_once` | chat | essential | write | yes | - | - | - | - |
@@ -133,6 +135,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `read_epic` | chat | essential | read | no | - | - | - | - |
 | `read_file` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
 | `read_job` | chat | essential | read | no | - | - | - | - |
+| `read_provider_routing_rules` | chat | essential | read | no | - | - | - | - |
 | `read_worker_health` | chat | essential | read | yes | - | - | - | - |
 | `reconcile_job_state` | chat | essential | write | yes | - | - | - | - |
 | `reenqueue_work` | chat | essential | write | yes | - | - | - | - |

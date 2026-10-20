@@ -25,6 +25,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/queue/:tab api/v1/app/admin/queue#show
     POST /api/v1/app/admin/queue/reap_stale_runs api/v1/app/admin/queue#reap_stale_runs
     GET /api/v1/app/admin/stuck api/v1/app/admin/stuck#index
+    POST /api/v1/app/admin/provider_routing_holds/:id/release api/v1/app/admin/provider_routing_holds#release
     POST /api/v1/app/admin/jobs/:job_id/dependencies/override api/v1/app/admin/job_metadata#override_dependencies
     POST /api/v1/app/admin/jobs/:job_id/force_fail api/v1/app/admin/job_lifecycle#force_fail
     GET /api/v1/app/admin/activity api/v1/app/admin/workflow_activity#index

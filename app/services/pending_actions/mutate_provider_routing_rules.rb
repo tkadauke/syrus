@@ -23,6 +23,8 @@ module PendingActions
     end
 
     def presentation_detail
+      return "Review the proposed provider-routing rule changes before confirming." unless payload["scope"].is_a?(Hash)
+
       "#{scope_label}: #{payload['summary']}\nBefore: #{format_rules(payload.dig('before', 'rules'))}\nAfter: #{format_rules(payload.dig('after', 'rules'))}"
     end
 
