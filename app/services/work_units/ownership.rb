@@ -385,7 +385,7 @@ module WorkUnits
 
       blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
         .where(job_id: ids)
-        .includes(:work_unit)
+        .includes(work_unit: { workflow: { job: :repository } })
         .order(blocked_priority_order)
         .each_with_object({}) do |member, result|
           next if result.key?(member.job_id)
@@ -394,6 +394,7 @@ module WorkUnits
           details = unit.blocked_details.presence
           reason = details.to_h["start_blocked_reason"].presence || unit.blocked_reason.presence
           next unless reason
+          next unless StartBlock.current_reason?(unit.workflow, reason)
 
           result[member.job_id] = {
             reason: reason,

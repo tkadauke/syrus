@@ -1,8 +1,20 @@
 module WorkUnits
   class StartBlock
+    MAIN_HEALTH_REASONS = [
+      StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+      WorkflowBlockProjection::REASON_MAP.fetch(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
+    ].freeze
+
     def self.for(workflow) = new(workflow)
     def self.work_unit_reason_for(start_blocked_reason)
       WorkflowBlockProjection::REASON_MAP.fetch(start_blocked_reason.to_s, "preempted")
+    end
+
+    def self.current_reason?(workflow, reason)
+      return true unless MAIN_HEALTH_REASONS.include?(reason.to_s)
+      return false unless workflow
+
+      StepDispatcher.main_health_blocking?(workflow)
     end
 
     # A blocked/start-blocked "reason" string can be either an already-
@@ -51,30 +63,33 @@ module WorkUnits
     end
 
     def reason
-      workflow.work_unit&.blocked_reason.presence ||
-        eligible_artifact_reason
+      return work_unit_reason if work_unit_eligible?
+
+      eligible_artifact_reason
     end
 
     def details
-      workflow.work_unit&.blocked_details.presence ||
-        eligible_artifact_details ||
-        {}
+      return workflow.work_unit.blocked_details.presence || {} if work_unit_eligible?
+
+      eligible_artifact_details || {}
     end
 
     def data
-      return work_unit_data if workflow.work_unit&.blocked_reason.present?
+      return work_unit_data if work_unit_eligible?
       return artifact_data if eligible_artifact_reason.present?
 
       {}
     end
 
     def next_check_at
-      workflow.work_unit&.blocked_until || parse_time(eligible_artifact_next_check_at)
+      return workflow.work_unit.blocked_until if work_unit_eligible?
+
+      parse_time(eligible_artifact_next_check_at)
     end
 
     def blocked_for?(start_blocked_reason)
       unit = workflow.work_unit
-      if unit
+      if unit && work_unit_eligible?
         return true if unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason)
         return true if unit.blocked_reason == start_blocked_reason.to_s
         return true if unit.blocked_details.to_h["start_blocked_reason"] == start_blocked_reason.to_s
@@ -94,6 +109,15 @@ module WorkUnits
 
     def artifact_reason
       workflow.artifacts.to_h["start_blocked_reason"].presence
+    end
+
+    def work_unit_reason
+      unit = workflow.work_unit
+      unit&.blocked_details.to_h["start_blocked_reason"].presence || unit&.blocked_reason.presence
+    end
+
+    def work_unit_eligible?
+      work_unit_reason.present? && self.class.current_reason?(workflow, work_unit_reason)
     end
 
     def eligible_artifact_reason
