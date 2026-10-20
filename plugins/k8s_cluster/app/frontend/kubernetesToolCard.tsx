@@ -2205,14 +2205,24 @@ export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName)
         stderr: { text: "", truncated: false },
         command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
         target: { kube_context: "prod", kube_namespace: "default" },
-        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" },
+        safe_metadata: { cluster: "production", context: "prod", host: "kube.example.test" }
       }
     },
     {
       id: "policy_denied",
       label: "Policy denied",
       input: { credential: "prod-k3s", kube_context: "prod", args: ["get", "secrets", "-o", "yaml"] },
-      resultBody: "Error: kubectl command could expose secret values",
+      parsedResult: {
+        ok: false,
+        status: 1,
+        stdout: { text: "", truncated: false },
+        stderr: { text: "Error from server (Forbidden): secrets is forbidden by cluster policy", truncated: false },
+        command: { executable: "kubectl", args: ["--context", "prod", "get", "secrets", "-o", "yaml"] },
+        target: { kube_context: "prod" },
+        credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" },
+        safe_metadata: { cluster: "production", context: "prod", host: "kube.example.test" }
+      },
       resultError: true
     }
   ]
