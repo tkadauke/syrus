@@ -36,6 +36,7 @@ module ThemingTools
         theme = Theme.where(owner_user: user, built_in: false).find_by(id: theme_id)
         return Mcp::Tools.invalid("No custom theme with id #{theme_id} owned by you was found.") unless theme
 
+        previous_theme = theme.public_payload
         baseline = theme.tokens
         theme.name = name if name.present?
         theme.tokens = {
@@ -47,7 +48,7 @@ module ThemingTools
         return Mcp::Tools.invalid(rejection_message(issues)) if issues.any?
 
         if theme.save
-          Mcp::Tools.success(theme.public_payload)
+          Mcp::Tools.success(theme.public_payload.merge(previous_theme: previous_theme))
         else
           Mcp::Tools.invalid(theme.errors.full_messages.to_sentence)
         end
