@@ -298,6 +298,7 @@ function renderExpandedAction(context: ToolCardContext) {
         <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
       </div>
       {card.kind === "delete_pod" && card.resultState === "succeeded" ? <DeletePodDetails card={card} /> : null}
+      {card.kind === "set_node_cordon" && card.resultState !== "failed" ? <NodeCordonDetails card={card} /> : null}
       {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
       <div className="space-y-1">
         <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_follow_up_checks")}</div>
@@ -308,6 +309,18 @@ function renderExpandedAction(context: ToolCardContext) {
         </ul>
       </div>
     </CardShell>
+  )
+}
+
+function NodeCordonDetails({ card }: { card: ParsedActionCard }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <DetailRow label={t("node_cordon_available")} value={card.available === null ? t("action_card_not_available") : String(card.available)} />
+        <DetailRow label={t("node_cordon_effect")} value={t("node_cordon_scheduling_effect")} />
+      </div>
+      <Notice tone="info">{t("node_cordon_no_evict_notice")}</Notice>
+    </div>
   )
 }
 
