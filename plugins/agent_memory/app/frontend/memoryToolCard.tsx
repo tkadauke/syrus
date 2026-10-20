@@ -2,7 +2,19 @@ import type { ReactNode } from "react"
 import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import type { MarkdownLinkHandler } from "@app/lib/Markdown"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import {
+  Badge,
+  CardShell,
+  Disclosure,
+  displayValue,
+  EmptyState,
+  EntityReference,
+  numberValue,
+  Row,
+  SectionLabel,
+  StatePill,
+  type ToolCardEntityKind
+} from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { DataTable } from "@app/components/ui"
 
@@ -24,6 +36,9 @@ export type MemoryPayload = {
   scopeId: string | null
   content: string
   published: boolean
+  userId: string | null
+  sourceType: string | null
+  sourceId: string | null
   author: string | null
   confidence: number | null
   expiresAt: string | null
@@ -31,6 +46,8 @@ export type MemoryPayload = {
   createdAt: string | null
   updatedAt: string | null
   deletedAt: string | null
+  visibility: string | null
+  deletedByUserId: string | null
 }
 
 export function parseMemory(value: unknown): MemoryPayload | null {
@@ -46,13 +63,18 @@ export function parseMemory(value: unknown): MemoryPayload | null {
     scopeId: displayValue(value.scope_id),
     content,
     published: value.published === true,
+    userId: displayValue(value.user_id),
+    sourceType: displayValue(value.source_type),
+    sourceId: displayValue(value.source_id),
     author: displayValue(value.author),
     confidence: numberValue(value.confidence),
     expiresAt: displayValue(value.expires_at),
     lastVerifiedAt: displayValue(value.last_verified_at),
     createdAt: displayValue(value.created_at),
     updatedAt: displayValue(value.updated_at),
-    deletedAt: displayValue(value.deleted_at)
+    deletedAt: displayValue(value.deleted_at),
+    visibility: displayValue(value.visibility),
+    deletedByUserId: displayValue(value.deleted_by_user_id)
   }
 }
 
@@ -70,6 +92,21 @@ export function ScopeRef({ memory }: { memory: MemoryPayload }) {
     return <EntityReference id={memory.scopeId} kind="repository" label={scopeText(memory)} repositoryId={memory.scopeId} wrap="break" />
   }
   return <span className="break-words font-mono text-xs text-text-primary">{scopeText(memory)}</span>
+}
+
+const SOURCE_ENTITY_KINDS: Partial<Record<string, ToolCardEntityKind>> = {
+  chat: "chat",
+  insight: "insight",
+  job: "job",
+  run: "run",
+  workflow: "workflow"
+}
+
+function SourceRef({ memory }: { memory: MemoryPayload }) {
+  if (!memory.sourceId) return null
+  const entityKind = memory.sourceType ? SOURCE_ENTITY_KINDS[memory.sourceType] : undefined
+  if (!entityKind) return <span className="break-words font-mono text-xs text-text-primary">{memory.sourceId}</span>
+  return <EntityReference id={memory.sourceId} kind={entityKind} wrap="break" />
 }
 
 function t(key: string, options?: Record<string, unknown>) {
@@ -141,11 +178,21 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
           <ScopeRef memory={memory} />
         </div>
         {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
+        {memory.userId ? <Row label={t("tool_user_id")} value={memory.userId} /> : null}
+        {memory.sourceType ? <Row label={t("tool_source_type")} value={memory.sourceType} /> : null}
+        {memory.sourceId ? (
+          <div className="min-w-0">
+            <SectionLabel>{t("tool_source_id")}</SectionLabel>
+            <SourceRef memory={memory} />
+          </div>
+        ) : null}
         {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+        {memory.visibility ? <Row label={t("tool_visibility")} value={memory.visibility} /> : null}
         {memory.expiresAt ? <Row label={t("tool_expires_at")} value={memory.expiresAt} /> : null}
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
+        {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>
@@ -160,11 +207,21 @@ function MemoryListMetadata({ memory }: { memory: MemoryPayload }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
+      {memory.userId ? <Row label={t("tool_user_id")} value={memory.userId} /> : null}
+      {memory.sourceType ? <Row label={t("tool_source_type")} value={memory.sourceType} /> : null}
+      {memory.sourceId ? (
+        <div className="min-w-0">
+          <SectionLabel>{t("tool_source_id")}</SectionLabel>
+          <SourceRef memory={memory} />
+        </div>
+      ) : null}
       {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+      {memory.visibility ? <Row label={t("tool_visibility")} value={memory.visibility} /> : null}
       {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
       {memory.expiresAt ? <Row label={t("tool_expires_at")} value={memory.expiresAt} /> : null}
       {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
       {memory.deletedAt ? <Row label={t("tool_status_deleted")} value={memory.deletedAt} /> : null}
+      {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
     </dl>
   )
 }
