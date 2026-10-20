@@ -242,6 +242,13 @@ describe("TextPreview", () => {
 
     expect(screen.getByTestId("text-preview-content")).toHaveTextContent("… 2 earlier lines\nthree\nfour", { normalizeWhitespace: false })
   })
+
+  it("can preserve long lines for horizontal scrolling", () => {
+    render(<TextPreview text="one very long log line" wrap={false} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
+    expect(screen.getByTestId("text-preview-content")).not.toHaveClass("break-words")
+  })
 })
 
 describe("MarkdownPreview link handling", () => {

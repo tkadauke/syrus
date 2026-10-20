@@ -465,7 +465,18 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
   const parsedRows = rowsForKind(kind, parsed)
   if (!parsedRows) return null
   const clusterId = displayValue((context.input || {}).cluster_id)
-  const rows = ["pods", "events", "services"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
+  const rows =
+    kind === "pod_logs"
+      ? parsedRows.map((row) => ({
+          ...row,
+          container: row.container ?? context.input?.container,
+          previous: context.input?.previous === true,
+          requested_tail_lines: context.input?.tail_lines,
+          timestamps: context.input?.timestamps === true
+        }))
+      : ["pods", "events", "services"].includes(kind)
+        ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId }))
+        : parsedRows
   return {
     kind,
     rows,
@@ -1398,19 +1409,37 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
 
 function PodLogsBody({ card }: { card: ParsedCard }) {
   const row = card.rows[0] || {}
-  const lines = logLines(row.log)
+  const lines = logLines(redactToolCardText(displayValue(row.log) || ""))
+  const requestedTailLines = numberValue(row.requested_tail_lines)
 
   return (
     <CardShell>
       <SummaryStrip card={card} />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <DetailRow label={t("logs_pod_label")} value={displayValue(row.pod) || "-"} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("logs_pod_label")}</div>
+          <EntityReference
+            href={clusterResourceHref({ ...row, cluster_id: card.clusterId }, "logs", "pod", row.pod)}
+            kind="artifact"
+            label={displayValue(row.pod) || "-"}
+            slug={[displayValue(row.namespace), displayValue(row.pod)].filter(Boolean).join("/")}
+            wrap="break"
+          />
+        </div>
+        <DetailRow label={t("col_namespace")} value={displayValue(row.namespace) || "-"} />
         <DetailRow label={t("logs_container_label")} value={displayValue(row.container) || t("tool_card_default_container")} />
-        <DetailRow label={t("logs_tail_lines_label")} value={String(lines.length)} />
+        <DetailRow label={t("logs_requested_lines_label")} value={requestedTailLines === null ? "-" : String(requestedTailLines)} />
+        <DetailRow label={t("logs_returned_lines_label")} value={String(lines.length)} />
+        <DetailRow label={t("logs_previous_label")} value={row.previous === true ? t("yes") : t("no")} />
+        <DetailRow label={t("logs_timestamps_label")} value={row.timestamps === true ? t("yes") : t("no")} />
       </div>
-      <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
-        {(visibleLines) => <TextPreview maxLines={80} text={visibleLines.join("\n")} truncate="tail" />}
-      </FilterableList>
+      {lines.length === 0 ? (
+        <EmptyState>{t("logs_empty")}</EmptyState>
+      ) : (
+        <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
+          {(visibleLines) => <TextPreview maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />}
+        </FilterableList>
+      )}
     </CardShell>
   )
 }

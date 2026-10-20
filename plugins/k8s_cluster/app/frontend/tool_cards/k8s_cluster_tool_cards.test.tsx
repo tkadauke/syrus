@@ -1581,25 +1581,77 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
   })
 
-  it("renders pod logs with searchable truncated preview metadata", () => {
-    const cardContext = context({
+  it("renders redacted tail-first pod logs and all metadata from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      pod: "web-1",
+      namespace: "result-namespace",
+      container: "web",
+      log: [
+        "first line",
+        ...Array.from({ length: 79 }, (_, index) => `middle line ${index}`),
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz",
+        "API_KEY=top-secret-value",
+        "DATABASE_URL=https://db-user:db-password@example.test/app",
+        "final line"
+      ].join("\n")
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pod_logs")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "default", name: "web-1", container: "web", previous: true, timestamps: true, tail_lines: 200 },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+
+      expect(toolName).toBe("k8s_cluster_pod_logs")
+      expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 84 log lines")
+      const rendered = render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
+      expect(screen.getByText("result-namespace")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "web-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=logs&namespace=result-namespace&pod=web-1")
+      expect(screen.getByRole("button", { name: "Copy result-namespace/web-1 to clipboard" })).toBeInTheDocument()
+      expect(screen.getByText("200")).toBeInTheDocument()
+      expect(screen.getByText("84")).toBeInTheDocument()
+      expect(screen.getAllByText("Yes")).toHaveLength(2)
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
+      expect(screen.getByTestId("text-preview-content")).toHaveTextContent("final line")
+      expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("first line")
+      expect(screen.getByText(/Bearer \[redacted\]/)).toBeInTheDocument()
+      expect(screen.getByTestId("text-preview-content").textContent?.match(/\[redacted\]/g)).toHaveLength(3)
+      expect(screen.queryByText(/top-secret-value|db-password|abcdefghijklmnopqrstuvwxyz/)).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("keeps pod-log empty and error states friendly", () => {
+    const emptyContext = context({
       toolName: "k8s_cluster_pod_logs",
-      input: { cluster_id: 7, namespace: "default", name: "web-1", container: "web" },
-      parsedResult: {
-        available: true,
-        pod: "web-1",
-        namespace: "default",
-        container: "web",
-        log: "2026-09-30T12:00:00Z boot complete\n2026-09-30T12:00:01Z request complete"
-      }
+      input: { cluster_id: 7, namespace: "default", name: "web-1", tail_lines: 50 },
+      parsedResult: { available: true, pod: "web-1", namespace: "default", log: "" }
     })
+    const empty = render(<>{podLogsToolCard.renderExpanded(emptyContext)}</>)
+    expect(screen.getByText("No log output.")).toBeInTheDocument()
+    empty.unmount()
 
-    expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 2 log lines")
-    render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
-
-    expect(screen.getByLabelText("Search logs…")).toBeInTheDocument()
-    expect(screen.getAllByText("web-1").length).toBeGreaterThan(0)
-    expect(screen.getByText(/boot complete/)).toBeInTheDocument()
+    const errorContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "missing" },
+      resultBody: "Error: pod not found",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{podLogsToolCard.renderExpanded(errorContext)}</>)
+    expect(podLogsToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / default / missing · error")
+    expect(screen.getByText("pod not found")).toBeInTheDocument()
   })
 
   it("renders empty and error cases as friendly card bodies", () => {
