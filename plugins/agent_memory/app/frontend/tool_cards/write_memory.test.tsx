@@ -81,6 +81,14 @@ describe("write_memory tool card", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("content is required")
   })
 
+  it("does not classify a successful plain-text MCP envelope as a memory error", () => {
+    const envelope = { content: [{ type: "text", text: "Memory service accepted the request." }], structured_content: null }
+    const toolContext = context({ parsedResult: envelope, resultBody: JSON.stringify(envelope) })
+
+    expect(writeMemoryToolCard.collapsedSummary?.(toolContext)).toBeNull()
+    expect(writeMemoryToolCard.renderExpanded(toolContext)).toBeNull()
+  })
+
   it("renders pending and blank-content states", () => {
     const pending = context()
     expect(writeMemoryToolCard.collapsedSummary?.(pending)).toBe("Writing memory...")
