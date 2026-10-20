@@ -35,5 +35,9 @@
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",
-  "fallback_active_theme": "Aktives Ersatz-Theme"
+  "fallback_active_theme": "Aktives Ersatz-Theme",
+  "no_fallback_theme": "Das aktive Theme musste nicht geändert werden.",
+  "delete_theme": "Theme löschen",
+  "delete_theme_ref": "THEME-{{id}} löschen",
+  "delete_recovery": "Wähle eines deiner eigenen benutzerdefinierten Themes; integrierte Themes können nicht gelöscht werden."
 }

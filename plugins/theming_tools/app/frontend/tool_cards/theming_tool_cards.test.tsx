@@ -142,16 +142,63 @@ describe("Theming Tools tool cards", () => {
   it("renders delete_user_theme outcome with fallback active theme", () => {
     const cardContext = context({
       toolName: "delete_user_theme",
-      parsedResult: { deleted_theme_id: 12, fallback_theme_id: 1 }
+      input: { theme_id: 12 },
+      parsedResult: { deleted_theme_id: 12, deleted_theme_name: "Sunset Console", fallback_theme_id: 1, fallback_theme_name: "Terracotta" }
     })
 
     expect(deleteUserThemeToolCard.collapsedSummary?.(cardContext)).toBe("Deleted theme THEME-12")
     render(<>{deleteUserThemeToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("deleted")).toBeInTheDocument()
-    expect(screen.getByText("THEME-12")).toBeInTheDocument()
+    expect(screen.getByText("Sunset Console")).toBeInTheDocument()
+    expect(screen.getByText("THEME-12").closest("a")).toBeNull()
     expect(screen.getByText("Fallback active theme")).toBeInTheDocument()
+    expect(screen.getByText("Terracotta")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "THEME-1" })).toHaveAttribute("href", "/design_system?theme_id=1")
+  })
+
+  it("renders delete_user_theme without a fallback and recovers the requested id from input", () => {
+    const cardContext = context({
+      toolName: "delete_user_theme",
+      input: { theme_id: 12 },
+      parsedResult: { deleted_theme_name: "Sunset Console", fallback_theme_id: null }
+    })
+
+    expect(deleteUserThemeToolCard.collapsedSummary?.(cardContext)).toBe("Deleted theme THEME-12")
+    render(<>{deleteUserThemeToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Sunset Console")).toBeInTheDocument()
+    expect(screen.getByText("THEME-12")).toBeInTheDocument()
+    expect(screen.getByText("The active theme did not need to change.")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["Built-in themes can't be deleted.", "Built-in themes can't be deleted."],
+    [JSON.stringify({ error: { message: "You can only delete your own themes.", retryable: false } }), "You can only delete your own themes."]
+  ])("renders delete_user_theme failures as structured cards", (resultBody, message) => {
+    const parsedResult = normalizedToolCardParsedResult(JSON.parse(resultBody.startsWith("{") ? resultBody : JSON.stringify(resultBody)))
+    const cardContext = context({ toolName: "delete_user_theme", input: { theme_id: 12 }, resultBody, resultError: true, parsedResult })
+
+    expect(deleteUserThemeToolCard.collapsedSummary?.(cardContext)).toContain(message)
+    render(<>{deleteUserThemeToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Theme delete failed")).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.getByText("Delete THEME-12")).toBeInTheDocument()
+    expect(screen.getByText("Check before retrying")).toBeInTheDocument()
+  })
+
+  it("normalizes differently shaped delete_user_theme success envelopes and renders an empty result explicitly", () => {
+    const payload = { deleted_theme_id: 12, deleted_theme_name: "Envelope Theme", fallback_theme_id: 1, fallback_theme_name: "Terracotta" }
+    const envelopes = [payload, { structured_content: payload }, { content: [{ type: "text", text: JSON.stringify(payload) }] }]
+
+    envelopes.forEach((envelope) => {
+      const cardContext = context({ toolName: "delete_user_theme", input: { theme_id: 12 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      expect(deleteUserThemeToolCard.collapsedSummary?.(cardContext)).toBe("Deleted theme THEME-12")
+    })
+
+    render(<>{deleteUserThemeToolCard.renderExpanded(context({ toolName: "delete_user_theme", input: {}, resultBody: "", parsedResult: null }))}</>)
+    expect(screen.getByText("Theme delete returned an unexpected theme payload.")).toBeInTheDocument()
   })
 
   it("renders list_user_themes as a compact scannable list and skips malformed rows", () => {
