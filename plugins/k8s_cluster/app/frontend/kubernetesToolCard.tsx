@@ -297,7 +297,7 @@ function renderExpandedAction(context: ToolCardContext) {
         <DetailRow label={t("action_card_previous_state")} value={card.previousState || t("action_card_not_available")} />
         <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
       </div>
-      {card.kind === "delete_pod" ? <DeletePodDetails card={card} /> : null}
+      {card.kind === "delete_pod" && card.resultState === "succeeded" ? <DeletePodDetails card={card} /> : null}
       {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
       <div className="space-y-1">
         <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_follow_up_checks")}</div>
