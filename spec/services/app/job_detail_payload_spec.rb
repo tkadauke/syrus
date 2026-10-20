@@ -26,7 +26,7 @@ RSpec.describe App::JobDetailPayload do
     queries
   end
 
-  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil)
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, blocked_details: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(
       kind: kind,
@@ -46,12 +46,26 @@ RSpec.describe App::JobDetailPayload do
       scope_id: intent.scope_id,
       workflow: workflow,
       blocked_reason: blocked_reason,
-      blocked_details: blocked_reason ? { "source" => "spec" } : {}
+      blocked_details: blocked_details || (blocked_reason ? { "source" => "spec" } : {})
     )
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
     end
     unit
+  end
+
+  it "uses the same current blocker as the dashboard when main_broken is historical" do
+    job = Factories.job_record(user: user, repository: repo, state: "queued")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "main_broken" => true })
+    attach_work_unit(
+      workflow,
+      member_jobs: [ job ],
+      state: "blocked",
+      blocked_reason: "stack_dependencies_not_ready",
+      blocked_details: { "start_blocked_reason" => "stack_dependencies_not_ready" }
+    )
+
+    expect(payload_for(job).dig(:job, :start_blocked_reason)).to eq("stack_dependencies_not_ready")
   end
 
   it "exposes active provider routing hold wake details" do
