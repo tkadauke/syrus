@@ -70,7 +70,7 @@ module Mcp::Tools
         {
           "revision" => snapshot.fetch(:revision),
           "rules" => snapshot.fetch(:rules).map do |rule|
-            rule.slice(:id, :position, :enabled, :trigger, :conditions, :action)
+            rule.slice(:id, :position, :enabled, :task_key, :trigger, :conditions, :action)
           end
         }
       end
