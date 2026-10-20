@@ -1,5 +1,6 @@
 import i18n from "i18next"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
+import { Button } from "@app/components/Button"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import {
@@ -13,7 +14,7 @@ import {
   displayValue,
   numberValue
 } from "@app/routes/chat/toolCardUi"
-import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
+import { MarkdownPreview, TextPreview } from "@app/routes/chat/toolCardMarkdown"
 import { formatBytes, formatAge, formatKubernetesCpu, formatKubernetesMemory, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -300,6 +301,7 @@ function renderExpanded(context: ToolCardContext) {
         <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
       </CardShell>
     )
+  if (card.kind === "events") return <EventsBody card={card} />
   if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
   if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
   if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
@@ -446,7 +448,7 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
   const parsedRows = rowsForKind(kind, parsed)
   if (!parsedRows) return null
   const clusterId = displayValue((context.input || {}).cluster_id)
-  const rows = kind === "pods" ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
+  const rows = ["pods", "events"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
   return {
     kind,
     rows,
@@ -1002,6 +1004,75 @@ function SummaryStrip({ card }: { card: ParsedCard }) {
   )
 }
 
+function EventsBody({ card }: { card: ParsedCard }) {
+  const [warningsOnly, setWarningsOnly] = useState(false)
+  const rows = warningsOnly ? card.rows.filter(isWarningEvent) : card.rows
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-2xs text-text-muted">{t("event_filter_count", { shown: rows.length, total: card.rows.length })}</span>
+        <Button onClick={() => setWarningsOnly((value) => !value)} size="sm" variant={warningsOnly ? "primary" : "secondary"}>
+          {t("event_warnings_only")}
+        </Button>
+      </div>
+      {rows.length > 0 ? (
+        <div className="space-y-2">
+          {rows.slice(0, ROW_LIMIT).map((row, index) => (
+            <EventRow key={rowKey(row, index)} row={row} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState>{t("event_no_warnings")}</EmptyState>
+      )}
+      {rows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: rows.length })}</InlineNotice> : null}
+      {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
+    </CardShell>
+  )
+}
+
+function EventRow({ row }: { row: K8sRow }) {
+  const eventName = displayValue(row.name)
+  const eventType = displayValue(row.type) || "-"
+  const reason = displayValue(row.reason) || "-"
+  const message = displayValue(row.message) || "-"
+
+  return (
+    <article className="min-w-0 space-y-2 rounded border border-border bg-surface px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <StatePill state={eventType} tone={isWarningEvent(row) ? "warning" : "success"} />
+        <span className="min-w-0 break-words text-xs font-semibold text-text-primary">{reason}</span>
+        {eventName ? <span className="break-all font-mono text-2xs text-text-muted">{eventName}</span> : null}
+        <span className="ml-auto text-2xs text-text-muted">{t("event_count", { count: numberValue(row.count) ?? 0 })}</span>
+      </div>
+      <MarkdownPreview linkifyUrls maxChars={320} modalLabel={t("event_message_details")} text={message} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_object")}</div>
+          {involvedObjectReference(row)}
+        </div>
+        <EventTimestamp label={t("col_first_seen")} value={displayValue(row.first_timestamp)} />
+        <EventTimestamp label={t("col_last_seen")} value={displayValue(row.last_timestamp)} />
+      </div>
+    </article>
+  )
+}
+
+function EventTimestamp({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="min-w-0" title={value || undefined}>
+      <div className="text-2xs font-semibold uppercase text-text-muted">{label}</div>
+      <div className="text-xs text-text-secondary">{value ? formatAge(value) : "-"}</div>
+      {value ? <div className="break-all font-mono text-2xs text-text-muted">{value}</div> : null}
+    </div>
+  )
+}
+
+function isWarningEvent(row: K8sRow) {
+  return ["Warning", "Error"].includes(displayValue(row.type) || "")
+}
+
 function NodeDescribeBody({ card, node }: { card: ParsedCard; node: K8sRow }) {
   const conditions = Array.isArray(node.conditions) ? (node.conditions.filter(isPlainObject) as K8sRow[]) : []
 
@@ -1412,6 +1483,23 @@ function tlsHosts(tls: unknown) {
 function involvedObject(value: unknown) {
   if (!isPlainObject(value)) return "-"
   return [displayValue(value.kind), displayValue(value.name)].filter(Boolean).join(" / ") || "-"
+}
+
+function involvedObjectReference(row: K8sRow) {
+  const object = isPlainObject(row.involved_object) ? row.involved_object : {}
+  const kind = displayValue(object.kind)
+  const name = displayValue(object.name)
+  const label = [kind, name].filter(Boolean).join(" / ") || "-"
+  const resource = kind ? EVENT_OBJECT_RESOURCES[kind] : null
+  const href = resource ? clusterResourceHref(row, resource.tab, resource.key, name) : null
+
+  return <EntityReference href={href} kind="artifact" label={label} slug={name || label} wrap="break" />
+}
+
+const EVENT_OBJECT_RESOURCES: Record<string, { tab: string; key: string }> = {
+  Pod: { tab: "pods", key: "pod" },
+  Node: { tab: "nodes", key: "node" },
+  Deployment: { tab: "deployments", key: "deployment" }
 }
 
 function podTone(row: K8sRow) {

@@ -502,7 +502,7 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("v1.31.2")).toBeInTheDocument()
     expect(screen.getByText("10.0.0.12")).toBeInTheDocument()
     expect(screen.getByText("7.6 vCPU / 30.0 GB")).toBeInTheDocument()
-    expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+    expect(screen.getAllByText("2026-09-30T12:00:00Z").length).toBeGreaterThan(0)
     expect(screen.getByRole("button", { name: "Copy node-1 to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("default").length).toBeGreaterThan(0)
     expect(screen.getByText("ReadWriteOnce")).toBeInTheDocument()
@@ -541,6 +541,66 @@ describe("Kubernetes cluster tool cards", () => {
       expect(pvcsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 1 PVCs")
       expect(screen.getByRole("columnheader", { name: "Volume name" })).toBeInTheDocument()
       expect(screen.getByText("pvc-envelope-1234")).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders complete event details from every MCP envelope with linked objects, timestamps, filtering, and redaction", () => {
+    const longMessage = `Failed to pull image from the configured registry. ${"Retrying after an authentication failure. ".repeat(12)}`
+    const payload = {
+      available: true,
+      events: [
+        {
+          namespace: "payments",
+          name: "web-pull-failure.1234",
+          type: "Warning",
+          reason: "Failed",
+          message: longMessage,
+          involved_object: { kind: "Pod", name: "web-1", uid: "private-object-uid" },
+          count: 4,
+          first_timestamp: "2026-09-30T11:00:00Z",
+          last_timestamp: "2026-09-30T12:00:00Z",
+          secret_token: "must-not-render"
+        },
+        {
+          namespace: "payments",
+          name: "web-scheduled.5678",
+          type: "Normal",
+          reason: "Scheduled",
+          message: "Assigned payments/web-1 to node-1",
+          involved_object: { kind: "Deployment", name: "web" },
+          count: 1,
+          first_timestamp: "2026-09-30T10:00:00Z",
+          last_timestamp: "2026-09-30T10:01:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_events")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{eventsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_events")
+      expect(eventsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 2 events · 1 warning")
+      expect(screen.getByText("web-pull-failure.1234")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Pod / web-1" })).toHaveAttribute("href", "/k8s_clusters/7?tab=pods&namespace=payments&pod=web-1")
+      expect(screen.getByRole("link", { name: "Deployment / web" })).toHaveAttribute(
+        "href",
+        "/k8s_clusters/7?tab=deployments&namespace=payments&deployment=web"
+      )
+      expect(screen.getByText("2026-09-30T11:00:00Z")).toBeInTheDocument()
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      expect(screen.queryByText(/private-object-uid|must-not-render/)).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Warnings only" }))
+      expect(screen.getByText("1 of 2 events")).toBeInTheDocument()
+      expect(screen.queryByText("web-scheduled.5678")).not.toBeInTheDocument()
       rendered.unmount()
     }
   })
