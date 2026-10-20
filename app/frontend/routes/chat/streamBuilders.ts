@@ -142,7 +142,8 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
           unboundedBody,
           isPlainObject(open.call.raw_payload) ? open.call.raw_payload : {},
           parsedResult,
-          open.call.context_calls
+          open.call.context_calls,
+          open.call.prior_results
         )
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary

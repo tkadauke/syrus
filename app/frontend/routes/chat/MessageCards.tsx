@@ -1085,6 +1085,7 @@ export function toolCardContext(
       input: (isPlainObject(priorCall.input) ? redactToolCardValue(priorCall.input) : {}) as Record<string, unknown>,
       parsedResult: redactToolCardValue(normalizedToolCardParsedResult(priorCall.result))
     })),
+    priorResults: redactToolCardValue(call.prior_results ?? {}) as Readonly<Record<string, unknown>>,
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
     presentation
   }
