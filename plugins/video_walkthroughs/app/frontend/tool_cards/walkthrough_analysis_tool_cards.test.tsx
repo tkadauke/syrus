@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
 import analyzeWalkthroughSegmentToolCard, { examples as segmentExamples } from "./analyze_walkthrough_segment"
 import getWalkthroughAnalysisToolCard, { examples as fullAnalysisExamples } from "./get_walkthrough_analysis"
 
@@ -65,10 +66,11 @@ describe("video walkthrough analysis tool cards", () => {
     expect(screen.getAllByText("Save button does nothing").length).toBeGreaterThan(0)
     expect(screen.getByText("high")).toBeInTheDocument()
     expect(screen.getByText("needs a closer look")).toBeInTheDocument()
-    expect(screen.getByText("No confirmation or validation appears after Save.")).toBeInTheDocument()
+    expect(document.body).toHaveTextContent("No confirmation or validation appears after Save.")
     expect(screen.getByText("Low contrast helper text")).toBeInTheDocument()
-    expect(screen.getByText("Save button does nothing", { selector: "div.truncate" })).toBeInTheDocument()
-    expect(screen.getByText("image/jpeg")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Save button does nothing" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Save button does nothing at 1:12" })).toHaveAttribute("src", "data:image/jpeg;base64,jpeg")
+    expect(screen.getByRole("link", { name: "WALKTHROUGH-42" })).toHaveAttribute("href", "/api/v1/app/video_walkthroughs/42")
     expect(screen.getByText("[01:12] I click save and nothing happens.")).toBeInTheDocument()
     expect(screen.getByText("Should drafts autosave?")).toBeInTheDocument()
   })
@@ -155,12 +157,55 @@ describe("video walkthrough analysis tool cards", () => {
 
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText(/Gemini's quota is busy/)).toBeInTheDocument()
-    expect(screen.getByText("Retry a shorter time range if Gemini quota or segment length caused the failure.")).toBeInTheDocument()
+    expect(screen.getByText("Gemini quota is temporarily unavailable. Wait briefly, then retry the analysis.")).toBeInTheDocument()
     expect(screen.queryByText(/"isError"/)).not.toBeInTheDocument()
   })
 
+  it.each([
+    ["Claude", { content: [{ type: "text", text: analysisReport }] }],
+    ["Codex", { content: [{ type: "text", text: JSON.stringify({ content: [{ type: "text", text: analysisReport }] }) }] }],
+    ["Muse", { result: { content: [{ type: "text", text: analysisReport }] } }]
+  ])("renders the %s provider envelope", (_provider, envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    render(<>{getWalkthroughAnalysisToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByText("Checkout works until Save silently fails.")).toBeInTheDocument()
+    expect(screen.getByText("Checkout path")).toBeInTheDocument()
+  })
+
+  it("falls back to the complete markdown report when headings change", () => {
+    const report = "# Review report\n\n**Save failed** after visiting https://example.test/settings."
+    render(<>{getWalkthroughAnalysisToolCard.renderExpanded(context({ parsedResult: { content: [{ type: "text", text: report }] } }))}</>)
+
+    expect(screen.getByText("Save failed", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://example.test/settings" })).toHaveAttribute("href", "https://example.test/settings")
+  })
+
+  it("renders pending and provider-specific error guidance", () => {
+    const { rerender } = render(<>{getWalkthroughAnalysisToolCard.renderExpanded(context())}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText(/still pending/)).toBeInTheDocument()
+
+    rerender(
+      <>
+        {getWalkthroughAnalysisToolCard.renderExpanded(
+          context({ resultError: true, parsedResult: { content: [{ type: "text", text: "Gemini API key rejected" }] } })
+        )}
+      </>
+    )
+    expect(screen.getByText(/plugin credentials/)).toBeInTheDocument()
+
+    rerender(
+      <>
+        {getWalkthroughAnalysisToolCard.renderExpanded(
+          context({ resultError: true, parsedResult: { content: [{ type: "text", text: "Stored video was pruned" }] } })
+        )}
+      </>
+    )
+    expect(screen.getByText(/fresh walkthrough/)).toBeInTheDocument()
+  })
+
   it("exports catalog examples for full, empty, segment, and failure states", () => {
-    expect(fullAnalysisExamples.map((example) => example.id)).toEqual(["full_analysis", "empty_analysis"])
+    expect(fullAnalysisExamples.map((example) => example.id)).toEqual(["full_analysis", "empty_analysis", "pending_analysis", "failed_analysis"])
     expect(segmentExamples.map((example) => example.id)).toEqual(["segment_analysis", "segment_failure"])
   })
 })
