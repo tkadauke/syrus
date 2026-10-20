@@ -245,6 +245,7 @@
   "event_count": "Anzahl {{count}}",
   "event_message_details": "Ereignisnachricht",
   "col_key_names": "Schlüsselnamen",
+  "col_immutable": "Unveränderlich",
   "col_parallelism": "Parallelität",
   "col_selector": "Selektor",
   "yes": "Ja",

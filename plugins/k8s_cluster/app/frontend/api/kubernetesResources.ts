@@ -445,6 +445,8 @@ export type KubernetesSecretRow = {
   type: string | null
   key_count: number
   key_names: string[]
+  immutable: boolean
+  owner_references: string[]
   created_at: string | null
 }
 
