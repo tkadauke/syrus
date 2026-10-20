@@ -254,15 +254,14 @@ describe("Kubernetes cluster tool cards", () => {
   it("summarizes successful action acknowledgements with action, target, scope, and result", () => {
     const cardContext = context({
       toolName: "k8s_cluster_scale_deployment",
-      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5, reason: "Scale for morning traffic" },
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
       parsedResult: {
         available: true,
         generated_at: "2026-09-30T12:00:00Z",
         deployment: "web",
         namespace: "default",
         before: { replicas: 2 },
-        after: { replicas: 5 },
-        audit_id: "audit-123"
+        after: { replicas: 5 }
       }
     })
 
@@ -272,9 +271,45 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("Set replicas to 5")).toBeInTheDocument()
     expect(screen.getByText("2 replicas")).toBeInTheDocument()
     expect(screen.getByText("5 replicas")).toBeInTheDocument()
-    expect(screen.getByText("Scale for morning traffic")).toBeInTheDocument()
-    expect(screen.getByText("audit-123")).toBeInTheDocument()
+    expect(screen.queryByText("Reason")).not.toBeInTheDocument()
+    expect(screen.queryByText("Audit")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+    expect(screen.getByRole("link", { name: "default" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=default")
+    expect(screen.getByRole("link", { name: "default/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=default&deployment=web")
     expect(screen.getByText("Confirm desired and ready replica counts converge.")).toBeInTheDocument()
+  })
+
+  it("renders restart rollout audit evidence from every MCP envelope with links and redaction", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      deployment: "web",
+      namespace: "payments",
+      before: { restarted_at: "2026-09-29T08:15:00Z", bearer_token: "top-secret-value" },
+      after: { restarted_at: "2026-09-30T12:00:00Z" }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_restart_rollout")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "web" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { unmount } = render(<>{restartRolloutToolCard.renderExpanded(cardContext)}</>)
+
+      expect(screen.getByText("restartedAt=2026-09-29T08:15:00Z")).toBeInTheDocument()
+      expect(screen.getByText("restartedAt=2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.getByText("Generated at 2026-09-30T12:00:01Z")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "payments/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=payments&deployment=web")
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
   })
 
   it("marks no-op acknowledgements when previous and current state match", () => {
@@ -343,6 +378,7 @@ describe("Kubernetes cluster tool cards", () => {
 
     expect(screen.getByText("Validation failure")).toBeInTheDocument()
     expect(screen.getByText("Permission error")).toBeInTheDocument()
+    expect(screen.getByText("Write access is disabled for Kubernetes cluster 7")).toBeInTheDocument()
     expect(screen.getByText("Missing resource")).toBeInTheDocument()
     expect(screen.getByText("Backend/API error")).toBeInTheDocument()
   })

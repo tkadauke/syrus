@@ -98,8 +98,9 @@ type ParsedActionCard = {
   requestedChange: string
   previousState: string | null
   currentState: string | null
-  reason: string | null
-  audit: string | null
+  clusterId: string | null
+  namespace: string | null
+  resourceName: string | null
   generatedAt: string | null
   followUpChecks: string[]
   errorKind: ActionErrorKind | null
@@ -169,6 +170,13 @@ const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_scale_deployment: "scale_deployment",
   k8s_cluster_delete_pod: "delete_pod",
   k8s_cluster_set_node_cordon: "set_node_cordon"
+}
+
+const ACTION_RESOURCE_LINKS: Record<ActionKind, { tab: string; key: string }> = {
+  restart_rollout: { tab: "deployments", key: "deployment" },
+  scale_deployment: { tab: "deployments", key: "deployment" },
+  delete_pod: { tab: "pods", key: "pod" },
+  set_node_cordon: { tab: "nodes", key: "node" }
 }
 
 const TOOL_ARGUMENT_SUMMARIES: Partial<Record<K8sToolName, () => string>> = {
@@ -274,7 +282,7 @@ function renderExpandedAction(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={actionStateLabel(card.resultState, card.errorKind)} tone={actionStateTone(card)} />
         <span className="text-xs font-medium text-text-primary">{card.actionLabel}</span>
-        <span className="font-mono text-xs text-text-muted">{card.target}</span>
+        <ActionTarget card={card} />
       </div>
       {card.errorMessage ? (
         <Notice tone="danger" title={actionErrorTitle(card.errorKind)}>
@@ -282,12 +290,10 @@ function renderExpandedAction(context: ToolCardContext) {
         </Notice>
       ) : null}
       <div className="grid gap-2 sm:grid-cols-2">
-        <DetailRow label={t("action_card_scope")} value={card.scope} />
+        <ActionScope card={card} />
         <DetailRow label={t("action_card_requested_change")} value={card.requestedChange} />
         <DetailRow label={t("action_card_previous_state")} value={card.previousState || t("action_card_not_available")} />
         <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
-        <DetailRow label={t("action_card_reason")} value={card.reason || t("action_card_reason_not_provided")} />
-        <DetailRow label={t("action_card_audit")} value={card.audit || t("action_card_audit_recorded")} />
       </div>
       {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
       <div className="space-y-1">
@@ -300,6 +306,36 @@ function renderExpandedAction(context: ToolCardContext) {
       </div>
     </CardShell>
   )
+}
+
+function ActionScope({ card }: { card: ParsedActionCard }) {
+  if (!card.clusterId) return <DetailRow label={t("action_card_scope")} value={card.scope} />
+
+  return (
+    <div className="min-w-0">
+      <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_scope")}</div>
+      <div className="flex flex-wrap items-center gap-x-1 text-xs text-text-primary">
+        <EntityReference kind="cluster" id={card.clusterId} label={t("tool_card_scope_cluster", { cluster: card.clusterId })} />
+        {card.namespace ? (
+          <>
+            <span>/</span>
+            <EntityReference
+              href={clusterResourceHref({ cluster_id: card.clusterId, namespace: card.namespace }, "namespaces")}
+              kind="namespace"
+              label={card.namespace}
+            />
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function ActionTarget({ card }: { card: ParsedActionCard }) {
+  const resource = ACTION_RESOURCE_LINKS[card.kind]
+  const href = clusterResourceHref({ cluster_id: card.clusterId, namespace: card.namespace }, resource.tab, resource.key, card.resourceName)
+
+  return <EntityReference href={href} kind="artifact" label={card.target} slug={card.target} wrap="break" />
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -572,6 +608,9 @@ function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
   const before = isPlainObject(parsed.before) ? parsed.before : {}
   const after = isPlainObject(parsed.after) ? parsed.after : {}
   const input = context.input || {}
+  const clusterId = displayValue(input.cluster_id)
+  const namespace = displayValue(parsed.namespace) || displayValue(input.namespace)
+  const resourceName = displayValue(parsed.deployment) || displayValue(parsed.pod) || displayValue(parsed.node) || displayValue(input.name)
   const target = actionTarget(kind, parsed, input)
   const errorKind = errorMessage ? classifyActionError(errorMessage) : null
   const resultState = errorMessage ? "failed" : actionNoOp(kind, before, after) ? "no_op" : "succeeded"
@@ -585,8 +624,9 @@ function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
     requestedChange: requestedChange(kind, input, parsed),
     previousState: previousState(kind, before),
     currentState: currentState(kind, after),
-    reason: displayValue(input.reason) || displayValue(parsed.reason) || displayValue(parsed.audit_reason),
-    audit: displayValue(parsed.audit_id) || displayValue(parsed.audit_url) || displayValue(parsed.audit),
+    clusterId,
+    namespace,
+    resourceName,
     generatedAt: displayValue(parsed.generated_at),
     followUpChecks: followUpChecks(kind, parsed, input, resultState, errorKind),
     errorKind,
@@ -2229,11 +2269,10 @@ export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName)
 }
 
 function actionExampleInput(kind: ActionKind, variant: "success" | "validation" = "success") {
-  if (kind === "restart_rollout") return { cluster_id: 7, namespace: "default", name: "web", reason: "Refresh config after secret rotation" }
-  if (kind === "scale_deployment")
-    return { cluster_id: 7, namespace: "default", name: "web", replicas: variant === "validation" ? -1 : 5, reason: "Scale for morning traffic" }
-  if (kind === "delete_pod") return { cluster_id: 7, namespace: "default", name: "web-7d9b", reason: "Force reschedule after repeated readiness failures" }
-  return { cluster_id: 7, name: "node-1", cordoned: true, reason: "Drain window preparation" }
+  if (kind === "restart_rollout") return { cluster_id: 7, namespace: "default", name: "web" }
+  if (kind === "scale_deployment") return { cluster_id: 7, namespace: "default", name: "web", replicas: variant === "validation" ? -1 : 5 }
+  if (kind === "delete_pod") return { cluster_id: 7, namespace: "default", name: "web-7d9b" }
+  return { cluster_id: 7, name: "node-1", cordoned: true }
 }
 
 function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
@@ -2245,8 +2284,7 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       deployment: "web",
       namespace: "default",
       before: { restarted_at: variant === "noop" ? "2026-09-30T11:00:00Z" : null },
-      after: { restarted_at: "2026-09-30T11:00:00Z" },
-      audit_id: "k8s-audit-123"
+      after: { restarted_at: "2026-09-30T11:00:00Z" }
     }
   }
   if (kind === "scale_deployment") {
@@ -2256,8 +2294,7 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       deployment: "web",
       namespace: "default",
       before: { replicas: variant === "noop" ? 5 : 2 },
-      after: { replicas: 5 },
-      audit_id: "k8s-audit-123"
+      after: { replicas: 5 }
     }
   }
   if (kind === "delete_pod") {
@@ -2267,8 +2304,7 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       pod: "web-7d9b",
       namespace: "default",
       before: { phase: variant === "noop" ? "Succeeded" : "Running" },
-      after: { deleted: variant !== "noop" },
-      audit_id: "k8s-audit-123"
+      after: { deleted: variant !== "noop" }
     }
   }
   return {
