@@ -108,6 +108,8 @@ describe("AdminToolCards", () => {
     renderRoute("/admin/tool_cards?tool_name=add_job_tag")
 
     const region = screen.getByRole("region", { name: "Add job tag" })
+    expect(within(region).getByText(/^Added area:ui · JOB-7/)).toBeInTheDocument()
+    expect(within(region).queryByText(/^Added tag #10 · JOB-7/)).not.toBeInTheDocument()
     expandToolGroup(region)
 
     expect(within(region).getAllByText("area:ui").length).toBeGreaterThan(0)
