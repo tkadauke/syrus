@@ -1,17 +1,6 @@
 import type { ReactNode } from "react"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
-import {
-  Badge,
-  CardShell,
-  Disclosure,
-  displayValue,
-  EmptyState,
-  numberValue,
-  Row,
-  SectionLabel,
-  StatePill,
-  truncateLines
-} from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill, truncateLines } from "@app/routes/chat/toolCardUi"
 
 type HealthState = "healthy" | "degraded" | "unavailable" | "error"
 type MysqlError = { className: string | null; message: string | null; hint: string | null }
@@ -54,9 +43,7 @@ type SlowLogRow = {
   sqlText: string | null
 }
 
-type SectionSummary<T> =
-  | { available: true; rows: T[]; error: null }
-  | { available: false; rows: T[]; error: MysqlError | null }
+type SectionSummary<T> = { available: true; rows: T[]; error: null } | { available: false; rows: T[]; error: MysqlError | null }
 
 type StatusPayload = {
   available: boolean
@@ -189,14 +176,14 @@ function parseSlowLogRow(value: unknown): SlowLogRow | null {
 
 function parseSection<T>(value: unknown, parseRow: (row: unknown) => T | null): SectionSummary<T> {
   if (!isPlainObject(value)) return { available: false, rows: [], error: null }
-  const rows = Array.isArray(value.rows) ? value.rows.flatMap((row) => {
-    const parsed = parseRow(row)
-    return parsed ? [parsed] : []
-  }) : []
+  const rows = Array.isArray(value.rows)
+    ? value.rows.flatMap((row) => {
+        const parsed = parseRow(row)
+        return parsed ? [parsed] : []
+      })
+    : []
 
-  return value.available === true
-    ? { available: true, rows, error: null }
-    : { available: false, rows, error: parseMysqlError(value.error) }
+  return value.available === true ? { available: true, rows, error: null } : { available: false, rows, error: parseMysqlError(value.error) }
 }
 
 function slowLogDeferred(section: SectionSummary<SlowLogRow>) {
@@ -225,10 +212,12 @@ export function parseStatusPayload(context: ToolCardContext): StatusPayload | nu
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || typeof parsed.available !== "boolean") return null
 
-  const processes = Array.isArray(parsed.process_list) ? parsed.process_list.flatMap((row) => {
-    const process = parseProcess(row)
-    return process ? [process] : []
-  }) : []
+  const processes = Array.isArray(parsed.process_list)
+    ? parsed.process_list.flatMap((row) => {
+        const process = parseProcess(row)
+        return process ? [process] : []
+      })
+    : []
   const status = isPlainObject(parsed.status) ? parsed.status : {}
   const payload = {
     available: parsed.available,
@@ -301,11 +290,21 @@ function ProcessTable({ rows }: { rows: ProcessRow[] }) {
       <table className="w-full text-left text-xs">
         <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Thread</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Command</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Time</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Query</th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Thread
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Command
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Time
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              State
+            </th>
+            <th className="px-2 py-1 font-semibold" scope="col">
+              Query
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
@@ -320,9 +319,7 @@ function ProcessTable({ rows }: { rows: ProcessRow[] }) {
                   <span>{row.state ?? "-"}</span>
                 </div>
               </td>
-              <td className="max-w-[22rem] px-2 py-1 text-gray-700 dark:text-gray-300">
-                {row.info ? <QueryPreview text={row.info} /> : "-"}
-              </td>
+              <td className="max-w-[22rem] px-2 py-1 text-gray-700 dark:text-gray-300">{row.info ? <QueryPreview text={row.info} /> : "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -389,7 +386,11 @@ function SlowLogSummary({ section }: { section: SectionSummary<SlowLogRow> }) {
 
 function VariableBadge({ label, value }: { label: string; value: unknown }) {
   const text = displayValue(value)
-  return text ? <Badge>{label}: {text}</Badge> : null
+  return text ? (
+    <Badge>
+      {label}: {text}
+    </Badge>
+  ) : null
 }
 
 export function StatusCard({ context }: { context: ToolCardContext }) {
