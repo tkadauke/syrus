@@ -319,9 +319,9 @@ export function EntityReference(reference: EntityReferenceProps) {
 // into the main body by default (file contents, command output, long
 // lists) — the raw JSON "Raw details" disclosure always covers the full
 // payload regardless, so this is purely a friendlier, still-opt-in view.
-export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
+export function Disclosure({ label, children, defaultOpen = false }: { label: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
-    <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
+    <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1" open={defaultOpen}>
       <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">{label}</summary>
       <div className="mt-1 text-text-primary">{children}</div>
     </details>
