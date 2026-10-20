@@ -151,7 +151,7 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("deleted")).toBeInTheDocument()
     expect(screen.getByText("THEME-12")).toBeInTheDocument()
     expect(screen.getByText("Fallback active theme")).toBeInTheDocument()
-    expect(screen.getByText("THEME-1")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "THEME-1" })).toHaveAttribute("href", "/design_system?theme_id=1")
   })
 
   it("renders list_user_themes as a compact scannable list and skips malformed rows", () => {
