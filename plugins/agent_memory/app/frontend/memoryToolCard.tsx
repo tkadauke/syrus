@@ -23,13 +23,18 @@ export type MemoryPayload = {
   scopeId: string | null
   content: string
   published: boolean
+  userId: string | null
+  sourceType: string | null
+  sourceId: string | null
   author: string | null
   confidence: number | null
+  visibility: string | null
   expiresAt: string | null
   lastVerifiedAt: string | null
   createdAt: string | null
   updatedAt: string | null
   deletedAt: string | null
+  deletedByUserId: string | null
 }
 
 export function parseMemory(value: unknown): MemoryPayload | null {
@@ -45,13 +50,18 @@ export function parseMemory(value: unknown): MemoryPayload | null {
     scopeId: displayValue(value.scope_id),
     content,
     published: value.published === true,
+    userId: displayValue(value.user_id),
+    sourceType: displayValue(value.source_type),
+    sourceId: displayValue(value.source_id),
     author: displayValue(value.author),
     confidence: numberValue(value.confidence),
+    visibility: displayValue(value.visibility),
     expiresAt: displayValue(value.expires_at),
     lastVerifiedAt: displayValue(value.last_verified_at),
     createdAt: displayValue(value.created_at),
     updatedAt: displayValue(value.updated_at),
-    deletedAt: displayValue(value.deleted_at)
+    deletedAt: displayValue(value.deleted_at),
+    deletedByUserId: displayValue(value.deleted_by_user_id)
   }
 }
 
@@ -139,13 +149,18 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
           <SectionLabel>{t("tool_scope")}</SectionLabel>
           <ScopeRef memory={memory} />
         </div>
+        {memory.userId ? <Row label={t("tool_user_id")} value={memory.userId} /> : null}
+        {memory.sourceType ? <Row label={t("tool_source_type")} value={memory.sourceType} /> : null}
+        {memory.sourceId ? <Row label={t("tool_source_id")} value={memory.sourceId} /> : null}
         {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
         {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+        {memory.visibility ? <Row label={t("tool_visibility")} value={memory.visibility} /> : null}
         {memory.expiresAt ? <Row label={t("tool_expires_at")} value={memory.expiresAt} /> : null}
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
         {memory.deletedAt ? <Row label={t("tool_deleted_at")} value={memory.deletedAt} /> : null}
+        {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>

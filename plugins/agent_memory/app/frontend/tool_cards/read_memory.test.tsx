@@ -22,8 +22,12 @@ const memory = {
   scope_id: 9,
   content: "Deploys SIGKILL in-flight Runs.",
   published: true,
+  user_id: 27,
+  source_type: "job",
+  source_id: 314,
   author: "agent",
   confidence: 0.9,
+  visibility: "repository",
   expires_at: "2027-08-31T10:15:00Z",
   last_verified_at: "2026-08-30T10:15:00Z",
   created_at: "2026-08-29T10:15:00Z",
@@ -47,8 +51,16 @@ describe("read_memory tool card", () => {
     expect(screen.getByRole("link", { name: "repository #9" })).toHaveAttribute("href", "/repositories/9")
     expect(screen.getByRole("link", { name: "MEMORY-12" })).toHaveAttribute("href", "/memories")
     expect(screen.getByText("published")).toBeInTheDocument()
+    expect(screen.getByText("User ID")).toBeInTheDocument()
+    expect(screen.getByText("27")).toBeInTheDocument()
+    expect(screen.getByText("Source type")).toBeInTheDocument()
+    expect(screen.getByText("job")).toBeInTheDocument()
+    expect(screen.getByText("Source ID")).toBeInTheDocument()
+    expect(screen.getByText("314")).toBeInTheDocument()
     expect(screen.getByText("agent")).toBeInTheDocument()
     expect(screen.getByText("0.9")).toBeInTheDocument()
+    expect(screen.getByText("Visibility")).toBeInTheDocument()
+    expect(screen.getByText("repository", { selector: "div[title]" })).toBeInTheDocument()
     expect(screen.getByText("2027-08-31T10:15:00Z")).toBeInTheDocument()
     expect(screen.getByText("2026-08-30T10:15:00Z")).toBeInTheDocument()
     expect(screen.getByText("2026-08-29T10:15:00Z")).toBeInTheDocument()
@@ -59,10 +71,14 @@ describe("read_memory tool card", () => {
   })
 
   it("shows a deleted pill and deletion timestamp for a soft-deleted memory", () => {
-    render(<>{readMemoryToolCard.renderExpanded(context({ parsedResult: { memory: { ...memory, deleted_at: "2026-09-01T00:00:00Z" } } }))}</>)
+    render(
+      <>{readMemoryToolCard.renderExpanded(context({ parsedResult: { memory: { ...memory, deleted_at: "2026-09-01T00:00:00Z", deleted_by_user_id: 81 } } }))}</>
+    )
 
     expect(screen.getByText("deleted")).toBeInTheDocument()
     expect(screen.getByText("2026-09-01T00:00:00Z")).toBeInTheDocument()
+    expect(screen.getByText("Deleted by user ID")).toBeInTheDocument()
+    expect(screen.getByText("81")).toBeInTheDocument()
   })
 
   it("shows the requested id and styled error for an inaccessible memory", () => {
