@@ -120,7 +120,8 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     result_error: context.resultError,
     result_kind: resultPresentation.kind,
     result_summary: resultPresentation.summary,
-    summary_metadata: resultPresentation.metadata
+    summary_metadata: resultPresentation.metadata,
+    prior_results: context.priorResults
   }
 }
 
