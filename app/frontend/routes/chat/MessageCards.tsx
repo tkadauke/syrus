@@ -921,7 +921,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
         </Pill>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? (
-          <Pill className="ml-auto text-xs" tone="neutral">
+          <Pill className="ml-auto shrink-0 text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : null}
