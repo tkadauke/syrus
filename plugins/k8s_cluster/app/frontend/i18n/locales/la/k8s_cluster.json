@@ -289,6 +289,8 @@
   "tool_card_filter_placeholder": "Opes filtra",
   "tool_card_health": "Salus",
   "tool_card_generated_at": "Generatum",
+  "col_annotations": "Annotationes",
+  "col_labels": "Tituli",
   "tool_card_items": "res",
   "tool_card_default_container": "praedefinitum",
   "tool_card_log_preview": "Praevisio actorum",

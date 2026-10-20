@@ -52,6 +52,10 @@ export type ToolCardRenderer = {
   // Most cards need a completed result before their expanded body is useful.
   // Opt in when the card can also present an in-flight call from its input.
   renderWhilePending?: boolean
+  // Optional human-readable replacement for the generic JSON-derived input
+  // detail shown beside the tool label. Return an empty string when the
+  // card's linked body already presents every relevant input.
+  argumentSummary?: (input?: Record<string, unknown>) => string
   // One-line summary shown in the collapsed row. Return null/undefined
   // (or omit this) to keep the generic count/text summary.
   collapsedSummary?: (context: ToolCardContext) => string | null | undefined
@@ -195,6 +199,10 @@ const registeredToolCardRenderers: ToolCardRenderer[] = discoveredToolCardEntrie
 
 export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | null {
   return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
+}
+
+export function pluginToolCardArgumentSummary(toolName: string, input: Record<string, unknown>): string | null {
+  return pluginToolCardRendererFor(toolName)?.argumentSummary?.(input) ?? null
 }
 
 export function pluginToolCardRendererKeys() {
