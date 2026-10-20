@@ -139,6 +139,26 @@ RSpec.describe Workflows do
       expect(App::ProviderAvailability).not_to have_received(:for_user)
     end
 
+    it "honors a hold rule added after workflow instantiation but before dispatch" do
+      allow(App::ProviderAvailability).to receive(:for_user)
+      workflow = Workflows::Initial.instantiate(job: job)
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "initial",
+        action: { type: "hold", reason: "Pause before dispatch" },
+        candidates: []
+      )
+
+      result = WorkUnits::Launcher.start!(workflow)
+
+      expect(result).to be_not_started
+      expect(result.reason).to eq("provider_routing_hold")
+      expect(workflow.reload.runs).to be_empty
+      expect(workflow.artifact("agent_provider_routing_decision")).to include("held" => true)
+      expect(workflow.provider_routing_holds.active.sole).to have_attributes(reason: "Pause before dispatch")
+    end
+
     it "creates no Run when a matching step-specific rule holds the first agentic step" do
       workflow_class = Class.new(Workflows::Base) do
         steps :implement

@@ -168,6 +168,8 @@ class StepDispatcher
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
     refresh_default_workflow_agent_provider!(workflow)
+    return if provider_routing_held?(workflow)
+
     run_provider_candidate = run_provider_candidate_for(first, workflow)
     return if run_provider_candidate.nil?
 
@@ -641,6 +643,14 @@ class StepDispatcher
         released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
       )
     end
+    if routed_selection&.held?
+      workflow.update!(
+        artifacts: workflow.artifacts.to_h.merge("agent_provider_routing_decision" => routed_selection.artifact)
+      )
+      ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: routed_selection)
+      return
+    end
+
     desired_candidate = routed_selection&.candidate ||
       ProviderRouting::AvailabilitySelector.candidate(
         provider: workflow.job.workflow_agent_provider.presence,
