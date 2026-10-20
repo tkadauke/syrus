@@ -35,10 +35,10 @@ describe("search_memories tool card", () => {
   it("renders a private state pill for an unpublished repository memory", () => {
     render(<>{searchMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [match] } }))}</>)
 
-    expect(screen.getByText("reference")).toBeInTheDocument()
-    expect(screen.getByText("repository #5")).toBeInTheDocument()
-    expect(screen.getByText("private")).toBeInTheDocument()
-    expect(screen.getByText("Bugs tracked in Linear project INGEST.")).toBeInTheDocument()
+    expect(screen.getAllByText("reference")).toHaveLength(2)
+    expect(screen.getAllByText("repository #5")).toHaveLength(2)
+    expect(screen.getAllByText("private")).toHaveLength(2)
+    expect(screen.getAllByText("Bugs tracked in Linear project INGEST.")).toHaveLength(2)
   })
 
   it("renders a friendly empty state for no results", () => {
