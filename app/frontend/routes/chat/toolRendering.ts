@@ -12,7 +12,7 @@ import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
-const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
+const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", '"', "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
 const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar"]
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
@@ -40,15 +40,16 @@ export type ToolResultPresentation = {
   metadata?: ChatToolSummaryMetadata
 }
 
-export type TypedToolResult =
-  | { type: "success_row"; label: string }
+export type TypedToolResult = { type: "success_row"; label: string }
 
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableJsonValue)
   if (!isPlainObject(value)) return value
 
   return Object.fromEntries(
-    Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])])
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, stableJsonValue(value[key])])
   )
 }
 
@@ -199,7 +200,12 @@ function commandArgumentSummary(value: unknown) {
 
   if (isPlainObject(value)) {
     const shell = stringValue(value.command) || stringValue(value.cmd) || stringValue(value.program)
-    const args = Array.isArray(value.args) ? value.args.map((part) => stringValue(part)).filter(Boolean).join(" ") : ""
+    const args = Array.isArray(value.args)
+      ? value.args
+          .map((part) => stringValue(part))
+          .filter(Boolean)
+          .join(" ")
+      : ""
     return [shell, args].filter(Boolean).join(" ")
   }
 
@@ -240,18 +246,9 @@ function runtimeCaptureArtifactArgumentSummary(input: Record<string, unknown>) {
 }
 
 function defaultToolArgumentSummary(input: Record<string, unknown>) {
-  const preferred = [
-    input.query,
-    input.prompt,
-    input.title,
-    input.label,
-    input.name,
-    input.path,
-    input.file_path,
-    input.repository,
-    input.slug,
-    input.id
-  ].find((value) => stringValue(value).trim().length > 0)
+  const preferred = [input.query, input.prompt, input.title, input.label, input.name, input.path, input.file_path, input.repository, input.slug, input.id].find(
+    (value) => stringValue(value).trim().length > 0
+  )
 
   if (preferred != null) return firstLine(stringValue(preferred))
 
@@ -373,7 +370,14 @@ export function normalizedToolCardParsedResult(parsed: unknown): unknown {
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown): ToolResultPresentation {
+export function toolResultPresentation(
+  name: string,
+  body: string,
+  error = false,
+  parseBody: string = body,
+  input: Record<string, unknown> = {},
+  parsedResult?: unknown
+): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
   const cardParsed = normalizedToolCardParsedResult(parsed)
@@ -511,7 +515,7 @@ export function parseJsonText(value: string): unknown {
   for (let index = 0; index < 3; index += 1) {
     if (typeof current !== "string") return current
     const candidate = current.trim()
-    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith("\"")) return index === 0 ? null : current
+    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith('"')) return index === 0 ? null : current
 
     try {
       current = JSON.parse(candidate)
@@ -545,12 +549,15 @@ export function parsedToolResult(content: unknown, unboundedBody: string): unkno
 export function fullResultBodyUnbounded(content: unknown): string {
   if (typeof content === "string") return shortenWorkspacePaths(content)
   if (Array.isArray(content)) {
-    return content.map((item) => {
-      const record = contentRecord(item)
-      if (record?.type === "text") return shortenWorkspacePaths(stringValue(record.text))
-      if (record?.type === "tool_reference") return `-> ${stringValue(record.tool_name)}`
-      return ""
-    }).filter(Boolean).join("\n")
+    return content
+      .map((item) => {
+        const record = contentRecord(item)
+        if (record?.type === "text") return shortenWorkspacePaths(stringValue(record.text))
+        if (record?.type === "tool_reference") return `-> ${stringValue(record.tool_name)}`
+        return ""
+      })
+      .filter(Boolean)
+      .join("\n")
   }
   if (content == null) return "(empty)"
   if (isPlainObject(content)) return shortenWorkspacePaths(JSON.stringify(stableJsonValue(content), null, 2))
@@ -561,7 +568,7 @@ export function fullResultBodyUnbounded(content: unknown): string {
 export function toolResultPreview(body: string): string {
   const normalized = shortenWorkspacePaths(body)
   const lines = normalized.split(/\r?\n/)
-  const lineCapped = lines.map((line) => line.length > TOOL_RESULT_PREVIEW_LINE_CHARS ? line.slice(0, TOOL_RESULT_PREVIEW_LINE_CHARS) : line)
+  const lineCapped = lines.map((line) => (line.length > TOOL_RESULT_PREVIEW_LINE_CHARS ? line.slice(0, TOOL_RESULT_PREVIEW_LINE_CHARS) : line))
   let preview = lineCapped.join("\n")
   let truncated = false
 
@@ -586,7 +593,9 @@ export function toolResultPreview(body: string): string {
   const omitted = [
     omittedLines > 0 ? `${omittedLines} line${omittedLines === 1 ? "" : "s"}` : null,
     omittedBytes > 0 ? `${omittedBytes} character${omittedBytes === 1 ? "" : "s"}` : null
-  ].filter(Boolean).join(", ")
+  ]
+    .filter(Boolean)
+    .join(", ")
 
   return `${preview}\n\n[Tool result preview truncated${omitted ? `; ${omitted} omitted` : ""}. Full content remains in the chat transcript.]`
 }
