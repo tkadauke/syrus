@@ -289,6 +289,8 @@
   "tool_card_filter_placeholder": "Filter resources",
   "tool_card_health": "Health",
   "tool_card_generated_at": "Generated at",
+  "col_annotations": "Annotations",
+  "col_labels": "Labels",
   "tool_card_items": "items",
   "tool_card_default_container": "default",
   "tool_card_log_preview": "Log preview",

@@ -147,6 +147,10 @@ const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_set_node_cordon: "set_node_cordon"
 }
 
+const TOOL_ARGUMENT_SUMMARIES: Partial<Record<K8sToolName, () => string>> = {
+  k8s_cluster_namespaces: () => ""
+}
+
 function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`k8s_cluster:${key}`, options)
 }
@@ -154,6 +158,7 @@ function t(key: string, options?: Record<string, unknown>) {
 export function kubernetesToolCard(toolName: K8sToolName): ToolCardRenderer {
   return {
     toolName,
+    argumentSummary: TOOL_ARGUMENT_SUMMARIES[toolName],
     collapsedSummary,
     renderExpanded
   }
@@ -279,10 +284,8 @@ function renderExpanded(context: ToolCardContext) {
   if (card.errorMessage) {
     return (
       <CardShell>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatePill state={t("tool_card_error")} tone="failure" />
-          <span className="text-xs font-medium text-text-primary">{card.scope}</span>
-        </div>
+        <ScopeDetail card={card} />
+        <StatePill state={t("tool_card_error")} tone="failure" />
         <Notice tone="danger">{card.errorMessage}</Notice>
       </CardShell>
     )
@@ -290,7 +293,13 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "overview" && card.overview) return <OverviewBody card={card} overview={card.overview} />
   if (card.kind === "pod_logs") return <PodLogsBody card={card} />
-  if (card.rows.length === 0) return <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+  if (card.rows.length === 0)
+    return (
+      <CardShell>
+        <SummaryStrip card={card} />
+        <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+      </CardShell>
+    )
 
   const columns = columnsFor(card.kind)
   return (
@@ -645,6 +654,7 @@ function collectionKey(kind: CardKind) {
 }
 
 function singularKey(kind: CardKind) {
+  if (kind === "namespaces") return "namespace"
   if (kind === "deployments") return "deployment"
   if (kind === "statefulsets") return "stateful_set"
   if (kind === "daemonsets") return "daemon_set"
@@ -724,6 +734,8 @@ function columnsFor(kind: CardKind): Column[] {
     return [
       { key: "name", label: t("col_name") },
       { key: "status", label: t("col_status"), tone: (row) => (displayValue(row.status) === "Active" ? "success" : "warning") },
+      { key: "labels", label: t("col_labels") },
+      { key: "annotations", label: t("col_annotations") },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -970,7 +982,11 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
         {card.name ? (
           <>
             <span>/</span>
-            <span className="break-all">{card.name}</span>
+            {card.kind === "namespaces" ? (
+              <EntityReference kind="namespace" id={card.clusterId} label={card.name} wrap="break" />
+            ) : (
+              <span className="break-all">{card.name}</span>
+            )}
           </>
         ) : null}
       </div>
@@ -1201,6 +1217,14 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     conditions: Array.isArray(status.conditions) ? status.conditions : []
   }
 
+  if (kind === "namespaces")
+    return {
+      ...base,
+      status: status.phase,
+      labels: metadataKeysSummary(metadata.labels),
+      annotations: metadataKeysSummary(metadata.annotations)
+    }
+
   if (kind === "deployments")
     return {
       ...base,
@@ -1260,6 +1284,12 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     }
   if (kind === "secrets") return row
   return row
+}
+
+function metadataKeysSummary(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  const keys = Object.keys(value).sort()
+  return keys.length > 0 ? `${keys.length}: ${keys.join(", ")}` : "-"
 }
 
 export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExample[] {

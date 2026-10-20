@@ -7,7 +7,7 @@
 import { isPlainObject } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
-import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import { pluginToolCardArgumentSummary, pluginToolCardCollapsedSummary } from "../../pluginToolCards"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
 
@@ -116,6 +116,9 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 
 function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   if (Object.keys(input).length === 0) return NO_ARGUMENTS_SENTINEL
+
+  const cardSummary = pluginToolCardArgumentSummary(name, input)
+  if (cardSummary != null) return cardSummary
 
   const runtimeSummary = runtimeToolArgumentSummary(name, input)
   if (runtimeSummary) return shortenWorkspacePaths(runtimeSummary)
