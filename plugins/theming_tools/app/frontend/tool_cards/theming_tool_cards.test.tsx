@@ -114,8 +114,8 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("font-sans")).toBeInTheDocument()
   })
 
-  it("renders install_theme as an installed theme with built-in/custom status and palette details", () => {
-    const cardContext = context({ toolName: "install_theme", parsedResult: { ...theme, built_in: true } })
+  it("renders install_theme by id with its source, result metadata, and settings links", () => {
+    const cardContext = context({ toolName: "install_theme", input: { theme_id: 7 }, parsedResult: { ...theme, built_in: true } })
 
     expect(installThemeToolCard.collapsedSummary?.(cardContext)).toBe("Installed Sunset Console (THEME-12)")
     render(<>{installThemeToolCard.renderExpanded(cardContext)}</>)
@@ -124,6 +124,29 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("built in")).toBeInTheDocument()
     expect(screen.getByText("sunset-12")).toBeInTheDocument()
     expect(screen.getByText("Theme ID")).toBeInTheDocument()
+    expect(screen.getByText("Existing theme")).toBeInTheDocument()
+    expect(screen.getByText("Source theme")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "THEME-7" })).toHaveAttribute("href", "/design_system?theme_id=7")
+    expect(screen.getByRole("link", { name: "Open theme settings" })).toHaveAttribute("href", "/design_system?theme_id=12")
+    expect(screen.getByText("Position")).toBeInTheDocument()
+    expect(screen.getByText("4")).toBeInTheDocument()
+  })
+
+  it("renders install_theme from new tokens with its input name and every token group", () => {
+    const cardContext = context({
+      toolName: "install_theme",
+      input: { name: "Input Sunset", light: { brand: "#dc2626" }, shape: { "radius-control": "0px" } },
+      parsedResult: theme
+    })
+
+    render(<>{installThemeToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("New theme")).toBeInTheDocument()
+    expect(screen.getByText("Input name")).toBeInTheDocument()
+    expect(screen.getByText("Input Sunset")).toBeInTheDocument()
+    expect(screen.getByText("Input overrides")).toBeInTheDocument()
+    expect(screen.getByText("#dc2626")).toBeInTheDocument()
+    expect(screen.getByText("0px")).toBeInTheDocument()
   })
 
   it("renders update_user_theme outcome and handles malformed theme payloads without throwing", () => {
@@ -203,6 +226,33 @@ describe("Theming Tools tool cards", () => {
       const cardContext = context({ parsedResult: normalizedToolCardParsedResult(envelope) })
       expect(previewThemeToolCard.collapsedSummary?.(cardContext)).toBe("Previewed Envelope Draft (THEME-8)")
     })
+  })
+
+  it("renders install payloads from direct and provider-shaped MCP envelopes", () => {
+    const envelopes = [theme, { structured_content: theme }, { content: [{ type: "text", text: JSON.stringify(theme) }] }]
+
+    envelopes.forEach((envelope) => {
+      const cardContext = context({ toolName: "install_theme", input: { theme_id: 12 }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      expect(installThemeToolCard.collapsedSummary?.(cardContext)).toBe("Installed Sunset Console (THEME-12)")
+    })
+  })
+
+  it("renders install contrast failures structurally and empty results explicitly", () => {
+    const errorContext = context({
+      toolName: "install_theme",
+      resultBody:
+        "Contrast check failed -- fix these before installing: dark text-primary (#111111) on surface (#000000) has contrast 1.11:1, needs at least 4.5:1 for WCAG AA.",
+      resultError: true,
+      parsedResult: null
+    })
+    const { unmount } = render(<>{installThemeToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("text-primary (#111111) → surface (#000000)")).toBeInTheDocument()
+    expect(screen.getByText("1.11:1")).toBeInTheDocument()
+    expect(screen.getByText("needs 4.5:1")).toBeInTheDocument()
+    unmount()
+
+    render(<>{installThemeToolCard.renderExpanded(context({ toolName: "install_theme", resultBody: "", parsedResult: null }))}</>)
+    expect(screen.getByText("Theme install returned an unexpected theme payload.")).toBeInTheDocument()
   })
 
   it("renders an explicit preview card for an empty pending result", () => {

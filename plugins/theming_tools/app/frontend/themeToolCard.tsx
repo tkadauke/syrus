@@ -257,12 +257,16 @@ export function ThemeCard({
   theme,
   outcome,
   draft = false,
-  overrides = {}
+  overrides = {},
+  details,
+  linkLabel
 }: {
   theme: ThemePayload
   outcome: string
   draft?: boolean
   overrides?: Record<string, ThemeTokens>
+  details?: ReactNode
+  linkLabel?: string
 }) {
   const colors = Object.entries(theme.colorTokens)
   return (
@@ -273,7 +277,10 @@ export function ThemeCard({
         <Row label={t("theme_id")} value={theme.id} />
         {theme.position ? <Row label={t("position")} value={theme.position} /> : null}
       </dl>
-      {draft ? <InternalLink href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`}>{t("open_preview")}</InternalLink> : null}
+      {details}
+      {draft || linkLabel ? (
+        <InternalLink href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`}>{linkLabel ?? t("open_preview")}</InternalLink>
+      ) : null}
       {colors.length ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {colors.map(([mode, tokens]) => (
