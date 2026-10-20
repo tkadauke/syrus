@@ -15,6 +15,7 @@ import {
   numberValue
 } from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview, TextPreview } from "@app/routes/chat/toolCardMarkdown"
+import { redactToolCardText } from "@app/toolCardSecurity"
 import { formatBytes, formatAge, formatKubernetesCpu, formatKubernetesMemory, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
@@ -140,7 +141,9 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 }
 
 const ROW_LIMIT = 100
-const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses"])
+const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses", "configmaps"])
+const CONFIG_MAP_VALUE_DISPLAY_LIMIT = 4_096
+const CONFIG_MAP_VALUE_PREVIEW_LIMIT = 320
 const RESPONSIVE_TABLE_BODY_CLASSES = [
   "block divide-y-0 space-y-2 bg-transparent",
   "[&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)] [&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1",
@@ -317,6 +320,7 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
   if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
   if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
+  if (card.kind === "configmaps" && card.name) return <ConfigMapDescribeBody card={card} configMap={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
@@ -660,6 +664,69 @@ function rowsForKind(kind: CardKind, parsed: Record<string, unknown>) {
     return null
   }
   return rows.filter(isPlainObject) as K8sRow[]
+}
+
+function ConfigMapDescribeBody({ card, configMap }: { card: ParsedCard; configMap: K8sRow }) {
+  const entries = configMapEntries(configMap)
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <DetailRow label={t("col_name")} value={displayValue(configMap.name) || "-"} />
+        <DetailRow label={t("col_namespace")} value={displayValue(configMap.namespace) || "-"} />
+        <DetailRow label={t("col_keys")} value={String(entries.length)} />
+      </div>
+      {entries.length === 0 ? (
+        <EmptyState>{t("config_map_no_keys")}</EmptyState>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((entry) => (
+            <section
+              className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface px-3 py-2"
+              key={`${entry.binary ? "binary" : "text"}:${entry.name}`}
+            >
+              <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
+                <span className="break-all font-mono text-xs font-semibold text-text-primary">{entry.name}</span>
+                {entry.binary ? <StatePill state={t("config_map_binary")} tone="neutral" /> : null}
+                <span className="text-xs text-text-muted">{formatBytes(entry.bytes)}</span>
+              </div>
+              {entry.binary ? (
+                <p className="text-xs text-text-muted">{t("config_map_binary_not_previewed")}</p>
+              ) : (
+                <TextPreview
+                  maxChars={CONFIG_MAP_VALUE_PREVIEW_LIMIT}
+                  maxLines={8}
+                  modalLabel={t("config_map_value_for", { key: entry.name })}
+                  text={entry.preview}
+                />
+              )}
+              {entry.capped ? (
+                <p className="mt-1 text-xs text-text-muted">{t("config_map_value_capped", { size: formatBytes(CONFIG_MAP_VALUE_DISPLAY_LIMIT) })}</p>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      )}
+    </CardShell>
+  )
+}
+
+function configMapEntries(configMap: K8sRow) {
+  const data = isPlainObject(configMap.data) ? configMap.data : {}
+  const binaryData = isPlainObject(configMap.binaryData) ? configMap.binaryData : {}
+  const textEntries = Object.entries(data).map(([name, value]) => configMapEntry(name, value, false))
+  const binaryEntries = Object.entries(binaryData).map(([name, value]) => configMapEntry(name, value, true))
+  return [...textEntries, ...binaryEntries].sort((left, right) => left.name.localeCompare(right.name))
+}
+
+function configMapEntry(name: string, value: unknown, binary: boolean) {
+  const raw = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value)
+  const encoded = new TextEncoder().encode(raw)
+  const bytes = encoded.length
+  const capped = bytes > CONFIG_MAP_VALUE_DISPLAY_LIMIT
+  const display = capped ? new TextDecoder().decode(encoded.slice(0, CONFIG_MAP_VALUE_DISPLAY_LIMIT)) : raw
+  return { name, binary, bytes, capped, preview: redactToolCardText(display) }
 }
 
 function collectionKey(kind: CardKind) {
@@ -1819,8 +1886,14 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
   if (kind === "configmaps")
     return {
       ...base,
-      key_count: Object.keys(isPlainObject(row.data) ? row.data : {}).length,
-      key_names: Object.keys(isPlainObject(row.data) ? row.data : {}).sort()
+      data: isPlainObject(row.data) ? row.data : {},
+      binaryData: isPlainObject(row.binaryData) ? row.binaryData : {},
+      key_count: [...Object.keys(isPlainObject(row.data) ? row.data : {}), ...Object.keys(isPlainObject(row.binaryData) ? row.binaryData : {})].filter(
+        (key, index, keys) => keys.indexOf(key) === index
+      ).length,
+      key_names: [...Object.keys(isPlainObject(row.data) ? row.data : {}), ...Object.keys(isPlainObject(row.binaryData) ? row.binaryData : {})]
+        .filter((key, index, keys) => keys.indexOf(key) === index)
+        .sort()
     }
   if (kind === "secrets") return row
   return row
