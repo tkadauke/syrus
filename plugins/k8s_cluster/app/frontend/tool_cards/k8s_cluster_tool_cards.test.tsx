@@ -401,6 +401,21 @@ describe("Kubernetes cluster tool cards", () => {
     unmount()
   })
 
+  it("does not invent replica state for pre-request scale failures", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: -1 },
+      resultBody: "Error: replicas must be a non-negative integer",
+      resultError: true,
+      parsedResult: null
+    })
+
+    render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.queryByText("0 replicas")).not.toBeInTheDocument()
+    expect(screen.getAllByText("Not available")).toHaveLength(2)
+  })
+
   it("marks no-op acknowledgements when previous and current state match", () => {
     const cardContext = context({
       toolName: "k8s_cluster_set_node_cordon",
