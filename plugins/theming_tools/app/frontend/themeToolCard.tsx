@@ -275,7 +275,7 @@ export function ThemeCard({
       <div className="break-words text-sm font-medium text-text-primary">{theme.name}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
         <Row label={t("theme_id")} value={theme.id} />
-        {theme.position ? <Row label={t("position")} value={theme.position} /> : null}
+        {theme.position != null ? <Row label={t("position")} value={theme.position} /> : null}
       </dl>
       {details}
       {draft || linkLabel ? (
