@@ -1572,7 +1572,7 @@ function PodLogsBody({ card }: { card: ParsedCard }) {
       ) : (
         <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
           {(visibleLines) => (
-            <TextPreview fullText={fullLog} maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />
+            <TextPreview modalText={fullLog} maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />
           )}
         </FilterableList>
       )}
