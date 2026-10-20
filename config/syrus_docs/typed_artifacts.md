@@ -197,6 +197,11 @@ Rendered as a single after screenshot (`:image_diff` renderer). Payload written 
 
 Rendered as a paired before/after visual comparison (`:before_after_visual_diff` renderer). Payload written by the deferred `visual_diff` workflow after it captures merge-base baseline screenshots and pairs them with the PR screenshots from a prior visual-review workflow:
 
+Each pair is displayed in one responsive overlay: PR/head is on the left and
+merge-base is on the right. Operators can drag the divider with a pointer or
+touch, move it with the keyboard, or tap the frame to open a larger preview
+that cycles between the labeled images with buttons, arrow keys, or a swipe.
+
 ```json
 {
   "base_revision": "abc123",

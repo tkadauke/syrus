@@ -170,6 +170,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `unpin_chat` | chat | essential | write | no | - | - | - | - |
 | `wake_landing_queue` | chat | essential | write | yes | - | - | - | - |
 | `wake_provider_admission` | chat | essential | write | yes | - | - | - | - |
+| `withdraw_pending_action` | chat | essential | write | no | - | - | - | - |
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
