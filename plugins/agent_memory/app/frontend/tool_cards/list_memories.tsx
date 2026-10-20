@@ -69,11 +69,18 @@ export const examples: ToolCardExample[] = [
           scope_id: "42",
           content: "Every new MCP tool registered on the chat surface needs an explicit rendering decision.",
           published: true,
+          user_id: "7",
+          source_type: "job",
+          source_id: "42",
           author: "agent",
           confidence: 0.9,
+          expires_at: "2027-09-10T14:22:00Z",
+          last_verified_at: "2026-10-01T10:00:00Z",
+          visibility: "repository",
           created_at: "2026-09-10T14:22:00Z",
           updated_at: "2026-09-10T14:22:00Z",
-          deleted_at: null
+          deleted_at: null,
+          deleted_by_user_id: null
         },
         {
           id: "126",
@@ -82,11 +89,18 @@ export const examples: ToolCardExample[] = [
           scope_id: "42",
           content: "When adding or changing Syrus ApplicationJob classes, explicitly set queue_as to a consumed queue.",
           published: false,
+          user_id: "7",
+          source_type: "chat",
+          source_id: "12",
           author: "agent",
           confidence: null,
+          expires_at: null,
+          last_verified_at: null,
+          visibility: "private",
           created_at: "2026-08-30T09:10:00Z",
           updated_at: "2026-08-30T09:10:00Z",
-          deleted_at: null
+          deleted_at: null,
+          deleted_by_user_id: null
         }
       ]
     }
