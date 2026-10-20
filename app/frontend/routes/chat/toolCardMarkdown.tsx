@@ -40,6 +40,7 @@ export type MarkdownPreviewProps = {
 }
 
 export type TextPreviewProps = {
+  fullText?: string
   text: string
   emptyLabel?: string
   lang?: HighlighterLanguageId | null
@@ -154,6 +155,7 @@ export function MarkdownPreview({
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
 export function TextPreview({
+  fullText,
   text,
   emptyLabel,
   lang = null,
@@ -168,6 +170,7 @@ export function TextPreview({
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
   const empty = !text.trim()
+  const completeText = fullText ?? text
   const truncated = useMemo(() => truncateTextLines(text, { mode: truncate, maxLines, maxChars }), [text, maxChars, maxLines, truncate])
 
   if (empty) return emptyLabel ? <div className="text-xs italic text-text-muted">{emptyLabel}</div> : null
@@ -188,7 +191,7 @@ export function TextPreview({
         lang={lang}
         maxHeightClassName="max-h-72"
       />
-      {truncated.truncated ? (
+      {truncated.truncated || completeText !== text ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
@@ -205,7 +208,7 @@ export function TextPreview({
           <button
             aria-label={t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
             className={CLOSE_BUTTON_CLASS}
-            onClick={() => copy(text)}
+            onClick={() => copy(completeText)}
             title={copied ? t("copy.copied") : t("copy.copy", { slug: title || dialogLabel })}
             type="button"
           >
@@ -222,11 +225,11 @@ export function TextPreview({
                 ? "max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
                 : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-primary"
             }
-            code={text}
+            code={completeText}
             lang={lang}
             maxHeightClassName="max-h-none"
           >
-            {lang ? undefined : <code className={wrap ? "break-words [overflow-wrap:anywhere]" : "whitespace-pre"}>{text}</code>}
+            {lang ? undefined : <code className={wrap ? "break-words [overflow-wrap:anywhere]" : "whitespace-pre"}>{completeText}</code>}
           </CodeSurface>
         </div>
       </Modal>
