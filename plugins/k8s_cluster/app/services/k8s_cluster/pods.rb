@@ -59,8 +59,7 @@ module K8sCluster
         before = client.get_pod(name, namespace)
         client.delete_pod(name, namespace)
 
-        owner = Array(before.dig("metadata", "ownerReferences")).find { |reference| reference["controller"] } ||
-          Array(before.dig("metadata", "ownerReferences")).first
+        owner = Array(before.dig("metadata", "ownerReferences")).find { |reference| reference["controller"] == true }
         restart_count = Array(before.dig("status", "containerStatuses")).sum { |status| integer(status["restartCount"]).to_i }
 
         {

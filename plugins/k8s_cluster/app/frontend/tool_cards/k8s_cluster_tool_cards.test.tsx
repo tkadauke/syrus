@@ -427,6 +427,27 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("Permanently removed; no controller will recreate it")).toBeInTheDocument()
   })
 
+  it("does not claim deletion or bare-pod permanence for an error envelope", () => {
+    const cardContext = context({
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_delete_pod"),
+      input: { cluster_id: 7, namespace: "default", name: "one-shot" },
+      resultBody: 'Error: pods "one-shot" not found',
+      resultError: true,
+      parsedResult: normalizedToolCardParsedResult({
+        structured_content: null,
+        content: [{ type: "text", text: 'Error: pods "one-shot" not found' }]
+      })
+    })
+
+    render(<>{deletePodToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Missing resource")).toBeInTheDocument()
+    expect(screen.getByText('pods "one-shot" not found')).toBeInTheDocument()
+    expect(screen.queryByText("Bare pod")).not.toBeInTheDocument()
+    expect(screen.queryByText("Permanently removed; no controller will recreate it")).not.toBeInTheDocument()
+    expect(screen.queryByText("deleted")).not.toBeInTheDocument()
+  })
+
   it("distinguishes changed and already-at-target scale results", () => {
     const cardContext = context({
       toolName: "k8s_cluster_scale_deployment",
