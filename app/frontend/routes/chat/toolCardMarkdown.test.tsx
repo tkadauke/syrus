@@ -78,7 +78,7 @@ describe("MarkdownPreview", () => {
     render(<MarkdownPreview maxChars={18} modalLabel="Full comment" text={text} title="Comment" />)
 
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Full comment" })).getByRole("button", { name: "Copy Comment" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Full comment" })).getByRole("button", { name: "Copy Comment to clipboard" }))
 
     expect(writeText).toHaveBeenCalledWith(text)
   })

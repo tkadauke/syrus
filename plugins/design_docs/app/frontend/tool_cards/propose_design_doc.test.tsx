@@ -94,7 +94,7 @@ describe("propose_design_doc tool card", () => {
     expect(within(dialog).getByRole("heading", { name: "Proposed body" })).toBeInTheDocument()
     expect(within(dialog).getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
     expect(within(dialog).getByRole("link", { name: "https://example.test/details" })).toBeInTheDocument()
-    expect(within(dialog).getByRole("button", { name: "Copy Proposed content" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Copy Proposed content to clipboard" })).toBeInTheDocument()
   })
 
   it("shows explicit empty states for blank optional and content fields", () => {
