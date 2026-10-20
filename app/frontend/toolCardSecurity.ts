@@ -9,6 +9,7 @@ const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN =
 const SAFE_SENSITIVE_METADATA_KEY_PATTERN = /(?:^|_)(?:present|active|usable|mode|id|name|type|class|count|error_message|inactive_reason)$/i
 const IDENTIFIER_VALUE_KEY_PATTERN = /(?:^|_)(?:key_names?|resource_names?|name)$/i
 const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|created_at)$/i
+const DESIGN_TOKEN_CONTAINER_KEY_PATTERN = /^(?:tokens|light|dark)$/i
 
 export function redactToolCardValue(value: unknown, parentKey = ""): unknown {
   if (typeof value === "string") return redactToolCardText(value, !identifierValueKey(parentKey))
@@ -53,6 +54,10 @@ function sensitiveKey(key: string) {
 }
 
 function redactToolCardEntry(key: string, value: unknown) {
+  // Theme design-token containers are presentation data, not credentials.
+  // Their children still pass through normal redaction, so a genuinely
+  // sensitive key nested inside one remains protected.
+  if (DESIGN_TOKEN_CONTAINER_KEY_PATTERN.test(normalizedKey(key))) return redactToolCardValue(value, key)
   if (!sensitiveKey(key) || safeSensitiveMetadataKey(key)) return redactToolCardValue(value, key)
   if (typeof value !== "string" && !Array.isArray(value) && !isPlainObject(value)) return value
   if (credentialMetadataObject(key, value)) return redactToolCardValue(value, key)

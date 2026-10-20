@@ -1,24 +1,24 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { errorSummary, MalformedThemeCard, parseThemeResult, renderError, ThemeCard } from "../themeToolCard"
+import { errorSummary, MalformedThemeCard, parseThemeResult, renderError, t, ThemeCard } from "../themeToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
-  const error = errorSummary("Theme install", context)
+  const error = errorSummary(t("action_install"), context)
   if (error) return error
 
   const theme = parseThemeResult(context)
   if (!theme) return null
 
-  return `Installed ${theme.name} (#${theme.id})`
+  return t("summary_installed", { name: theme.name, id: theme.id })
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const error = renderError("Theme install", context)
+  const error = renderError(t("action_install"), context)
   if (error) return error
 
   const theme = parseThemeResult(context)
-  if (!theme) return <MalformedThemeCard action="Theme install" />
+  if (!theme) return <MalformedThemeCard action={t("action_install")} />
 
-  return <ThemeCard outcome="installed" theme={theme} />
+  return <ThemeCard outcome={t("state_installed")} theme={theme} />
 }
 
 const installThemeToolCard: ToolCardRenderer = {

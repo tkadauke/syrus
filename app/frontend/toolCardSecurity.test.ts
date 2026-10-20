@@ -159,6 +159,28 @@ describe("toolCardSecurity", () => {
     })
   })
 
+  it("preserves theme design tokens while redacting real secrets nested beside them", () => {
+    expect(
+      redactToolCardValue({
+        tokens: {
+          light: { brand: "#b6492e", "text-primary": "#111827" },
+          dark: { surface: "#111827" },
+          shape: { "radius-control": "0.375rem" },
+          api_token: "real-secret-value"
+        },
+        access_token: "another-real-secret"
+      })
+    ).toEqual({
+      tokens: {
+        light: { brand: "#b6492e", "text-primary": "#111827" },
+        dark: { surface: "#111827" },
+        shape: { "radius-control": "0.375rem" },
+        api_token: "[redacted]"
+      },
+      access_token: "[redacted]"
+    })
+  })
+
   it("redacts the complete tool-card context without blanking diagnostic or kubectl metadata", () => {
     const diagnostic = contextFor({
       tool_name: "admin_github_app_installation_diagnostic",
