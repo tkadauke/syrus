@@ -83,7 +83,7 @@ describe("Kubernetes cluster tool cards", () => {
   it("summarizes credential-backed kubectl output without rendering raw credential payloads", () => {
     const cardContext = context({
       toolName: "k8s_cluster_kubectl",
-      input: { credential: "prod-k3s", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
+      input: { credential: "prod-k3s", cluster: "production", kube_context: "prod", namespace: "default", args: ["get", "pods"] },
       parsedResult: {
         ok: true,
         status: 0,
@@ -91,6 +91,7 @@ describe("Kubernetes cluster tool cards", () => {
         stderr: { text: "", truncated: false },
         command: { executable: "kubectl", args: ["--context", "prod", "--namespace", "default", "get", "pods"] },
         target: { kube_context: "prod", kube_namespace: "default" },
+        safe_metadata: { cluster: "production", context: "prod", host: "https://kube.example.test" },
         credential: { credential_id: 12, credential_name: "prod-k3s", credential_type: "k8s_cluster.kubeconfig" }
       }
     })
@@ -99,6 +100,10 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("prod-k3s")).toBeInTheDocument()
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("k8s_cluster.kubeconfig")).toBeInTheDocument()
+    expect(screen.getByText("https://kube.example.test")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy command" })).toBeInTheDocument()
     expect(screen.getByText(/web 1\/1 Running/)).toBeInTheDocument()
     expect(screen.queryByText(/token/)).not.toBeInTheDocument()
   })
@@ -126,6 +131,55 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("API failed")).toBeInTheDocument()
     expect(screen.getAllByText(/namespaces "nope" not found/).length).toBeGreaterThan(0)
     expect(screen.queryByText(JSON.stringify(parsedResult))).not.toBeInTheDocument()
+    expect(screen.getByText("stderr").closest("details")).toHaveAttribute("open")
+  })
+
+  it("normalizes every kubectl MCP envelope, preserves safe credential metadata, and redacts output", () => {
+    const payload = {
+      ok: true,
+      status: 0,
+      stdout: { text: "token=super-secret-token-value\npassword=hunter2-password", truncated: false },
+      stderr: { text: "", truncated: false },
+      credential: { credential_id: 42, credential_name: "ops-kubeconfig", credential_type: "kubeconfig" },
+      target: { kube_context: "ops", kube_namespace: "monitoring" },
+      safe_metadata: { cluster: "ops", context: "ops", host: "kube.internal" }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored" }] },
+      { content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const cardContext = context({
+        toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_kubectl"),
+        input: { args: ["get", "pods"], allow_secret_output: true, allow_risky_command: true },
+        parsedResult: redactToolCardValue(normalizedToolCardParsedResult(envelope))
+      })
+
+      const view = render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByText("ops-kubeconfig")).toBeInTheDocument()
+      expect(screen.getByText("42")).toBeInTheDocument()
+      expect(screen.getByText("kubeconfig")).toBeInTheDocument()
+      expect(screen.getByText("Secret output allowed")).toBeInTheDocument()
+      expect(screen.getByText("Risky command allowed")).toBeInTheDocument()
+      expect(screen.getByText(/token=\[redacted\]/)).toBeInTheDocument()
+      expect(screen.queryByText(/super-secret-token-value|hunter2-password/)).not.toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it("classifies kubectl policy denials separately from validation errors", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { args: ["get", "secrets"] },
+      resultBody: "Error: kubectl command could expose secret values",
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(kubectlToolCard.collapsedSummary?.(cardContext)).toContain("permission denied")
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Permission error")).toBeInTheDocument()
   })
 
   it("shows when kubectl stdout or stderr was capped", () => {
@@ -142,8 +196,23 @@ describe("Kubernetes cluster tool cards", () => {
 
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
 
-    expect(screen.getByText("truncated · 4.0 KB omitted")).toBeInTheDocument()
-    expect(screen.getByText("truncated · 2.0 KB omitted")).toBeInTheDocument()
+    expect(screen.getByText("64.0 KB returned · 4.0 KB omitted")).toBeInTheDocument()
+    expect(screen.getByText("64.0 KB returned · 2.0 KB omitted")).toBeInTheDocument()
+  })
+
+  it("shows the tail of failed kubectl output", () => {
+    const stderr = Array.from({ length: 9 }, (_, index) => `error line ${index + 1}`).join("\n")
+    render(
+      <>
+        {kubectlToolCard.renderExpanded(
+          context({ toolName: "k8s_cluster_kubectl", resultError: true, parsedResult: { ok: false, status: 1, stderr: { text: stderr } } })
+        )}
+      </>
+    )
+
+    const preview = screen.getByTestId("text-preview-content")
+    expect(preview).not.toHaveTextContent("error line 1")
+    expect(preview).toHaveTextContent("error line 9")
   })
 
   it("summarizes successful action acknowledgements with action, target, scope, and result", () => {

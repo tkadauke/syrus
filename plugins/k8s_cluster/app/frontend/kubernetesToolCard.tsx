@@ -1,7 +1,7 @@
 import i18n from "i18next"
 import { useState, type ReactNode } from "react"
 import { Button } from "@app/components/Button"
-import { DataTable, Notice } from "@app/components/ui"
+import { CodeSurface, DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import {
   CardShell,
@@ -111,7 +111,14 @@ type ParsedKubectlCard = {
   status: string
   command: string
   scope: string
-  credential: string
+  credentialId: string
+  credentialName: string
+  credentialType: string
+  cluster: string
+  context: string
+  host: string
+  allowSecretOutput: boolean
+  allowRiskyCommand: boolean
   stdout: string
   stderr: string
   stdoutTruncation: TextBlockTruncation | null
@@ -215,19 +222,30 @@ function renderExpandedKubectl(context: ToolCardContext) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={kubectlStateLabel(card)} tone={kubectlStateTone(card)} />
-        <span className="font-mono text-xs text-text-primary">{card.command}</span>
+        {card.allowSecretOutput ? <StatePill state={t("kubectl_card_secret_output_enabled")} tone="warning" /> : null}
+        {card.allowRiskyCommand ? <StatePill state={t("kubectl_card_risky_command_enabled")} tone="warning" /> : null}
       </div>
-      {card.errorMessage ? <Notice tone="danger">{card.errorMessage}</Notice> : null}
-      <div className="grid gap-2 sm:grid-cols-3">
+      <CodeSurface code={card.command} copyLabel={t("kubectl_card_copy_command")} maxHeightClassName="max-h-24" />
+      {card.errorMessage ? (
+        <Notice tone="danger" title={kubectlErrorTitle(card)}>
+          {card.errorMessage}
+        </Notice>
+      ) : null}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <DetailRow label={t("action_card_scope")} value={card.scope} />
         <DetailRow label={t("kubectl_card_status")} value={card.status} />
-        <DetailRow label={t("kubectl_card_credential")} value={card.credential} />
+        <DetailRow label={t("kubectl_card_cluster")} value={card.cluster} />
+        <DetailRow label={t("kubectl_card_context")} value={card.context} />
+        <DetailRow label={t("kubectl_card_host")} value={card.host} />
+        <DetailRow label={t("kubectl_card_credential_name")} value={card.credentialName} />
+        <DetailRow label={t("kubectl_card_credential_id")} value={card.credentialId} />
+        <DetailRow label={t("kubectl_card_credential_type")} value={card.credentialType} />
       </div>
       {card.stdout || card.stdoutTruncation ? (
-        <KubectlTextPreview label={t("kubectl_card_stdout")} text={card.stdout} truncation={card.stdoutTruncation} />
+        <KubectlTextPreview failed={!card.ok} label={t("kubectl_card_stdout")} text={card.stdout} truncation={card.stdoutTruncation} />
       ) : null}
       {card.stderr || card.stderrTruncation ? (
-        <KubectlTextPreview label={t("kubectl_card_stderr")} text={card.stderr} truncation={card.stderrTruncation} />
+        <KubectlTextPreview defaultOpen={!card.ok} failed={!card.ok} label={t("kubectl_card_stderr")} text={card.stderr} truncation={card.stderrTruncation} />
       ) : null}
     </CardShell>
   )
@@ -339,20 +357,32 @@ function renderExpanded(context: ToolCardContext) {
 function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const payload = "ok" in parsed && "status" in parsed
-  const stdout = textBlockValue(parsed.stdout)
-  const stderr = textBlockValue(parsed.stderr)
+  const stdout = redactToolCardText(textBlockValue(parsed.stdout))
+  const stderr = redactToolCardText(textBlockValue(parsed.stderr))
   const errorMessage = payload && parsed.ok !== true ? kubectlFailureMessage(stderr, parsed.status) : parseErrorMessage(context)
   const command = kubectlCommand(parsed, context.input || {})
   const statusValue = displayValue(parsed.status)
-  const credential = isPlainObject(parsed.credential) ? displayValue(parsed.credential.credential_name) || displayValue(parsed.credential.credential_id) : null
+  const credential = isPlainObject(parsed.credential) ? parsed.credential : {}
+  const metadata = isPlainObject(parsed.safe_metadata) ? parsed.safe_metadata : {}
+  const input = context.input || {}
+  const target = isPlainObject(parsed.target) ? parsed.target : {}
+  const unknown = t("action_card_unknown")
 
   return {
     ok: parsed.ok === true,
     payload,
-    status: statusValue || (errorMessage ? t("tool_card_error") : t("action_card_unknown")),
+    status: statusValue ? t("kubectl_card_status_value", { status: statusValue }) : errorMessage ? t("tool_card_error") : t("action_card_unknown"),
     command,
-    scope: kubectlScope(parsed, context.input || {}),
-    credential: credential || displayValue((context.input || {}).credential) || t("action_card_unknown"),
+    scope: kubectlScope(parsed, input),
+    credentialId: displayValue(credential.credential_id) || displayValue(parsed.credential_id) || unknown,
+    credentialName: displayValue(credential.credential_name) || displayValue(parsed.credential_name) || displayValue(input.credential) || unknown,
+    credentialType: displayValue(credential.credential_type) || displayValue(parsed.credential_type) || unknown,
+    cluster: displayValue(metadata.cluster) || displayValue(input.cluster) || displayValue(input.cluster_id) || unknown,
+    context:
+      displayValue(metadata.context) || displayValue(metadata.kube_context) || displayValue(target.kube_context) || displayValue(input.kube_context) || unknown,
+    host: displayValue(metadata.host) || unknown,
+    allowSecretOutput: input.allow_secret_output === true,
+    allowRiskyCommand: input.allow_risky_command === true,
     stdout,
     stderr,
     stdoutTruncation: textBlockTruncation(parsed.stdout),
@@ -363,12 +393,22 @@ function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
 
 function kubectlStateLabel(card: ParsedKubectlCard) {
   if (card.ok) return t("action_state_succeeded")
+  if (kubectlPermissionDenied(card)) return t("action_failure_permission")
   return card.payload ? t("action_failure_api") : t("action_failure_validation")
 }
 
 function kubectlStateTone(card: ParsedKubectlCard) {
   if (card.ok) return "success"
   return card.payload ? "failure" : "warning"
+}
+
+function kubectlPermissionDenied(card: ParsedKubectlCard) {
+  return /(?:permission|policy|forbidden|not allowed|access (?:is )?disabled|could expose secret)/i.test(card.errorMessage || card.stderr)
+}
+
+function kubectlErrorTitle(card: ParsedKubectlCard) {
+  if (kubectlPermissionDenied(card)) return t("action_error_permission_title")
+  return card.payload ? t("action_error_api_title") : t("action_error_validation_title")
 }
 
 function kubectlFailureMessage(stderr: string, status: unknown) {
@@ -380,18 +420,32 @@ function kubectlFailureMessage(stderr: string, status: unknown) {
   return t("kubectl_card_exited", { status: displayValue(status) || t("action_card_unknown") })
 }
 
-function KubectlTextPreview({ label, text, truncation }: { label: string; text: string; truncation: TextBlockTruncation | null }) {
+function KubectlTextPreview({
+  defaultOpen = false,
+  failed,
+  label,
+  text,
+  truncation
+}: {
+  defaultOpen?: boolean
+  failed: boolean
+  label: string
+  text: string
+  truncation: TextBlockTruncation | null
+}) {
   return (
     <div className="space-y-1">
       {truncation ? <StatePill state={truncationLabel(truncation)} tone="warning" /> : null}
-      <Disclosure label={label}>
-        <TextPreview text={text} truncate="headTail" />
+      <Disclosure defaultOpen={defaultOpen} label={label}>
+        <TextPreview modalLabel={label} text={text} truncate={failed ? "tail" : "head"} />
       </Disclosure>
     </div>
   )
 }
 
 function truncationLabel(truncation: TextBlockTruncation) {
+  if (truncation.bytes !== null && truncation.omittedBytes !== null)
+    return t("kubectl_card_truncated_bytes_omitted", { bytes: formatBytes(truncation.bytes), omittedBytes: formatBytes(truncation.omittedBytes) })
   if (truncation.omittedBytes !== null) return t("kubectl_card_truncated_omitted", { bytes: formatBytes(truncation.omittedBytes) })
   if (truncation.bytes !== null) return t("kubectl_card_truncated_bytes", { bytes: formatBytes(truncation.bytes) })
   return t("tool_card_truncated")
