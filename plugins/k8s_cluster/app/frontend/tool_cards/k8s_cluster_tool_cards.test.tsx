@@ -1431,7 +1431,7 @@ describe("Kubernetes cluster tool cards", () => {
           "api-token.txt": "password=hunter2\nmode=production",
           "public-url": "https://example.test/" + "x".repeat(5_000)
         },
-        binaryData: { "logo.bin": "AAECAwQ=" }
+        binaryData: { "logo.bin": "AAECAwQ=", "malformed.bin": "bad!" }
       }
     }
     const envelopes = [
@@ -1453,8 +1453,11 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.getByText(/password=\[redacted\]/)).toBeInTheDocument()
       expect(screen.queryByText(/hunter2/)).not.toBeInTheDocument()
       expect(screen.getByText("logo.bin")).toBeInTheDocument()
-      expect(screen.getByText("binary")).toBeInTheDocument()
-      expect(screen.getByText("Binary value is not previewed.")).toBeInTheDocument()
+      expect(screen.getByText("5 B")).toBeInTheDocument()
+      expect(screen.getByText("malformed.bin")).toBeInTheDocument()
+      expect(screen.getByText("4 B")).toBeInTheDocument()
+      expect(screen.getAllByText("binary")).toHaveLength(2)
+      expect(screen.getAllByText("Binary value is not previewed.")).toHaveLength(2)
       expect(screen.getByText("Displayed value capped at 4.0 KB.")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
       rendered.unmount()
