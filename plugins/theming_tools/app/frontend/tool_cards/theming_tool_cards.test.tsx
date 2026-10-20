@@ -114,8 +114,8 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("font-sans")).toBeInTheDocument()
   })
 
-  it("renders install_theme by id with its source, result metadata, and settings links", () => {
-    const cardContext = context({ toolName: "install_theme", input: { theme_id: 7 }, parsedResult: { ...theme, built_in: true } })
+  it("renders install_theme by id with its source, result metadata, zero position, and settings links", () => {
+    const cardContext = context({ toolName: "install_theme", input: { theme_id: 7 }, parsedResult: { ...theme, built_in: true, position: 0 } })
 
     expect(installThemeToolCard.collapsedSummary?.(cardContext)).toBe("Installed Sunset Console (THEME-12)")
     render(<>{installThemeToolCard.renderExpanded(cardContext)}</>)
@@ -129,7 +129,7 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByRole("link", { name: "THEME-7" })).toHaveAttribute("href", "/design_system?theme_id=7")
     expect(screen.getByRole("link", { name: "Open theme settings" })).toHaveAttribute("href", "/design_system?theme_id=12")
     expect(screen.getByText("Position")).toBeInTheDocument()
-    expect(screen.getByText("4")).toBeInTheDocument()
+    expect(screen.getByText("0")).toBeInTheDocument()
   })
 
   it("renders install_theme from new tokens with its input name and every token group", () => {
