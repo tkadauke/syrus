@@ -135,12 +135,14 @@ const LIST_CONTENT_MAX_CHARS = 180
 
 export function ContentPreview({
   content,
+  highlightTerms,
   linkifySlugs = true,
   linkifyUrls = true,
   maxChars = DETAIL_CONTENT_MAX_CHARS,
   onLinkClick
 }: {
   content: string
+  highlightTerms?: string[]
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   maxChars?: number
@@ -150,6 +152,7 @@ export function ContentPreview({
     <MarkdownPreview
       copyLabel={t("tool_copy_content")}
       emptyLabel={t("tool_empty_content")}
+      highlightTerms={highlightTerms}
       linkifySlugs={linkifySlugs}
       linkifyUrls={linkifyUrls}
       maxChars={maxChars}
@@ -290,7 +293,7 @@ export function memoryListSummary(context: ToolCardContext): string | null {
   return t("tool_memory_count", { count: rows.length })
 }
 
-export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; emptyMessage: string }) {
+export function MemoryListBody({ rows, emptyMessage, highlightTerms }: { rows: MemoryPayload[]; emptyMessage: string; highlightTerms?: string[] }) {
   if (rows.length === 0) return <EmptyState>{emptyMessage}</EmptyState>
 
   return (
@@ -318,7 +321,7 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
             </dl>
             <div className="min-w-0">
               <SectionLabel>{t("tool_content")}</SectionLabel>
-              <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
+              <ContentPreview content={row.content} highlightTerms={highlightTerms} maxChars={LIST_CONTENT_MAX_CHARS} />
             </div>
             <MemoryListMetadata memory={row} />
           </article>
@@ -353,7 +356,7 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
               </DataTable.Cell>
               <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
                 <div className="min-w-0 text-text-secondary">
-                  <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
+                  <ContentPreview content={row.content} highlightTerms={highlightTerms} maxChars={LIST_CONTENT_MAX_CHARS} />
                 </div>
                 <div className="mt-2 min-w-0">
                   <MemoryListMetadata memory={row} />
