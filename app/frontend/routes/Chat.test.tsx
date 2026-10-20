@@ -80,6 +80,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
   __resetInFlightComposerDraftsForTests()
+  window.history.replaceState({}, "", "/")
 })
 
 describe("activeChatRefetchInterval", () => {
@@ -637,6 +638,24 @@ describe("ChatWorkspace panel collapse", () => {
     expect(screen.queryByRole("button", { name: "Open workspace panel" })).not.toBeInTheDocument()
   })
 
+  it("opens the Media workspace for an anchored walkthrough despite a saved collapsed preference", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
+    window.history.replaceState({}, "", "/chats/8#walkthrough-42")
+    mockChatRouteFetch(
+      chatPayload({}, {
+        video_walkthroughs: [
+          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        ]
+      })
+    )
+
+    renderRoute()
+
+    expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Media" })).toHaveClass("text-brand")
+    expect(screen.getByText("Checkout walkthrough").closest("article")).toHaveAttribute("id", "walkthrough-42")
+  })
+
   it("collapses the panel when in-app navigation opens an unstarted chat", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     const firstChat = chatPayload()
@@ -736,6 +755,26 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(composerShell).not.toHaveClass("bg-white/95", "dark:bg-gray-950/95", "backdrop-blur")
     expect(within(tabs).getByRole("button", { name: "Chat" })).toHaveClass("text-brand")
     expect(within(tabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+  })
+
+  it("opens the mobile Media tab for an anchored walkthrough", async () => {
+    mockMobileViewport()
+    window.history.replaceState({}, "", "/chats/8#walkthrough-42")
+    mockChatRouteFetch(
+      chatPayload({}, {
+        video_walkthroughs: [
+          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        ]
+      })
+    )
+
+    renderRoute()
+
+    const tabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(tabs).getByRole("button", { name: "Media" })).toHaveClass("text-brand")
+    expect(screen.getByTestId("mobile-workspace-panel-shell")).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+    expect(screen.getByText("Checkout walkthrough").closest("article")).toHaveAttribute("id", "walkthrough-42")
   })
 
   it("shows the mobile tab strip for an established paginated chat whose loaded tail is empty", async () => {
