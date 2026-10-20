@@ -1,6 +1,18 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MediaPreviewShell, type MediaPreviewAction, type MediaPreviewMeta } from "@app/routes/chat/mediaPreviewShell"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import {
+  Badge,
+  CardShell,
+  displayValue,
+  EmptyState,
+  EntityReference,
+  InternalLink,
+  numberValue,
+  Row,
+  SectionLabel,
+  StatePill
+} from "@app/routes/chat/toolCardUi"
 
 type FrameImage = {
   src: string
@@ -14,7 +26,7 @@ type ArtifactLink = {
 }
 
 type WalkthroughFrameCard = {
-  status: "success" | "error" | "missing"
+  status: "pending" | "success" | "error" | "missing"
   walkthroughId: string | null
   walkthroughName: string | null
   timestamp: string | null
@@ -26,6 +38,17 @@ type WalkthroughFrameCard = {
   links: ArtifactLink[]
   message: string | null
 }
+
+type FrameInstruction = {
+  walkthroughId: string | null
+  timestamp: string | null
+}
+
+const FRAME_INSTRUCTION_PATTERN = /^Screenshot from walkthrough #(\d+) at (\d+:\d{2})\.(?:\s|$)/
+const ERROR_NOTICE_CLASS = [
+  "break-words rounded-[var(--radius-panel)] border border-danger/30 bg-danger/10 px-3 py-2",
+  "text-sm text-danger-text [overflow-wrap:anywhere]"
+].join(" ")
 
 const EXAMPLE_FRAME_IMAGE = [
   "data:image/svg+xml;utf8,",
@@ -67,24 +90,28 @@ function parseCard(context: ToolCardContext): WalkthroughFrameCard | null {
     .filter((value): value is string => Boolean(value))
   const message = diagnosticMessage(context, payload, textBlocks)
   const image = imageFromPayload(payload) || imageFromContent(context.parsedResult)
+  const instruction = frameInstruction(textBlocks)
   const payloadSignal = payload != null && Object.keys(payload).length > 0
 
-  if (!context.resultError && !payloadSignal && !image && textBlocks.length === 0 && !displayValue(input.walkthrough_id)) return null
+  if (!context.resultError && !payloadSignal && !image && textBlocks.length === 0 && !displayValue(input.walkthrough_id) && context.resultBody.trim())
+    return null
+
+  const pending = !context.resultError && context.parsedResult == null && !context.resultBody.trim()
 
   return {
-    status: context.resultError || errorFlag(payload) ? "error" : image ? "success" : "missing",
-    walkthroughId: displayValue(input.walkthrough_id) || displayValue(payload?.walkthrough_id) || displayValue(nested(payload, "walkthrough", "id")),
+    status: pending ? "pending" : context.resultError || errorFlag(payload) ? "error" : image ? "success" : "missing",
+    walkthroughId: displayValue(input.walkthrough_id) || instruction.walkthroughId,
     walkthroughName:
       displayValue(payload?.walkthrough_name) ||
       displayValue(payload?.title) ||
       displayValue(nested(payload, "walkthrough", "title")) ||
       displayValue(nested(payload, "walkthrough", "name")),
-    timestamp: timestampLabel(input, payload),
+    timestamp: instruction.timestamp || timestampLabel(input, payload),
     range: rangeLabel(payload),
     frameIndex: displayValue(payload?.frame_index) || displayValue(payload?.index) || displayValue(payload?.frame_number),
     image,
     transcript: displayValue(payload?.transcript) || displayValue(payload?.associated_transcript) || displayValue(payload?.caption),
-    context: displayValue(payload?.context) || displayValue(payload?.surrounding_context) || (!context.resultError ? textBlocks.join("\n") || null : null),
+    context: displayValue(payload?.context) || displayValue(payload?.surrounding_context),
     links: artifactLinks(payload),
     message
   }
@@ -96,7 +123,7 @@ function collapsedSummary(context: ToolCardContext) {
 
   const subject = card.walkthroughName || (card.walkthroughId ? `Walkthrough ${card.walkthroughId}` : "Walkthrough frame")
   const frame = [card.frameIndex ? `frame ${card.frameIndex}` : null, card.timestamp].filter(Boolean).join(" @ ")
-  const state = card.status === "success" ? "captured" : card.status === "missing" ? "missing frame" : "failed"
+  const state = card.status === "pending" ? "pending" : card.status === "success" ? "captured" : card.status === "missing" ? "missing frame" : "failed"
 
   return [subject, frame || null, state].filter(Boolean).join(" - ")
 }
@@ -107,26 +134,37 @@ function renderExpanded(context: ToolCardContext) {
 }
 
 function WalkthroughFrameCardBody({ card }: { card: WalkthroughFrameCard }) {
+  const state = card.status === "pending" ? "pending" : card.status === "success" ? "captured" : card.status === "missing" ? "missing" : "failed"
+  const tone = card.status === "pending" ? "info" : card.status === "success" ? "success" : card.status === "missing" ? "warning" : "failure"
+
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough frame</Badge>
-        <StatePill
-          state={card.status === "success" ? "captured" : card.status === "missing" ? "missing" : "failed"}
-          tone={card.status === "success" ? "success" : card.status === "missing" ? "warning" : "failure"}
-        />
+        <StatePill state={state} tone={tone} />
       </div>
-      {card.message ? <div className="text-sm text-danger-text">{card.message}</div> : null}
-      <dl className="grid gap-1 sm:grid-cols-2">
+      {card.message ? <ErrorNotice message={card.message} /> : null}
+      <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         {card.walkthroughName ? <Row label="Walkthrough" value={card.walkthroughName} /> : null}
-        {card.walkthroughId ? <Row label="Walkthrough ID" value={card.walkthroughId} /> : null}
+        {card.walkthroughId ? (
+          <div className="min-w-0">
+            <SectionLabel>Walkthrough</SectionLabel>
+            <EntityReference id={card.walkthroughId} kind="walkthrough" />
+          </div>
+        ) : null}
         {card.timestamp ? <Row label="Timestamp" value={card.timestamp} /> : null}
         {card.range ? <Row label="Range" value={card.range} /> : null}
         {card.frameIndex ? <Row label="Frame" value={card.frameIndex} /> : null}
       </dl>
-      {card.image ? <FramePreview card={card} image={card.image} /> : <MissingFrameNotice />}
-      {card.transcript ? <TextPanel label="Transcript" text={card.transcript} /> : null}
-      {card.context ? <TextPanel label="Context" text={card.context} /> : null}
+      {card.image ? (
+        <FramePreview card={card} image={card.image} />
+      ) : card.status === "pending" ? (
+        <EmptyState>Waiting for a frame image.</EmptyState>
+      ) : (
+        <MissingFrameNotice />
+      )}
+      {card.transcript ? <ProsePanel label="Transcript" text={card.transcript} /> : null}
+      {card.context ? <ProsePanel label="Context" text={card.context} /> : null}
       {card.links.length > 0 ? <ArtifactLinks links={card.links} /> : null}
     </CardShell>
   )
@@ -166,12 +204,16 @@ function MissingFrameNotice() {
   return <EmptyState>No frame image or thumbnail was returned.</EmptyState>
 }
 
-function TextPanel({ label, text }: { label: string; text: string }) {
+function ProsePanel({ label, text }: { label: string; text: string }) {
   return (
-    <Disclosure label={label}>
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{text}</pre>
-    </Disclosure>
+    <div className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-2">
+      <MarkdownPreview linkifySlugs linkifyUrls maxChars={960} maxLines={6} modalLabel={label} text={text} title={label} />
+    </div>
   )
+}
+
+function ErrorNotice({ message }: { message: string }) {
+  return <div className={ERROR_NOTICE_CLASS}>{message}</div>
 }
 
 function ArtifactLinks({ links }: { links: ArtifactLink[] }) {
@@ -278,6 +320,14 @@ function diagnosticMessage(context: ToolCardContext, payload: Record<string, unk
   return displayValue(payload?.error) || displayValue(payload?.message) || textBlocks.join("\n") || context.resultBody.trim() || "Frame capture failed."
 }
 
+function frameInstruction(textBlocks: string[]): FrameInstruction {
+  for (const text of textBlocks) {
+    const match = text.match(FRAME_INSTRUCTION_PATTERN)
+    if (match) return { walkthroughId: match[1], timestamp: match[2] }
+  }
+  return { walkthroughId: null, timestamp: null }
+}
+
 function errorFlag(payload: Record<string, unknown> | null) {
   return payload?.isError === true || payload?.success === false || displayValue(payload?.status)?.toLowerCase() === "error"
 }
@@ -314,16 +364,15 @@ export const examples: ToolCardExample[] = [
     id: "normal_frame",
     label: "Captured frame",
     input: { walkthrough_id: 42, timestamp: "01:12" },
-    parsedResult: {
-      walkthrough: { id: 42, title: "Checkout regression" },
-      timestamp: "01:12",
-      range: { start: "01:10", end: "01:15" },
-      frame_index: 2160,
-      image: { src: EXAMPLE_FRAME_IMAGE, mimeType: "image/svg+xml", label: "Checkout regression at 01:12" },
-      transcript: "The save button is clicked and an error toast appears.",
-      context: "The frame captures the toast text beside the checkout form.",
-      links: [{ label: "Source video", url: "/api/v1/app/video_walkthroughs/42" }]
-    }
+    description: "The real MCP image-plus-agent-instruction content envelope; the instruction is used only for frame metadata.",
+    parsedResult: [
+      { type: "image", data: EXAMPLE_FRAME_IMAGE, mimeType: "image/svg+xml" },
+      {
+        type: "text",
+        text: "Screenshot from walkthrough #42 at 1:12. Read any on-screen text directly off this image and use the exact characters you see."
+      }
+    ],
+    sourceType: "claude"
   },
   {
     id: "missing_frame",
