@@ -38,7 +38,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 
 describe("Kubernetes cluster tool cards", () => {
   it("registers plugin-owned cards for the read-only Kubernetes inventory tools", () => {
-    [
+    ;[
       "k8s_cluster_overview",
       "k8s_cluster_list_clusters",
       "k8s_cluster_namespaces",
@@ -62,15 +62,11 @@ describe("Kubernetes cluster tool cards", () => {
   })
 
   it("registers plugin-owned cards for Kubernetes action acknowledgement tools", () => {
-    [
-      "k8s_cluster_restart_rollout",
-      "k8s_cluster_scale_deployment",
-      "k8s_cluster_delete_pod",
-      "k8s_cluster_set_node_cordon",
-      "k8s_cluster_kubectl"
-    ].forEach((toolName) => {
-      expect(pluginToolCardRendererFor(toolName)).not.toBeNull()
-    })
+    ;["k8s_cluster_restart_rollout", "k8s_cluster_scale_deployment", "k8s_cluster_delete_pod", "k8s_cluster_set_node_cordon", "k8s_cluster_kubectl"].forEach(
+      (toolName) => {
+        expect(pluginToolCardRendererFor(toolName)).not.toBeNull()
+      }
+    )
   })
 
   it("attributes the Kubernetes cards and examples to the plugin catalog", () => {
@@ -111,7 +107,7 @@ describe("Kubernetes cluster tool cards", () => {
       ok: false,
       status: 1,
       stdout: { text: "", truncated: false },
-      stderr: { text: "Error from server (NotFound): namespaces \"nope\" not found\n", truncated: false },
+      stderr: { text: 'Error from server (NotFound): namespaces "nope" not found\n', truncated: false },
       command: { executable: "kubectl", args: ["get", "pods", "--namespace", "nope"] }
     }
     const cardContext = context({
@@ -213,7 +209,7 @@ describe("Kubernetes cluster tool cards", () => {
     const missingContext = context({
       toolName: "k8s_cluster_restart_rollout",
       input: { cluster_id: 7, namespace: "default", name: "missing" },
-      resultBody: "Error: deployments.apps \"missing\" not found",
+      resultBody: 'Error: deployments.apps "missing" not found',
       resultError: true,
       parsedResult: null
     })
@@ -274,7 +270,15 @@ describe("Kubernetes cluster tool cards", () => {
         truncated: true,
         pods: [
           { namespace: "default", name: "web-1", status: "Running", ready: "1/1", restart_count: 0, node_name: "node-1", created_at: "2026-09-30T10:00:00Z" },
-          { namespace: "default", name: "worker-1", status: "CrashLoopBackOff", ready: "0/1", restart_count: 12, node_name: "node-2", created_at: "2026-09-30T11:00:00Z" }
+          {
+            namespace: "default",
+            name: "worker-1",
+            status: "CrashLoopBackOff",
+            ready: "0/1",
+            restart_count: 12,
+            node_name: "node-2",
+            created_at: "2026-09-30T11:00:00Z"
+          }
         ]
       }
     })
@@ -304,22 +308,59 @@ describe("Kubernetes cluster tool cards", () => {
   it("renders nodes, namespaces, PVCs, and events with their expected operational columns", () => {
     render(
       <>
-        {nodesToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_nodes",
-          parsedResult: { available: true, nodes: [{ name: "node-1", ready: false, roles: ["worker"], capacity_cpu: "8", capacity_memory: "32Gi", created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {namespacesToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_namespaces",
-          parsedResult: { available: true, namespaces: [{ name: "default", status: "Active", created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {pvcsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_pvcs",
-          parsedResult: { available: true, persistent_volume_claims: [{ namespace: "default", name: "data", status: "Pending", capacity: "10Gi", storage_class: "fast", access_modes: ["ReadWriteOnce"], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {eventsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_events",
-          parsedResult: { available: true, events: [{ namespace: "default", type: "Warning", reason: "FailedScheduling", message: "No nodes available", involved_object: { kind: "Pod", name: "web-1" }, count: 3, last_timestamp: "2026-09-30T12:00:00Z" }] }
-        }))}
+        {nodesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_nodes",
+            parsedResult: {
+              available: true,
+              nodes: [{ name: "node-1", ready: false, roles: ["worker"], capacity_cpu: "8", capacity_memory: "32Gi", created_at: "2026-09-01T00:00:00Z" }]
+            }
+          })
+        )}
+        {namespacesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_namespaces",
+            parsedResult: { available: true, namespaces: [{ name: "default", status: "Active", created_at: "2026-09-01T00:00:00Z" }] }
+          })
+        )}
+        {pvcsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_pvcs",
+            parsedResult: {
+              available: true,
+              persistent_volume_claims: [
+                {
+                  namespace: "default",
+                  name: "data",
+                  status: "Pending",
+                  capacity: "10Gi",
+                  storage_class: "fast",
+                  access_modes: ["ReadWriteOnce"],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {eventsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_events",
+            parsedResult: {
+              available: true,
+              events: [
+                {
+                  namespace: "default",
+                  type: "Warning",
+                  reason: "FailedScheduling",
+                  message: "No nodes available",
+                  involved_object: { kind: "Pod", name: "web-1" },
+                  count: 3,
+                  last_timestamp: "2026-09-30T12:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
       </>
     )
 
@@ -390,7 +431,13 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
     empty.unmount()
 
-    const errorContext = context({ toolName: "k8s_cluster_namespaces", input: { cluster_id: 7, name: "missing" }, resultBody: "Error: Namespace not found", resultError: true, parsedResult: null })
+    const errorContext = context({
+      toolName: "k8s_cluster_namespaces",
+      input: { cluster_id: 7, name: "missing" },
+      resultBody: "Error: Namespace not found",
+      resultError: true,
+      parsedResult: null
+    })
     render(<>{namespacesToolCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("Namespace not found")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
@@ -424,33 +471,121 @@ describe("Kubernetes cluster tool cards", () => {
   it("renders workload cards with readiness, selectors, rollout counts, and recent conditions", () => {
     render(
       <>
-        {deploymentsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_deployments",
-          parsedResult: { available: true, deployments: [{ namespace: "default", name: "web", replicas: 3, ready_replicas: 2, available_replicas: 2, updated_replicas: 3, selector: { app: "web" }, conditions: [{ type: "Available", status: "False", reason: "MinimumReplicasUnavailable" }], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {statefulSetsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_statefulsets",
-          parsedResult: { available: true, stateful_sets: [{ namespace: "default", name: "postgres", replicas: 2, ready_replicas: 2, current_replicas: 2, updated_replicas: 2, selector: { app: "postgres" }, conditions: [{ type: "Ready", status: "True" }], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {daemonSetsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_daemonsets",
-          parsedResult: { available: true, daemon_sets: [{ namespace: "kube-system", name: "agent", desired_number_scheduled: 4, current_number_scheduled: 4, number_ready: 3, number_available: 3, selector: { app: "agent" }, conditions: [{ type: "Available", status: "False" }], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {jobsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_jobs",
-          parsedResult: { available: true, jobs: [{ namespace: "default", name: "migrate", completions: 1, parallelism: 1, active_count: 0, succeeded: 0, failed: 1, selector: { "job-name": "migrate" }, conditions: [{ type: "Failed", status: "True" }], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {cronJobsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_cronjobs",
-          parsedResult: { available: true, cron_jobs: [{ namespace: "default", name: "nightly", schedule: "0 2 * * *", suspended: true, active_count: 0, last_schedule_time: "2026-09-30T02:00:00Z", created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
+        {deploymentsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_deployments",
+            parsedResult: {
+              available: true,
+              deployments: [
+                {
+                  namespace: "default",
+                  name: "web",
+                  replicas: 3,
+                  ready_replicas: 2,
+                  available_replicas: 2,
+                  updated_replicas: 3,
+                  selector: { app: "web" },
+                  conditions: [{ type: "Available", status: "False", reason: "MinimumReplicasUnavailable" }],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {statefulSetsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_statefulsets",
+            parsedResult: {
+              available: true,
+              stateful_sets: [
+                {
+                  namespace: "default",
+                  name: "postgres",
+                  replicas: 2,
+                  ready_replicas: 2,
+                  current_replicas: 2,
+                  updated_replicas: 2,
+                  selector: { app: "postgres" },
+                  conditions: [{ type: "Ready", status: "True" }],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {daemonSetsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_daemonsets",
+            parsedResult: {
+              available: true,
+              daemon_sets: [
+                {
+                  namespace: "kube-system",
+                  name: "agent",
+                  desired_number_scheduled: 4,
+                  current_number_scheduled: 4,
+                  number_ready: 3,
+                  number_available: 3,
+                  selector: { app: "agent" },
+                  conditions: [{ type: "Available", status: "False" }],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {jobsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_jobs",
+            parsedResult: {
+              available: true,
+              jobs: [
+                {
+                  namespace: "default",
+                  name: "migrate",
+                  completions: 1,
+                  parallelism: 1,
+                  active_count: 0,
+                  succeeded: 0,
+                  failed: 1,
+                  selector: { "job-name": "migrate" },
+                  conditions: [{ type: "Failed", status: "True" }],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {cronJobsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_cronjobs",
+            parsedResult: {
+              available: true,
+              cron_jobs: [
+                {
+                  namespace: "default",
+                  name: "nightly",
+                  schedule: "0 2 * * *",
+                  suspended: true,
+                  active_count: 0,
+                  last_schedule_time: "2026-09-30T02:00:00Z",
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
       </>
     )
 
-    expect(deploymentsToolCard.collapsedSummary?.(context({
-      toolName: "k8s_cluster_deployments",
-      parsedResult: { available: true, deployments: [{ replicas: 3, ready_replicas: 2 }] }
-    }))).toBe("Cluster 7 · 1 deployments · 1 warning")
+    expect(
+      deploymentsToolCard.collapsedSummary?.(
+        context({
+          toolName: "k8s_cluster_deployments",
+          parsedResult: { available: true, deployments: [{ replicas: 3, ready_replicas: 2 }] }
+        })
+      )
+    ).toBe("Cluster 7 · 1 deployments · 1 warning")
     expect(screen.getAllByRole("columnheader", { name: "Selector" }).length).toBeGreaterThan(0)
     expect(screen.getByText("app=web")).toBeInTheDocument()
     expect(screen.getByText("Available:False:MinimumReplicasUnavailable")).toBeInTheDocument()
@@ -461,14 +596,47 @@ describe("Kubernetes cluster tool cards", () => {
   it("renders services and ingresses with ports, endpoint warnings, hosts, TLS, and backend metadata", () => {
     render(
       <>
-        {servicesToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_services",
-          parsedResult: { available: true, services: [{ namespace: "default", name: "web", type: "ClusterIP", cluster_ip: "10.0.0.10", ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }], selector: { app: "web" }, ready_addresses: 0, not_ready_addresses: 0, missing_target_warning: true, created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {ingressesToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_ingresses",
-          parsedResult: { available: true, ingresses: [{ namespace: "default", name: "web", ingress_class: "nginx", hosts: ["app.example.test"], rules: [{ host: "app.example.test", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }], tls_hosts: ["app.example.test"], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
+        {servicesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_services",
+            parsedResult: {
+              available: true,
+              services: [
+                {
+                  namespace: "default",
+                  name: "web",
+                  type: "ClusterIP",
+                  cluster_ip: "10.0.0.10",
+                  ports: [{ name: "http", port: 80, target_port: 8080, protocol: "TCP" }],
+                  selector: { app: "web" },
+                  ready_addresses: 0,
+                  not_ready_addresses: 0,
+                  missing_target_warning: true,
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
+        {ingressesToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_ingresses",
+            parsedResult: {
+              available: true,
+              ingresses: [
+                {
+                  namespace: "default",
+                  name: "web",
+                  ingress_class: "nginx",
+                  hosts: ["app.example.test"],
+                  rules: [{ host: "app.example.test", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }],
+                  tls_hosts: ["app.example.test"],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
       </>
     )
 
@@ -536,14 +704,35 @@ describe("Kubernetes cluster tool cards", () => {
   it("renders config and secret metadata without exposing secret values", () => {
     render(
       <>
-        {configMapsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_configmaps",
-          parsedResult: { available: true, config_maps: [{ namespace: "default", name: "web-config", key_count: 2, key_names: ["LOG_LEVEL", "PUBLIC_URL"], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
-        {secretsToolCard.renderExpanded(context({
-          toolName: "k8s_cluster_secrets",
-          parsedResult: { available: true, secrets: [{ namespace: "default", name: "web-secret", type: "Opaque", key_count: 2, key_names: ["API_TOKEN", "DATABASE_URL"], created_at: "2026-09-01T00:00:00Z" }] }
-        }))}
+        {configMapsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_configmaps",
+            parsedResult: {
+              available: true,
+              config_maps: [
+                { namespace: "default", name: "web-config", key_count: 2, key_names: ["LOG_LEVEL", "PUBLIC_URL"], created_at: "2026-09-01T00:00:00Z" }
+              ]
+            }
+          })
+        )}
+        {secretsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_secrets",
+            parsedResult: {
+              available: true,
+              secrets: [
+                {
+                  namespace: "default",
+                  name: "web-secret",
+                  type: "Opaque",
+                  key_count: 2,
+                  key_names: ["API_TOKEN", "DATABASE_URL"],
+                  created_at: "2026-09-01T00:00:00Z"
+                }
+              ]
+            }
+          })
+        )}
       </>
     )
 
