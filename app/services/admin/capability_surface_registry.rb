@@ -101,6 +101,7 @@ module Admin
       local_tool_call
       manual_agentic_run
       mark_ci_repair_noop
+      mutate_provider_routing_rules
       override_landing_blocker_once
       pause_landing_queue
       poll_job_feedback

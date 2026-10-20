@@ -21,6 +21,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `delegate_issue` | chat | deferred | write | no | - | - | - | - |
 | `delete_repo_document` | chat | deferred | write | no | - | - | - | - |
 | `dispatch_ref_movement_action` | chat | deferred | write | no | - | - | - | - |
+| `explain_provider_routing` | chat | deferred | read | no | - | - | - | - |
 | `explain_stuck_job` | chat | deferred | read | no | - | - | - | - |
 | `get_job_diff` | chat | deferred | read | no | - | - | - | - |
 | `ingest_pull_request` | chat | deferred | write | no | - | - | - | - |
@@ -37,11 +38,13 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `list_tags` | chat | deferred | read | no | - | - | - | - |
 | `list_wakeups` | chat | deferred | read | no | - | - | - | - |
 | `move_epic_to_backlog` | chat | deferred | write | no | - | - | - | - |
+| `mutate_provider_routing_rules` | chat | deferred | write | no | - | - | - | - |
 | `pause_landing_queue` | chat | deferred | write | no | - | - | - | - |
 | `poll_job_feedback` | chat | deferred | write | no | - | - | - | - |
 | `read_artifact` | chat | deferred | read | no | - | - | - | - |
 | `read_chat_messages` | chat | deferred | read | no | - | - | - | - |
 | `read_pr` | chat | deferred | read | no | - | - | - | - |
+| `read_provider_routing_rules` | chat | deferred | read | no | - | - | - | - |
 | `read_queue` | chat | deferred | read | yes | - | - | - | - |
 | `read_ref_movement_status` | chat | deferred | read | no | - | - | - | - |
 | `read_repo_document` | chat | deferred | read | no | - | - | - | - |

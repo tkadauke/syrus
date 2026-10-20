@@ -56,6 +56,7 @@ module App
           availability: availability
         }
       )
+      ProviderAvailabilityWakeup.call(provider: provider, user: user)
       availability
     end
 

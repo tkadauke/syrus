@@ -99,6 +99,7 @@ export type JobRecord = {
   provider_routing_rules?: ProviderRoutingRule[]
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
   provider_routing_resolution?: ProviderRoutingResolution | null
+  active_provider_routing_holds?: ProviderRoutingHold[]
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
@@ -192,15 +193,27 @@ export type ProviderRoutingResolution = {
     scope_type?: string
     scope_id?: number
     position?: number
+    enabled?: boolean
     trigger?: Record<string, unknown>
     conditions?: ProviderRoutingConditions
   } | null
   condition_results?: Record<string, unknown> | null
   final_action?: {
+    type?: "route" | "hold"
     strategy?: string
     candidates?: ProviderRoutingCandidate[]
     [key: string]: unknown
   } | null
+}
+
+export type ProviderRoutingHold = {
+  id: number
+  workflow_id: number
+  provider_routing_rule_id?: number | null
+  reason: string
+  resumption_mode: "manual" | "when_conditions_clear" | "until_time"
+  next_reevaluation_at?: string | null
+  created_at: string
 }
 
 export type JobClassificationAttempt = {
@@ -857,7 +870,17 @@ export type JobRun = {
 }
 
 export type JobRunQueueWait = {
-  kind: "ready_waiting_for_slot" | "ready_no_consumer" | "concurrency_blocked" | "scheduled" | "claimed_not_started" | "no_run_job" | "no_live_workers" | "start_blocked" | "host_admission_deferred" | "unknown"
+  kind:
+    | "ready_waiting_for_slot"
+    | "ready_no_consumer"
+    | "concurrency_blocked"
+    | "scheduled"
+    | "claimed_not_started"
+    | "no_run_job"
+    | "no_live_workers"
+    | "start_blocked"
+    | "host_admission_deferred"
+    | "unknown"
   details: {
     queue_name?: string
     live_worker_count?: number

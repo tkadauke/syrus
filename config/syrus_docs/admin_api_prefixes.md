@@ -73,6 +73,7 @@ without a deliberate migration choice:
 - overview and stuck queues
 - plugin enablement/configuration
 - process inventory and kill
+- provider-routing hold release
 - queue introspection and stale-run reaping
 - reconciler activity
 - restart

@@ -21,6 +21,10 @@ RSpec.describe ProviderRoutingRule do
     expect(rule).to be_valid
   end
 
+  it "defaults new rules to enabled" do
+    expect(rule).to be_enabled
+  end
+
   it "is valid with a well-formed user-scoped rule" do
     expect(rule(scope_type: "user", scope_id: user.id, user_id: user.id, repository_id: nil)).to be_valid
   end
@@ -135,7 +139,7 @@ RSpec.describe ProviderRoutingRule do
   it "accepts structured conditions for workflow, budget, day, repository, and job metadata predicates" do
     record = rule(conditions: {
       workflow_trigger_kind: [ "initial" ],
-      usage: { "max_daily_cost_usd" => 10 },
+      usage: { "provider" => "codex", "remaining_percent_less_than" => 10 },
       budget: { "remaining_percent_greater_than" => 20 },
       day_time: { "days" => [ "monday" ], "start" => "09:00", "end" => "17:00" },
       repository: { "ids" => [ repository.id ], "owners" => [ repository.owner ], "names" => [ repository.name ] },
@@ -165,6 +169,32 @@ RSpec.describe ProviderRoutingRule do
     })
 
     expect(record).to be_valid
+  end
+
+  it "accepts a hold action without provider candidates" do
+    record = rule(candidates: [], action: { type: "hold", reason: "Await operator approval" })
+
+    expect(record).to be_valid
+    expect(record).to be_hold_action
+    expect(record.action_candidates).to eq([])
+    expect(record.serialized_action).to eq("type" => "hold", "reason" => "Await operator approval")
+  end
+
+  it "rejects unknown action types and malformed hold reasons" do
+    unknown = rule(action: { type: "delegate" })
+    malformed_hold = rule(action: { type: "hold", reason: { message: "wait" } })
+
+    expect(unknown).not_to be_valid
+    expect(unknown.errors[:action].join).to include("unknown type")
+    expect(malformed_hold).not_to be_valid
+    expect(malformed_hold.errors[:action].join).to include("reason must be a string")
+  end
+
+  it "serializes legacy route actions with an explicit discriminator" do
+    record = rule(action: { strategy: "fallback_order", candidates: [ { provider: "claude" } ] })
+
+    expect(record).to be_valid
+    expect(record.serialized_action).to include("type" => "route", "strategy" => "fallback_order")
   end
 
   it "validates repository and job scoped rule ownership" do

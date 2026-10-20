@@ -868,8 +868,28 @@ current repository/user provider each time a new workflow is created, or choose
 a concrete enabled provider for later feedback, rebase, and retry workflows on
 that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
-why future work will use a provider before starting another workflow. Existing
-workflow pins are not rewritten.
+why future work will use a provider before starting another workflow. Rules can
+be enabled inline, duplicated, edited, deleted, and reordered without disabled
+rules losing their ordered position. Disabled rules remain visible but muted,
+are skipped during evaluation, and the first enabled matching rule wins. A rule
+can route to ordered provider candidates or hold work with a reason and manual,
+condition-based, or timed resumption policy. Job pages show active hold status
+and the next scheduled wake when applicable. A matching hold action
+stops first-match evaluation and leaves the workflow queued without launching a
+Run or treating the decision as provider failure. Holds are durable and retain
+their matched scope, reason, condition evidence, and resumption policy. They can
+resume when their conditions clear, at a configured time, or after an audited
+admin release or override; every wake evaluates the ordered routing rules again.
+Because routing admission happens before Run creation, a hold never interrupts
+an already-running provider process. Usage-based rules can match provider state
+or remaining-capacity thresholds, and fresh provider evidence wakes matching
+holds immediately rather than waiting for their safety timer.
+Existing workflow pins are not rewritten.
+Chat agents can inspect those same user, repository, and Job rule sets, explain
+the effective first-match decision, and prepare atomic rule changes for operator
+confirmation. Every change requires the latest rule-set revision, displays a
+before/after summary, and is rechecked when confirmed so a stale request cannot
+overwrite newer edits.
 Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
 workspace remains available, retry or rebuild landing workflows for landing

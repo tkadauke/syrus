@@ -214,7 +214,12 @@ Operators can also manage ordered routing rules from the app surfaces that own
 each scope: Agent Settings shows "My default routing", repository settings show
 "My routing for this repository" with inherited user rules, and Job detail shows
 "Routing for this job" with inherited repository/user rules plus the resolver
-explanation for the provider that would be chosen for future work.
+explanation for the provider that would be chosen for future work. Each surface
+keeps disabled rules visible in their stable position, supports inline enablement
+and complete-list reordering, and offers route-to-provider or hold-work actions.
+Disabled rules are skipped and the first enabled matching rule wins. Hold actions
+show their reason and manual, condition-based, or timed resumption policy; Job
+detail also shows active holds and their next wake where applicable.
 
 `agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
 `SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as
@@ -353,6 +358,25 @@ provider outright, the same as before. Workflow creation records the chosen
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+When that action is a hold, Syrus also creates a durable
+`ProviderRoutingHold` before workflow admission. The record captures the
+matched rule and scope, condition evidence, operator-facing reason, resumption
+mode, and next reevaluation time. `when_conditions_clear` holds are reconsidered
+after provider evidence changes and on a bounded timer, `until_time` holds wake
+at their configured time, and `manual` holds wait for an admin release. A wake
+reruns the ordered rules from the most specific scope; the released hold rule
+is treated as satisfied for that workflow so later rules can route it. Admin
+releases and exceptional overrides require a reason and retain the actor, time,
+and release kind. Holds apply only at admission and never interrupt an existing
+Run or provider process.
+Usage conditions read the selected provider unless `usage.provider` names a
+provider explicitly. They may match `usage.states` and numeric
+`remaining_percent_less_than`, `remaining_percent_less_than_or_equal_to`,
+`remaining_percent_greater_than`, or
+`remaining_percent_greater_than_or_equal_to` predicates. The recorded condition
+evidence includes the provider, state, remaining percentage, observation time,
+and individual predicate results. Provider-availability change events bypass a
+hold's timer dedupe entry so recovered usage is reconsidered immediately.
 Job detail serializes the same resolver explanation so operators can see which
 scope or rule selected the currently resolved provider without opening a run
 artifact.
@@ -392,18 +416,38 @@ one scope atomically. Repository and Job payloads include inherited rule
 context so an editor can show the account defaults, and for Jobs the
 repository overrides, that would apply underneath the current scope.
 
+Chat agents use `read_provider_routing_rules` for the same ordered scoped
+state, inherited rules, registry choices, active holds, and a revision
+fingerprint. `explain_provider_routing` traces Job, repository, and user scope
+precedence with disabled skips and condition evidence, and calls out an
+explicit Job provider pin before reporting the winning route or hold.
+`mutate_provider_routing_rules` accepts create, update, enable/disable, delete,
+and reorder operations as one batch. It previews and validates the complete
+state against the supplied revision, then creates a human-readable pending
+action; the batch is checked again and applied transactionally only after the
+operator confirms it. User scope always means the current chat user, so these
+tools never accept an arbitrary user id.
+
 Rules are owned by a user even when they are scoped to a repository or a Job.
 Within each user, repository, or Job scope they have an explicit `position`;
 the resolver walks rules in order and uses the first matching rule, with
 Job-scoped rules before repository-scoped rules and repository-scoped rules
-before user-scoped rules. Existing `task_key` rows continue to work through a
+before user-scoped rules. Disabled rules keep their position and remain visible
+through the API, but the resolver skips them; reorder requests must still name
+every enabled and disabled rule in the scope exactly once. Existing `task_key` rows continue to work through a
 legacy trigger shape, but new rules store a structured `trigger` for actual
 agent invocations: agentic `Step::Kind` values or chat
 `AgentRole::CHAT_ROLES`. Workflow trigger kind, usage and budget predicates,
 day/time windows, repository predicates, and Job metadata predicates live in
 the structured `conditions` payload. Provider selection lives in the
-structured `action` payload, which currently supports ordered fallback
-provider triples and reserves a weighted strategy for future load balancing.
+structured `action` payload. Route actions use `type: route` with ordered
+fallback provider triples (legacy actions that omit `type` remain route actions)
+and reserve a weighted strategy for future load balancing. A `type: hold` action
+is a terminal successful routing decision: broader scopes are not consulted and
+the explanation contains the matched hold rather than presenting provider
+exhaustion as a routing failure. A held workflow remains queued with no Run;
+dispatch preserves the structured hold decision instead of substituting the
+hardcoded provider fallback.
 Candidate providers come from the enabled agent-provider plugin catalog,
 model choices come from that provider's `.available_models`, and
 `effort_level` can be left blank to use the provider default. Editor options

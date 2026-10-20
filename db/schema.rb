@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_155621) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2668,6 +2668,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_155621) do
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
   end
 
+  create_table "provider_routing_holds", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.integer "step_id"
+    t.integer "provider_routing_rule_id"
+    t.string "status", default: "active", null: false
+    t.string "resumption_mode", null: false
+    t.text "reason"
+    t.json "condition_evidence", null: false
+    t.json "matched_scope", null: false
+    t.datetime "next_reevaluation_at"
+    t.datetime "released_at"
+    t.integer "released_by_user_id"
+    t.text "release_reason"
+    t.string "release_kind"
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider_routing_rule_id"], name: "index_provider_routing_holds_on_provider_routing_rule_id"
+    t.index ["released_by_user_id"], name: "index_provider_routing_holds_on_released_by_user_id"
+    t.index ["status", "next_reevaluation_at"], name: "idx_provider_routing_holds_wakeup"
+    t.index ["step_id"], name: "index_provider_routing_holds_on_step_id"
+    t.index ["workflow_id"], name: "idx_provider_routing_holds_active_workflow", unique: true, where: "status = 'active'"
+    t.index ["workflow_id"], name: "index_provider_routing_holds_on_workflow_id"
+  end
+
   create_table "provider_routing_rules", force: :cascade do |t|
     t.json "candidates", null: false
     t.datetime "created_at", null: false
@@ -2682,6 +2707,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_155621) do
     t.json "trigger", null: false
     t.json "conditions", null: false
     t.json "action", null: false
+    t.boolean "enabled", default: true, null: false
     t.index ["job_id"], name: "index_provider_routing_rules_on_job_id"
     t.index ["repository_id"], name: "index_provider_routing_rules_on_repository_id"
     t.index ["scope_type", "scope_id", "position"], name: "idx_provider_routing_rules_scope_position_unique", unique: true

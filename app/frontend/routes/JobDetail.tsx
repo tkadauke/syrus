@@ -1238,7 +1238,9 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         <p className="text-xs text-text-secondary">{t("routing_job_description")}</p>
       </div>
       <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("routing_resolved_heading")}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {resolution?.final_action?.type === "hold" ? t("routing_hold_decision_heading") : t("routing_resolved_heading")}
+        </p>
         <p className="mt-1 text-sm text-text-primary">{routingResolutionSummary(payload, t)}</p>
         {matchedRule ? (
           <p className="mt-1 text-xs text-text-secondary">
@@ -1260,6 +1262,17 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
           </div>
         ) : null}
       </div>
+      {(payload.job.active_provider_routing_holds || []).map((hold) => (
+        <div className="mt-3 rounded border border-warning-border bg-warning-subtle p-3" key={hold.id}>
+          <p className="text-xs font-medium uppercase tracking-wide text-warning-text">{t("routing_active_hold")}</p>
+          <p className="mt-1 text-sm text-text-primary">{hold.reason}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {hold.resumption_mode === "until_time" && hold.next_reevaluation_at
+              ? t("routing_hold_wakes_at", { time: new Date(hold.next_reevaluation_at).toLocaleString() })
+              : t(`routing_hold_${hold.resumption_mode}`)}
+          </p>
+        </div>
+      ))}
       <ProviderRoutingRulesEditor
         basePath={`/api/v1/app/jobs/${payload.job.id}/provider_routing_rules`}
         description={t("routing_job_panel_description")}
@@ -1276,6 +1289,12 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
 function routingResolutionSummary(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]) {
   const resolution = payload.job.provider_routing_resolution
   if (!resolution) return t("routing_resolution_unknown")
+
+  if (resolution.final_action?.type === "hold") {
+    const source = routingScopeLabel(resolution.source_scope, t)
+    const holdReason = typeof resolution.final_action.reason === "string" ? resolution.final_action.reason : t("routing_hold_reason_unknown")
+    return t("routing_hold_resolution_summary", { source, reason: holdReason })
+  }
 
   const resolvedProvider = resolution.final_action?.candidates?.[0]?.provider || payload.job.agent_provider
   const provider = resolvedProvider ? agentProviderLabel(payload, resolvedProvider) : t("provider_setting_default")
