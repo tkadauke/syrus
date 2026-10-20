@@ -38,6 +38,7 @@ RSpec.describe Workflow::TriggerKind do
       "auto_merge",
       "external_pr_merge",
       "merge_train",
+      "base_refresh_retry",
       "retry",
       "manual_visual_review",
       "manual_post_implementation_review",
