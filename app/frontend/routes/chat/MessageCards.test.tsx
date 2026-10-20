@@ -761,7 +761,8 @@ describe("tool result rendering", () => {
     const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
     expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(metadata).not.toHaveAttribute("title")
-    expect(screen.getByText("2")).toBeInTheDocument()
+    const count = screen.getByText("2")
+    expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
