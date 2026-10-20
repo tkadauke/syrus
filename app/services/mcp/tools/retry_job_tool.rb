@@ -18,8 +18,8 @@ module Mcp::Tools
       Workflow that has never run, and its error names the valid next action.
       Pass job_id for a single Job (unchanged single-confirmation behavior)
       or job_ids for multiple Jobs, which creates one grouped pending action
-      the operator confirms or rejects together. The retry workflow(s) are
-      call creates pending action(s), not Jobs, Workflows, or WorkUnits. On
+      the operator confirms or rejects together. The call creates pending
+      action(s), not Jobs, Workflows, or WorkUnits. On
       confirmation, it creates a retry Workflow/WorkUnit and submits it through
       normal admission control and worker-queue routing.
       Modes are: auto (compatible smart retry), failed_step (same source
