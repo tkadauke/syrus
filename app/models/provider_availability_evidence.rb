@@ -289,6 +289,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
 
   def summary
     {
+      id: id,
       status: status,
       source: source,
       observed_at: observed_at&.iso8601,

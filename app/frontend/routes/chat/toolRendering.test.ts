@@ -139,6 +139,54 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "1 item" })
   })
 
+  it("dispatches a sidecar-prefixed Claude result to the update pinned-context card", () => {
+    const result = toolResultPresentation(
+      "syrus-chat-sidecar.update_pinned_context",
+      JSON.stringify({ pinned_context: "Remember **JOB-42**.", message: "Pinned context updated." }),
+      false,
+      undefined,
+      { content: "Remember **JOB-42**." }
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "Pinned context updated." })
+  })
+
+  it("normalizes a Codex MCP envelope before dispatching to the update pinned-context card", () => {
+    const envelope = {
+      content: [{ type: "text", text: JSON.stringify({ pinned_context: "Review https://example.test/runbook", message: "Pinned context updated." }) }],
+      structured_content: null,
+      isError: false
+    }
+
+    const result = toolResultPresentation(
+      "mcp__syrus-chat-sidecar__update_pinned_context",
+      JSON.stringify(envelope),
+      false,
+      undefined,
+      { content: "Review https://example.test/runbook" }
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "Pinned context updated." })
+  })
+
+  it("dispatches a real Codex MCP error envelope without requiring success fields", () => {
+    const envelope = {
+      content: [{ type: "text", text: "Error: content is required" }],
+      structured_content: null,
+      isError: true
+    }
+
+    const result = toolResultPresentation(
+      "mcp__syrus-chat-sidecar__update_pinned_context",
+      JSON.stringify(envelope),
+      true,
+      undefined,
+      { content: " " }
+    )
+
+    expect(result).toMatchObject({ kind: "error", summary: "Pinned context update failed" })
+  })
+
   it("normalizes a Codex MCP envelope with JSON text before custom-card summary dispatch", () => {
     const result = toolResultPresentation(
       "read_job",

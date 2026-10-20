@@ -75,7 +75,7 @@ module App
         records: messages,
         associations: [
           :chat_session,
-          :pending_action,
+          { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
       ).call
@@ -254,6 +254,10 @@ module App
       base[:reason] = action.reason if action.reason.present?
       base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      if presenter.respond_to?(:tool_card_outcome) && (outcome = presenter.tool_card_outcome).present?
+        base[:outcome] = outcome
+      end
 
       case action.action.presence || action.action_type
       when *ChatPendingAction::JOB_RESOURCE_ACTIONS

@@ -8,7 +8,7 @@ import { CodeSurface } from "../../components/ui"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import type { HighlighterLanguageId } from "../../lib/highlighter"
-import { Markdown, renderLightMarkdown, type MarkdownLinkHandler } from "../../lib/Markdown"
+import { Markdown, renderLightMarkdown, type MarkdownLinkHandler, type SlugTone } from "../../lib/Markdown"
 
 const DEFAULT_MAX_LINES = 6
 const APPROXIMATE_CHARS_PER_LINE = 160
@@ -37,11 +37,13 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
   emptyState?: ReactNode
   slugHrefFallbacks?: Record<string, string>
+  slugTone?: SlugTone
 }
 
 export type TextPreviewProps = {
   text: string
   emptyLabel?: string
+  modalText?: string
   lang?: HighlighterLanguageId | null
   maxChars?: number
   maxLines?: number
@@ -74,6 +76,7 @@ export function MarkdownPreview({
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
+  slugTone,
   text,
   title
 }: MarkdownPreviewProps) {
@@ -105,7 +108,7 @@ export function MarkdownPreview({
         data-testid="markdown-preview-content"
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
       {truncated.truncated ? (
@@ -142,6 +145,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
+            slugTone={slugTone}
             text={completeText}
           />
         </div>
@@ -155,6 +159,7 @@ export function MarkdownPreview({
 export function TextPreview({
   text,
   emptyLabel,
+  modalText,
   lang = null,
   maxLines = DEFAULT_MAX_LINES,
   maxChars,
@@ -171,6 +176,8 @@ export function TextPreview({
   if (empty) return emptyLabel ? <div className="text-xs italic text-text-muted">{emptyLabel}</div> : null
 
   const dialogLabel = modalLabel || title || t("show_more")
+  const completeText = modalText ?? text
+  const showModal = truncated.truncated || modalText != null
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
@@ -182,7 +189,7 @@ export function TextPreview({
         lang={lang}
         maxHeightClassName="max-h-72"
       />
-      {truncated.truncated ? (
+      {showModal ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
@@ -199,7 +206,7 @@ export function TextPreview({
           <button
             aria-label={t("copy.copy_to_clipboard", { slug: title || dialogLabel })}
             className={CLOSE_BUTTON_CLASS}
-            onClick={() => copy(text)}
+            onClick={() => copy(completeText)}
             title={copied ? t("copy.copied") : t("copy.copy", { slug: title || dialogLabel })}
             type="button"
           >
@@ -212,11 +219,11 @@ export function TextPreview({
         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
           <CodeSurface
             className="max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]"
-            code={text}
+            code={completeText}
             lang={lang}
             maxHeightClassName="max-h-none"
           >
-            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{text}</code>}
+            {lang ? undefined : <code className="break-words [overflow-wrap:anywhere]">{completeText}</code>}
           </CodeSurface>
         </div>
       </Modal>

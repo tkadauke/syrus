@@ -278,6 +278,23 @@ function CopyOnlyIconButton({ touchTarget = false, value }: { touchTarget?: bool
   )
 }
 
+export function CopyableValue({ href, value }: { href?: string | null; value: string }) {
+  const text = href ? (
+    <a className="min-w-0 break-all font-mono font-medium text-brand hover:underline dark:text-brand-emphasis" href={href} rel="noreferrer" target="_blank">
+      {value}
+    </a>
+  ) : (
+    <span className="min-w-0 break-all font-mono font-medium text-text-primary">{value}</span>
+  )
+
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1">
+      {text}
+      <CopyOnlyIconButton value={value} />
+    </span>
+  )
+}
+
 function entityLabelWrapClass(reference: EntityReferenceProps) {
   return reference.wrap === "nowrap" ? "whitespace-nowrap" : "break-all"
 }
@@ -321,9 +338,15 @@ export function EntityReference(reference: EntityReferenceProps) {
 // into the main body by default (file contents, command output, long
 // lists) — the raw JSON "Raw details" disclosure always covers the full
 // payload regardless, so this is purely a friendlier, still-opt-in view.
-export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
+export function Disclosure({ label, children, defaultOpen = false }: { label: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+
   return (
-    <details className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1">
+    <details
+      className="rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      open={open}
+    >
       <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted hover:text-text-primary">{label}</summary>
       <div className="mt-1 text-text-primary">{children}</div>
     </details>
