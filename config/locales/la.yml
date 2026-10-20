@@ -103,7 +103,6 @@ la:
       archived_first: "%{slug} in archivo est — prius e archivo remove."
       archived: "%{slug} in archivum repositum est."
       unarchived: "%{slug} e archivo remotum est. Indagationem itera ut ingestio incipiat."
-      no_failed_jobs: "Nulla opera defecta iteranda sunt."
       developer_required: "Accessus programmatoris vel administratoris necessarius est."
       not_triage: "Opus non expectat liberationem ad trianam."
       polling: "Repositorium %{slug} nunc indagatur."
@@ -111,11 +110,6 @@ la:
       repository_landing_resumed: "Opera pro %{slug} resumpta sunt."
       no_github_token: "Nullum signum GitHub configuratum — adde unum in rebus compositis."
       github_error: "Error GitHub: %{error}"
-      circuit_open: "%{label} aegrotare videtur; iterationes automaticae pausatae sunt."
-      circuit_open_until: "%{label} aegrotare videtur usque ad %{until}; iterationes automaticae pausatae sunt."
-      retry_enqueued:
-        one: "Iteratio pro uno opere defecto cum %{provider} in ordinem posita est."
-        other: "Iteratio pro %{count} operibus defectis cum %{provider} in ordinem posita est."
       bulk_delegated:
         one: "Una quaestio Syro delegata est."
         other: "%{count} quaestiones Syro delegatae sunt."
