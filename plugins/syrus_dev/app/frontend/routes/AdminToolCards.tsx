@@ -104,7 +104,15 @@ const catalogFilterLink = buildCatalogFilterLink(FILTER_FIELDS)
 function callForExample(entry: ToolPresentationEntry, example: ToolPresentationExample, messageId: number): ChatToolGroupCall {
   const context = toolCardContextForExample(entry.toolName, example)
   const input = context.input ?? {}
-  const resultPresentation = toolResultPresentation(entry.toolName, context.resultBody, context.resultError, context.resultBody, input, context.parsedResult)
+  const resultPresentation = toolResultPresentation(
+    entry.toolName,
+    context.resultBody,
+    context.resultError,
+    context.resultBody,
+    input,
+    context.parsedResult,
+    context.priorResults
+  )
 
   return {
     message_id: messageId,

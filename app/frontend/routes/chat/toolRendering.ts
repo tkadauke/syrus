@@ -418,7 +418,8 @@ export function toolResultPresentation(
   error = false,
   parseBody: string = body,
   input: Record<string, unknown> = {},
-  parsedResult?: unknown
+  parsedResult?: unknown,
+  priorResults?: Readonly<Record<string, unknown>>
 ): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
@@ -435,7 +436,8 @@ export function toolResultPresentation(
     resultBody: redactToolCardText(body),
     resultError: error,
     resultSettled: true,
-    parsedResult: redactToolCardValue(cardParsed)
+    parsedResult: redactToolCardValue(cardParsed),
+    priorResults: redactToolCardValue(priorResults ?? {}) as Readonly<Record<string, unknown>>
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
