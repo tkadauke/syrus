@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, toolPresentation } from "@app/routes/chat/toolRendering"
+import { redactToolCardValue } from "@app/toolCardSecurity"
 import configMapsToolCard from "./k8s_cluster_configmaps"
 import cronJobsToolCard from "./k8s_cluster_cronjobs"
 import daemonSetsToolCard from "./k8s_cluster_daemonsets"
@@ -1420,6 +1421,99 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.getByText("api-token.txt, LOG_LEVEL, tls.crt").closest("td")).toHaveAttribute("data-label", "Key names")
       rendered.unmount()
     }
+  })
+
+  it("renders metadata-only Secret list results from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      secrets: [
+        {
+          namespace: "payments",
+          name: "api-secret",
+          type: "kubernetes.io/tls",
+          key_count: 2,
+          key_names: ["PASSWORD", "TLS_TOKEN"],
+          immutable: true,
+          owner_references: ["Deployment/api"],
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_secrets")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_secrets")
+      expect(screen.getByText("PASSWORD, TLS_TOKEN")).toBeInTheDocument()
+      expect(screen.getByText("kubernetes.io/tls")).toBeInTheDocument()
+      expect(screen.getByText("Deployment/api")).toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      rendered.unmount()
+    }
+  })
+
+  it("renders redaction-safe Secret describe metadata without mangling key names", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      secret: {
+        name: "api-secret",
+        namespace: "payments",
+        type: "Opaque",
+        key_count: 2,
+        key_names: ["DATABASE_PASSWORD", "SERVICE_TOKEN"],
+        immutable: false,
+        owner_references: ["Deployment/api"],
+        created_at: "2026-09-01T00:00:00Z"
+      }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const cardContext = context({
+        toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_secrets"),
+        input: { cluster_id: 7, namespace: "payments", name: "api-secret" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(screen.getByText("DATABASE_PASSWORD, SERVICE_TOKEN")).toBeInTheDocument()
+      expect(screen.getByText("Opaque")).toBeInTheDocument()
+      expect(screen.getByText("Deployment/api")).toBeInTheDocument()
+      expect(screen.getByText("No")).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("never renders or indexes raw Secret values", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_secrets",
+      parsedResult: {
+        available: true,
+        secrets: [
+          {
+            metadata: { namespace: "payments", name: "api-secret", creationTimestamp: "2026-09-01T00:00:00Z" },
+            type: "Opaque",
+            data: { password: "hunter2" }
+          }
+        ]
+      }
+    })
+    const rendered = render(<>{secretsToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.queryByText("hunter2")).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Filter resources"), { target: { value: "hunter2" } })
+    expect(screen.getByText("0 of 1")).toBeInTheDocument()
+    expect(screen.queryByText("hunter2")).not.toBeInTheDocument()
+    rendered.unmount()
   })
 
   it("safely describes ConfigMap text and binary keys from every MCP envelope", () => {
