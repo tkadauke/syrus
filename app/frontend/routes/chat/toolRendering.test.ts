@@ -137,6 +137,8 @@ describe("toolResultPresentation", () => {
     )
 
     expect(result).toMatchObject({ kind: "text", summary: "1 item" })
+  })
+
   it("dispatches a sidecar-prefixed Claude result to the update pinned-context card", () => {
     const result = toolResultPresentation(
       "syrus-chat-sidecar.update_pinned_context",
