@@ -146,5 +146,5 @@ export const examples: ToolCardExample[] = [
     resultError: true,
     resultBody: "cannot open a bridge thread to the same chat"
   },
-  { id: "pending", label: "Pending message", input: { text: "Waiting to send", thread_id: 7 } }
+  { id: "pending", label: "Pending message", input: { text: "Waiting to send", thread_id: 7 }, resultBody: "" }
 ]
