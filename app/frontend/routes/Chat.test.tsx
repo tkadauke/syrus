@@ -642,11 +642,23 @@ describe("ChatWorkspace panel collapse", () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
     window.history.replaceState({}, "", "/chats/8#walkthrough-42")
     mockChatRouteFetch(
-      chatPayload({}, {
-        video_walkthroughs: [
-          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
-        ]
-      })
+      chatPayload(
+        {},
+        {
+          video_walkthroughs: [
+            {
+              id: 42,
+              title: "Checkout walkthrough",
+              state: "analyzed",
+              duration_seconds: 12,
+              byte_size: 100,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      )
     )
 
     renderRoute()
@@ -761,11 +773,23 @@ describe("ChatWorkspace split breakpoint", () => {
     mockMobileViewport()
     window.history.replaceState({}, "", "/chats/8#walkthrough-42")
     mockChatRouteFetch(
-      chatPayload({}, {
-        video_walkthroughs: [
-          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
-        ]
-      })
+      chatPayload(
+        {},
+        {
+          video_walkthroughs: [
+            {
+              id: 42,
+              title: "Checkout walkthrough",
+              state: "analyzed",
+              duration_seconds: 12,
+              byte_size: 100,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      )
     )
 
     renderRoute()
@@ -1840,9 +1864,11 @@ describe("chat composer dictation", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
+          })
+        )
       }
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
       return Promise.resolve(jsonResponse(payload))

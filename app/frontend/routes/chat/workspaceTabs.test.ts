@@ -83,18 +83,24 @@ describe("mediaTabVisible", () => {
   })
 
   it("is true when the chat has a video walkthrough", () => {
-    expect(mediaTabVisible(makePayload({
-      video_walkthroughs: [{
-        id: 1,
-        title: "Walkthrough",
-        state: "analyzed",
-        duration_seconds: 30,
-        byte_size: 1024,
-        error_message: null,
-        has_video: true,
-        created_at: "2026-08-01T00:00:00Z"
-      }]
-    }))).toBe(true)
+    expect(
+      mediaTabVisible(
+        makePayload({
+          video_walkthroughs: [
+            {
+              id: 1,
+              title: "Walkthrough",
+              state: "analyzed",
+              duration_seconds: 30,
+              byte_size: 1024,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-08-01T00:00:00Z"
+            }
+          ]
+        })
+      )
+    ).toBe(true)
   })
 
   it("is true when the chat has whiteboard snapshots", () => {
@@ -245,7 +251,16 @@ describe("linkedWorkspaceTab", () => {
   it("opens the media workspace for a linked walkthrough entry", () => {
     const payload = makePayload({
       video_walkthroughs: [
-        { id: 42, title: "Checkout flow", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        {
+          id: 42,
+          title: "Checkout flow",
+          state: "analyzed",
+          duration_seconds: 12,
+          byte_size: 100,
+          error_message: null,
+          has_video: true,
+          created_at: "2026-01-01T00:00:00Z"
+        }
       ]
     })
 
