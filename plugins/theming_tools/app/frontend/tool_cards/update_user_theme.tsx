@@ -118,6 +118,10 @@ function renderExpanded(context: ToolCardContext) {
 
 const updateUserThemeToolCard: ToolCardRenderer = {
   toolName: "update_user_theme",
+  argumentSummary(input) {
+    const themeId = displayValue(input.theme_id)
+    return themeId ? `THEME-${themeId}` : null
+  },
   collapsedSummary,
   renderExpanded
 }
