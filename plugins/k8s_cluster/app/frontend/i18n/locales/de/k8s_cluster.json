@@ -219,6 +219,7 @@
   "col_backend": "Backend",
   "col_tls": "TLS",
   "col_ingress_class": "Klasse",
+  "col_load_balancer": "Load Balancer",
   "col_capacity": "Kapazität",
   "col_keys": "Schlüssel",
   "col_storage_class": "Storage-Klasse",

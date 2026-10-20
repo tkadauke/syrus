@@ -1097,6 +1097,7 @@ describe("Kubernetes cluster tool cards", () => {
                   hosts: ["app.example.test"],
                   rules: [{ host: "app.example.test", paths: [{ path: "/", path_type: "Prefix", service_name: "web", service_port: 80 }] }],
                   tls_hosts: ["app.example.test"],
+                  load_balancer_addresses: ["203.0.113.30"],
                   created_at: "2026-09-01T00:00:00Z"
                 }
               ]
@@ -1111,9 +1112,14 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("No ready targets")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy default to clipboard" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy default/web to clipboard" })).toBeInTheDocument()
-    expect(screen.getAllByText("app.example.test").length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText("web:80")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "app.example.test" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "app.example.test" })[0]).toHaveAttribute("href", "https://app.example.test")
+    expect(screen.getAllByRole("link", { name: "app.example.test" })[0]).toHaveAttribute("rel", "noopener noreferrer")
+    expect(screen.getByText("app.example.test/")).toBeInTheDocument()
+    expect(screen.getByText("(Prefix)")).toBeInTheDocument()
+    expect(screen.getByText("→ web:80")).toBeInTheDocument()
     expect(screen.getByText("nginx")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.30")).toBeInTheDocument()
   })
 
   it("renders service fields identically from every MCP envelope without exposing unrelated sensitive values", () => {
@@ -1183,6 +1189,76 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("api")).toBeInTheDocument()
   })
 
+  it("renders ingress mappings identically from every MCP envelope without exposing unrelated sensitive values", () => {
+    const payload = {
+      available: true,
+      ingresses: [
+        {
+          namespace: "payments",
+          name: "api",
+          ingress_class: "nginx",
+          hosts: ["api.example.test"],
+          rules: [
+            {
+              host: "api.example.test",
+              paths: [
+                { path: "/v1", path_type: "Prefix", service_name: "api-v1", service_port: "http" },
+                { path: "/health", path_type: "Exact", service_name: "health", service_port: 8080 }
+              ]
+            }
+          ],
+          tls_hosts: ["api.example.test"],
+          load_balancer_addresses: ["lb.example.test"],
+          private_token: "must-not-render"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_ingresses")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{ingressesToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_ingresses")
+      expect(screen.getByText("api.example.test/v1")).toBeInTheDocument()
+      expect(screen.getByText("(Prefix)")).toBeInTheDocument()
+      expect(screen.getByText("→ api-v1:http")).toBeInTheDocument()
+      expect(screen.getByText("api.example.test/health")).toBeInTheDocument()
+      expect(screen.getByText("(Exact)")).toBeInTheDocument()
+      expect(screen.getByText("→ health:8080")).toBeInTheDocument()
+      expect(screen.getByText("lb.example.test")).toBeInTheDocument()
+      expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders ingress empty and error states with their requested scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_ingresses",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, ingresses: [] }
+    })
+    const empty = render(<>{ingressesToolCard.renderExpanded(emptyContext)}</>)
+    expect(ingressesToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 ingresses")
+    expect(screen.getByText("No ingresses returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_ingresses",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{ingressesToolCard.renderExpanded(errorContext)}</>)
+    expect(ingressesToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+  })
+
   it("normalizes describe-shaped service ports and external IPs", () => {
     const cardContext = context({
       toolName: "k8s_cluster_services",
@@ -1245,7 +1321,8 @@ describe("Kubernetes cluster tool cards", () => {
     expect(ingressesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web · 1 ingresses")
     render(<>{ingressesToolCard.renderExpanded(cardContext)}</>)
 
-    expect(screen.getByText("web:80")).toBeInTheDocument()
+    expect(screen.getByText("app.example.test/")).toBeInTheDocument()
+    expect(screen.getByText("→ web:80")).toBeInTheDocument()
     expect(screen.queryByText("No backend")).not.toBeInTheDocument()
   })
 

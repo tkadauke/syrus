@@ -404,6 +404,7 @@ export type KubernetesIngressRow = {
   hosts: string[]
   rules: KubernetesIngressRule[]
   tls_hosts: string[]
+  load_balancer_addresses: string[]
   created_at: string | null
 }
 
