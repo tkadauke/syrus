@@ -111,8 +111,6 @@ RSpec.describe "Backend locale keys", type: :unit do
   end
 
   it "pluralizes repository retry messages correctly" do
-    expect(I18n.t("api.repositories.retry_enqueued", count: 1, provider: "Claude")).to eq("Retry enqueued for 1 failed job with Claude.")
-    expect(I18n.t("api.repositories.retry_enqueued", count: 3, provider: "Claude")).to eq("Retry enqueued for 3 failed jobs with Claude.")
     expect(I18n.t("api.repositories.bulk_delegated", count: 1)).to eq("1 issue delegated to Syrus.")
     expect(I18n.t("api.repositories.bulk_delegated", count: 5)).to eq("5 issues delegated to Syrus.")
     expect(I18n.t("api.repositories.bulk_closed", count: 1)).to eq("1 issue closed.")

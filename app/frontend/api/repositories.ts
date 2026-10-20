@@ -288,8 +288,7 @@ export type RepositoryDetailPayload = {
   cognitive_debt?: RepositoryCognitiveDebtPayload
   delivery?: RepositoryDeliveryPayload | null
   recommended_actions?: RepositoryFeatureRecommendation[]
-  retry_failed_jobs: {
-    count: number
+  provider_retry_status: {
     agent_provider: string
     agent_provider_label: string
     provider_circuit: {
@@ -325,7 +324,6 @@ export type RepositoryDetailPayload = {
     edit_repository_path: string
     app_poll_repository_path: string
     app_archive_repository_path: string
-    app_retry_failed_jobs_repository_path: string
     app_release_needs_triage_job_repository_path: string
     app_resume_landing_repository_path: string
     app_run_main_branch_graders_repository_path: string
@@ -708,10 +706,6 @@ export function fetchRepositoryCognitiveDebt(id: string) {
 
 export function pollRepositoryDetail(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
-}
-
-export function retryFailedRepositoryJobs(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { page })
 }
 
 export function releaseNeedsTriageRepositoryJob(path: string, jobId: number, page: number) {
