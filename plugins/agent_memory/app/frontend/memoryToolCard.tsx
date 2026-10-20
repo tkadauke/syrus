@@ -94,19 +94,20 @@ export function ScopeRef({ memory }: { memory: MemoryPayload }) {
   return <span className="break-words font-mono text-xs text-text-primary">{scopeText(memory)}</span>
 }
 
-const SOURCE_ENTITY_KINDS: Partial<Record<string, ToolCardEntityKind>> = {
-  chat: "chat",
-  insight: "insight",
-  job: "job",
-  run: "run",
-  workflow: "workflow"
+type SourceReferenceDefinition = { kind: ToolCardEntityKind; href?: (id: string) => string }
+
+const SOURCE_REFERENCES: Record<string, SourceReferenceDefinition> = {
+  chat: { kind: "chat" },
+  insight: { kind: "insight" },
+  job: { kind: "job" },
+  run: { kind: "run", href: (id) => `/admin/runs/${id}` },
+  workflow: { kind: "workflow", href: (id) => `/admin/workflows/${id}` }
 }
 
-function SourceRef({ memory }: { memory: MemoryPayload }) {
-  if (!memory.sourceId) return null
-  const entityKind = memory.sourceType ? SOURCE_ENTITY_KINDS[memory.sourceType] : undefined
-  if (!entityKind) return <span className="break-words font-mono text-xs text-text-primary">{memory.sourceId}</span>
-  return <EntityReference id={memory.sourceId} kind={entityKind} wrap="break" />
+export function SourceRef({ sourceId, sourceType }: { sourceId: string; sourceType: string | null }) {
+  const definition = sourceType ? SOURCE_REFERENCES[sourceType] : null
+  if (!definition) return <span className="break-words font-mono text-xs text-text-primary">{sourceId}</span>
+  return <EntityReference href={definition.href?.(sourceId)} id={sourceId} kind={definition.kind} wrap="nowrap" />
 }
 
 function t(key: string, options?: Record<string, unknown>) {
@@ -183,7 +184,7 @@ export function MemoryDetailBody({ memory, onLinkClick, shell = true }: { memory
         {memory.sourceId ? (
           <div className="min-w-0">
             <SectionLabel>{t("tool_source_id")}</SectionLabel>
-            <SourceRef memory={memory} />
+            <SourceRef sourceId={memory.sourceId} sourceType={memory.sourceType} />
           </div>
         ) : null}
         {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
@@ -213,7 +214,7 @@ function MemoryListMetadata({ memory }: { memory: MemoryPayload }) {
       {memory.sourceId ? (
         <div className="min-w-0">
           <SectionLabel>{t("tool_source_id")}</SectionLabel>
-          <SourceRef memory={memory} />
+          <SourceRef sourceId={memory.sourceId} sourceType={memory.sourceType} />
         </div>
       ) : null}
       {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
