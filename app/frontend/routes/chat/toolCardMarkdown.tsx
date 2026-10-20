@@ -123,7 +123,7 @@ export function MarkdownPreview({
         onClose={() => setOpen(false)}
         open={open}
       >
-        <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-3 sm:flex-nowrap">
           <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-text-primary">{title || dialogLabel}</h2>
           <button
             aria-label={copyLabel ?? t("copy.copy_to_clipboard", { slug: title || dialogLabel })}

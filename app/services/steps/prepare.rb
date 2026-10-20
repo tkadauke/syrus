@@ -152,14 +152,16 @@ module Steps
     end
 
     def record_prepared_workspace!(plan)
-      workflow.set_artifact!("prepared_workspace", {
+      artifact = {
         "source" => plan.source,
         "note" => plan.note,
         "guessed" => plan.guessed?,
         "commands" => plan.commands,
         "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(plan),
         "prepared_at" => Time.current.iso8601
-      }.compact)
+      }.compact
+      PreparedWorkspaceState.new(workspace.path).record!(plan.commands)
+      workflow.set_artifact!("prepared_workspace", artifact)
     end
 
     # `bash -c` so quoting / pipelines / && in commands work.

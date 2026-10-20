@@ -1246,6 +1246,7 @@ class ProcessRunner
 
   def stream_output(output, wait_thread, silent_check)
     line_buffer = +""
+    fragmented_line = false
     last_chunk_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     loop do
@@ -1265,7 +1266,7 @@ class ProcessRunner
         last_chunk_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         heartbeat!
         @on_output_chunk&.call(chunk)
-        stream_lines(chunk, line_buffer)
+        fragmented_line = stream_lines(chunk, line_buffer, fragmented_line)
       rescue IO::WaitReadable
         next
       rescue EOFError
@@ -1273,15 +1274,17 @@ class ProcessRunner
       end
     end
 
-    drain_output(output, line_buffer)
-    @on_output_line&.call(line_buffer) if @on_output_line && !line_buffer.empty?
+    fragmented_line = drain_output(output, line_buffer, fragmented_line)
+    if @on_output_line && !line_buffer.empty?
+      (fragmented_line ? @on_output_line_fragment : @on_output_line).call(line_buffer)
+    end
   end
 
-  def drain_output(output, line_buffer)
+  def drain_output(output, line_buffer, fragmented_line)
     loop do
       chunk = output.read_nonblock(READ_CHUNK_BYTES)
       @on_output_chunk&.call(chunk)
-      stream_lines(chunk, line_buffer)
+      fragmented_line = stream_lines(chunk, line_buffer, fragmented_line)
     rescue IO::WaitReadable
       ready, = IO.select([ output ], nil, nil, 0)
       next if ready
@@ -1289,16 +1292,19 @@ class ProcessRunner
     rescue EOFError
       break
     end
+    fragmented_line
   end
 
-  def stream_lines(chunk, line_buffer)
-    return unless @on_output_line
+  def stream_lines(chunk, line_buffer, fragmented_line = false)
+    return fragmented_line unless @on_output_line
 
     line_buffer << chunk
     loop do
       newline = line_buffer.index("\n")
       if newline && newline < MAX_OUTPUT_LINE_BYTES
-        @on_output_line.call(line_buffer.slice!(0..newline))
+        callback = fragmented_line ? @on_output_line_fragment : @on_output_line
+        callback.call(line_buffer.slice!(0..newline))
+        fragmented_line = false
       elsif line_buffer.bytesize > MAX_OUTPUT_LINE_BYTES || newline
         unless @on_output_line_fragment
           raise OutputLineTooLongError,
@@ -1306,10 +1312,12 @@ class ProcessRunner
         end
 
         @on_output_line_fragment.call(line_buffer.slice!(0, MAX_OUTPUT_LINE_BYTES))
+        fragmented_line = true
       else
         break
       end
     end
+    fragmented_line
   end
 
   def terminate(pid)

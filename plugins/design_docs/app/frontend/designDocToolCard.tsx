@@ -1,4 +1,5 @@
 import { isPlainObject } from "@app/pluginToolCards"
+import type { ReactNode } from "react"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
@@ -39,19 +40,19 @@ export function parseDesignDocSummary(value: unknown): DesignDocSummary | null {
   }
 }
 
-export function DesignDocHeader({ doc }: { doc: DesignDocSummary }) {
+export function DesignDocHeader({ doc, href }: { doc: DesignDocSummary; href?: string }) {
   const match = doc.docRef.match(/(\d+)\s*$/)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {match ? <EntityReference id={match[1]} kind="design_doc" /> : <EntityReference kind="design_doc" slug={doc.docRef} />}
+      {match ? <EntityReference href={href} id={match[1]} kind="design_doc" /> : <EntityReference href={href} kind="design_doc" slug={doc.docRef} />}
       {doc.state ? <StatePill state={doc.state} /> : null}
       {doc.visibility ? <Badge>{doc.visibility}</Badge> : null}
     </div>
   )
 }
 
-export function DesignDocErrorCard({ message, title }: { message: string; title: string }) {
+export function DesignDocErrorCard({ children, message, title }: { children?: ReactNode; message: string; title: string }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -61,6 +62,7 @@ export function DesignDocErrorCard({ message, title }: { message: string; title:
       <div className="rounded-[var(--radius-panel)] border border-danger/30 bg-danger/10 px-2 py-1 text-danger-text" role="alert">
         {message}
       </div>
+      {children}
     </CardShell>
   )
 }
