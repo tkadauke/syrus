@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
@@ -137,7 +138,7 @@ describe("video walkthrough analysis tool cards", () => {
     expect(screen.getByText("the exact error text")).toBeInTheDocument()
     expect(screen.getByText("The requested range was truncated.")).toBeInTheDocument()
     expect(screen.getByText("Save timeout is visible")).toBeInTheDocument()
-    expect(screen.getByText("The toast reads Save failed (E_TIMEOUT).")).toBeInTheDocument()
+    expect(document.body).toHaveTextContent("The toast reads Save failed (E_TIMEOUT).")
     expect(screen.getByText("1:18")).toBeInTheDocument()
   })
 
@@ -161,6 +162,86 @@ describe("video walkthrough analysis tool cards", () => {
     expect(screen.getByText(/Gemini's quota is busy/)).toBeInTheDocument()
     expect(screen.getByText("Gemini quota is temporarily unavailable. Wait briefly, then retry the analysis.")).toBeInTheDocument()
     expect(screen.queryByText(/"isError"/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["rejected key", "Gemini rejected the API key: invalid key", /plugin credentials/],
+    ["pruned video", "Could not read the stored video — it may have been pruned.", /fresh walkthrough/]
+  ])("renders distinct recovery guidance for a %s failure", (_state, message, guidance) => {
+    render(
+      <>
+        {analyzeWalkthroughSegmentToolCard.renderExpanded(
+          context({
+            toolName: "analyze_walkthrough_segment",
+            input: { walkthrough_id: 42, start: "70", end: "90", focus: "the error" },
+            resultError: true,
+            parsedResult: { content: [{ type: "text", text: message }], isError: true }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText(guidance)).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", (payload: object) => payload],
+    ["structured content", (payload: object) => ({ structured_content: payload })],
+    ["nested result", (payload: object) => ({ result: { structured_content: payload } })]
+  ])("renders the real segment schema from a %s envelope", (_shape, envelope) => {
+    const payload = {
+      walkthrough_id: 42,
+      range: "70-90",
+      focus: "Read **the exact error** without truncating a long mobile prompt that should remain fully wrapped on every viewport.",
+      note: "The range was shortened; see https://example.test/help.",
+      analysis: {
+        findings: "The request fails with **E_TIMEOUT**. See JOB-42.",
+        exact_text: ["Save failed (E_TIMEOUT)"],
+        steps: ["Open settings", "Select **Save**"],
+        transcript: [{ timestamp: "2", text: "It still spins." }]
+      }
+    }
+
+    render(
+      <MemoryRouter>
+        {analyzeWalkthroughSegmentToolCard.renderExpanded(
+          context({ toolName: "analyze_walkthrough_segment", input: { walkthrough_id: 42 }, parsedResult: envelope(payload) })
+        )}
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("1:10–1:30")).toBeInTheDocument()
+    expect(screen.getAllByText("E_TIMEOUT", { selector: "strong" }).length).toBeGreaterThan(0)
+    expect(document.body).toHaveTextContent("JOB-42")
+    expect(screen.getByRole("link", { name: "https://example.test/help" })).toHaveAttribute("href", "https://example.test/help")
+    expect(document.body).toHaveTextContent("Save failed (E_TIMEOUT)")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(document.body).toHaveTextContent("Open settings")
+    expect(document.body).toHaveTextContent("0:02 It still spins.")
+    expect(screen.queryByText("Analysis payload")).not.toBeInTheDocument()
+  })
+
+  it("shows returned segment frames through the shared media preview and expands long markdown", () => {
+    const findings = `**Visible result** ${"with grounded detail ".repeat(120)}`
+    render(
+      <>
+        {analyzeWalkthroughSegmentToolCard.renderExpanded(
+          context({
+            toolName: "analyze_walkthrough_segment",
+            parsedResult: {
+              walkthrough_id: 42,
+              analysis: { findings },
+              frames: [{ label: "Timeout toast", timestamp: "12", data: "jpeg", mime_type: "image/jpeg" }]
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("img", { name: "Timeout toast at 12" })).toHaveAttribute("src", "data:image/jpeg;base64,jpeg")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Complete segment analysis" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy Analysis to clipboard" })).toBeInTheDocument()
   })
 
   it.each([
@@ -223,6 +304,12 @@ describe("video walkthrough analysis tool cards", () => {
 
   it("exports catalog examples for full, empty, segment, and failure states", () => {
     expect(fullAnalysisExamples.map((example) => example.id)).toEqual(["full_analysis", "empty_analysis", "pending_analysis", "failed_analysis"])
-    expect(segmentExamples.map((example) => example.id)).toEqual(["segment_analysis", "segment_failure"])
+    expect(segmentExamples.map((example) => example.id)).toEqual([
+      "segment_analysis",
+      "segment_quota_failure",
+      "segment_key_failure",
+      "segment_pruned_failure",
+      "segment_empty"
+    ])
   })
 })
