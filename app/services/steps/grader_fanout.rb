@@ -516,6 +516,14 @@ module Steps
       workflow.set_artifact!("grade_plan_source", plan.source)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, grader_fingerprint)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, current_head_sha)
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, current_base_sha)
+    end
+
+    def current_base_sha
+      GitRunner.new.run("rev-parse", default_branch_ref, chdir: workspace.path.to_s).strip
+    rescue StandardError => e
+      log("[grader_fanout] could not read current base for landing validation: #{e.message}")
+      nil
     end
 
     def record_changed_files!(files)
