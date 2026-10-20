@@ -219,6 +219,7 @@
   "col_backend": "Ministerium",
   "col_tls": "TLS",
   "col_ingress_class": "Classis",
+  "col_load_balancer": "Distributrum oneris",
   "col_capacity": "Capacitas",
   "col_keys": "Claves",
   "col_storage_class": "Classis repositorii",
