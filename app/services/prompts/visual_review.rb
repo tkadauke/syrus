@@ -292,10 +292,9 @@ module Prompts
            `hover` for `:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards, hover-revealed
            controls) that `click` cannot exercise — don't default to "skipped" just because the behavior
            only appears on hover.
-           For UI changes inside long pages or lists (for example, chat tool cards), navigate to the most
-           isolated route that renders the subject under review, such as the admin Tool Card Catalog,
-           instead of capturing it in a long page. Include nearby context only when it is needed to judge
-           the change.
+           For UI changes inside long pages or lists, navigate to the most isolated route that renders the
+           subject under review, such as a focused detail, component-preview, or catalog route, instead of
+           capturing it in a long page. Include nearby context only when it is needed to judge the change.
            For click/fill/hover/single-element screenshots, call `browser_snapshot` first and copy the exact
            `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
            refs, pass an undefined target, or call click/fill/hover when the element is absent. If the element
