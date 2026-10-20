@@ -9,6 +9,7 @@ type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 type SlugTone = "default" | "inverted"
 type RenderInlineOptions = {
+  highlightTerms?: string[]
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   onLinkClick?: MarkdownLinkHandler
@@ -21,6 +22,7 @@ type ListMarker = { indent: number; ordered: boolean; value?: number; content: s
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 type MarkdownProps = {
   className?: string
+  highlightTerms?: string[]
   text: string
   linkifySlugs?: boolean
   linkifyUrls?: boolean
@@ -45,12 +47,21 @@ const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   prose: 2.4
 }
 
-export function Markdown({ className, text, linkifySlugs = true, linkifyUrls = false, onLinkClick, slugHrefFallbacks, slugTone }: MarkdownProps) {
+export function Markdown({
+  className,
+  highlightTerms,
+  text,
+  linkifySlugs = true,
+  linkifyUrls = false,
+  onLinkClick,
+  slugHrefFallbacks,
+  slugTone
+}: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
   return (
     <div className={["chat-prose", className].filter(Boolean).join(" ")}>
-      {renderBlocks(preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
+      {renderBlocks(preview, { highlightTerms, linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
     </div>
   )
 }
@@ -742,6 +753,7 @@ function decodeHtmlEntities(text: string): string {
 function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number, options: RenderInlineOptions = {}): InlineToken {
   const decoded = decodeHtmlEntities(text)
   if (options.linkifyUrls) return linkifyPlainUrls(decoded, shouldLinkifySlugs, key, options)
+  if (options.highlightTerms?.length) return renderHighlightedText(decoded, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(decoded)) {
     return <Fragment key={key}>{linkifySlugs(decoded, { hrefFallbacks: options.slugHrefFallbacks, tone: options.slugTone })}</Fragment>
   }
@@ -776,10 +788,39 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
 }
 
 function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string, options: RenderInlineOptions) {
+  if (options.highlightTerms?.length) return renderHighlightedText(text, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(text)) {
     return <Fragment key={key}>{linkifySlugs(text, { hrefFallbacks: options.slugHrefFallbacks, tone: options.slugTone })}</Fragment>
   }
   return <Fragment key={key}>{text}</Fragment>
+}
+
+function renderHighlightedText(text: string, shouldLinkifySlugs: boolean, key: number | string, options: RenderInlineOptions) {
+  const terms = options.highlightTerms?.map((term) => term.trim()).filter(Boolean) ?? []
+  if (terms.length === 0) return text
+
+  const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi")
+  const parts = text.split(pattern)
+  return (
+    <Fragment key={key}>
+      {parts.map((part, index) => {
+        const highlighted = index % 2 === 1
+        const content =
+          shouldLinkifySlugs && containsSlug(part) ? linkifySlugs(part, { hrefFallbacks: options.slugHrefFallbacks, tone: options.slugTone }) : part
+        return highlighted ? (
+          <mark className="rounded-sm bg-warning/20 px-0.5 text-inherit" data-search-highlight key={index}>
+            {content}
+          </mark>
+        ) : (
+          <Fragment key={index}>{content}</Fragment>
+        )
+      })}
+    </Fragment>
+  )
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function renderPlainUrlLink(href: string, key: string, options: RenderInlineOptions) {

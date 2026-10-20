@@ -28,6 +28,13 @@ afterEach(() => {
 })
 
 describe("MarkdownPreview", () => {
+  it("highlights search terms without dropping markdown or URL links", () => {
+    const { container } = render(<MarkdownPreview highlightTerms={["needle"]} linkifyUrls text="A **Needle** beside https://example.test/needle." />)
+
+    expect(container.querySelector("strong mark[data-search-highlight]")).toHaveTextContent("Needle")
+    expect(screen.getByRole("link", { name: "https://example.test/needle" })).toHaveAttribute("href", "https://example.test/needle")
+  })
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 
