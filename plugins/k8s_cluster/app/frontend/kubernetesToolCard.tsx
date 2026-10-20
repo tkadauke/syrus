@@ -141,7 +141,7 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 }
 
 const ROW_LIMIT = 100
-const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses", "configmaps"])
+const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses", "configmaps", "secrets"])
 const CONFIG_MAP_VALUE_DISPLAY_LIMIT = 4_096
 const CONFIG_MAP_VALUE_PREVIEW_LIMIT = 320
 const RESPONSIVE_TABLE_BODY_CLASSES = [
@@ -321,6 +321,7 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
   if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
   if (card.kind === "configmaps" && card.name) return <ConfigMapDescribeBody card={card} configMap={card.rows[0]} />
+  if (card.kind === "secrets" && card.name) return <SecretDescribeBody card={card} secret={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
@@ -660,10 +661,32 @@ function rowsForKind(kind: CardKind, parsed: Record<string, unknown>) {
   if (!Array.isArray(rows)) {
     const single = singularKey(kind)
     const row = single ? parsed[single] : null
-    if (isPlainObject(row)) return [summarizeRawResource(kind, row as K8sRow)]
+    if (isPlainObject(row)) return [kind === "secrets" ? secretMetadata(row) : summarizeRawResource(kind, row as K8sRow)]
     return null
   }
-  return rows.filter(isPlainObject) as K8sRow[]
+  const objectRows = rows.filter(isPlainObject) as K8sRow[]
+  return kind === "secrets" ? objectRows.map(secretMetadata) : objectRows
+}
+
+function SecretDescribeBody({ card, secret }: { card: ParsedCard; secret: K8sRow }) {
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-2xs font-semibold uppercase text-text-muted">{t("col_type")}</span>
+        <StatePill state={displayValue(secret.type) || "-"} tone="neutral" />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <DetailRow label={t("col_name")} value={displayValue(secret.name) || "-"} />
+        <DetailRow label={t("col_namespace")} value={displayValue(secret.namespace) || "-"} />
+        <DetailRow label={t("col_keys")} value={String(numberValue(secret.key_count) ?? 0)} />
+        <DetailRow label={t("col_immutable")} value={secret.immutable === true ? t("yes") : t("no")} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(secret.created_at))} />
+      </div>
+      <DetailRow label={t("col_owner_references")} value={arrayText(secret.owner_references)} />
+      <DetailRow label={t("col_key_names")} value={arrayText(secret.key_names)} />
+    </CardShell>
+  )
 }
 
 function ConfigMapDescribeBody({ card, configMap }: { card: ParsedCard; configMap: K8sRow }) {
@@ -1010,6 +1033,12 @@ function columnsFor(kind: CardKind): Column[] {
       ...(kind === "secrets" ? [{ key: "type", label: t("col_type") }] : []),
       { key: "key_count", label: t("col_keys") },
       { key: "key_names", label: t("col_key_names"), render: (row) => arrayText(row.key_names) },
+      ...(kind === "secrets"
+        ? [
+            { key: "immutable", label: t("col_immutable"), render: (row: K8sRow) => (row.immutable === true ? t("yes") : t("no")) },
+            { key: "owner_references", label: t("col_owner_references"), render: (row: K8sRow) => arrayText(row.owner_references) }
+          ]
+        : []),
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -1904,8 +1933,37 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
         .filter((key, index, keys) => keys.indexOf(key) === index)
         .sort()
     }
-  if (kind === "secrets") return row
   return row
+}
+
+// Keep this projection at the payload boundary: Secret values must never reach
+// rendering or FilterableList's search index, even if a caller supplies a raw
+// Kubernetes Secret instead of the server's metadata-only summary.
+function secretMetadata(row: K8sRow): K8sRow {
+  const metadata = isPlainObject(row.metadata) ? row.metadata : {}
+  const source = Object.keys(metadata).length > 0 ? metadata : row
+  const ownerReferences = Array.isArray(source.ownerReferences)
+    ? source.ownerReferences
+        .filter(isPlainObject)
+        .map((owner) => [displayValue(owner.kind), displayValue(owner.name)].filter(Boolean).join("/"))
+        .filter(Boolean)
+    : Array.isArray(row.owner_references)
+      ? row.owner_references.map(displayValue).filter(Boolean)
+      : []
+  const keyNames = Array.isArray(row.key_names)
+    ? row.key_names.map(displayValue).filter((value): value is string => Boolean(value))
+    : Object.keys(isPlainObject(row.data) ? row.data : {}).sort()
+
+  return {
+    name: source.name,
+    namespace: source.namespace,
+    type: row.type,
+    key_count: numberValue(row.key_count) ?? keyNames.length,
+    key_names: keyNames,
+    immutable: row.immutable === true,
+    owner_references: ownerReferences,
+    created_at: source.creationTimestamp || row.created_at
+  }
 }
 
 function metadataKeysSummary(value: unknown) {

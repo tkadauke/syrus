@@ -245,6 +245,7 @@
   "event_count": "Numerus {{count}}",
   "event_message_details": "Nuntius eventus",
   "col_key_names": "Nomina clavium",
+  "col_immutable": "Immutabile",
   "col_parallelism": "Parallelismus",
   "col_selector": "Selector",
   "yes": "Ita",

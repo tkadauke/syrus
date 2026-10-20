@@ -8,7 +8,7 @@ const INLINE_SECRET_ASSIGNMENT_KEY_PATTERN =
   "[A-Za-z0-9_-]*(?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|credential|github[_-]?token|id[_-]?token|jwt|password|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)[A-Za-z0-9_-]*"
 const SAFE_SENSITIVE_METADATA_KEY_PATTERN = /(?:^|_)(?:present|active|usable|mode|id|name|type|class|count|error_message|inactive_reason)$/i
 const IDENTIFIER_VALUE_KEY_PATTERN = /(?:^|_)(?:key_names?|resource_names?|name)$/i
-const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|created_at)$/i
+const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|immutable|owner_references|created_at)$/i
 
 export function redactToolCardValue(value: unknown, parentKey = ""): unknown {
   if (typeof value === "string") return redactToolCardText(value, !identifierValueKey(parentKey))
