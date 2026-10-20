@@ -1390,6 +1390,100 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.queryByText("super-secret-value")).not.toBeInTheDocument()
   })
 
+  it("renders responsive ConfigMap key listings from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      config_maps: [
+        {
+          namespace: "payments",
+          name: "api-config",
+          key_count: 3,
+          key_names: ["api-token.txt", "LOG_LEVEL", "tls.crt"],
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_configmaps")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{configMapsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_configmaps")
+      expect(configMapsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 1 ConfigMaps")
+      expect(screen.getByText("api-token.txt, LOG_LEVEL, tls.crt")).toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      expect(screen.getByText("api-token.txt, LOG_LEVEL, tls.crt").closest("td")).toHaveAttribute("data-label", "Key names")
+      rendered.unmount()
+    }
+  })
+
+  it("safely describes ConfigMap text and binary keys from every MCP envelope", () => {
+    const payload = {
+      available: true,
+      config_map: {
+        metadata: { name: "api-config", namespace: "payments", creationTimestamp: "2026-09-01T00:00:00Z" },
+        data: {
+          "api-token.txt": "password=hunter2\nmode=production",
+          "public-url": "https://example.test/" + "x".repeat(5_000)
+        },
+        binaryData: { "logo.bin": "AAECAwQ=" }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_configmaps")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api-config" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const rendered = render(<>{configMapsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(configMapsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / api-config · 1 ConfigMaps")
+      expect(screen.getByText("api-token.txt")).toBeInTheDocument()
+      expect(screen.getByText(/password=\[redacted\]/)).toBeInTheDocument()
+      expect(screen.queryByText(/hunter2/)).not.toBeInTheDocument()
+      expect(screen.getByText("logo.bin")).toBeInTheDocument()
+      expect(screen.getByText("binary")).toBeInTheDocument()
+      expect(screen.getByText("Binary value is not previewed.")).toBeInTheDocument()
+      expect(screen.getByText("Displayed value capped at 4.0 KB.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders ConfigMap empty and error states with requested input scope", () => {
+    const emptyContext = context({
+      toolName: "k8s_cluster_configmaps",
+      input: { cluster_id: 7, namespace: "payments" },
+      parsedResult: { available: true, config_maps: [] }
+    })
+    const empty = render(<>{configMapsToolCard.renderExpanded(emptyContext)}</>)
+    expect(configMapsToolCard.collapsedSummary?.(emptyContext)).toBe("Cluster 7 / payments · 0 ConfigMaps")
+    expect(screen.getByText("No ConfigMaps returned.")).toBeInTheDocument()
+    empty.unmount()
+
+    const errorContext = context({
+      toolName: "k8s_cluster_configmaps",
+      input: { cluster_id: 7, namespace: "payments", name: "api-config" },
+      resultBody: "Error: Kubernetes API unavailable",
+      resultError: true,
+      parsedResult: null
+    })
+    render(<>{configMapsToolCard.renderExpanded(errorContext)}</>)
+    expect(configMapsToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / payments / api-config · error")
+    expect(screen.getByText("Kubernetes API unavailable")).toBeInTheDocument()
+  })
+
   it("renders pod logs with searchable truncated preview metadata", () => {
     const cardContext = context({
       toolName: "k8s_cluster_pod_logs",
