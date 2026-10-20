@@ -19,6 +19,8 @@ filter trees, sort descriptors, pagination metadata, sidebar counts, and
 control schemas. Admin-only mutations that are only launched from in-app
 operator screens, such as stuck-Job repair buttons or Job detail controls,
 belong here rather than under the user-facing `/api/v1/app/*` paths.
+The provider-routing hold release endpoint is one such UI-only control: it
+records the signed-in admin as the release actor and resumes the held workflow.
 
 New externally scriptable operator capabilities belong under
 `/api/v1/admin/*`. New admin-screen data fetches or mutations that exist only

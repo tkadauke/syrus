@@ -234,6 +234,7 @@ public/session:
   - app/controllers/concerns/authentication.rb
   - app/controllers/api/v1/app/auth_controller.rb
 admin-only:
+  - app/controllers/api/v1/app/admin/provider_routing_holds_controller.rb
   - app/controllers/admin/base_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/api/v1/app/auth_controller.rb
@@ -477,6 +478,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/github_app_controller.rb` | admin-only | Builds GitHub App manifests using the current admin's identity/contact context. |
 | `app/controllers/api/v1/app/admin/installations_controller.rb` | admin-only | Queues installation sync for the current admin. |
 | `app/controllers/api/v1/app/admin/invitations_controller.rb` | admin-only | Records the current admin as invitation creator. |
+| `app/controllers/api/v1/app/admin/provider_routing_holds_controller.rb` | admin-only | Releases a provider-routing hold through the admin UI and records `Current.user` as the release actor. |
 | `app/controllers/api/v1/app/admin/macos_worker_updates_controller.rb` | admin or machine-scoped | Human update controls are admin-only. Native workers can read/report through a scoped machine invocation context, and `Current.user` is used only for the admin side of that guard. |
 | `app/controllers/api/v1/app/admin/queue_controller.rb` | admin-only | Reads queue/process state through admin-only payloads and user-aware filters. |
 | `app/controllers/api/v1/app/admin/restart_controller.rb` | admin-only | Writes the Rails.cache restart poison-pill and passes the current admin as actor for `AdminAction` audit logging. |

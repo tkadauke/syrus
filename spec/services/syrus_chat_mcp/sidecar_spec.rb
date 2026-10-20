@@ -91,6 +91,9 @@ RSpec.describe Mcp::Sidecar do
         list_jobs
         search_jobs
         read_job
+        read_provider_routing_rules
+        explain_provider_routing
+        mutate_provider_routing_rules
         list_epics
         read_epic
         approve_job
@@ -109,7 +112,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(29)
+      expect(tool_names.size).to eq(32)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

@@ -23,7 +23,9 @@ module PendingActions
     end
 
     def presentation_detail
-      "#{scope_label}: #{payload['summary']}\nBefore: #{format_rules(payload.dig('before', 'rules'))}\nAfter: #{format_rules(payload.dig('after', 'rules'))}"
+      summary = payload["summary"].presence
+      heading = [ scope_label, summary ].compact.join(": ")
+      "#{heading}\nBefore: #{format_rules(payload.dig('before', 'rules'))}\nAfter: #{format_rules(payload.dig('after', 'rules'))}"
     end
 
     private
@@ -50,8 +52,10 @@ module PendingActions
     end
 
     def scope_label
-      scope = payload.fetch("scope")
-      "#{scope.fetch('scope_type').humanize} ##{scope.fetch('scope_id')}"
+      scope = payload["scope"]
+      return "Provider routing rules" unless scope.is_a?(Hash) && scope["scope_type"].present? && scope["scope_id"].present?
+
+      "#{scope['scope_type'].humanize} ##{scope['scope_id']}"
     end
 
     def format_rules(rules)
