@@ -26,7 +26,6 @@ describe("toolCardUi Row", () => {
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })
-
 })
 
 function renderReference(reference: ComponentProps<typeof EntityReference>) {

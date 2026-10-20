@@ -135,7 +135,20 @@ export function InternalLink({ href, children }: { href: string; children: React
 }
 
 export type ToolCardEntityKind =
-  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "issue" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
+  | "job"
+  | "epic"
+  | "design_doc"
+  | "chat"
+  | "run"
+  | "workflow"
+  | "pull_request"
+  | "issue"
+  | "artifact"
+  | "repository"
+  | "proposal"
+  | "cluster"
+  | "namespace"
+  | "node"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
