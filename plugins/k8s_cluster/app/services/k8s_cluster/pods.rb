@@ -59,12 +59,22 @@ module K8sCluster
         before = client.get_pod(name, namespace)
         client.delete_pod(name, namespace)
 
+        owner = Array(before.dig("metadata", "ownerReferences")).find { |reference| reference["controller"] } ||
+          Array(before.dig("metadata", "ownerReferences")).first
+        restart_count = Array(before.dig("status", "containerStatuses")).sum { |status| integer(status["restartCount"]).to_i }
+
         {
           available: true,
           generated_at: Time.current.iso8601,
           pod: name,
           namespace: namespace,
-          before: { phase: before.dig("status", "phase") },
+          before: {
+            node_name: before.dig("spec", "nodeName"),
+            phase: before.dig("status", "phase"),
+            restart_count: restart_count,
+            owner_kind: owner&.dig("kind"),
+            owner_name: owner&.dig("name")
+          },
           after: { deleted: true }
         }
       end

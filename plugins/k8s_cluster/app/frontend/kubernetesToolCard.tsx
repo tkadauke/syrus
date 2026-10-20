@@ -105,6 +105,8 @@ type ParsedActionCard = {
   followUpChecks: string[]
   errorKind: ActionErrorKind | null
   errorMessage: string | null
+  available: boolean | null
+  before: Record<string, unknown>
 }
 type ParsedKubectlCard = {
   ok: boolean
@@ -295,6 +297,7 @@ function renderExpandedAction(context: ToolCardContext) {
         <DetailRow label={t("action_card_previous_state")} value={card.previousState || t("action_card_not_available")} />
         <DetailRow label={t("action_card_current_state")} value={card.currentState || t("action_card_not_available")} />
       </div>
+      {card.kind === "delete_pod" ? <DeletePodDetails card={card} /> : null}
       {card.generatedAt ? <div className="text-2xs text-text-muted">{t("action_card_generated_at", { timestamp: card.generatedAt })}</div> : null}
       <div className="space-y-1">
         <div className="text-2xs font-semibold uppercase text-text-muted">{t("action_card_follow_up_checks")}</div>
@@ -305,6 +308,24 @@ function renderExpandedAction(context: ToolCardContext) {
         </ul>
       </div>
     </CardShell>
+  )
+}
+
+function DeletePodDetails({ card }: { card: ParsedActionCard }) {
+  const ownerKind = displayValue(card.before.owner_kind)
+  const ownerName = displayValue(card.before.owner_name)
+  const owner = ownerKind && ownerName ? `${ownerKind}/${ownerName}` : t("delete_pod_bare_owner")
+  const outcome = ownerKind && ownerName ? t("delete_pod_controller_outcome", { kind: ownerKind, name: ownerName }) : t("delete_pod_bare_outcome")
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <DetailRow label={t("delete_pod_available")} value={card.available === null ? t("action_card_not_available") : String(card.available)} />
+      <DetailRow label={t("delete_pod_owner")} value={owner} />
+      <DetailRow label={t("delete_pod_outcome")} value={outcome} />
+      <DetailRow label={t("delete_pod_node")} value={displayValue(card.before.node_name) || t("action_card_not_available")} />
+      <DetailRow label={t("delete_pod_phase")} value={displayValue(card.before.phase) || t("action_card_not_available")} />
+      <DetailRow label={t("delete_pod_restarts")} value={displayValue(card.before.restart_count) || t("action_card_not_available")} />
+    </div>
   )
 }
 
@@ -630,7 +651,9 @@ function parseActionCard(context: ToolCardContext): ParsedActionCard | null {
     generatedAt: displayValue(parsed.generated_at),
     followUpChecks: followUpChecks(kind, parsed, input, resultState, errorKind),
     errorKind,
-    errorMessage
+    errorMessage,
+    available: typeof parsed.available === "boolean" ? parsed.available : null,
+    before
   }
 }
 
@@ -695,7 +718,7 @@ function currentState(kind: ActionKind, after: Record<string, unknown>) {
 function actionNoOp(kind: ActionKind, before: Record<string, unknown>, after: Record<string, unknown>) {
   if (kind === "restart_rollout") return "restarted_at" in before && "restarted_at" in after && before.restarted_at === after.restarted_at
   if (kind === "scale_deployment") return "replicas" in before && "replicas" in after && before.replicas === after.replicas
-  if (kind === "delete_pod") return after.deleted === false
+  if (kind === "delete_pod") return false
   if (kind === "set_node_cordon") return before.unschedulable === after.unschedulable
   return false
 }
@@ -2211,9 +2234,8 @@ export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExamp
 
 export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): ToolCardExample[] {
   const kind = ACTION_KINDS[toolName]
-  return [
+  const examples: ToolCardExample[] = [
     { id: "successful_action", label: "Successful action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "success") },
-    { id: "no_op", label: "No-op action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "noop") },
     {
       id: "validation_failure",
       label: "Validation failure",
@@ -2236,6 +2258,9 @@ export function kubernetesActionToolCardExamples(toolName: K8sActionToolName): T
       resultError: true
     }
   ]
+  if (kind !== "delete_pod")
+    examples.splice(1, 0, { id: "no_op", label: "No-op action", input: actionExampleInput(kind), parsedResult: actionExamplePayload(kind, "noop") })
+  return examples
 }
 
 export function kubernetesKubectlToolCardExamples(_toolName: K8sKubectlToolName): ToolCardExample[] {
@@ -2309,8 +2334,8 @@ function actionExamplePayload(kind: ActionKind, variant: "success" | "noop") {
       generated_at,
       pod: "web-7d9b",
       namespace: "default",
-      before: { phase: variant === "noop" ? "Succeeded" : "Running" },
-      after: { deleted: variant !== "noop" }
+      before: { node_name: "node-1", phase: "Running", restart_count: 2, owner_kind: "ReplicaSet", owner_name: "web-7d9b" },
+      after: { deleted: true }
     }
   }
   return {
