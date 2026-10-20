@@ -1451,23 +1451,32 @@ function OverviewBody({ card, overview }: { card: ParsedCard; overview: Overview
   return (
     <CardShell>
       <SummaryStrip card={card} />
-      <OverviewSection title={t("overview_node_usage")} section={overview.nodes} />
-      <OverviewSection title={t("overview_pod_usage")} section={overview.pods} />
+      <OverviewSection clusterId={card.clusterId} kind="nodes" title={t("overview_node_usage")} section={overview.nodes} />
+      <OverviewSection clusterId={card.clusterId} kind="pods" title={t("overview_pod_usage")} section={overview.pods} />
     </CardShell>
   )
 }
 
-function OverviewSection({ section, title }: { section: OverviewSection; title: string }) {
+function OverviewSection({ clusterId, kind, section, title }: { clusterId: string | null; kind: "nodes" | "pods"; section: OverviewSection; title: string }) {
+  const [showAll, setShowAll] = useState(false)
+
   if (!section.available) {
     return (
-      <Notice title={title} tone="warning">
-        {section.message || section.reason || t("overview_metrics_unavailable")}
-      </Notice>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-text-primary">{title}</span>
+          <StatePill state={t("overview_unavailable")} tone="warning" />
+        </div>
+        <Notice tone="warning">{section.message || t("overview_metrics_unavailable")}</Notice>
+        {section.reason ? <DetailRow label={t("overview_unavailable_reason")} value={section.reason} /> : null}
+      </div>
     )
   }
 
+  const rows: K8sRow[] = section.items.map((row) => ({ ...row, cluster_id: clusterId }))
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-semibold text-text-primary">{title}</span>
         <StatePill state={t("tool_card_resource_count", { count: section.items.length, resource: t("tool_card_items") })} tone="success" />
@@ -1475,20 +1484,68 @@ function OverviewSection({ section, title }: { section: OverviewSection; title: 
         <span className="text-text-muted">{formatBytes(section.totalMemoryBytes)}</span>
       </div>
       {section.items.length > 0 ? (
-        <KubernetesTable
-          columns={[
-            { key: "namespace", label: t("col_namespace") },
-            { key: "name", label: t("col_name") },
-            { key: "cpu_millicores", label: t("col_cpu"), render: (row) => formatMillicores(numberValue(row.cpu_millicores) ?? 0) },
-            { key: "memory_bytes", label: t("col_memory"), render: (row) => formatBytes(numberValue(row.memory_bytes) ?? 0) }
-          ]}
-          rows={section.items.slice(0, ROW_LIMIT)}
-        />
+        <FilterableList
+          itemText={(row) =>
+            [
+              displayValue(row.namespace),
+              displayValue(row.name),
+              formatMillicores(numberValue(row.cpu_millicores) ?? 0),
+              formatBytes(numberValue(row.memory_bytes) ?? 0)
+            ]
+              .filter(Boolean)
+              .join(" ")
+          }
+          items={rows}
+          placeholder={t("tool_card_filter_placeholder")}
+        >
+          {(visibleRows) => (
+            <div className="space-y-2">
+              <KubernetesTable columns={overviewColumns(kind)} responsive rows={showAll ? visibleRows : visibleRows.slice(0, ROW_LIMIT)} />
+              {!showAll && visibleRows.length > ROW_LIMIT ? (
+                <Button onClick={() => setShowAll(true)} size="sm" variant="secondary">
+                  {t("overview_show_all_rows", { count: visibleRows.length })}
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </FilterableList>
       ) : (
         <EmptyState>{t("tool_card_empty", { resource: t("tool_card_items") })}</EmptyState>
       )}
     </div>
   )
+}
+
+function overviewColumns(kind: "nodes" | "pods"): Column[] {
+  const nameColumn: Column = {
+    key: "name",
+    label: t("col_name"),
+    render: (row) => (
+      <EntityReference
+        href={clusterResourceHref(row, kind, kind === "nodes" ? "node" : "pod", row.name)}
+        kind={kind === "nodes" ? "node" : "artifact"}
+        label={displayValue(row.name)}
+        slug={kind === "pods" ? podContext(row) : displayValue(row.name)}
+      />
+    )
+  }
+  const usageColumns: Column[] = [
+    { key: "cpu_millicores", label: t("col_cpu"), render: (row) => formatMillicores(numberValue(row.cpu_millicores) ?? 0) },
+    { key: "memory_bytes", label: t("col_memory"), render: (row) => formatBytes(numberValue(row.memory_bytes) ?? 0) }
+  ]
+  if (kind === "nodes") return [nameColumn, ...usageColumns]
+
+  return [
+    {
+      key: "namespace",
+      label: t("col_namespace"),
+      render: (row) => (
+        <EntityReference href={clusterResourceHref(row, "pods")} kind="namespace" id={displayValue(row.cluster_id)} label={displayValue(row.namespace)} />
+      )
+    },
+    nameColumn,
+    ...usageColumns
+  ]
 }
 
 function InlineNotice({ children }: { children: string }) {
