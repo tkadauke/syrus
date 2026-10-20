@@ -249,7 +249,6 @@ describe("TextPreview", () => {
     expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
     expect(screen.getByTestId("text-preview-content")).not.toHaveClass("break-words")
   })
-
   it("opens complete text when the inline text is a filtered subset", () => {
     render(<TextPreview fullText={"first\nmatching\nlast"} modalLabel="Complete output" text="matching" />)
 
