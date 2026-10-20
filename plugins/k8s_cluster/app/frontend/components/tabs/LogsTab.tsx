@@ -17,12 +17,11 @@ const FOLLOW_REFETCH_INTERVAL_MS = 10_000
 
 // Shared log-output styling, extracted so the empty and populated states
 // render identically without duplicating the class list.
-const LOG_OUTPUT_CLASSES =
-  "max-h-[32rem] overflow-auto rounded border border-gray-200 dark:border-gray-800 bg-gray-950 p-3 text-xs text-gray-100"
+const LOG_OUTPUT_CLASSES = "max-h-[32rem] overflow-auto rounded border border-gray-200 dark:border-gray-800 bg-gray-950 p-3 text-xs text-gray-100"
 
-export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
+export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: number; initialPod?: string | null; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
-  const [selectedPodKey, setSelectedPodKey] = useState<string | null>(null)
+  const [selectedPodKey, setSelectedPodKey] = useState<string | null>(() => (initialPod ? [namespace, initialPod].filter(Boolean).join("/") : null))
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null)
   const [tailLines, setTailLines] = useState<number>(DEFAULT_TAIL_LINES)
   const [previous, setPrevious] = useState(false)
@@ -30,8 +29,12 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
   const [follow, setFollow] = useState(false)
   const [logQuery, setLogQuery] = useState("")
 
+  useEffect(() => {
+    if (initialPod) setSelectedPodKey([namespace, initialPod].filter(Boolean).join("/"))
+  }, [initialPod, namespace])
+
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "pods", clusterId, namespace ],
+    queryKey: ["k8s_cluster", "pods", clusterId, namespace],
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
 
@@ -49,7 +52,7 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
   }, [selectedPod?.namespace, selectedPod?.name])
 
   const logs = useQuery({
-    queryKey: [ "k8s_cluster", "pod_logs", clusterId, selectedPod?.namespace, selectedPod?.name, selectedContainer, tailLines, previous, timestamps ],
+    queryKey: ["k8s_cluster", "pod_logs", clusterId, selectedPod?.namespace, selectedPod?.name, selectedContainer, tailLines, previous, timestamps],
     queryFn: () =>
       fetchKubernetesPodLogs(clusterId, selectedPod!.namespace, selectedPod!.name, {
         container: selectedContainer,
@@ -89,12 +92,7 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
           value={selectedPodKey ?? ""}
         />
         {selectedPod && selectedPod.container_names.length > 1 ? (
-          <Dropdown
-            ariaLabel={t("logs_container_label")}
-            onChange={setSelectedContainer}
-            options={containerOptions}
-            value={selectedContainer ?? ""}
-          />
+          <Dropdown ariaLabel={t("logs_container_label")} onChange={setSelectedContainer} options={containerOptions} value={selectedContainer ?? ""} />
         ) : null}
         {selectedPod ? (
           <Dropdown
@@ -113,21 +111,9 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
 
       {selectedPod ? (
         <div className="flex flex-wrap items-center gap-4">
-          <Checkbox
-            checked={previous}
-            label={t("logs_previous_label")}
-            onChange={(event) => setPrevious(event.target.checked)}
-          />
-          <Checkbox
-            checked={timestamps}
-            label={t("logs_timestamps_label")}
-            onChange={(event) => setTimestamps(event.target.checked)}
-          />
-          <Checkbox
-            checked={follow}
-            label={t("logs_follow_label")}
-            onChange={(event) => setFollow(event.target.checked)}
-          />
+          <Checkbox checked={previous} label={t("logs_previous_label")} onChange={(event) => setPrevious(event.target.checked)} />
+          <Checkbox checked={timestamps} label={t("logs_timestamps_label")} onChange={(event) => setTimestamps(event.target.checked)} />
+          <Checkbox checked={follow} label={t("logs_follow_label")} onChange={(event) => setFollow(event.target.checked)} />
         </div>
       ) : null}
 
@@ -145,15 +131,11 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
             value={logQuery}
           />
           {logLines.length === 0 ? (
-            <pre className={LOG_OUTPUT_CLASSES}>
-              {t("logs_empty")}
-            </pre>
+            <pre className={LOG_OUTPUT_CLASSES}>{t("logs_empty")}</pre>
           ) : visibleLines.length === 0 ? (
             <PanelMessage>{t("logs_search_no_matches")}</PanelMessage>
           ) : (
-            <pre className={LOG_OUTPUT_CLASSES}>
-              {visibleLines.join("\n")}
-            </pre>
+            <pre className={LOG_OUTPUT_CLASSES}>{visibleLines.join("\n")}</pre>
           )}
         </div>
       ) : null}

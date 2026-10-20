@@ -134,7 +134,8 @@ export function InternalLink({ href, children }: { href: string; children: React
   )
 }
 
-export type ToolCardEntityKind = "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal"
+export type ToolCardEntityKind =
+  "job" | "epic" | "design_doc" | "chat" | "run" | "workflow" | "pull_request" | "artifact" | "repository" | "proposal" | "cluster" | "namespace" | "node"
 
 export type EntityReferenceProps = {
   kind: ToolCardEntityKind
@@ -220,7 +221,10 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   },
   artifact: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
   repository: { label: (reference) => displayValue(reference.repositorySlug), href: repositoryHref, copyValue: slugCopyValue },
-  proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue }
+  proposal: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
+  cluster: { label: (reference) => compactEntityValue(reference.id), href: idHref("/k8s_clusters") },
+  namespace: { label: (reference) => displayValue(reference.label), href: idHref("/k8s_clusters") },
+  node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue }
 }
 
 export function entityReferenceLabel(reference: EntityReferenceProps): string | null {

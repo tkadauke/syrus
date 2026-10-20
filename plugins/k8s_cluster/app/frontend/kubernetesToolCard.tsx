@@ -1,10 +1,21 @@
 import i18n from "i18next"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
+import { Button } from "@app/components/Button"
 import { DataTable, Notice } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, Disclosure, EmptyState, FilterableList, Row as DetailRow, StatePill, displayValue, numberValue } from "@app/routes/chat/toolCardUi"
-import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
-import { formatBytes, formatAge, formatMillicores } from "./lib/k8sFormat"
+import {
+  CardShell,
+  Disclosure,
+  EmptyState,
+  EntityReference,
+  FilterableList,
+  Row as DetailRow,
+  StatePill,
+  displayValue,
+  numberValue
+} from "@app/routes/chat/toolCardUi"
+import { MarkdownPreview, TextPreview } from "@app/routes/chat/toolCardMarkdown"
+import { formatBytes, formatAge, formatKubernetesCpu, formatKubernetesMemory, formatMillicores } from "./lib/k8sFormat"
 
 type K8sToolName =
   | "k8s_cluster_overview"
@@ -60,6 +71,10 @@ type ParsedCard = {
   countLabel: string
   warningCount: number
   errorMessage: string | null
+  clusterId: string | null
+  namespace: string | null
+  name: string | null
+  generatedAt: string | null
   overview?: OverviewCard
 }
 type OverviewSection = {
@@ -133,6 +148,10 @@ const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_set_node_cordon: "set_node_cordon"
 }
 
+const TOOL_ARGUMENT_SUMMARIES: Partial<Record<K8sToolName, () => string>> = {
+  k8s_cluster_namespaces: () => ""
+}
+
 function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`k8s_cluster:${key}`, options)
 }
@@ -140,6 +159,7 @@ function t(key: string, options?: Record<string, unknown>) {
 export function kubernetesToolCard(toolName: K8sToolName): ToolCardRenderer {
   return {
     toolName,
+    argumentSummary: TOOL_ARGUMENT_SUMMARIES[toolName],
     collapsedSummary,
     renderExpanded
   }
@@ -265,10 +285,8 @@ function renderExpanded(context: ToolCardContext) {
   if (card.errorMessage) {
     return (
       <CardShell>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatePill state={t("tool_card_error")} tone="failure" />
-          <span className="text-xs font-medium text-text-primary">{card.scope}</span>
-        </div>
+        <ScopeDetail card={card} />
+        <StatePill state={t("tool_card_error")} tone="failure" />
         <Notice tone="danger">{card.errorMessage}</Notice>
       </CardShell>
     )
@@ -276,7 +294,17 @@ function renderExpanded(context: ToolCardContext) {
 
   if (card.kind === "overview" && card.overview) return <OverviewBody card={card} overview={card.overview} />
   if (card.kind === "pod_logs") return <PodLogsBody card={card} />
-  if (card.rows.length === 0) return <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+  if (card.rows.length === 0)
+    return (
+      <CardShell>
+        <SummaryStrip card={card} />
+        <EmptyState>{t("tool_card_empty", { resource: resourceLabel(card.kind) })}</EmptyState>
+      </CardShell>
+    )
+  if (card.kind === "events") return <EventsBody card={card} />
+  if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
+  if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
+  if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
@@ -385,7 +413,17 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
 
   const errorMessage = parseErrorMessage(context)
   if (errorMessage)
-    return { kind, rows: [], truncated: false, scope: scopeLabel(context), countLabel: t("tool_card_no_resources"), warningCount: 1, errorMessage }
+    return {
+      kind,
+      rows: [],
+      truncated: false,
+      scope: scopeLabel(context),
+      countLabel: t("tool_card_no_resources"),
+      warningCount: 1,
+      errorMessage,
+      ...scopeDetails(context),
+      generatedAt: null
+    }
 
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -401,12 +439,16 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
       countLabel: t("tool_card_overview_counts", { nodes: overview.nodes.items.length, pods: overview.pods.items.length }),
       warningCount: [overview.nodes, overview.pods].filter((section) => !section.available).length,
       errorMessage: null,
+      ...scopeDetails(context),
+      generatedAt: displayValue(parsed.generated_at),
       overview
     }
   }
 
-  const rows = rowsForKind(kind, parsed)
-  if (!rows) return null
+  const parsedRows = rowsForKind(kind, parsed)
+  if (!parsedRows) return null
+  const clusterId = displayValue((context.input || {}).cluster_id)
+  const rows = ["pods", "events"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
   return {
     kind,
     rows,
@@ -414,7 +456,18 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
     scope: scopeLabel(context),
     countLabel: t("tool_card_resource_count", { count: resourceCount(kind, rows), resource: resourceLabel(kind) }),
     warningCount: warningCount(kind, rows),
-    errorMessage: null
+    errorMessage: null,
+    ...scopeDetails(context),
+    generatedAt: displayValue(parsed.generated_at)
+  }
+}
+
+function scopeDetails(context: ToolCardContext) {
+  const input = context.input || {}
+  return {
+    clusterId: displayValue(input.cluster_id),
+    namespace: displayValue(input.namespace),
+    name: displayValue(input.name)
   }
 }
 
@@ -608,6 +661,10 @@ function collectionKey(kind: CardKind) {
 }
 
 function singularKey(kind: CardKind) {
+  if (kind === "namespaces") return "namespace"
+  if (kind === "nodes") return "node"
+  if (kind === "pods") return "pod"
+  if (kind === "pvcs") return "persistent_volume_claim"
   if (kind === "deployments") return "deployment"
   if (kind === "statefulsets") return "stateful_set"
   if (kind === "daemonsets") return "daemon_set"
@@ -687,12 +744,18 @@ function columnsFor(kind: CardKind): Column[] {
     return [
       { key: "name", label: t("col_name") },
       { key: "status", label: t("col_status"), tone: (row) => (displayValue(row.status) === "Active" ? "success" : "warning") },
+      { key: "labels", label: t("col_labels") },
+      { key: "annotations", label: t("col_annotations") },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
   if (kind === "nodes") {
     return [
-      { key: "name", label: t("col_name") },
+      {
+        key: "name",
+        label: t("col_name"),
+        render: (row) => <EntityReference kind="node" label={displayValue(row.name)} slug={displayValue(row.name)} />
+      },
       {
         key: "ready",
         label: t("col_ready"),
@@ -700,18 +763,42 @@ function columnsFor(kind: CardKind): Column[] {
         tone: (row) => (row.ready === true ? "success" : "failure")
       },
       { key: "roles", label: t("col_roles"), render: (row) => arrayText(row.roles) },
+      { key: "kubelet_version", label: t("col_kubelet") },
+      { key: "internal_ip", label: t("col_internal_ip") },
       { key: "capacity", label: t("col_capacity"), render: (row) => nodeCapacity(row) },
+      { key: "allocatable", label: t("col_allocatable"), render: (row) => nodeAllocatable(row) },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
   if (kind === "pods") {
     return [
-      { key: "namespace", label: t("col_namespace") },
-      { key: "name", label: t("col_name") },
+      {
+        key: "namespace",
+        label: t("col_namespace"),
+        render: (row) => <EntityReference kind="namespace" id={displayValue(row.cluster_id)} label={displayValue(row.namespace)} />
+      },
+      {
+        key: "name",
+        label: t("col_name"),
+        render: (row) => <EntityReference kind="artifact" href={podLogsHref(row)} label={displayValue(row.name)} slug={podContext(row)} />
+      },
       { key: "status", label: t("col_status"), tone: podTone },
       { key: "ready", label: t("col_ready") },
       { key: "restart_count", label: t("col_restarts"), tone: (row) => ((numberValue(row.restart_count) ?? 0) > 0 ? "warning" : "neutral") },
-      { key: "node_name", label: t("tool_card_node") },
+      { key: "pod_ip", label: t("col_pod_ip") },
+      { key: "container_names", label: t("col_containers"), render: (row) => arrayText(row.container_names) },
+      {
+        key: "node_name",
+        label: t("tool_card_node"),
+        render: (row) => (
+          <EntityReference
+            kind="node"
+            href={clusterResourceHref(row, "nodes", "node", row.node_name)}
+            label={displayValue(row.node_name)}
+            slug={displayValue(row.node_name)}
+          />
+        )
+      },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -829,6 +916,7 @@ function columnsFor(kind: CardKind): Column[] {
       { key: "capacity", label: t("col_capacity") },
       { key: "storage_class", label: t("col_storage_class") },
       { key: "access_modes", label: t("tool_card_access_modes"), render: (row) => arrayText(row.access_modes) },
+      { key: "volume_name", label: t("col_volume_name") },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -905,12 +993,262 @@ function cell(column: Column, row: K8sRow) {
 function SummaryStrip({ card }: { card: ParsedCard }) {
   return (
     <div className="grid gap-2 sm:grid-cols-3">
-      <DetailRow label={t("tool_card_scope")} value={card.scope} />
+      <ScopeDetail card={card} />
       <DetailRow label={t("tool_card_resources")} value={card.countLabel} />
       <DetailRow
         label={t("tool_card_health")}
         value={card.warningCount > 0 ? t("tool_card_warning_count", { count: card.warningCount }) : t("tool_card_no_warnings")}
       />
+      {card.generatedAt ? <DetailRow label={t("tool_card_generated_at")} value={card.generatedAt} /> : null}
+    </div>
+  )
+}
+
+function EventsBody({ card }: { card: ParsedCard }) {
+  const [warningsOnly, setWarningsOnly] = useState(false)
+  const rows = warningsOnly ? card.rows.filter(isWarningEvent) : card.rows
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-2xs text-text-muted">{t("event_filter_count", { shown: rows.length, total: card.rows.length })}</span>
+        <Button onClick={() => setWarningsOnly((value) => !value)} size="sm" variant={warningsOnly ? "primary" : "secondary"}>
+          {t("event_warnings_only")}
+        </Button>
+      </div>
+      {rows.length > 0 ? (
+        <div className="space-y-2">
+          {rows.slice(0, ROW_LIMIT).map((row, index) => (
+            <EventRow key={rowKey(row, index)} row={row} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState>{t("event_no_warnings")}</EmptyState>
+      )}
+      {rows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: rows.length })}</InlineNotice> : null}
+      {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
+    </CardShell>
+  )
+}
+
+function EventRow({ row }: { row: K8sRow }) {
+  const eventName = displayValue(row.name)
+  const eventType = displayValue(row.type) || "-"
+  const reason = displayValue(row.reason) || "-"
+  const message = displayValue(row.message) || "-"
+
+  return (
+    <article className="min-w-0 space-y-2 rounded border border-border bg-surface px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <StatePill state={eventType} tone={isWarningEvent(row) ? "warning" : "success"} />
+        <span className="min-w-0 break-words text-xs font-semibold text-text-primary">{reason}</span>
+        {eventName ? <span className="break-all font-mono text-2xs text-text-muted">{eventName}</span> : null}
+        <span className="ml-auto text-2xs text-text-muted">{t("event_count", { count: numberValue(row.count) ?? 0 })}</span>
+      </div>
+      <MarkdownPreview linkifyUrls maxChars={320} modalLabel={t("event_message_details")} text={message} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DetailRow label={t("col_namespace")} value={displayValue(row.namespace) || "-"} />
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_object")}</div>
+          {involvedObjectReference(row)}
+        </div>
+        <EventTimestamp label={t("col_first_seen")} value={displayValue(row.first_timestamp)} />
+        <EventTimestamp label={t("col_last_seen")} value={displayValue(row.last_timestamp)} />
+      </div>
+    </article>
+  )
+}
+
+function EventTimestamp({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="min-w-0" title={value || undefined}>
+      <div className="text-2xs font-semibold uppercase text-text-muted">{label}</div>
+      <div className="text-xs text-text-secondary">{value ? formatAge(value) : "-"}</div>
+      {value ? <div className="break-all font-mono text-2xs text-text-muted">{value}</div> : null}
+    </div>
+  )
+}
+
+function isWarningEvent(row: K8sRow) {
+  return ["Warning", "Error"].includes(displayValue(row.type) || "")
+}
+
+function NodeDescribeBody({ card, node }: { card: ParsedCard; node: K8sRow }) {
+  const conditions = Array.isArray(node.conditions) ? (node.conditions.filter(isPlainObject) as K8sRow[]) : []
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_name")}</div>
+          <EntityReference kind="node" label={displayValue(node.name)} slug={displayValue(node.name)} />
+        </div>
+        <DetailRow label={t("col_roles")} value={arrayText(node.roles)} />
+        <DetailRow label={t("col_kubelet")} value={displayValue(node.kubelet_version) || "-"} />
+        <DetailRow label={t("col_internal_ip")} value={displayValue(node.internal_ip) || "-"} />
+        <DetailRow label={t("col_capacity")} value={nodeCapacity(node)} />
+        <DetailRow label={t("col_allocatable")} value={nodeAllocatable(node)} />
+        <DetailRow label={t("col_taints")} value={taintsText(node.taints)} />
+        <DetailRow label={t("col_addresses")} value={addressesText(node.addresses)} />
+        <DetailRow label={t("col_labels")} value={displayValue(node.labels) || "-"} />
+        <DetailRow label={t("col_system_info")} value={systemInfoText(node.system_info)} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(node.created_at))} />
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_conditions")}</div>
+        {conditions.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "type", label: t("col_type") },
+              { key: "status", label: t("col_status") },
+              { key: "reason", label: t("col_reason") },
+              { key: "message", label: t("col_message") }
+            ]}
+            rows={conditions}
+          />
+        ) : (
+          <EmptyState>{t("node_no_conditions")}</EmptyState>
+        )}
+      </div>
+    </CardShell>
+  )
+}
+
+function PodDescribeBody({ card, pod }: { card: ParsedCard; pod: K8sRow }) {
+  const conditions = Array.isArray(pod.conditions) ? (pod.conditions.filter(isPlainObject) as K8sRow[]) : []
+  const containers = Array.isArray(pod.containers) ? (pod.containers.filter(isPlainObject) as K8sRow[]) : []
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("logs_pod_label")}</div>
+          <EntityReference kind="artifact" href={podLogsHref(pod)} label={displayValue(pod.name)} slug={podContext(pod)} />
+        </div>
+        <DetailRow label={t("col_status")} value={displayValue(pod.status) || "-"} />
+        <DetailRow label={t("col_ready")} value={displayValue(pod.ready) || "-"} />
+        <DetailRow label={t("col_pod_ip")} value={displayValue(pod.pod_ip) || "-"} />
+        <DetailRow label={t("col_ips")} value={arrayText(pod.pod_ips)} />
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_node")}</div>
+          <EntityReference
+            kind="node"
+            href={clusterResourceHref(pod, "nodes", "node", pod.node_name)}
+            label={displayValue(pod.node_name)}
+            slug={displayValue(pod.node_name)}
+          />
+        </div>
+        <DetailRow label={t("col_owner_references")} value={arrayText(pod.owner_references)} />
+        <DetailRow label={t("col_labels")} value={displayValue(pod.labels) || "-"} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(pod.created_at))} />
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_containers")}</div>
+        {containers.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "name", label: t("col_name") },
+              { key: "image", label: t("col_image") },
+              { key: "ready", label: t("col_ready"), render: (row) => (row.ready === true ? t("yes") : t("no")) },
+              { key: "restart_count", label: t("col_restarts") },
+              { key: "state", label: t("col_state") },
+              { key: "last_state_reason", label: t("col_last_state_reason") }
+            ]}
+            rows={containers}
+          />
+        ) : (
+          <EmptyState>{t("pod_no_containers")}</EmptyState>
+        )}
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_conditions")}</div>
+        {conditions.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "type", label: t("col_type") },
+              { key: "status", label: t("col_status") },
+              { key: "reason", label: t("col_reason") },
+              { key: "message", label: t("col_message") }
+            ]}
+            rows={conditions}
+          />
+        ) : (
+          <EmptyState>{t("pod_no_conditions")}</EmptyState>
+        )}
+      </div>
+    </CardShell>
+  )
+}
+
+function PvcDescribeBody({ card, pvc }: { card: ParsedCard; pvc: K8sRow }) {
+  const conditions = Array.isArray(pvc.conditions) ? (pvc.conditions.filter(isPlainObject) as K8sRow[]) : []
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_name")}</div>
+          <EntityReference kind="artifact" label={displayValue(pvc.name)} slug={pvcContext(pvc)} />
+        </div>
+        <DetailRow label={t("col_status")} value={displayValue(pvc.status) || "-"} />
+        <DetailRow label={t("col_storage_class")} value={displayValue(pvc.storage_class) || "-"} />
+        <DetailRow label={t("tool_card_access_modes")} value={arrayText(pvc.access_modes)} />
+        <DetailRow label={t("col_requested_storage")} value={displayValue(pvc.requested_storage) || "-"} />
+        <DetailRow label={t("col_capacity")} value={displayValue(pvc.capacity) || "-"} />
+        <DetailRow label={t("col_volume_name")} value={displayValue(pvc.volume_name) || "-"} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(pvc.created_at))} />
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_conditions")}</div>
+        {conditions.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "type", label: t("col_type") },
+              { key: "status", label: t("col_status") },
+              { key: "reason", label: t("col_reason") },
+              { key: "message", label: t("col_message") }
+            ]}
+            rows={conditions}
+          />
+        ) : (
+          <EmptyState>{t("pvc_no_conditions")}</EmptyState>
+        )}
+      </div>
+    </CardShell>
+  )
+}
+
+function ScopeDetail({ card }: { card: ParsedCard }) {
+  if (!card.clusterId) return <DetailRow label={t("tool_card_scope")} value={card.scope} />
+
+  return (
+    <div className="min-w-0">
+      <div className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_scope")}</div>
+      <div className="flex flex-wrap items-center gap-x-1 font-mono text-xs text-text-primary">
+        <EntityReference kind="cluster" id={card.clusterId} label={t("tool_card_scope_cluster", { cluster: card.clusterId })} />
+        {card.namespace ? (
+          <>
+            <span>/</span>
+            <EntityReference kind="namespace" id={card.clusterId} label={card.namespace} />
+          </>
+        ) : null}
+        {card.name ? (
+          <>
+            <span>/</span>
+            {card.kind === "namespaces" ? (
+              <EntityReference kind="namespace" id={card.clusterId} label={card.name} wrap="break" />
+            ) : card.kind === "nodes" ? (
+              <EntityReference kind="node" label={card.name} slug={card.name} wrap="break" />
+            ) : (
+              <span className="break-all">{card.name}</span>
+            )}
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1003,7 +1341,45 @@ function arrayText(value: unknown): string {
 function nodeCapacity(row: K8sRow) {
   const cpu = displayValue(row.capacity_cpu)
   const memory = displayValue(row.capacity_memory)
-  return [cpu, memory].filter(Boolean).join(" / ") || "-"
+  return [formatKubernetesCpu(cpu), formatKubernetesMemory(memory)].join(" / ")
+}
+
+function nodeAllocatable(row: K8sRow) {
+  const cpu = displayValue(row.allocatable_cpu)
+  const memory = displayValue(row.allocatable_memory)
+  return [formatKubernetesCpu(cpu), formatKubernetesMemory(memory)].join(" / ")
+}
+
+function taintsText(value: unknown) {
+  if (!Array.isArray(value)) return "-"
+  return (
+    value
+      .filter(isPlainObject)
+      .map(
+        (taint) =>
+          [displayValue(taint.key), displayValue(taint.value)].filter(Boolean).join("=") + (displayValue(taint.effect) ? `:${displayValue(taint.effect)}` : "")
+      )
+      .join(", ") || "-"
+  )
+}
+
+function addressesText(value: unknown) {
+  if (!Array.isArray(value)) return "-"
+  return (
+    value
+      .filter(isPlainObject)
+      .map((address) => [displayValue(address.type), displayValue(address.address)].filter(Boolean).join(": "))
+      .join(", ") || "-"
+  )
+}
+
+function systemInfoText(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  return (
+    Object.entries(value)
+      .map(([key, entry]) => `${key}: ${displayValue(entry) || "-"}`)
+      .join(", ") || "-"
+  )
 }
 
 function selectorText(value: unknown) {
@@ -1110,11 +1486,70 @@ function involvedObject(value: unknown) {
   return [displayValue(value.kind), displayValue(value.name)].filter(Boolean).join(" / ") || "-"
 }
 
+function involvedObjectReference(row: K8sRow) {
+  const object = isPlainObject(row.involved_object) ? row.involved_object : {}
+  const kind = displayValue(object.kind)
+  const name = displayValue(object.name)
+  const label = [kind, name].filter(Boolean).join(" / ") || "-"
+  const resource = kind ? EVENT_OBJECT_RESOURCES[kind] : null
+  const href = resource ? clusterResourceHref(row, resource.tab, resource.key, name) : null
+
+  return <EntityReference href={href} kind="artifact" label={label} slug={name || label} wrap="break" />
+}
+
+const EVENT_OBJECT_RESOURCES: Record<string, { tab: string; key: string }> = {
+  Pod: { tab: "pods", key: "pod" },
+  Node: { tab: "nodes", key: "node" },
+  Deployment: { tab: "deployments", key: "deployment" }
+}
+
 function podTone(row: K8sRow) {
   const status = displayValue(row.status)
   if (status === "Running" || status === "Succeeded") return "success"
   if (status === "Pending") return "warning"
   return "failure"
+}
+
+function clusterResourceHref(row: K8sRow, tab: string, resourceKey?: string, resourceValue?: unknown) {
+  const clusterId = displayValue(row.cluster_id)
+  if (!clusterId) return null
+  const search = new URLSearchParams({ tab })
+  const namespace = displayValue(row.namespace)
+  if (namespace) search.set("namespace", namespace)
+  const value = displayValue(resourceValue)
+  if (resourceKey && value) search.set(resourceKey, value)
+  return `/k8s_clusters/${encodeURIComponent(clusterId)}?${search.toString()}`
+}
+
+function podLogsHref(row: K8sRow) {
+  return clusterResourceHref(row, "logs", "pod", row.name)
+}
+
+function podContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function pvcContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function containerStateText(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  const [state, details] = Object.entries(value).find(([, entry]) => isPlainObject(entry)) || []
+  if (!state || !isPlainObject(details)) return "-"
+  const reason = displayValue(details.reason)
+  return reason ? `${state}: ${reason}` : state
+}
+
+function containerStateReason(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  for (const details of Object.values(value)) {
+    if (isPlainObject(details)) {
+      const reason = displayValue(details.reason)
+      if (reason) return reason
+    }
+  }
+  return "-"
 }
 
 function rowKey(row: K8sRow, index: number) {
@@ -1136,6 +1571,97 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     created_at: metadata.creationTimestamp,
     selector: isPlainObject(spec.selector) ? spec.selector.matchLabels : spec.selector,
     conditions: Array.isArray(status.conditions) ? status.conditions : []
+  }
+
+  if (kind === "namespaces")
+    return {
+      ...base,
+      status: status.phase,
+      labels: metadataKeysSummary(metadata.labels),
+      annotations: metadataKeysSummary(metadata.annotations)
+    }
+
+  if (kind === "nodes") {
+    const addresses = Array.isArray(status.addresses) ? status.addresses.filter(isPlainObject) : []
+    const internalAddress = addresses.find((address) => displayValue(address.type) === "InternalIP")
+    const capacity = isPlainObject(status.capacity) ? status.capacity : {}
+    const allocatable = isPlainObject(status.allocatable) ? status.allocatable : {}
+    const nodeInfo = isPlainObject(status.nodeInfo) ? status.nodeInfo : {}
+    return {
+      ...base,
+      ready:
+        Array.isArray(status.conditions) &&
+        status.conditions.some((condition) => isPlainObject(condition) && condition.type === "Ready" && condition.status === "True"),
+      roles: Object.keys(isPlainObject(metadata.labels) ? metadata.labels : {})
+        .filter((key) => key.startsWith("node-role.kubernetes.io/"))
+        .map((key) => key.replace("node-role.kubernetes.io/", "")),
+      kubelet_version: nodeInfo.kubeletVersion,
+      internal_ip: internalAddress?.address,
+      capacity_cpu: capacity.cpu,
+      capacity_memory: capacity.memory,
+      allocatable_cpu: allocatable.cpu,
+      allocatable_memory: allocatable.memory,
+      taints: Array.isArray(spec.taints) ? spec.taints : [],
+      addresses,
+      labels: metadataKeysSummary(metadata.labels),
+      system_info: nodeInfo
+    }
+  }
+
+  if (kind === "pods") {
+    const containerSpecs = Array.isArray(spec.containers) ? (spec.containers.filter(isPlainObject) as K8sRow[]) : []
+    const containerStatuses = Array.isArray(status.containerStatuses) ? (status.containerStatuses.filter(isPlainObject) as K8sRow[]) : []
+    const containers = containerSpecs.map((container) => {
+      const containerStatus = containerStatuses.find((candidate) => displayValue(candidate.name) === displayValue(container.name)) || {}
+      return {
+        name: container.name,
+        image: container.image,
+        ready: containerStatus.ready === true,
+        restart_count: numberValue(containerStatus.restartCount) ?? 0,
+        state: containerStateText(containerStatus.state),
+        last_state_reason: containerStateReason(containerStatus.lastState)
+      }
+    })
+    const podIps = Array.isArray(status.podIPs)
+      ? status.podIPs
+          .filter(isPlainObject)
+          .map((entry) => displayValue(entry.ip))
+          .filter(Boolean)
+      : []
+    const owners = Array.isArray(metadata.ownerReferences)
+      ? metadata.ownerReferences
+          .filter(isPlainObject)
+          .map((owner) => [displayValue(owner.kind), displayValue(owner.name)].filter(Boolean).join("/"))
+          .filter(Boolean)
+      : []
+    return {
+      ...base,
+      status: status.phase,
+      ready: `${containerStatuses.filter((entry) => entry.ready === true).length}/${containerStatuses.length}`,
+      restart_count: containerStatuses.reduce((total, entry) => total + (numberValue(entry.restartCount) ?? 0), 0),
+      node_name: spec.nodeName,
+      pod_ip: status.podIP,
+      pod_ips: podIps,
+      container_names: containerSpecs.map((container) => displayValue(container.name)).filter(Boolean),
+      containers,
+      owner_references: owners,
+      labels: metadataKeysSummary(metadata.labels)
+    }
+  }
+
+  if (kind === "pvcs") {
+    const resources = isPlainObject(spec.resources) ? spec.resources : {}
+    const requests = isPlainObject(resources.requests) ? resources.requests : {}
+    const capacity = isPlainObject(status.capacity) ? status.capacity : {}
+    return {
+      ...base,
+      status: status.phase,
+      storage_class: spec.storageClassName,
+      access_modes: Array.isArray(spec.accessModes) ? spec.accessModes : [],
+      requested_storage: requests.storage,
+      capacity: capacity.storage,
+      volume_name: spec.volumeName
+    }
   }
 
   if (kind === "deployments")
@@ -1197,6 +1723,12 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
     }
   if (kind === "secrets") return row
   return row
+}
+
+function metadataKeysSummary(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  const keys = Object.keys(value).sort()
+  return keys.length > 0 ? `${keys.length}: ${keys.join(", ")}` : "-"
 }
 
 export function kubernetesToolCardExamples(toolName: K8sToolName): ToolCardExample[] {

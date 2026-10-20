@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { Page } from "@app/components/ui"
@@ -25,8 +26,15 @@ const NAMESPACE_SCOPED_TABS: ClusterTab[] = ["workloads", "services", "storage",
 
 export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number; label: string; onBack: () => void }) {
   const { t } = useT("k8s_cluster")
-  const [tab, setTab] = useState<ClusterTab>("overview")
-  const [namespace, setNamespace] = useState<string>(ALL_NAMESPACES)
+  const location = useLocation()
+  const initialContext = clusterBrowserContext(location.search)
+  const [tab, setTab] = useState<ClusterTab>(initialContext.tab)
+  const [namespace, setNamespace] = useState<string>(initialContext.namespace)
+
+  useEffect(() => {
+    setTab(initialContext.tab)
+    setNamespace(initialContext.namespace)
+  }, [initialContext.namespace, initialContext.tab])
 
   const tabOptions = [
     { value: "overview" as const, label: t("tab_overview") },
@@ -67,11 +75,22 @@ export function ClusterBrowser({ clusterId, label, onBack }: { clusterId: number
         {tab === "config" ? <ConfigTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
         {tab === "nodes" ? <NodesTab clusterId={clusterId} /> : null}
         {tab === "events" ? <EventsTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
-        {tab === "logs" ? <LogsTab clusterId={clusterId} namespace={effectiveNamespace} /> : null}
+        {tab === "logs" ? <LogsTab clusterId={clusterId} initialPod={initialContext.pod} namespace={effectiveNamespace} /> : null}
         {tab === "live" ? <LiveTab clusterId={clusterId} /> : null}
       </div>
     </section>
   )
+}
+
+function clusterBrowserContext(search: string) {
+  const params = new URLSearchParams(search)
+  const requestedTab = params.get("tab")
+  const tabs: ClusterTab[] = ["overview", "workloads", "services", "storage", "config", "nodes", "events", "logs", "live"]
+  return {
+    tab: tabs.includes(requestedTab as ClusterTab) ? (requestedTab as ClusterTab) : "overview",
+    namespace: params.get("namespace") || ALL_NAMESPACES,
+    pod: params.get("pod")
+  }
 }
 
 function NamespacePicker({ clusterId, namespace, onChange }: { clusterId: number; namespace: string; onChange: (namespace: string) => void }) {

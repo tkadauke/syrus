@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { FilterBar, filterTreeFromPayload, type FilterChip, type FilterNode, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -28,7 +28,6 @@ import { StatusBadge } from "../components/StatusBadge"
 const queryKey = ["k8s_cluster", "clusters"] as const
 const CLUSTER_SEARCH_FIELD = "query"
 
-type BrowseTarget = { clusterId: number; label: string }
 type ConnectionModalState = { mode: "create" } | { mode: "edit"; cluster: KubernetesClusterRow }
 
 const CONNECTION_MODAL_PANEL_CLASS =
@@ -45,19 +44,23 @@ const EMPTY_FORM: KubernetesClusterInput = {
 
 export function KubernetesClusters() {
   const { t } = useT("k8s_cluster")
+  const location = useLocation()
+  const navigate = useNavigate()
   usePageTitle(t("heading"))
   const [notice, setNotice] = useState<string | null>(null)
-  const [browsing, setBrowsing] = useState<BrowseTarget | null>(null)
   const [connectionModal, setConnectionModal] = useState<ConnectionModalState | null>(null)
   const clusters = useQuery({
     queryKey,
     queryFn: fetchKubernetesClusters
   })
+  const pathClusterId = clusterIdFromPath(location.pathname)
+  const pathCluster = clusters.data?.kubernetes_clusters.find((cluster) => cluster.id === pathClusterId)
+  const browseTarget = pathCluster ? { clusterId: pathCluster.id, label: pathCluster.label } : null
 
-  if (browsing) {
+  if (browseTarget) {
     return (
       <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
-        <ClusterBrowser clusterId={browsing.clusterId} label={browsing.label} onBack={() => setBrowsing(null)} />
+        <ClusterBrowser clusterId={browseTarget.clusterId} label={browseTarget.label} onBack={() => navigate("/k8s_clusters")} />
       </Page.Root>
     )
   }
@@ -84,7 +87,7 @@ export function KubernetesClusters() {
         <>
           <ClustersTable
             clusters={clusters.data.kubernetes_clusters}
-            onBrowse={(cluster) => setBrowsing({ clusterId: cluster.id, label: cluster.label })}
+            onBrowse={(cluster) => navigate(`/k8s_clusters/${cluster.id}`)}
             onEdit={(cluster) => setConnectionModal({ mode: "edit", cluster })}
             onNotice={setNotice}
           />
@@ -101,6 +104,11 @@ export function KubernetesClusters() {
       ) : null}
     </Page.Root>
   )
+}
+
+function clusterIdFromPath(pathname: string) {
+  const match = pathname.match(/^\/k8s_clusters\/(\d+)\/?$/)
+  return match ? Number(match[1]) : null
 }
 
 function ClusterConnectionModal({
