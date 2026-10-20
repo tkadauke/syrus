@@ -41,12 +41,12 @@ export type MemoryPayload = {
   sourceId: string | null
   author: string | null
   confidence: number | null
+  visibility: string | null
   expiresAt: string | null
   lastVerifiedAt: string | null
   createdAt: string | null
   updatedAt: string | null
   deletedAt: string | null
-  visibility: string | null
   deletedByUserId: string | null
 }
 
@@ -68,12 +68,12 @@ export function parseMemory(value: unknown): MemoryPayload | null {
     sourceId: displayValue(value.source_id),
     author: displayValue(value.author),
     confidence: numberValue(value.confidence),
+    visibility: displayValue(value.visibility),
     expiresAt: displayValue(value.expires_at),
     lastVerifiedAt: displayValue(value.last_verified_at),
     createdAt: displayValue(value.created_at),
     updatedAt: displayValue(value.updated_at),
     deletedAt: displayValue(value.deleted_at),
-    visibility: displayValue(value.visibility),
     deletedByUserId: displayValue(value.deleted_by_user_id)
   }
 }

@@ -86,8 +86,12 @@ export const examples: ToolCardExample[] = [
         scope_id: 42,
         content: "Use **focused tests**. See JOB-42 and https://example.com/runbook.",
         published: true,
+        user_id: 27,
+        source_type: "job",
+        source_id: 314,
         author: "agent",
         confidence: 0.9,
+        visibility: "repository",
         expires_at: "2027-01-01T00:00:00Z",
         last_verified_at: "2026-10-18T11:00:00Z",
         created_at: "2026-10-18T10:00:00Z",
@@ -106,7 +110,12 @@ export const examples: ToolCardExample[] = [
         scope: "global",
         content: "Retained audit context.",
         published: false,
-        deleted_at: "2026-10-19T12:00:00Z"
+        user_id: 27,
+        source_type: "manual",
+        source_id: 56,
+        visibility: "private",
+        deleted_at: "2026-10-19T12:00:00Z",
+        deleted_by_user_id: 81
       }
     }
   },
