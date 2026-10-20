@@ -1428,7 +1428,7 @@ function portsText(value: unknown) {
       .map((port) => {
         const portNumber = displayValue(port.port)
         const protocol = displayValue(port.protocol)
-        const targetPort = displayValue(port.target_port)
+        const targetPort = displayValue(port.target_port) || displayValue(port.targetPort)
         return `${portNumber || "?"}${protocol ? `/${protocol}` : ""}${targetPort ? ` -> ${targetPort}` : ""}`
       })
       .join(", ") || "-"

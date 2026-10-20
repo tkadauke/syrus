@@ -1183,6 +1183,35 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("api")).toBeInTheDocument()
   })
 
+  it("normalizes describe-shaped service ports and external IPs", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_services",
+      input: { cluster_id: 7, namespace: "payments", name: "api" },
+      parsedResult: {
+        available: true,
+        service: {
+          metadata: { namespace: "payments", name: "api", creationTimestamp: "2026-09-01T00:00:00Z" },
+          spec: {
+            type: "LoadBalancer",
+            clusterIP: "10.0.0.20",
+            externalIPs: ["203.0.113.20"],
+            ports: [{ name: "https", port: 443, targetPort: "http", protocol: "TCP" }],
+            selector: { app: "api" }
+          }
+        }
+      }
+    })
+
+    expect(servicesToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / api · 1 services")
+    render(<>{servicesToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("443/TCP -> http")).toBeInTheDocument()
+    expect(screen.getByText("203.0.113.20")).toBeInTheDocument()
+    expect(screen.getByText("10.0.0.20")).toBeInTheDocument()
+    expect(screen.getByText("app=api")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy payments/api to clipboard" })).toBeInTheDocument()
+  })
+
   it("normalizes describe-shaped ingress backends before rendering", () => {
     const cardContext = context({
       toolName: "k8s_cluster_ingresses",
