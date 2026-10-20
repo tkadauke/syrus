@@ -204,5 +204,5 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "permission_error", label: "Permission Error", resultBody: "Repository not attached to this chat context", resultError: true, sourceType: "codex" },
-  { id: "pending", label: "Pending", description: "The tool call has not returned a result yet." }
+  { id: "pending", label: "Pending", description: "The tool call has not returned a result yet.", resultBody: "" }
 ]

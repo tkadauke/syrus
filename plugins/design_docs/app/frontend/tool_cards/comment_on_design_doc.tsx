@@ -199,5 +199,11 @@ export const examples: ToolCardExample[] = [
     resultError: true,
     sourceType: "claude"
   },
-  { id: "pending_comment", label: "Pending comment", input: { doc_ref: "DOC-20", body: "Still running", start_offset: 0, end_offset: 0 }, sourceType: "codex" }
+  {
+    id: "pending_comment",
+    label: "Pending comment",
+    input: { doc_ref: "DOC-20", body: "Still running", start_offset: 0, end_offset: 0 },
+    resultBody: "",
+    sourceType: "codex"
+  }
 ]
