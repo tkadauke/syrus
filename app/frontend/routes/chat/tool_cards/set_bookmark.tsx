@@ -98,7 +98,7 @@ export const examples: ToolCardExample[] = [
     parsedResult: { id: 5, message_id: 18, anchor: "message-18" }
   },
   { id: "error", label: "Bookmark error", input: { label: "Nothing yet", kind: "topic" }, resultBody: "cannot bookmark an empty chat", resultError: true },
-  { id: "pending", label: "Pending result", input: { label: "Waiting for result", kind: "topic" } },
+  { id: "pending", label: "Pending result", input: { label: "Waiting for result", kind: "topic" }, parsedResult: null },
   { id: "empty", label: "Empty success response", parsedResult: {} }
 ]
 

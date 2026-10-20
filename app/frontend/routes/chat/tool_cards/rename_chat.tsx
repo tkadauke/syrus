@@ -92,7 +92,8 @@ export const examples: ToolCardExample[] = [
   {
     id: "rename_pending",
     label: "Rename pending",
-    input: { name: "Release planning" }
+    input: { name: "Release planning" },
+    parsedResult: null
   },
   {
     id: "name_required",

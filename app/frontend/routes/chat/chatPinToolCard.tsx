@@ -110,6 +110,7 @@ export function chatPinToolCardExamples(toolName: "pin_chat" | "unpin_chat"): To
       id: "pending",
       label: pinned ? "Pin pending" : "Unpin pending",
       input: { chat_session_id: 42 },
+      parsedResult: null,
       resultSettled: false,
       sourceType: "generic"
     },
@@ -117,6 +118,7 @@ export function chatPinToolCardExamples(toolName: "pin_chat" | "unpin_chat"): To
       id: "empty_result",
       label: pinned ? "Pin completed with an empty result" : "Unpin completed with an empty result",
       input: { chat_session_id: 42 },
+      parsedResult: null,
       sourceType: "generic"
     },
     {
