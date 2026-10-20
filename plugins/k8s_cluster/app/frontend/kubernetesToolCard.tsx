@@ -141,6 +141,17 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 
 const ROW_LIMIT = 100
 const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses"])
+const RESPONSIVE_TABLE_BODY_CLASSES = [
+  "block divide-y-0 space-y-2 bg-transparent",
+  "[&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)] [&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1",
+  "sm:table-row-group sm:divide-y sm:space-y-0 sm:bg-surface",
+  "sm:[&>tr]:table-row sm:[&>tr]:h-[var(--data-table-row-min-height)] sm:[&>tr]:rounded-none sm:[&>tr]:border-0 sm:[&>tr]:py-0"
+].join(" ")
+const RESPONSIVE_TABLE_CELL_CLASSES = [
+  "grid min-w-0 max-w-none grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)]",
+  "items-start gap-3 px-3 py-1 text-text-secondary",
+  "sm:table-cell sm:max-w-80 sm:px-2"
+].join(" ")
 
 const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_restart_rollout: "restart_rollout",
@@ -983,22 +994,12 @@ function KubernetesTable({ columns, responsive = false, rows }: { columns: Colum
           ))}
         </DataTable.Row>
       </DataTable.Header>
-      <DataTable.Body
-        className={
-          responsive
-            ? "block divide-y-0 space-y-2 bg-transparent sm:table-row-group sm:divide-y sm:space-y-0 sm:bg-surface [&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)] [&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1 sm:[&>tr]:table-row sm:[&>tr]:h-[var(--data-table-row-min-height)] sm:[&>tr]:rounded-none sm:[&>tr]:border-0 sm:[&>tr]:py-0"
-            : ""
-        }
-      >
+      <DataTable.Body className={responsive ? RESPONSIVE_TABLE_BODY_CLASSES : ""}>
         {rows.map((row, index) => (
           <DataTable.Row key={rowKey(row, index)}>
             {columns.map((column) => (
               <DataTable.Cell
-                className={
-                  responsive
-                    ? "grid min-w-0 max-w-none grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)] items-start gap-3 px-3 py-1 text-text-secondary sm:table-cell sm:max-w-80 sm:px-2"
-                    : "max-w-80 px-2 py-1 text-text-secondary"
-                }
+                className={responsive ? RESPONSIVE_TABLE_CELL_CLASSES : "max-w-80 px-2 py-1 text-text-secondary"}
                 data-label={responsive ? column.label : undefined}
                 key={column.key}
               >
