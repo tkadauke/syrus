@@ -83,8 +83,25 @@ Syrus prefers the smallest safe retry:
 - Retry implementation: start a new implementation attempt when the previous
   output itself should not be trusted.
 
+The operator-confirmed `retry_job` tool makes these choices explicit. Its
+`auto` mode preserves the compatible smart-retry behavior and never chooses a
+base refresh. `failed_step` keeps the failed workflow's immutable source,
+`implementation` starts fresh from the current effective base, and
+`refresh_base` restores a published checkpoint onto that base and requires an
+audit reason. A multi-Job request is preflighted as a whole, confirmed once,
+and launched in dependency order. A selected dependent waits for its upstream
+refresh workflow to succeed and is not launched if that upstream refresh
+fails. Each Job keeps its own success or failure outcome.
+
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
+
+For a failed workflow whose completed mutations are still useful but whose base
+has moved, an operator can confirm a base-refresh retry. Syrus restores the
+published checkpoint into a new workflow, pins the current effective base
+(including stacked parent branches), repairs rebase conflicts when necessary,
+publishes a new immutable source snapshot, and reruns setup and validation
+before the normal PR-publication steps. The historical workflow stays immutable.
 
 ## Provider Availability
 

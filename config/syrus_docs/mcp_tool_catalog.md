@@ -96,6 +96,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `approve_job` | chat | essential | write | no | - | - | - | - |
 | `ask_user_question` | chat | essential | write | no | - | - | - | - |
 | `attach_repository` | chat | essential | write | no | - | - | - | - |
+| `base_refresh_retry_job` | chat | essential | write | no | - | - | - | - |
 | `cancel_coding_checkout` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `cancel_job` | chat | essential | write | no | - | - | - | - |
 | `cancel_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |

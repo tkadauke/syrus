@@ -175,6 +175,7 @@ class McpToolRegistry
         chat(Mcp::Tools::CancelJobTool, mutation: true),
         chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
         chat(Mcp::Tools::RetryJobTool, mutation: true),
+        chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
         chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         chat(Mcp::Tools::RepoInfoTool),
         chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),

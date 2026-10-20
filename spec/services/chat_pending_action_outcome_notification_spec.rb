@@ -41,7 +41,7 @@ RSpec.describe ChatPendingActionOutcomeNotification do
     action = build_action(action: "retry_job", payload: { "job_id" => 7 })
 
     expect(described_class.new(action).acknowledgment(outcome: :rejected)).to eq(
-      "Pending action rejected: retry_job (job_id: 7). The action was not applied."
+      "Pending action rejected: retry_job (job_id: 7, mode: auto). The action was not applied."
     )
   end
 

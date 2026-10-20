@@ -91,6 +91,8 @@ module PendingActions
       DEFERRED_CONFIRMATION
     end
 
+    def group_confirmation_strategy = "independent"
+
     def repair_action?
       false
     end

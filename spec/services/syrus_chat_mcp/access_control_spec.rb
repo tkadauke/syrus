@@ -229,6 +229,19 @@ RSpec.describe "Mcp::Tools access control" do
     expect(chat_session.pending_actions).to be_empty
   end
 
+  it "cannot request a base refresh retry for another user's job" do
+    response = call_tool(
+      Mcp::Tools::BaseRefreshRetryJobTool,
+      "base_refresh_retry_job",
+      job_id: other_user_job.id,
+      source_workflow_id: 123,
+      reason: "Refresh base"
+    )
+
+    expect_not_authorized(response)
+    expect(chat_session.pending_actions).to be_empty
+  end
+
   it "cannot request rebase for another user's job" do
     response = call_tool(Mcp::Tools::RebaseJobTool, "rebase_job", job_id: other_user_job.id, reason: "Check access denial.")
 

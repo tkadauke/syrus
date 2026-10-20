@@ -80,6 +80,7 @@ module Admin
       adopt_current_pr_head
       approve_job
       archive_epic
+      base_refresh_retry_job
       cancel_job
       cancel_stale_work
       check_job_mergeability
