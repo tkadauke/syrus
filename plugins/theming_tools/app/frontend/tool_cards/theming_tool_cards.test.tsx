@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
-import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
+import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import deleteUserThemeToolCard from "./delete_user_theme"
 import installThemeToolCard from "./install_theme"
 import listUserThemesToolCard from "./list_user_themes"
@@ -154,23 +154,42 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByRole("link", { name: "THEME-1" })).toHaveAttribute("href", "/design_system?theme_id=1")
   })
 
-  it("renders list_user_themes as a compact scannable list and skips malformed rows", () => {
+  it("renders every list_user_themes field in linked, responsive stacked rows and skips malformed rows", () => {
     const cardContext = context({
       toolName: "list_user_themes",
       parsedResult: {
-        themes: [theme, { oops: true }, { ...theme, id: 13, slug: "deep-work", name: "Deep Work", tokens: { light: { brand: "#2563eb" } } }]
+        themes: [
+          {
+            ...theme,
+            tokens: { ...tokens, shape: { "radius-control": "0.375rem" } },
+            contrast_warnings: ["dark text-primary on surface has contrast 3.2:1"]
+          },
+          { oops: true },
+          { ...theme, id: 13, slug: "deep-work", name: "Deep Work", position: 5, tokens: { light: { brand: "#2563eb" } } }
+        ]
       }
     })
 
     expect(listUserThemesToolCard.collapsedSummary?.(cardContext)).toBe("2 themes")
     render(<>{listUserThemesToolCard.renderExpanded(cardContext)}</>)
 
-    const rows = screen.getAllByRole("row")
-    expect(rows).toHaveLength(3)
-    expect(within(rows[1]).getByText("Sunset Console")).toBeInTheDocument()
-    expect(within(rows[2]).getByText("Deep Work")).toBeInTheDocument()
-    expect(screen.getByLabelText("Sunset Console brand #b6492e")).toBeInTheDocument()
-    expect(screen.getByLabelText("Deep Work brand #2563eb")).toBeInTheDocument()
+    const rows = document.querySelectorAll("section")
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0] as HTMLElement).getByRole("link", { name: "Sunset Console" })).toHaveAttribute("href", "/design_system?theme_id=12")
+    expect(within(rows[0] as HTMLElement).getByRole("link", { name: "sunset-12" })).toHaveAttribute("href", "/design_system?theme_id=12")
+    expect(within(rows[1] as HTMLElement).getByRole("link", { name: "Deep Work" })).toHaveAttribute("href", "/design_system?theme_id=13")
+    expect(within(rows[0] as HTMLElement).getByText("4")).toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).getByText("5")).toBeInTheDocument()
+    expect(screen.getByText("Built-in themes are excluded from this list.")).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getByText("light")).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getAllByText("dark")).not.toHaveLength(0)
+    expect(within(rows[0] as HTMLElement).getByLabelText("brand #b6492e")).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getByLabelText("brand #f59e0b")).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).getByLabelText("on-brand #ffffff")).toBeInTheDocument()
+    expect(screen.getByText("Shape, shadow, spacing, density, and typography")).toBeInTheDocument()
+    expect(screen.getByText("Contrast warnings")).toBeInTheDocument()
+    expect(rows[0].querySelector(".sm\\:grid-cols-2")).toBeInTheDocument()
+    expect(rows[0].querySelector(".sm\\:grid-cols-\\[minmax\\(0\\,1fr\\)_auto_auto\\]")).toBeInTheDocument()
   })
 
   it("renders empty list and tool error states without falling back to raw JSON", () => {
@@ -193,6 +212,11 @@ describe("Theming Tools tool cards", () => {
     expect(screen.getByText("text-primary (#fefefe) → surface (#ffffff)")).toBeInTheDocument()
     expect(screen.getByText("1.01:1")).toBeInTheDocument()
     expect(screen.getByText("needs 4.5:1")).toBeInTheDocument()
+
+    const listErrorContext = context({ toolName: "list_user_themes", resultBody: "Provider unavailable", resultError: true, parsedResult: null })
+    expect(listUserThemesToolCard.collapsedSummary?.(listErrorContext)).toBe("Theme list failed")
+    render(<>{listUserThemesToolCard.renderExpanded(listErrorContext)}</>)
+    expect(screen.getByText("Theme list failed")).toBeInTheDocument()
   })
 
   it("renders preview payloads from direct and MCP content envelopes", () => {
@@ -203,6 +227,29 @@ describe("Theming Tools tool cards", () => {
       const cardContext = context({ parsedResult: normalizedToolCardParsedResult(envelope) })
       expect(previewThemeToolCard.collapsedSummary?.(cardContext)).toBe("Previewed Envelope Draft (THEME-8)")
     })
+  })
+
+  it.each([
+    ["direct", { themes: [theme] }],
+    ["structured content", { structured_content: { themes: [theme] } }],
+    ["content text", { content: [{ type: "text", text: JSON.stringify({ themes: [theme] }) }] }]
+  ])("renders list payloads from the %s envelope", (_label, envelope) => {
+    const cardContext = context({ toolName: "list_user_themes", parsedResult: normalizedToolCardParsedResult(envelope) })
+    expect(listUserThemesToolCard.collapsedSummary?.(cardContext)).toBe("1 theme")
+    render(<>{listUserThemesToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByRole("link", { name: "Sunset Console" })).toHaveAttribute("href", "/design_system?theme_id=12")
+  })
+
+  it.each(["mcp__syrus-chat-sidecar__list_user_themes", "mcp__syrus-chat-deferred-sidecar__list_user_themes"])(
+    "normalizes the provider-qualified name %s",
+    (toolName) => {
+      expect(normalizedToolName(toolName)).toBe(listUserThemesToolCard.toolName)
+    }
+  )
+
+  it("renders malformed list payloads explicitly", () => {
+    render(<>{listUserThemesToolCard.renderExpanded(context({ toolName: "list_user_themes", parsedResult: { results: [] } }))}</>)
+    expect(screen.getByText("Theme list returned an unexpected theme payload.")).toBeInTheDocument()
   })
 
   it("renders an explicit preview card for an empty pending result", () => {

@@ -32,6 +32,7 @@
   "empty_error": "The theme tool failed without an error message.",
   "unexpected_payload": "{{action}} returned an unexpected theme payload.",
   "no_custom_themes": "No custom themes yet.",
+  "built_ins_excluded": "Built-in themes are excluded from this list.",
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",

@@ -32,6 +32,7 @@
   "empty_error": "Das Theme-Werkzeug ist ohne Fehlermeldung fehlgeschlagen.",
   "unexpected_payload": "{{action}} hat unerwartete Theme-Daten zurückgegeben.",
   "no_custom_themes": "Noch keine benutzerdefinierten Themes.",
+  "built_ins_excluded": "Integrierte Themes sind in dieser Liste nicht enthalten.",
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",
