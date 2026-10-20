@@ -96,12 +96,14 @@ const LIST_CONTENT_MAX_CHARS = 180
 
 export function ContentPreview({
   content,
+  highlightTerms,
   linkifySlugs = true,
   linkifyUrls = true,
   maxChars = DETAIL_CONTENT_MAX_CHARS,
   onLinkClick
 }: {
   content: string
+  highlightTerms?: string[]
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   maxChars?: number
@@ -111,6 +113,7 @@ export function ContentPreview({
     <MarkdownPreview
       copyLabel={t("tool_copy_content")}
       emptyLabel={t("tool_empty_content")}
+      highlightTerms={highlightTerms}
       linkifySlugs={linkifySlugs}
       linkifyUrls={linkifyUrls}
       maxChars={maxChars}
@@ -182,13 +185,13 @@ export function parseMemoryToolError(context: ToolCardContext): MemoryToolError 
   return { message: cleaned, duplicateMemoryId: cleaned.match(/memory #(\d+)/i)?.[1] ?? null }
 }
 
-export function ErrorCard({ error }: { error: MemoryToolError }) {
+export function ErrorCard({ error, title = t("tool_error_title") }: { error: MemoryToolError; title?: string }) {
   const duplicate = error.duplicateMemoryId
   const parts = duplicate ? error.message.split(new RegExp(`(memory #${duplicate})`, "i")) : [error.message]
 
   return (
     <div className="mt-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface p-3 text-sm text-danger-text" role="alert">
-      <div className="font-semibold">{t("tool_error_title")}</div>
+      <div className="font-semibold">{title}</div>
       <div className="mt-1 break-words">
         {parts.map((part, index) =>
           part.toLowerCase() === `memory #${duplicate}` ? <MemoryRef id={duplicate!} key={`${part}-${index}`} label={part} /> : part
@@ -221,52 +224,38 @@ export function memoryListSummary(context: ToolCardContext): string | null {
   return t("tool_memory_count", { count: rows.length })
 }
 
-export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; emptyMessage: string }) {
+export function MemoryListBody({ rows, emptyMessage, highlightTerms }: { rows: MemoryPayload[]; emptyMessage: string; highlightTerms?: string[] }) {
   if (rows.length === 0) return <EmptyState>{emptyMessage}</EmptyState>
 
   return (
-    <TableShell>
-      <table className="w-full text-left text-xs">
-        <thead className="bg-surface-raised text-2xs uppercase text-text-muted">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_kind")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_scope")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_state")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_content")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_updated")}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-surface">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="whitespace-nowrap px-2 py-1">
-                <KindBadge kind={row.kind} />
-              </td>
-              <td className="px-2 py-1">
-                <ScopeRef memory={row} />
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">
-                <PublishedPill memory={row} />
-              </td>
-              <td className="max-w-[24rem] px-2 py-1 text-text-secondary">
-                <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-text-muted">{row.updatedAt ?? "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableShell>
+    <div className="mt-1 space-y-2">
+      {rows.map((row) => (
+        <article className="min-w-0 rounded border border-border bg-surface p-3" key={row.id}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <MemoryRef id={row.id} />
+            <KindBadge kind={row.kind} />
+            <PublishedPill memory={row} />
+            {row.deletedAt ? <StatePill state={t("tool_status_deleted")} tone="failure" /> : null}
+          </div>
+          <dl className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0">
+              <SectionLabel>{t("tool_scope")}</SectionLabel>
+              <ScopeRef memory={row} />
+            </div>
+            {row.author ? <Row label={t("tool_author")} value={row.author} /> : null}
+            {row.confidence != null ? <Row label={t("tool_confidence")} value={String(row.confidence)} /> : null}
+            {row.expiresAt ? <Row label={t("tool_expires_at")} value={row.expiresAt} /> : null}
+            {row.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={row.lastVerifiedAt} /> : null}
+            {row.createdAt ? <Row label={t("tool_created_at")} value={row.createdAt} /> : null}
+            {row.updatedAt ? <Row label={t("tool_updated")} value={row.updatedAt} /> : null}
+          </dl>
+          <div className="mt-2 min-w-0">
+            <SectionLabel>{t("tool_content")}</SectionLabel>
+            <ContentPreview content={row.content} highlightTerms={highlightTerms} maxChars={LIST_CONTENT_MAX_CHARS} />
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }
 
