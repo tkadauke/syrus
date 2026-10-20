@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { MemoryRouter } from "react-router-dom"
+import { beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { setSlugReferenceRegistryForTests } from "@app/lib/slugReferenceRegistry"
+import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
 import listMemoriesToolCard from "./list_memories"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -33,6 +36,23 @@ const publishedRepoMemory = {
   updated_at: "2026-09-02T08:30:00Z"
 }
 
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+})
+
 describe("list_memories tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(listMemoriesToolCard.toolName).toBe("list_memories")
@@ -46,13 +66,14 @@ describe("list_memories tool card", () => {
     expect(listMemoriesToolCard.collapsedSummary?.(context({ parsedResult: { memories: [globalMemory] } }))).toBe("1 memory")
   })
 
-  it("renders kind, scope, content preview, and updated_at for a global memory", () => {
+  it("renders linked ids, kind, scope, content preview, and updated_at for a global memory", () => {
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [globalMemory] } }))}</>)
 
-    expect(screen.getByText("user pref")).toBeInTheDocument()
-    expect(screen.getByText("global")).toBeInTheDocument()
-    expect(screen.getByText("Prefers terse responses.")).toBeInTheDocument()
-    expect(screen.getByText("2026-09-01T12:00:00Z")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: /MEMORY-7/ })).toHaveLength(2)
+    expect(screen.getAllByText("user pref")).toHaveLength(2)
+    expect(screen.getAllByText("global")).toHaveLength(2)
+    expect(screen.getAllByText("Prefers terse responses.")).toHaveLength(2)
+    expect(screen.getAllByText("2026-09-01T12:00:00Z")).toHaveLength(2)
     expect(screen.queryByText("published")).not.toBeInTheDocument()
     expect(screen.queryByText("private")).not.toBeInTheDocument()
   })
@@ -60,15 +81,15 @@ describe("list_memories tool card", () => {
   it("shows a published pill and repository scope for a published repository memory", () => {
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [publishedRepoMemory] } }))}</>)
 
-    expect(screen.getByText("decision")).toBeInTheDocument()
-    expect(screen.getByText("repository #42")).toBeInTheDocument()
-    expect(screen.getByText("published")).toBeInTheDocument()
+    expect(screen.getAllByText("decision")).toHaveLength(2)
+    expect(screen.getAllByText("repository #42")).toHaveLength(2)
+    expect(screen.getAllByText("published")).toHaveLength(2)
   })
 
   it("renders a friendly empty state for no memories", () => {
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [] } }))}</>)
 
-    expect(screen.getByText("No memories match this scope.")).toBeInTheDocument()
+    expect(screen.getByText("No memories match these filters.")).toBeInTheDocument()
   })
 
   it("does not show a show-more button for short content", () => {
@@ -82,7 +103,7 @@ describe("list_memories tool card", () => {
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: longContent }] } }))}</>)
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText("Show more"))
+    fireEvent.click(screen.getAllByText("Show more")[0])
 
     const dialog = screen.getByRole("dialog")
     expect(dialog).toBeInTheDocument()
@@ -94,7 +115,7 @@ describe("list_memories tool card", () => {
     const longParagraph = "word ".repeat(80).trim()
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: longParagraph }] } }))}</>)
 
-    expect(screen.getByText("Show more")).toBeInTheDocument()
+    expect(screen.getAllByText("Show more")).toHaveLength(2)
   })
 
   it("shows the show-more button in the narrow list column for a moderate one-line paragraph that would still wrap past 3 lines there", () => {
@@ -105,7 +126,60 @@ describe("list_memories tool card", () => {
     const moderateParagraph = "word ".repeat(48).trim()
     render(<>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content: moderateParagraph }] } }))}</>)
 
-    expect(screen.getByText("Show more")).toBeInTheDocument()
+    expect(screen.getAllByText("Show more")).toHaveLength(2)
+  })
+
+  it("shows every filter and returned metadata field without inventing private data", () => {
+    const memory = {
+      ...publishedRepoMemory,
+      author: "agent",
+      confidence: 0.8,
+      expires_at: "2027-01-01T00:00:00Z",
+      last_verified_at: "2026-09-03T00:00:00Z",
+      created_at: "2026-08-01T00:00:00Z",
+      deleted_at: "2026-09-04T00:00:00Z"
+    }
+    render(
+      <>{listMemoriesToolCard.renderExpanded(context({ input: { scope: "repository", kind: "decision", limit: 25 }, parsedResult: { memories: [memory] } }))}</>
+    )
+
+    expect(screen.getByText("Requested scope")).toBeInTheDocument()
+    expect(screen.getByText("Requested kind")).toBeInTheDocument()
+    expect(screen.getByText("Requested limit")).toBeInTheDocument()
+    expect(screen.getAllByText("agent")).toHaveLength(2)
+    expect(screen.getAllByText("0.8")).toHaveLength(2)
+    expect(screen.getAllByText("2027-01-01T00:00:00Z")).toHaveLength(2)
+    expect(screen.getAllByText("2026-09-03T00:00:00Z")).toHaveLength(2)
+    expect(screen.getAllByText("2026-08-01T00:00:00Z")).toHaveLength(2)
+    expect(screen.queryByText("user_id")).not.toBeInTheDocument()
+  })
+
+  it("renders pending and error states", () => {
+    const pending = context()
+    expect(listMemoriesToolCard.renderExpanded(pending)).not.toBeNull()
+    const { rerender } = render(<>{listMemoriesToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("Loading memories...")).toBeInTheDocument()
+
+    const failure = context({ resultBody: "Error: Memory provider unavailable.", resultError: true })
+    expect(listMemoriesToolCard.collapsedSummary?.(failure)).toContain("Unable to list memories")
+    rerender(<>{listMemoriesToolCard.renderExpanded(failure)}</>)
+    expect(screen.getByRole("alert")).toHaveTextContent("Memory provider unavailable")
+  })
+
+  it("accepts provider-independent structured and text MCP envelopes", () => {
+    const payload = { memories: [globalMemory] }
+    for (const envelope of [{ structured_content: payload }, { content: [{ type: "text", text: JSON.stringify(payload) }] }]) {
+      const parsedResult = normalizedToolCardParsedResult(envelope)
+      expect(listMemoriesToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 memory")
+    }
+  })
+
+  it("linkifies markdown slugs and URLs in expandable content", () => {
+    const content = `See JOB-42 and https://example.test/docs. ${"More details. ".repeat(30)}`
+    render(<MemoryRouter>{listMemoriesToolCard.renderExpanded(context({ parsedResult: { memories: [{ ...globalMemory, content }] } }))}</MemoryRouter>)
+
+    expect(screen.getAllByRole("link", { name: "JOB-42" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "https://example.test/docs" })).toHaveLength(2)
   })
 
   it("falls back to null for a malformed payload", () => {
