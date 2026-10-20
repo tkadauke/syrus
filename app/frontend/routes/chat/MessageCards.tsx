@@ -735,12 +735,12 @@ export const ToolGroup = memo(function ToolGroup({ item }: { item: ChatToolGroup
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+      <summary className="flex min-w-0 cursor-pointer flex-wrap items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="min-w-0 font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>{outcome}</Pill>
-        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
-        {item.calls.length > 1 ? <Pill className="ml-auto text-xs" tone="neutral">{item.calls.length}</Pill> : null}
+        {item.calls.length > 1 ? <Pill className="ml-auto text-xs sm:order-last" tone="neutral">{item.calls.length}</Pill> : null}
+        <span className="min-w-0 basis-full break-words pl-5 font-mono text-gray-600 [overflow-wrap:anywhere] sm:basis-0 sm:flex-1 sm:pl-0 dark:text-gray-400">{details}</span>
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => {

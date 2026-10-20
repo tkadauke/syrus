@@ -673,6 +673,36 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("gives grouped tool summaries a full-width row on narrow screens", () => {
+    const calls = [
+      [1, "memory_id: 21", "Unpublished memory #21", false],
+      [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
+      [3, "memory_id: 22", "Unpublishing memory...", false]
+    ].map(([messageId, detail, resultSummary, resultError]) => ({
+      message_id: messageId as number,
+      tool_name: "unpublish_memory",
+      raw_name: "unpublish_memory",
+      detail: detail as string,
+      display_label: "Unpublish memory",
+      progress_label: "Unpublishing memory",
+      raw_payload: {},
+      result_body: "{}",
+      result_error: resultError as boolean,
+      result_kind: "record" as const,
+      result_summary: resultSummary as string
+    }))
+    const item: ChatToolGroupItem = { type: "tool_group", tool: "Unpublish memory", summary_label: "Unpublish memory (3)", calls }
+
+    const { container } = render(<ToolGroup item={item} />)
+    const summary = container.querySelector("summary")
+    const detail = screen.getByText(/Unpublished memory #21/)
+    const count = screen.getByText("3")
+
+    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(detail).toHaveClass("basis-full", "sm:basis-0", "sm:flex-1")
+    expect(count.parentElement).toHaveClass("sm:order-last")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
