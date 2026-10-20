@@ -144,6 +144,11 @@ export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab | null {
   return tabs[0] ?? null
 }
 
+export function linkedWorkspaceTab(payload: ChatPayload, hash: string): WorkspaceTab | null {
+  if (/^#walkthrough-\d+$/.test(hash) && availableWorkspaceTabs(payload).includes("media")) return "media"
+  return null
+}
+
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)

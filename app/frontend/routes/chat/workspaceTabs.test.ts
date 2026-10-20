@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatPayload } from "../../api/chats"
-import { availableWorkspaceTabs, mediaTabVisible, workspaceTabClass } from "./workspaceTabs"
+import { availableWorkspaceTabs, linkedWorkspaceTab, mediaTabVisible, workspaceTabClass } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   return {
@@ -238,5 +238,18 @@ describe("availableWorkspaceTabs", () => {
     payload.chat.mode = "coding"
     payload.chat.runtime_session_count = 1
     expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
+  })
+})
+
+describe("linkedWorkspaceTab", () => {
+  it("opens the media workspace for a linked walkthrough entry", () => {
+    const payload = makePayload({
+      video_walkthroughs: [
+        { id: 42, title: "Checkout flow", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+      ]
+    })
+
+    expect(linkedWorkspaceTab(payload, "#walkthrough-42")).toBe("media")
+    expect(linkedWorkspaceTab(payload, "#something-else")).toBeNull()
   })
 })
