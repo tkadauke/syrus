@@ -21,6 +21,6 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "empty", label: "No tags", parsedResult: { tags: [] } },
-  { id: "loading", label: "Loading" },
+  { id: "loading", label: "Loading", resultBody: "" },
   { id: "error", label: "Error", resultBody: "Unable to list tags", resultError: true }
 ]
