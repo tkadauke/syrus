@@ -178,6 +178,7 @@ describe("renderChatMessages tool grouping", () => {
 
     const addCall = items.flatMap((item) => (item.type === "tool_group" ? item.calls : [])).find((call) => call.tool_name === "add_job_tag")
     expect(addCall?.prior_results).toEqual({ list_tags: { tags: [{ id: 10, name: "area:ui", color: "blue", job_ids: [] }] } })
+    expect(addCall?.result_summary).toBe("Added area:ui · JOB-7")
   })
 
   it("hides operator-cancelled dangling tool calls and keeps the terminal system message", () => {
