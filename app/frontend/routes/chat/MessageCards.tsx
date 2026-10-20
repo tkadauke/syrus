@@ -914,12 +914,12 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
           setOpen((value) => !value)
         }}
       >
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="shrink-0 whitespace-nowrap font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? (
           <Pill className="ml-auto text-xs" tone="neutral">
             {item.calls.length}
@@ -954,7 +954,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup
+                      chatSessionId={chatSessionId}
+                      item={nestedGroup}
+                      key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
+                    />
                   ))}
                 </div>
               ) : null}

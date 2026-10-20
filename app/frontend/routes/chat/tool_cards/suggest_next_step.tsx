@@ -37,6 +37,10 @@ function renderExpanded(context: ToolCardContext) {
 
 const suggestNextStepToolCard: ToolCardRenderer = {
   toolName: "suggest_next_step",
+  // The result summary owns the collapsed suggestion. Repeating the input
+  // beside it adds no information, while the expanded card and raw details
+  // retain the complete text.
+  argumentSummary: () => "",
   collapsedSummary,
   renderExpanded
 }
