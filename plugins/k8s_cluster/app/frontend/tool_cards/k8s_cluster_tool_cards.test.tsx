@@ -465,6 +465,7 @@ describe("Kubernetes cluster tool cards", () => {
                   capacity: "10Gi",
                   storage_class: "fast",
                   access_modes: ["ReadWriteOnce"],
+                  volume_name: "pvc-1234",
                   created_at: "2026-09-01T00:00:00Z"
                 }
               ]
@@ -505,8 +506,130 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByRole("button", { name: "Copy node-1 to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("default").length).toBeGreaterThan(0)
     expect(screen.getByText("ReadWriteOnce")).toBeInTheDocument()
+    expect(screen.getByText("pvc-1234")).toBeInTheDocument()
     expect(screen.getByText("FailedScheduling")).toBeInTheDocument()
     expect(screen.getByText("Pod / web-1")).toBeInTheDocument()
+  })
+
+  it("renders PVC lists identically from every MCP envelope with volume names", () => {
+    const payload = {
+      available: true,
+      persistent_volume_claims: [
+        {
+          namespace: "payments",
+          name: "database",
+          status: "Bound",
+          capacity: "20Gi",
+          storage_class: "fast",
+          access_modes: ["ReadWriteOnce"],
+          volume_name: "pvc-envelope-1234",
+          created_at: "2026-09-01T00:00:00Z"
+        }
+      ]
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pvcs")
+      const cardContext = context({ toolName, input: { cluster_id: 7, namespace: "payments" }, parsedResult: normalizedToolCardParsedResult(envelope) })
+      const rendered = render(<>{pvcsToolCard.renderExpanded(cardContext)}</>)
+
+      expect(toolName).toBe("k8s_cluster_pvcs")
+      expect(pvcsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments · 1 PVCs")
+      expect(screen.getByRole("columnheader", { name: "Volume name" })).toBeInTheDocument()
+      expect(screen.getByText("pvc-envelope-1234")).toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders PVC describes from every MCP envelope with safe operational details", () => {
+    const payload = {
+      available: true,
+      generated_at: "2026-09-30T12:00:00Z",
+      persistent_volume_claim: {
+        metadata: {
+          namespace: "payments",
+          name: "database",
+          creationTimestamp: "2026-09-01T00:00:00Z",
+          annotations: { "example.test/token": "secret-annotation-value" }
+        },
+        spec: {
+          storageClassName: "fast",
+          accessModes: ["ReadWriteOnce"],
+          resources: { requests: { storage: "10Gi" } },
+          volumeName: "pvc-5678"
+        },
+        status: {
+          phase: "Bound",
+          capacity: { storage: "20Gi" },
+          conditions: [{ type: "Resizing", status: "False", reason: "ExpansionComplete", message: "volume expansion completed" }]
+        }
+      }
+    }
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    for (const envelope of envelopes) {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_pvcs")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "database" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+
+      expect(pvcsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / payments / database · 1 PVCs")
+      const rendered = render(<>{pvcsToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByRole("button", { name: "Copy payments/database to clipboard" })).toBeInTheDocument()
+      expect(screen.getByText("Bound")).toBeInTheDocument()
+      expect(screen.getByText("fast")).toBeInTheDocument()
+      expect(screen.getByText("ReadWriteOnce")).toBeInTheDocument()
+      expect(screen.getByText("10Gi")).toBeInTheDocument()
+      expect(screen.getByText("20Gi")).toBeInTheDocument()
+      expect(screen.getByText("pvc-5678")).toBeInTheDocument()
+      expect(screen.getByText("ExpansionComplete")).toBeInTheDocument()
+      expect(screen.getByText("volume expansion completed")).toBeInTheDocument()
+      expect(screen.getByText("2026-09-30T12:00:00Z")).toBeInTheDocument()
+      expect(screen.queryByText("secret-annotation-value")).not.toBeInTheDocument()
+      rendered.unmount()
+    }
+  })
+
+  it("renders PVC empty and error states with their input scope", () => {
+    const empty = render(
+      <>
+        {pvcsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_pvcs",
+            input: { cluster_id: 7, namespace: "payments" },
+            parsedResult: { available: true, persistent_volume_claims: [] }
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("No PVCs returned.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7")
+    empty.unmount()
+
+    render(
+      <>
+        {pvcsToolCard.renderExpanded(
+          context({
+            toolName: "k8s_cluster_pvcs",
+            input: { cluster_id: 7, namespace: "payments", name: "missing" },
+            resultBody: "Error: Persistent volume claim not found",
+            resultError: true,
+            parsedResult: null
+          })
+        )}
+      </>
+    )
+    expect(screen.getByText("Persistent volume claim not found")).toBeInTheDocument()
+    expect(screen.getByText("missing")).toBeInTheDocument()
   })
 
   it("renders node lists identically from every MCP envelope", () => {
