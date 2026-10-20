@@ -826,7 +826,7 @@ function escapeRegExp(value: string) {
 function renderPlainUrlLink(href: string, key: string, options: RenderInlineOptions) {
   return (
     <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target="_blank">
-      {href}
+      {options.highlightTerms?.length ? renderHighlightedText(href, false, "highlighted-url", options) : href}
     </a>
   )
 }
@@ -841,7 +841,7 @@ function plainUrlFromMatch(rawUrl: string) {
 
 function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
   if (token.startsWith("`")) {
-    return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0)}</code>
+    return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0, { ...options, linkifyUrls: false })}</code>
   }
   if ((token.startsWith("$") || token.startsWith("\\(")) && options.renderMath !== false) {
     return renderInlineMath(token, key)
