@@ -902,15 +902,16 @@ function columnsFor(kind: CardKind): Column[] {
     return [
       { key: "namespace", label: t("col_namespace") },
       { key: "name", label: t("col_name") },
-      { key: "hosts", label: t("col_hosts"), render: (row) => arrayText(row.hosts) },
+      { key: "hosts", label: t("col_hosts"), render: (row) => ingressHostLinks(row.hosts) },
       {
         key: "backend",
         label: t("col_backend"),
-        render: (row) => ingressBackends(row).join(", ") || t("tool_card_missing_backend"),
+        render: (row) => <IngressBackendMappings row={row} />,
         tone: (row) => (ingressBackends(row).length === 0 ? "warning" : "neutral")
       },
-      { key: "tls_hosts", label: t("col_tls"), render: (row) => arrayText(row.tls_hosts) },
+      { key: "tls_hosts", label: t("col_tls"), render: (row) => ingressHostLinks(row.tls_hosts) },
       { key: "ingress_class", label: t("col_ingress_class") },
+      { key: "load_balancer_addresses", label: t("col_load_balancer"), render: (row) => wrappedText(arrayText(row.load_balancer_addresses)) },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -1444,19 +1445,58 @@ function endpointsText(row: K8sRow) {
 }
 
 function ingressBackends(row: K8sRow) {
+  return ingressBackendMappings(row).map((mapping) => mapping.backend)
+}
+
+function ingressHostLinks(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return "-"
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {value.map((entry) => {
+        const host = displayValue(entry)
+        if (!host) return null
+        return (
+          <a className="break-all text-link hover:underline" href={`https://${host}`} key={host} rel="noopener noreferrer" target="_blank">
+            {host}
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
+function IngressBackendMappings({ row }: { row: K8sRow }) {
+  const mappings = ingressBackendMappings(row)
+  if (mappings.length === 0) return t("tool_card_missing_backend")
+  return (
+    <div className="flex min-w-56 flex-col gap-1 whitespace-normal">
+      {mappings.map((mapping, index) => (
+        <div className="grid grid-cols-1 gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto]" key={`${mapping.host}-${mapping.path}-${index}`}>
+          <span className="break-all font-mono">
+            {mapping.host}
+            {mapping.path} <span className="text-text-muted">({mapping.pathType})</span>
+          </span>
+          <span className="break-all font-mono sm:text-right">→ {mapping.backend}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ingressBackendMappings(row: K8sRow) {
   if (!Array.isArray(row.rules)) return []
   return row.rules.filter(isPlainObject).flatMap((rule) => {
     if (!Array.isArray(rule.paths)) return []
-    return rule.paths
-      .filter(isPlainObject)
-      .map((path) => {
-        const service = isPlainObject(path.backend) && isPlainObject(path.backend.service) ? path.backend.service : null
-        const servicePort = service && isPlainObject(service.port) ? service.port : null
-        const serviceName = displayValue(path.service_name) || displayValue(service?.name)
-        const port = displayValue(path.service_port) || displayValue(servicePort?.number) || displayValue(servicePort?.name)
-        return [serviceName, port].filter(Boolean).join(":")
-      })
-      .filter(Boolean)
+    const host = displayValue(rule.host) || "*"
+    return rule.paths.filter(isPlainObject).flatMap((path) => {
+      const service = isPlainObject(path.backend) && isPlainObject(path.backend.service) ? path.backend.service : null
+      const servicePort = service && isPlainObject(service.port) ? service.port : null
+      const serviceName = displayValue(path.service_name) || displayValue(service?.name)
+      const port = displayValue(path.service_port) || displayValue(servicePort?.number) || displayValue(servicePort?.name)
+      const backend = [serviceName, port].filter(Boolean).join(":")
+      if (!backend) return []
+      return [{ host, path: displayValue(path.path) || "/", pathType: displayValue(path.path_type) || displayValue(path.pathType) || "-", backend }]
+    })
   })
 }
 
@@ -1495,6 +1535,14 @@ function ingressHosts(rules: unknown) {
 function tlsHosts(tls: unknown) {
   if (!Array.isArray(tls)) return []
   return tls.flatMap((entry) => (isPlainObject(entry) && Array.isArray(entry.hosts) ? entry.hosts : []))
+}
+
+function ingressLoadBalancerAddresses(loadBalancer: unknown) {
+  if (!isPlainObject(loadBalancer) || !Array.isArray(loadBalancer.ingress)) return []
+  return loadBalancer.ingress
+    .filter(isPlainObject)
+    .map((entry) => displayValue(entry.ip) || displayValue(entry.hostname))
+    .filter((entry): entry is string => Boolean(entry))
 }
 
 function involvedObject(value: unknown) {
@@ -1744,7 +1792,8 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
       ingress_class: spec.ingressClassName,
       hosts: ingressHosts(spec.rules),
       rules: ingressRuleSummaries(spec.rules),
-      tls_hosts: tlsHosts(spec.tls)
+      tls_hosts: tlsHosts(spec.tls),
+      load_balancer_addresses: ingressLoadBalancerAddresses(status.loadBalancer)
     }
   if (kind === "configmaps")
     return {
