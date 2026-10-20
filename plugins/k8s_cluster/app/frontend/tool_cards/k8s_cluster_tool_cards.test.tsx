@@ -1232,6 +1232,13 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.getByText("→ health:8080")).toBeInTheDocument()
       expect(screen.getByText("lb.example.test")).toBeInTheDocument()
       expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument()
+      expect(screen.getByRole("table")).toHaveClass("block", "sm:table", "min-w-0", "sm:min-w-max")
+      expect(screen.getByRole("columnheader", { name: "Backend" }).closest("thead")).toHaveClass("hidden", "sm:table-header-group")
+      const backendCell = screen.getByText("→ api-v1:http").closest("td")
+      expect(backendCell).toHaveAttribute("data-label", "Backend")
+      expect(backendCell).toHaveClass("grid", "sm:table-cell", "max-w-none", "sm:max-w-80")
+      expect(backendCell).toHaveTextContent("Backendapi.example.test/v1 (Prefix)→ api-v1:http")
+      expect(screen.getByText("api.example.test/v1").parentElement?.parentElement).toHaveClass("min-w-0", "sm:min-w-56")
       rendered.unmount()
     }
   })
