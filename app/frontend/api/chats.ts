@@ -474,6 +474,9 @@ export type ChatToolGroupCall = {
   // builders (e.g. the admin transcript grouper) that haven't computed it;
   // treat that the same as null.
   result_json?: unknown
+  // Bounded, normalized results from earlier calls that dedicated cards may
+  // use for display context (for example resolving a tag id from list_tags).
+  prior_results?: Readonly<Record<string, unknown>>
   result_error: boolean
   result_kind: ChatToolResultKind
   result_summary: string

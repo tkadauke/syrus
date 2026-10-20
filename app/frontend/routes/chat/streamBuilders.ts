@@ -6,11 +6,30 @@
 // systemMessages parsers), and the small grouping/anchor predicates. Pure over
 // the shared utils, systemMessages, and chat types; imported back by the
 // MessageStream components.
-import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPendingActionInline, ChatRenderItem, ChatToolGroupCall, ChatToolGroupItem } from "../../api/chats"
+import type {
+  ChatMessageItem,
+  ChatPendingAction,
+  ChatPendingActionGroup,
+  ChatPendingActionInline,
+  ChatRenderItem,
+  ChatToolGroupCall,
+  ChatToolGroupItem
+} from "../../api/chats"
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { NO_ARGUMENTS_SENTINEL, fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import {
+  NO_ARGUMENTS_SENTINEL,
+  fullResultBody,
+  fullResultBodyUnbounded,
+  isPlainObject,
+  normalizedToolCardParsedResult,
+  parsedToolResult,
+  shortenWorkspacePaths,
+  simpleToolProgressLabel,
+  toolPresentation,
+  toolResultPresentation
+} from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
@@ -19,6 +38,7 @@ import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 // alone (the previous behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
+const CONTEXTUAL_TOOL_RESULT_NAMES = new Set(["list_tags"])
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -28,9 +48,10 @@ type OpenCall = {
 
 export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
-  const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
-  const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([ [ ROOT_KEY, null ] ])
+  const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
+  const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([[ROOT_KEY, null]])
   const openCallsByToolUseId = new Map<string, OpenCall>()
+  const priorResults = new Map<string, unknown>()
 
   for (const message of messages) {
     if (groupableToolUse(message)) {
@@ -52,6 +73,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         result_error: false,
         result_kind: "unknown",
         result_summary: "",
+        prior_results: Object.fromEntries(priorResults),
         // ChatPendingAction::anchor_to_tool_call! always anchors onto the
         // tool_use message, never the paired tool_result -- so this is the
         // only message carrying a live pending_action for the whole call.
@@ -69,7 +91,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         lastGroup.calls.push(call)
         group = lastGroup
       } else {
-        group = { type: "tool_group", tool, calls: [ call ] }
+        group = { type: "tool_group", tool, calls: [call] }
         container.push(group)
         lastGroupByParentKey.set(parentKey, group)
       }
@@ -97,7 +119,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
 
       if (open && open.call.result_settled !== true) {
         const content = contentRecord(message.content)
-        const rawResult = content ? content.content ?? content.result : message.content ?? message.text
+        const rawResult = content ? (content.content ?? content.result) : (message.content ?? message.text)
         const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
         open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
         const parsedResult = parsedToolResult(rawResult, unboundedBody)
@@ -121,6 +143,9 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        if (CONTEXTUAL_TOOL_RESULT_NAMES.has(open.call.tool_name)) {
+          priorResults.set(open.call.tool_name, normalizedToolCardParsedResult(parsedResult))
+        }
         updateToolGroupState(open.group)
       } else {
         resetLastGroup(message, lastGroupByParentKey)
@@ -198,16 +223,18 @@ function pruneBenignDanglingToolGroups(items: ChatRenderItem[]): ChatRenderItem[
 }
 
 function pruneBenignDanglingToolGroup(group: ChatToolGroupItem): ChatToolGroupItem | null {
-  const calls = group.calls.map((call) => ({
-    ...call,
-    nested: pruneBenignDanglingToolGroups(call.nested || []).filter((item): item is ChatToolGroupItem => item.type === "tool_group")
-  })).filter((call) => {
-    if (!benignDanglingToolCall(call)) return true
+  const calls = group.calls
+    .map((call) => ({
+      ...call,
+      nested: pruneBenignDanglingToolGroups(call.nested || []).filter((item): item is ChatToolGroupItem => item.type === "tool_group")
+    }))
+    .filter((call) => {
+      if (!benignDanglingToolCall(call)) return true
 
-    // Keep the parent wrapper if a nested agent/tool call still has meaningful
-    // output; otherwise the synthetic dangling result is terminal bookkeeping.
-    return (call.nested || []).length > 0
-  })
+      // Keep the parent wrapper if a nested agent/tool call still has meaningful
+      // output; otherwise the synthetic dangling result is terminal bookkeeping.
+      return (call.nested || []).length > 0
+    })
 
   if (calls.length === 0) return null
 
@@ -260,7 +287,11 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
   return null
 }
 
-export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[], pendingActionGroups: ChatPendingActionGroup[] = []): ChatStreamItem[] {
+export function buildMessageStreamItems(
+  items: ChatRenderItem[],
+  pendingActions: ChatPendingAction[],
+  pendingActionGroups: ChatPendingActionGroup[] = []
+): ChatStreamItem[] {
   if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
 
   const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
@@ -283,7 +314,7 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
   for (const action of pendingActions) anchor(action.chat_message_id, { type: "pending_action", pendingAction: action })
   for (const group of pendingActionGroups) {
     const streamItem: ChatStreamItem = { type: "pending_action_group", pendingActionGroup: group }
-    const anchorIds = [ group.chat_message_id, ...group.members.map((member) => member.chat_message_id) ].filter((id): id is number => id != null)
+    const anchorIds = [group.chat_message_id, ...group.members.map((member) => member.chat_message_id)].filter((id): id is number => id != null)
     const uniqueAnchorIds = Array.from(new Set(anchorIds))
     if (uniqueAnchorIds.length === 0) {
       unanchoredItems.push(streamItem)
