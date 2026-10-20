@@ -56,10 +56,16 @@ module PendingActions
 
     def format_rules(rules)
       Array(rules).map do |rule|
-        action = rule["action"] || rule[:action] || {}
-        state = (rule["enabled"].nil? ? rule[:enabled] : rule["enabled"]) ? "enabled" : "disabled"
-        "#{rule['position'] || rule[:position]}. #{state} #{action['type'] || action[:type] || action['strategy'] || action[:strategy]}"
-      end.join("; ").presence || "no rules"
+        rule = rule.to_h.deep_stringify_keys
+        state = rule["enabled"] ? "enabled" : "disabled"
+        [
+          "#{rule['position']}. #{state}",
+          "task=#{rule['task_key']}",
+          "trigger=#{JSON.generate(rule['trigger'] || {})}",
+          "conditions=#{JSON.generate(rule['conditions'] || {})}",
+          "action=#{JSON.generate(rule['action'] || {})}"
+        ].join(" | ")
+      end.join("\n").presence || "no rules"
     end
   end
 end
