@@ -60,11 +60,7 @@ export function KubernetesClusters() {
   if (browseTarget) {
     return (
       <Page.Root aria-label={t("aria_page")} className="flex h-full flex-col overflow-hidden" gutter="responsive" size="wide">
-        <ClusterBrowser
-          clusterId={browseTarget.clusterId}
-          label={browseTarget.label}
-          onBack={() => navigate("/k8s_clusters")}
-        />
+        <ClusterBrowser clusterId={browseTarget.clusterId} label={browseTarget.label} onBack={() => navigate("/k8s_clusters")} />
       </Page.Root>
     )
   }
