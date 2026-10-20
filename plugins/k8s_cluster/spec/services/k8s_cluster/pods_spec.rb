@@ -159,6 +159,19 @@ RSpec.describe K8sCluster::Pods do
       expect(payload[:before].slice(:owner_kind, :owner_name)).to eq(owner_kind: nil, owner_name: nil)
     end
 
+    it "does not treat a non-controller owner reference as the recreating controller" do
+      stub_core_discovery(base)
+      stub_kube_get(
+        "#{base}/api/v1/namespaces/default/pods/web-1",
+        pod(owner: { "kind" => "Job", "name" => "observer", "controller" => false })
+      )
+      stub_request(:delete, "#{base}/api/v1/namespaces/default/pods/web-1").to_return(status: 200, body: {}.to_json)
+
+      payload = described_class.new(cluster).delete("web-1", namespace: "default")
+
+      expect(payload[:before].slice(:owner_kind, :owner_name)).to eq(owner_kind: nil, owner_name: nil)
+    end
+
     it "raises NotFound when the pod does not exist" do
       stub_core_discovery(base)
       stub_kube_error("#{base}/api/v1/namespaces/default/pods/missing", 404)
