@@ -55,7 +55,7 @@ describe("read_walkthrough_frame tool card", () => {
     render(<>{readWalkthroughFrameToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("captured")).toBeInTheDocument()
-    expect(screen.getByText("WALKTHROUGH-42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WALKTHROUGH-42" })).toHaveAttribute("href", "/s/WALKTHROUGH-42")
     expect(screen.getAllByText("1:12").length).toBeGreaterThan(0)
     expect(screen.getByRole("img", { name: "Walkthrough frame" })).toHaveAttribute("src", "data:image/jpeg;base64,ZmFrZS1qcGVn")
     expect(screen.queryByText(/Read any on-screen text/)).not.toBeInTheDocument()

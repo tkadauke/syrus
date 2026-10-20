@@ -52,6 +52,8 @@ The chat agent can call these MCP tools during analysis:
 | `read_walkthrough_frame` | Extracts a screenshot at any timestamp for OCR of small on-screen text |
 | `analyze_walkthrough_segment` | Re-analyzes a clip of the video at full resolution for finer detail |
 
+Walkthrough references use the canonical `WALKTHROUGH-<id>` form. Links from tool cards resolve to the walkthrough's entry in the owning chat Media panel and remain access-controlled by chat membership.
+
 Gemini is used for broad analysis and ASR (transcription). Claude handles OCR of small on-screen text (error codes, URLs, config values) from still frames, because Gemini Flash cannot reliably OCR video frames at any resolution.
 
 ## Video retention

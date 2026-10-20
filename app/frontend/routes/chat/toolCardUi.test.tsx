@@ -123,7 +123,7 @@ describe("EntityReference", () => {
     [{ kind: "memory", id: 4 }, "MEMORY-4", null],
     [{ kind: "insight", id: 5 }, "INSIGHT-5", "/s/INSIGHT-5"],
     [{ kind: "theme", id: 6 }, "THEME-6", null],
-    [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", null],
+    [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", "/s/WALKTHROUGH-7"],
     [{ kind: "whiteboard_snapshot", id: 8 }, "SNAPSHOT-8", null]
   ] as Array<[ComponentProps<typeof EntityReference>, string, string | null]>)(
     "renders the %s entity kind with its label and route",

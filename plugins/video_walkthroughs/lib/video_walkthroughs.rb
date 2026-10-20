@@ -25,6 +25,7 @@ module VideoWalkthroughs
              chat_payload_contributor: "VideoWalkthroughs::PayloadContributor",
              chat_turn_orientation: "VideoWalkthroughs::TurnOrientation",
              callbacks: "VideoWalkthroughs::Callbacks",
+             slug_type: "VideoWalkthroughs::SlugType",
              "metrics_dashboard:tab" => "VideoWalkthroughs::MetricsDashboardTabs"
 
     route :post, "/api/v1/app/chats/:chat_id/video_walkthroughs", to: "api/v1/app/video_walkthroughs#create"

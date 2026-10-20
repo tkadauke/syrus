@@ -176,6 +176,7 @@ import {
   availableWorkspaceTabs,
   clampWorkspaceWidth,
   defaultWorkspaceTab,
+  linkedWorkspaceTab,
   mobileChatTabLabel,
   storeWorkspacePreference,
   storedWorkspaceCollapsed,
@@ -1261,8 +1262,9 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
-  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
+  const initialLinkedTab = linkedWorkspaceTab(payload, window.location.hash)
+  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => initialLinkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => initialLinkedTab || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const initialPanelStateRef = useRef<ReturnType<typeof initialWorkspacePanelState> | null>(null)
   if (initialPanelStateRef.current === null) initialPanelStateRef.current = initialWorkspacePanelState(payload)

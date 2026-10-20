@@ -63,6 +63,7 @@ queue. Gemini produces a structured report with:
 
 The chat agent then receives an orientation prompt for the walkthrough message.
 It can call walkthrough tools to read the Gemini report, inspect still frames,
+and follow a walkthrough reference back to its entry in the chat Media panel.
 and re-analyze a short segment of the video at higher detail. From there it
 uses the same chat proposal machinery as typed requests: it can ask follow-up
 questions, propose Jobs, or propose an Epic, and nothing becomes executable

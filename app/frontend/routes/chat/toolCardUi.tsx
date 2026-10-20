@@ -251,7 +251,14 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
     copyValue: slugCopyValue
   },
   theme: { label: (reference) => prefixedEntityLabel("THEME", reference.id), href: noHref, copyValue: slugCopyValue },
-  walkthrough: { label: (reference) => prefixedEntityLabel("WALKTHROUGH", reference.id), href: noHref, copyValue: slugCopyValue },
+  walkthrough: {
+    label: (reference) => prefixedEntityLabel("WALKTHROUGH", reference.id),
+    href: (reference) => {
+      const id = compactEntityValue(reference.id)
+      return id ? `/s/WALKTHROUGH-${id}` : null
+    },
+    copyValue: slugCopyValue
+  },
   whiteboard_snapshot: { label: (reference) => prefixedEntityLabel("SNAPSHOT", reference.id), href: noHref, copyValue: slugCopyValue }
 }
 

@@ -1067,7 +1067,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("walkthrough_media_heading")}</h2>
           <div className="space-y-2">
             {walkthroughs.map((walkthrough) => (
-              <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={walkthrough.id}>
+              <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" id={`walkthrough-${walkthrough.id}`} key={walkthrough.id}>
                 <div className="flex items-start gap-3">
                   <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-lg dark:bg-gray-800">🎥</div>
                   <div className="min-w-0 flex-1">
