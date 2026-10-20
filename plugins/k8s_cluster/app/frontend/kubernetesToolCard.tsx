@@ -301,6 +301,7 @@ function renderExpanded(context: ToolCardContext) {
       </CardShell>
     )
   if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
+  if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
@@ -441,8 +442,10 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
     }
   }
 
-  const rows = rowsForKind(kind, parsed)
-  if (!rows) return null
+  const parsedRows = rowsForKind(kind, parsed)
+  if (!parsedRows) return null
+  const clusterId = displayValue((context.input || {}).cluster_id)
+  const rows = kind === "pods" ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
   return {
     kind,
     rows,
@@ -657,6 +660,7 @@ function collectionKey(kind: CardKind) {
 function singularKey(kind: CardKind) {
   if (kind === "namespaces") return "namespace"
   if (kind === "nodes") return "node"
+  if (kind === "pods") return "pod"
   if (kind === "deployments") return "deployment"
   if (kind === "statefulsets") return "stateful_set"
   if (kind === "daemonsets") return "daemon_set"
@@ -764,12 +768,33 @@ function columnsFor(kind: CardKind): Column[] {
   }
   if (kind === "pods") {
     return [
-      { key: "namespace", label: t("col_namespace") },
-      { key: "name", label: t("col_name") },
+      {
+        key: "namespace",
+        label: t("col_namespace"),
+        render: (row) => <EntityReference kind="namespace" id={displayValue(row.cluster_id)} label={displayValue(row.namespace)} />
+      },
+      {
+        key: "name",
+        label: t("col_name"),
+        render: (row) => <EntityReference kind="artifact" href={podLogsHref(row)} label={displayValue(row.name)} slug={podContext(row)} />
+      },
       { key: "status", label: t("col_status"), tone: podTone },
       { key: "ready", label: t("col_ready") },
       { key: "restart_count", label: t("col_restarts"), tone: (row) => ((numberValue(row.restart_count) ?? 0) > 0 ? "warning" : "neutral") },
-      { key: "node_name", label: t("tool_card_node") },
+      { key: "pod_ip", label: t("col_pod_ip") },
+      { key: "container_names", label: t("col_containers"), render: (row) => arrayText(row.container_names) },
+      {
+        key: "node_name",
+        label: t("tool_card_node"),
+        render: (row) => (
+          <EntityReference
+            kind="node"
+            href={clusterResourceHref(row, "nodes", "node", row.node_name)}
+            label={displayValue(row.node_name)}
+            slug={displayValue(row.node_name)}
+          />
+        )
+      },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -1010,6 +1035,73 @@ function NodeDescribeBody({ card, node }: { card: ParsedCard; node: K8sRow }) {
           />
         ) : (
           <EmptyState>{t("node_no_conditions")}</EmptyState>
+        )}
+      </div>
+    </CardShell>
+  )
+}
+
+function PodDescribeBody({ card, pod }: { card: ParsedCard; pod: K8sRow }) {
+  const conditions = Array.isArray(pod.conditions) ? (pod.conditions.filter(isPlainObject) as K8sRow[]) : []
+  const containers = Array.isArray(pod.containers) ? (pod.containers.filter(isPlainObject) as K8sRow[]) : []
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("logs_pod_label")}</div>
+          <EntityReference kind="artifact" href={podLogsHref(pod)} label={displayValue(pod.name)} slug={podContext(pod)} />
+        </div>
+        <DetailRow label={t("col_status")} value={displayValue(pod.status) || "-"} />
+        <DetailRow label={t("col_ready")} value={displayValue(pod.ready) || "-"} />
+        <DetailRow label={t("col_pod_ip")} value={displayValue(pod.pod_ip) || "-"} />
+        <DetailRow label={t("col_ips")} value={arrayText(pod.pod_ips)} />
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_node")}</div>
+          <EntityReference
+            kind="node"
+            href={clusterResourceHref(pod, "nodes", "node", pod.node_name)}
+            label={displayValue(pod.node_name)}
+            slug={displayValue(pod.node_name)}
+          />
+        </div>
+        <DetailRow label={t("col_owner_references")} value={arrayText(pod.owner_references)} />
+        <DetailRow label={t("col_labels")} value={displayValue(pod.labels) || "-"} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(pod.created_at))} />
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_containers")}</div>
+        {containers.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "name", label: t("col_name") },
+              { key: "image", label: t("col_image") },
+              { key: "ready", label: t("col_ready"), render: (row) => (row.ready === true ? t("yes") : t("no")) },
+              { key: "restart_count", label: t("col_restarts") },
+              { key: "state", label: t("col_state") },
+              { key: "last_state_reason", label: t("col_last_state_reason") }
+            ]}
+            rows={containers}
+          />
+        ) : (
+          <EmptyState>{t("pod_no_containers")}</EmptyState>
+        )}
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_conditions")}</div>
+        {conditions.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "type", label: t("col_type") },
+              { key: "status", label: t("col_status") },
+              { key: "reason", label: t("col_reason") },
+              { key: "message", label: t("col_message") }
+            ]}
+            rows={conditions}
+          />
+        ) : (
+          <EmptyState>{t("pod_no_conditions")}</EmptyState>
         )}
       </div>
     </CardShell>
@@ -1287,6 +1379,44 @@ function podTone(row: K8sRow) {
   return "failure"
 }
 
+function clusterResourceHref(row: K8sRow, tab: string, resourceKey?: string, resourceValue?: unknown) {
+  const clusterId = displayValue(row.cluster_id)
+  if (!clusterId) return null
+  const search = new URLSearchParams({ tab })
+  const namespace = displayValue(row.namespace)
+  if (namespace) search.set("namespace", namespace)
+  const value = displayValue(resourceValue)
+  if (resourceKey && value) search.set(resourceKey, value)
+  return `/k8s_clusters/${encodeURIComponent(clusterId)}?${search.toString()}`
+}
+
+function podLogsHref(row: K8sRow) {
+  return clusterResourceHref(row, "logs", "pod", row.name)
+}
+
+function podContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function containerStateText(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  const [state, details] = Object.entries(value).find(([, entry]) => isPlainObject(entry)) || []
+  if (!state || !isPlainObject(details)) return "-"
+  const reason = displayValue(details.reason)
+  return reason ? `${state}: ${reason}` : state
+}
+
+function containerStateReason(value: unknown) {
+  if (!isPlainObject(value)) return "-"
+  for (const details of Object.values(value)) {
+    if (isPlainObject(details)) {
+      const reason = displayValue(details.reason)
+      if (reason) return reason
+    }
+  }
+  return "-"
+}
+
 function rowKey(row: K8sRow, index: number) {
   return (
     [row.namespace, row.name, row.id, row.reason, row.last_timestamp]
@@ -1340,6 +1470,47 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
       addresses,
       labels: metadataKeysSummary(metadata.labels),
       system_info: nodeInfo
+    }
+  }
+
+  if (kind === "pods") {
+    const containerSpecs = Array.isArray(spec.containers) ? (spec.containers.filter(isPlainObject) as K8sRow[]) : []
+    const containerStatuses = Array.isArray(status.containerStatuses) ? (status.containerStatuses.filter(isPlainObject) as K8sRow[]) : []
+    const containers = containerSpecs.map((container) => {
+      const containerStatus = containerStatuses.find((candidate) => displayValue(candidate.name) === displayValue(container.name)) || {}
+      return {
+        name: container.name,
+        image: container.image,
+        ready: containerStatus.ready === true,
+        restart_count: numberValue(containerStatus.restartCount) ?? 0,
+        state: containerStateText(containerStatus.state),
+        last_state_reason: containerStateReason(containerStatus.lastState)
+      }
+    })
+    const podIps = Array.isArray(status.podIPs)
+      ? status.podIPs
+          .filter(isPlainObject)
+          .map((entry) => displayValue(entry.ip))
+          .filter(Boolean)
+      : []
+    const owners = Array.isArray(metadata.ownerReferences)
+      ? metadata.ownerReferences
+          .filter(isPlainObject)
+          .map((owner) => [displayValue(owner.kind), displayValue(owner.name)].filter(Boolean).join("/"))
+          .filter(Boolean)
+      : []
+    return {
+      ...base,
+      status: status.phase,
+      ready: `${containerStatuses.filter((entry) => entry.ready === true).length}/${containerStatuses.length}`,
+      restart_count: containerStatuses.reduce((total, entry) => total + (numberValue(entry.restartCount) ?? 0), 0),
+      node_name: spec.nodeName,
+      pod_ip: status.podIP,
+      pod_ips: podIps,
+      container_names: containerSpecs.map((container) => displayValue(container.name)).filter(Boolean),
+      containers,
+      owner_references: owners,
+      labels: metadataKeysSummary(metadata.labels)
     }
   }
 
