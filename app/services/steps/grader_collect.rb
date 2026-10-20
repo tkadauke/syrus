@@ -655,6 +655,9 @@ module Steps
       return job.mergeability_base_sha.presence if workflow.trigger_kind == "auto_merge"
       return workflow.artifact("merge_train_base_sha").presence if workflow.trigger_kind == "merge_train"
 
+      captured_base_sha = workflow.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY).presence
+      return captured_base_sha if captured_base_sha
+
       GitRunner.new.run("rev-parse", default_branch_ref, chdir: workspace.path.to_s).strip.presence
     end
 

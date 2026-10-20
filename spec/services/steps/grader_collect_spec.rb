@@ -957,6 +957,19 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "uses the base SHA captured by grader fanout without reading the local workspace" do
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, "captured-base")
+    git = instance_double(GitRunner, run: "abc123\n")
+    allow(GitRunner).to receive(:new).and_return(git)
+    expect(git).not_to receive(:run).with("rev-parse", "origin/main", chdir: anything)
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
+      "base_sha" => "captured-base"
+    )
+  end
+
   it "records auto_merge base semantics on the landing validation artifact" do
     job.update!(mergeability_base_sha: "base123", mergeability_base_ref: "main")
     workflow.update!(trigger_kind: "auto_merge")

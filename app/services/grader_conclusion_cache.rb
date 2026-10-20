@@ -4,6 +4,7 @@ class GraderConclusionCache
   ARTIFACT_FINGERPRINT_KEY = "grade_plan_fingerprint".freeze
   ARTIFACT_CACHE_HIT_KEY = "grader_conclusion_cache_hit".freeze
   ARTIFACT_HEAD_SHA_KEY = "grade_plan_head_sha".freeze
+  ARTIFACT_BASE_SHA_KEY = "grade_plan_base_sha".freeze
 
   def self.fingerprint_for_plan(plan, target_graph: nil)
     fingerprint_for_graders(plan.graders, target_graph: target_graph)
