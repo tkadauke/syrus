@@ -329,6 +329,11 @@ RSpec.describe ThemingTools::ChatToolSet do
       response = call_tool("update_user_theme", theme_id: theme.id, name: "New Name", light: { "brand" => "#123456" })
 
       expect(response.error?).to be_falsey
+      response_payload = payload(response)
+      expect(response_payload).to include(name: "New Name")
+      expect(response_payload.dig(:tokens, :light, :brand)).to eq("#123456")
+      expect(response_payload.dig(:previous_theme, :name)).to eq("Old Name")
+      expect(response_payload.dig(:previous_theme, :tokens, :light, :brand)).to eq(legible_tokens.dig("light", "brand"))
       theme.reload
       expect(theme.name).to eq("New Name")
       expect(theme.tokens["light"]["brand"]).to eq("#123456")
