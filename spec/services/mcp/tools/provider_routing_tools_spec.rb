@@ -80,6 +80,46 @@ RSpec.describe "Mcp::Tools provider routing tools" do
     expect(rule.reload).not_to be_enabled
   end
 
+  it "presents candidate and condition updates distinctly before confirmation" do
+    rule = ProviderRoutingRule.create!(
+      scope_type: "user",
+      scope_id: user.id,
+      user: user,
+      task_key: "implement",
+      candidates: [ { provider: "claude", model: "sonnet", effort_level: "high" } ]
+    )
+    revision = payload(Mcp::Tools::ReadProviderRoutingRulesTool.call(scope_type: "user", server_context: context)).fetch(:revision)
+
+    response = Mcp::Tools::MutateProviderRoutingRulesTool.call(
+      scope_type: "user",
+      expected_revision: revision,
+      operations: [
+        {
+          type: "update",
+          id: rule.id,
+          rule: {
+            conditions: { workflow_trigger_kind: [ "pr_comment" ] },
+            action: {
+              type: "route",
+              strategy: "fallback_order",
+              candidates: [ { provider: "codex", model: "gpt-5.6", effort_level: "medium" } ]
+            }
+          }
+        }
+      ],
+      server_context: context
+    )
+
+    pending = ChatPendingAction.find(payload(response).fetch(:pending_action_id))
+    detail = PendingActions::MutateProviderRoutingRules.new(pending).presentation_detail
+    before, after = detail.split("\nBefore: ", 2).last.split("\nAfter: ", 2)
+
+    expect(before).to include("task=implement", 'conditions={}', '"provider":"claude"', '"model":"sonnet"', '"effort_level":"high"')
+    expect(after).to include('conditions={"workflow_trigger_kind":["pr_comment"]}', '"provider":"codex"', '"model":"gpt-5.6"', '"effort_level":"medium"')
+    expect(after).not_to eq(before)
+    expect(rule.reload.action_candidates).to eq([ { "provider" => "claude", "model" => "sonnet", "effort_level" => "high" } ])
+  end
+
   it "fails confirmation if the revision became stale" do
     rule = ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, user: user, candidates: [ { provider: "claude" } ])
     revision = payload(Mcp::Tools::ReadProviderRoutingRulesTool.call(scope_type: "user", server_context: context)).fetch(:revision)
