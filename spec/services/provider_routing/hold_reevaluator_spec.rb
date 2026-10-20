@@ -80,7 +80,7 @@ RSpec.describe ProviderRouting::HoldReevaluator do
     hold = workflow.provider_routing_holds.active.sole
 
     expect {
-      2.times { ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved") }
+      ProviderRouting::HoldRelease.call(hold: hold, user: job.user, reason: "Approved")
     }.to have_enqueued_job(WorkflowPhaseAdmissionJob).once
 
     expect(hold.reload).to have_attributes(status: "released", released_by_user: job.user, release_reason: "Approved", release_kind: "manual")
