@@ -104,6 +104,18 @@ describe("AdminToolCards", () => {
     expect(within(region).queryByText("JOB-101")).not.toBeInTheDocument()
   })
 
+  it("preserves prior tool results used by a catalog example", () => {
+    renderRoute("/admin/tool_cards?tool_name=add_job_tag")
+
+    const region = screen.getByRole("region", { name: "Add job tag" })
+    expandToolGroup(region)
+
+    expect(within(region).getAllByText("area:ui").length).toBeGreaterThan(0)
+    expect(within(region).queryByText("Tag #10")).not.toBeInTheDocument()
+    expect(within(region).getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(region.querySelector("span[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 
