@@ -97,7 +97,7 @@ describe("toolCardSecurity", () => {
     })
   })
 
-  it("keeps credential metadata objects while redacting secrets inside them", () => {
+  it("keeps allowlisted credential metadata while redacting arbitrary secret fields", () => {
     expect(
       redactToolCardValue({
         credential: {
@@ -105,7 +105,9 @@ describe("toolCardSecurity", () => {
           credential_name: "production-cluster",
           credential_type: "kubeconfig",
           client_secret: "hidden-value",
-          token: "hidden-token"
+          token: "hidden-token",
+          value: "abcdef123456789",
+          data: { opaque: "another-secret-value" }
         }
       })
     ).toEqual({
@@ -114,7 +116,9 @@ describe("toolCardSecurity", () => {
         credential_name: "production-cluster",
         credential_type: "kubeconfig",
         client_secret: "[redacted]",
-        token: "[redacted]"
+        token: "[redacted]",
+        value: "[redacted]",
+        data: "[redacted]"
       }
     })
   })

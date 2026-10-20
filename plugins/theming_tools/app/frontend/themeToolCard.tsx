@@ -367,7 +367,12 @@ export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
         <StatePill state={t("state_deleted")} tone="success" />
         <EntityReference id={outcome.deletedThemeId} kind="theme" />
       </div>
-      {outcome.fallbackThemeId ? <Row label={t("fallback_active_theme")} value={`THEME-${outcome.fallbackThemeId}`} /> : null}
+      {outcome.fallbackThemeId ? (
+        <div className="min-w-0">
+          <SectionLabel>{t("fallback_active_theme")}</SectionLabel>
+          <EntityReference href={`/design_system?theme_id=${encodeURIComponent(outcome.fallbackThemeId)}`} id={outcome.fallbackThemeId} kind="theme" />
+        </div>
+      ) : null}
     </CardShell>
   )
 }
