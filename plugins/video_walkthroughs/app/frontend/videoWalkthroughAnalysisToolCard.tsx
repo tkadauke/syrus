@@ -1,4 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample } from "@app/pluginToolCards"
+import { useT } from "@app/hooks/useT"
+import i18n from "i18next"
 import { MediaPreviewShell } from "@app/routes/chat/mediaPreviewShell"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
@@ -215,7 +217,7 @@ export function fullAnalysisSummary(context: ToolCardContext) {
   const card = parseFullAnalysis(context)
   if (!card) return null
   if (card.error) return "Walkthrough analysis failed"
-  if (card.pending) return "Walkthrough analysis pending"
+  if (card.pending) return i18n.t("chat:walkthrough_analysis.pending_summary")
   const segments = card.sections.length === 1 ? "1 segment" : `${card.sections.length} segments`
   const issues = card.issueCount === 1 ? "1 issue" : `${card.issueCount} issues`
   const media = card.media.length > 0 ? `, ${card.media.length} frame${card.media.length === 1 ? "" : "s"}` : ""
@@ -228,12 +230,14 @@ export function renderFullAnalysis(context: ToolCardContext) {
 }
 
 function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
+  const { t } = useT("chat")
+
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough analysis</Badge>
         <StatePill
-          state={card.error ? "failed" : card.pending ? "pending" : card.empty ? "no issues" : "issues found"}
+          state={card.error ? "failed" : card.pending ? t("walkthrough_analysis.pending_state") : card.empty ? "no issues" : "issues found"}
           tone={card.error ? "failure" : card.pending ? "neutral" : card.empty ? "success" : "warning"}
         />
         {!card.error && !card.pending ? (
@@ -244,12 +248,14 @@ function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
       </div>
       {card.walkthroughId ? (
         <div className="text-xs text-text-muted">
-          Walkthrough: <EntityReference href={`/api/v1/app/video_walkthroughs/${card.walkthroughId}`} id={card.walkthroughId} kind="walkthrough" />
+          {t("walkthrough_analysis.walkthrough_label")}: <EntityReference id={card.walkthroughId} kind="walkthrough" />
         </div>
       ) : null}
       {card.error ? <RecoveryPanel message={card.error} /> : null}
-      {card.pending ? <EmptyState>The walkthrough analysis is still pending. Retry after analysis completes.</EmptyState> : null}
-      {card.summary ? <MarkdownPreview linkifyUrls maxChars={900} maxLines={5} modalLabel="Session summary" text={card.summary} /> : null}
+      {card.pending ? <EmptyState>{t("walkthrough_analysis.pending")}</EmptyState> : null}
+      {card.summary ? (
+        <MarkdownPreview linkifyUrls maxChars={900} maxLines={5} modalLabel={t("walkthrough_analysis.session_summary")} text={card.summary} />
+      ) : null}
       {!card.error && !card.pending ? (
         <dl className="grid gap-1 sm:grid-cols-3">
           <Row label="Segments" value={String(card.sections.length)} />
@@ -272,8 +278,8 @@ function FullAnalysisBody({ card }: { card: FullAnalysisCard }) {
           </div>
         </Disclosure>
       ) : null}
-      {!card.error && !card.pending && card.report && !hasRecognizedSections(card.report) ? (
-        <MarkdownPreview linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Walkthrough analysis report" text={card.report} />
+      {!card.error && !card.pending && card.report && shouldRenderCompleteReport(card.report) ? (
+        <MarkdownPreview linkifyUrls maxChars={1_400} maxLines={8} modalLabel={t("walkthrough_analysis.complete_report")} text={card.report} />
       ) : null}
     </CardShell>
   )
@@ -329,6 +335,8 @@ function IssuesList({ issues }: { issues: WalkthroughIssue[] }) {
 }
 
 function MediaList({ media }: { media: MediaReference[] }) {
+  const { t } = useT("chat")
+
   return (
     <div className="space-y-1">
       <SectionLabel>Frame references</SectionLabel>
@@ -339,17 +347,19 @@ function MediaList({ media }: { media: MediaReference[] }) {
               title: item.label,
               subtitle: item.timestamp,
               src: item.src,
-              alt: `${item.label}${item.timestamp ? ` at ${item.timestamp}` : ""}`,
+              alt: item.timestamp
+                ? t("walkthrough_analysis.frame_alt", { label: item.label, timestamp: item.timestamp })
+                : t("walkthrough_analysis.frame_alt_untimed", { label: item.label }),
               badge: item.mimeType?.split("/").pop()?.toUpperCase(),
               meta: [
-                { label: "Timestamp", value: item.timestamp },
-                { label: "Label", value: item.label, copyValue: item.label },
-                { label: "Content type", value: item.mimeType }
+                { label: t("walkthrough_analysis.timestamp"), value: item.timestamp },
+                { label: t("walkthrough_analysis.label"), value: item.label, copyValue: item.label },
+                { label: t("walkthrough_analysis.content_type"), value: item.mimeType }
               ],
-              actions: [{ label: "Copy image", copyValue: item.src }]
+              actions: [{ label: t("walkthrough_analysis.copy_image"), copyValue: item.src }]
             }}
             key={`${item.label}-${index}`}
-            modalLabel={`${item.label} frame`}
+            modalLabel={t("walkthrough_analysis.frame_modal", { label: item.label })}
             thumbnailClassName="w-full"
           />
         ))}
@@ -484,7 +494,8 @@ function SegmentBody({ card }: { card: SegmentCard }) {
 }
 
 function RecoveryPanel({ message }: { message: string }) {
-  const guidance = recoveryGuidance(message)
+  const { t } = useT("chat")
+  const guidance = recoveryGuidance(message, t)
   return (
     <div className="space-y-1 rounded-[var(--radius-panel)] border border-danger-border bg-danger-surface px-2 py-1.5">
       <div className="text-sm font-medium text-danger-text">{message}</div>
@@ -493,17 +504,18 @@ function RecoveryPanel({ message }: { message: string }) {
   )
 }
 
-function recoveryGuidance(message: string) {
-  if (/quota|rate.?limit/i.test(message)) return "Gemini quota is temporarily unavailable. Wait briefly, then retry the analysis."
-  if (/api.?key|key.*(?:invalid|reject|unauthor)/i.test(message))
-    return "The Gemini API key was rejected. Ask an administrator to verify the plugin credentials, then retry."
-  if (/pruned|expired|stored video|upload.*(?:missing|unavailable)/i.test(message))
-    return "The retained video is unavailable. Record and submit a fresh walkthrough."
-  return "Check that the walkthrough belongs to this chat and has finished analyzing, then retry."
+function recoveryGuidance(message: string, t: ReturnType<typeof useT>["t"]) {
+  if (/quota|rate.?limit/i.test(message)) return t("walkthrough_analysis.recovery_quota")
+  if (/api.?key|key.*(?:invalid|reject|unauthor)/i.test(message)) return t("walkthrough_analysis.recovery_key_rejected")
+  if (/pruned|expired|stored video|upload.*(?:missing|unavailable)/i.test(message)) return t("walkthrough_analysis.recovery_video_unavailable")
+  return t("walkthrough_analysis.recovery_generic")
 }
 
-function hasRecognizedSections(report: string) {
-  return /^## (?:Session summary|Sections|Issues found)(?: |$)/m.test(report)
+const RENDERED_REPORT_HEADINGS = new Set(["Session summary", "Sections", "Issues found", "Narration transcript", "Open questions from the analysis"])
+
+function shouldRenderCompleteReport(report: string) {
+  const headings = Array.from(report.matchAll(/^##\s+(.+)$/gm), (match) => match[1].replace(/\s+\(\d+\)$/, "").trim())
+  return headings.length === 0 || headings.some((heading) => !RENDERED_REPORT_HEADINGS.has(heading))
 }
 
 export const fullAnalysisExamples: ToolCardExample[] = [
