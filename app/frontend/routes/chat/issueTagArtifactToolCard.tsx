@@ -24,7 +24,7 @@ type IssueRow = {
 
 type TagRow = {
   id: string | null
-  name: string
+  name: string | null
   color: string | null
   jobIds: string[]
 }
@@ -185,7 +185,19 @@ function tagFromInput(context: ToolCardContext): TagRow | null {
   const name = displayValue(context.input?.name)
   const tagId = displayValue(context.input?.tag_id)
   if (!name && !tagId) return null
-  return { id: tagId, name: name || `tag ${tagId}`, color: displayValue(context.input?.color), jobIds: [] }
+  return { id: tagId, name, color: displayValue(context.input?.color), jobIds: [] }
+}
+
+function tagFromPriorResults(context: ToolCardContext, tagId: string | null): TagRow | null {
+  if (!tagId) return null
+  const prior = context.priorResults?.list_tags
+  const rows = Array.isArray(prior) ? prior : isPlainObject(prior) && Array.isArray(prior.tags) ? prior.tags : []
+  return (
+    rows.flatMap((item) => {
+      const tag = parseTag(item)
+      return tag?.id === tagId ? [tag] : []
+    })[0] ?? null
+  )
 }
 
 function tagRows(context: ToolCardContext): TagRow[] | null {
@@ -236,8 +248,8 @@ function TagChip({ tag }: { tag: TagRow }) {
       className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
       style={tagStyle(tag.color)}
     >
-      <span className="truncate">{tag.name}</span>
-      {tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
+      <span className="truncate">{tag.name || `Tag #${tag.id}`}</span>
+      {tag.name && tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
     </span>
   )
 }
@@ -253,7 +265,7 @@ export function TagListCard({ rows }: { rows: TagRow[] }) {
         {rows.map((tag, index) => (
           <div
             className="flex min-w-0 flex-col gap-1 rounded border border-gray-200 p-2 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
-            key={tag.id || `${tag.name}-${index}`}
+            key={tag.id || `${tag.name || "tag"}-${index}`}
           >
             <TagChip tag={tag} />
             <div className="flex flex-wrap items-center gap-1 sm:justify-end">
@@ -301,7 +313,8 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
   const parsedError = isPlainObject(parsed) ? displayValue(parsed.error) : null
   const resultTag = parseTag(parsed)
   const inputTag = tagFromInput(context)
-  const tag = resultTag || inputTag
+  const priorTag = action === "create" ? null : tagFromPriorResults(context, inputTag?.id ?? null)
+  const tag = resultTag || priorTag || inputTag
   const success = resultTag != null || (isPlainObject(parsed) && parsed.success === true)
   const pending = parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
   if (!tag && !success && !parsedError && !context.resultError) return null
@@ -321,7 +334,7 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
 export function tagActionSummary(result: TagAction) {
   const verb = result.action === "create" ? "Created" : result.action === "add" ? "Added" : "Removed"
   const command = result.action === "create" ? "Create" : result.action === "add" ? "Add" : "Remove"
-  const target = result.tag?.name || (result.tag?.id ? `tag ${result.tag.id}` : "tag")
+  const target = result.tag?.name || (result.tag?.id ? `tag #${result.tag.id}` : "tag")
   const job = result.jobId ? ` · JOB-${result.jobId}` : ""
   if (result.error) return `${verb} ${target} failed${job}`
   if (result.pending) return `${verb.replace(/ed$/, "ing")} ${target}${job}`
@@ -331,7 +344,14 @@ export function tagActionSummary(result: TagAction) {
 
 export function TagActionCard({ result }: { result: TagAction }) {
   const title = result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"
-  if (result.error) return <ErrorCard title={title} message={result.error} />
+  if (result.error) {
+    return (
+      <ErrorCard title={title} message={result.error}>
+        {result.tag ? <TagChip tag={result.tag} /> : null}
+        <TagActionMetadata result={result} />
+      </ErrorCard>
+    )
+  }
 
   const state = result.pending ? "pending" : result.success ? "success" : "unknown"
   return (
@@ -341,16 +361,27 @@ export function TagActionCard({ result }: { result: TagAction }) {
         <span className="font-semibold text-gray-900 dark:text-gray-100">{title}</span>
         {result.tag ? <TagChip tag={result.tag} /> : null}
       </div>
-      <dl className="grid gap-1 sm:grid-cols-2">
-        {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
-        {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
-        {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
-        {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
-        {result.jobId ? <Row label="Job" value={`JOB-${result.jobId}`} /> : null}
-        {result.tag?.id ? <Row label="Tag" value={result.tag.id} /> : null}
-      </dl>
+      <TagActionMetadata result={result} />
       {!result.pending && !result.success ? <EmptyState>Unexpected tool response.</EmptyState> : null}
     </CardShell>
+  )
+}
+
+function TagActionMetadata({ result }: { result: TagAction }) {
+  return (
+    <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
+      {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
+      {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
+      {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
+      {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
+      {result.jobId ? (
+        <div className="min-w-0">
+          <SectionLabel>Job</SectionLabel>
+          <EntityReference id={result.jobId} kind="job" wrap="break" />
+        </div>
+      ) : null}
+      {result.tag?.id ? <Row label="Tag ID" value={result.tag.id} /> : null}
+    </dl>
   )
 }
 

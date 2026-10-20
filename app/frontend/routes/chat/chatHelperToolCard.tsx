@@ -44,10 +44,11 @@ export function StatusCard({ title, status, children }: { title: string; status?
   )
 }
 
-export function ErrorCard({ title, message }: { title: string; message: string }) {
+export function ErrorCard({ title, message, children }: { title: string; message: string; children?: ReactNode }) {
   return (
     <StatusCard title={title} status="failed">
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{message}</div>
+      {children}
     </StatusCard>
   )
 }

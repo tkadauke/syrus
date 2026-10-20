@@ -141,11 +141,39 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(container.querySelector("[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
 
     expect(addJobTagToolCard.collapsedSummary?.(context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe(
-      "Added tag 10 · JOB-7"
+      "Added tag #10 · JOB-7"
     )
     expect(removeJobTagToolCard.collapsedSummary?.(context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, parsedResult: { success: true } }))).toBe(
-      "Removed tag 10 · JOB-7"
+      "Removed tag #10 · JOB-7"
     )
+  })
+
+  it("resolves an added tag from an earlier tag listing and links the Job", () => {
+    const addContext = context("add_job_tag", {
+      input: { job_id: 7, tag_id: 10 },
+      parsedResult: { success: true },
+      priorResults: { list_tags: { tags: [{ id: 10, name: "area:ui", color: "blue", job_ids: [] }] } }
+    })
+
+    expect(addJobTagToolCard.collapsedSummary?.(addContext)).toBe("Added area:ui · JOB-7")
+    const { container } = render(<>{addJobTagToolCard.renderExpanded(addContext)}</>)
+
+    expect(screen.getByText("area:ui")).toBeInTheDocument()
+    expect(screen.getByText("10")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(container.querySelector("[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
+  })
+
+  it("shows a clear tag id fallback and pending state without prior context", () => {
+    const pending = context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, resultSettled: false })
+
+    expect(addJobTagToolCard.collapsedSummary?.(pending)).toBe("Adding tag #10 · JOB-7")
+    render(<>{addJobTagToolCard.renderExpanded(pending)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Tag #10")).toBeInTheDocument()
+    expect(screen.getByText("10")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
   })
 
   it("renders a pending create from input alone", () => {
@@ -212,6 +240,29 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("Name has already been taken")).toBeInTheDocument()
 
     rerender(<>{addJobTagToolCard.renderExpanded(invalid)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
+    expect(screen.getByText("Tag #99")).toBeInTheDocument()
+    expect(screen.getByText("99")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+  })
+
+  it("normalizes add-tag success and error envelopes from different providers", () => {
+    const successEnvelope = { structured_content: { success: true } }
+    const errorEnvelope = { content: [{ type: "text", text: JSON.stringify({ error: "tag not found for this user: 99" }) }] }
+    const successContext = context(normalizedToolName("mcp__syrus__add_job_tag"), {
+      input: { job_id: 7, tag_id: 10 },
+      parsedResult: normalizedToolCardParsedResult(successEnvelope)
+    })
+    const errorContext = context(normalizedToolName("syrus-chat-sidecar.add_job_tag"), {
+      input: { job_id: 7, tag_id: 99 },
+      parsedResult: normalizedToolCardParsedResult(errorEnvelope),
+      resultError: true
+    })
+
+    expect(addJobTagToolCard.collapsedSummary?.(successContext)).toBe("Added tag #10 · JOB-7")
+    expect(addJobTagToolCard.collapsedSummary?.(errorContext)).toBe("Added tag #99 failed · JOB-7")
+    render(<>{addJobTagToolCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
   })
 

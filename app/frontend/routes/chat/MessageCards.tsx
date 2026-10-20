@@ -954,7 +954,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup
+                      chatSessionId={chatSessionId}
+                      item={nestedGroup}
+                      key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -1043,6 +1047,7 @@ export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSe
     resultError: call.result_error,
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
+    priorResults: redactToolCardValue(call.prior_results ?? {}) as Readonly<Record<string, unknown>>,
     chatSessionId,
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
   }

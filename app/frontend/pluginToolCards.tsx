@@ -32,6 +32,10 @@ export type ToolCardContext = {
   resultSettled?: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Latest normalized results from earlier context-providing tools in this
+  // transcript. Kept deliberately small by the stream builder; cards must
+  // continue to work when it is absent (catalog/admin/older transcripts).
+  priorResults?: Readonly<Record<string, unknown>>
   // Owning chat when rendered in a chat surface. Admin transcripts and
   // catalog fixtures do not necessarily have one.
   chatSessionId?: number | string
@@ -109,6 +113,7 @@ export type ToolCardExample = {
   // fixtures, since those can't round-trip through a parsed value.
   resultBody?: string
   parsedResult?: unknown
+  priorResults?: Readonly<Record<string, unknown>>
   resultError?: boolean
   resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
@@ -152,7 +157,8 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
     resultBody,
     resultError: example.resultError ?? false,
     resultSettled: example.resultSettled ?? true,
-    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
+    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
+    priorResults: example.priorResults
   }
 }
 
