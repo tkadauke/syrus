@@ -25,7 +25,7 @@ module Prompts
         - Set epic_id only when the issue clearly belongs to that Epic.
         - Mark duplicate only when the requested work substantially matches an open Job candidate.
         - Mark already_implemented only when a merged PR appears to have already shipped the requested behavior.
-        - For ordinary backend, web, Electron, or JavaScript work, leave placement_recommendation null so Syrus uses default Linux compute.
+        - For ordinary backend, web, Electron, or JS work, leave placement_recommendation null so Syrus uses default Linux compute.
         - The only profile values are linux, macos_desktop, and ios_xcode. Never invent capabilities.
         - macos_desktop is for work that must build or test a desktop macOS application. It does not include Xcode or an iOS simulator.
         - ios_xcode is only for iOS, Apple mobile, or Xcode-targeted work.
