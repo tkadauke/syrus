@@ -1409,7 +1409,8 @@ function ScopeDetail({ card }: { card: ParsedCard }) {
 
 function PodLogsBody({ card }: { card: ParsedCard }) {
   const row = card.rows[0] || {}
-  const lines = logLines(redactToolCardText(displayValue(row.log) || ""))
+  const fullLog = redactToolCardText(displayValue(row.log) || "")
+  const lines = logLines(fullLog)
   const requestedTailLines = numberValue(row.requested_tail_lines)
 
   return (
@@ -1437,7 +1438,9 @@ function PodLogsBody({ card }: { card: ParsedCard }) {
         <EmptyState>{t("logs_empty")}</EmptyState>
       ) : (
         <FilterableList emptyLabel={t("logs_search_no_matches")} itemText={(line) => line} items={lines} placeholder={t("logs_search_placeholder")}>
-          {(visibleLines) => <TextPreview maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />}
+          {(visibleLines) => (
+            <TextPreview fullText={fullLog} maxLines={80} modalLabel={t("logs_full_log_label")} text={visibleLines.join("\n")} truncate="tail" wrap={false} />
+          )}
         </FilterableList>
       )}
     </CardShell>
@@ -1657,7 +1660,11 @@ function ingressBackendMappings(row: K8sRow) {
 
 function logLines(value: unknown) {
   const log = displayValue(value) ?? ""
-  return log ? log.split("\n") : []
+  if (!log) return []
+
+  const lines = log.split("\n")
+  if (lines.at(-1) === "") lines.pop()
+  return lines
 }
 
 function ingressRuleSummaries(rules: unknown) {

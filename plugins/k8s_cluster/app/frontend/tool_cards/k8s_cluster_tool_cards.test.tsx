@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { discoveredToolCardEntries, pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName, toolPresentation } from "@app/routes/chat/toolRendering"
@@ -1628,6 +1628,13 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.getByTestId("text-preview-content").textContent?.match(/\[redacted\]/g)).toHaveLength(3)
       expect(screen.queryByText(/top-secret-value|db-password|abcdefghijklmnopqrstuvwxyz/)).not.toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText("Search logs…"), { target: { value: "final line" } })
+      expect(screen.getByTestId("text-preview-content")).toHaveTextContent("final line")
+      expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("middle line")
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+      const dialog = screen.getByRole("dialog", { name: "Full pod log" })
+      expect(within(dialog).getByText(/first line/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/final line/)).toBeInTheDocument()
       rendered.unmount()
     }
   })
@@ -1652,6 +1659,19 @@ describe("Kubernetes cluster tool cards", () => {
     render(<>{podLogsToolCard.renderExpanded(errorContext)}</>)
     expect(podLogsToolCard.collapsedSummary?.(errorContext)).toBe("Cluster 7 / default / missing · error")
     expect(screen.getByText("pod not found")).toBeInTheDocument()
+  })
+
+  it("does not count a terminal log newline as a returned line", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_pod_logs",
+      input: { cluster_id: 7, namespace: "default", name: "web-1", tail_lines: 50 },
+      parsedResult: { available: true, pod: "web-1", namespace: "default", log: "first\n\nthird\n" }
+    })
+
+    expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 3 log lines")
+    render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("3")).toBeInTheDocument()
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("first\n\nthird", { normalizeWhitespace: false })
   })
 
   it("renders empty and error cases as friendly card bodies", () => {
