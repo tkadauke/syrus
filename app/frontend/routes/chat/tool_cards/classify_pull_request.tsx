@@ -92,24 +92,36 @@ function ClassifyPullRequestCard({ context, result }: { context: ToolCardContext
       <dl className="grid gap-2 sm:grid-cols-2">
         <div className="min-w-0">
           <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_repository")}</dt>
-          <dd><EntityReference href={githubUrl(result.repository)} kind="repository" repositorySlug={result.repository} /></dd>
+          <dd>
+            <EntityReference href={githubUrl(result.repository)} kind="repository" repositorySlug={result.repository} />
+          </dd>
         </div>
         {result.headRepository ? (
           <div className="min-w-0">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_head_repository")}</dt>
-            <dd><EntityReference href={githubUrl(result.headRepository)} kind="repository" repositorySlug={result.headRepository} /></dd>
+            <dd>
+              <EntityReference href={githubUrl(result.headRepository)} kind="repository" repositorySlug={result.headRepository} />
+            </dd>
           </div>
         ) : null}
         {result.headRef ? (
           <div className="min-w-0 break-all">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_head_ref")}</dt>
-            <dd><a className="font-mono text-xs text-brand hover:underline" href={githubUrl(headRepository, `/tree/${encodeURIComponent(result.headRef)}`)}>{result.headRef}</a></dd>
+            <dd>
+              <a className="font-mono text-xs text-brand hover:underline" href={githubUrl(headRepository, `/tree/${encodeURIComponent(result.headRef)}`)}>
+                {result.headRef}
+              </a>
+            </dd>
           </div>
         ) : null}
         {result.baseRef ? (
           <div className="min-w-0 break-all">
             <dt className="text-2xs font-semibold uppercase text-text-muted">{t("tool_card_classify_pr_base_ref")}</dt>
-            <dd><a className="font-mono text-xs text-brand hover:underline" href={githubUrl(result.repository, `/tree/${encodeURIComponent(result.baseRef)}`)}>{result.baseRef}</a></dd>
+            <dd>
+              <a className="font-mono text-xs text-brand hover:underline" href={githubUrl(result.repository, `/tree/${encodeURIComponent(result.baseRef)}`)}>
+                {result.baseRef}
+              </a>
+            </dd>
           </div>
         ) : null}
       </dl>
