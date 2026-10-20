@@ -129,6 +129,8 @@ describe("toolCardSecurity", () => {
           type: "Opaque",
           key_count: 2,
           key_names: ["DATABASE_PASSWORD_VALUE", "username"],
+          immutable: true,
+          owner_references: ["Deployment/api"],
           data: { DATABASE_PASSWORD_VALUE: "hunter2-secret" }
         }
       })
@@ -140,6 +142,8 @@ describe("toolCardSecurity", () => {
         type: "Opaque",
         key_count: 2,
         key_names: ["DATABASE_PASSWORD_VALUE", "username"],
+        immutable: true,
+        owner_references: ["Deployment/api"],
         data: "[redacted]"
       }
     })
