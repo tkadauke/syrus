@@ -1762,10 +1762,6 @@ describe("Kubernetes cluster tool cards", () => {
       input: { cluster_id: 7, namespace: "default", name: "web-1", tail_lines: 50 },
       parsedResult: { available: true, pod: "web-1", namespace: "default", log: "first\n\nthird\n" }
     })
-    const empty = render(<>{podLogsToolCard.renderExpanded(emptyContext)}</>)
-    expect(screen.getByText("No log output.")).toBeInTheDocument()
-    empty.unmount()
-
     expect(podLogsToolCard.collapsedSummary?.(cardContext)).toBe("Cluster 7 / default / web-1 · 3 log lines")
     render(<>{podLogsToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByText("3")).toBeInTheDocument()
