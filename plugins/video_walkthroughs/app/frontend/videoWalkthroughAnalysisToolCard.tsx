@@ -54,6 +54,7 @@ type SegmentCard = {
   issues: WalkthroughIssue[]
   timestamps: string[]
   media: MediaReference[]
+  empty: boolean
   error: string | null
 }
 
@@ -389,17 +390,23 @@ function parseSegment(context: ToolCardContext): SegmentCard | null {
   const error = context.resultError ? textBlocks(context).join("\n").trim() || "Segment analysis failed." : null
   if (!payload && !error) return null
   const analysis = payload ? payload.analysis : null
+  const normalizedAnalysis = normalizeAnalysis(analysis)
+  const observations = analysisObservations(analysis)
+  const issues = analysisIssues(analysis)
+  const timestamps = analysisTimestamps(analysis)
+  const media = [...mediaReferences(context), ...structuredMediaReferences(payload, analysis)]
 
   return {
     walkthroughId: displayValue(payload?.walkthrough_id) || displayValue(context.input?.walkthrough_id),
     range: readableRange(displayValue(payload?.range) || inputRange(context)),
     focus: displayValue(payload?.focus) || displayValue(context.input?.focus),
     note: displayValue(payload?.note),
-    analysis: normalizeAnalysis(analysis),
-    observations: analysisObservations(analysis),
-    issues: analysisIssues(analysis),
-    timestamps: analysisTimestamps(analysis),
-    media: [...mediaReferences(context), ...structuredMediaReferences(payload, analysis)],
+    analysis: normalizedAnalysis,
+    observations,
+    issues,
+    timestamps,
+    media,
+    empty: !error && !normalizedAnalysis && observations.length === 0 && issues.length === 0 && timestamps.length === 0 && media.length === 0,
     error
   }
 }
@@ -426,7 +433,7 @@ function readableTimestamp(value: string): string {
 }
 
 function normalizeAnalysis(analysis: unknown): Record<string, unknown> | string | null {
-  if (isPlainObject(analysis)) return analysis
+  if (isPlainObject(analysis)) return Object.keys(analysis).length > 0 ? analysis : null
   return displayValue(analysis)
 }
 
@@ -526,6 +533,7 @@ export function segmentSummary(context: ToolCardContext) {
   if (!card) return null
   if (card.error) return "Segment analysis failed"
   const subject = card.range ? `Segment ${card.range}` : "Segment analysis"
+  if (card.empty) return `${subject}: no findings`
   const findings =
     card.issues.length > 0
       ? `${card.issues.length} issue${card.issues.length === 1 ? "" : "s"}`
@@ -545,7 +553,7 @@ function SegmentBody({ card }: { card: SegmentCard }) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough segment</Badge>
-        <StatePill state={card.error ? "failed" : "analyzed"} tone={card.error ? "failure" : "success"} />
+        <StatePill state={card.error ? "failed" : card.empty ? "no findings" : "analyzed"} tone={card.error ? "failure" : card.empty ? "neutral" : "success"} />
       </div>
       {card.error ? <RecoveryPanel message={card.error} /> : null}
       <dl className="grid gap-1 sm:grid-cols-3">
@@ -569,7 +577,7 @@ function SegmentBody({ card }: { card: SegmentCard }) {
       ) : null}
       {card.timestamps.length > 0 ? <CompactList label="Relevant timestamps" items={card.timestamps} /> : null}
       {!card.error && prose ? <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Complete segment analysis" text={prose} title="Analysis" /> : null}
-      {!card.error && !prose && card.observations.length === 0 && card.issues.length === 0 ? <EmptyState>No segment analysis was returned.</EmptyState> : null}
+      {card.empty ? <EmptyState>No segment analysis was returned.</EmptyState> : null}
       {card.media.length > 0 ? <MediaList media={card.media} /> : null}
     </CardShell>
   )
