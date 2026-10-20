@@ -302,6 +302,7 @@ function renderExpanded(context: ToolCardContext) {
     )
   if (card.kind === "nodes" && card.name) return <NodeDescribeBody card={card} node={card.rows[0]} />
   if (card.kind === "pods" && card.name) return <PodDescribeBody card={card} pod={card.rows[0]} />
+  if (card.kind === "pvcs" && card.name) return <PvcDescribeBody card={card} pvc={card.rows[0]} />
 
   const columns = columnsFor(card.kind)
   return (
@@ -661,6 +662,7 @@ function singularKey(kind: CardKind) {
   if (kind === "namespaces") return "namespace"
   if (kind === "nodes") return "node"
   if (kind === "pods") return "pod"
+  if (kind === "pvcs") return "persistent_volume_claim"
   if (kind === "deployments") return "deployment"
   if (kind === "statefulsets") return "stateful_set"
   if (kind === "daemonsets") return "daemon_set"
@@ -912,6 +914,7 @@ function columnsFor(kind: CardKind): Column[] {
       { key: "capacity", label: t("col_capacity") },
       { key: "storage_class", label: t("col_storage_class") },
       { key: "access_modes", label: t("tool_card_access_modes"), render: (row) => arrayText(row.access_modes) },
+      { key: "volume_name", label: t("col_volume_name") },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -1102,6 +1105,45 @@ function PodDescribeBody({ card, pod }: { card: ParsedCard; pod: K8sRow }) {
           />
         ) : (
           <EmptyState>{t("pod_no_conditions")}</EmptyState>
+        )}
+      </div>
+    </CardShell>
+  )
+}
+
+function PvcDescribeBody({ card, pvc }: { card: ParsedCard; pvc: K8sRow }) {
+  const conditions = Array.isArray(pvc.conditions) ? (pvc.conditions.filter(isPlainObject) as K8sRow[]) : []
+
+  return (
+    <CardShell>
+      <SummaryStrip card={card} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_name")}</div>
+          <EntityReference kind="artifact" label={displayValue(pvc.name)} slug={pvcContext(pvc)} />
+        </div>
+        <DetailRow label={t("col_status")} value={displayValue(pvc.status) || "-"} />
+        <DetailRow label={t("col_storage_class")} value={displayValue(pvc.storage_class) || "-"} />
+        <DetailRow label={t("tool_card_access_modes")} value={arrayText(pvc.access_modes)} />
+        <DetailRow label={t("col_requested_storage")} value={displayValue(pvc.requested_storage) || "-"} />
+        <DetailRow label={t("col_capacity")} value={displayValue(pvc.capacity) || "-"} />
+        <DetailRow label={t("col_volume_name")} value={displayValue(pvc.volume_name) || "-"} />
+        <DetailRow label={t("col_age")} value={formatAge(displayValue(pvc.created_at))} />
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xs font-semibold uppercase text-text-muted">{t("col_conditions")}</div>
+        {conditions.length > 0 ? (
+          <KubernetesTable
+            columns={[
+              { key: "type", label: t("col_type") },
+              { key: "status", label: t("col_status") },
+              { key: "reason", label: t("col_reason") },
+              { key: "message", label: t("col_message") }
+            ]}
+            rows={conditions}
+          />
+        ) : (
+          <EmptyState>{t("pvc_no_conditions")}</EmptyState>
         )}
       </div>
     </CardShell>
@@ -1398,6 +1440,10 @@ function podContext(row: K8sRow) {
   return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
 }
 
+function pvcContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
 function containerStateText(value: unknown) {
   if (!isPlainObject(value)) return "-"
   const [state, details] = Object.entries(value).find(([, entry]) => isPlainObject(entry)) || []
@@ -1511,6 +1557,21 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
       containers,
       owner_references: owners,
       labels: metadataKeysSummary(metadata.labels)
+    }
+  }
+
+  if (kind === "pvcs") {
+    const resources = isPlainObject(spec.resources) ? spec.resources : {}
+    const requests = isPlainObject(resources.requests) ? resources.requests : {}
+    const capacity = isPlainObject(status.capacity) ? status.capacity : {}
+    return {
+      ...base,
+      status: status.phase,
+      storage_class: spec.storageClassName,
+      access_modes: Array.isArray(spec.accessModes) ? spec.accessModes : [],
+      requested_storage: requests.storage,
+      capacity: capacity.storage,
+      volume_name: spec.volumeName
     }
   }
 
