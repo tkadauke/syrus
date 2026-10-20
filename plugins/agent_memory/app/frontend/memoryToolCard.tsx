@@ -172,7 +172,8 @@ export function parseMemoryToolError(context: ToolCardContext): MemoryToolError 
 
   if (typeof parsed === "string" && (context.resultError || /^Error:/i.test(parsed.trim()))) message = parsed
   if (isPlainObject(parsed) && Array.isArray(parsed.content)) {
-    message = parsed.content.flatMap((item) => (isPlainObject(item) && item.type === "text" && typeof item.text === "string" ? [item.text] : []))[0] ?? null
+    const envelopeText = parsed.content.flatMap((item) => (isPlainObject(item) && item.type === "text" && typeof item.text === "string" ? [item.text] : []))[0]
+    if (envelopeText && (context.resultError || /^Error:/i.test(envelopeText.trim()))) message = envelopeText
   }
   if (!message && context.resultError) message = context.resultBody
   const cleaned = message?.trim().replace(/^Error:\s*/i, "") ?? ""
