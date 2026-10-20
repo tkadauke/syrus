@@ -22,7 +22,10 @@ beforeEach(() => {
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
 })
 
-afterEach(() => setSlugReferenceRegistryForTests(null))
+afterEach(() => {
+  setSlugReferenceRegistryForTests(null)
+  vi.restoreAllMocks()
+})
 
 describe("MarkdownPreview", () => {
   it("renders short light markdown without an expansion button", () => {
@@ -30,6 +33,26 @@ describe("MarkdownPreview", () => {
 
     expect(screen.getByText("short").tagName).toBe("STRONG")
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when a short source wraps beyond the visual line clamp", () => {
+    const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+
+    render(
+      <MarkdownPreview
+        maxChars={420}
+        maxLines={3}
+        text={"A wrapped paragraph that is short in source characters but occupies many narrow mobile lines. ".repeat(3)}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog")).toHaveTextContent("occupies many narrow mobile lines")
+
+    clientHeight.mockRestore()
+    scrollHeight.mockRestore()
   })
 
   it("opens and closes a modal containing the complete long markdown", () => {

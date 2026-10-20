@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import i18n from "i18next"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -80,9 +80,31 @@ export function MarkdownPreview({
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
   const [open, setOpen] = useState(false)
+  const [visuallyTruncated, setVisuallyTruncated] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const completeText = text ?? ""
   const normalized = completeText.trim()
   const truncated = useMemo(() => truncateMarkdown(normalized, maxLines, maxChars), [normalized, maxChars, maxLines])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    if (!preview || truncated.truncated) {
+      setVisuallyTruncated(false)
+      return
+    }
+
+    const measure = () => setVisuallyTruncated(preview.scrollHeight > preview.clientHeight + 1)
+    measure()
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure)
+      observer.observe(preview)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [normalized, maxLines, truncated.truncated])
 
   if (!normalized) {
     if (emptyState !== undefined) return <>{emptyState}</>
@@ -96,6 +118,7 @@ export function MarkdownPreview({
     WebkitLineClamp: Math.max(1, maxLines)
   } as CSSProperties
   const dialogLabel = modalLabel || title || t("show_more")
+  const expandable = truncated.truncated || visuallyTruncated
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden">
@@ -103,12 +126,13 @@ export function MarkdownPreview({
       <div
         className={["break-words text-xs text-text-muted [overflow-wrap:anywhere]", className].filter(Boolean).join(" ")}
         data-testid="markdown-preview-content"
+        ref={previewRef}
         style={lineClampStyle}
       >
         {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks })}
         {truncated.truncated ? "…" : null}
       </div>
-      {truncated.truncated ? (
+      {expandable ? (
         <Button className="mt-2" onClick={() => setOpen(true)} size="sm" variant="secondary">
           {t("show_more")}
         </Button>
@@ -152,16 +176,7 @@ export function MarkdownPreview({
 
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
-export function TextPreview({
-  text,
-  emptyLabel,
-  lang = null,
-  maxLines = DEFAULT_MAX_LINES,
-  maxChars,
-  title,
-  modalLabel,
-  truncate = "head"
-}: TextPreviewProps) {
+export function TextPreview({ text, emptyLabel, lang = null, maxLines = DEFAULT_MAX_LINES, maxChars, title, modalLabel, truncate = "head" }: TextPreviewProps) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
