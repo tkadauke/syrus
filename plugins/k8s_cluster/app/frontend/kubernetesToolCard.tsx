@@ -448,7 +448,7 @@ function parseCard(context: ToolCardContext): ParsedCard | null {
   const parsedRows = rowsForKind(kind, parsed)
   if (!parsedRows) return null
   const clusterId = displayValue((context.input || {}).cluster_id)
-  const rows = ["pods", "events"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
+  const rows = ["pods", "events", "services"].includes(kind) ? parsedRows.map((row) => ({ ...row, cluster_id: clusterId })) : parsedRows
   return {
     kind,
     rows,
@@ -862,15 +862,31 @@ function columnsFor(kind: CardKind): Column[] {
   }
   if (kind === "services") {
     return [
-      { key: "namespace", label: t("col_namespace") },
-      { key: "name", label: t("col_name") },
+      {
+        key: "namespace",
+        label: t("col_namespace"),
+        render: (row) => (
+          <EntityReference
+            kind="artifact"
+            href={displayValue(row.cluster_id) ? `/k8s_clusters/${encodeURIComponent(displayValue(row.cluster_id) || "")}` : null}
+            label={displayValue(row.namespace)}
+            slug={displayValue(row.namespace)}
+          />
+        )
+      },
+      {
+        key: "name",
+        label: t("col_name"),
+        render: (row) => <EntityReference kind="artifact" label={displayValue(row.name)} slug={serviceContext(row)} wrap="break" />
+      },
       { key: "type", label: t("col_type") },
-      { key: "cluster_ip", label: t("col_cluster_ip") },
-      { key: "ports", label: t("col_ports"), render: (row) => portsText(row.ports) },
+      { key: "cluster_ip", label: t("col_cluster_ip"), render: (row) => wrappedText(valueText(row.cluster_ip)) },
+      { key: "external_ips", label: t("col_external_ips"), render: (row) => wrappedText(arrayText(row.external_ips)) },
+      { key: "ports", label: t("col_ports"), render: (row) => wrappedText(portsText(row.ports)) },
       {
         key: "endpoints",
         label: t("col_endpoints"),
-        render: endpointsText,
+        render: (row) => wrappedText(endpointsText(row)),
         tone: (row) =>
           row.missing_target_warning === true || (numberValue(row.not_ready_addresses) ?? 0) > 0
             ? "warning"
@@ -878,7 +894,7 @@ function columnsFor(kind: CardKind): Column[] {
               ? "success"
               : "neutral"
       },
-      { key: "selector", label: t("col_selector"), render: (row) => selectorText(row.selector) },
+      { key: "selector", label: t("col_selector"), render: (row) => wrappedText(selectorText(row.selector)) },
       { key: "created_at", label: t("col_age"), render: (row) => formatAge(displayValue(row.created_at)) }
     ]
   }
@@ -1533,6 +1549,14 @@ function pvcContext(row: K8sRow) {
   return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
 }
 
+function serviceContext(row: K8sRow) {
+  return [displayValue(row.namespace), displayValue(row.name)].filter(Boolean).join("/") || null
+}
+
+function wrappedText(value: string) {
+  return <span className="block whitespace-normal break-words">{value}</span>
+}
+
 function containerStateText(value: unknown) {
   if (!isPlainObject(value)) return "-"
   const [state, details] = Object.entries(value).find(([, entry]) => isPlainObject(entry)) || []
@@ -1706,7 +1730,14 @@ function summarizeRawResource(kind: CardKind, row: K8sRow): K8sRow {
       last_schedule_time: status.lastScheduleTime
     }
   if (kind === "services")
-    return { ...base, type: spec.type, cluster_ip: spec.clusterIP, ports: Array.isArray(spec.ports) ? spec.ports : [], selector: spec.selector }
+    return {
+      ...base,
+      type: spec.type,
+      cluster_ip: spec.clusterIP,
+      external_ips: Array.isArray(spec.externalIPs) ? spec.externalIPs : [],
+      ports: Array.isArray(spec.ports) ? spec.ports : [],
+      selector: spec.selector
+    }
   if (kind === "ingresses")
     return {
       ...base,

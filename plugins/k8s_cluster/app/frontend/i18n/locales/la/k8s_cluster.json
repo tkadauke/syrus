@@ -320,6 +320,7 @@
   "tool_card_log_preview": "Praevisio actorum",
   "tool_card_missing_backend": "Nullum ministerium",
   "tool_card_missing_targets": "Nulla parata proposita",
+  "col_external_ips": "IP externa",
   "tool_card_no_resources": "Nullae opes",
   "tool_card_no_warnings": "Nullae admonitiones",
   "tool_card_node": "Nodus",
