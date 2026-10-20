@@ -119,6 +119,7 @@ type ParsedKubectlCard = {
   host: string
   allowSecretOutput: boolean
   allowRiskyCommand: boolean
+  permissionDenied: boolean
   stdout: string
   stderr: string
   stdoutTruncation: TextBlockTruncation | null
@@ -241,6 +242,7 @@ function renderExpandedKubectl(context: ToolCardContext) {
         <DetailRow label={t("kubectl_card_credential_id")} value={card.credentialId} />
         <DetailRow label={t("kubectl_card_credential_type")} value={card.credentialType} />
       </div>
+      {card.allowSecretOutput ? <Notice tone="warning">{t("kubectl_card_secret_output_suppressed")}</Notice> : null}
       {card.stdout || card.stdoutTruncation ? (
         <KubectlTextPreview failed={!card.ok} label={t("kubectl_card_stdout")} text={card.stdout} truncation={card.stdoutTruncation} />
       ) : null}
@@ -357,14 +359,17 @@ function renderExpanded(context: ToolCardContext) {
 function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const payload = "ok" in parsed && "status" in parsed
-  const stdout = redactToolCardText(textBlockValue(parsed.stdout))
-  const stderr = redactToolCardText(textBlockValue(parsed.stderr))
-  const errorMessage = payload && parsed.ok !== true ? kubectlFailureMessage(stderr, parsed.status) : parseErrorMessage(context)
+  const input = context.input || {}
+  const allowSecretOutput = input.allow_secret_output === true
+  const safeStdout = redactToolCardText(textBlockValue(parsed.stdout))
+  const safeStderr = redactToolCardText(textBlockValue(parsed.stderr))
+  const parsedError = payload && parsed.ok !== true ? kubectlFailureMessage(safeStderr, parsed.status) : parseErrorMessage(context)
+  const permissionDenied = kubectlPermissionDeniedText(parsedError || safeStderr)
+  const errorMessage = allowSecretOutput && parsedError ? kubectlFailureMessage("", parsed.status) : parsedError
   const command = kubectlCommand(parsed, context.input || {})
   const statusValue = displayValue(parsed.status)
   const credential = isPlainObject(parsed.credential) ? parsed.credential : {}
   const metadata = isPlainObject(parsed.safe_metadata) ? parsed.safe_metadata : {}
-  const input = context.input || {}
   const target = isPlainObject(parsed.target) ? parsed.target : {}
   const unknown = t("action_card_unknown")
 
@@ -381,12 +386,13 @@ function parseKubectlCard(context: ToolCardContext): ParsedKubectlCard | null {
     context:
       displayValue(metadata.context) || displayValue(metadata.kube_context) || displayValue(target.kube_context) || displayValue(input.kube_context) || unknown,
     host: displayValue(metadata.host) || unknown,
-    allowSecretOutput: input.allow_secret_output === true,
+    allowSecretOutput,
     allowRiskyCommand: input.allow_risky_command === true,
-    stdout,
-    stderr,
-    stdoutTruncation: textBlockTruncation(parsed.stdout),
-    stderrTruncation: textBlockTruncation(parsed.stderr),
+    permissionDenied,
+    stdout: allowSecretOutput ? "" : safeStdout,
+    stderr: allowSecretOutput ? "" : safeStderr,
+    stdoutTruncation: allowSecretOutput ? null : textBlockTruncation(parsed.stdout),
+    stderrTruncation: allowSecretOutput ? null : textBlockTruncation(parsed.stderr),
     errorMessage
   }
 }
@@ -403,7 +409,11 @@ function kubectlStateTone(card: ParsedKubectlCard) {
 }
 
 function kubectlPermissionDenied(card: ParsedKubectlCard) {
-  return /(?:permission|policy|forbidden|not allowed|access (?:is )?disabled|could expose secret)/i.test(card.errorMessage || card.stderr)
+  return card.permissionDenied
+}
+
+function kubectlPermissionDeniedText(text: string) {
+  return /(?:permission|policy|forbidden|not allowed|access (?:is )?disabled|could expose secret)/i.test(text)
 }
 
 function kubectlErrorTitle(card: ParsedKubectlCard) {

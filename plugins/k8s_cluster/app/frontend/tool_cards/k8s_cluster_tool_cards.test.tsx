@@ -134,11 +134,14 @@ describe("Kubernetes cluster tool cards", () => {
     expect(screen.getByText("stderr").closest("details")).toHaveAttribute("open")
   })
 
-  it("normalizes every kubectl MCP envelope, preserves safe credential metadata, and redacts output", () => {
+  it("normalizes every kubectl MCP envelope, preserves safe credential metadata, and suppresses secret-capable output", () => {
     const payload = {
       ok: true,
       status: 0,
-      stdout: { text: "token=super-secret-token-value\npassword=hunter2-password", truncated: false },
+      stdout: {
+        text: "apiVersion: v1\nkind: Secret\ndata:\n  tls.crt: YXJiaXRyYXJ5LWNlcnRpZmljYXRl\nstringData:\n  arbitrary-app-key: visible-secret-value",
+        truncated: false
+      },
       stderr: { text: "", truncated: false },
       credential: { credential_id: 42, credential_name: "ops-kubeconfig", credential_type: "kubeconfig" },
       target: { kube_context: "ops", kube_namespace: "monitoring" },
@@ -162,8 +165,9 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.getByText("kubeconfig")).toBeInTheDocument()
       expect(screen.getByText("Secret output allowed")).toBeInTheDocument()
       expect(screen.getByText("Risky command allowed")).toBeInTheDocument()
-      expect(screen.getByText(/token=\[redacted\]/)).toBeInTheDocument()
-      expect(screen.queryByText(/super-secret-token-value|hunter2-password/)).not.toBeInTheDocument()
+      expect(screen.getByText(/Command output is hidden because secret output was allowed/)).toBeInTheDocument()
+      expect(screen.queryByText(/tls\.crt|YXJiaXRyYXJ5|arbitrary-app-key|visible-secret-value/)).not.toBeInTheDocument()
+      expect(screen.queryByText("stdout")).not.toBeInTheDocument()
       view.unmount()
     }
   })
@@ -180,6 +184,21 @@ describe("Kubernetes cluster tool cards", () => {
     expect(kubectlToolCard.collapsedSummary?.(cardContext)).toContain("permission denied")
     render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByText("Permission error")).toBeInTheDocument()
+  })
+
+  it("does not leak secret-capable stderr through the failure notice", () => {
+    const secret = "arbitrary-app-key: visible-secret-value"
+    const cardContext = context({
+      toolName: "k8s_cluster_kubectl",
+      input: { args: ["get", "secret", "app", "-o", "yaml"], allow_secret_output: true },
+      resultError: true,
+      parsedResult: { ok: false, status: 1, stdout: { text: "" }, stderr: { text: secret } }
+    })
+
+    render(<>{kubectlToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("kubectl exited with status 1")).toBeInTheDocument()
+    expect(screen.queryByText(/arbitrary-app-key|visible-secret-value/)).not.toBeInTheDocument()
+    expect(screen.queryByText("stderr")).not.toBeInTheDocument()
   })
 
   it("shows when kubectl stdout or stderr was capped", () => {
