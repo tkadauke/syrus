@@ -132,12 +132,17 @@ describe("list_memories tool card", () => {
   it("shows every filter and returned metadata field without inventing private data", () => {
     const memory = {
       ...publishedRepoMemory,
+      user_id: 17,
+      source_type: "job",
+      source_id: 91,
       author: "agent",
       confidence: 0.8,
+      visibility: "repository",
       expires_at: "2027-01-01T00:00:00Z",
       last_verified_at: "2026-09-03T00:00:00Z",
       created_at: "2026-08-01T00:00:00Z",
-      deleted_at: "2026-09-04T00:00:00Z"
+      deleted_at: "2026-09-04T00:00:00Z",
+      deleted_by_user_id: 23
     }
     render(
       <>{listMemoriesToolCard.renderExpanded(context({ input: { scope: "repository", kind: "decision", limit: 25 }, parsedResult: { memories: [memory] } }))}</>
@@ -147,11 +152,15 @@ describe("list_memories tool card", () => {
     expect(screen.getByText("Requested kind")).toBeInTheDocument()
     expect(screen.getByText("Requested limit")).toBeInTheDocument()
     expect(screen.getAllByText("agent")).toHaveLength(2)
+    expect(screen.getAllByText("17")).toHaveLength(2)
+    expect(screen.getAllByText("job")).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: /JOB-91/ })).toHaveLength(2)
     expect(screen.getAllByText("0.8")).toHaveLength(2)
+    expect(screen.getAllByText("repository")).toHaveLength(3)
     expect(screen.getAllByText("2027-01-01T00:00:00Z")).toHaveLength(2)
     expect(screen.getAllByText("2026-09-03T00:00:00Z")).toHaveLength(2)
     expect(screen.getAllByText("2026-08-01T00:00:00Z")).toHaveLength(2)
-    expect(screen.queryByText("user_id")).not.toBeInTheDocument()
+    expect(screen.getAllByText("23")).toHaveLength(2)
   })
 
   it("renders pending and error states", () => {
