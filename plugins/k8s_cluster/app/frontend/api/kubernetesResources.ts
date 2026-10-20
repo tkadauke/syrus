@@ -182,8 +182,7 @@ export type KubernetesNodeMetricRow = { name: string; cpu_millicores: number; me
 export type KubernetesPodMetricRow = { name: string; namespace: string; cpu_millicores: number; memory_bytes: number }
 
 export type KubernetesMetricsSection<TRow> =
-  | { available: true; items: TRow[]; total_cpu_millicores: number; total_memory_bytes: number }
-  | { available: false; reason: string; message: string }
+  { available: true; items: TRow[]; total_cpu_millicores: number; total_memory_bytes: number } | { available: false; reason: string; message: string }
 
 export type KubernetesOverviewResponse = {
   generated_at: string
@@ -304,9 +303,7 @@ export function fetchKubernetesPodLogs(
   if (options.previous) search.set("previous", "true")
   if (options.timestamps) search.set("timestamps", "true")
 
-  return getJson<KubernetesPodLogsResponse>(
-    `/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`
-  )
+  return getJson<KubernetesPodLogsResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`)
 }
 
 export function fetchKubernetesDeployments(clusterId: number, namespace?: string | null) {
