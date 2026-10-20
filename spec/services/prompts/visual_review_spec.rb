@@ -145,8 +145,23 @@ RSpec.describe Prompts::VisualReview do
   end
 
   it "warns that browser_snapshot refs must be re-taken after a resize" do
-    expect(prompt).to include("re-run `browser_snapshot` before the next click/fill after resizing")
+    expect(prompt).to include("re-run `browser_snapshot` after every resize to re-resolve the subject")
     expect(prompt).to include("never reuse refs captured at the previous viewport size")
+  end
+
+  it "requires every visual artifact to identify and visibly capture the subject" do
+    expect(prompt).to include("Every `submit_visual_artifact` call must pass `subject`")
+    expect(prompt).to include("exact `browser_snapshot` ref")
+    expect(prompt).to include("preferably a stable `data-testid`")
+    expect(prompt).to include("scroll the subject into view and verify that it is visible")
+    expect(prompt).to include("does not show the subject of the Job is not evidence and must not be submitted")
+  end
+
+  it "directs long-page reviews to an isolated route with only necessary context" do
+    expect(prompt).to include("UI changes inside long pages or lists")
+    expect(prompt).to match(/most isolated route that renders the\s+subject under review/)
+    expect(prompt).to include("focused detail, component-preview, or catalog route")
+    expect(prompt).to include("Include nearby context only when it is needed")
   end
 
   it "describes browser_drop as the preferred tool for native file drag-and-drop" do

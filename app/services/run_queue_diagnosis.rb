@@ -54,7 +54,9 @@ class RunQueueDiagnosis
       "resource_guard_binding_terms", "active_compute_units", "candidate_compute_units",
       "host_compute_capacity", "current_memory_bytes", "active_reserved_memory_bytes",
       "candidate_reserved_memory_bytes", "host_memory_budget_bytes",
-      "host_memory_effective_budget_bytes", "grader_memory_reserve_bytes"
+      "host_memory_effective_budget_bytes", "grader_memory_reserve_bytes",
+      "rejecting_worker", "rejecting_reason", "healthy_alternatives_considered",
+      "routing_decision", "routed_worker", "routed_worker_storage_key", "routed_queue"
     ).symbolize_keys
   end
 

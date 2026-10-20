@@ -13,10 +13,12 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     image_base64: png_base64,
     image_path: nil,
     capture_current_browser: false,
+    subject: nil,
+    minimum_subject_visible_fraction: described_class::DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION,
     content_type: nil,
     server_context: { run: run }
   )
-    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, content_type: content_type, server_context: server_context)
+    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject, minimum_subject_visible_fraction: minimum_subject_visible_fraction, content_type: content_type, server_context: server_context)
   end
 
   def write_workspace_file(relative_path, bytes = png_bytes)
@@ -72,6 +74,19 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ fake_tool_set ])
+  end
+
+  def subject_evaluate_response(rect:, viewport: { width: 1440, height: 900 }, scroll_position: { x: 0, y: 200 })
+    MCP::Tool::Response.new([
+      {
+        type: "text",
+        text: {
+          rect: rect,
+          viewport: viewport,
+          scrollPosition: scroll_position
+        }.to_json
+      }
+    ])
   end
 
   it "accepts a run_id-only sidecar context" do
@@ -318,6 +333,159 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(run.workflow.visual_artifact_for(entry.fetch("type")).download).to eq(png_bytes)
   end
 
+  it "scrolls a selector subject into view before capturing the current browser" do
+    evaluate_response = subject_evaluate_response(rect: { x: 10, y: 20, width: 300, height: 80 })
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    calls = []
+    allow(described_class).to receive(:call_browser_tool) do |_run, tool_name, params|
+      calls << tool_name
+      if tool_name == "browser_evaluate" && params.fetch("function").include?("document.querySelector")
+        expect(params.fetch("function")).to include(%([data-testid=design-docs]))
+        evaluate_response
+      elsif tool_name == "browser_screenshot"
+        screenshot_response
+      else
+        MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+      end
+    end
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Design docs", subject: "[data-testid=design-docs]", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(calls.first(2)).to eq(%w[browser_evaluate browser_screenshot])
+  end
+
+  it "rejects a subject below the default visible-area threshold without capturing or storing an artifact" do
+    evaluate_response = subject_evaluate_response(rect: { x: 0, y: 850, width: 300, height: 200 })
+    allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response)
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Cut off card", subject: "#card", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include('subject "#card" is only 25% visible; scroll or resize and retry')
+    expect(described_class).not_to have_received(:call_browser_tool).with(run, "browser_screenshot", anything)
+    expect(run.workflow.reload.artifact("typed_artifacts")).to be_nil
+    expect(run.workflow.visual_artifacts).to be_empty
+  end
+
+  it "accepts a partially visible subject at a configured threshold" do
+    evaluate_response = subject_evaluate_response(rect: { x: 0, y: 850, width: 300, height: 200 })
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(
+      evaluate_response,
+      screenshot_response,
+      MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+    )
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Cut off card", subject: "#card",
+      minimum_subject_visible_fraction: 0.2, server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+  end
+
+  it "accepts a subject taller than the viewport when its top edge is visible" do
+    evaluate_response = subject_evaluate_response(rect: { x: 20, y: 10, width: 400, height: 1800 })
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(
+      evaluate_response,
+      screenshot_response,
+      MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+    )
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Long panel", subject: "#panel", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(run.workflow.reload.artifact("typed_artifacts").first.dig("payload", "subject_visible_fraction")).to eq(0.4944)
+  end
+
+  it "rejects a taller-than-viewport subject when its top edge is above the viewport" do
+    evaluate_response = subject_evaluate_response(rect: { x: 20, y: -10, width: 400, height: 1800 })
+    allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response)
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Long panel", subject: "#panel", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("scroll or resize and retry")
+    expect(run.workflow.reload.artifact("typed_artifacts")).to be_nil
+  end
+
+  it "stores subject visibility and scroll provenance" do
+    evaluate_response = subject_evaluate_response(
+      rect: { x: 10, y: 20, width: 300, height: 80 },
+      viewport: { width: 390, height: 844 },
+      scroll_position: { x: 4, y: 512 }
+    )
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(
+      evaluate_response,
+      screenshot_response,
+      MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+    )
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Card", subject: "#card", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(run.workflow.reload.artifact("typed_artifacts").first.fetch("payload")).to include(
+      "subject" => "#card",
+      "subject_visible_fraction" => 1.0,
+      "subject_rect" => { "x" => 10, "y" => 20, "width" => 300, "height" => 80 },
+      "scroll_position" => { "x" => 4, "y" => 512 }
+    )
+  end
+
+  it "resolves a browser_snapshot ref while scrolling before capturing" do
+    evaluate_response = subject_evaluate_response(rect: { x: 0, y: 100, width: 240, height: 60 })
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response, screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Card", subject: "e12", server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(described_class).to have_received(:call_browser_tool).with(
+      run, "browser_evaluate", hash_including("target" => "e12", "element" => "visual artifact subject")
+    ).ordered
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+  end
+
+  it "returns a clear error when the subject element is missing" do
+    missing = MCP::Tool::Response.new([ { type: "text", text: "Error: Subject element not found or not visible: #missing" } ], error: true)
+    allow(described_class).to receive(:call_browser_tool).and_return(missing)
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Missing", subject: "#missing", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("subject could not be brought into view")
+    expect(response.content.first[:text]).to include("Subject element not found or not visible: #missing")
+    expect(described_class).not_to have_received(:call_browser_tool).with(run, "browser_screenshot", anything)
+    expect(run.workflow.reload.artifact("typed_artifacts")).to be_nil
+  end
+
+  it "keeps omitted-subject capture unchanged" do
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+
+    response = described_class.call(type: "visual_review_screenshot", title: "Viewport", server_context: { run: run })
+
+    expect(response).not_to be_error
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+  end
+
   it "rejects current-browser capture when another image source is also provided" do
     response = call(capture_current_browser: true)
 
@@ -400,5 +568,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(described_class.description).to include("prefer capture_current_browser: true")
     expect(described_class.input_schema_value.to_h.dig(:properties, :image_path, :description)).to include("Reserve this for files you know are workflow-local")
     expect(described_class.input_schema_value.to_h.dig(:properties, :capture_current_browser, :description)).to include("Prefer this for visual-review screenshots")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :subject, :description)).to include("browser_snapshot ref", "CSS selector")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :minimum_subject_visible_fraction, :description)).to include("Defaults to 0.5")
   end
 end

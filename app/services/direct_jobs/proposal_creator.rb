@@ -28,6 +28,7 @@ module DirectJobs
         depends_on_job_ids: depends_on_job_ids,
         dependency_requirements: dependency_requirements,
         provider: agent_provider.presence,
+        priority: priority,
         planned_execution: planned_execution_payload(planned_execution_attrs)
       )
       if response.error?

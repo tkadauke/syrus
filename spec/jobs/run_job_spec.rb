@@ -1101,6 +1101,50 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+    it "immediately reroutes host-rejected work while preserving urgent priority" do
+      job.update!(priority: "urgent")
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      admission = RunHostAdmission::Decision.new(
+        action: "defer", reason: "host_resource_semaphore_busy", delay: 30.seconds,
+        details: { "hostname" => "worker-a" }
+      )
+      routing = DistributedRunAdmissionRouter::Decision.new(
+        action: "reroute", queue_name: "worker-worker-b", delay: nil,
+        details: {
+          "routing_decision" => "healthy_alternative",
+          "routed_worker" => "worker-b",
+          "routed_worker_storage_key" => "storage-b"
+        }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(admission)
+      allow(DistributedRunAdmissionRouter).to receive(:call).with(run: run, admission: admission).and_return(routing)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("worker-worker-b")
+
+      queued = ActiveJob::Base.queue_adapter.enqueued_jobs.last
+      expect(queued[:priority]).to eq(Job::PRIORITY_TO_SQ.fetch("urgent"))
+      expect(queued[:at]).to be_nil
+      expect(wf.reload.artifact("run_host_admission")).to include(
+        "action" => "reroute",
+        "routing_decision" => "healthy_alternative",
+        "routed_queue" => "worker-worker-b"
+      )
+    end
+
+    it "does not enqueue a reroute after the Run is cancelled" do
+      job
+      run = job.workflows.last.first_step.runs.first
+      run.cancel!
+      run.save!
+
+      expect {
+        RunJob.new.send(:dispatch_run, run.id, queue: "worker-worker-b")
+      }.not_to have_enqueued_job(RunJob)
+    end
+
 
     it "logs memory tuning guidance only once when memory binds host admission" do
       job

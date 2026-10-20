@@ -66,6 +66,16 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to be_open
   end
 
+  it "rejects cancelling an already closed Job and names the next action" do
+    job = Factories.job_record(repository: repository, state: "closed")
+
+    response = call_tool("cancel_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("already closed", "Reopen")
+    expect(chat_session.pending_actions).to be_empty
+  end
+
   it "creates a pending close_job_successfully confirmation without executing it" do
     job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
 

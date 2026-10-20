@@ -12,8 +12,14 @@ module Mcp::Tools
 
     description <<~DESC
       Skips Syrus's grader, adversarial-review, and visual-review pipeline
-      entirely and lands the change immediately by opening (if needed) and
-      merging the PR. This is an incident-response escape hatch, not a normal
+      entirely and lands the change by opening (if needed) and merging the PR.
+      With job_id it lands an eligible, already-pushed Job branch; without
+      job_id it captures the active clean, committed Coding Mode checkout into
+      a new audit Job. Calling the tool creates only a pending action; after
+      confirmation, landing runs on the chat worker without admission control,
+      a Workflow, or a WorkUnit. The caller must have repository-admin
+      permission and the emergency_land feature must be on. This is an
+      incident-response escape hatch, not a normal
       handoff path. Call it ONLY when the operator has explicitly and
       unambiguously asked for an emergency or urgent land in this turn, such as
       "emergency land this now" or "skip review and land". Never call this
@@ -25,23 +31,28 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        job_id: { type: "integer", description: "Syrus Job id to emergency land." },
+        job_id: { type: "integer", description: "Existing Syrus Job id. Omit to submit the active checkout directly." },
+        repository_id: { type: "integer", description: "Repository for direct submission; defaults to the attached repository." },
+        title: { type: "string", description: "Audit Job and PR title for direct submission." },
+        description: { type: "string", description: "Short incident-change description for direct submission." },
         branch_name: {
           type: "string",
-          description: "Already-pushed branch to land. Required when the Job does not already have a branch recorded; replaces the stored branch only after operator confirmation."
+          description: "Existing Job branch (must match its recorded branch), or active checkout branch for direct submission."
         }
       },
-      required: %w[job_id]
+      required: []
     )
 
     class << self
-      def call(job_id:, branch_name: nil, server_context:)
+      def call(job_id: nil, repository_id: nil, title: nil, description: nil, branch_name: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        job, error = find_job(job_id)
+        job, error = job_id.present? ? find_job(job_id) : [ nil, nil ]
         return error if error
 
         normalized_branch = GitBranchName.normalize(branch_name)
-        validation_error = validate_request(chat_session: chat_session, job: job, branch_name: normalized_branch)
+        repository = job&.repository || resolve_repository(chat_session, repository_id)
+        validation_error = validate_request(chat_session: chat_session, job: job, repository: repository,
+          branch_name: normalized_branch, title: title, description: description)
         return validation_error if validation_error
 
         existing_action = pending_landing_action_for(chat_session, job)
@@ -53,8 +64,11 @@ module Mcp::Tools
 
         payload = {
           "chat_session_id" => chat_session.id,
-          "job_id" => job.id,
-          "branch_name" => normalized_branch.presence || job.branch_name
+          "job_id" => job&.id,
+          "repository_id" => repository.id,
+          "branch_name" => normalized_branch.presence || job&.branch_name || current_checkout_branch(chat_session, repository),
+          "title" => title.to_s.strip.presence,
+          "description" => description.to_s.strip.presence
         }
         pending_action = create_pending_action_for_current_message!(
           server_context,
@@ -81,15 +95,19 @@ module Mcp::Tools
         [ job, nil ]
       end
 
-      def validate_request(chat_session:, job:, branch_name:)
-        return Mcp::Tools.invalid("Emergency land is not enabled on this instance.") unless Feature.emergency_land_enabled?
-        return Mcp::Tools.invalid("emergency_land is only available in Coding Mode chat sessions.") unless chat_session.coding?
-        return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).") unless job.coding?
-        return Mcp::Tools.invalid("#{job.slug} is not linked to this chat session.") unless job.linked_chat_id == chat_session.id
-        return Mcp::Tools.invalid("Emergency land requires repository admin permissions.") unless EmergencyLand::Permission.granted?(user: chat_session.user, repository: job.repository)
-        return Mcp::Tools.invalid("branch_name is not a valid branch name.") if branch_name.present? && !GitBranchName.valid?(branch_name)
-        return Mcp::Tools.invalid("branch_name is required because this Job does not have a pushed branch recorded.") if branch_name.blank? && job.branch_name.blank?
+      def validate_request(chat_session:, job:, repository:, branch_name:, title:, description:)
+        eligibility = EmergencyLand::Eligibility.call(chat_session: chat_session, job: job, repository: repository,
+          branch_name: branch_name, title: title, description: description)
+        Mcp::Tools.invalid(eligibility.message) unless eligibility.eligible?
+      end
 
+      def resolve_repository(chat_session, repository_id)
+        repository_id.present? ? Repository.accessible_to(chat_session.user).active.find_by(id: repository_id) : chat_session.repository
+      end
+
+      def current_checkout_branch(chat_session, repository)
+        ChatWorkspace.coding_checkout_snapshot(chat_session, repository)[:current_branch].presence
+      rescue StandardError
         nil
       end
 
@@ -97,7 +115,7 @@ module Mcp::Tools
         chat_session.pending_actions
           .where(action: %w[complete_implement_step emergency_land])
           .where(state: %w[queued pending confirming failed])
-          .detect { |action| action.payload.to_h["job_id"].to_i == job.id }
+          .detect { |action| job.nil? ? action.payload.to_h["job_id"].blank? : action.payload.to_h["job_id"].to_i == job.id }
       end
 
       def pending_action_response(pending_action)

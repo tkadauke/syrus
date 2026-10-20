@@ -2,7 +2,12 @@ module PendingActions
   class CancelJob < Base
     action_key "cancel_job"
 
+    repairs_job!
+
     def execute
+      eligibility = JobCancellationEligibility.call(job: action_job)
+      raise ArgumentError, eligibility.message unless eligibility.eligible?
+
       progress!("Cancelling active work for #{action_job.slug}...")
       action_job.cancel_active_runs_and_close!("cancelled")
       nil

@@ -120,6 +120,8 @@ export type JobRecord = {
   emergency_landed_at?: string | null
   emergency_landed_by_user?: JobUserReference | null
   emergency_landed_by_membership_tier?: string | null
+  emergency_land_source_sha?: string | null
+  emergency_land_skipped_controls?: string[] | null
   runaway_protection: string | null
   landing_failure_reason: string | null
   retry_state?: JobRetryState

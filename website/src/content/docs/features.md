@@ -201,6 +201,12 @@ saved commits onto that Job branch, then hand off with
 `complete_implement_step`. `submit_coding_changes` is for new chat-authored
 work; it refuses branches that already belong to a Syrus Job because accepting
 one would create a new Job rather than update the existing one.
+An explicit branch names the branch that worker-side capture must later find in
+the selected repository's chat checkout; confirmation-time capture rejects a
+missing checkout, a different active branch, a dirty tree, or no committed
+changes. Normal submissions wait for operator confirmation. When the active
+Chat Goal has automatic Job submission enabled, Syrus queues that confirmation
+immediately instead.
 
 Coding Mode chats also get a set of generic `runtime_*` tools for working
 with a live Runtime Session — a dev server, browser, or other running
@@ -790,6 +796,10 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
+Job proposal cards show the requested priority. A proposal can select urgent,
+high, medium, or low (medium by default), including a separate priority for
+each child in an Epic bundle. Confirmation applies it before work starts, so
+the first scheduling decision already observes the selected priority.
 Standalone direct Job proposal cards also show a route before confirmation:
 **Start normally** by default, or **Backlog** when the card is explicitly
 routed there. Operators can change that route on the single direct Job card.
@@ -1149,7 +1159,10 @@ Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
 results in 50-item pages, while the admin overview shows the first page and a
-total stuck count.
+total stuck count. The `admin_stuck_jobs` chat tool uses the same 50-item
+default, accepts bounded `page` and `per` inputs, and reports totals plus
+next/previous-page availability so large watchlists stay safe for the MCP
+transport.
 Admin queue filters can be saved as smart folders from the queue sidebar,
 then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders. The

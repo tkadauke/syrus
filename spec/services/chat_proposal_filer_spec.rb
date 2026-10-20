@@ -28,6 +28,19 @@ RSpec.describe ChatProposalFiler do
   end
 
   describe "#file!" do
+    it "uses an urgent proposal priority for the Job and its first enqueue" do
+      urgent = proposal(slug: "urgent", title: "Urgent", priority: "urgent")
+
+      described_class.new(user: user, repository: repository).file!([ urgent ])
+
+      expect(urgent.reload.job).to have_attributes(priority: "urgent")
+      run = urgent.job.runs.first!
+      run_enqueue = ActiveJob::Base.queue_adapter.enqueued_jobs.find do |entry|
+        entry[:job] == RunJob && entry[:args] == [ run.id ]
+      end
+      expect(run_enqueue.fetch(:priority)).to eq(Job::PRIORITY_TO_SQ.fetch("urgent"))
+    end
+
     it "files a leaf after its upstream closure and wires Job dependencies" do
       root = proposal(slug: "a", title: "Root")
       middle = proposal(slug: "b", title: "Middle")

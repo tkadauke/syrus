@@ -53,6 +53,21 @@ RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
     end
   end
 
+  it "documents deferred checkout validation and both confirmation policies" do
+    description = described_class.description_value
+    branch_description = described_class.input_schema_value.to_h.fetch(:properties).fetch(:branch).fetch(:description)
+
+    expect(description).to include(
+      "Request time does not prove",
+      "active checkout",
+      "worker requires that checkout",
+      "waits for operator confirmation",
+      "auto-enqueues confirmation immediately",
+      "returns state `confirming`"
+    )
+    expect(branch_description).to include("Expected local checkout branch", "validated during worker-side capture")
+  end
+
   it "creates a pending action for the chat session's repository" do
     response = call_tool(branch: "feature/my-work", title: "Add user profile page", description: "Adds a user profile page with avatar and bio fields.")
     body = payload(response)

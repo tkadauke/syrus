@@ -548,7 +548,7 @@ export function ProposalCard({
     },
     onSuccess: (updated, variables) => {
       const jobsTabAlreadyVisible = payload ? jobsTabVisible(payload) : false
-      const confirmedProposal = isChatPayload(updated) ? proposal : (updated.proposal || proposal)
+      const confirmedProposal = isChatPayload(updated) ? proposal : updated.proposal || proposal
       const shouldRevealJobsTab = variables.action === "confirm" && proposalBacksJobsTab(confirmedProposal)
       const shouldSelectJobsTab = shouldRevealJobsTab && !jobsTabAlreadyVisible
 
@@ -986,13 +986,14 @@ export function PendingActionCard({
   const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
   const canDismiss = pendingAction.state === "failed" && Boolean(dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
-  const statusClass = isEmergencyLand && (isPending || isConfirming)
-    ? "bg-warning text-surface"
-    : isPending || isConfirming
-      ? "bg-info-surface text-info-text"
-      : pendingAction.state === "failed"
-        ? "bg-danger-surface text-danger-text"
-        : "bg-neutral-surface text-neutral-text"
+  const statusClass =
+    isEmergencyLand && (isPending || isConfirming)
+      ? "bg-warning text-surface"
+      : isPending || isConfirming
+        ? "bg-info-surface text-info-text"
+        : pendingAction.state === "failed"
+          ? "bg-danger-surface text-danger-text"
+          : "bg-neutral-surface text-neutral-text"
 
   useEffect(() => {
     if (pendingAction.state !== "confirmed") return
@@ -1015,9 +1016,7 @@ export function PendingActionCard({
               <span className={`rounded px-2 py-0.5 text-xs font-medium ${isEmergencyLand ? "bg-warning text-surface" : "bg-info-surface text-info-text"}`}>
                 {pendingActionBadgeLabel(pendingAction)}
               </span>
-              <span
-                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}
-              >
+              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}>
                 {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
                 {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
               </span>
@@ -1055,7 +1054,12 @@ export function PendingActionCard({
         </>
       }
       body={
-        resourceTitle || isEmergencyLand || pendingAction.detail || pendingAction.reason || (pendingAction.execution_step && !isConfirming) || pendingAction.execution_error ? (
+        resourceTitle ||
+        isEmergencyLand ||
+        pendingAction.detail ||
+        pendingAction.reason ||
+        (pendingAction.execution_step && !isConfirming) ||
+        pendingAction.execution_error ? (
           <>
             {resourceTitle && resourceUrl ? (
               <a className="inline-block break-words text-sm font-medium text-brand hover:underline" href={resourceUrl}>
@@ -1065,9 +1069,7 @@ export function PendingActionCard({
               <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
             ) : null}
             {isEmergencyLand && !terminalLabel ? (
-              <p className="mt-2 break-words text-sm font-semibold text-warning-text">
-                {t("pending_action_emergency_land_warning")}
-              </p>
+              <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_emergency_land_warning")}</p>
             ) : null}
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
             {pendingAction.reason ? (
@@ -1296,7 +1298,12 @@ function ProposalDependencyStrip({
     <div className={`${className} flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300`}>
       <span className="font-medium text-gray-700 dark:text-gray-200">Depends on:</span>
       {dependencies.map((dependency) => (
-        <ProposalDependencyLink dependency={dependency} key={dependency.slug} prefix={prefix} requirement={requirementForDependency(dependency, requirements)} />
+        <ProposalDependencyLink
+          dependency={dependency}
+          key={dependency.slug}
+          prefix={prefix}
+          requirement={requirementForDependency(dependency, requirements)}
+        />
       ))}
     </div>
   )
@@ -1507,6 +1514,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
           <dd>{proposal.provider_setting}</dd>
         </div>
       ) : null}
+      {proposalCreatesJob(proposal) ? (
+        <div>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_priority")}</dt>
+          <dd className="capitalize">{proposal.priority || "medium"}</dd>
+        </div>
+      ) : null}
       {capabilitiesText ? (
         <div>
           <dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_capabilities")}</dt>
@@ -1652,13 +1665,16 @@ function ProposalChildren({
                   {t("proposal_provider")}: {child.provider_setting}
                 </span>
               ) : null}
+              <span className="shrink-0 rounded bg-surface-raised px-2 py-0.5 text-xs font-medium capitalize text-text-secondary">
+                {t("proposal_priority")}: {child.priority || "medium"}
+              </span>
               {plannedExecutionCapabilitiesText(child.planned_execution) ? (
                 <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                   {t("proposal_capabilities")}: {plannedExecutionCapabilitiesText(child.planned_execution)}
                 </span>
               ) : null}
             </div>
-            <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
+            <Markdown className="chat-prose mt-2 text-sm text-text-primary" text={child.body} />
             {child.goal_provenance ? (
               <div className="mt-2 text-xs text-text-secondary" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>
                 {t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}
