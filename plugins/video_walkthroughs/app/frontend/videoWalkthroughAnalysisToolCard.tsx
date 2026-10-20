@@ -478,12 +478,14 @@ function structuredMediaReferences(payload: Record<string, unknown> | null, anal
       const rawSource = displayValue(item.src) || displayValue(item.url) || displayValue(item.data)
       if (!rawSource) return []
       const mimeType = displayValue(item.mime_type) || displayValue(item.mimeType) || "image/jpeg"
-      return [{
-        label: displayValue(item.label) || displayValue(item.title) || `Walkthrough frame ${index + 1}`,
-        timestamp: displayValue(item.timestamp),
-        mimeType,
-        src: rawSource.startsWith("data:") || /^https?:\/\//.test(rawSource) ? rawSource : `data:${mimeType};base64,${rawSource}`
-      }]
+      return [
+        {
+          label: displayValue(item.label) || displayValue(item.title) || `Walkthrough frame ${index + 1}`,
+          timestamp: displayValue(item.timestamp),
+          mimeType,
+          src: rawSource.startsWith("data:") || /^https?:\/\//.test(rawSource) ? rawSource : `data:${mimeType};base64,${rawSource}`
+        }
+      ]
     })
   })
 }
@@ -499,7 +501,19 @@ function analysisMarkdown(analysis: Record<string, unknown> | string): string {
   appendMarkdownList(sections, "Steps", analysis.steps, true)
   appendTranscript(sections, analysis.transcript)
 
-  const represented = new Set(["findings", "summary", "exact_text", "steps", "transcript", "observations", "key_findings", "details", "issues", "relevant_timestamps", "timestamps"])
+  const represented = new Set([
+    "findings",
+    "summary",
+    "exact_text",
+    "steps",
+    "transcript",
+    "observations",
+    "key_findings",
+    "details",
+    "issues",
+    "relevant_timestamps",
+    "timestamps"
+  ])
   for (const [key, value] of Object.entries(analysis)) {
     if (represented.has(key) || value == null) continue
     const rendered = typeof value === "string" ? value : JSON.stringify(value, null, 2)
@@ -516,11 +530,14 @@ function appendMarkdownList(sections: string[], heading: string, value: unknown,
 
 function appendTranscript(sections: string[], value: unknown) {
   if (!Array.isArray(value)) return
-  const lines = value.filter(isPlainObject).map((entry) => {
-    const timestamp = displayValue(entry.timestamp)
-    const text = displayValue(entry.text)
-    return text ? `${timestamp ? `- **${readableTimestamp(timestamp)}** ` : "- "}${text}` : null
-  }).filter((line): line is string => Boolean(line))
+  const lines = value
+    .filter(isPlainObject)
+    .map((entry) => {
+      const timestamp = displayValue(entry.timestamp)
+      const text = displayValue(entry.text)
+      return text ? `${timestamp ? `- **${readableTimestamp(timestamp)}** ` : "- "}${text}` : null
+    })
+    .filter((line): line is string => Boolean(line))
   if (lines.length > 0) sections.push(`**Transcript**\n\n${lines.join("\n")}`)
 }
 
@@ -573,10 +590,20 @@ function SegmentBody({ card }: { card: SegmentCard }) {
       ) : null}
       {card.issues.length > 0 ? <IssuesList issues={card.issues} /> : null}
       {card.observations.length > 0 ? (
-        <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_000} maxLines={6} modalLabel="Complete observations" text={card.observations.map((item) => `- ${item}`).join("\n")} title="Observations" />
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={1_000}
+          maxLines={6}
+          modalLabel="Complete observations"
+          text={card.observations.map((item) => `- ${item}`).join("\n")}
+          title="Observations"
+        />
       ) : null}
       {card.timestamps.length > 0 ? <CompactList label="Relevant timestamps" items={card.timestamps} /> : null}
-      {!card.error && prose ? <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Complete segment analysis" text={prose} title="Analysis" /> : null}
+      {!card.error && prose ? (
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Complete segment analysis" text={prose} title="Analysis" />
+      ) : null}
       {card.empty ? <EmptyState>No segment analysis was returned.</EmptyState> : null}
       {card.media.length > 0 ? <MediaList media={card.media} /> : null}
     </CardShell>
