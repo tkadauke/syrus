@@ -20,7 +20,7 @@ import podLogsToolCard from "./k8s_cluster_pod_logs"
 import podsToolCard from "./k8s_cluster_pods"
 import pvcsToolCard from "./k8s_cluster_pvcs"
 import restartRolloutToolCard from "./k8s_cluster_restart_rollout"
-import scaleDeploymentToolCard from "./k8s_cluster_scale_deployment"
+import scaleDeploymentToolCard, { examples as scaleDeploymentExamples } from "./k8s_cluster_scale_deployment"
 import secretsToolCard, { examples as secretExamples } from "./k8s_cluster_secrets"
 import servicesToolCard from "./k8s_cluster_services"
 import setNodeCordonToolCard from "./k8s_cluster_set_node_cordon"
@@ -77,6 +77,13 @@ describe("Kubernetes cluster tool cards", () => {
     expect(eventExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(secretExamples.map((example) => example.id)).toEqual(["healthy", "warning_heavy", "empty", "error"])
     expect(deletePodExamples.map((example) => example.id)).toEqual(["successful_action", "no_op", "validation_failure", "api_failure", "permission_denied"])
+    expect(scaleDeploymentExamples.map((example) => example.id)).toEqual([
+      "successful_action",
+      "no_op",
+      "validation_failure",
+      "api_failure",
+      "permission_denied"
+    ])
     expect(kubectlExamples.map((example) => example.id)).toEqual(["successful_get", "policy_denied"])
   })
 
@@ -310,6 +317,88 @@ describe("Kubernetes cluster tool cards", () => {
       expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
       unmount()
     })
+  })
+
+  it("renders scale deployment changes identically from every agent envelope", () => {
+    const payload = redactToolCardValue({
+      available: true,
+      generated_at: "2026-09-30T12:00:01Z",
+      deployment: "api",
+      namespace: "payments",
+      before: { replicas: 2, bearer_token: "top-secret-value" },
+      after: { replicas: 6 }
+    })
+    const envelopes = [
+      { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] },
+      { structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] }
+    ]
+
+    envelopes.forEach((envelope) => {
+      const toolName = normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_scale_deployment")
+      const cardContext = context({
+        toolName,
+        input: { cluster_id: 7, namespace: "payments", name: "api", replicas: 6 },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+      const { container, unmount } = render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+      expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toBe("Scale deployment payments/api in Cluster 7 / payments · succeeded")
+      expect(screen.getByText("Set replicas to 6")).toBeInTheDocument()
+      expect(screen.getByText("2 replicas")).toBeInTheDocument()
+      expect(screen.getByText("6 replicas")).toBeInTheDocument()
+      expect(screen.getByText("Generated at 2026-09-30T12:00:01Z")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Cluster 7" })).toHaveAttribute("href", "/k8s_clusters/7")
+      expect(screen.getByRole("link", { name: "payments" })).toHaveAttribute("href", "/k8s_clusters/7?tab=namespaces&namespace=payments")
+      expect(screen.getByRole("link", { name: "payments/api" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=payments&deployment=api")
+      expect(container.querySelector(".grid.gap-2.sm\\:grid-cols-2")).toBeInTheDocument()
+      expect(screen.queryByText("top-secret-value")).not.toBeInTheDocument()
+      expect(screen.queryByText("[redacted]")).not.toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  it("distinguishes changed and already-at-target scale results", () => {
+    const cardContext = context({
+      toolName: "k8s_cluster_scale_deployment",
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
+      parsedResult: {
+        available: true,
+        deployment: "web",
+        namespace: "default",
+        before: { replicas: 5 },
+        after: { replicas: 5 }
+      }
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toBe("Scale deployment default/web in Cluster 7 / default · no-op")
+    render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("no-op")).toBeInTheDocument()
+    expect(screen.getAllByText("5 replicas")).toHaveLength(2)
+  })
+
+  it.each([
+    ["writes disabled", "Write access is disabled for Kubernetes cluster 7", "Permission error", "permission denied"],
+    ["forbidden", 'deployments.apps "web" is forbidden: RBAC denied the request', "Permission error", "permission denied"],
+    ["not found", 'deployments.apps "web" not found', "Missing resource", "missing resource"],
+    ["validation", "replicas must be a non-negative integer", "Validation failure", "validation failed"]
+  ])("renders scale deployment %s failures", (_failureClass, message, title, state) => {
+    const cardContext = context({
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__k8s_cluster_scale_deployment"),
+      input: { cluster_id: 7, namespace: "default", name: "web", replicas: 5 },
+      resultBody: `Error: ${message}`,
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(scaleDeploymentToolCard.collapsedSummary?.(cardContext)).toContain(state)
+    const { unmount } = render(<>{scaleDeploymentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText(title)).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.getByText("Set replicas to 5")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "default/web" })).toHaveAttribute("href", "/k8s_clusters/7?tab=deployments&namespace=default&deployment=web")
+    unmount()
   })
 
   it("marks no-op acknowledgements when previous and current state match", () => {
