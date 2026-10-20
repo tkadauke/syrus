@@ -189,6 +189,10 @@ mirroring `preview_theme`'s partial-override merge. It re-runs
 per-pair message `install_theme` uses) rather than letting an edit make a
 previously-legible theme illegible; the theme is left unchanged on
 rejection. Refuses to touch built-in themes or another user's themes.
+On success, its result is the updated theme's `public_payload` plus a
+`previous_theme` snapshot in the same payload shape. The chat tool card uses
+that owned, pre-update snapshot to show accurate old-to-new names and color
+swatches without guessing values that were not available to the caller.
 
 `ThemingTools::DeleteUserThemeTool` deletes one of the user's own custom
 themes. Refuses outright for `built_in: true` themes and for themes owned
