@@ -73,12 +73,18 @@ export const examples: ToolCardExample[] = [
         scope_id: "42",
         content: "Keep the **rollout private**. See https://example.com/runbook.",
         published: false,
+        user_id: "7",
+        source_type: "job",
+        source_id: "44",
         author: "Operator",
         confidence: 0.9,
+        visibility: "private",
         expires_at: "2027-01-01T00:00:00Z",
         last_verified_at: "2026-10-18T12:00:00Z",
         created_at: "2026-10-17T12:00:00Z",
-        updated_at: "2026-10-18T12:00:00Z"
+        updated_at: "2026-10-18T12:00:00Z",
+        deleted_at: null,
+        deleted_by_user_id: null
       }
     }
   },

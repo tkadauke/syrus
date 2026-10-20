@@ -21,12 +21,18 @@ const memory = {
   scope_id: "3",
   content: `Withdraw the **rollout**. See https://example.com/runbook. ${"More private context. ".repeat(30)}`,
   published: false,
+  user_id: 7,
+  source_type: "job",
+  source_id: 44,
   author: "Operator",
   confidence: 0.85,
+  visibility: "private",
   expires_at: "2027-01-01T00:00:00Z",
   last_verified_at: "2026-09-02T00:00:00Z",
   created_at: "2026-08-31T00:00:00Z",
-  updated_at: "2026-09-01T00:00:00Z"
+  updated_at: "2026-09-01T00:00:00Z",
+  deleted_at: "2026-09-03T00:00:00Z",
+  deleted_by_user_id: 9
 }
 
 describe("unpublish_memory tool card", () => {
@@ -44,19 +50,27 @@ describe("unpublish_memory tool card", () => {
     const { container } = render(<>{unpublishMemoryToolCard.renderExpanded(context({ input: { memory_id: 21 }, parsedResult: { memory } }))}</>)
 
     expect(screen.getByText("published")).toBeInTheDocument()
-    expect(screen.getAllByText("private")).toHaveLength(2)
+    expect(screen.getAllByText("private")).toHaveLength(3)
     expect(screen.getByText("Requested memory ID")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: /MEMORY-21/ })).toHaveLength(2)
     expect(screen.getByRole("link", { name: /repository #3/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-44/ })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("link", { name: "https://example.com/runbook" })).toHaveAttribute("href", "https://example.com/runbook")
+    expect(screen.getByText("Owner user ID")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getByText("Source type")).toBeInTheDocument()
+    expect(screen.getByText("job")).toBeInTheDocument()
+    expect(screen.getByText("Source ID")).toBeInTheDocument()
     expect(screen.getByText("Operator")).toBeInTheDocument()
     expect(screen.getByText("0.85")).toBeInTheDocument()
+    expect(screen.getByText("Visibility")).toBeInTheDocument()
     expect(screen.getByText("2027-01-01T00:00:00Z")).toBeInTheDocument()
     expect(screen.getByText("2026-09-02T00:00:00Z")).toBeInTheDocument()
     expect(screen.getByText("2026-08-31T00:00:00Z")).toBeInTheDocument()
     expect(screen.getByText("2026-09-01T00:00:00Z")).toBeInTheDocument()
-    expect(screen.queryByText("user_id")).not.toBeInTheDocument()
-    expect(screen.queryByText("visibility")).not.toBeInTheDocument()
+    expect(screen.getByText("2026-09-03T00:00:00Z")).toBeInTheDocument()
+    expect(screen.getByText("Deleted by user ID")).toBeInTheDocument()
+    expect(screen.getByText("9")).toBeInTheDocument()
     expect(container.querySelector(".flex-wrap")).toBeInTheDocument()
     expect(container.querySelector(".sm\\:grid-cols-2")).toBeInTheDocument()
   })
