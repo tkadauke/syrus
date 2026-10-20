@@ -64,6 +64,7 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
     expect(snap[:name]).to eq("Architecture plan")
     expect(snap[:element_count]).to eq(5)
     expect(snap[:created_at]).to be_present
+    expect(snap[:whiteboard_url]).to eq("/chats/#{chat_session.id}")
   end
 
   it "returns chat images with expected fields" do

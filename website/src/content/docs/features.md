@@ -748,6 +748,9 @@ screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
 screenshot; further discussion or markup happens in chat once it's attached.
+When the chat agent lists available media, its result card shows image
+thumbnails, labeled whiteboard snapshot tiles, links to each available source,
+and a full preview that remains usable on small screens.
 When chat speech-to-text is enabled, the composer microphone uses the best
 available dictation mode reported by the backend: an enabled and healthy
 speech-to-text provider such as the bundled `whisper_stt` plugin receives

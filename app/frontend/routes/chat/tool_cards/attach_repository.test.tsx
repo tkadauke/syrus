@@ -1,13 +1,21 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import attachRepositoryToolCard from "./attach_repository"
+import { toolCardContextForExample } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import attachRepositoryToolCard, { examples } from "./attach_repository"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "attach_repository", resultBody: "", resultError: false, parsedResult: null, ...overrides }
 }
 
 describe("attach_repository tool card", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("registers under the exact MCP tool name", () => {
     expect(attachRepositoryToolCard.toolName).toBe("attach_repository")
   })
@@ -17,7 +25,7 @@ describe("attach_repository tool card", () => {
     expect(attachRepositoryToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Attached tkadauke/syrus")
   })
 
-  it("renders slug, default branch, and repository path", () => {
+  it("renders and links every repository and workspace result field", () => {
     const parsedResult = {
       repository: { id: 1, slug: "tkadauke/syrus", default_branch: "main" },
       workspace_path: "/data/workspaces/chat-1",
@@ -27,8 +35,55 @@ describe("attach_repository tool card", () => {
     render(<>{attachRepositoryToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
+    const idLink = screen.getByRole("link", { name: "1" })
+    const slugLink = screen.getByRole("link", { name: "tkadauke/syrus" })
+    expect(idLink).toHaveAttribute("href", "/repositories/1")
+    expect(slugLink).toHaveAttribute("href", "/repositories/1")
+    expect(idLink).toHaveClass("min-h-11", "sm:min-h-7")
+    expect(slugLink).toHaveClass("min-h-11", "sm:min-h-7")
+
+    const idCopyButton = screen.getByRole("button", { name: "Copy 1 to clipboard" })
+    expect(idCopyButton).toHaveClass("h-11", "w-11", "sm:h-7", "sm:w-7")
+    fireEvent.click(idCopyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("1")
     expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByText("/data/workspaces/chat-1")).toBeInTheDocument()
     expect(screen.getByText("/data/workspaces/chat-1/syrus")).toBeInTheDocument()
+  })
+
+  it("wraps long path and branch values without horizontal overflow", () => {
+    const parsedResult = {
+      repository: { id: 1, slug: "owner/repository", default_branch: "feature/a-very-long-branch-name" },
+      workspace_path: "/data/with/a/very/long/workspace/path",
+      repository_path: "/data/with/a/very/long/workspace/path/repository"
+    }
+
+    const { container } = render(<>{attachRepositoryToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(container.querySelectorAll("dd.break-all")).toHaveLength(4)
+    expect(container.querySelector(".overflow-x-auto")).not.toBeInTheDocument()
+  })
+
+  it("shows pending and empty calls without inventing a result", () => {
+    render(<>{attachRepositoryToolCard.renderExpanded(context({ input: { slug: "tkadauke/syrus" } }))}</>)
+    expect(screen.getByText("Attaching tkadauke/syrus…")).toBeInTheDocument()
+
+    render(<>{attachRepositoryToolCard.renderExpanded(context())}</>)
+    expect(screen.getByText("Waiting for repository attachment…")).toBeInTheDocument()
+  })
+
+  it("renders a resultBody-only provider envelope after shared normalization", () => {
+    const example = examples.find(({ id }) => id === "codex_result_body_envelope")!
+    const rawContext = toolCardContextForExample("mcp__syrus-chat-sidecar__attach_repository", example)
+    const toolContext = {
+      ...rawContext,
+      toolName: normalizedToolName(rawContext.toolName),
+      parsedResult: normalizedToolCardParsedResult(rawContext.parsedResult)
+    }
+
+    expect(toolContext.toolName).toBe("attach_repository")
+    expect(attachRepositoryToolCard.collapsedSummary?.(toolContext)).toBe("Attached tkadauke/syrus")
+    render(<>{attachRepositoryToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("/data/chat_workspaces/123")).toBeInTheDocument()
   })
 
   it("renders Codex MCP envelope errors as a failure card", () => {

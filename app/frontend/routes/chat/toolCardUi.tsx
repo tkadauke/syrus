@@ -148,6 +148,7 @@ export type EntityReferenceProps = {
   repositorySlug?: string | null
   prUrl?: string | null
   className?: string
+  touchTarget?: boolean
   wrap?: "break" | "nowrap"
 }
 
@@ -251,19 +252,19 @@ function hoverWrapper(reference: EntityReferenceProps, children: ReactNode) {
 }
 
 const COPY_ICON_BUTTON_CLASS = [
-  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded",
+  "inline-flex shrink-0 items-center justify-center rounded",
   "text-text-subtle hover:bg-surface-raised hover:text-text-primary",
   "focus:outline-none focus:ring-2 focus:ring-brand"
 ].join(" ")
 
-function CopyOnlyIconButton({ value }: { value: string }) {
+function CopyOnlyIconButton({ touchTarget = false, value }: { touchTarget?: boolean; value: string }) {
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
 
   return (
     <button
       aria-label={t("copy.copy_to_clipboard", { slug: value })}
-      className={COPY_ICON_BUTTON_CLASS}
+      className={`${COPY_ICON_BUTTON_CLASS} ${touchTarget ? "h-11 w-11 sm:h-7 sm:w-7" : "h-5 w-5"}`}
       onClick={() => copy(value)}
       title={copied ? t("copy.copied") : t("copy.copy", { slug: value })}
       type="button"
@@ -278,7 +279,8 @@ function entityLabelWrapClass(reference: EntityReferenceProps) {
 }
 
 function linkedEntityReference(label: string, href: string, external: boolean, reference: EntityReferenceProps) {
-  const className = `min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`
+  const touchTargetClass = reference.touchTarget ? "inline-flex min-h-11 items-center py-2 sm:min-h-7 sm:py-1" : ""
+  const className = `min-w-0 ${entityLabelWrapClass(reference)} ${touchTargetClass} font-mono font-medium text-brand hover:underline dark:text-brand-emphasis`
   return (
     <a className={className} href={href} rel={external ? "noreferrer" : undefined} target={external ? "_blank" : undefined}>
       {label}
@@ -297,12 +299,12 @@ export function EntityReference(reference: EntityReferenceProps) {
   const content = href ? (
     <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
       {linkedEntityReference(label, href, external, reference)}
-      {copyValue ? <CopyOnlyIconButton value={copyValue} /> : null}
+      {copyValue ? <CopyOnlyIconButton touchTarget={reference.touchTarget} value={copyValue} /> : null}
     </span>
   ) : copyValue ? (
     <span className={`inline-flex max-w-full min-w-0 items-center gap-1 ${reference.className ?? ""}`}>
       <span className={`min-w-0 ${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary`}>{label}</span>
-      <CopyOnlyIconButton value={copyValue} />
+      <CopyOnlyIconButton touchTarget={reference.touchTarget} value={copyValue} />
     </span>
   ) : (
     <span className={`${entityLabelWrapClass(reference)} font-mono font-medium text-text-primary ${reference.className ?? ""}`}>{label}</span>

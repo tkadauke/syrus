@@ -599,5 +599,19 @@
     "example_auto_detected": "Auto-detected ingestion",
     "example_override_without_job": "Classification override without a Job",
     "example_not_found": "Pull request not found"
+  },
+  "daemon_invocation_context": {
+    "summary": "invocation context: {{surface}}{{identity}}",
+    "summary_denied": "invocation context denied: {{error}}",
+    "ok": "OK",
+    "denied": "Denied",
+    "surface": "Surface",
+    "role": "Role",
+    "tier": "Tier",
+    "provider": "Provider",
+    "job": "Job",
+    "chat_session": "Chat session",
+    "run_id": "Run ID",
+    "current_message_id": "Current message ID"
   }
 }

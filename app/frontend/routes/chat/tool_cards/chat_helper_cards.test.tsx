@@ -9,7 +9,7 @@ import { setSlugReferenceRegistryForTests } from "../../../lib/slugReferenceRegi
 import askUserQuestionToolCard from "./ask_user_question"
 import markGoalBlockedToolCard from "./mark_goal_blocked"
 import markGoalCompletedToolCard from "./mark_goal_completed"
-import pinChatToolCard from "./pin_chat"
+import pinChatToolCard, { examples as pinChatExamples } from "./pin_chat"
 import renameChatToolCard from "./rename_chat"
 import suggestNextStepToolCard from "./suggest_next_step"
 import unpinChatToolCard from "./unpin_chat"
@@ -191,29 +191,152 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("goal is not active")).toBeInTheDocument()
   })
 
-  it("renders rename_chat old and new titles when available", () => {
+  it("renders rename_chat input and result fields with a linked chat and wrapping titles", () => {
     const parsedResult = { session_id: 42, previous_title: "Old title", title: "Release planning" }
 
     expect(renameChatToolCard.collapsedSummary?.(context("rename_chat", { parsedResult }))).toBe('Renamed "Old title" -> "Release planning"')
-    render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { parsedResult }))}</>)
+    render(<>{renameChatToolCard.renderExpanded(context("rename_chat", { input: { name: "Release planning" }, parsedResult }))}</>)
 
     expect(screen.getAllByText("Old title").length).toBeGreaterThan(0)
     expect(screen.getByText("Release planning")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("Release planning")).toHaveClass("break-words")
+  })
+
+  it("shows the requested and stored titles when the stored title was shortened", () => {
+    const requestedName = "r".repeat(125)
+    const storedTitle = "r".repeat(120)
+
+    render(
+      <>
+        {renameChatToolCard.renderExpanded(
+          context("rename_chat", {
+            input: { name: requestedName },
+            parsedResult: { session_id: 42, previous_title: null, title: storedTitle }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Requested title")).toBeInTheDocument()
+    expect(screen.getByText(requestedName)).toHaveClass("whitespace-pre-wrap", "break-words")
+    expect(screen.getByText("Stored title")).toBeInTheDocument()
+    expect(screen.getByText(storedTitle)).toHaveClass("whitespace-pre-wrap", "break-words")
+  })
+
+  it.each([
+    ["name is required", { name: "" }],
+    ["name must be 120 characters or fewer", { name: "x".repeat(121) }]
+  ])("renders rename_chat validation errors through ErrorCard: %s", (message, input) => {
+    const errorContext = context("rename_chat", { input, resultBody: message, resultError: true })
+
+    expect(renameChatToolCard.collapsedSummary?.(errorContext)).toBe("Chat rename failed")
+    render(<>{renameChatToolCard.renderExpanded(errorContext)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+  })
+
+  it("renders pending and empty rename_chat calls without inventing result fields", () => {
+    const pending = context("rename_chat", { input: {} })
+
+    expect(renameChatToolCard.collapsedSummary?.(pending)).toBe("Renaming chat")
+    render(<>{renameChatToolCard.renderExpanded(pending)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Not provided.")).toBeInTheDocument()
+    expect(screen.queryByText("Stored title")).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["mcp__syrus-chat-sidecar__rename_chat", { structured_content: { session_id: 42, previous_title: "Old", title: "New" } }],
+    [
+      "syrus-chat-sidecar.rename_chat",
+      { content: [{ type: "text", text: JSON.stringify({ session_id: 42, previous_title: "Old", title: "New" }) }], structured_content: null }
+    ]
+  ])("renders normalized provider envelope %s", (rawName, envelope) => {
+    const normalizedContext = context(normalizedToolName(rawName), {
+      input: { name: "New" },
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(normalizedContext.toolName).toBe("rename_chat")
+    render(<>{renameChatToolCard.renderExpanded(normalizedContext)}</>)
+    expect(screen.getByRole("link", { name: "CHAT-42" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("New")).toBeInTheDocument()
   })
 
   it("renders chat pinning state changes", () => {
-    const pinned = { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." }
+    const pinned = { session_id: 42, title: "Release planning", pinned: true, position: 2, message: "Chat pinned." }
     expect(pinChatToolCard.collapsedSummary?.(context("pin_chat", { parsedResult: pinned }))).toBe("Chat pinned.")
-    render(<>{pinChatToolCard.renderExpanded(context("pin_chat", { parsedResult: pinned }))}</>)
+    const { container } = render(<>{pinChatToolCard.renderExpanded(context("pin_chat", { input: { chat_session_id: 42 }, parsedResult: pinned }))}</>)
     expect(screen.getByText("Chat pin")).toBeInTheDocument()
     expect(screen.getByText("pinned")).toBeInTheDocument()
-    expect(screen.getByText("Release planning")).toBeInTheDocument()
+    expect(screen.getAllByText("CHAT-42").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "Release planning" })).toHaveAttribute("href", "/chats/42")
+    expect(screen.getByText("2")).toBeInTheDocument()
+    expect(container.querySelector(".break-words")).toHaveTextContent("Release planning")
 
     const unpinned = { session_id: 42, title: "Release planning", pinned: false, message: "Chat unpinned." }
     expect(unpinChatToolCard.collapsedSummary?.(context("unpin_chat", { parsedResult: unpinned }))).toBe("Chat unpinned.")
     render(<>{unpinChatToolCard.renderExpanded(context("unpin_chat", { parsedResult: unpinned }))}</>)
     expect(screen.getByText("Chat unpin")).toBeInTheDocument()
     expect(screen.getByText("unpinned")).toBeInTheDocument()
+  })
+
+  it("renders an unsettled pin call as pending with its requested target", () => {
+    const pending = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: false })
+    expect(pinChatToolCard.collapsedSummary?.(pending)).toBe("Pinning chat...")
+    render(<>{pinChatToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("CHAT-87")).toBeInTheDocument()
+  })
+
+  it("renders a settled empty pin result as malformed instead of pending", () => {
+    const empty = context("pin_chat", { input: { chat_session_id: 87 }, resultSettled: true })
+    expect(pinChatToolCard.collapsedSummary?.(empty)).toBe("Chat pin returned an unexpected response")
+    render(<>{pinChatToolCard.renderExpanded(empty)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
+  })
+
+  it("renders authorization errors without exposing an unrelated chat", () => {
+    const denied = context("pin_chat", {
+      input: { chat_session_id: 99 },
+      parsedResult: { error: "not_authorized" },
+      resultBody: JSON.stringify({ error: "not_authorized" }),
+      resultError: true
+    })
+    expect(pinChatToolCard.collapsedSummary?.(denied)).toBe("Chat pin failed")
+    render(<>{pinChatToolCard.renderExpanded(denied)}</>)
+    expect(screen.getByText("not_authorized")).toBeInTheDocument()
+    expect(screen.queryByText("CHAT-99")).not.toBeInTheDocument()
+  })
+
+  it("uses normalized tool names and result envelopes across providers", () => {
+    const payload = { session_id: 42, title: "Release planning", pinned: true, message: "Chat pinned." }
+    const codexEnvelope = { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__pin_chat")).toBe("pin_chat")
+    expect(
+      pinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("mcp__syrus-chat-sidecar__pin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(codexEnvelope)
+        })
+      )
+    ).toBe("Chat pinned.")
+    expect(
+      pinChatToolCard.collapsedSummary?.(
+        context(normalizedToolName("syrus-chat-sidecar.pin_chat"), {
+          parsedResult: normalizedToolCardParsedResult(payload)
+        })
+      )
+    ).toBe("Chat pinned.")
+  })
+
+  it("publishes catalog examples for explicit, pending, empty, and authorization states", () => {
+    expect(pinChatExamples.map((example) => example.id)).toEqual(["explicit_target", "pending", "empty_result", "not_authorized"])
   })
 
   it("renders missing payload fields as malformed cards instead of throwing", () => {
@@ -227,6 +350,44 @@ describe("chat helper tool cards", () => {
 })
 
 describe("chat helper tool rendering integration", () => {
+  it("renders the rename_chat pending card through the live ToolGroup path", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "rename_chat",
+      summary_label: "Renaming chat",
+      outcome_label: "Running",
+      collapsed_by_default: false,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "rename_chat",
+          raw_name: "mcp__syrus-chat-sidecar__rename_chat",
+          detail: "",
+          display_label: "Rename chat",
+          progress_label: "Thinking",
+          raw_payload: {},
+          result_body: "",
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+    const summary = screen
+      .getAllByText("Renaming chat")
+      .map((element) => element.closest("summary"))
+      .find(Boolean)
+    expect(summary).not.toBeUndefined()
+    if (!summary) return
+    fireEvent.click(summary)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Requested title")).toBeInTheDocument()
+    expect(screen.getByText("Not provided.")).toBeInTheDocument()
+  })
+
   it("keeps helper cards collapsed by default and preserves raw details when expanded", () => {
     const resultBody = JSON.stringify({ goal_id: 9, status: "completed", reason: "done" })
     const item: ChatToolGroupItem = {

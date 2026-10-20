@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, EmptyState, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { ErrorCard } from "./chatHelperToolCard"
 import { formatRelativeDate } from "../../lib/relativeTime"
 
 const ARTIFACT_PREVIEW_LINES = 8
@@ -27,9 +28,12 @@ type TagRow = {
 type TagAction = {
   action: "create" | "add" | "remove"
   tag: TagRow | null
+  inputTag: TagRow | null
+  resultTag: TagRow | null
   jobId: string | null
   success: boolean
   error: string | null
+  pending: boolean
 }
 
 type ArtifactResult = {
@@ -172,9 +176,28 @@ export function tagListSummary(context: ToolCardContext) {
   return rows.length === 0 ? "No tags" : `${rows.length} tag${rows.length === 1 ? "" : "s"}`
 }
 
+const TAG_PALETTE: Record<string, { backgroundColor: string; color: string }> = {
+  gray: { backgroundColor: "#f3f4f6", color: "#374151" },
+  red: { backgroundColor: "#fee2e2", color: "#991b1b" },
+  amber: { backgroundColor: "#fef3c7", color: "#92400e" },
+  green: { backgroundColor: "#dcfce7", color: "#166534" },
+  blue: { backgroundColor: "#dbeafe", color: "#1d4ed8" },
+  indigo: { backgroundColor: "#e0e7ff", color: "#3730a3" },
+  violet: { backgroundColor: "#ede9fe", color: "#6d28d9" },
+  pink: { backgroundColor: "#fce7f3", color: "#be185d" }
+}
+
 function tagStyle(color: string | null): CSSProperties | undefined {
-  if (!color?.match(/^#[0-9a-f]{6}$/i)) return undefined
-  return { backgroundColor: color, borderColor: color, color: "#111827" }
+  if (!color) return undefined
+  const paletteStyle = TAG_PALETTE[color]
+  if (paletteStyle) return { ...paletteStyle, borderColor: paletteStyle.backgroundColor }
+  if (!color.match(/^#[0-9a-f]{6}$/i)) return undefined
+
+  const red = parseInt(color.slice(1, 3), 16)
+  const green = parseInt(color.slice(3, 5), 16)
+  const blue = parseInt(color.slice(5, 7), 16)
+  const textColor = (0.299 * red + 0.587 * green + 0.114 * blue) / 255 > 0.62 ? "#111827" : "#ffffff"
+  return { backgroundColor: color, borderColor: color, color: textColor }
 }
 
 function TagChip({ tag }: { tag: TagRow }) {
@@ -214,46 +237,57 @@ export function renderTagList(context: ToolCardContext): ReactNode | null {
 export function parseTagAction(context: ToolCardContext, action: TagAction["action"]): TagAction | null {
   const parsed = context.parsedResult
   const parsedError = isPlainObject(parsed) ? displayValue(parsed.error) : null
-  const tag = parseTag(parsed) || tagFromInput(context)
-  const success = isPlainObject(parsed) && parsed.success === true
+  const resultTag = parseTag(parsed)
+  const inputTag = tagFromInput(context)
+  const tag = resultTag || inputTag
+  const success = resultTag != null || (isPlainObject(parsed) && parsed.success === true)
+  const pending = parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
   if (!tag && !success && !parsedError && !context.resultError) return null
 
   return {
     action,
     tag,
+    inputTag,
+    resultTag,
     jobId: displayValue(context.input?.job_id),
     success,
-    error: parsedError || (context.resultError ? context.resultBody : null)
+    error: parsedError || (context.resultError ? context.resultBody : null),
+    pending
   }
 }
 
 export function tagActionSummary(result: TagAction) {
   const verb = result.action === "create" ? "Created" : result.action === "add" ? "Added" : "Removed"
+  const command = result.action === "create" ? "Create" : result.action === "add" ? "Add" : "Remove"
   const target = result.tag?.name || (result.tag?.id ? `tag ${result.tag.id}` : "tag")
   const job = result.jobId ? ` · JOB-${result.jobId}` : ""
   if (result.error) return `${verb} ${target} failed${job}`
+  if (result.pending) return `${verb.replace(/ed$/, "ing")} ${target}${job}`
+  if (!result.success) return `${command} ${target} returned an unexpected response${job}`
   return `${verb} ${target}${job}`
 }
 
 export function TagActionCard({ result }: { result: TagAction }) {
-  const state = result.error ? "failed" : result.success || result.tag ? "success" : "unknown"
+  const title = result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"
+  if (result.error) return <ErrorCard title={title} message={result.error} />
+
+  const state = result.pending ? "pending" : result.success ? "success" : "unknown"
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={state} tone={result.error ? "failure" : "success"} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">{result.action === "create" ? "Create tag" : result.action === "add" ? "Add Job tag" : "Remove Job tag"}</span>
+        <StatePill state={state} tone={result.pending || !result.success ? undefined : "success"} />
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{title}</span>
         {result.tag ? <TagChip tag={result.tag} /> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
+        {result.action === "create" && result.inputTag?.name ? <Row label="Requested name" value={result.inputTag.name} /> : null}
+        {result.action === "create" && result.inputTag?.color ? <Row label="Requested color" value={result.inputTag.color} /> : null}
+        {result.action === "create" && result.resultTag?.name ? <Row label="Created name" value={result.resultTag.name} /> : null}
+        {result.action === "create" && result.resultTag?.color ? <Row label="Created color" value={result.resultTag.color} /> : null}
         {result.jobId ? <Row label="Job" value={`JOB-${result.jobId}`} /> : null}
         {result.tag?.id ? <Row label="Tag" value={result.tag.id} /> : null}
       </dl>
-      {result.error ? (
-        <div>
-          <SectionLabel>Outcome</SectionLabel>
-          <div className="mt-0.5 text-red-700 dark:text-red-300">{result.error}</div>
-        </div>
-      ) : null}
+      {!result.pending && !result.success ? <EmptyState>Unexpected tool response.</EmptyState> : null}
     </CardShell>
   )
 }

@@ -599,5 +599,19 @@
     "example_auto_detected": "Receptio automatice reperta",
     "example_override_without_job": "Classificatio substituta sine Opere",
     "example_not_found": "Petitio incorporationis non inventa"
+  },
+  "daemon_invocation_context": {
+    "summary": "contextus invocationis: {{surface}}{{identity}}",
+    "summary_denied": "contextus invocationis negatus: {{error}}",
+    "ok": "Bene",
+    "denied": "Negatum",
+    "surface": "Ambitus",
+    "role": "Munus",
+    "tier": "Gradus",
+    "provider": "Provisor",
+    "job": "Opus",
+    "chat_session": "Sessio colloquii",
+    "run_id": "ID cursus",
+    "current_message_id": "ID nuntii praesentis"
   }
 }
