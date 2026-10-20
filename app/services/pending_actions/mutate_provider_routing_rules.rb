@@ -23,6 +23,8 @@ module PendingActions
     end
 
     def presentation_detail
+      return payload["summary"] if payload["scope"].blank?
+
       "#{scope_label}: #{payload['summary']}\nBefore: #{format_rules(payload.dig('before', 'rules'))}\nAfter: #{format_rules(payload.dig('after', 'rules'))}"
     end
 
