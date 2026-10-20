@@ -23,8 +23,12 @@ module AgentMemory::Tools
         return ::Mcp::Tools.invalid("memory not found or not owned: #{memory_id}") unless memory
         return ::Mcp::Tools.invalid("global memories cannot be published") if memory.global?
 
-        memory.update!(published: true)
-        ::Mcp::Tools.success(memory: memory_payload(memory))
+        previous_published = nil
+        memory.with_lock do
+          previous_published = memory.published?
+          memory.update!(published: true)
+        end
+        ::Mcp::Tools.success(memory: memory_payload(memory), previous_published: previous_published)
       rescue ActiveRecord::RecordInvalid => e
         ::Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
