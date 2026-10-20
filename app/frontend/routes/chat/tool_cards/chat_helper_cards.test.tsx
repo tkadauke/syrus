@@ -178,6 +178,45 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("Create an Epic from these findings")).toBeInTheDocument()
   })
 
+  it("gives suggest_next_step one collapsed summary and preserves its full expanded text", () => {
+    const suggestion = "Confirm the full migration result after checking every refreshed workflow"
+    expect(suggestNextStepToolCard.argumentSummary?.({ suggested_next_step: suggestion })).toBe("")
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "suggest_next_step",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "suggest_next_step",
+          raw_name: "mcp__syrus-chat-sidecar__suggest_next_step",
+          detail: "",
+          display_label: "Suggest next step",
+          progress_label: "Thinking",
+          raw_payload: { suggested_next_step: suggestion },
+          result_body: JSON.stringify({ session_id: 42, suggested_next_step: suggestion }),
+          result_json: { session_id: 42, suggested_next_step: suggestion },
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText(`Suggested: ${suggestion}`)).toBeInTheDocument()
+    expect(screen.queryByText(`${suggestion} · ${suggestion}`)).not.toBeInTheDocument()
+    expect(screen.queryByText(suggestion)).not.toBeInTheDocument()
+
+    const summary = screen.getByText(`Suggested: ${suggestion}`).closest("summary")
+    expect(summary).not.toBeNull()
+    if (!summary) return
+    fireEvent.click(summary)
+
+    expect(screen.getByText(suggestion)).toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
   it("renders goal status transitions and rejected transition errors clearly", () => {
     const completed = { goal_id: 9, status: "completed", reason: "done" }
     expect(markGoalCompletedToolCard.collapsedSummary?.(context("mark_goal_completed", { parsedResult: completed }))).toBe("Goal #9 -> completed")
