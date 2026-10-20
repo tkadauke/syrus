@@ -672,7 +672,10 @@ function requestedChange(kind: ActionKind, input: Record<string, unknown>, parse
 
 function previousState(kind: ActionKind, before: Record<string, unknown>) {
   if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(before.restarted_at) || t("action_card_none") })
-  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(before.replicas) || "0" })
+  if (kind === "scale_deployment") {
+    const replicas = displayValue(before.replicas)
+    return replicas === null ? null : t("action_state_replicas", { value: replicas })
+  }
   if (kind === "delete_pod") return t("action_state_pod_phase", { value: displayValue(before.phase) || t("action_card_unknown") })
   if ("unschedulable" in before) return before.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
   return null
@@ -680,7 +683,10 @@ function previousState(kind: ActionKind, before: Record<string, unknown>) {
 
 function currentState(kind: ActionKind, after: Record<string, unknown>) {
   if (kind === "restart_rollout") return t("action_state_restarted_at", { value: displayValue(after.restarted_at) || t("action_card_none") })
-  if (kind === "scale_deployment") return t("action_state_replicas", { value: displayValue(after.replicas) || "0" })
+  if (kind === "scale_deployment") {
+    const replicas = displayValue(after.replicas)
+    return replicas === null ? null : t("action_state_replicas", { value: replicas })
+  }
   if (kind === "delete_pod") return after.deleted === true ? t("action_state_deleted") : null
   if ("unschedulable" in after) return after.unschedulable === true ? t("action_state_unschedulable") : t("action_state_schedulable")
   return null
