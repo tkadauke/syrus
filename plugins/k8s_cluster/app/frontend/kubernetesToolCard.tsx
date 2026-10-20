@@ -140,6 +140,7 @@ const TOOL_KINDS: Record<K8sToolName, CardKind> = {
 }
 
 const ROW_LIMIT = 100
+const RESPONSIVE_TABLE_KINDS = new Set<CardKind>(["ingresses"])
 
 const ACTION_KINDS: Record<K8sActionToolName, ActionKind> = {
   k8s_cluster_restart_rollout: "restart_rollout",
@@ -311,7 +312,7 @@ function renderExpanded(context: ToolCardContext) {
     <div className="mt-1 space-y-2">
       <SummaryStrip card={card} />
       <FilterableList itemText={(row) => JSON.stringify(row)} items={card.rows} placeholder={t("tool_card_filter_placeholder")}>
-        {(visibleRows) => <KubernetesTable columns={columns} rows={visibleRows.slice(0, ROW_LIMIT)} />}
+        {(visibleRows) => <KubernetesTable columns={columns} responsive={RESPONSIVE_TABLE_KINDS.has(card.kind)} rows={visibleRows.slice(0, ROW_LIMIT)} />}
       </FilterableList>
       {card.rows.length > ROW_LIMIT ? <InlineNotice>{t("tool_card_preview_limited", { shown: ROW_LIMIT, total: card.rows.length })}</InlineNotice> : null}
       {card.truncated ? <InlineNotice>{t("truncated_notice")}</InlineNotice> : null}
@@ -966,10 +967,14 @@ function workloadReplicaColumns(currentKey: "available_replicas" | "current_repl
   ]
 }
 
-function KubernetesTable({ columns, rows }: { columns: Column[]; rows: K8sRow[] }) {
+function KubernetesTable({ columns, responsive = false, rows }: { columns: Column[]; responsive?: boolean; rows: K8sRow[] }) {
   return (
-    <DataTable.Root className="min-w-max text-left text-xs" density="compact">
-      <DataTable.Header>
+    <DataTable.Root
+      className={responsive ? "block min-w-0 text-left text-xs sm:table sm:min-w-max" : "min-w-max text-left text-xs"}
+      density="compact"
+      wrapperClassName={responsive ? "overflow-visible sm:overflow-x-auto" : ""}
+    >
+      <DataTable.Header className={responsive ? "hidden sm:table-header-group" : ""}>
         <DataTable.Row>
           {columns.map((column) => (
             <DataTable.HeadCell className="px-2 py-1 text-2xs" key={column.key}>
@@ -978,11 +983,26 @@ function KubernetesTable({ columns, rows }: { columns: Column[]; rows: K8sRow[] 
           ))}
         </DataTable.Row>
       </DataTable.Header>
-      <DataTable.Body>
+      <DataTable.Body
+        className={
+          responsive
+            ? "block divide-y-0 space-y-2 bg-transparent sm:table-row-group sm:divide-y sm:space-y-0 sm:bg-surface [&>tr]:block [&>tr]:h-auto [&>tr]:rounded-[var(--radius-panel)] [&>tr]:border [&>tr]:border-border [&>tr]:bg-surface [&>tr]:py-1 sm:[&>tr]:table-row sm:[&>tr]:h-[var(--data-table-row-min-height)] sm:[&>tr]:rounded-none sm:[&>tr]:border-0 sm:[&>tr]:py-0"
+            : ""
+        }
+      >
         {rows.map((row, index) => (
           <DataTable.Row key={rowKey(row, index)}>
             {columns.map((column) => (
-              <DataTable.Cell className="max-w-80 px-2 py-1 text-text-secondary" key={column.key}>
+              <DataTable.Cell
+                className={
+                  responsive
+                    ? "grid min-w-0 max-w-none grid-cols-[minmax(5rem,0.4fr)_minmax(0,1fr)] items-start gap-3 px-3 py-1 text-text-secondary sm:table-cell sm:max-w-80 sm:px-2"
+                    : "max-w-80 px-2 py-1 text-text-secondary"
+                }
+                data-label={responsive ? column.label : undefined}
+                key={column.key}
+              >
+                {responsive ? <span className="text-2xs font-medium uppercase tracking-wide text-text-muted sm:hidden">{column.label}</span> : null}
                 {cell(column, row)}
               </DataTable.Cell>
             ))}
@@ -1469,7 +1489,7 @@ function IngressBackendMappings({ row }: { row: K8sRow }) {
   const mappings = ingressBackendMappings(row)
   if (mappings.length === 0) return t("tool_card_missing_backend")
   return (
-    <div className="flex min-w-56 flex-col gap-1 whitespace-normal">
+    <div className="flex min-w-0 flex-col gap-1 whitespace-normal sm:min-w-56">
       {mappings.map((mapping, index) => (
         <div className="grid grid-cols-1 gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto]" key={`${mapping.host}-${mapping.path}-${index}`}>
           <span className="break-all font-mono">
