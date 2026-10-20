@@ -202,7 +202,7 @@ function ThemeHeader({ theme, outcome, draft }: { theme: ThemePayload; outcome: 
     </div>
   )
 }
-function Swatch({ name, color }: { name: string; color: string }) {
+export function Swatch({ name, color }: { name: string; color: string }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <span
@@ -215,6 +215,15 @@ function Swatch({ name, color }: { name: string; color: string }) {
       </span>
     </div>
   )
+}
+
+export function themeFromResultField(context: ToolCardContext, ...fields: string[]): ThemePayload | null {
+  if (!isPlainObject(context.parsedResult)) return null
+  for (const field of fields) {
+    const theme = parseTheme(context.parsedResult[field])
+    if (theme) return theme
+  }
+  return null
 }
 function ModeSwatches({ mode, tokens }: { mode: string; tokens: ThemeTokens }) {
   const entries = [
