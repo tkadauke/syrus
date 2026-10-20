@@ -13,10 +13,10 @@ module Mcp::Tools
       Request operator confirmation that implementation is complete. In Coding
       Mode the Job must be `coding` and linked to this chat; call this after
       committing in the active chat checkout, whose local branch is selected by
-      branch_name or inferred when omitted. Do not push
-      the Job branch to GitHub yourself. In Local Mode, the external daemon is
+      branch_name or inferred when omitted; do not push the Job branch to
+      GitHub yourself. In Local Mode, the external daemon is
       responsible for pushing the branch when that workflow requires it. The
-      The call creates only a pending action. On confirmation, Coding Mode
+      call creates only a pending action. On confirmation, Coding Mode
       captures the checkout to an immutable handoff branch, creates a
       coding_handoff Workflow and WorkUnit, and starts it through normal
       admission control/worker-queue routing; Local Mode starts its corresponding

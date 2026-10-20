@@ -34,7 +34,10 @@ RSpec.describe ChatProposalFiler do
       described_class.new(user: user, repository: repository).file!([ urgent ])
 
       expect(urgent.reload.job).to have_attributes(priority: "urgent")
-      run_enqueue = ActiveJob::Base.queue_adapter.enqueued_jobs.find { |entry| entry[:job] == RunJob }
+      run = urgent.job.runs.first!
+      run_enqueue = ActiveJob::Base.queue_adapter.enqueued_jobs.find do |entry|
+        entry[:job] == RunJob && entry[:args] == [ run.id ]
+      end
       expect(run_enqueue.fetch(:priority)).to eq(Job::PRIORITY_TO_SQ.fetch("urgent"))
     end
 

@@ -593,7 +593,7 @@ module WorkEngine
           )
         end
         delete_solid_queue_jobs_for_run!(run)
-        SolidQueue::Job.create!(
+        queue_job = SolidQueue::Job.create!(
           class_name: "RunJob",
           queue_name: queue_name,
           priority: attrs.fetch("priority", 10),
