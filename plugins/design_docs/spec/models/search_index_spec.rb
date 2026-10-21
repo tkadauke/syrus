@@ -47,9 +47,9 @@ RSpec.describe DesignDocs::SearchIndex, type: :model do
   it "keeps scanning ranked FTS matches until visible rows are found" do
     visible = create_design_doc(title: "Visible needle", markdown: "needle")
     described_class.upsert(visible)
+    other_owner = Factories.user
 
     120.times do |index|
-      other_owner = Factories.user
       hidden = DesignDocs::DesignDoc.create!(
         owner_user: other_owner,
         title: "Hidden needle #{index}",
