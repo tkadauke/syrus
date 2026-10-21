@@ -147,5 +147,17 @@
   "tool_update_summary_with_id": "Perspectiva #{{id}} renovata",
   "tool_retire_label": "Eventus depositionis",
   "tool_retire_summary": "Perspectiva deposita",
-  "tool_retire_summary_with_id": "Perspectiva #{{id}} deposita"
+  "tool_retire_summary_with_id": "Perspectiva #{{id}} deposita",
+  "tool_retire_summary_bulk": "{{count}} perspectivae depositae",
+  "tool_retire_failed": "Depositio perspectivae defecit",
+  "tool_retire_error": "Perspectivae deponi non potuerunt.",
+  "tool_retire_empty": "Nullae notitiae depositionis redditae sunt.",
+  "tool_retire_accepted": "Perspectivae acceptae permissae",
+  "tool_retired_insights": "Perspectivae depositae",
+  "tool_result_states": "Status eventuum",
+  "tool_superseding_insights": "Perspectivae substituentes",
+  "tool_superseding_jobs": "Opera substituentia",
+  "tool_result_jobs": "Opera creata",
+  "tool_result_memories": "Memoriae creatae",
+  "tool_reason_empty": "Causa depositionis non data est."
 }

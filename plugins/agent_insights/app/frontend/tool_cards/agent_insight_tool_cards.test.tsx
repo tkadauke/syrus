@@ -168,11 +168,90 @@ describe("Agent Insights tool cards", () => {
       }
     })
 
-    expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Retired insight #41")
+    expect(retireInsightToolCard.collapsedSummary?.(cardContext)).toBe("Retired 2 insights")
     render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
     expect(screen.getByText("Retired 2 insights.")).toBeInTheDocument()
     expect(screen.getByText("Both findings are stale.")).toBeInTheDocument()
     expect(screen.getByText("Confirmed by the operator.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-41" })).toHaveAttribute("href", "/s/INSIGHT-41")
+    expect(screen.getByRole("link", { name: "INSIGHT-42" })).toHaveAttribute("href", "/s/INSIGHT-42")
+  })
+
+  it("renders every bulk retirement field with linked mappings, result references, and markdown", () => {
+    const reason = `Superseded by **validated work** in JOB-82 and https://example.test/audit.\n\n${"Long supporting context. ".repeat(40)}`
+    const cardContext = context({
+      toolName: "retire_insight",
+      input: {
+        insight_ids: [41, 42],
+        reason,
+        retire_accepted: true,
+        superseded_by_insight_ids: { 41: 44 },
+        superseded_by_job_ids: { 42: 82 }
+      },
+      parsedResult: {
+        structured_content: {
+          data: {
+            message: "Retired 2 insights.",
+            insight_ids: [41, 42],
+            states: { 41: "retired", 42: "retired" },
+            job_ids: [90],
+            memory_ids: [12]
+          }
+        }
+      }
+    })
+
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Accepted insights allowed")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "INSIGHT-41" }).length).toBeGreaterThan(1)
+    expect(screen.getByRole("link", { name: "INSIGHT-44" })).toHaveAttribute("href", "/s/INSIGHT-44")
+    expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
+    expect(screen.getByRole("link", { name: "JOB-90" })).toHaveAttribute("href", "/jobs/90")
+    expect(screen.getByText("MEMORY-12")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy MEMORY-12 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://example.test/audit" })).toHaveAttribute("href", "https://example.test/audit")
+    expect(screen.getByText("validated work").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("uses live pending state for bulk retirement and handles provider text envelopes", () => {
+    const cardContext = context({
+      toolName: "retire_insight",
+      input: { insight_ids: [51, 52], reason: "Duplicate evidence." },
+      parsedResult: {
+        content: [{ type: "text", text: JSON.stringify({ state: "pending", message: "Retire insights #51, #52?", insight_ids: [51, 52] }) }]
+      },
+      livePendingAction: {
+        id: 9,
+        action: "retire_insights",
+        state: "rejected",
+        label: "Retire 2 insights",
+        detail: "Rejected by the operator.",
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    })
+
+    render(<>{retireInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("rejected")).toBeInTheDocument()
+    expect(screen.getByText("Rejected by the operator.")).toBeInTheDocument()
+    expect(screen.queryByText("pending")).not.toBeInTheDocument()
+  })
+
+  it("renders retirement failures and empty results explicitly", () => {
+    render(
+      <>
+        {retireInsightToolCard.renderExpanded(
+          context({ toolName: "retire_insight", resultBody: "Accepted insight cannot be retired.", resultError: true, parsedResult: null })
+        )}
+      </>
+    )
+    expect(screen.getByText("Accepted insight cannot be retired.")).toBeInTheDocument()
+
+    render(<>{retireInsightToolCard.renderExpanded(context({ toolName: "retire_insight", resultBody: "", parsedResult: null }))}</>)
+    expect(screen.getByText("No retirement details were returned.")).toBeInTheDocument()
+    expect(screen.getByText("No retirement reason was provided.")).toBeInTheDocument()
   })
 
   it("normalizes wrapped provider envelopes and renders errors", () => {

@@ -147,5 +147,17 @@
   "tool_update_summary_with_id": "Updated insight #{{id}}",
   "tool_retire_label": "Retirement outcome",
   "tool_retire_summary": "Retired insight",
-  "tool_retire_summary_with_id": "Retired insight #{{id}}"
+  "tool_retire_summary_with_id": "Retired insight #{{id}}",
+  "tool_retire_summary_bulk": "Retired {{count}} insights",
+  "tool_retire_failed": "Insight retirement failed",
+  "tool_retire_error": "Unable to retire insights.",
+  "tool_retire_empty": "No retirement details were returned.",
+  "tool_retire_accepted": "Accepted insights allowed",
+  "tool_retired_insights": "Retired insights",
+  "tool_result_states": "Result states",
+  "tool_superseding_insights": "Superseding insights",
+  "tool_superseding_jobs": "Superseding Jobs",
+  "tool_result_jobs": "Created Jobs",
+  "tool_result_memories": "Created memories",
+  "tool_reason_empty": "No retirement reason was provided."
 }
