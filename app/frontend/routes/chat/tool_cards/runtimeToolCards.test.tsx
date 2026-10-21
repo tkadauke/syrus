@@ -298,7 +298,11 @@ describe("Runtime tool cards", () => {
     })
     const toolContext = context("runtime_start", {
       parsedResult,
-      input: { provider: "browser", name: "docs preview", options: { command: "npm run dev", api_token: "[redacted]" } }
+      input: {
+        provider: "browser",
+        name: "docs preview",
+        options: { command: "npm run dev", api_token: "[redacted]", viewport: { width: 390, height: 844 }, features: ["touch", "camera"], nullable: null }
+      }
     })
 
     expect(runtimeStartToolCard.collapsedSummary?.(toolContext)).toBe("Runtime start #7: starting at http://127.0.0.1:3001")
@@ -316,6 +320,9 @@ describe("Runtime tool cards", () => {
     expect(screen.getAllByText("workspace-from-provider")).toHaveLength(1)
     expect(screen.getByText("3001")).toBeInTheDocument()
     expect(screen.getByText("[redacted]")).toBeInTheDocument()
+    expect(screen.getByText('{"width":390,"height":844}')).toBeInTheDocument()
+    expect(screen.getByText('["touch","camera"]')).toBeInTheDocument()
+    expect(screen.getByText("null")).toBeInTheDocument()
   })
 
   it("renders failed starts and never links unsafe provider URLs", () => {
@@ -324,8 +331,44 @@ describe("Runtime tool cards", () => {
     expect(runtimeStartToolCard.collapsedSummary?.(context("runtime_start", { parsedResult }))).toBe("Runtime start failed")
     render(<>{runtimeStartToolCard.renderExpanded(context("runtime_start", { parsedResult }))}</>)
     expect(screen.getByText("browser failed to start")).toBeInTheDocument()
+    expect(screen.getByText("Error:")).toBeInTheDocument()
     expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "javascript:alert(1)" })).not.toBeInTheDocument()
+  })
+
+  it("keeps start inputs visible for real error-result envelopes", () => {
+    const result = { content: [{ type: "text", text: "Error: provider rejected the start request" }], isError: true }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime start",
+      calls: [
+        {
+          message_id: 42,
+          tool_name: "Runtime start",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_start",
+          detail: "provider: browser",
+          display_label: "Runtime start",
+          progress_label: "Thinking",
+          raw_payload: { provider: "browser", name: "failed preview", options: { viewport: { width: 390, height: 844 } } },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: true,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Failed"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/Runtime start failed/)).toBeInTheDocument()
+    expandToolGroup("Runtime start")
+    expect(screen.getByText("Error:")).toBeInTheDocument()
+    expect(screen.getByText("provider rejected the start request")).toBeInTheDocument()
+    expect(screen.getByText("browser")).toBeInTheDocument()
+    expect(screen.getByText("failed preview")).toBeInTheDocument()
+    expect(screen.getByText('{"width":390,"height":844}')).toBeInTheDocument()
   })
 
   it.each([
