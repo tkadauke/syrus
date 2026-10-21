@@ -18,7 +18,7 @@ describe("read_run_transcript tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(readRunTranscriptToolCard.toolName).toBe("read_run_transcript")
     expect(normalizedToolName("mcp__syrus-chat-sidecar__read_run_transcript")).toBe("read_run_transcript")
-    expect(examples.map(({ id }) => id)).toEqual(["completed_with_markdown_and_diff", "empty_page", "failed_run"])
+    expect(examples.map(({ id }) => id)).toEqual(["completed_with_markdown_and_diff", "empty_page", "failed_run", "long_chunk"])
   })
 
   it.each([
@@ -96,14 +96,27 @@ describe("read_run_transcript tool card", () => {
     }
     render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult }))}</>)
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("Progress")
+    expect(screen.getByText("3", { selector: "div[title='3']" })).toBeInTheDocument()
+    expect(screen.queryByText("3 of 2")).not.toBeInTheDocument()
     expect(screen.getByText("No transcript chunks were returned for this page.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Previous page" })).toHaveAttribute("href", "/admin/runs/9/transcript?page=2&per=4")
   })
 
   it("shows a redacted error and a genuinely empty transcript", () => {
     const parsedResult = { run_id: 9, run_state: "failed", error: "token=super-secret-value", total_chunks: 0, page: 1, per: 50, total_pages: 0, chunks: [] }
     render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult, resultError: true }))}</>)
     expect(screen.getByText("This Run has no transcript chunks.")).toBeInTheDocument()
+    expect(screen.getByText("1", { selector: "div[title='1']" })).toBeInTheDocument()
+    expect(screen.queryByText("1 of 0")).not.toBeInTheDocument()
     expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
+  })
+
+  it("includes a catalog example that can open the long-chunk modal", () => {
+    const example = examples.find(({ id }) => id === "long_chunk")
+    expect(example).toBeDefined()
+
+    render(<>{readRunTranscriptToolCard.renderExpanded(context({ input: example?.input, parsedResult: example?.parsedResult }))}</>)
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
   it("omits optional sections when fields are missing", () => {
