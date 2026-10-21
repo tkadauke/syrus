@@ -268,10 +268,10 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ value }: { value: TargetContext }) {
+function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: TargetContext }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-      {value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
+      {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
       {value.runId ? <Row label="Run" value={<EntityReference id={value.runId} jobId={value.jobId} kind="run" workflowId={value.workflowId} />} /> : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
@@ -458,15 +458,19 @@ function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; 
 }
 
 export function PendingActionResultCard({
+  detailTitle = "Detail",
   details,
   input,
   inputFields = [],
+  omitJob = false,
   observedSummary = false,
   result
 }: {
+  detailTitle?: string
   details?: ReactNode
   input?: Record<string, unknown>
   inputFields?: PendingActionInputField[]
+  omitJob?: boolean
   observedSummary?: boolean
   result: PendingActionResult
 }) {
@@ -480,7 +484,7 @@ export function PendingActionResultCard({
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows value={result} />
+        <ContextRows omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
@@ -502,7 +506,7 @@ export function PendingActionResultCard({
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
-      <ContextRows value={result} />
+      <ContextRows omitJob={omitJob} value={result} />
       {details}
       {result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
@@ -519,7 +523,7 @@ export function PendingActionResultCard({
         </div>
       ) : null}
       {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
-      {result.detail ? <MarkdownPreview maxLines={4} modalLabel="Pending action detail" text={result.detail} title="Detail" /> : null}
+      {result.detail ? <MarkdownPreview maxLines={4} modalLabel={detailTitle} text={result.detail} title={detailTitle} /> : null}
       {result.executionError ? (
         <MarkdownPreview className="text-danger-text" maxLines={4} modalLabel="Execution error" text={result.executionError} title="Execution error" />
       ) : null}
