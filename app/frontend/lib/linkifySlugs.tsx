@@ -25,7 +25,9 @@ type SlugTone = "default" | "inverted"
 
 type LinkifySlugOptions = {
   hoverCards?: boolean
+  hrefOverrides?: Record<string, string>
   jobStyle?: "link" | "copyable"
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
   slugStyle?: "link" | "copyable"
   tone?: SlugTone
 }
@@ -38,6 +40,19 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
   return text.split(slugPattern).map((part, index) => {
     const reference = parseSlugReference(part)
     if (!reference) {
+      const href = options.hrefOverrides?.[part]
+      if (href?.startsWith("/") && !href.startsWith("//")) {
+        return (
+          <a
+            className={slugLinkToneClassNames[tone]}
+            href={href}
+            key={index}
+            onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined}
+          >
+            {part}
+          </a>
+        )
+      }
       if (slugStyle === "copyable" && /^([A-Z]{2,}(?:_[A-Z0-9]+)*-\d+)$/.test(part)) {
         return <CopyableSlug className="text-xs normal-case" key={index} slug={part} tone={tone} />
       }
@@ -75,7 +90,19 @@ function parseSlugReference(slug: string) {
   return { entry, id: Number(match[2]), slug }
 }
 
-function SlugReferenceControl({ copyOnly, entry, id, slug, tone }: { copyOnly: boolean; entry: SlugReferenceRegistryEntry; id: number; slug: string; tone: SlugTone }) {
+function SlugReferenceControl({
+  copyOnly,
+  entry,
+  id,
+  slug,
+  tone
+}: {
+  copyOnly: boolean
+  entry: SlugReferenceRegistryEntry
+  id: number
+  slug: string
+  tone: SlugTone
+}) {
   const href = hrefForSlugReference(entry, id)
 
   if (copyOnly && entry.copyable) return <CopyableSlug className="text-xs normal-case" slug={slug} tone={tone} />
@@ -121,7 +148,9 @@ function LinkedCopyableSlug({ href, slug, tone }: { href: string; slug: string; 
         title={copied ? t("copy.copied") : t("copy.copy", { slug })}
         type="button"
       >
-        <CopyIcon className={`h-3.5 w-3.5 ${copied ? (tone === "inverted" ? "text-on-brand" : "text-success-text") : (tone === "inverted" ? "group-hover:text-on-brand" : "group-hover:text-text-primary")}`} />
+        <CopyIcon
+          className={`h-3.5 w-3.5 ${copied ? (tone === "inverted" ? "text-on-brand" : "text-success-text") : tone === "inverted" ? "group-hover:text-on-brand" : "group-hover:text-text-primary"}`}
+        />
       </button>
     </span>
   )

@@ -29,6 +29,7 @@ export type MarkdownPreviewProps = {
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   onLinkClick?: MarkdownLinkHandler
+  slugHrefOverrides?: Record<string, string>
 }
 
 export type TextPreviewProps = MarkdownPreviewProps
@@ -46,7 +47,8 @@ export function MarkdownPreview({
   emptyState = null,
   linkifySlugs = true,
   linkifyUrls = true,
-  onLinkClick
+  onLinkClick,
+  slugHrefOverrides
 }: MarkdownPreviewProps) {
   const { t } = useT("common")
   const { copied, copy } = useCopyToClipboard()
@@ -94,7 +96,7 @@ export function MarkdownPreview({
         ref={previewRef}
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefOverrides })}
         {truncated.truncated ? "…" : null}
       </div>
       {truncated.truncated || renderedOverflow ? (
@@ -123,6 +125,7 @@ export function MarkdownPreview({
             className="min-w-0 break-words [overflow-wrap:anywhere] text-text-primary"
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
+            slugHrefOverrides={slugHrefOverrides}
             text={text}
           />
         </div>

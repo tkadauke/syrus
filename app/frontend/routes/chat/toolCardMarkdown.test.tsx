@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { MarkdownPreview, TextPreview, truncateMarkdown } from "./toolCardMarkdown"
@@ -48,13 +49,26 @@ describe("MarkdownPreview", () => {
 
   it("copies complete modal text and passes links through both renderers", () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
-    const onLinkClick = vi.fn()
+    const onLinkClick = vi.fn((_href: string, event: MouseEvent<HTMLAnchorElement>) => event.preventDefault())
     const text = `${"Review JOB-42 and https://example.test/details. ".repeat(20)}ending`
     render(<MarkdownPreview linkifySlugs linkifyUrls maxChars={80} onLinkClick={onLinkClick} text={text} />)
     expect(screen.getAllByRole("link").length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Copy/ }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
+  })
+
+  it("links caller-provided slug hrefs in the preview and full modal", () => {
+    const onLinkClick = vi.fn()
+    const text = `See **RUN-99** for details. ${"More details. ".repeat(30)}`
+    render(<MarkdownPreview maxChars={80} onLinkClick={onLinkClick} slugHrefOverrides={{ "RUN-99": "/admin/runs/99/transcript" }} text={text} />)
+
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    fireEvent.click(screen.getByRole("link", { name: "RUN-99" }))
+    expect(onLinkClick).toHaveBeenCalledWith("/admin/runs/99/transcript", expect.anything())
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[1]).toHaveAttribute("href", "/admin/runs/99/transcript")
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

@@ -8,11 +8,25 @@ import { detectFenceLanguage } from "./highlighter"
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 type SlugTone = "default" | "inverted"
-type RenderInlineOptions = { linkifySlugs?: boolean; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean; slugTone?: SlugTone }
+type RenderInlineOptions = {
+  linkifySlugs?: boolean
+  linkifyUrls?: boolean
+  onLinkClick?: MarkdownLinkHandler
+  renderMath?: boolean
+  slugHrefOverrides?: Record<string, string>
+  slugTone?: SlugTone
+}
 type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
-type MarkdownProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
+type MarkdownProps = {
+  className?: string
+  text: string
+  linkifyUrls?: boolean
+  onLinkClick?: MarkdownLinkHandler
+  slugHrefOverrides?: Record<string, string>
+  slugTone?: SlugTone
+}
 type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
 type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
@@ -30,10 +44,14 @@ const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   prose: 2.4
 }
 
-export function Markdown({ className, text, linkifyUrls = false, onLinkClick, slugTone }: MarkdownProps) {
+export function Markdown({ className, text, linkifyUrls = false, onLinkClick, slugHrefOverrides, slugTone }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { linkifyUrls, onLinkClick, slugTone })}</div>
+  return (
+    <div className={["chat-prose", className].filter(Boolean).join(" ")}>
+      {renderBlocks(preview, { linkifyUrls, onLinkClick, slugHrefOverrides, slugTone })}
+    </div>
+  )
 }
 
 export function PlainText({ className, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
@@ -50,7 +68,10 @@ export function PlainText({ className, text, linkifyUrls = false, onLinkClick, s
 // clamp. Headings render bold instead of as header elements. Light inline
 // emphasis (bold/italic/inline code) still renders via the same inline
 // tokenizer `Markdown` uses; math rendering is skipped.
-export function renderLightMarkdown(text: string, options: Pick<RenderInlineOptions, "linkifySlugs" | "linkifyUrls" | "onLinkClick"> = {}): ReactNode[] {
+export function renderLightMarkdown(
+  text: string,
+  options: Pick<RenderInlineOptions, "linkifySlugs" | "linkifyUrls" | "onLinkClick" | "slugHrefOverrides"> = {}
+): ReactNode[] {
   const flattened = flattenLightMarkdown(text)
   return renderInline(flattened, { ...options, renderMath: false })
 }
@@ -724,7 +745,11 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
   const decoded = decodeHtmlEntities(text)
   if (options.linkifyUrls) return linkifyPlainUrls(decoded, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(decoded)) {
-    return <Fragment key={key}>{linkifySlugs(decoded, { tone: options.slugTone })}</Fragment>
+    return (
+      <Fragment key={key}>
+        {linkifySlugs(decoded, { hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}
+      </Fragment>
+    )
   }
   return decoded
 }
@@ -748,12 +773,24 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
 
   if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`, options))
   if (nodes.length === 0)
-    return shouldLinkifySlugs && containsSlug(text) ? <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment> : text
+    return shouldLinkifySlugs && containsSlug(text) ? (
+      <Fragment key={key}>
+        {linkifySlugs(text, { hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}
+      </Fragment>
+    ) : (
+      text
+    )
   return <Fragment key={key}>{nodes}</Fragment>
 }
 
 function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string, options: RenderInlineOptions) {
-  if (shouldLinkifySlugs && containsSlug(text)) return <Fragment key={key}>{linkifySlugs(text, { tone: options.slugTone })}</Fragment>
+  if (shouldLinkifySlugs && containsSlug(text)) {
+    return (
+      <Fragment key={key}>
+        {linkifySlugs(text, { hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}
+      </Fragment>
+    )
+  }
   return <Fragment key={key}>{text}</Fragment>
 }
 
