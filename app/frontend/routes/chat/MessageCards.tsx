@@ -1011,7 +1011,11 @@ function callHasExpandedCard(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call)) != null
 }
 
-function ToolResultBody({ call, onLinkClick, presentation }: {
+function ToolResultBody({
+  call,
+  onLinkClick,
+  presentation
+}: {
   call: ChatToolGroupItem["calls"][number]
   onLinkClick?: ToolCardContext["onLinkClick"]
   presentation?: ToolCardContext["presentation"]
