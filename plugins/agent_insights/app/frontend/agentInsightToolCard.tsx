@@ -28,8 +28,10 @@ type EvidenceItem = {
   key: string
   kind: string | null
   jobId: string | null
+  workflowId: string | null
   runId: string | null
   jobPath: string | null
+  workflowPath: string | null
   runPath: string | null
 }
 
@@ -76,16 +78,19 @@ function parseRef(value: unknown, fallbackPath?: (id: string) => string): Insigh
 function parseEvidence(value: unknown, index: number): EvidenceItem | null {
   if (!isPlainObject(value)) return null
   const jobId = displayValue(value.job_id)
+  const workflowId = displayValue(value.workflow_id)
   const runId = displayValue(value.run_id)
   const kind = displayValue(value.kind)
-  if (!jobId && !runId && !kind) return null
+  if (!jobId && !workflowId && !runId && !kind) return null
 
   return {
-    key: `${jobId ?? "job"}-${runId ?? "run"}-${kind ?? index}`,
+    key: `${jobId ?? "job"}-${workflowId ?? "workflow"}-${runId ?? "run"}-${kind ?? index}`,
     kind,
     jobId,
+    workflowId,
     runId,
     jobPath: displayValue(value.job_path) ?? (jobId ? `/jobs/${jobId}` : null),
+    workflowPath: displayValue(value.workflow_path) ?? (workflowId && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null),
     runPath: displayValue(value.run_transcript_path) ?? (runId ? `/admin/runs/${runId}/transcript` : null)
   }
 }
@@ -226,6 +231,9 @@ function EvidenceRow({ entry }: { entry: EvidenceItem }) {
     <li className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
       {entry.kind ? <Badge>{entry.kind.replace(/_/g, " ")}</Badge> : null}
       {entry.jobId ? <EntityReference href={entry.jobPath} id={entry.jobId} kind="job" wrap="nowrap" /> : null}
+      {entry.workflowId ? (
+        <EntityReference href={entry.workflowPath} id={entry.workflowId} jobId={entry.jobId ?? undefined} kind="workflow" wrap="nowrap" />
+      ) : null}
       {entry.runId ? <EntityReference href={entry.runPath} id={entry.runId} kind="run" wrap="nowrap" /> : null}
     </li>
   )
@@ -292,10 +300,11 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
   return sections.length ? <>{sections}</> : null
 }
 
-export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
+export function InsightDetailBody({ insight, resultMessage }: { insight: AgentInsight; resultMessage?: string | null }) {
   const { t } = useT("agent_insights")
   return (
     <CardShell>
+      {resultMessage ? <SectionLabel>{resultMessage}</SectionLabel> : null}
       <div className="flex flex-wrap items-center gap-2">
         <Text as="span" variant="heading-sm">
           {insight.title}
@@ -306,12 +315,19 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        <DescriptionList.Item label={t("tool_insight_id")}>
-          <InsightIdReference id={insight.id} />
-        </DescriptionList.Item>
+        {insight.id ? (
+          <DescriptionList.Item label={t("tool_insight_id")}>
+            <InsightIdReference id={insight.id} />
+          </DescriptionList.Item>
+        ) : null}
         {insight.proposalType ? (
           <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_proposal")}>
             {insight.proposalType.replace(/_/g, " ")}
+          </DescriptionList.Item>
+        ) : null}
+        {insight.targetMemoryId ? (
+          <DescriptionList.Item label={t("tool_target_memory")}>
+            <EntityReference id={insight.targetMemoryId} kind="memory" wrap="nowrap" />
           </DescriptionList.Item>
         ) : null}
         {insight.repository?.slug ? (
@@ -472,11 +488,36 @@ export function InsightErrorCard({ message }: { message: string }) {
   )
 }
 
+function unwrapOutcomeResult(value: unknown): unknown {
+  let parsed = value
+  if (isPlainObject(parsed) && parsed.structured_content != null) parsed = parsed.structured_content
+  if (isPlainObject(parsed) && Array.isArray(parsed.content) && isPlainObject(parsed.content[0]) && typeof parsed.content[0].text === "string") {
+    const text = parsed.content[0].text
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      parsed = text
+    }
+  }
+  if (isPlainObject(parsed) && parsed.data != null) parsed = parsed.data
+  return parsed
+}
+
+export function insightFromSubmitInput(context: ToolCardContext, id: string | null): AgentInsight | null {
+  if (!isPlainObject(context.input)) return null
+  const title = displayValue(context.input.title)
+  if (!title) return null
+
+  const insight = parseInsight({ ...context.input, id: id ?? "pending", title })
+  return insight && !id ? { ...insight, id: "" } : insight
+}
+
 export function parseOutcome(context: ToolCardContext) {
-  if (isPlainObject(context.parsedResult)) {
-    const ids = Array.isArray(context.parsedResult.insight_ids) ? context.parsedResult.insight_ids : []
+  const parsed = unwrapOutcomeResult(context.parsedResult)
+  if (isPlainObject(parsed)) {
+    const ids = Array.isArray(parsed.insight_ids) ? parsed.insight_ids : []
     const firstId = ids.length > 0 ? displayValue(ids[0]) : null
-    const message = displayValue(context.parsedResult.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
+    const message = displayValue(parsed.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
     return {
       id: firstId,
       message,
@@ -487,7 +528,7 @@ export function parseOutcome(context: ToolCardContext) {
     }
   }
 
-  const message = context.resultBody.trim()
+  const message = (typeof parsed === "string" ? parsed : context.resultBody).trim()
   if (!message || message.startsWith("{")) return null
   const id = message.match(/Suggestion #(\d+)/)?.[1] ?? null
 
