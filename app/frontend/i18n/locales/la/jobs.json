@@ -974,5 +974,12 @@
   "pr_checks_override_confirm": "Hoc opus semel demergere, quamquam recognitiones PR deficientes iam in basi deficiunt?",
   "pr_checks_override_reason": "Operator verificavit recognitiones PR deficientes hereditas acceptabiles esse huic conatui demergendi.",
   "start_blocked_title": "Exspectat ut pergat",
-  "start_blocked_generic": "Syrus opus in hoc munere suspendit. Automatice resumetur cum impedimentum solvetur."
+  "start_blocked_generic": "Syrus opus in hoc munere suspendit. Automatice resumetur cum impedimentum solvetur.",
+  "override_placement": "Locum executionis muta",
+  "placement_profile": "Forma executionis",
+  "placement_before_after": "Ante: {{before}} → Post: {{after}}",
+  "placement_current_provenance": "Origo loci praesentis: {{source}}",
+  "placement_latest_audit": "Novissime mutatum ab {{actor}} ({{provenance}}): {{reason}}",
+  "placement_audit_reason": "Causa actorum",
+  "confirm_placement_override": "Mutationem loci confirma"
 }

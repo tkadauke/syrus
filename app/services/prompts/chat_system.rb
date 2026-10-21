@@ -746,6 +746,8 @@ module Prompts
           `replace_pr_branch_with_workflow_output` for branch divergence,
           `cancel_stale_work`, `reenqueue_work`, or
           `repair_queue_affinity` for stale active work,
+          `override_job_planned_execution` (dry-run first) for correcting the
+          validated capability profile before any Run or mutable workspace starts,
           `force_landing_recheck`, `override_landing_blocker_once`, or
           `wake_landing_queue` for landing blockers, and `force_rebase` /
           `restack_epic` for branch stack maintenance.

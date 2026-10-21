@@ -974,5 +974,12 @@
   "pr_checks_attribution_failing": "Failing here",
   "pr_checks_attribution_base_failing": "Failing on base",
   "start_blocked_title": "Waiting to continue",
-  "start_blocked_generic": "Syrus has paused work on this job. It resumes automatically once the blocker clears."
+  "start_blocked_generic": "Syrus has paused work on this job. It resumes automatically once the blocker clears.",
+  "override_placement": "Change execution placement",
+  "placement_profile": "Execution profile",
+  "placement_before_after": "Before: {{before}} → After: {{after}}",
+  "placement_current_provenance": "Current placement provenance: {{source}}",
+  "placement_latest_audit": "Last changed by {{actor}} ({{provenance}}): {{reason}}",
+  "placement_audit_reason": "Audit reason",
+  "confirm_placement_override": "Confirm placement change"
 }

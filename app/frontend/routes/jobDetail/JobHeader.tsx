@@ -111,6 +111,7 @@ export function HeaderActions({
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
   const [placementConfirmationOpen, setPlacementConfirmationOpen] = useState(false)
+  const [placementOverrideOpen, setPlacementOverrideOpen] = useState(false)
   const actions = headerActions(payload, t)
   const [primaryKey] = primaryHeaderActionKeys(payload, actions)
   const primaryAction = actions.find((action) => action.key === primaryKey)
@@ -126,6 +127,8 @@ export function HeaderActions({
   // (primaryAction, above) stays on the header itself.
   const overflowExtraItems: OverflowExtraItem[] = []
   if (canGiveFeedback) overflowExtraItems.push({ key: "give_feedback", label: t("give_feedback"), onSelect: onToggleFeedbackPanel, tone: "secondary" })
+  if (payload.actions.can_write && payload.job.planned_execution_override)
+    overflowExtraItems.push({ key: "override_placement", label: t("override_placement"), onSelect: () => setPlacementOverrideOpen(true), tone: "secondary" })
 
   // Keyboard shortcuts mirror the availability check of the button each one
   // stands in for -- found via the same `actions` list, so a shortcut can
@@ -259,7 +262,94 @@ export function HeaderActions({
           recommendation={payload.job.placement_recommendation}
         />
       ) : null}
+      {placementOverrideOpen && payload.job.planned_execution_override && payload.paths.app_override_planned_execution_path ? (
+        <PlacementOverrideModal
+          command={command}
+          job={payload.job}
+          onClose={() => setPlacementOverrideOpen(false)}
+          path={payload.paths.app_override_planned_execution_path}
+        />
+      ) : null}
     </>
+  )
+}
+
+export function PlacementOverrideModal({
+  command,
+  job,
+  onClose,
+  path
+}: {
+  command: ReturnType<typeof useJobCommand>
+  job: JobDetailPayload["job"]
+  onClose: () => void
+  path: string
+}) {
+  const { t } = useT("jobs")
+  const details = job.planned_execution_override!
+  const [profile, setProfile] = useState(details.current_profile || details.profiles[0]?.name || "linux")
+  const [reason, setReason] = useState("")
+  const selected = details.profiles.find((item) => item.name === profile)
+  const current = Object.entries(job.planned_execution?.capabilities || {})
+    .map(([key, values]) => `${key}: ${values?.join(", ")}`)
+    .join(" · ")
+  const replacement = Object.entries(selected?.capabilities || {})
+    .map(([key, values]) => `${key}: ${values.join(", ")}`)
+    .join(" · ")
+  const available = details.worker_availability[profile]
+
+  return (
+    <Modal label={t("override_placement")} onClose={onClose} open>
+      <form
+        className="space-y-4 p-5"
+        onSubmit={(event) => {
+          event.preventDefault()
+          command.mutate({ method: "post", path, body: { profile, reason: reason.trim(), entity_revision: job.entity_revision } }, { onSuccess: onClose })
+        }}
+      >
+        <h2 className="text-base font-semibold text-text-primary">{t("override_placement")}</h2>
+        <p className="text-sm text-text-secondary">{t("placement_before_after", { before: current, after: replacement })}</p>
+        <p className="text-xs text-text-secondary">{t("placement_current_provenance", { source: job.planned_execution?.source || "unknown" })}</p>
+        <Select
+          aria-label={t("placement_profile")}
+          disabled={!details.eligible || command.isPending}
+          onChange={(event) => setProfile(event.target.value)}
+          value={profile}
+        >
+          {details.profiles.map((item) => (
+            <option key={item.name} value={item.name}>
+              {item.label}
+            </option>
+          ))}
+        </Select>
+        <p className="text-xs text-text-secondary">
+          {available == null ? t("placement_worker_unknown") : available ? t("placement_worker_available") : t("placement_worker_unavailable")}
+        </p>
+        {details.latest_audit ? <p className="text-xs text-text-secondary">{t("placement_latest_audit", details.latest_audit)}</p> : null}
+        {!details.eligible ? (
+          <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            {details.refusal_reason}
+          </p>
+        ) : null}
+        <textarea
+          aria-label={t("placement_audit_reason")}
+          className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+          disabled={!details.eligible || command.isPending}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder={t("placement_audit_reason")}
+          rows={2}
+          value={reason}
+        />
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="secondary">
+            {t("cancel")}
+          </Button>
+          <Button disabled={!details.eligible || !reason.trim() || command.isPending} type="submit" variant="primary">
+            {t("confirm_placement_override")}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

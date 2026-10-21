@@ -67,6 +67,7 @@ class ChatPendingAction < ApplicationRecord
     clear_provider_circuit
     wake_provider_admission
     mutate_provider_routing_rules
+    override_job_planned_execution
     local_tool_call
     spawn_chat
     accept_insights
@@ -87,6 +88,7 @@ class ChatPendingAction < ApplicationRecord
     retry_job
     base_refresh_retry_job
     force_fail_job
+    override_job_planned_execution
     rebase_job
     force_rebase
     reopen_job
