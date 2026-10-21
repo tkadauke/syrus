@@ -1215,29 +1215,31 @@ describe("tool result rendering", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Accept insight",
-      calls: [{
-        message_id: 1,
-        tool_name: "accept_insight",
-        raw_name: "accept_insight",
-        detail: "",
-        display_label: "Accept insight",
-        progress_label: "Accepting insights",
-        raw_payload: { insight_ids: [41, 42] },
-        result_body: JSON.stringify(result),
-        result_json: result,
-        result_error: false,
-        result_kind: "record",
-        result_summary: "Accept requested · 2 insights · pending",
-        pending_action: {
-          id: 92,
-          action: "accept_insights",
-          state: "confirmed",
-          label: "Accept insights",
-          detail: null,
-          app_confirm_path: "/confirm",
-          app_reject_path: "/reject"
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "accept_insight",
+          raw_name: "accept_insight",
+          detail: "",
+          display_label: "Accept insight",
+          progress_label: "Accepting insights",
+          raw_payload: { insight_ids: [41, 42] },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Accept requested · 2 insights · pending",
+          pending_action: {
+            id: 92,
+            action: "accept_insights",
+            state: "confirmed",
+            label: "Accept insights",
+            detail: null,
+            app_confirm_path: "/confirm",
+            app_reject_path: "/reject"
+          }
         }
-      }],
+      ],
       collapsed_by_default: true
     }
 
