@@ -163,3 +163,9 @@ initial Workflow. Started/running work and any recorded mutable workspace are
 refused; use a fresh retry/Workflow for those cases rather than moving an
 active workspace between hosts. Every successful change records actor, reason,
 provenance, timestamp, and the complete previous and replacement placement.
+Eligibility examines the Job's complete Workflow and Run history and refuses
+multiple or non-initial attempts rather than updating a stale subset. Queue
+deliveries are replaced only after the placement transaction commits; if the
+replacement enqueue fails, Syrus requests WorkEngine reconciliation and the
+recurring stale-work reconciler remains the durable fallback for the queued
+Run or zero-Run Workflow.
