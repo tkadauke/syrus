@@ -26,7 +26,9 @@ type SlugTone = "default" | "inverted"
 type LinkifySlugOptions = {
   hoverCards?: boolean
   hrefFallbacks?: Record<string, string>
+  hrefOverrides?: Record<string, string>
   jobStyle?: "link" | "copyable"
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
   slugStyle?: "link" | "copyable"
   tone?: SlugTone
 }
@@ -39,6 +41,19 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
   return text.split(slugPattern).map((part, index) => {
     const reference = parseSlugReference(part, options.hrefFallbacks)
     if (!reference) {
+      const href = options.hrefOverrides?.[part]
+      if (href?.startsWith("/") && !href.startsWith("//")) {
+        return (
+          <a
+            className={slugLinkToneClassNames[tone]}
+            href={href}
+            key={index}
+            onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined}
+          >
+            {part}
+          </a>
+        )
+      }
       if (slugStyle === "copyable" && /^([A-Z]{2,}(?:_[A-Z0-9]+)*-\d+)$/.test(part)) {
         return <CopyableSlug className="text-xs normal-case" key={index} slug={part} tone={tone} />
       }

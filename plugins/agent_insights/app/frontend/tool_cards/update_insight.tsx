@@ -58,6 +58,10 @@ function displaySimpleValue(key: string, value: unknown) {
   return displayValue(value) ?? String(value)
 }
 
+function runSlugHrefOverrides(text: string) {
+  return Object.fromEntries(Array.from(text.matchAll(/\bRUN-(\d+)\b/g), (match) => [match[0], `/admin/runs/${match[1]}/transcript`]))
+}
+
 function EvidenceValue({ value }: { value: unknown }) {
   const { t } = useT("agent_insights")
   if (!Array.isArray(value) || value.length === 0) return <EmptyState>{t("tool_update_no_evidence")}</EmptyState>
@@ -117,6 +121,7 @@ function ChangedFields({ input }: { input: Record<string, unknown> }) {
           <TextPreview
             emptyState={<Text muted>{t("tool_update_empty_text")}</Text>}
             maxChars={480}
+            slugHrefOverrides={runSlugHrefOverrides(typeof input[key] === "string" ? input[key] : "")}
             text={typeof input[key] === "string" ? input[key] : ""}
             title={fieldLabel(key)}
           />
@@ -169,6 +174,7 @@ function UpdateInsightCard({ context }: { context: ToolCardContext }) {
         <TextPreview
           emptyState={<Text muted>{t("tool_update_no_reason")}</Text>}
           maxChars={480}
+          slugHrefOverrides={runSlugHrefOverrides(typeof input.reason === "string" ? input.reason : "")}
           text={typeof input.reason === "string" ? input.reason : ""}
           title={t("tool_reason")}
         />
