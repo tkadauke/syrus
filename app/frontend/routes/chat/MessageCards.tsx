@@ -818,6 +818,13 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
+  // The cached result summary reflects the state when the tool returned;
+  // pending-action state is serialized live on every subsequent payload.
+  // Let the registered card incorporate that live state before falling back.
+  if (call.pending_action) {
+    const liveCardSummary = pluginToolCardCollapsedSummary(toolCardContext(call))
+    if (liveCardSummary) return redactToolCardText(liveCardSummary)
+  }
   if (call.result_summary) return redactToolCardText(call.result_summary)
 
   const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call))
