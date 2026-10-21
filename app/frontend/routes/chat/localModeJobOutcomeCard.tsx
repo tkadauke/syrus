@@ -75,7 +75,14 @@ export function LocalModeJobOutcomeCard({ result }: { result: LocalModeJobOutcom
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={result.jobId} kind="job" />
         <StatePill state={result.jobState} />
-        {result.repositorySlug ? <EntityReference kind="repository" repositorySlug={result.repositorySlug} slug={result.repositorySlug} /> : null}
+        {result.repositorySlug ? (
+          <EntityReference
+            href={`https://github.com/${result.repositorySlug}`}
+            kind="repository"
+            repositorySlug={result.repositorySlug}
+            slug={result.repositorySlug}
+          />
+        ) : null}
       </div>
       {result.branchName ? (
         <dl className="grid gap-1 sm:grid-cols-2">
