@@ -42,5 +42,13 @@ export const examples: ToolCardExample[] = [
     parsedResult: { error: "tag not found for this user: 99" },
     resultError: true
   },
+  {
+    id: "empty_result",
+    label: "Completed with an empty result",
+    description: "Shows a settled empty provider response as unexpected rather than leaving the action pending.",
+    input: { job_id: 7, tag_id: 10 },
+    resultBody: "",
+    resultSettled: true
+  },
   { id: "pending", label: "Pending", input: { job_id: 7, tag_id: 10 }, resultSettled: false }
 ]
