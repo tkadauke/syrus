@@ -543,7 +543,9 @@ describe("Runtime tool cards", () => {
   })
 
   it("shows stopped runtimes with their final state", () => {
-    const parsedResult = session({ state: "stopped", metadata: { port: 3001, url: "http://127.0.0.1:3001" }, active_agent_input_lease: null })
+    const parsedResult = {
+      session_payload: session({ state: "stopped", metadata: { port: 3001, url: "http://127.0.0.1:3001" }, active_agent_input_lease: null })
+    }
 
     expect(runtimeStopToolCard.collapsedSummary?.(context("runtime_stop", { parsedResult }))).toBe("Runtime stop #7: stopped at http://127.0.0.1:3001")
 
@@ -551,6 +553,81 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("Runtime stop")).toBeInTheDocument()
     expect(screen.getAllByText("stopped").length).toBeGreaterThan(0)
     expect(screen.getByText("no lease")).toBeInTheDocument()
+  })
+
+  it("uses the input session id and preserves already-stopped state", () => {
+    const toolContext = context("runtime_stop", {
+      input: { session_id: 91 },
+      parsedResult: { session_payload: { state: "already stopped", active_agent_input_lease: null } }
+    })
+
+    expect(runtimeStopToolCard.collapsedSummary?.(toolContext)).toBe("Runtime stop #91: already stopped")
+    render(<>{runtimeStopToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("#91")).toBeInTheDocument()
+    expect(screen.getAllByText("already stopped").length).toBeGreaterThan(0)
+    expect(screen.getByText("no lease")).toBeInTheDocument()
+  })
+
+  it("shows the specific stop failure with its requested session", () => {
+    const toolContext = context("runtime_stop", {
+      input: { session_id: 92 },
+      resultError: true,
+      parsedResult: { error: true, content: [{ type: "text", text: "Error: runtime provider refused to stop" }] }
+    })
+
+    expect(runtimeStopToolCard.collapsedSummary?.(toolContext)).toBe("Runtime stop failed")
+    render(<>{runtimeStopToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("#92")).toBeInTheDocument()
+    expect(screen.getByText("runtime provider refused to stop")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["runtime_stop", (payload: unknown) => payload],
+    ["mcp__syrus-chat-sidecar__runtime_stop", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["syrus-chat-sidecar.runtime_stop", (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null })]
+  ])("normalizes %s stop envelopes through the real redacted ToolGroup path", (rawName, envelope) => {
+    const payload = { session_payload: session({ id: 93, state: "stopped", metadata: { api_token: "secret-value-that-must-not-render" } }) }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime stop",
+      calls: [
+        {
+          message_id: 93,
+          tool_name: "Runtime stop",
+          raw_name: rawName,
+          detail: "session_id: 93",
+          display_label: "Runtime stop",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 93, api_token: "input-secret" },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/Runtime stop #93: stopped/)).toBeInTheDocument()
+    expandToolGroup("Runtime stop")
+    expect(screen.getByText("#93")).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
+  })
+
+  it("keeps stop payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue({
+      session_payload: session({ metadata: { api_token: "secret-value-that-must-not-render" } })
+    })
+
+    render(<>{runtimeStopToolCard.renderExpanded(context("runtime_stop", { parsedResult }))}</>)
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
   it("clearly confirms acquired Runtime control", () => {
