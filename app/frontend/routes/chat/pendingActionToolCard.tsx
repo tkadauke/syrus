@@ -144,9 +144,9 @@ function stringList(value: unknown) {
     : []
 }
 
-export function parsePendingActionResult(context: ToolCardContext): PendingActionResult | null {
+export function parsePendingActionResult(context: ToolCardContext, includeError = false): PendingActionResult | null {
   const value = normalizedToolCardParsedResult(context.parsedResult)
-  if (context.resultError)
+  if (includeError && context.resultError)
     return {
       kind: "error",
       code: null,
@@ -481,11 +481,11 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
   return {
     toolName,
     collapsedSummary(context) {
-      const result = parsePendingActionResult(context)
+      const result = parsePendingActionResult(context, true)
       return result ? pendingActionCollapsedSummary(result) : null
     },
     renderExpanded(context) {
-      const result = parsePendingActionResult(context)
+      const result = parsePendingActionResult(context, true)
       return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
     }
   }
