@@ -14,6 +14,7 @@ export type RefMovementCore = {
   actionName: string | null
   state: string | null
   blockedReason: string | null
+  requestedBy: string | null
   sourceKind: string | null
   sourceRef: string | null
   targetKind: string | null
@@ -42,6 +43,7 @@ export function parseRefMovementCore(value: unknown): RefMovementCore | null {
     actionName,
     state,
     blockedReason: displayValue(value.blocked_reason),
+    requestedBy: displayValue(value.requested_by),
     sourceKind: displayValue(value.source_kind),
     sourceRef: displayValue(value.source_ref),
     targetKind: displayValue(value.target_kind),
@@ -68,6 +70,7 @@ export function RefMovementCoreFields({ core }: { core: RefMovementCore }) {
         {core.mode ? <Badge>{core.mode}</Badge> : null}
       </div>
       {core.actionId ? <Row label="Ref-movement action ID" value={core.actionId} /> : null}
+      {core.requestedBy ? <Row label="Requested by" value={core.requestedBy} wrap /> : null}
       {core.blockedReason ? (
         <div className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <MarkdownPreview modalLabel="Full blocked reason" text={core.blockedReason} />

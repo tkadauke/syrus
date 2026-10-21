@@ -24,6 +24,7 @@ describe("parseRefMovementCore", () => {
       actionName: "send_job_upstream",
       state: "dispatched",
       blockedReason: null,
+      requestedBy: null,
       sourceKind: "job",
       sourceRef: "syrus/direct-325",
       targetKind: "branch",
@@ -36,7 +37,7 @@ describe("parseRefMovementCore", () => {
   })
 
   it("keeps partial action payloads renderable", () => {
-    expect(parseRefMovementCore({ state: "pending" })).toMatchObject({ actionId: null, actionName: null, state: "pending" })
+    expect(parseRefMovementCore({ state: "pending" })).toMatchObject({ actionId: null, actionName: null, state: "pending", requestedBy: null })
     expect(parseRefMovementCore({})).toBeNull()
     expect(parseRefMovementCore("not json")).toBeNull()
   })
