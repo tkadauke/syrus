@@ -26,7 +26,7 @@ describe("draw_image tool card", () => {
       expect(screen.getAllByText(value).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole("button", { name: "Open result-file" }))
     const dialog = screen.getByRole("dialog", { name: "Whiteboard image" })
-    expect(dialog).toHaveClass("max-h-full", "w-[min(960px,100vw-2rem)]")
+    expect(dialog).toHaveClass("h-full", "max-h-full", "w-full", "sm:h-auto", "sm:w-[min(960px,100vw-2rem)]")
     expect(screen.getAllByRole("img", { name: "Whiteboard image" })).toHaveLength(2)
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", dataUrl)
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("download")
