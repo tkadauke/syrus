@@ -231,5 +231,5 @@ export const examples: ToolCardExample[] = [
     resultError: true,
     parsedResult: { error: "stale design doc offsets: base_version_number 4 does not match current_version_number 5.\nRe-read the Design Doc." }
   },
-  { id: "pending", label: "Pending result" }
+  { id: "pending", label: "Pending result", resultBody: "" }
 ]
