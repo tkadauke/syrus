@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import readRunTranscriptToolCard from "./read_run_transcript"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import readRunTranscriptToolCard, { examples } from "./read_run_transcript"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -16,6 +17,17 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 describe("read_run_transcript tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(readRunTranscriptToolCard.toolName).toBe("read_run_transcript")
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__read_run_transcript")).toBe("read_run_transcript")
+    expect(examples.map(({ id }) => id)).toEqual(["completed_with_markdown_and_diff", "empty_page", "failed_run"])
+  })
+
+  it.each([
+    ["structured content", { structured_content: { run_id: 9, run_state: "succeeded" } }],
+    ["text content", { content: [{ type: "text", text: JSON.stringify({ run_id: 9, run_state: "succeeded" }) }] }],
+    ["string parsedResult", JSON.stringify({ run_id: 9, run_state: "succeeded" })]
+  ])("normalizes %s", (_label, envelope) => {
+    const parsedResult = typeof envelope === "string" ? envelope : normalizedToolCardParsedResult(envelope)
+    expect(readRunTranscriptToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("RUN-9 (succeeded)")
   })
 
   it("summarizes the collapsed row with the canonical RUN id and state", () => {
@@ -39,18 +51,22 @@ describe("read_run_transcript tool card", () => {
 
     render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult }))}</>)
 
+    expect(screen.getByRole("link", { name: "RUN-9" })).toHaveAttribute("href", "/admin/runs/9/transcript")
     expect(screen.getByRole("button", { name: "Copy RUN-9 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("succeeded")).toBeInTheDocument()
     expect(screen.getByText("success")).toBeInTheDocument()
-    expect(screen.getByText("changed the code")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("changed the code")
     expect(screen.getByText("5")).toBeInTheDocument()
     expect(screen.getByText("2 of 3")).toBeInTheDocument()
+    expect(screen.getByText("2", { selector: "div[title='2']" })).toBeInTheDocument()
     expect(screen.getByText("#2")).toBeInTheDocument()
     expect(screen.getByText("system")).toBeInTheDocument()
     expect(screen.getByText("hello world")).toBeInTheDocument()
     expect(screen.getByText("1 file")).toBeInTheDocument()
     expect(screen.getByText("+1")).toBeInTheDocument()
     expect(screen.getByText("-1")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Previous page" })).toHaveAttribute("href", "/admin/runs/9/transcript?page=1&per=2")
+    expect(screen.getByRole("link", { name: "Next page" })).toHaveAttribute("href", "/admin/runs/9/transcript?page=3&per=2")
   })
 
   it("highlights a failed Run", () => {
@@ -59,10 +75,35 @@ describe("read_run_transcript tool card", () => {
     expect(screen.getByText("This Run did not finish successfully.")).toBeInTheDocument()
   })
 
-  it("truncates an overly long chunk preview", () => {
+  it("opens the complete text of an overly long chunk", () => {
     const parsedResult = { run_id: 9, run_state: "succeeded", chunks: [{ sequence: 1, chunk: "x".repeat(500) }] }
     render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult }))}</>)
-    expect(screen.getByText(`${"x".repeat(400)}…`)).toBeInTheDocument()
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("x".repeat(400))
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog")).toHaveTextContent("x".repeat(500))
+  })
+
+  it("renders markdown summary and empty-page context", () => {
+    const parsedResult = {
+      run_id: 9,
+      run_state: "running",
+      agent_summary: "## Progress\n\nFinished **setup**.",
+      total_chunks: 8,
+      page: 3,
+      per: 4,
+      total_pages: 2,
+      chunks: []
+    }
+    render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult }))}</>)
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("Progress")
+    expect(screen.getByText("No transcript chunks were returned for this page.")).toBeInTheDocument()
+  })
+
+  it("shows a redacted error and a genuinely empty transcript", () => {
+    const parsedResult = { run_id: 9, run_state: "failed", error: "token=super-secret-value", total_chunks: 0, page: 1, per: 50, total_pages: 0, chunks: [] }
+    render(<>{readRunTranscriptToolCard.renderExpanded(context({ parsedResult, resultError: true }))}</>)
+    expect(screen.getByText("This Run has no transcript chunks.")).toBeInTheDocument()
+    expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
   })
 
   it("omits optional sections when fields are missing", () => {
