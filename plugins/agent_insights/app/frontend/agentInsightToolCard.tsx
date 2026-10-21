@@ -281,11 +281,10 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
       </div>
     )
   }
-  if (insight.staleMemoryText || insight.staleMemoryEvidence) {
+  if (insight.targetMemoryId || insight.staleMemoryText || insight.staleMemoryEvidence) {
     sections.push(
       <div key="stale-memory">
         <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
-        {insight.targetMemoryId ? <EntityReference id={insight.targetMemoryId} kind="memory" wrap="nowrap" /> : null}
         {insight.staleMemoryText ? <TextPreview text={insight.staleMemoryText} maxLines={2} /> : null}
         {insight.staleMemoryEvidence ? <TextPreview text={insight.staleMemoryEvidence} /> : null}
       </div>
@@ -364,10 +363,10 @@ export function InsightDetailBody({ insight, resultMessage }: { insight: AgentIn
         </div>
       ) : null}
       <ActionSections insight={insight} />
-      {insight.retiredReason ? (
+      {insight.retiredReason || insight.supersededByInsightId || insight.supersededByJobId ? (
         <div>
           <SectionLabel>{t("tool_retirement_outcome")}</SectionLabel>
-          <TextPreview text={insight.retiredReason} />
+          {insight.retiredReason ? <TextPreview text={insight.retiredReason} /> : null}
           <div className="mt-1 flex flex-wrap gap-2 text-gray-500 dark:text-gray-400">
             {insight.supersededByInsightId ? (
               <span className="inline-flex items-center gap-1">
