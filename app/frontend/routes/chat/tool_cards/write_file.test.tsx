@@ -55,8 +55,9 @@ describe("write_file tool card", () => {
     )
     expect(screen.getAllByText("README.md")).toHaveLength(2)
     expect(screen.getByText("rejected")).toBeInTheDocument()
-    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
-    expect(screen.getByRole("link", { name: "https://example.com" })).toHaveAttribute("href", "https://example.com")
+    const contentLink = screen.getByRole("link", { name: "https://example.com" })
+    expect(contentLink.closest('[data-testid="markdown-preview-content"]')).toHaveTextContent("JOB-42")
+    expect(contentLink).toHaveAttribute("href", "https://example.com")
   })
 
   it("renders empty content and a full-content popup for truncated text", () => {
