@@ -370,7 +370,6 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("failed preview")).toBeInTheDocument()
     expect(screen.getByText('{"width":390,"height":844}')).toBeInTheDocument()
   })
-
   it.each([
     ["runtime_start", (payload: unknown) => payload],
     ["mcp__syrus-chat-sidecar__runtime_start", (payload: unknown) => ({ structured_content: payload, content: [] })],
