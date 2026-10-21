@@ -69,5 +69,7 @@ describe("LocalModeJobOutcomeCard", () => {
     expect(screen.getByRole("link", { name: /JOB-4225/ })).toHaveAttribute("href", "/jobs/4225")
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
     expect(screen.getByRole("button", { name: "Copy syrus/direct-325 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByTitle("syrus/direct-325")).toHaveClass("w-0", "flex-1", "whitespace-normal", "break-all")
+    expect(screen.getByTitle("syrus/direct-325")).not.toHaveClass("sm:truncate")
   })
 })
