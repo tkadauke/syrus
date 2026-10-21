@@ -382,7 +382,7 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("two").tagName).toBe("STRONG")
     expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
     expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
-    expect(screen.getByRole("link", { name: "Chat Media library" })).toHaveAttribute("href", "/chats/12#media")
+    expect(screen.getByRole("link", { name: "Chat Media library" })).toHaveAttribute("href", "/chats/12?workspace=media")
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 

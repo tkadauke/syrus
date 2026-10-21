@@ -482,7 +482,7 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
         <div className="flex flex-wrap gap-2">
           {artifact.url ? <InternalLink href={artifact.url}>open</InternalLink> : null}
           {artifact.url ? <InternalLink href={artifact.url}>download</InternalLink> : null}
-          {artifact.chatSessionId ? <InternalLink href={`/chats/${artifact.chatSessionId}#media`}>Chat Media library</InternalLink> : null}
+          {artifact.chatSessionId ? <InternalLink href={`/chats/${artifact.chatSessionId}?workspace=media`}>Chat Media library</InternalLink> : null}
         </div>
       ) : null}
       {artifact.message ? <div className="break-words text-gray-700 dark:text-gray-300">{artifact.message}</div> : null}

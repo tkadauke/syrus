@@ -1262,6 +1262,7 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
@@ -1292,6 +1293,7 @@ function ChatWorkspace({
     !isDesktop && !showMobileChatColumn
       ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties)
       : undefined
+  const requestedWorkspaceTab = new URLSearchParams(location.search).get("workspace") === "media" ? "media" : null
 
   useLayoutEffect(() => {
     const nextPanelState = initialWorkspacePanelState(payload)
@@ -1311,6 +1313,15 @@ function ChatWorkspace({
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload])
+
+  useEffect(() => {
+    if (requestedWorkspaceTab === null || !availableTabs.includes(requestedWorkspaceTab)) return
+
+    setPanelCollapsed(false)
+    setActiveTab(requestedWorkspaceTab)
+    setActiveMobileTab(requestedWorkspaceTab)
+    setActiveFindSurface("workspace")
+  }, [availableTabs, payload.chat.id, requestedWorkspaceTab])
 
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")
