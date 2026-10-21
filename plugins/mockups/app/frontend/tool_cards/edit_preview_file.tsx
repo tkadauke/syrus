@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
-import { RawDiffPreview } from "@app/routes/chat/toolCardDiff"
+import { TextPreview } from "@app/routes/chat/toolCardMarkdown"
 import { Badge, CardShell, Disclosure, displayValue, EntityReference, Row } from "@app/routes/chat/toolCardUi"
 import { isPlainObject } from "@app/toolCardParsing"
 import { normalizedPreviewResult, parsePreviewFileOp, PreviewErrorCard, previewError, previewPanelText } from "../previewPanelToolCard"
@@ -48,7 +48,13 @@ function renderExpanded(context: ToolCardContext) {
         <div className="min-w-0 overflow-hidden">
           <Disclosure label={previewPanelText("tool_changes")}>
             <div className="min-w-0 overflow-x-auto">
-              <RawDiffPreview diff={replacementDiff(op.path, oldString, newString)} />
+              <TextPreview
+                lang="diff"
+                maxLines={300}
+                modalLabel={previewPanelText("tool_changes")}
+                text={replacementDiff(op.path, oldString, newString)}
+                wrap={false}
+              />
             </div>
           </Disclosure>
         </div>
