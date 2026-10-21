@@ -273,7 +273,7 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
       </div>
     )
   }
-  if (insight.staleMemoryText || insight.staleMemoryEvidence) {
+  if (insight.targetMemoryId || insight.staleMemoryText || insight.staleMemoryEvidence) {
     sections.push(
       <div key="stale-memory">
         <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
@@ -348,10 +348,10 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         </div>
       ) : null}
       <ActionSections insight={insight} />
-      {insight.retiredReason ? (
+      {insight.retiredReason || insight.supersededByInsightId || insight.supersededByJobId ? (
         <div>
           <SectionLabel>{t("tool_retirement_outcome")}</SectionLabel>
-          <TextPreview text={insight.retiredReason} />
+          {insight.retiredReason ? <TextPreview text={insight.retiredReason} /> : null}
           <div className="mt-1 flex flex-wrap gap-2 text-gray-500 dark:text-gray-400">
             {insight.supersededByInsightId ? (
               <span className="inline-flex items-center gap-1">
