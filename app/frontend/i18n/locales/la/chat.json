@@ -1,5 +1,11 @@
 {
   "title": "Colloquium",
+  "search_jobs_showing": "Ostenduntur {{shown}} ex {{total}}",
+  "search_jobs_query": "Quaestio: {{query}}",
+  "search_jobs_state": "Status: {{state}}",
+  "search_jobs_order": "A recentissime mutatis ordinata",
+  "search_jobs_all": "omnia opera",
+  "search_jobs_any": "quilibet",
   "unable_to_start": "Colloquium incipere non potest.",
   "provider_selector_label": "Mutare praebitorem",
   "provider_update_error": "Praebitor mutari non potuit.",
