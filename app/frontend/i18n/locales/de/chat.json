@@ -618,6 +618,11 @@
     "example_pending": "Ausstehender Abbruch mit ausgewählten Zielen",
     "example_error": "Nicht zulässige Abbruchanfrage"
   },
+  "check_job_mergeability": {
+    "job": "Auftrag",
+    "not_provided": "Nicht angegeben",
+    "outcome": "Ergebnis der Zusammenführbarkeit"
+  },
   "daemon_invocation_context": {
     "summary": "Aufrufkontext: {{surface}}{{identity}}",
     "summary_denied": "Aufrufkontext verweigert: {{error}}",
