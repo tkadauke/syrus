@@ -53,6 +53,55 @@ RSpec.describe PlannedExecutionOverrides::Operation do
     expect(operation.inspect.reason).to include("has already started")
   end
 
+  it "refuses a queued Job when another Workflow or Run exists outside the initial attempt" do
+    run
+    retry_workflow = Workflow.create!(job: job, user: user, trigger_kind: "retry", state: "failed")
+    retry_step = retry_workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+    retry_step.runs.create!(job: job, user: user, trigger_kind: "retry", state: "failed", started_at: 1.minute.ago)
+
+    inspection = operation.inspect
+
+    expect(inspection.eligible).to be(false)
+    expect(inspection.reason).to include("without exactly one initial Workflow")
+    expect { operation.apply! }.to raise_error(described_class::Unsafe, /without exactly one initial Workflow/)
+    expect(job.reload.planned_execution_overrides).to be_empty
+  end
+
+  it "refuses backlog placement when any execution history already exists" do
+    run
+    job.update!(state: "backlog")
+
+    expect(operation.inspect.reason).to include("already has Workflow or Run history")
+  end
+
+  it "commits placement and requests durable reconciliation when replacement enqueue fails" do
+    run
+    allow_any_instance_of(Run).to receive(:reenqueue!).and_raise(ActiveJob::EnqueueError, "queue unavailable")
+    expect(WorkEngine::Reconciler).to receive(:request).with(source: described_class.name, job: job)
+
+    result = operation(profile: "macos_desktop").apply!
+
+    expect(result.dispatch_status).to eq("reconciliation_requested")
+    expect(result.dispatch_error).to include("queue unavailable")
+    expect(job.reload.planned_execution_capabilities).to eq(ExecutionPlacementProfile.fetch("macos_desktop").capabilities)
+    expect(workflow.reload.planned_execution_capabilities).to eq(ExecutionPlacementProfile.fetch("macos_desktop").capabilities)
+    expect(run.reload).to be_queued
+    expect(job.planned_execution_overrides.sole).to be_present
+  end
+
+  it "leaves durable queued work for the recurring reconciler when the immediate recovery enqueue also fails" do
+    run
+    allow_any_instance_of(Run).to receive(:reenqueue!).and_raise(ActiveJob::EnqueueError, "runs queue unavailable")
+    allow(WorkEngine::Reconciler).to receive(:request).and_raise(ActiveJob::EnqueueError, "control queue unavailable")
+
+    result = operation(profile: "linux").apply!
+
+    expect(result.dispatch_status).to eq("reconciliation_requested")
+    expect(run.reload).to be_queued
+    expect(workflow.reload).to be_queued
+    expect(job.planned_execution_overrides.sole).to be_present
+  end
+
   it "refuses a stale confirmed repair without partial updates" do
     before = job.planned_execution_json
     stale_revision = job.entity_revision
