@@ -300,7 +300,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
                   <EntityReference id={dependency.id} kind={SUBJECT_ENTITY_KIND[dependency.kind]} />
                   {dependency.title ? <span className="max-w-full break-words">{dependency.title}</span> : null}
                   {dependency.state ? <StatePill state={dependency.state} /> : null}
-                  {dependency.added ? <span className="font-semibold text-emerald-700 dark:text-emerald-300">added</span> : null}
+                  {dependency.added ? <StatePill state="added" tone="success" /> : null}
                 </span>
               </Badge>
             ))}
