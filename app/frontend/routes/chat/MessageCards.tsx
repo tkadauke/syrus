@@ -954,7 +954,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup
+                      chatSessionId={chatSessionId}
+                      item={nestedGroup}
+                      key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
+                    />
                   ))}
                 </div>
               ) : null}
