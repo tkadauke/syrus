@@ -232,6 +232,10 @@ function parseSession(value: unknown): RuntimeSession | null {
   }
 }
 
+function withoutErrorPrefix(value: string | null) {
+  return value?.replace(/^Error:\s*/i, "") ?? null
+}
+
 function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAction): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -240,10 +244,11 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
   const metadata = parseObject(parsed.metadata)
   const options = parseObject(context.input?.options)
   const content = contentText(parsed.content)
-  const error =
-    parsed.error === true
-      ? firstDisplayValue(parsed.message, parsed.error_message, content)
+  const error = withoutErrorPrefix(
+    context.resultError || parsed.error === true
+      ? firstDisplayValue(parsed.message, parsed.error_message, content, parsed.error)
       : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
+  )
   const explicitTarget =
     action === "launch" && !error ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content) : null
 
@@ -442,6 +447,8 @@ function errorMessage(context: ToolCardContext): string | null {
 }
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
+  if (context.toolName === "runtime_start" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "start")
+
   const error = errorMessage(context)
   if (error) return { kind: "error", action: context.toolName, message: error, sessionId: displayValue(context.input?.session_id) }
 
@@ -475,7 +482,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
     return session ? { kind: "status", session, raw: parsed } : null
   }
 
-  if (context.toolName === "runtime_start") return parseLifecycleCard(context, "start")
   if (context.toolName === "runtime_build_or_reload") return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_launch") return parseLifecycleCard(context, "launch")
   if (context.toolName === "runtime_inspect") return parseInspectCard(context)
@@ -599,16 +605,32 @@ function collapsedSummary(context: ToolCardContext) {
   return null
 }
 
-function MetadataRows({ values, title = "Metadata" }: { values: Record<string, unknown>; title?: string }) {
+function MetadataRows({ values }: { values: Record<string, unknown> }) {
   const entries = objectEntries(values).filter(([, value]) => displayValue(value) || typeof value === "boolean")
   if (entries.length === 0) return null
 
   return (
     <div>
-      <SectionLabel>{title}</SectionLabel>
+      <SectionLabel>Metadata</SectionLabel>
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <Row key={key} label={key} value={displayValue(value) ?? String(value)} wrap />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OptionRows({ values }: { values: Record<string, unknown> }) {
+  const entries = objectEntries(values)
+  if (entries.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Options</SectionLabel>
+      <div className="mt-1 grid gap-1 sm:grid-cols-2">
+        {entries.map(([key, value]) => (
+          <Row key={key} label={key} value={displayValue(value) ?? JSON.stringify(value) ?? String(value)} wrap />
         ))}
       </div>
     </div>
@@ -832,6 +854,7 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
       </div>
       {card.error ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {card.action === "start" ? <span className="font-semibold">Error: </span> : null}
           {card.error}
         </div>
       ) : null}
@@ -847,7 +870,7 @@ function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "li
             ]}
           />
           <RuntimeUrl url={card.url} />
-          {objectEntries(card.inputOptions).length > 0 ? <MetadataRows title="Options" values={card.inputOptions} /> : null}
+          <OptionRows values={card.inputOptions} />
           {card.session ? <RuntimeSessionBlock session={{ ...card.session, workspaceRef: null, metadata: startSessionMetadata }} /> : null}
         </>
       ) : (
