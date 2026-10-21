@@ -38,5 +38,12 @@
   "tool_bytes": "{{count}} bytes",
   "tool_preview": "Praevisio",
   "tool_close_preview": "Praevisionem claudere",
-  "tool_failed_summary": "{{operation}} defecit: {{error}}"
+  "tool_failed_summary": "{{operation}} defecit: {{error}}",
+  "tool_edit_file": "Fasciculum praevisionis mutare",
+  "tool_edited_file": "Fasciculus mutatus",
+  "tool_edited_summary": "{{path}} mutatus (tabula #{{id}})",
+  "tool_replace_all": "Omnia substituere",
+  "tool_yes": "Ita",
+  "tool_no": "Non",
+  "tool_changes": "Mutationes"
 }

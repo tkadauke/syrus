@@ -38,5 +38,12 @@
   "tool_bytes": "{{count}} bytes",
   "tool_preview": "Preview",
   "tool_close_preview": "Close preview",
-  "tool_failed_summary": "{{operation}} failed: {{error}}"
+  "tool_failed_summary": "{{operation}} failed: {{error}}",
+  "tool_edit_file": "Edit preview file",
+  "tool_edited_file": "Edited file",
+  "tool_edited_summary": "Edited {{path}} (panel #{{id}})",
+  "tool_replace_all": "Replace all",
+  "tool_yes": "Yes",
+  "tool_no": "No",
+  "tool_changes": "Changes"
 }

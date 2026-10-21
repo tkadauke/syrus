@@ -38,5 +38,12 @@
   "tool_bytes": "{{count}} Bytes",
   "tool_preview": "Vorschau",
   "tool_close_preview": "Vorschau schließen",
-  "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}"
+  "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}",
+  "tool_edit_file": "Vorschaudatei bearbeiten",
+  "tool_edited_file": "Datei bearbeitet",
+  "tool_edited_summary": "{{path}} bearbeitet (Panel #{{id}})",
+  "tool_replace_all": "Alle ersetzen",
+  "tool_yes": "Ja",
+  "tool_no": "Nein",
+  "tool_changes": "Änderungen"
 }
