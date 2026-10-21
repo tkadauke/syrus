@@ -97,11 +97,17 @@ function isFailureState(state: string) {
   return ["failed", "error", "cancelled", "canceled"].includes(state.toLowerCase())
 }
 
+function pageLabel(page: number, totalPages: number | null) {
+  return page > 0 && totalPages != null && totalPages > 0 && page <= totalPages ? `${page} of ${totalPages}` : String(page)
+}
+
 function renderExpanded(context: ToolCardContext) {
   const run = parseTranscript(context)
   if (!run) return null
 
   const stats = run.agentDiff ? diffStats(run.agentDiff) : null
+  const hasPreviousPage = run.page != null && run.page > 1
+  const hasNextPage = run.page != null && run.page > 0 && run.totalPages != null && run.totalPages > 0 && run.page < run.totalPages
 
   return (
     <CardShell>
@@ -122,7 +128,7 @@ function renderExpanded(context: ToolCardContext) {
       {run.totalChunks != null || run.page != null || run.per != null ? (
         <dl className="grid gap-1 sm:grid-cols-3">
           {run.totalChunks != null ? <Row label="Chunks" value={String(run.totalChunks)} /> : null}
-          {run.page != null ? <Row label="Page" value={run.totalPages != null ? `${run.page} of ${run.totalPages}` : String(run.page)} /> : null}
+          {run.page != null ? <Row label="Page" value={pageLabel(run.page, run.totalPages)} /> : null}
           {run.per != null ? <Row label="Per page" value={String(run.per)} /> : null}
         </dl>
       ) : null}
@@ -154,14 +160,14 @@ function renderExpanded(context: ToolCardContext) {
       ) : (
         <EmptyState>{run.totalChunks === 0 ? "This Run has no transcript chunks." : "No transcript chunks were returned for this page."}</EmptyState>
       )}
-      {run.page != null && run.totalPages != null && run.totalPages > 1 ? (
+      {run.page != null && (hasPreviousPage || hasNextPage) ? (
         <nav aria-label="Transcript pages" className="flex flex-wrap gap-2">
-          {run.page > 1 ? (
+          {hasPreviousPage ? (
             <a className={PAGE_LINK_CLASS} href={`/admin/runs/${run.runId}/transcript?page=${run.page - 1}${run.per != null ? `&per=${run.per}` : ""}`}>
               Previous page
             </a>
           ) : null}
-          {run.page < run.totalPages ? (
+          {hasNextPage ? (
             <a className={PAGE_LINK_CLASS} href={`/admin/runs/${run.runId}/transcript?page=${run.page + 1}${run.per != null ? `&per=${run.per}` : ""}`}>
               Next page
             </a>
@@ -225,6 +231,26 @@ export const examples: ToolCardExample[] = [
       per: 50,
       total_pages: 0,
       chunks: []
+    }
+  },
+  {
+    id: "long_chunk",
+    label: "Long transcript chunk",
+    input: { run_id: 45, page: 1, per: 50 },
+    parsedResult: {
+      run_id: 45,
+      run_state: "running",
+      total_chunks: 1,
+      page: 1,
+      per: 50,
+      total_pages: 1,
+      chunks: [
+        {
+          sequence: 1,
+          kind: "assistant",
+          chunk: `Starting implementation.\n\n${"Detailed transcript output that remains available in the expanded modal. ".repeat(8)}`
+        }
+      ]
     }
   }
 ]
