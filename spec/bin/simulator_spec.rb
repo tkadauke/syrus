@@ -32,14 +32,6 @@ RSpec.describe "bin/simulator", :ci_only do
     Open3.capture3(env, script, *args, chdir: root)
   end
 
-  it "runs one named scenario" do
-    stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
-
-    expect(status).to be_success, stderr
-    expect(stdout).to include("single initial success: success")
-    expect(stdout).to include("work-engine simulations passed (1 scenarios)")
-  end
-
   # Each scenario runs inside a wrapper transaction that is rolled back at the
   # end. While that wrapper was joinable, it swallowed every inner commit: a
   # `save` joined the wrapper instead of opening its own transaction, so
@@ -86,6 +78,7 @@ RSpec.describe "bin/simulator", :ci_only do
 
     expect(status).to be_success, stderr
     expect(stdout).to include("single initial success: success")
+    expect(stdout).to include("work-engine simulations passed (1 scenarios)")
 
     after = default_db_paths.to_h { |path| [ path, database_identity(path) ] }
     expect(after).to eq(before),
