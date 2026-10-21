@@ -97,6 +97,21 @@ development_preview_seed = lambda do
   demo_chat.repository = demo_repo if demo_chat.new_record?
   demo_chat.save!
 
+  preview_artifacts = Array(demo_chat.artifact("typed_artifacts"))
+  unless preview_artifacts.any? { |artifact| artifact["type"] == "preview_overview" }
+    demo_chat.set_artifact!(
+      "typed_artifacts",
+      preview_artifacts + [
+        {
+          "type" => "preview_overview",
+          "title" => "Preview overview",
+          "payload" => { "summary" => "This seeded artifact keeps the chat Media workspace available for preview review." },
+          "created_at" => Time.current.iso8601
+        }
+      ]
+    )
+  end
+
   if demo_chat.messages.none?
     ChatMessage.create!(
       chat_session: demo_chat,

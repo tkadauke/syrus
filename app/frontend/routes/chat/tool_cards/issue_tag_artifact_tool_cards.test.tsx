@@ -9,7 +9,7 @@ import createTagToolCard from "./create_tag"
 import listOpenIssuesToolCard from "./list_open_issues"
 import listTagsToolCard from "./list_tags"
 import removeJobTagToolCard from "./remove_job_tag"
-import submitArtifactToolCard from "./submit_artifact"
+import submitArtifactToolCard, { examples as submitArtifactExamples } from "./submit_artifact"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -48,6 +48,13 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(addJobTagToolCard.toolName).toBe("add_job_tag")
     expect(removeJobTagToolCard.toolName).toBe("remove_job_tag")
     expect(submitArtifactToolCard.toolName).toBe("submit_artifact")
+  })
+
+  it("uses reachable preview fixtures for the submit artifact catalog examples", () => {
+    expect(submitArtifactExamples.find((example) => example.id === "chat_prose")?.parsedResult).toEqual({ message: "Saved.", chat_session_id: 1 })
+    expect(submitArtifactExamples.find((example) => example.id === "workflow_image")?.input).toMatchObject({
+      payload: { screenshot_url: "/icon-192.png" }
+    })
   })
 
   it("renders an empty issue list", () => {
