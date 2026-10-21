@@ -38,5 +38,6 @@
   "tool_bytes": "{{count}} bytes",
   "tool_preview": "Praevisio",
   "tool_close_preview": "Praevisionem claudere",
+  "tool_closed": "Clausa",
   "tool_failed_summary": "{{operation}} defecit: {{error}}"
 }

@@ -38,5 +38,6 @@
   "tool_bytes": "{{count}} Bytes",
   "tool_preview": "Vorschau",
   "tool_close_preview": "Vorschau schließen",
+  "tool_closed": "Geschlossen",
   "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}"
 }

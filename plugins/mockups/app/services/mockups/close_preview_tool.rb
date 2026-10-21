@@ -22,7 +22,8 @@ module Mockups
         return panel_not_found_response(panel_id) unless panel
 
         closed = PreviewPanel::Service.new(panel).close!
-        ok_response(panel_payload(closed))
+        mockup = Mockup.find_by(preview_panel_id: closed.id)
+        ok_response(panel_payload(closed).merge(mockup_slug: mockup&.slug).compact)
       end
     end
   end
