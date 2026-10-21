@@ -98,6 +98,17 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { parsedResult: { issues: "wrong" } }))).toBeNull()
   })
 
+  it("shows the backend default limit and reached hint when limit is omitted", () => {
+    const parsedResult = {
+      issues: Array.from({ length: 20 }, (_, index) => ({ number: index + 1, title: `Issue ${index + 1}` }))
+    }
+
+    render(<>{listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { parsedResult }))}</>)
+
+    expect(screen.getByText("Limit:").parentElement).toHaveTextContent("Limit: 20")
+    expect(screen.getByText("Limit reached; more issues may be available.")).toBeInTheDocument()
+  })
+
   it("publishes catalog examples for details, empty, and error states", () => {
     expect(issueExamples.map(({ id }) => id)).toEqual(["issues_with_details", "empty", "error"])
   })
