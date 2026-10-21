@@ -1,5 +1,11 @@
 {
   "title": "Chat",
+  "search_jobs_showing": "Showing {{shown}} of {{total}}",
+  "search_jobs_query": "Query: {{query}}",
+  "search_jobs_state": "State: {{state}}",
+  "search_jobs_order": "Ordered by most recently updated",
+  "search_jobs_all": "all Jobs",
+  "search_jobs_any": "any",
   "unable_to_start": "Unable to start chat.",
   "provider_selector_label": "Change provider",
   "provider_update_error": "Provider could not be updated.",
