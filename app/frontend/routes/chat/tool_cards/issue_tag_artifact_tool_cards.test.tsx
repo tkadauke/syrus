@@ -111,6 +111,12 @@ describe("issue, tag, and artifact tool cards", () => {
 
   it("publishes catalog examples for details, empty, and error states", () => {
     expect(issueExamples.map(({ id }) => id)).toEqual(["issues_with_details", "empty", "error"])
+    const detailed = issueExamples[0]
+
+    render(<>{listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { input: detailed.input, parsedResult: detailed.parsedResult }))}</>)
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Responsive navigation overlaps content on smaller screens image 1" })).toHaveAttribute("src", "/icon-192.png")
   })
 
   it("renders an empty tag list", () => {
