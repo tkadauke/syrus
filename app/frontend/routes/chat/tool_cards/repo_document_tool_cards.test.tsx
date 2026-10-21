@@ -80,7 +80,7 @@ describe("repository document tool cards", () => {
 
     render(<>{listRepoDocumentsToolCard.renderExpanded(context("list_repo_documents", { parsedResult: documentRows }))}</>)
 
-    expect(screen.getByRole("link", { name: "API Guide" })).toHaveAttribute("href", "/repositories/7/documents")
+    expect(screen.getByRole("link", { name: "API Guide" })).toHaveAttribute("href", "/api/v1/app/repository_documents/12/file")
     expect(screen.getByText("repo-doc-12")).toBeInTheDocument()
     expect(screen.getByText("file")).toBeInTheDocument()
     expect(screen.getByText("attached")).toBeInTheDocument()
@@ -110,6 +110,14 @@ describe("repository document tool cards", () => {
       expect(toolName).toBe("list_repo_documents")
       expect(listRepoDocumentsToolCard.collapsedSummary?.(cardContext)).toBe("2 repository documents")
     }
+  })
+
+  it("falls back to the repository documents page when no document viewer can be derived", () => {
+    const parsedResult = [{ id: 14, title: "Uncached notes", kind: "note", repository_id: 7, repository: "tkadauke/syrus" }]
+
+    render(<>{listRepoDocumentsToolCard.renderExpanded(context("list_repo_documents", { parsedResult }))}</>)
+
+    expect(screen.getByRole("link", { name: "Uncached notes" })).toHaveAttribute("href", "/repositories/7/documents")
   })
 
   it("renders list failures with recovery guidance", () => {

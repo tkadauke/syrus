@@ -77,7 +77,9 @@ function formatBytes(bytes: number): string {
 }
 
 function documentHref(row: DocumentRow): string | null {
-  return row.url || (row.repositoryId ? `/repositories/${encodeURIComponent(row.repositoryId)}/documents` : null)
+  if (row.url) return row.url
+  if (row.kind === "file" && row.id) return `/api/v1/app/repository_documents/${encodeURIComponent(row.id)}/file`
+  return row.repositoryId ? `/repositories/${encodeURIComponent(row.repositoryId)}/documents` : null
 }
 
 export function parseRepoDocumentList(context: ToolCardContext): DocumentRow[] | null {
