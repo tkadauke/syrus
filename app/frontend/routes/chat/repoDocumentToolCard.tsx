@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { Surface } from "@app/components/ui/Surface"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { parsePendingActionResult, pendingActionCollapsedSummary, type PendingActionResult } from "./pendingActionToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
@@ -13,6 +14,7 @@ type DocumentRow = {
   title: string
   kind: string | null
   status: string | null
+  repositoryId: string | null
   repository: string | null
   contentType: string | null
   sizeBytes: number | null
@@ -60,6 +62,7 @@ function parseDocument(value: unknown): DocumentRow | null {
     title,
     kind: displayValue(value.kind) || displayValue(value.type),
     status: displayValue(value.status) || displayValue(value.state),
+    repositoryId: displayValue(value.repository_id),
     repository,
     contentType: displayValue(value.content_type) || displayValue(value.mime_type),
     sizeBytes: numberValue(value.size_bytes) ?? numberValue(value.byte_size),
@@ -73,8 +76,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function metadata(row: DocumentRow): string[] {
-  return [row.contentType, row.sizeBytes == null ? null : formatBytes(row.sizeBytes), row.url ? "linked" : null].filter((item): item is string => Boolean(item))
+function documentHref(row: DocumentRow): string | null {
+  return row.url || (row.repositoryId ? `/repositories/${encodeURIComponent(row.repositoryId)}/documents` : null)
 }
 
 export function parseRepoDocumentList(context: ToolCardContext): DocumentRow[] | null {
@@ -98,46 +101,40 @@ export function RepoDocumentListCard({ rows }: { rows: DocumentRow[] }) {
   if (rows.length === 0) return <EmptyState>No repository documents found.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Title
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Ref
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Type
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Status
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Repository
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Content
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row, index) => (
-            <tr key={row.id || row.ref || `${row.title}-${index}`}>
-              <td className="max-w-64 truncate px-2 py-1 font-medium text-gray-800 dark:text-gray-200" title={row.title}>
-                {row.title}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.ref || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.kind || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1">{row.status ? <StatePill state={row.status} /> : <span className="text-gray-400">—</span>}</td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.repository || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{metadata(row).join(" · ") || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Surface className="mt-1 overflow-hidden" padding="none">
+      <ul className="divide-y divide-border">
+        {rows.map((row, index) => (
+          <li className="min-w-0 space-y-2 p-2 text-xs" key={row.id || row.ref || `${row.title}-${index}`}>
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+              {documentHref(row) ? (
+                <EntityReference href={documentHref(row)} id={row.id || row.ref} kind="artifact" label={row.title} slug={row.title} />
+              ) : (
+                <span className="min-w-0 break-words font-medium text-gray-800 dark:text-gray-200">{row.title}</span>
+              )}
+              {row.status ? <StatePill state={row.status} /> : null}
+            </div>
+            <dl className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {row.ref ? <Row label="Ref" value={row.ref} /> : null}
+              {row.kind ? <Row label="Type" value={row.kind} /> : null}
+              {row.repositoryId || row.repository ? (
+                <div className="min-w-0">
+                  <SectionLabel>Repository</SectionLabel>
+                  <EntityReference kind="repository" repositoryId={row.repositoryId} repositorySlug={row.repository} slug={row.repository} />
+                </div>
+              ) : null}
+              {row.contentType ? <Row label="Content type" value={row.contentType} /> : null}
+              {row.sizeBytes != null ? <Row label="Size" value={formatBytes(row.sizeBytes)} /> : null}
+              {row.url ? (
+                <div className="min-w-0 sm:col-span-2 lg:col-span-4">
+                  <SectionLabel>Source URL</SectionLabel>
+                  <EntityReference href={row.url} kind="artifact" label={row.url} wrap="break" />
+                </div>
+              ) : null}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </Surface>
   )
 }
 

@@ -24,6 +24,7 @@ const documentRows = [
     kind: "file",
     title: "API Guide",
     status: "attached",
+    repository_id: 7,
     repository: "tkadauke/syrus",
     content_type: "text/markdown",
     size_bytes: 2048
@@ -32,6 +33,7 @@ const documentRows = [
     id: 13,
     kind: "google_doc",
     title: "Launch Notes",
+    repository_id: 7,
     repository_slug: "tkadauke/syrus",
     url: "https://docs.google.com/document/d/abc/edit"
   }
@@ -73,19 +75,54 @@ describe("repository document tool cards", () => {
     expect(screen.getByText("No repository documents found.")).toBeInTheDocument()
   })
 
-  it("renders document list metadata without dumping raw details", () => {
+  it("renders complete document metadata with viewer, repository, and source links", () => {
     expect(listRepoDocumentsToolCard.collapsedSummary?.(context("list_repo_documents", { parsedResult: documentRows }))).toBe("2 repository documents")
 
     render(<>{listRepoDocumentsToolCard.renderExpanded(context("list_repo_documents", { parsedResult: documentRows }))}</>)
 
-    expect(screen.getByText("API Guide")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "API Guide" })).toHaveAttribute("href", "/repositories/7/documents")
     expect(screen.getByText("repo-doc-12")).toBeInTheDocument()
     expect(screen.getByText("file")).toBeInTheDocument()
     expect(screen.getByText("attached")).toBeInTheDocument()
-    expect(screen.getAllByText("tkadauke/syrus")).toHaveLength(2)
-    expect(screen.getByText("text/markdown · 2.0 KB")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByText("text/markdown")).toBeInTheDocument()
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
     expect(screen.getByText("google_doc")).toBeInTheDocument()
-    expect(screen.getByText("linked")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Launch Notes" })).toHaveAttribute("href", "https://docs.google.com/document/d/abc/edit")
+    expect(screen.getByRole("link", { name: "https://docs.google.com/document/d/abc/edit" })).toHaveAttribute(
+      "href",
+      "https://docs.google.com/document/d/abc/edit"
+    )
+  })
+
+  it("normalizes root arrays and wrapped provider envelopes for document lists", () => {
+    const rootArray = { content: [{ type: "text", text: JSON.stringify(documentRows) }], structured_content: null }
+    const wrapped = { structured_content: { documents: documentRows }, content: [{ type: "text", text: "ignored" }] }
+
+    for (const [rawName, envelope] of [
+      ["mcp__syrus-chat-sidecar__list_repo_documents", rootArray],
+      ["syrus-chat-deferred-sidecar.list_repo_documents", wrapped]
+    ] as const) {
+      const toolName = normalizedToolName(rawName)
+      const cardContext = context(toolName, { parsedResult: normalizedToolCardParsedResult(envelope) })
+
+      expect(toolName).toBe("list_repo_documents")
+      expect(listRepoDocumentsToolCard.collapsedSummary?.(cardContext)).toBe("2 repository documents")
+    }
+  })
+
+  it("renders list failures with recovery guidance", () => {
+    const failed = context("list_repo_documents", {
+      input: { repository_id: 7 },
+      resultBody: "Repository is unavailable",
+      resultError: true
+    })
+
+    expect(listRepoDocumentsToolCard.collapsedSummary?.(failed)).toBe("List repository documents failed: Repository is unavailable")
+    render(<>{listRepoDocumentsToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("List repository documents failed")).toBeInTheDocument()
+    expect(screen.getByText("Check repository access and retry the request.")).toBeInTheDocument()
   })
 
   it("renders a document detail/read card with a concise content preview", () => {
