@@ -1,15 +1,14 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell } from "./mediaPreviewShell"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { useT } from "../../hooks/useT"
 import i18n from "../../i18n"
 
-const ARTIFACT_PREVIEW_LINES = 8
 const ARTIFACT_PREVIEW_CHARS = 900
-const ARTIFACT_PREVIEW_CLASS =
-  "mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300"
 
 type IssueRow = {
   number: string
@@ -47,7 +46,12 @@ type ArtifactResult = {
   path: string | null
   url: string | null
   message: string | null
-  preview: string | null
+  payload: unknown
+  workflowId: string | null
+  runId: string | null
+  jobId: string | null
+  chatSessionId: string | null
+  pending: boolean
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -385,20 +389,43 @@ function TagActionMetadata({ result }: { result: TagAction }) {
   )
 }
 
-function previewFromPayload(payload: unknown): string | null {
-  if (payload == null) return null
-  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)
-  if (!text) return null
-  const clipped = text.length > ARTIFACT_PREVIEW_CHARS ? `${text.slice(0, ARTIFACT_PREVIEW_CHARS)}...` : text
-  return truncateLines(clipped, ARTIFACT_PREVIEW_LINES).preview
+function artifactEnvelope(value: unknown): Record<string, unknown> {
+  if (!isPlainObject(value)) return {}
+  for (const key of ["structured_content", "structuredContent", "result", "output"]) {
+    if (isPlainObject(value[key])) return { ...value, ...artifactEnvelope(value[key]) }
+  }
+  return value
+}
+
+function artifactPayloadText(payload: unknown): string {
+  if (payload == null) return ""
+  if (typeof payload === "string") return payload
+  if (isPlainObject(payload)) {
+    const prose = Object.entries(payload).flatMap(([key, value]) =>
+      typeof value === "string" && value.trim() && !/(url|path|image|screenshot|data)/i.test(key) ? [`**${key.replace(/_/g, " ")}**\n\n${value}`] : []
+    )
+    if (prose.length > 0) return prose.join("\n\n")
+    if (Object.values(payload).every((value) => typeof value === "string" && !value.trim())) return ""
+  }
+  return `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
+}
+
+function artifactImage(payload: unknown): string | null {
+  if (!isPlainObject(payload)) return null
+  for (const key of ["image_url", "screenshot_url", "preview_url", "data_url", "file_path", "path", "image", "screenshot"]) {
+    const candidate = displayValue(payload[key])
+    if (candidate && (candidate.startsWith("/") || candidate.startsWith("data:image/") || /^https?:\/\//i.test(candidate))) return candidate
+  }
+  return null
 }
 
 export function parseArtifactResult(context: ToolCardContext): ArtifactResult | null {
-  const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
+  const parsed = artifactEnvelope(context.parsedResult)
   const title = displayValue(parsed.title) || displayValue(context.input?.title)
   const type = displayValue(parsed.type) || displayValue(context.input?.type)
   const message = displayValue(parsed.message) || (context.resultBody === "Saved." ? "Saved." : null)
-  if (!title && !type && !message && !context.resultError) return null
+  const pending = context.resultSettled !== true && context.parsedResult == null && context.resultBody === "" && !!(title || type)
+  if (!title && !type && !message && !context.resultError && !pending) return null
 
   return {
     title,
@@ -407,7 +434,12 @@ export function parseArtifactResult(context: ToolCardContext): ArtifactResult | 
     path: displayValue(parsed.path) || displayValue(parsed.file_path),
     url: displayValue(parsed.url) || displayValue(parsed.href),
     message: context.resultError ? context.resultBody : message,
-    preview: previewFromPayload(isPlainObject(parsed) && parsed.payload !== undefined ? parsed.payload : context.input?.payload)
+    payload: parsed.payload !== undefined ? parsed.payload : context.input?.payload,
+    workflowId: displayValue(parsed.workflow_id) || displayValue(context.input?.workflow_id),
+    runId: displayValue(parsed.run_id) || displayValue(context.input?.run_id),
+    jobId: displayValue(parsed.job_id) || displayValue(context.input?.job_id),
+    chatSessionId: displayValue(parsed.chat_session_id) || displayValue(context.chatSessionId),
+    pending
   }
 }
 
@@ -415,35 +447,72 @@ export function artifactSummary(context: ToolCardContext) {
   const artifact = parseArtifactResult(context)
   if (!artifact) return null
   if (context.resultError) return artifact.title ? `Artifact ${artifact.title} failed` : "Artifact submission failed"
+  if (artifact.pending) return artifact.title ? `Saving artifact: ${artifact.title}` : "Saving artifact"
   return artifact.title ? `Artifact saved: ${artifact.title}` : "Artifact saved"
 }
 
 export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactResult; error?: boolean }) {
+  if (error) return <ErrorCard title="Artifact submission failed" message={artifact.message || "The artifact could not be saved."} />
+  const image = artifactImage(artifact.payload)
+  const preview = artifactPayloadText(artifact.payload)
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={error ? "failed" : "saved"} tone={error ? "failure" : "success"} />
+        <StatePill state={artifact.pending ? "pending" : "saved"} tone={artifact.pending ? "info" : "success"} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{artifact.title || "Artifact"}</span>
         {artifact.type ? <Badge>{artifact.type}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {artifact.id ? <Row label="Artifact" value={artifact.id} /> : null}
         {artifact.path ? <Row label="Path" value={artifact.path} /> : null}
+        {artifact.workflowId ? (
+          <div className="min-w-0">
+            <SectionLabel>Workflow</SectionLabel>
+            <EntityReference id={artifact.workflowId} jobId={artifact.jobId} kind="workflow" />
+          </div>
+        ) : null}
+        {artifact.runId ? (
+          <div className="min-w-0">
+            <SectionLabel>Run</SectionLabel>
+            <EntityReference id={artifact.runId} jobId={artifact.jobId} workflowId={artifact.workflowId} kind="run" />
+          </div>
+        ) : null}
       </dl>
-      {artifact.url || artifact.path ? (
+      {artifact.url || artifact.chatSessionId ? (
         <div className="flex flex-wrap gap-2">
           {artifact.url ? <InternalLink href={artifact.url}>open</InternalLink> : null}
           {artifact.url ? <InternalLink href={artifact.url}>download</InternalLink> : null}
-          {artifact.path ? <span className="font-mono text-gray-600 dark:text-gray-300">preview available in raw details</span> : null}
+          {artifact.chatSessionId ? <InternalLink href={`/chats/${artifact.chatSessionId}#media`}>Chat Media library</InternalLink> : null}
         </div>
       ) : null}
-      {artifact.message ? <div className={error ? "text-red-700 dark:text-red-300" : "text-gray-700 dark:text-gray-300"}>{artifact.message}</div> : null}
-      {artifact.preview ? (
-        <div>
-          <SectionLabel>Preview</SectionLabel>
-          <pre className={ARTIFACT_PREVIEW_CLASS}>{artifact.preview}</pre>
-        </div>
-      ) : null}
+      {artifact.message ? <div className="break-words text-gray-700 dark:text-gray-300">{artifact.message}</div> : null}
+      {artifact.pending ? (
+        <EmptyState>Waiting for the artifact result.</EmptyState>
+      ) : image ? (
+        <MediaPreviewShell
+          item={{
+            title: artifact.title || artifact.type || "Artifact",
+            src: image,
+            alt: artifact.title || "Submitted artifact",
+            badge: artifact.type || "image",
+            actions: [
+              { label: "Open", href: image },
+              { label: "Download", href: image, download: true }
+            ]
+          }}
+          thumbnailClassName="w-full max-w-72"
+        />
+      ) : (
+        <MarkdownPreview
+          emptyLabel="No artifact payload was submitted."
+          linkifySlugs
+          linkifyUrls
+          maxChars={ARTIFACT_PREVIEW_CHARS}
+          modalLabel={`${artifact.title || "Artifact"} payload`}
+          text={preview}
+          title="Payload"
+        />
+      )}
     </CardShell>
   )
 }

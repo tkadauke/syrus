@@ -10,7 +10,7 @@ RSpec.describe Mcp::Tools::SubmitArtifactTool do
   end
 
   it "appends a typed artifact entry to the chat session" do
-    call
+    response = call
 
     entries = chat_session.reload.artifact("typed_artifacts")
     expect(entries.size).to eq(1)
@@ -20,6 +20,7 @@ RSpec.describe Mcp::Tools::SubmitArtifactTool do
       "payload" => { "tables" => 3 }
     )
     expect(entries.first["created_at"]).to be_present
+    expect(JSON.parse(response.content.first[:text])).to include("message" => "Saved.", "chat_session_id" => chat_session.id)
   end
 
   it "replaces an existing entry when called again with the same type" do

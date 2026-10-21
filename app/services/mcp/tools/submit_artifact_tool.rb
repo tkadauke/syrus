@@ -59,7 +59,7 @@ module Mcp::Tools
 
         chat_session.set_artifact!("typed_artifacts", updated)
 
-        Mcp::Tools.success(message: "Saved.")
+        Mcp::Tools.success(message: "Saved.", chat_session_id: chat_session.id)
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitArtifactTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)

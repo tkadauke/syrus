@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { setSlugReferenceRegistryForTests } from "../../../lib/slugReferenceRegistry"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import addJobTagToolCard from "./add_job_tag"
 import createTagToolCard from "./create_tag"
@@ -20,6 +22,25 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
 }
 
 describe("issue, tag, and artifact tool cards", () => {
+  beforeEach(() => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "JOB",
+        type: "job",
+        displayLabel: "Job",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/jobs/:id",
+        mobileInteractionHints: {},
+        pluginPreviewComponent: null
+      }
+    ])
+  })
+
+  afterEach(() => setSlugReferenceRegistryForTests(null))
+
   it("registers under the exact MCP tool names", () => {
     expect(listOpenIssuesToolCard.toolName).toBe("list_open_issues")
     expect(listTagsToolCard.toolName).toBe("list_tags")
@@ -345,29 +366,74 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
   })
 
-  it("renders artifact submission metadata, affordances, and payload preview", () => {
+  it("renders the chat variant with markdown payload and a Media library link", () => {
     const input = {
-      type: "rails_schema_erd",
-      title: "Schema ERD",
-      payload: { tables: [{ name: "jobs" }] }
+      type: "review_report",
+      title: "Review report",
+      payload: { summary: `Found **two** issues. See JOB-42 and https://example.test/report. ${"More detail. ".repeat(100)}` }
     }
-    const parsedResult = {
-      message: "Saved.",
-      id: "artifact-1",
-      path: "artifacts/schema.json",
-      url: "/chat/artifacts/artifact-1"
-    }
+    const parsedResult = { message: "Saved.", chat_session_id: 12 }
 
-    expect(submitArtifactToolCard.collapsedSummary?.(context("submit_artifact", { input, parsedResult }))).toBe("Artifact saved: Schema ERD")
-    render(<>{submitArtifactToolCard.renderExpanded(context("submit_artifact", { input, parsedResult }))}</>)
+    expect(submitArtifactToolCard.collapsedSummary?.(context("submit_artifact", { input, parsedResult }))).toBe("Artifact saved: Review report")
+    render(<MemoryRouter>{submitArtifactToolCard.renderExpanded(context("submit_artifact", { input, parsedResult }))}</MemoryRouter>)
 
-    expect(screen.getByText("Schema ERD")).toBeInTheDocument()
-    expect(screen.getByText("rails_schema_erd")).toBeInTheDocument()
-    expect(screen.getByText("artifact-1")).toBeInTheDocument()
-    expect(screen.getByText("artifacts/schema.json")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "open" })).toHaveAttribute("href", "/chat/artifacts/artifact-1")
-    expect(screen.getByRole("link", { name: "download" })).toHaveAttribute("href", "/chat/artifacts/artifact-1")
+    expect(screen.getByText("Review report")).toBeInTheDocument()
+    expect(screen.getByText("review_report")).toBeInTheDocument()
+    expect(screen.getByText("two").tagName).toBe("STRONG")
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
+    expect(screen.getByRole("link", { name: "Chat Media library" })).toHaveAttribute("href", "/chats/12#media")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("normalizes the workflow variant and links its Workflow and Run", () => {
+    const input = { type: "rails_schema_erd", title: "Schema ERD", payload: { tables: [{ name: "jobs" }] } }
+    const envelope = { structured_content: { message: "Saved.", workflow_id: 28622, run_id: 230581, job_id: 7705 } }
+    const cardContext = context(normalizedToolName("mcp__syrus__submit_artifact"), {
+      input,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(cardContext.toolName).toBe("submit_artifact")
+    render(<>{submitArtifactToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "WF-28622" })).toHaveAttribute("href", "/jobs/7705?tab=workflows#workflow-28622")
+    expect(screen.getByRole("link", { name: "RUN-230581" })).toHaveAttribute("href", "/jobs/7705?tab=workflows#workflow-28622")
     expect(screen.getByText(/"jobs"/)).toBeInTheDocument()
+  })
+
+  it("renders screenshot payloads through the shared media preview", () => {
+    const input = { type: "screenshot", title: "Mobile view", payload: { screenshot_url: "/media/mobile.png" } }
+    render(<>{submitArtifactToolCard.renderExpanded(context("submit_artifact", { input, resultBody: "Saved.", resultSettled: true }))}</>)
+
+    expect(screen.getByRole("img", { name: "Mobile view" })).toHaveAttribute("src", "/media/mobile.png")
+    fireEvent.click(screen.getByRole("button", { name: "Open Mobile view" }))
+    expect(screen.getByRole("dialog", { name: "media preview" })).toBeInTheDocument()
+  })
+
+  it("renders pending, empty, and error artifact states", () => {
+    const input = { type: "report", title: "Review report", payload: {} }
+    const { rerender } = render(<>{submitArtifactToolCard.renderExpanded(context("submit_artifact", { input, resultSettled: false }))}</>)
+    expect(screen.getByText("Waiting for the artifact result.")).toBeInTheDocument()
+
+    rerender(
+      <>
+        {submitArtifactToolCard.renderExpanded(
+          context("submit_artifact", { input: { ...input, payload: { summary: " " } }, resultBody: "Saved.", resultSettled: true })
+        )}
+      </>
+    )
+    expect(screen.getByText("No artifact payload was submitted.")).toBeInTheDocument()
+
+    rerender(
+      <>
+        {submitArtifactToolCard.renderExpanded(
+          context("submit_artifact", { input, resultBody: "Storage unavailable", resultError: true, resultSettled: true })
+        )}
+      </>
+    )
+    expect(screen.getByText("Artifact submission failed")).toBeInTheDocument()
+    expect(screen.getByText("Storage unavailable")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {
