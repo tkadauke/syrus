@@ -1,18 +1,19 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { LocalModeJobOutcomeCard, localModeJobOutcomeSummary, parseLocalModeJobOutcome } from "../localModeJobOutcomeCard"
+import { LocalModeJobOutcomeToolCard, localModeJobOutcomeModel, localModeJobOutcomeSummary } from "../localModeJobOutcomeCard"
 
 // Local Mode tool card for open_in_local_mode (the tool-card work). All
 // parsing/presentation lives in ../localModeJobOutcomeCard so the family
 // (open_in_local_mode, cancel_local_mode, create_coding_job) stays
 // consistent; this file only binds it to one MCP tool name.
 function collapsedSummary(context: ToolCardContext) {
-  const result = parseLocalModeJobOutcome(context.parsedResult)
-  return result ? localModeJobOutcomeSummary(result) : null
+  const model = localModeJobOutcomeModel(context)
+  if (model.error) return "Failed to open Local Mode"
+  return model.result ? localModeJobOutcomeSummary(model.result) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const result = parseLocalModeJobOutcome(context.parsedResult)
-  return result ? <LocalModeJobOutcomeCard result={result} /> : null
+  const model = localModeJobOutcomeModel(context)
+  return model.error || model.result ? <LocalModeJobOutcomeToolCard context={context} /> : null
 }
 
 const openInLocalModeToolCard: ToolCardRenderer = {

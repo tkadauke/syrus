@@ -1,3 +1,4 @@
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import openInLocalModeCard from "./open_in_local_mode"
@@ -57,6 +58,47 @@ describe("Local Mode job-outcome tool card family", () => {
     expect(normalizedToolName("mcp__syrus-chat-sidecar__cancel_local_mode")).toBe("cancel_local_mode")
     expect(normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(payload) }] })).toEqual(payload)
     expect(normalizedToolCardParsedResult({ structured_content: payload })).toEqual(payload)
+  })
+
+  it.each([
+    {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            job_id: 42,
+            job_state: "coding",
+            branch_name: "syrus/direct-42",
+            repository_slug: "tkadauke/syrus",
+            message: "Opened on `syrus/direct-42`."
+          })
+        }
+      ]
+    },
+    {
+      structured_content: {
+        job_id: 42,
+        job_state: "coding",
+        branch_name: "syrus/direct-42",
+        repository_slug: "tkadauke/syrus",
+        message: "Opened on `syrus/direct-42`."
+      }
+    }
+  ])("renders open_in_local_mode through a normalized provider envelope", (envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    render(<>{openInLocalModeCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByText("syrus/direct-42", { selector: "code" })).toBeInTheDocument()
+  })
+
+  it("renders an open_in_local_mode error result", () => {
+    const errorContext = context({ input: { job_id: 42 }, resultBody: "Local Mode daemon is unavailable.", resultError: true })
+
+    expect(openInLocalModeCard.collapsedSummary?.(errorContext)).toBe("Failed to open Local Mode")
+    render(<>{openInLocalModeCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("Local Mode daemon is unavailable.")).toBeInTheDocument()
   })
 
   it.each(CARDS)("%s summarizes and wires through a well-formed payload", (_name, card) => {
