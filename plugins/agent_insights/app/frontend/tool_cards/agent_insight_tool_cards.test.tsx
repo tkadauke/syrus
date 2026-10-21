@@ -200,6 +200,17 @@ describe("Agent Insights tool cards", () => {
     render(<>{submitInsightToolCard.renderExpanded(wrapped)}</>)
     expect(screen.getByText("Saved by provider.")).toBeInTheDocument()
 
+    const plainTextEnvelope = context({
+      toolName: "submit_insight",
+      input,
+      resultBody: "",
+      parsedResult: { content: [{ type: "text", text: "Suggestion #53 saved." }] }
+    })
+    expect(submitInsightToolCard.collapsedSummary?.(plainTextEnvelope)).toBe("Saved insight #53")
+    render(<>{submitInsightToolCard.renderExpanded(plainTextEnvelope)}</>)
+    expect(screen.getByText("Suggestion #53 saved.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-53" })).toHaveAttribute("href", "/s/INSIGHT-53")
+
     const pending = context({ toolName: "submit_insight", input, resultBody: "", parsedResult: null })
     expect(submitInsightToolCard.collapsedSummary?.(pending)).toBe("Saving insight")
     expect(submitInsightToolCard.renderExpanded(context({ toolName: "submit_insight", resultBody: "", parsedResult: null }))).toBeNull()

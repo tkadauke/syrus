@@ -549,7 +549,7 @@ export function parseOutcome(context: ToolCardContext) {
     }
   }
 
-  const message = context.resultBody.trim()
+  const message = (typeof parsed === "string" ? parsed : context.resultBody).trim()
   if (!message || message.startsWith("{")) return null
   const id = message.match(/Suggestion #(\d+)/)?.[1] ?? null
 
