@@ -273,7 +273,10 @@ function tagStyle(color: string | null): CSSProperties | undefined {
 
 function TagChip({ tag }: { tag: TagRow }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" style={tagStyle(tag.color)}>
+    <span
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-2xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+      style={tagStyle(tag.color)}
+    >
       <span className="truncate">{tag.name}</span>
       {tag.id ? <span className="font-mono opacity-70">#{tag.id}</span> : null}
     </span>
@@ -286,14 +289,18 @@ export function TagListCard({ rows }: { rows: TagRow[] }) {
   return (
     <CardShell>
       <div className="flex flex-wrap gap-1">
-        {rows.map((tag, index) => <TagChip key={tag.id || `${tag.name}-${index}`} tag={tag} />)}
+        {rows.map((tag, index) => (
+          <TagChip key={tag.id || `${tag.name}-${index}`} tag={tag} />
+        ))}
       </div>
       <div>
         <SectionLabel>Affected Jobs</SectionLabel>
         <div className="mt-1 flex flex-wrap gap-1">
-          {Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).length > 0
-            ? Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).map((id) => <Badge key={id}>JOB-{id}</Badge>)
-            : <span className="text-gray-500 dark:text-gray-400">No tagged Jobs.</span>}
+          {Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).length > 0 ? (
+            Array.from(new Set(rows.flatMap((tag) => tag.jobIds))).map((id) => <Badge key={id}>JOB-{id}</Badge>)
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400">No tagged Jobs.</span>
+          )}
         </div>
       </div>
     </CardShell>
@@ -419,7 +426,9 @@ export function ArtifactCard({ artifact, error = false }: { artifact: ArtifactRe
       {artifact.preview ? (
         <div>
           <SectionLabel>Preview</SectionLabel>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{artifact.preview}</pre>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
+            {artifact.preview}
+          </pre>
         </div>
       ) : null}
     </CardShell>

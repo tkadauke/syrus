@@ -40,7 +40,11 @@ function PreviewImage({ alt, className, fallbackLabel, src }: { alt: string; cla
   useEffect(() => setFailed(false), [src])
 
   if (failed) {
-    return <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">{fallbackLabel}</span>
+    return (
+      <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">
+        {fallbackLabel}
+      </span>
+    )
   }
 
   return <img alt={alt} className={className} loading="lazy" onError={() => setFailed(true)} src={src} />
