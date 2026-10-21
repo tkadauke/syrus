@@ -42,6 +42,7 @@ module PendingActions
         "closure_reason" => job.closure_reason,
         "repository_id" => job.repository_id,
         "repository_slug" => job.repository&.slug,
+        "planned_execution" => job.planned_execution_json,
         "pr" => pr_snapshot(job),
         "mergeability" => mergeability_snapshot(job),
         "dependencies" => dependencies_snapshot(job),
@@ -131,6 +132,7 @@ module PendingActions
         "state" => workflow.state,
         "started_at" => iso8601(workflow.started_at),
         "finished_at" => iso8601(workflow.finished_at),
+        "planned_execution" => workflow.planned_execution_json,
         "steps" => workflow.steps.map { |step| step_snapshot(step) },
         "runs" => workflow.steps.flat_map(&:runs).map { |run| run_snapshot(run) },
         "artifacts" => workflow.artifacts.to_h.slice(*ARTIFACT_KEYS)

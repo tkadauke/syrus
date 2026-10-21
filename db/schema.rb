@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2521,6 +2521,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
     t.index ["occurred_at", "id"], name: "idx_perf_events_occurred_at_id"
+  end
+
+  create_table "planned_execution_overrides", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "workflow_id"
+    t.integer "user_id", null: false
+    t.string "profile", null: false
+    t.text "reason", null: false
+    t.json "previous_placement", null: false
+    t.json "replacement_placement", null: false
+    t.string "provenance", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_planned_execution_overrides_on_job_id"
+    t.index ["user_id"], name: "index_planned_execution_overrides_on_user_id"
+    t.index ["workflow_id"], name: "index_planned_execution_overrides_on_workflow_id"
   end
 
   create_table "platform_identities", force: :cascade do |t|

@@ -143,3 +143,23 @@ re-stamping the stale affinity between the clear and replacement enqueue.
 
 The action records an operator-repair audit entry and captures the same
 before/after repair snapshots as the other `PendingActions` repairs.
+
+## Planned execution placement override
+
+The Job management surface can change a Job's complete planned-execution
+profile while the Job is still in triage/backlog, or while its initial
+Workflow is queued with no started Run and no mutable workspace. The operator
+chooses a validated profile (`linux`, `macos_desktop`, or `ios_xcode`), reviews
+the exact before/after capabilities and worker availability, and supplies an
+audit reason. macOS desktop deliberately does not imply Xcode or an iOS
+simulator.
+
+The admin chat tool `override_job_planned_execution` exposes the same domain
+operation. `dry_run: true` reports eligibility, affected Workflow and Runs,
+worker availability, and the exact repair without mutation. A live request
+creates a PendingAction; confirmation rechecks the Job revision and safety
+conditions under row locks before atomically updating the Job and queued
+initial Workflow. Started/running work and any recorded mutable workspace are
+refused; use a fresh retry/Workflow for those cases rather than moving an
+active workspace between hosts. Every successful change records actor, reason,
+provenance, timestamp, and the complete previous and replacement placement.

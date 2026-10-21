@@ -103,6 +103,23 @@ module Api
           render_job(job.reload, message: lifecycle_t("accepted"), changed: [ "state", "runs" ])
         end
 
+        def override_planned_execution
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          PlannedExecutionOverrides::Operation.new(
+            job: job,
+            profile: params[:profile],
+            actor: current_user,
+            reason: params[:reason],
+            provenance: "job_ui",
+            expected_revision: params[:entity_revision]
+          ).apply!
+          render_job(job.reload, message: "Planned execution placement updated.", changed: [ "planned_execution", "workflows", "runs" ])
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         # And reject means "no". Closed as `cancelled` rather than one of the
         # successful reasons -- nothing was delivered.
         def reject_triage
