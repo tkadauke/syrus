@@ -32,7 +32,7 @@ function LinkedIds({ context, ids, kind }: { context: ToolCardContext; ids: stri
   )
 }
 
-function InputDetails({ context }: { context: ToolCardContext }) {
+function InputDetails({ context, showJob = true }: { context: ToolCardContext; showJob?: boolean }) {
   if (!context.input) return <EmptyState>{i18n.t("chat:cancel_stale_work.input_unavailable")}</EmptyState>
 
   const jobId = displayValue(context.input.job_id)
@@ -44,10 +44,12 @@ function InputDetails({ context }: { context: ToolCardContext }) {
 
   return (
     <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-      <Row
-        label={i18n.t("chat:cancel_stale_work.job")}
-        value={jobId ? <EntityReference id={jobId} kind="job" /> : i18n.t("chat:cancel_stale_work.not_provided")}
-      />
+      {showJob ? (
+        <Row
+          label={i18n.t("chat:cancel_stale_work.job")}
+          value={jobId ? <EntityReference id={jobId} kind="job" /> : i18n.t("chat:cancel_stale_work.not_provided")}
+        />
+      ) : null}
       <Row label={i18n.t("chat:cancel_stale_work.reconcile")} value={reconcileLabel} />
       <Row
         label={i18n.t("chat:cancel_stale_work.workflows")}
@@ -74,7 +76,10 @@ function renderExpanded(context: ToolCardContext) {
     )
 
   const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard details={<InputDetails context={context} />} result={result} /> : null
+  if (!result) return null
+
+  const resultJobId = result.kind === "dry_run_evidence" ? result.evidence?.jobId || result.context.jobId : result.jobId
+  return <PendingActionResultCard details={<InputDetails context={context} showJob={!resultJobId} />} result={result} />
 }
 
 const cancelStaleWorkToolCard: ToolCardRenderer = {
