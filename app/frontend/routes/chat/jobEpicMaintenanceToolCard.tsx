@@ -1,3 +1,4 @@
+import { isValidElement, type ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
@@ -34,7 +35,8 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
 }
 
-type DetailRow = { label: string; value: string }
+type DetailRow = { label: string; value: ReactNode }
+type Dependency = { id: string; kind: SubjectKind; title: string | null; state: string | null; added: boolean }
 
 type MaintenanceCard = {
   definition: MaintenanceToolDefinition
@@ -48,7 +50,7 @@ type MaintenanceCard = {
   failed: boolean
   message: string | null
   rows: DetailRow[]
-  dependencies: string[]
+  dependencies: Dependency[]
 }
 
 function subjectPrefix(kind: SubjectKind) {
@@ -100,23 +102,50 @@ function errorMessage(context: ToolCardContext) {
 }
 
 function pushRow(rows: DetailRow[], label: string, value: unknown) {
+  if (isValidElement(value)) {
+    rows.push({ label, value })
+    return
+  }
   const displayed = displayValue(value)
   if (displayed) rows.push({ label, value: displayed })
 }
 
-function dependencyLabel(context: ToolCardContext, result: Record<string, unknown>) {
+function dependencyReference(context: ToolCardContext, result: Record<string, unknown>) {
   const dependsOnJobId = firstValue(objectValue(context.input, "depends_on_job_id"))
-  if (dependsOnJobId) return `JOB-${dependsOnJobId}`
+  if (dependsOnJobId) return <EntityReference id={dependsOnJobId} kind="job" />
   const dependsOnEpicId = firstValue(objectValue(context.input, "depends_on_epic_id"))
-  if (dependsOnEpicId) return `EPIC-${dependsOnEpicId}`
+  if (dependsOnEpicId) return <EntityReference id={dependsOnEpicId} kind="epic" />
   const removedFromEpicId = firstValue(result.removed_from_epic_id)
-  if (removedFromEpicId) return `EPIC-${removedFromEpicId}`
+  if (removedFromEpicId) return <EntityReference id={removedFromEpicId} kind="epic" />
   return null
 }
 
-function dependencyList(definition: MaintenanceToolDefinition, result: Record<string, unknown>) {
-  if (definition.subjectKind === "epic") return compactList(result.depends_on).map((id) => `EPIC-${id}`)
-  return [...compactList(result.depends_on_job_ids).map((id) => `JOB-${id}`), ...compactList(result.depends_on_epic_ids).map((id) => `EPIC-${id}`)]
+function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind): Dependency | null {
+  const record = isPlainObject(value) ? value : null
+  const id = firstValue(record?.id, value)
+  if (!id) return null
+  const addedId = firstValue(objectValue(context.input, kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"))
+  return {
+    id,
+    kind,
+    title: firstValue(record?.title, record?.issue_title),
+    state: firstValue(record?.state),
+    added: context.toolName === `add_${kind}_dependency` && id === addedId
+  }
+}
+
+function dependencyList(context: ToolCardContext, definition: MaintenanceToolDefinition, result: Record<string, unknown>) {
+  const entries: Array<[unknown, SubjectKind]> =
+    definition.subjectKind === "epic"
+      ? (Array.isArray(result.depends_on) ? result.depends_on : []).map((value) => [value, "epic"])
+      : [
+          ...(Array.isArray(result.depends_on_job_ids) ? result.depends_on_job_ids : []).map((value): [unknown, SubjectKind] => [value, "job"]),
+          ...(Array.isArray(result.depends_on_epic_ids) ? result.depends_on_epic_ids : []).map((value): [unknown, SubjectKind] => [value, "epic"])
+        ]
+  return entries.flatMap(([value, kind]) => {
+    const item = dependency(context, value, kind)
+    return item ? [item] : []
+  })
 }
 
 function buildRows(context: ToolCardContext, result: Record<string, unknown>, transitionExecuted = true) {
@@ -128,7 +157,7 @@ function buildRows(context: ToolCardContext, result: Record<string, unknown>, tr
   pushRow(rows, "Title", result.title)
   pushRow(rows, "Description", result.description)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
-  pushRow(rows, "Dependency", dependencyLabel(context, result))
+  pushRow(rows, "Dependency", dependencyReference(context, result))
   pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
@@ -191,7 +220,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     failed,
     message,
     rows: buildRows(context, result, transitionExecuted),
-    dependencies: dependencyList(definition, result)
+    dependencies: dependencyList(context, definition, result)
   }
 }
 
@@ -256,8 +285,8 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
       {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {card.rows.map((row) => (
-            <Row key={`${row.label}-${row.value}`} label={row.label} value={row.value} />
+          {card.rows.map((row, index) => (
+            <Row key={`${row.label}-${index}`} label={row.label} value={row.value} />
           ))}
         </dl>
       ) : null}
@@ -265,15 +294,16 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         <div>
           <SectionLabel>Current dependencies</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {card.dependencies.map((dependency) => {
-              const job = dependency.match(/^JOB-(\d+)$/)
-              const epic = dependency.match(/^EPIC-(\d+)$/)
-              return (
-                <Badge key={dependency}>
-                  {job ? <EntityReference id={job[1]} kind="job" /> : epic ? <EntityReference id={epic[1]} kind="epic" /> : dependency}
-                </Badge>
-              )
-            })}
+            {card.dependencies.map((dependency) => (
+              <Badge key={`${dependency.kind}-${dependency.id}`}>
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+                  <EntityReference id={dependency.id} kind={SUBJECT_ENTITY_KIND[dependency.kind]} />
+                  {dependency.title ? <span className="max-w-full break-words">{dependency.title}</span> : null}
+                  {dependency.state ? <StatePill state={dependency.state} /> : null}
+                  {dependency.added ? <span className="font-semibold text-emerald-700 dark:text-emerald-300">added</span> : null}
+                </span>
+              </Badge>
+            ))}
           </div>
         </div>
       ) : null}
