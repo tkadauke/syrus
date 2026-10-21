@@ -4,18 +4,7 @@ import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components
 import { useT } from "@app/hooks/useT"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { MarkdownPreview, type MarkdownPreviewProps } from "@app/routes/chat/toolCardMarkdown"
-import {
-  Badge,
-  CardShell,
-  Disclosure,
-  displayValue,
-  EmptyState,
-  EntityReference,
-  InternalLink,
-  numberValue,
-  SectionLabel,
-  StatePill
-} from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, numberValue, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 
 export type InsightRef = {
   id: string
@@ -48,6 +37,7 @@ export type AgentInsight = {
   staleMemoryText: string | null
   staleMemoryEvidence: string | null
   retiredReason: string | null
+  targetInsightId: string | null
   supersededByInsightId: string | null
   supersededByJobId: string | null
   targetMemoryId: string | null
@@ -86,7 +76,7 @@ function parseEvidence(value: unknown, index: number): EvidenceItem | null {
     jobId,
     runId,
     jobPath: displayValue(value.job_path) ?? (jobId ? `/jobs/${jobId}` : null),
-    runPath: displayValue(value.run_transcript_path) ?? (runId ? `/admin/runs/${runId}/transcript` : null)
+    runPath: displayValue(value.run_transcript_path)
   }
 }
 
@@ -116,6 +106,7 @@ export function parseInsight(value: unknown): AgentInsight | null {
     staleMemoryText: typeof value.stale_memory_text === "string" ? value.stale_memory_text : null,
     staleMemoryEvidence: typeof value.stale_memory_evidence === "string" ? value.stale_memory_evidence : null,
     retiredReason: typeof value.retired_reason === "string" ? value.retired_reason : null,
+    targetInsightId: displayValue(value.target_insight_id),
     supersededByInsightId: displayValue(value.superseded_by_insight_id),
     supersededByJobId: displayValue(value.superseded_by_job_id),
     targetMemoryId: displayValue(value.target_memory_id),
@@ -148,10 +139,23 @@ export function insightRows(context: ToolCardContext): AgentInsight[] | null {
   })
 }
 
+function unwrapToolResult(value: unknown): unknown {
+  let root = value
+  if (isPlainObject(root) && root.structured_content != null) root = root.structured_content
+  if (isPlainObject(root) && Array.isArray(root.content) && isPlainObject(root.content[0]) && typeof root.content[0].text === "string") {
+    try {
+      root = JSON.parse(root.content[0].text)
+    } catch {
+      return root
+    }
+  }
+  return isPlainObject(root) && isPlainObject(root.data) ? root.data : root
+}
+
 export function parseInsightDetail(context: ToolCardContext): AgentInsight | null {
-  const parsed = context.parsedResult
+  const parsed = unwrapToolResult(context.parsedResult)
   if (!isPlainObject(parsed)) return null
-  return parseInsight(parsed.insight)
+  return parseInsight(parsed.insight ?? parsed)
 }
 
 export function insightListSummary(context: ToolCardContext): string | null {
@@ -162,11 +166,12 @@ export function insightListSummary(context: ToolCardContext): string | null {
 }
 
 function SeverityBadge({ severity }: { severity: string | null }) {
+  const { t } = useT("agent_insights")
   if (!severity) return null
   const tone = severity === "high" ? "danger" : severity === "medium" ? "warning" : "neutral"
   return (
     <Pill className="text-2xs font-semibold uppercase" tone={tone}>
-      {severity}
+      {t(`severity_${severity}`, { defaultValue: severity.replace(/_/g, " ") })}
     </Pill>
   )
 }
@@ -177,17 +182,9 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   return <Badge>{t("confidence", { pct: Math.round(confidence * 100) })}</Badge>
 }
 
-function RefLink({ target }: { target: InsightRef | null }) {
+function RefLink({ target, kind }: { target: InsightRef | null; kind: "job" | "workflow" | "run" }) {
   if (!target) return null
-  const text = target.slug ?? target.title ?? `#${target.id}`
-  const job = text.match(/^JOB-(\d+)$/)
-  const workflow = text.match(/^WF-(\d+)$/)
-  const run = text.match(/^RUN-(\d+)$/)
-  if (job) return <EntityReference href={target.path} id={job[1]} kind="job" slug={text} wrap="nowrap" />
-  if (workflow) return <EntityReference href={target.path} id={workflow[1]} kind="workflow" slug={text} wrap="nowrap" />
-  if (run) return <EntityReference href={target.path} id={run[1]} kind="run" slug={text} wrap="nowrap" />
-  if (!target.path) return <EntityReference kind="artifact" slug={text} wrap="nowrap" />
-  return <InternalLink href={target.path}>{text}</InternalLink>
+  return <EntityReference href={target.path} id={target.id} kind={kind} slug={target.slug} wrap="nowrap" />
 }
 
 function InsightIdReference({ id }: { id: string }) {
@@ -280,9 +277,7 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
     sections.push(
       <div key="stale-memory">
         <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
-        {insight.targetMemoryId ? (
-          <div className="font-mono text-gray-600 dark:text-gray-300">{t("tool_memory_id", { id: insight.targetMemoryId })}</div>
-        ) : null}
+        {insight.targetMemoryId ? <EntityReference id={insight.targetMemoryId} kind="memory" wrap="nowrap" /> : null}
         {insight.staleMemoryText ? <TextPreview text={insight.staleMemoryText} maxLines={2} /> : null}
         {insight.staleMemoryEvidence ? <TextPreview text={insight.staleMemoryEvidence} /> : null}
       </div>
@@ -305,13 +300,19 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         {insight.category ? <Badge>{insight.category.replace(/_/g, " ")}</Badge> : null}
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
+      {insight.summary != null ? (
+        <div>
+          <SectionLabel>{t("tool_summary")}</SectionLabel>
+          <TextPreview emptyState={<EmptyState>{t("tool_empty_text")}</EmptyState>} text={insight.summary} />
+        </div>
+      ) : null}
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
         <DescriptionList.Item label={t("tool_insight_id")}>
           <InsightIdReference id={insight.id} />
         </DescriptionList.Item>
         {insight.proposalType ? (
           <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_proposal")}>
-            {insight.proposalType.replace(/_/g, " ")}
+            {t(`proposal_${insight.proposalType}`, { defaultValue: insight.proposalType.replace(/_/g, " ") })}
           </DescriptionList.Item>
         ) : null}
         {insight.repository?.slug ? (
@@ -336,10 +337,16 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         ) : null}
       </DescriptionList.Root>
       <div className="flex flex-wrap gap-2">
-        <RefLink target={insight.job} />
-        <RefLink target={insight.sourceWorkflow} />
-        <RefLink target={insight.sourceRun} />
+        <RefLink kind="job" target={insight.job} />
+        <RefLink kind="workflow" target={insight.sourceWorkflow} />
+        <RefLink kind="run" target={insight.sourceRun} />
       </div>
+      {insight.targetInsightId ? (
+        <div>
+          <SectionLabel>{t("tool_target_insight")}</SectionLabel>
+          <InsightIdReference id={insight.targetInsightId} />
+        </div>
+      ) : null}
       <ActionSections insight={insight} />
       {insight.retiredReason ? (
         <div>
@@ -387,13 +394,13 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
             {row.summary ? <TextPreview maxChars={320} maxLines={2} text={row.summary} /> : null}
             <div className="flex min-w-0 flex-wrap gap-1">
               {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
-              {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+              {row.proposalType ? <Badge>{t(`proposal_${row.proposalType}`, { defaultValue: row.proposalType.replace(/_/g, " ") })}</Badge> : null}
               <ConfidenceBadge confidence={row.confidence} />
             </div>
             <div className="flex min-w-0 flex-wrap gap-2">
-              <RefLink target={row.sourceWorkflow} />
-              <RefLink target={row.sourceRun} />
-              {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
+              <RefLink kind="workflow" target={row.sourceWorkflow} />
+              <RefLink kind="run" target={row.sourceRun} />
+              {!row.sourceWorkflow && !row.sourceRun ? <RefLink kind="job" target={row.job} /> : null}
               {row.repository ? <RepositoryReference repository={row.repository} /> : null}
             </div>
             <Text as="div" className="break-all font-mono" variant="caption" tone="muted">
@@ -427,7 +434,7 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
                   {row.summary ? <TextPreview maxChars={320} maxLines={2} text={row.summary} /> : null}
                   <div className="flex flex-wrap gap-1 pt-1">
                     {row.category ? <Badge>{row.category.replace(/_/g, " ")}</Badge> : null}
-                    {row.proposalType ? <Badge>{row.proposalType.replace(/_/g, " ")}</Badge> : null}
+                    {row.proposalType ? <Badge>{t(`proposal_${row.proposalType}`, { defaultValue: row.proposalType.replace(/_/g, " ") })}</Badge> : null}
                     <ConfidenceBadge confidence={row.confidence} />
                   </div>
                 </DataTable.Cell>
@@ -437,9 +444,9 @@ export function InsightListBody({ rows }: { rows: AgentInsight[] }) {
                 </DataTable.Cell>
                 <DataTable.Cell className="whitespace-nowrap px-2 py-1">
                   <div className="flex flex-col gap-1">
-                    <RefLink target={row.sourceWorkflow} />
-                    <RefLink target={row.sourceRun} />
-                    {!row.sourceWorkflow && !row.sourceRun ? <RefLink target={row.job} /> : null}
+                    <RefLink kind="workflow" target={row.sourceWorkflow} />
+                    <RefLink kind="run" target={row.sourceRun} />
+                    {!row.sourceWorkflow && !row.sourceRun ? <RefLink kind="job" target={row.job} /> : null}
                   </div>
                 </DataTable.Cell>
                 <DataTable.Cell className="whitespace-nowrap px-2 py-1 text-xs">
