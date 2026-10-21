@@ -827,6 +827,26 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
   })
 
+  it("opens the Media workspace from a chat deep link on mobile", async () => {
+    mockMobileViewport()
+    const payload = chatPayload({ chat: { typed_artifact_count: 1 } })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({ snapshots: [], chat_images: [], typed_artifacts: [], whiteboard_has_unsaved_content: false }))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute("/app-shell/chats/8?workspace=media")
+
+    const mobileTabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: "Media" })).toHaveClass("text-brand"))
+    expect(screen.getByTestId("mobile-workspace-panel-shell")).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+  })
+
   it("keeps non-chat mobile workspace tabs below the app header and tab chrome", async () => {
     mockMobileViewport()
     mockChatRouteFetch()
@@ -7589,10 +7609,10 @@ describe("group chat participants and composer hint", () => {
   })
 })
 
-function renderRoute() {
+function renderRoute(initialEntry = "/app-shell/chats/8") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
         </Routes>
