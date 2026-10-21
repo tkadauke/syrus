@@ -65,6 +65,27 @@ describe("edit_preview_file tool card", () => {
     expect(screen.getByText("app.js")).toBeInTheDocument()
   })
 
+  it("offers the complete diff through Show more when a replacement exceeds the bounded preview", () => {
+    const oldString = Array.from({ length: 305 }, (_, index) => `old line ${index + 1}`).join("\n")
+    const newString = Array.from({ length: 305 }, (_, index) => `new line ${index + 1}`).join("\n")
+    const { container } = render(
+      <>
+        {editPreviewFileToolCard.renderExpanded(
+          context({
+            input: { panel_id: "7", path: "large.txt", old_string: oldString, new_string: newString, replace_all: false },
+            parsedResult: { panel_id: "7", path: "large.txt", replacements: 1 }
+          })
+        )}
+      </>
+    )
+
+    fireEvent.click(screen.getByText("Changes"))
+    expect(container.querySelector('[data-testid="text-preview-content"]')).toHaveClass("overflow-x-auto")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog")).toHaveTextContent("old line 305")
+    expect(screen.getByRole("dialog")).toHaveTextContent("new line 305")
+  })
+
   it.each([
     ["multiple matches", { error: "old_string must appear exactly once; found 3 matches" }, false],
     ["not found", { structured_content: { error: "old_string was not found" } }, false],
