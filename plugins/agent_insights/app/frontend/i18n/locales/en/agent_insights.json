@@ -147,5 +147,22 @@
   "tool_update_summary_with_id": "Updated insight #{{id}}",
   "tool_retire_label": "Retirement outcome",
   "tool_retire_summary": "Retired insight",
-  "tool_retire_summary_with_id": "Retired insight #{{id}}"
+  "tool_retire_summary_with_id": "Retired insight #{{id}}",
+  "tool_accept_label": "Acceptance outcome",
+  "tool_accept_summary": "Accepted {{count}} insight",
+  "tool_accept_summary_plural": "Accepted {{count}} insights",
+  "tool_accept_summary_empty": "Insight acceptance completed",
+  "tool_accept_requested": "Accept requested · {{count}} insights · {{state}}",
+  "tool_accept_failed": "Insight acceptance failed",
+  "tool_accept_error": "Unable to accept insights.",
+  "tool_accept_message": "Acceptance message",
+  "tool_accept_empty_message": "No result message was provided.",
+  "tool_accept_input": "Requested insights",
+  "tool_accept_insights": "Result insights",
+  "tool_accept_states": "New states",
+  "tool_accept_proposals": "Proposal types",
+  "tool_accept_jobs": "Created jobs",
+  "tool_accept_memories": "Created memories",
+  "tool_accept_transition": "Intended transition",
+  "tool_accept_empty": "No acceptance details were returned."
 }

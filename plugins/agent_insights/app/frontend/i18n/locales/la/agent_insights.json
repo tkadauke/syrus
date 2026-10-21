@@ -147,5 +147,22 @@
   "tool_update_summary_with_id": "Perspectiva #{{id}} renovata",
   "tool_retire_label": "Eventus depositionis",
   "tool_retire_summary": "Perspectiva deposita",
-  "tool_retire_summary_with_id": "Perspectiva #{{id}} deposita"
+  "tool_retire_summary_with_id": "Perspectiva #{{id}} deposita",
+  "tool_accept_label": "Eventus acceptionis",
+  "tool_accept_summary": "{{count}} perspectiva accepta",
+  "tool_accept_summary_plural": "{{count}} perspectivae acceptae",
+  "tool_accept_summary_empty": "Acceptio perfecta",
+  "tool_accept_requested": "Acceptio postulata · {{count}} perspectivae · {{state}}",
+  "tool_accept_failed": "Acceptio perspectivae defecit",
+  "tool_accept_error": "Perspectivae accipi non potuerunt.",
+  "tool_accept_message": "Nuntius acceptionis",
+  "tool_accept_empty_message": "Nullus nuntius eventus datus est.",
+  "tool_accept_input": "Perspectivae postulatae",
+  "tool_accept_insights": "Perspectivae eventus",
+  "tool_accept_states": "Status novi",
+  "tool_accept_proposals": "Genera propositorum",
+  "tool_accept_jobs": "Opera creata",
+  "tool_accept_memories": "Memoriae creatae",
+  "tool_accept_transition": "Transitus intentus",
+  "tool_accept_empty": "Nullae partes acceptionis redditae sunt."
 }

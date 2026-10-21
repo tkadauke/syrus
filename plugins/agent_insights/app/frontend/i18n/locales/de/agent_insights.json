@@ -147,5 +147,22 @@
   "tool_update_summary_with_id": "Einblick #{{id}} aktualisiert",
   "tool_retire_label": "Ergebnis der Zurückziehung",
   "tool_retire_summary": "Einblick zurückgezogen",
-  "tool_retire_summary_with_id": "Einblick #{{id}} zurückgezogen"
+  "tool_retire_summary_with_id": "Einblick #{{id}} zurückgezogen",
+  "tool_accept_label": "Annahmeergebnis",
+  "tool_accept_summary": "{{count}} Einblick angenommen",
+  "tool_accept_summary_plural": "{{count}} Einblicke angenommen",
+  "tool_accept_summary_empty": "Annahme abgeschlossen",
+  "tool_accept_requested": "Annahme angefordert · {{count}} Einblicke · {{state}}",
+  "tool_accept_failed": "Annahme des Einblicks fehlgeschlagen",
+  "tool_accept_error": "Einblicke konnten nicht angenommen werden.",
+  "tool_accept_message": "Annahmenachricht",
+  "tool_accept_empty_message": "Keine Ergebnisnachricht vorhanden.",
+  "tool_accept_input": "Angeforderte Einblicke",
+  "tool_accept_insights": "Ergebniseinblicke",
+  "tool_accept_states": "Neue Status",
+  "tool_accept_proposals": "Vorschlagstypen",
+  "tool_accept_jobs": "Erstellte Jobs",
+  "tool_accept_memories": "Erstellte Erinnerungen",
+  "tool_accept_transition": "Beabsichtigter Übergang",
+  "tool_accept_empty": "Keine Annahmedetails zurückgegeben."
 }
