@@ -2,7 +2,8 @@ import type { ReactNode } from "react"
 import i18n from "i18next"
 import { DataTable, DescriptionList, Pill, Surface, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
-import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
+import type { ToolCardContext } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
 import { MarkdownPreview, type MarkdownPreviewProps } from "@app/routes/chat/toolCardMarkdown"
 import {
   Badge,
