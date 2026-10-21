@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
+import { setSlugReferenceRegistryForTests } from "@app/lib/slugReferenceRegistry"
 import { pluginToolCardRendererFor, type ToolCardContext } from "@app/pluginToolCards"
 import listInsightsToolCard from "./list_insights"
 import readInsightToolCard from "./read_insight"
@@ -41,6 +43,8 @@ describe("Agent Insights tool cards", () => {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
   })
+
+  afterEach(() => setSlugReferenceRegistryForTests(null))
 
   it("registers plugin-local card modules for Agent Insights tools", () => {
     expect(pluginToolCardRendererFor("list_insights")).not.toBeNull()
@@ -176,6 +180,20 @@ describe("Agent Insights tool cards", () => {
   })
 
   it("renders every update field, Markdown reason, and linked references responsively", () => {
+    setSlugReferenceRegistryForTests([
+      {
+        prefix: "RUN",
+        type: "run",
+        displayLabel: "Run",
+        copyable: true,
+        linkable: true,
+        previewAvailable: false,
+        linkifiesGeneratedText: true,
+        hrefTemplate: "/s/RUN-:id",
+        mobileInteractionHints: { tap: "open", long_press: "copy" },
+        pluginPreviewComponent: null
+      }
+    ])
     const longReason = `Changed after **RUN-99** and https://example.test/evidence. ${"More context. ".repeat(60)}`
     const cardContext = context({
       toolName: "update_insight",
@@ -200,11 +218,20 @@ describe("Agent Insights tool cards", () => {
     })
 
     expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Updated insight #41")
-    render(<>{updateInsightToolCard.renderExpanded(cardContext)}</>)
+    render(<MemoryRouter>{updateInsightToolCard.renderExpanded(cardContext)}</MemoryRouter>)
 
     expect(screen.getByRole("link", { name: "INSIGHT-41" })).toHaveAttribute("href", "/s/INSIGHT-41")
     expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
-    expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toHaveLength(3)
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: expect.stringMatching(/\/admin\/runs\/99\/transcript$/) }),
+        expect.objectContaining({ href: expect.stringMatching(/\/s\/RUN-99$/) })
+      ])
+    )
+    const reasonSection = screen.getByText("Reason").parentElement as HTMLElement
+    fireEvent.click(within(reasonSection).getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/s/RUN-99")
     expect(screen.getByText("MEMORY-12")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy MEMORY-12 to clipboard" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "runbook" })).toHaveAttribute("href", "https://example.test/runbook")

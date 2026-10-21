@@ -2155,7 +2155,7 @@ stale server-side registration cannot blank the page around it.
 
 Slug type providers define canonical display refs that the backend can resolve
 without hardcoding every prefix at each call site. Core registers providers for
-`JOB-<id>`, `EPIC-<number>`, `CHAT-<id>`, and `WF-<id>`.
+`JOB-<id>`, `EPIC-<number>`, `CHAT-<id>`, `WF-<id>`, and `RUN-<id>`.
 
 Providers include `Syrus::Plugin::SlugType` and implement:
 
@@ -2187,7 +2187,8 @@ Core's `SlugReferenceCard` (`app/frontend/components/SlugHoverCard.tsx`, with
 `SlugHoverCard` kept as a compatibility export) renders a rich hover/click
 preview popup for registered references linkified by `linkifySlugs.tsx`.
 `JOB`/`EPIC`/`CHAT`/`WF` are core slug types and render core preview components
-directly; plugin-owned reference kinds become linkifiable by registering the
+directly. `RUN` is a core link-only slug type that opens its owning workflow;
+plugin-owned reference kinds become linkifiable by registering the
 `:slug_type` provider above. Frontend preview-card components still use file
 discovery so adding a visual card does not require duplicating React component
 registration data in Ruby.

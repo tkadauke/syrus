@@ -95,6 +95,22 @@ RSpec.describe "App API slug refs", type: :request do
     expect(parse_body.dig("workflow", "steps").last).to include("display_name" => "Focused", "status" => "warning")
   end
 
+  it "resolves accessible Run refs to their owning workflows" do
+    job = Factories.job_with_run(user: user)
+    run = job.runs.first
+
+    get "/api/v1/app/slug_refs/RUN-#{run.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("slug_ref")).to include(
+      "canonical_slug" => "RUN-#{run.id}",
+      "type" => "run",
+      "web_path" => "/jobs/#{job.id}?tab=workflows#workflow-#{run.workflow.id}",
+      "api_preview_path" => nil,
+      "linkifies_generated_text" => true
+    )
+  end
+
   it "does not expose inaccessible Workflow refs or previews" do
     other_user = Factories.user(global_role: "user")
     other_repository = Factories.repository(user: other_user)

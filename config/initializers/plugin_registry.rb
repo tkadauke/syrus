@@ -5,6 +5,7 @@ Rails.application.config.after_initialize do
   Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Epic)
   Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Chat)
   Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Workflow)
+  Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Run)
 
   # Plugins self-register via their own engine initializers, which run before
   # this hook - no explicit list is needed here.

@@ -159,6 +159,12 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
         "type" => "workflow",
         "preview_available" => true,
         "href_template" => "/s/WF-:id"
+      ),
+      include(
+        "prefix" => "RUN",
+        "type" => "run",
+        "preview_available" => false,
+        "href_template" => "/s/RUN-:id"
       )
     )
   end
