@@ -26,6 +26,16 @@ describe("toolCardUi Row", () => {
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })
+
+  it("constrains wrapped values beside copy controls without truncating them at desktop widths", () => {
+    const value = "syrus/direct-4225-improve-open-in-local-mode-tool-card-responsive-details"
+    render(<Row copyable label="Branch" value={value} wrap />)
+
+    const text = screen.getByText(value)
+    expect(text).toHaveClass("w-0", "min-w-0", "flex-1", "whitespace-normal", "break-all")
+    expect(text).not.toHaveClass("truncate", "sm:truncate")
+    expect(screen.getByRole("button", { name: `Copy ${value} to clipboard` })).toBeInTheDocument()
+  })
 })
 
 function renderReference(reference: ComponentProps<typeof EntityReference>) {

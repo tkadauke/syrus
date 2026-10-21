@@ -98,7 +98,11 @@ export function Row({ label, value, wrap = false, copyable = false }: { label: s
         {label}
       </Text>
       <div className="flex min-w-0 items-center gap-1">
-        <Text as="div" className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} min-w-0 font-mono text-xs`} title={value}>
+        <Text
+          as="div"
+          className={`${wrap ? "whitespace-normal break-all" : "whitespace-pre-wrap break-words"} w-0 min-w-0 flex-1 font-mono text-xs`}
+          title={value}
+        >
           {value}
         </Text>
         {copyable ? <CopyOnlyIconButton value={value} /> : null}
