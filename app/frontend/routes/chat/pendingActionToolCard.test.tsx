@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
+import { normalizedToolName, normalizedToolCardParsedResult } from "./toolRendering"
+import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
   return {
@@ -95,7 +96,7 @@ describe("pending action tool card: standard shape", () => {
   it("renders the pending action id and message", () => {
     renderResult(standardPayload())
 
-    expect(screen.getByText("#501")).toBeInTheDocument()
+    expect(screen.getByText("Pending action #501")).toBeInTheDocument()
     expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
   })
 
@@ -182,7 +183,7 @@ describe("pending action tool card: bulk shape", () => {
   it("renders the group id and member count badge", () => {
     renderResult(bulkPayload)
 
-    expect(screen.getByText("Group #88")).toBeInTheDocument()
+    expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
   })
 })
@@ -292,5 +293,67 @@ describe("pending action tool card: fallbacks", () => {
 
   it("returns null when an evidence payload is missing its action name", () => {
     expect(parsePendingActionResult(context({ job_id: 4222, evidence: { remote_sha: "abc" } }))).toBeNull()
+  })
+})
+
+describe("pending action tool card: configured inputs and envelopes", () => {
+  const card = pendingActionToolCard("admin_pause_runs", {
+    inputFields: [
+      { key: "workflow_ids", label: "Workflows", format: "entity_list", entityKind: "workflow", hrefPrefix: "/admin/workflows" },
+      { key: "provider", format: "badge" },
+      { key: "positive_evidence", format: "markdown" }
+    ]
+  })
+
+  it("normalizes a namespaced raw name and structured_content result", () => {
+    const rawName = "mcp__syrus-chat-sidecar__admin_pause_runs"
+    const envelope = { structured_content: standardPayload() }
+    const normalizedContext = context(normalizedToolCardParsedResult(envelope))
+    normalizedContext.toolName = normalizedToolName(rawName)
+
+    expect(normalizedContext.toolName).toBe("admin_pause_runs")
+    expect(card.collapsedSummary?.(normalizedContext)).toBe("Job rebase requires operator confirmation.")
+  })
+
+  it("normalizes content[0].text JSON and renders configured bulk targets", () => {
+    const envelope = { content: [{ type: "text", text: JSON.stringify(standardPayload()) }] }
+    const normalizedContext = context(normalizedToolCardParsedResult(envelope))
+    normalizedContext.input = { workflow_ids: [41, 42], provider: "codex" }
+
+    render(<>{card.renderExpanded(normalizedContext)}</>)
+
+    expect(screen.getByRole("link", { name: "WF-41" })).toHaveAttribute("href", "/admin/workflows/41")
+    expect(screen.getByRole("link", { name: "WF-42" })).toHaveAttribute("href", "/admin/workflows/42")
+    expect(screen.getByText("codex")).toBeInTheDocument()
+  })
+
+  it("renders long configured prose and result reasons with the shared Show more dialog", () => {
+    const longEvidence = "Concrete recovery evidence. ".repeat(80)
+    const configuredContext = context(standardPayload({ reason: "**Operator reason** " + "details ".repeat(100) }))
+    configuredContext.input = { positive_evidence: longEvidence }
+
+    render(<>{card.renderExpanded(configuredContext)}</>)
+
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+    expect(screen.getByText("Operator reason")).toBeInTheDocument()
+  })
+
+  it("renders tool-error results without requiring a pending action id", () => {
+    const errorContext = context({ content: [{ type: "text", text: "Provider unavailable" }] })
+    errorContext.resultError = true
+
+    render(<>{card.renderExpanded(errorContext)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Provider unavailable")).toBeInTheDocument()
+  })
+
+  it("links entity references and email addresses embedded in result prose", () => {
+    renderResult(standardPayload({ message: "Pause workflow #71 for user #9 (operator@example.com) after process #4." }))
+
+    expect(screen.getByRole("link", { name: "workflow #71" })).toHaveAttribute("href", "/admin/workflows/71")
+    expect(screen.getByRole("link", { name: "user #9" })).toHaveAttribute("href", "/admin/users/9")
+    expect(screen.getByRole("link", { name: "process #4" })).toHaveAttribute("href", "/admin/processes/4")
+    expect(screen.getByRole("link", { name: "operator@example.com" })).toHaveAttribute("href", "mailto:operator@example.com")
   })
 })
