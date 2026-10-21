@@ -128,8 +128,8 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("stopped")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getAllByText("browser").length).toBeGreaterThan(0)
-    expect(screen.getByText(workspaceRef)).toHaveClass("break-words")
-    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-words")
+    expect(screen.getByText(workspaceRef)).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-all", "sm:truncate")
     expect(screen.getAllByRole("link", { name: "Stream" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "Stream" })[0]).toHaveAttribute("target", "_blank")
     expect(screen.queryByRole("link", { name: "Latest frame" })).not.toBeInTheDocument()
@@ -137,7 +137,7 @@ describe("Runtime tool cards", () => {
     expect(screen.getByAltText("Latest frame for Runtime #1")).toHaveAttribute("src", "/runtime/7/frame?latest_frame_at=2026-09-10T12%3A00%3A05Z")
     expect(screen.getAllByText("url").length).toBeGreaterThan(0)
     expect(screen.getByText("no lease")).toBeInTheDocument()
-    expect(screen.getByText("coding_mode_chat:8")).toHaveClass("break-words")
+    expect(screen.getByText("coding_mode_chat:8")).toHaveClass("break-all", "sm:truncate")
     expect(screen.getAllByText("Capabilities")).toHaveLength(2)
     fireEvent.click(screen.getByText("Last error"))
     expect(screen.getByText(/The preview process exited unexpectedly/, { selector: "code" })).toHaveTextContent(
@@ -290,17 +290,83 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("no lease")).toBeInTheDocument()
   })
 
-  it("summarizes a started Runtime session with state, command details, and URL", () => {
-    const parsedResult = session({ metadata: { port: 3001, url: "http://127.0.0.1:3001", pid: 1234 } })
+  it("renders start input, distinct state, linked URL, and de-duplicated provider metadata", () => {
+    const parsedResult = session({
+      state: "starting",
+      workspace_ref: null,
+      metadata: { workspace_ref: "workspace-from-provider", port: 3001, url: "http://127.0.0.1:3001", pid: 1234 }
+    })
+    const toolContext = context("runtime_start", {
+      parsedResult,
+      input: { provider: "browser", name: "docs preview", options: { command: "npm run dev", api_token: "[redacted]" } }
+    })
 
-    expect(runtimeStartToolCard.collapsedSummary?.(context("runtime_start", { parsedResult }))).toBe("Runtime start #7: running at http://127.0.0.1:3001")
+    expect(runtimeStartToolCard.collapsedSummary?.(toolContext)).toBe("Runtime start #7: starting at http://127.0.0.1:3001")
 
-    render(<>{runtimeStartToolCard.renderExpanded(context("runtime_start", { parsedResult }))}</>)
+    render(<>{runtimeStartToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("Runtime start")).toBeInTheDocument()
     expect(screen.getByText("#7")).toBeInTheDocument()
-    expect(screen.getAllByText("running").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("starting").length).toBeGreaterThan(0)
     expect(screen.getByText("pid 1234")).toBeInTheDocument()
-    expect(screen.getAllByText("http://127.0.0.1:3001").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "http://127.0.0.1:3001" })).toHaveAttribute("target", "_blank")
+    expect(screen.getAllByText("http://127.0.0.1:3001")).toHaveLength(1)
+    expect(screen.getByText("docs preview")).toBeInTheDocument()
+    expect(screen.getByText("npm run dev")).toBeInTheDocument()
+    expect(screen.getByText("workspace-from-provider")).toBeInTheDocument()
+    expect(screen.getAllByText("workspace-from-provider")).toHaveLength(1)
+    expect(screen.getByText("3001")).toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
+  })
+
+  it("renders failed starts and never links unsafe provider URLs", () => {
+    const parsedResult = { ...session({ state: "failed", metadata: { url: "javascript:alert(1)" } }), error: true, message: "browser failed to start" }
+
+    expect(runtimeStartToolCard.collapsedSummary?.(context("runtime_start", { parsedResult }))).toBe("Runtime start failed")
+    render(<>{runtimeStartToolCard.renderExpanded(context("runtime_start", { parsedResult }))}</>)
+    expect(screen.getByText("browser failed to start")).toBeInTheDocument()
+    expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "javascript:alert(1)" })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["runtime_start", (payload: unknown) => payload],
+    ["mcp__syrus-chat-sidecar__runtime_start", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["syrus-chat-sidecar.runtime_start", (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null })]
+  ])("normalizes %s start envelopes through the real redacted ToolGroup path", (rawName, envelope) => {
+    const payload = session({ id: 41, metadata: { url: "https://runtime.example.test", api_token: "result-secret" } })
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime start",
+      calls: [
+        {
+          message_id: 41,
+          tool_name: "Runtime start",
+          raw_name: rawName,
+          detail: "provider: browser",
+          display_label: "Runtime start",
+          progress_label: "Thinking",
+          raw_payload: { provider: "browser", name: "preview", options: { auth_token: "input-secret", viewport: "mobile" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText(/Runtime start #41: running/)).toBeInTheDocument()
+    expandToolGroup("Runtime start")
+    expect(screen.getByText("preview")).toBeInTheDocument()
+    expect(screen.getByText("mobile")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://runtime.example.test" })).toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.getAllByText("[redacted]")).toHaveLength(2)
   })
 
   it("renders build/reload success and failure distinctly", () => {
