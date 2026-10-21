@@ -243,7 +243,7 @@ function ContextRows({ value }: { value: TargetContext }) {
   )
 }
 
-function DryRunCard({ result }: { result: Extract<PendingActionResult, { kind: "dry_run_evidence" }> }) {
+function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<PendingActionResult, { kind: "dry_run_evidence" }> }) {
   const evidence = result.evidence
   const target = evidence ?? result.context
   return (
@@ -264,6 +264,7 @@ function DryRunCard({ result }: { result: Extract<PendingActionResult, { kind: "
         </div>
       ) : null}
       <ContextRows value={target} />
+      {details}
       {evidence?.remoteSha ? <ShaRow label="Remote SHA" sha={evidence.remoteSha} /> : null}
       {evidence?.workflowLocalSha ? <ShaRow label="Workflow local SHA" sha={evidence.workflowLocalSha} /> : null}
       {evidence?.baseRef ? <Row label="Base ref" value={<span className="break-all font-mono">{evidence.baseRef}</span>} /> : null}
@@ -296,8 +297,8 @@ function DryRunCard({ result }: { result: Extract<PendingActionResult, { kind: "
   )
 }
 
-export function PendingActionResultCard({ result }: { result: PendingActionResult }) {
-  if (result.kind === "dry_run_evidence") return <DryRunCard result={result} />
+export function PendingActionResultCard({ details, result }: { details?: ReactNode; result: PendingActionResult }) {
+  if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
   if (result.kind === "error")
     return (
       <CardShell>
@@ -307,6 +308,7 @@ export function PendingActionResultCard({ result }: { result: PendingActionResul
         </div>
         <MarkdownPreview maxLines={4} modalLabel="Error details" text={result.message} />
         <ContextRows value={result} />
+        {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
     )
@@ -326,6 +328,7 @@ export function PendingActionResultCard({ result }: { result: PendingActionResul
         ) : null}
       </div>
       <ContextRows value={result} />
+      {details}
       {result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
       ) : null}
