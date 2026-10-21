@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import openInLocalModeCard from "./open_in_local_mode"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import openInLocalModeCard, { examples as openInLocalModeExamples } from "./open_in_local_mode"
 import cancelLocalModeCard from "./cancel_local_mode"
 import createCodingJobCard from "./create_coding_job"
 import cancelCodingCheckoutCard from "./cancel_coding_checkout"
@@ -96,6 +96,25 @@ describe("Local Mode job-outcome tool card family", () => {
   it("renders an open_in_local_mode error result", () => {
     const errorContext = context({ input: { job_id: 42 }, resultBody: "Local Mode daemon is unavailable.", resultError: true })
 
+    expect(openInLocalModeCard.collapsedSummary?.(errorContext)).toBe("Failed to open Local Mode")
+    render(<>{openInLocalModeCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("Local Mode daemon is unavailable.")).toBeInTheDocument()
+  })
+
+  it("registers reviewable open_in_local_mode success and error examples", () => {
+    expect(openInLocalModeExamples).toEqual([
+      expect.objectContaining({ id: "opened", parsedResult: expect.objectContaining({ branch_name: expect.stringContaining("syrus/direct-") }) }),
+      expect.objectContaining({ id: "error", resultError: true })
+    ])
+
+    const successContext = toolCardContextForExample("open_in_local_mode", openInLocalModeExamples[0])
+    render(<>{openInLocalModeCard.renderExpanded(successContext)}</>)
+    expect(screen.getByRole("link", { name: /JOB-4225/ })).toHaveAttribute("href", "/jobs/4225")
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("button", { name: /Copy syrus\/direct-4225.* to clipboard/ })).toBeInTheDocument()
+    expect(screen.getByText(/syrus\/direct-4225/, { selector: "code" })).toBeInTheDocument()
+
+    const errorContext = toolCardContextForExample("open_in_local_mode", openInLocalModeExamples[1])
     expect(openInLocalModeCard.collapsedSummary?.(errorContext)).toBe("Failed to open Local Mode")
     render(<>{openInLocalModeCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("Local Mode daemon is unavailable.")).toBeInTheDocument()
