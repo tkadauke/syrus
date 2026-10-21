@@ -116,7 +116,7 @@ describe("pending action tool card family", () => {
 
     expect(retryJobCard.collapsedSummary?.(context("retry_job", parsedResult))).toBe("Rebase JOB-322 onto main?")
     render(<>{retryJobCard.renderExpanded(context("retry_job", parsedResult))}</>)
-    expect(screen.getByText("#501")).toBeInTheDocument()
+    expect(screen.getByText("Pending action #501")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
   })
 
@@ -132,7 +132,7 @@ describe("pending action tool card family", () => {
 
     expect(adminKillProcessCard.collapsedSummary?.(context("admin_kill_process", parsedResult))).toBe("Kill 3 processes? · 3 actions")
     render(<>{adminKillProcessCard.renderExpanded(context("admin_kill_process", parsedResult))}</>)
-    expect(screen.getByText("Group #88")).toBeInTheDocument()
+    expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
   })
 

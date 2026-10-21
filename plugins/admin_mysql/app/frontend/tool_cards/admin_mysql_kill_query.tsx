@@ -1,20 +1,7 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "@app/routes/chat/pendingActionToolCard"
+import { pendingActionToolCard } from "@app/routes/chat/pendingActionToolCard"
 
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const adminMysqlKillQueryToolCard: ToolCardRenderer = {
-  toolName: "admin_mysql_kill_query",
-  collapsedSummary,
-  renderExpanded
-}
+const adminMysqlKillQueryToolCard = pendingActionToolCard("admin_mysql_kill_query", {
+  inputFields: [{ key: "thread_id", label: "MySQL thread", format: "badge" }]
+})
 
 export default adminMysqlKillQueryToolCard

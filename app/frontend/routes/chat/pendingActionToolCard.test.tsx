@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
+import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
@@ -445,5 +445,47 @@ describe("cancel_stale_work pending action card", () => {
 
     expect(screen.getAllByText("None")).toHaveLength(2)
     expect(screen.getByText("Yes (default)")).toBeInTheDocument()
+  })
+})
+
+describe("pending action tool card: configured inputs and envelopes", () => {
+  const card = pendingActionToolCard("admin_pause_runs", {
+    inputFields: [
+      { key: "workflow_ids", label: "Workflows", format: "entity_list", entityKind: "workflow", hrefPrefix: "/admin/workflows" },
+      { key: "provider", format: "badge" },
+      { key: "positive_evidence", format: "markdown" }
+    ]
+  })
+
+  it("normalizes a namespaced raw name and structured_content result", () => {
+    const normalizedContext = context(normalizedToolCardParsedResult({ structured_content: standardPayload() }))
+    normalizedContext.toolName = normalizedToolName("mcp__syrus-chat-sidecar__admin_pause_runs")
+    expect(normalizedContext.toolName).toBe("admin_pause_runs")
+    expect(card.collapsedSummary?.(normalizedContext)).toBe("Job rebase requires operator confirmation.")
+  })
+
+  it("normalizes content text JSON and renders configured bulk targets", () => {
+    const normalizedContext = context(normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(standardPayload()) }] }))
+    normalizedContext.input = { workflow_ids: [41, 42], provider: "codex" }
+    render(<>{card.renderExpanded(normalizedContext)}</>)
+    expect(screen.getByRole("link", { name: "WF-41" })).toHaveAttribute("href", "/admin/workflows/41")
+    expect(screen.getByRole("link", { name: "WF-42" })).toHaveAttribute("href", "/admin/workflows/42")
+    expect(screen.getByText("codex")).toBeInTheDocument()
+  })
+
+  it("renders tool-error results without requiring a pending action id", () => {
+    const errorContext = context({ content: [{ type: "text", text: "Provider unavailable" }] })
+    errorContext.resultError = true
+    render(<>{card.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Provider unavailable")).toBeInTheDocument()
+  })
+
+  it("links entity references and email addresses embedded in result prose", () => {
+    renderResult(standardPayload({ message: "Pause workflow #71 for user #9 (operator@example.com) after process #4." }))
+    expect(screen.getByRole("link", { name: "workflow #71" })).toHaveAttribute("href", "/admin/workflows/71")
+    expect(screen.getByRole("link", { name: "user #9" })).toHaveAttribute("href", "/admin/users/9")
+    expect(screen.getByRole("link", { name: "process #4" })).toHaveAttribute("href", "/admin/processes/4")
+    expect(screen.getByRole("link", { name: "operator@example.com" })).toHaveAttribute("href", "mailto:operator@example.com")
   })
 })
