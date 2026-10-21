@@ -100,7 +100,7 @@ export function Row({ label, value, wrap = false, copyable = false }: { label: s
       <div className="flex min-w-0 items-center gap-1">
         <Text
           as="div"
-          className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} min-w-0 font-mono text-xs`}
+          className={`${wrap ? "whitespace-normal break-all" : "whitespace-pre-wrap break-words"} w-0 min-w-0 flex-1 font-mono text-xs`}
           title={typeof value === "string" ? value : undefined}
         >
           {value}
