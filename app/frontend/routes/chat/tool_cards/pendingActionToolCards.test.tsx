@@ -181,6 +181,16 @@ describe("pending action tool card family", () => {
     expect(adoptCurrentPrHeadCard.renderExpanded(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))).toBeNull()
   })
 
+  it("keeps the long pending catalog summary to one bounded line", () => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === "pending_input_fallback")
+    if (!example) throw new Error("missing pending fixture")
+
+    const summary = adoptCurrentPrHeadCard.collapsedSummary?.(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))
+    expect(summary).toHaveLength(160)
+    expect(summary).not.toContain("\n")
+    expect(summary).toMatch(/…$/)
+  })
+
   it("wires the destructive dry-run tool through to the shared card", () => {
     const parsedResult = {
       action: "replace_pr_branch_with_workflow_output",
