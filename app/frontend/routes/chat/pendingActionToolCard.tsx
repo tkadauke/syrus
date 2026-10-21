@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "../../pluginToolCards"
-import { isPlainObject } from "../../toolCardParsing"
-import { normalizedToolCardParsedResult } from "./toolRendering"
+import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import {
   Badge,

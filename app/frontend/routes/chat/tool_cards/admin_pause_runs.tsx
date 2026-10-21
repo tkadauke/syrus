@@ -1,4 +1,4 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
@@ -19,5 +19,15 @@ const adminPauseRunsToolCard: ToolCardRenderer = {
   collapsedSummary,
   renderExpanded
 }
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "provider_error",
+    label: "Tool error",
+    description: "Shows a failed pending-action request returned in an MCP text-content envelope.",
+    parsedResult: { content: [{ type: "text", text: "Run control is temporarily unavailable. Retry after the active deployment finishes." }] },
+    resultError: true
+  }
+]
 
 export default adminPauseRunsToolCard
