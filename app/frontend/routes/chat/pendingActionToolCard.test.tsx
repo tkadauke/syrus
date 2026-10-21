@@ -489,3 +489,4 @@ describe("pending action tool card: configured inputs and envelopes", () => {
     expect(screen.getByRole("link", { name: "operator@example.com" })).toHaveAttribute("href", "mailto:operator@example.com")
   })
 })
+
