@@ -40,6 +40,7 @@
   "tool_close_preview": "Praevisionem claudere",
   "tool_edit_preview_file": "Fasciculum praevisionis emendare",
   "tool_write_preview_file": "Fasciculum praevisionis scribere",
+  "tool_closed": "Clausa",
   "tool_failed_summary": "{{operation}} defecit: {{error}}",
   "tool_edit_file": "Fasciculum praevisionis mutare",
   "tool_edited_file": "Fasciculus mutatus",
