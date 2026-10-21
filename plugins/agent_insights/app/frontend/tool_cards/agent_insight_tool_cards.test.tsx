@@ -183,7 +183,7 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
     expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
     expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
-    expect(screen.getByText("MEMORY-162")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "MEMORY-162" })).toHaveAttribute("href", "/memories")
     expect(screen.getByRole("button", { name: "Copy MEMORY-162 to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "https://example.test/evidence" })[0]).toHaveAttribute("href", "https://example.test/evidence")
     expect(screen.getByText("Show more")).toBeInTheDocument()

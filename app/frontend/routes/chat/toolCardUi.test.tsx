@@ -119,7 +119,7 @@ describe("EntityReference", () => {
     [{ kind: "wakeup", id: 1 }, "WAKEUP-1", null],
     [{ kind: "scheduled_task", id: 2 }, "TASK-2", "/scheduled_tasks/2"],
     [{ kind: "preview_panel", id: "panel-3" }, "panel-3", null],
-    [{ kind: "memory", id: 4 }, "MEMORY-4", null],
+    [{ kind: "memory", id: 4 }, "MEMORY-4", "/memories"],
     [{ kind: "insight", id: 5 }, "INSIGHT-5", "/s/INSIGHT-5"],
     [{ kind: "theme", id: 6 }, "THEME-6", null],
     [{ kind: "walkthrough", id: 7 }, "WALKTHROUGH-7", null],
