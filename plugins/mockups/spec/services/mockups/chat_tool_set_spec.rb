@@ -239,11 +239,18 @@ RSpec.describe Mockups::ChatToolSet do
     describe "close_preview" do
       it "closes an open panel" do
         panel = PreviewPanel::Service.open!(chat_session: chat_session, title: "Widget")
+        mockup = Mockups::Mockup.record_publish!(panel: panel, user: user, title: panel.title, chat_session: chat_session)
 
         response = call("close_preview", { panel_id: panel.id.to_s })
 
         expect(response.error?).to be false
         expect(panel.reload.state).to eq("closed")
+        expect(JSON.parse(response.content.first[:text])).to include(
+          "panel_id" => panel.id,
+          "title" => "Widget",
+          "state" => "closed",
+          "mockup_slug" => mockup.slug
+        )
       end
 
       it "errors for a panel that does not exist" do

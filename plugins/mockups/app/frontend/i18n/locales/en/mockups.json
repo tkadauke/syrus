@@ -40,5 +40,6 @@
   "tool_close_preview": "Close preview",
   "tool_edit_preview_file": "Edit preview file",
   "tool_write_preview_file": "Write preview file",
+  "tool_closed": "Closed",
   "tool_failed_summary": "{{operation}} failed: {{error}}"
 }

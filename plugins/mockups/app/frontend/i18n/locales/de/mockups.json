@@ -40,5 +40,6 @@
   "tool_close_preview": "Vorschau schließen",
   "tool_edit_preview_file": "Vorschaudatei bearbeiten",
   "tool_write_preview_file": "Vorschaudatei schreiben",
+  "tool_closed": "Geschlossen",
   "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}"
 }
