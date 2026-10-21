@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import getJobDiffToolCard from "./get_job_diff"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import getJobDiffToolCard, { examples } from "./get_job_diff"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -16,6 +17,8 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 describe("get_job_diff tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(getJobDiffToolCard.toolName).toBe("get_job_diff")
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__get_job_diff")).toBe("get_job_diff")
+    expect(examples.map((example) => example.id)).toEqual(["paginated_diff", "missing_diff", "page_out_of_range"])
   })
 
   it("summarizes the collapsed row with page info", () => {
@@ -50,7 +53,7 @@ describe("get_job_diff tool card", () => {
     }
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4221" })).toHaveAttribute("href", "/jobs/4221")
     expect(screen.getByText("No stored diff is available for this Job yet.")).toBeInTheDocument()
   })
 
@@ -69,14 +72,51 @@ describe("get_job_diff tool card", () => {
 
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4221" })).toHaveAttribute("href", "/jobs/4221")
     expect(screen.getByText("RUN-9")).toBeInTheDocument()
     expect(screen.getByText("1 file")).toBeInTheDocument()
     expect(screen.getByText("+1")).toBeInTheDocument()
     expect(screen.getByText("-1")).toBeInTheDocument()
     expect(screen.getByText("1 of 13 (more available)")).toBeInTheDocument()
     expect(screen.getByText("640020")).toBeInTheDocument()
+    expect(screen.getByText("51200")).toBeInTheDocument()
+    expect(screen.getByText("2")).toBeInTheDocument()
     expect(screen.getByText("Change counts are for this page only.")).toBeInTheDocument()
+  })
+
+  it("renders long result messages as expandable markdown", () => {
+    const message = `**Page unavailable.** ${"Additional context. ".repeat(80)}`
+    render(
+      <>
+        {getJobDiffToolCard.renderExpanded(
+          context({
+            parsedResult: {
+              job_id: 4221,
+              run_id: 9,
+              diff: "",
+              page: 14,
+              total_pages: 13,
+              page_out_of_range: true,
+              message
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Page unavailable.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify({ job_id: 4221, diff: null, message: "No diff." }) }], structured_content: null }],
+    ["structured content", { content: [{ type: "text", text: "ignored" }], structured_content: { job_id: 4221, diff: null, message: "No diff." } }]
+  ])("normalizes %s provider envelopes", (_label, envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    render(<>{getJobDiffToolCard.renderExpanded(context({ toolName: normalizedToolName("mcp__provider__get_job_diff"), parsedResult }))}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4221" })).toHaveAttribute("href", "/jobs/4221")
+    expect(screen.getByText("No diff.")).toBeInTheDocument()
   })
 
   it("counts and colours a page-two chunk that starts in the middle of a hunk", () => {
@@ -119,6 +159,22 @@ describe("get_job_diff tool card", () => {
     expect(screen.queryByText(/No stored diff/)).not.toBeInTheDocument()
   })
 
+  it("renders tool failures with attempted Job context and retry guidance", () => {
+    const failed = context({
+      input: { job_id: 9999 },
+      resultBody: JSON.stringify({ error: "Job not found" }),
+      parsedResult: { error: "Job not found" },
+      resultError: true
+    })
+
+    expect(getJobDiffToolCard.collapsedSummary?.(failed)).toBe("Job diff read failed: Job not found")
+    render(<>{getJobDiffToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Read diff for JOB-9999")).toBeInTheDocument()
+    expect(screen.getByText("Job not found")).toBeInTheDocument()
+    expect(screen.getByText("Retry after the Job is available to this chat.")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload (missing job_id)", () => {
     expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(getJobDiffToolCard.renderExpanded(context({ parsedResult: { oops: true } }))).toBeNull()
@@ -126,5 +182,15 @@ describe("get_job_diff tool card", () => {
 
   it("falls back to null for a non-object payload", () => {
     expect(getJobDiffToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
+  })
+
+  it("discloses when the raw diff preview omits lines", () => {
+    const diff = Array.from({ length: 305 }, (_, index) => `+line ${index + 1}`).join("\n")
+    render(
+      <>{getJobDiffToolCard.renderExpanded(context({ parsedResult: { job_id: 4221, run_id: 9, diff, page: 1, total_pages: 1, has_next_page: false } }))}</>
+    )
+
+    expect(screen.getByText("Preview shows the first 300 of 305 lines. Copy diff includes every line.")).toBeInTheDocument()
+    expect(screen.queryByText("line 301")).not.toBeInTheDocument()
   })
 })
