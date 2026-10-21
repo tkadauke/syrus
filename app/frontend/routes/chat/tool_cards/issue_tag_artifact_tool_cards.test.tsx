@@ -266,6 +266,84 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
   })
 
+  it("resolves a removed tag from chat context and links the Job", () => {
+    const removeContext = context("remove_job_tag", {
+      input: { job_id: 7, tag_id: 10 },
+      parsedResult: { success: true },
+      priorResults: { list_tags: { tags: [{ id: 10, name: "area:ui", color: "blue", job_ids: [7] }] } }
+    })
+
+    expect(removeJobTagToolCard.collapsedSummary?.(removeContext)).toBe("Removed area:ui · JOB-7")
+    const { container } = render(<>{removeJobTagToolCard.renderExpanded(removeContext)}</>)
+
+    expect(screen.getByText("area:ui")).toBeInTheDocument()
+    expect(screen.getByText("10")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+    expect(container.querySelector("[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
+  })
+
+  it("renders remove-tag pending and empty-result states", () => {
+    const pending = context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, resultSettled: false })
+    const emptyResult = context("remove_job_tag", {
+      input: { job_id: 7, tag_id: 10 },
+      resultBody: "{}",
+      parsedResult: {}
+    })
+
+    expect(removeJobTagToolCard.collapsedSummary?.(pending)).toBe("Removing tag #10 · JOB-7")
+    const { rerender } = render(<>{removeJobTagToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Tag #10")).toBeInTheDocument()
+
+    expect(removeJobTagToolCard.collapsedSummary?.(emptyResult)).toBe("Remove tag #10 returned an unexpected response · JOB-7")
+    rerender(<>{removeJobTagToolCard.renderExpanded(emptyResult)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
+  })
+
+  it("renders remove-tag attachment and lookup errors as styled cards", () => {
+    const notAttached = context("remove_job_tag", {
+      input: { job_id: 7, tag_id: 10 },
+      parsedResult: { error: "tag is not attached to JOB-7" },
+      resultError: true
+    })
+    const notFound = context("remove_job_tag", {
+      input: { job_id: 7, tag_id: 99 },
+      parsedResult: { error: "tag not found for this user: 99" },
+      resultError: true
+    })
+
+    const { rerender } = render(<>{removeJobTagToolCard.renderExpanded(notAttached)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("tag is not attached to JOB-7")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7" })).toHaveAttribute("href", "/jobs/7")
+
+    rerender(<>{removeJobTagToolCard.renderExpanded(notFound)}</>)
+    expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
+    expect(screen.getByText("Tag #99")).toBeInTheDocument()
+  })
+
+  it("normalizes remove-tag success and error envelopes from different providers", () => {
+    const successEnvelope = { structured_content: { success: true } }
+    const errorEnvelope = { content: [{ type: "text", text: JSON.stringify({ error: "tag not found for this user: 99" }) }] }
+    const successContext = context(normalizedToolName("mcp__syrus__remove_job_tag"), {
+      input: { job_id: 7, tag_id: 10 },
+      parsedResult: normalizedToolCardParsedResult(successEnvelope)
+    })
+    const errorContext = context(normalizedToolName("syrus-chat-sidecar.remove_job_tag"), {
+      input: { job_id: 7, tag_id: 99 },
+      parsedResult: normalizedToolCardParsedResult(errorEnvelope),
+      resultError: true
+    })
+
+    expect(successContext.toolName).toBe("remove_job_tag")
+    expect(removeJobTagToolCard.collapsedSummary?.(successContext)).toBe("Removed tag #10 · JOB-7")
+    expect(errorContext.toolName).toBe("remove_job_tag")
+    expect(removeJobTagToolCard.collapsedSummary?.(errorContext)).toBe("Removed tag #99 failed · JOB-7")
+    render(<>{removeJobTagToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("tag not found for this user: 99")).toBeInTheDocument()
+  })
+
   it("renders artifact submission metadata, affordances, and payload preview", () => {
     const input = {
       type: "rails_schema_erd",
