@@ -91,10 +91,10 @@ function parseEvidence(value: unknown): PendingActionEvidence {
   }
 }
 
-export function parsePendingActionResult(context: ToolCardContext): PendingActionResult | null {
+export function parsePendingActionResult(context: ToolCardContext, includeError = false): PendingActionResult | null {
   const value = normalizedToolCardParsedResult(context.parsedResult)
   if (!isPlainObject(value)) {
-    return context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
+    return includeError && context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
   }
 
   // Dry-run previews carry evidence instead of a pending action; the same
@@ -115,7 +115,7 @@ export function parsePendingActionResult(context: ToolCardContext): PendingActio
   const pendingActionId = displayValue(value.pending_action_id) || displayValue(value.pending_confirmation_id)
   const state = displayValue(value.state)
   if (!pendingActionId || !state) {
-    return context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
+    return includeError && context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
   }
 
   const groupId = displayValue(value.pending_action_group_id)
@@ -371,11 +371,11 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
   return {
     toolName,
     collapsedSummary(context) {
-      const result = parsePendingActionResult(context)
+      const result = parsePendingActionResult(context, true)
       return result ? pendingActionCollapsedSummary(result) : null
     },
     renderExpanded(context) {
-      const result = parsePendingActionResult(context)
+      const result = parsePendingActionResult(context, true)
       return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
     }
   }
