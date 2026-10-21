@@ -29,8 +29,10 @@ type EvidenceItem = {
   kind: string | null
   jobId: string | null
   runId: string | null
+  workflowId: string | null
   jobPath: string | null
   runPath: string | null
+  workflowPath: string | null
 }
 
 export type AgentInsight = {
@@ -77,16 +79,19 @@ function parseEvidence(value: unknown, index: number): EvidenceItem | null {
   if (!isPlainObject(value)) return null
   const jobId = displayValue(value.job_id)
   const runId = displayValue(value.run_id)
+  const workflowId = displayValue(value.workflow_id)
   const kind = displayValue(value.kind)
-  if (!jobId && !runId && !kind) return null
+  if (!jobId && !runId && !workflowId && !kind) return null
 
   return {
-    key: `${jobId ?? "job"}-${runId ?? "run"}-${kind ?? index}`,
+    key: `${jobId ?? "job"}-${workflowId ?? "workflow"}-${runId ?? "run"}-${kind ?? index}`,
     kind,
     jobId,
     runId,
+    workflowId,
     jobPath: displayValue(value.job_path) ?? (jobId ? `/jobs/${jobId}` : null),
-    runPath: displayValue(value.run_transcript_path) ?? (runId ? `/admin/runs/${runId}/transcript` : null)
+    runPath: displayValue(value.run_transcript_path) ?? (runId ? `/admin/runs/${runId}/transcript` : null),
+    workflowPath: displayValue(value.workflow_path) ?? (workflowId && jobId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null)
   }
 }
 
@@ -194,6 +199,45 @@ function InsightIdReference({ id }: { id: string }) {
   return <EntityReference id={id} kind="insight" slug={`INSIGHT-${id}`} wrap="nowrap" />
 }
 
+export function insightFromSubmitInput(context: ToolCardContext, id: string | null): AgentInsight | null {
+  const input = context.input
+  if (!isPlainObject(input)) return null
+  const title = displayValue(input.title)
+  if (!title) return null
+
+  return {
+    id: id ?? "",
+    title,
+    summary: null,
+    category: displayValue(input.category),
+    severity: displayValue(input.severity),
+    confidence: numberValue(input.confidence),
+    state: null,
+    proposalType: displayValue(input.proposal_type),
+    evidence: Array.isArray(input.evidence)
+      ? input.evidence.flatMap((entry, index) => {
+          const evidence = parseEvidence(entry, index)
+          return evidence ? [evidence] : []
+        })
+      : [],
+    suggestedPrompt: typeof input.suggested_prompt === "string" ? input.suggested_prompt : null,
+    memorySuggestion: typeof input.memory_suggestion === "string" ? input.memory_suggestion : null,
+    staleMemoryText: typeof input.stale_memory_text === "string" ? input.stale_memory_text : null,
+    staleMemoryEvidence: typeof input.stale_memory_evidence === "string" ? input.stale_memory_evidence : null,
+    retiredReason: null,
+    supersededByInsightId: null,
+    supersededByJobId: null,
+    targetMemoryId: displayValue(input.target_memory_id),
+    repository: null,
+    job: null,
+    sourceWorkflow: null,
+    sourceRun: null,
+    createdAt: null,
+    updatedAt: null,
+    retiredAt: null
+  }
+}
+
 function RepositoryReference({ repository }: { repository: InsightRef }) {
   return (
     <EntityReference
@@ -226,6 +270,7 @@ function EvidenceRow({ entry }: { entry: EvidenceItem }) {
     <li className="flex flex-wrap items-center gap-2 text-gray-700 dark:text-gray-300">
       {entry.kind ? <Badge>{entry.kind.replace(/_/g, " ")}</Badge> : null}
       {entry.jobId ? <EntityReference href={entry.jobPath} id={entry.jobId} kind="job" wrap="nowrap" /> : null}
+      {entry.workflowId ? <EntityReference href={entry.workflowPath} id={entry.workflowId} kind="workflow" wrap="nowrap" /> : null}
       {entry.runId ? <EntityReference href={entry.runPath} id={entry.runId} kind="run" wrap="nowrap" /> : null}
     </li>
   )
@@ -280,9 +325,7 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
     sections.push(
       <div key="stale-memory">
         <SectionLabel>{t("tool_memory_retirement")}</SectionLabel>
-        {insight.targetMemoryId ? (
-          <div className="font-mono text-gray-600 dark:text-gray-300">{t("tool_memory_id", { id: insight.targetMemoryId })}</div>
-        ) : null}
+        {insight.targetMemoryId ? <EntityReference id={insight.targetMemoryId} kind="memory" wrap="nowrap" /> : null}
         {insight.staleMemoryText ? <TextPreview text={insight.staleMemoryText} maxLines={2} /> : null}
         {insight.staleMemoryEvidence ? <TextPreview text={insight.staleMemoryEvidence} /> : null}
       </div>
@@ -292,10 +335,11 @@ function ActionSections({ insight }: { insight: AgentInsight }) {
   return sections.length ? <>{sections}</> : null
 }
 
-export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
+export function InsightDetailBody({ insight, resultMessage }: { insight: AgentInsight; resultMessage?: string | null }) {
   const { t } = useT("agent_insights")
   return (
     <CardShell>
+      {resultMessage ? <SectionLabel>{resultMessage}</SectionLabel> : null}
       <div className="flex flex-wrap items-center gap-2">
         <Text as="span" variant="heading-sm">
           {insight.title}
@@ -306,12 +350,19 @@ export function InsightDetailBody({ insight }: { insight: AgentInsight }) {
         <ConfidenceBadge confidence={insight.confidence} />
       </div>
       <DescriptionList.Root className="sm:grid-cols-2" density="compact">
-        <DescriptionList.Item label={t("tool_insight_id")}>
-          <InsightIdReference id={insight.id} />
-        </DescriptionList.Item>
+        {insight.id ? (
+          <DescriptionList.Item label={t("tool_insight_id")}>
+            <InsightIdReference id={insight.id} />
+          </DescriptionList.Item>
+        ) : null}
         {insight.proposalType ? (
           <DescriptionList.Item descriptionClassName="truncate font-mono text-xs" label={t("tool_proposal")}>
             {insight.proposalType.replace(/_/g, " ")}
+          </DescriptionList.Item>
+        ) : null}
+        {insight.targetMemoryId ? (
+          <DescriptionList.Item label={t("tool_target_memory")}>
+            <EntityReference id={insight.targetMemoryId} kind="memory" wrap="nowrap" />
           </DescriptionList.Item>
         ) : null}
         {insight.repository?.slug ? (
@@ -473,10 +524,21 @@ export function InsightErrorCard({ message }: { message: string }) {
 }
 
 export function parseOutcome(context: ToolCardContext) {
-  if (isPlainObject(context.parsedResult)) {
-    const ids = Array.isArray(context.parsedResult.insight_ids) ? context.parsedResult.insight_ids : []
-    const firstId = ids.length > 0 ? displayValue(ids[0]) : null
-    const message = displayValue(context.parsedResult.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
+  let parsed = context.parsedResult
+  if (isPlainObject(parsed) && parsed.structured_content != null) parsed = parsed.structured_content
+  if (isPlainObject(parsed) && Array.isArray(parsed.content) && isPlainObject(parsed.content[0]) && typeof parsed.content[0].text === "string") {
+    try {
+      parsed = JSON.parse(parsed.content[0].text)
+    } catch {
+      parsed = parsed.content[0].text
+    }
+  }
+  if (isPlainObject(parsed) && isPlainObject(parsed.data)) parsed = parsed.data
+
+  if (isPlainObject(parsed)) {
+    const ids = Array.isArray(parsed.insight_ids) ? parsed.insight_ids : []
+    const firstId = displayValue(parsed.id) ?? displayValue(parsed.insight_id) ?? (ids.length > 0 ? displayValue(ids[0]) : null)
+    const message = displayValue(parsed.message) ?? i18n.t("agent_insights:tool_outcome_fallback")
     return {
       id: firstId,
       message,

@@ -151,6 +151,65 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
   })
 
+  it("renders submit_insight from its input and plain-text result with linked markdown and evidence", () => {
+    const longPrompt = `Investigate **JOB-200** and https://example.test/evidence.\n${"Add a regression spec. ".repeat(40)}`
+    const cardContext = context({
+      toolName: "submit_insight",
+      resultBody: "Suggestion #51 saved.",
+      parsedResult: null,
+      input: {
+        title: "Repeated prepare failures",
+        category: "repeated_failure",
+        severity: "high",
+        confidence: 0.93,
+        proposal_type: "remove_memory",
+        evidence: [{ job_id: 200, workflow_id: 12, run_id: 99, kind: "run_transcript" }],
+        suggested_prompt: longPrompt,
+        memory_suggestion: "Retain **RUN-99** as supporting context.",
+        target_memory_id: 162
+      }
+    })
+
+    expect(submitInsightToolCard.collapsedSummary?.(cardContext)).toBe("Saved insight #51")
+    render(<>{submitInsightToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Suggestion #51 saved.")).toBeInTheDocument()
+    expect(screen.getByText("Repeated prepare failures")).toBeInTheDocument()
+    expect(screen.getByText("repeated failure")).toBeInTheDocument()
+    expect(screen.getByText("high")).toBeInTheDocument()
+    expect(screen.getByText("93% confidence")).toBeInTheDocument()
+    expect(screen.getByText("remove memory")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-51" })).toHaveAttribute("href", "/s/INSIGHT-51")
+    expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
+    expect(screen.getByRole("link", { name: "WF-12" })).toHaveAttribute("href", "/jobs/200?tab=workflows#workflow-12")
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
+    expect(screen.getByText("MEMORY-162")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy MEMORY-162 to clipboard" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "https://example.test/evidence" })[0]).toHaveAttribute("href", "https://example.test/evidence")
+    expect(screen.getByText("Show more")).toBeInTheDocument()
+  })
+
+  it("handles submit_insight provider envelopes, pending, empty, and error states", () => {
+    const input = { title: "Provider-neutral insight", category: "configuration", severity: "medium", confidence: 0.6 }
+    const wrapped = context({
+      toolName: "submit_insight",
+      input,
+      parsedResult: { content: [{ type: "text", text: JSON.stringify({ data: { insight_id: 52, message: "Saved by provider." } }) }] }
+    })
+    expect(submitInsightToolCard.collapsedSummary?.(wrapped)).toBe("Saved insight #52")
+    render(<>{submitInsightToolCard.renderExpanded(wrapped)}</>)
+    expect(screen.getByText("Saved by provider.")).toBeInTheDocument()
+
+    const pending = context({ toolName: "submit_insight", input, resultBody: "", parsedResult: null })
+    expect(submitInsightToolCard.collapsedSummary?.(pending)).toBe("Saving insight")
+    expect(submitInsightToolCard.renderExpanded(context({ toolName: "submit_insight", resultBody: "", parsedResult: null }))).toBeNull()
+
+    const failed = context({ toolName: "submit_insight", resultBody: "Database unavailable.", resultError: true })
+    expect(submitInsightToolCard.collapsedSummary?.(failed)).toBe("Insight submission failed")
+    render(<>{submitInsightToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Database unavailable.")).toBeInTheDocument()
+  })
+
   it("renders the structured result returned by insight mutation tools", () => {
     const cardContext = context({
       toolName: "retire_insight",
