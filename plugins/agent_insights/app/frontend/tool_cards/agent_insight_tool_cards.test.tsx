@@ -225,6 +225,30 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("No insight was returned.")).toBeInTheDocument()
   })
 
+  it("renders isolated memory and supersession references without related prose", () => {
+    render(
+      <>
+        {readInsightToolCard.renderExpanded(
+          context({
+            toolName: "read_insight",
+            parsedResult: {
+              insight: {
+                ...baseInsight,
+                target_memory_id: 18,
+                superseded_by_insight_id: 44,
+                superseded_by_job_id: 82
+              }
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("button", { name: "Copy MEMORY-18 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-44" })).toHaveAttribute("href", "/s/INSIGHT-44")
+    expect(screen.getByRole("link", { name: "JOB-82" })).toHaveAttribute("href", "/jobs/82")
+  })
+
   it("localizes mutation summaries, labels, and fallback messages", async () => {
     await i18n.changeLanguage("de")
     const cardContext = context({ parsedResult: { insight_ids: [41] } })

@@ -70,7 +70,7 @@ module AgentInsights
             confidence:        insight.confidence,
             state:             insight.state,
             proposal_type:     insight.effective_proposal_type,
-            evidence:          insight.redacted_evidence,
+            evidence:          evidence_payload(insight.redacted_evidence),
             suggested_prompt:  insight.redacted_suggested_prompt,
             memory_suggestion: insight.redacted_memory_suggestion,
             target_memory_id:  insight.target_memory_id,
@@ -98,6 +98,24 @@ module AgentInsights
 
         def source_run(insight)
           insight.job.runs.last
+        end
+
+        def evidence_payload(evidence)
+          return nil unless evidence.is_a?(Array)
+
+          evidence.filter_map do |entry|
+            next unless entry.is_a?(Hash)
+
+            job_id = entry["job_id"]
+            run_id = entry["run_id"]
+            {
+              job_id: job_id,
+              run_id: run_id,
+              kind: entry["kind"],
+              job_path: job_id ? "/jobs/#{job_id}" : nil,
+              run_transcript_path: run_id ? "/admin/runs/#{run_id}/transcript" : nil
+            }
+          end
         end
 
         def source_workflow(insight)

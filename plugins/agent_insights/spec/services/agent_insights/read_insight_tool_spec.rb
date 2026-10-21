@@ -93,7 +93,13 @@ RSpec.describe AgentInsights::Tools::ReadInsightTool do
       result = parsed_insight(call(id: insight.id))
 
       expect(result[:evidence]).to eq([
-        { job_id: evidence_run.job_id, run_id: evidence_run.id, kind: "grader" }
+        {
+          job_id: evidence_run.job_id,
+          run_id: evidence_run.id,
+          kind: "grader",
+          job_path: "/jobs/#{evidence_run.job_id}",
+          run_transcript_path: "/admin/runs/#{evidence_run.id}/transcript"
+        }
       ])
     end
 
