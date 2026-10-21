@@ -26,7 +26,11 @@ returned with the results so the bar renders what is actually in effect.
 Visibility: a mockup is visible to whoever can see the preview panel behind it,
 which is the panel's own rule (you can see a panel if you can see its chat) —
 not a second, looser rule. Closing its transient chat tab does not remove the
-published mockup: the saved panel remains viewable from the Mockups page.
+published mockup: the saved panel remains viewable from the Mockups page. A
+successful `close_preview` response includes that retained mockup's
+`mockup_slug`, allowing the closed-state tool card to link to it. Panels that
+were never published have no mockup reference in the response and become
+unreachable when closed.
 
 ## Relationship to preview panels
 
