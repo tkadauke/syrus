@@ -91,13 +91,13 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className="truncate font-mono text-xs" title={value}>
+      <Text as="div" className="min-w-0 font-mono text-xs">
         {value}
       </Text>
     </div>
