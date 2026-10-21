@@ -1,4 +1,5 @@
 class Job < ApplicationRecord
+  has_many :planned_execution_overrides, dependent: :destroy
   include AASM
   include RecordsStateTransitions
   include Revisionable

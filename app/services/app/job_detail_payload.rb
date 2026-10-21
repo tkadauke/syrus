@@ -221,6 +221,7 @@ module App
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
+        planned_execution_override: planned_execution_override_json,
         placement_recommendation: placement_recommendation_json,
         provider_routing_options: provider_routing_options_json(@user),
         provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
@@ -1081,6 +1082,8 @@ module App
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_write: writable,
+        can_override_planned_execution: writable && planned_execution_override_json[:eligible],
+        planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
@@ -1151,6 +1154,35 @@ module App
         "status" => @job.placement_recommendation_status,
         "compatible_worker_available" => compatible_worker_available(recommendation["capabilities"])
       )
+    end
+
+    def planned_execution_override_json
+      @planned_execution_override_json ||= begin
+        profile = ExecutionPlacementProfile::PROFILES.keys.find do |name|
+          ExecutionPlacementProfile.fetch(name).capabilities == @job.planned_execution_requirement.capabilities
+        end
+        inspection = PlannedExecutionOverrides::Operation.new(
+          job: @job, profile: profile || "linux", actor: @user,
+          reason: "eligibility check", provenance: "job_ui"
+        ).inspect
+        latest = @job.planned_execution_overrides.order(created_at: :desc, id: :desc).first
+        {
+          eligible: inspection.eligible,
+          refusal_reason: inspection.reason,
+          current_profile: profile,
+          profiles: ExecutionPlacementProfile::PROFILES.map { |name, value| value.merge("name" => name) },
+          worker_availability: ExecutionPlacementProfile::PROFILES.keys.to_h { |name|
+            check = PlannedExecutionOverrides::Operation.new(job: @job, profile: name, actor: @user, reason: "eligibility check", provenance: "job_ui").inspect
+            [ name, check.worker_available ]
+          },
+          latest_audit: latest && {
+            actor: latest.user.display_name,
+            reason: latest.reason,
+            provenance: latest.provenance,
+            created_at: latest.created_at.iso8601
+          }
+        }
+      end
     end
 
     def compatible_worker_available(capabilities)
@@ -1232,6 +1264,7 @@ module App
         app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",
         app_move_to_backlog_path: "/api/v1/app/jobs/#{@job.id}/move_to_backlog",
         app_accept_triage_path: "/api/v1/app/jobs/#{@job.id}/accept_triage",
+        app_override_planned_execution_path: "/api/v1/app/jobs/#{@job.id}/override_planned_execution",
         app_reject_triage_path: "/api/v1/app/jobs/#{@job.id}/reject_triage",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
