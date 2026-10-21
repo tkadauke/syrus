@@ -248,6 +248,8 @@ describe("Agent Insights tool cards", () => {
       parsedResult: { structured_content: { data: { message: "Saved by provider.", insight_ids: [54] } } }
     })
     expect(submitInsightToolCard.collapsedSummary?.(structured)).toBe("Saved insight #54")
+  })
+
   it("renders every update_insight input field, markdown, links, and the text result", () => {
     const longReason = `Changed after **RUN-99** and https://example.test/evidence. ${"More evidence. ".repeat(50)}`
     const cardContext = context({
@@ -281,6 +283,7 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("94%")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "JOB-200" }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("link", { name: "RUN-99" }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("link", { name: "RUN-99" }).every((link) => link.getAttribute("href") === "/admin/runs/99/transcript")).toBe(true)
     expect(screen.getByText("MEMORY-12")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "https://example.test/evidence" })).toHaveAttribute("href", "https://example.test/evidence")
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()

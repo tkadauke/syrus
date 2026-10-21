@@ -37,6 +37,7 @@ export type MarkdownPreviewProps = {
   modalLabel?: string
   emptyState?: ReactNode
   slugHrefFallbacks?: Record<string, string>
+  slugHrefOverrides?: Record<string, string>
   slugTone?: SlugTone
 }
 
@@ -77,6 +78,7 @@ export function MarkdownPreview({
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
+  slugHrefOverrides,
   slugTone,
   text,
   title
@@ -139,7 +141,7 @@ export function MarkdownPreview({
         ref={previewRef}
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugTone })}
+        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
       {expandable ? (
@@ -176,6 +178,7 @@ export function MarkdownPreview({
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
             slugHrefFallbacks={slugHrefFallbacks}
+            slugHrefOverrides={slugHrefOverrides}
             slugTone={slugTone}
             text={completeText}
           />
