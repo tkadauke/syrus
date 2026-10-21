@@ -11,6 +11,7 @@ import { formatRelativeDate } from "../../lib/relativeTime"
 
 const ARTIFACT_PREVIEW_LINES = 8
 const ARTIFACT_PREVIEW_CHARS = 900
+const DEFAULT_ISSUE_LIMIT = 20
 
 type IssueRow = {
   number: string
@@ -123,7 +124,7 @@ export function issueListSummary(context: ToolCardContext) {
 function IssueQuerySummary({ context, count }: { context: ToolCardContext; count: number }) {
   const state = displayValue(context.input?.state) || "open"
   const label = displayValue(context.input?.label)
-  const limit = displayValue(context.input?.limit) || "50"
+  const limit = displayValue(context.input?.limit) || String(DEFAULT_ISSUE_LIMIT)
   return (
     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
       <span>
