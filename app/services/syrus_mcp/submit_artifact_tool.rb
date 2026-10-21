@@ -54,7 +54,12 @@ module SyrusMcp
         )
         Mcp::Tools.write_log(run, "[mcp] submit_artifact: #{artifact_type.inspect} — #{artifact_title.truncate(60)}")
 
-        MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
+        Mcp::Tools.success(
+          message: "Saved.",
+          workflow_id: run.workflow_id,
+          run_id: run.id,
+          job_id: run.job_id
+        )
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::SubmitArtifactTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
