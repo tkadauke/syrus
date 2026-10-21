@@ -14,7 +14,8 @@ function renderExpanded(context: ToolCardContext) {
 const removeJobTagToolCard: ToolCardRenderer = {
   toolName: "remove_job_tag",
   collapsedSummary,
-  renderExpanded
+  renderExpanded,
+  renderWhilePending: true
 }
 
 export default removeJobTagToolCard

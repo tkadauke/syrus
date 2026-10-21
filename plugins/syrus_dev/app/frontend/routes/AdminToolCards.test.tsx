@@ -118,6 +118,23 @@ describe("AdminToolCards", () => {
     expect(region.querySelector("span[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
   })
 
+  it("preserves pending state when switching from a settled empty result", () => {
+    renderRoute("/admin/tool_cards?tool_name=remove_job_tag&tool=remove_job_tag&example=empty_result")
+
+    const region = screen.getByRole("region", { name: "Remove job tag" })
+    expect(within(region).getByText("Done")).toBeInTheDocument()
+    expect(within(region).getByText(/Remove tag #10 returned an unexpected response/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Pending" }))
+
+    expect(within(region).getByText("Running")).toBeInTheDocument()
+    expect(within(region).getByText(/Removing tag #10 · JOB-7/)).toBeInTheDocument()
+    expect(within(region).queryByText(/returned an unexpected response/)).not.toBeInTheDocument()
+
+    expandToolGroup(region)
+    expect(within(region).getByText("pending")).toBeInTheDocument()
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 
