@@ -1,6 +1,11 @@
 import type { CSSProperties, ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, displayValue, EmptyState, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { isPlainObject } from "../../toolCardParsing"
+import { DataTable } from "../../components/ui"
+import { Table, TBody, Td, THead } from "./adminToolCard"
+import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell } from "./mediaPreviewShell"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, InternalLink, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { formatRelativeDate } from "../../lib/relativeTime"
 
@@ -16,6 +21,8 @@ type IssueRow = {
   updatedAt: string | null
   url: string | null
   repository: string | null
+  author: string | null
+  bodyExcerpt: string | null
 }
 
 type TagRow = {
@@ -46,10 +53,6 @@ type ArtifactResult = {
   preview: string | null
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Object.prototype.toString.call(value) === "[object Object]"
-}
-
 function arrayStrings(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -60,7 +63,7 @@ function arrayStrings(value: unknown): string[] {
 
 function issueRows(context: ToolCardContext): IssueRow[] | null {
   const parsed = context.parsedResult
-  const rows = Array.isArray(parsed) ? parsed : isPlainObject(parsed) && Array.isArray(parsed.issues) ? parsed.issues : null
+  const rows = isPlainObject(parsed) && Array.isArray(parsed.issues) ? parsed.issues : null
   if (!rows) return null
 
   return rows.flatMap((item) => {
@@ -69,17 +72,38 @@ function issueRows(context: ToolCardContext): IssueRow[] | null {
     const title = displayValue(item.title)
     if (!number || !title) return []
 
-    return [{
-      number,
-      title,
-      labels: arrayStrings(item.labels),
-      state: displayValue(item.state),
-      createdAt: displayValue(item.created_at),
-      updatedAt: displayValue(item.updated_at),
-      url: displayValue(item.url) || displayValue(item.html_url),
-      repository: displayValue(item.repository) || displayValue(item.repository_slug)
-    }]
+    return [
+      {
+        number,
+        title,
+        labels: arrayStrings(item.labels),
+        state: displayValue(item.state),
+        createdAt: displayValue(item.created_at),
+        updatedAt: displayValue(item.updated_at),
+        url: displayValue(item.url) || displayValue(item.html_url),
+        repository:
+          displayValue(item.repository) || displayValue(item.repository_slug) || repositoryFromIssueUrl(displayValue(item.url) || displayValue(item.html_url)),
+        author: displayValue(item.author),
+        bodyExcerpt: displayValue(item.body_excerpt)
+      }
+    ]
   })
+}
+
+function repositoryFromIssueUrl(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    const match = parsed.hostname === "github.com" ? parsed.pathname.match(/^\/([^/]+\/[^/]+)\/issues\/\d+/) : null
+    return match?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+function issueImageUrls(body: string | null): string[] {
+  if (!body) return []
+  return Array.from(body.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi), (match) => match[1]).slice(0, 3)
 }
 
 function timestampLabel(value: string | null): string | null {
@@ -90,55 +114,101 @@ function timestampLabel(value: string | null): string | null {
 }
 
 export function issueListSummary(context: ToolCardContext) {
+  if (context.resultError) return "Could not list issues"
   const rows = issueRows(context)
   if (!rows) return null
   return rows.length === 0 ? "No issues" : `${rows.length} issue${rows.length === 1 ? "" : "s"}`
+}
+
+function IssueQuerySummary({ context, count }: { context: ToolCardContext; count: number }) {
+  const state = displayValue(context.input?.state) || "open"
+  const label = displayValue(context.input?.label)
+  const limit = displayValue(context.input?.limit) || "50"
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+      <span>
+        State: <span className="font-medium text-text-primary">{state}</span>
+      </span>
+      <span>
+        Label: <span className="font-medium text-text-primary">{label || "all"}</span>
+      </span>
+      <span>
+        Limit: <span className="font-medium text-text-primary">{limit}</span>
+      </span>
+      {Number(limit) === count ? <span>Limit reached; more issues may be available.</span> : null}
+    </div>
+  )
 }
 
 export function IssueListCard({ rows }: { rows: IssueRow[] }) {
   if (rows.length === 0) return <EmptyState>No issues found.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">Issue</th>
-            <th className="px-2 py-1 font-semibold" scope="col">State</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Labels</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Age</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Updated</th>
-            <th className="px-2 py-1 font-semibold" scope="col">Link</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((issue) => (
-            <tr key={issue.number}>
-              <td className="max-w-80 px-2 py-1">
-                <div className="font-mono font-medium text-gray-800 dark:text-gray-200">#{issue.number}</div>
-                <div className="truncate text-gray-700 dark:text-gray-300" title={issue.title}>{issue.title}</div>
-                {issue.repository ? <div className="truncate font-mono text-2xs text-gray-500 dark:text-gray-400">{issue.repository}</div> : null}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">{issue.state ? <StatePill state={issue.state} /> : <span className="text-gray-400">-</span>}</td>
-              <td className="min-w-36 px-2 py-1">
-                {issue.labels.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">{issue.labels.map((label) => <Badge key={label}>{label}</Badge>)}</div>
-                ) : <span className="text-gray-400">-</span>}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.createdAt) || "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{timestampLabel(issue.updatedAt) || "-"}</td>
-              <td className="whitespace-nowrap px-2 py-1">{issue.url ? <InternalLink href={issue.url}>open</InternalLink> : <span className="text-gray-400">-</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table responsive>
+      <THead columns={["Issue", "Details", "State", "Labels", "Activity"]} />
+      <TBody>
+        {rows.map((issue) => (
+          <DataTable.Row key={`${issue.repository || "issue"}-${issue.number}`}>
+            <Td>
+              <EntityReference id={issue.number} issueUrl={issue.url} kind="issue" />
+              {issue.repository ? (
+                <div>
+                  <EntityReference href={`https://github.com/${issue.repository}`} kind="repository" repositorySlug={issue.repository} />
+                </div>
+              ) : null}
+            </Td>
+            <Td maxWidth wrap>
+              <div className="break-words font-medium text-text-primary">{issue.title}</div>
+              {issue.author ? <div className="mt-0.5 text-2xs text-text-muted">by {issue.author}</div> : null}
+              {issue.bodyExcerpt ? <MarkdownPreview maxLines={3} modalLabel={`${issue.title} body`} text={issue.bodyExcerpt} /> : null}
+              {issueImageUrls(issue.bodyExcerpt).length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {issueImageUrls(issue.bodyExcerpt).map((src, index) => (
+                    <MediaPreviewShell item={{ title: `${issue.title} image ${index + 1}`, src }} key={src} thumbnailClassName="w-28" />
+                  ))}
+                </div>
+              ) : null}
+            </Td>
+            <Td>{issue.state ? <StatePill state={issue.state} /> : <span className="text-text-subtle">—</span>}</Td>
+            <Td wrap>
+              {issue.labels.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {issue.labels.map((label) => (
+                    <Badge key={label}>{label}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-text-subtle">—</span>
+              )}
+            </Td>
+            <Td wrap>
+              <div>Opened {timestampLabel(issue.createdAt) || "—"}</div>
+              <div>Updated {timestampLabel(issue.updatedAt) || "—"}</div>
+            </Td>
+          </DataTable.Row>
+        ))}
+      </TBody>
+    </Table>
   )
 }
 
 export function renderIssueList(context: ToolCardContext): ReactNode | null {
+  if (context.resultError) {
+    const message = isPlainObject(context.parsedResult) ? displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message) : null
+    return (
+      <>
+        <IssueQuerySummary context={context} count={0} />
+        <EmptyState>{message || context.resultBody.trim() || "Unable to list issues."}</EmptyState>
+      </>
+    )
+  }
   const rows = issueRows(context)
-  return rows ? <IssueListCard rows={rows} /> : null
+  return rows ? (
+    <>
+      <IssueQuerySummary context={context} count={rows.length} />
+      <IssueListCard rows={rows} />
+    </>
+  ) : null
 }
 
 function parseTag(value: unknown): TagRow | null {
