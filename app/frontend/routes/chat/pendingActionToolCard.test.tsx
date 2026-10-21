@@ -68,6 +68,19 @@ describe("pending action tool card: standard shape", () => {
     expect(summarize(standardPayload())).toBe("Job rebase requires operator confirmation.")
   })
 
+  it("keeps collapsed Markdown messages compact while preserving the expanded content", () => {
+    const message = `**Review first**\n\n${"Long pending-action detail. ".repeat(40)}`
+    const summary = summarize(standardPayload({ message }))
+
+    expect(summary).toHaveLength(160)
+    expect(summary).toMatch(/^Review first Long pending-action detail\./)
+    expect(summary).toMatch(/…$/)
+
+    renderResult(standardPayload({ message }))
+    expect(screen.getByText("Review first", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
   it("synthesizes a collapsed summary when the payload carries no message", () => {
     expect(summarize(standardPayload({ message: null }))).toBe("Pending action #501 (pending)")
   })
