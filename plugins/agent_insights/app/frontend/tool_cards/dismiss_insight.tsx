@@ -1,30 +1,37 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { isPlainObject } from "@app/pluginToolCards"
-import { Text } from "@app/components/ui"
-import { useT } from "@app/hooks/useT"
-import { CardShell, SectionLabel } from "@app/routes/chat/toolCardUi"
-
-function summary(context: ToolCardContext) {
-  const result = context.parsedResult
-  if (!isPlainObject(result)) return "Dismiss insight"
-  const ids = Array.isArray(result.insight_ids) ? result.insight_ids : []
-  return ids.length ? `Dismiss ${ids.length} insight${ids.length === 1 ? "" : "s"}` : "Dismiss insights"
-}
-
-function Expanded({ context }: { context: ToolCardContext }) {
-  const { t } = useT("agent_insights")
-
-  return (
-    <CardShell>
-      <SectionLabel>{t("dismiss")}</SectionLabel>
-      <Text>{summary(context)}</Text>
-    </CardShell>
-  )
-}
+import type { ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { decisionSummary, InsightDecisionOutcomeCard } from "../insightDecisionToolCard"
 
 const card: ToolCardRenderer = {
   toolName: "dismiss_insight",
-  collapsedSummary: summary,
-  renderExpanded: (context) => <Expanded context={context} />
+  collapsedSummary: (context) => decisionSummary(context, "dismiss"),
+  renderExpanded: (context) => <InsightDecisionOutcomeCard action="dismiss" context={context} />
 }
 export default card
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "single_dismissed",
+    label: "Single insight dismissed",
+    input: { insight_id: 41, reason: "Duplicate of **INSIGHT-39**. See https://example.test/evidence." },
+    parsedResult: { message: "Dismissed insight #41.", insight_ids: [41], states: { 41: "dismissed" } }
+  },
+  {
+    id: "bulk_pending",
+    label: "Bulk dismissal pending",
+    input: { insight_ids: [41, 42], reason: "Both findings are stale." },
+    parsedResult: {
+      pending_action_id: 701,
+      state: "pending",
+      message: "Dismiss insights #41, #42?",
+      insight_ids: [41, 42],
+      intended_transition: "dismiss_insights"
+    }
+  },
+  {
+    id: "dismiss_error",
+    label: "Dismissal error",
+    input: { insight_id: 41, reason: "No longer relevant." },
+    parsedResult: { error: "Insight #41 is no longer pending." },
+    resultError: true
+  }
+]
