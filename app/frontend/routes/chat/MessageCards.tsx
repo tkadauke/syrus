@@ -1043,13 +1043,9 @@ export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSe
     resultError: call.result_error,
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
-<<<<<<< HEAD
     chatSessionId,
-    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
-=======
     livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
     livePendingActionGroup: redactToolCardValue(call.pending_action_group ?? null) as ChatToolGroupItem["calls"][number]["pending_action_group"]
->>>>>>> a719c2776 (Refresh bulk pending action card state)
   }
 }
 
