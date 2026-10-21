@@ -644,10 +644,10 @@ it with the same immediate continuation. Editing an already-active goal does
 not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
-remain operator controls. A blocked-goal tool result records the previous and
-new statuses, reason, structured details, and owning chat metadata; its chat
-card links back to the conversation and renders long reasons as expandable
-Markdown. If a chat turn crashes and Syrus schedules an
+remain operator controls. Completed- and blocked-goal tool results record the
+previous and new statuses, reason, structured details, and owning chat
+metadata; their chat cards link back to the conversation and render long
+reasons as expandable Markdown. If a chat turn crashes and Syrus schedules an
 automatic retry, the retry status pill keeps the countdown visible and also
 offers a manual retry control so an operator can start the retry immediately.
 Automatic and manual retries wake the transcript with a Retry system message

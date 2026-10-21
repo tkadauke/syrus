@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import i18n from "../../../i18n"
 import { displayValue, EmptyState, EntityReference, Row, SectionLabel } from "../toolCardUi"
-import { ErrorCard, MalformedCard, OptionalReason, StatusCard, successOrError } from "../chatHelperToolCard"
+import { ErrorCard, MalformedCard, OptionalReason, StatusCard, StructuredDetails, successOrError } from "../chatHelperToolCard"
 
 type GoalResult = {
   goalId: string
@@ -44,32 +44,9 @@ function inputDetails(context: ToolCardContext) {
   return isPlainObject(context.input?.details) ? context.input.details : null
 }
 
-function detailValue(value: unknown) {
-  const displayed = displayValue(value)
-  if (displayed) return displayed
-  if (value == null) return "—"
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
 function Details({ details }: { details: Record<string, unknown> | null }) {
-  if (!details || Object.keys(details).length === 0) return <EmptyState>{i18n.t("chat:tool_card_goal_blocked_no_details")}</EmptyState>
-
   return (
-    <details className="min-w-0 rounded border border-border bg-surface px-2 py-1 sm:col-span-2">
-      <summary className="cursor-pointer text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:tool_card_goal_blocked_details")}</summary>
-      <dl className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
-        {Object.entries(details).map(([key, value]) => (
-          <div className="min-w-0" key={key}>
-            <dt className="break-words text-2xs font-semibold text-text-muted [overflow-wrap:anywhere]">{key}</dt>
-            <dd className="break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{detailValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
-    </details>
+    <StructuredDetails details={details} emptyLabel={i18n.t("chat:tool_card_goal_blocked_no_details")} title={i18n.t("chat:tool_card_goal_blocked_details")} />
   )
 }
 
