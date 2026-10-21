@@ -673,6 +673,36 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("passes persisted search inputs into the expanded search Jobs card", () => {
+    const results = [
+      { id: 4048, state: "running", issue_title: "Improve search cards" },
+      { id: 4049, state: "running", issue_title: "Show match context" }
+    ]
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Search jobs",
+      calls: [{
+        message_id: 1,
+        tool_name: "search_jobs",
+        raw_name: "mcp__syrus-chat-sidecar__search_jobs",
+        detail: "tool cards",
+        display_label: "Search jobs",
+        progress_label: "Searching jobs",
+        raw_payload: { query: "tool cards", state: "running", limit: 2 },
+        result_body: JSON.stringify({ total: 37, results }),
+        result_json: { total: 37, results },
+        result_error: false,
+        result_kind: "record",
+        result_summary: "37 matching Jobs"
+      }]
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Search jobs")
+
+    expect(screen.getByText(/Showing 2 of 37/)).toHaveTextContent("Query: tool cards · State: running · Ordered by most recently updated")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
