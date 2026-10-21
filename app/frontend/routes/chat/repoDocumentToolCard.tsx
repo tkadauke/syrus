@@ -13,6 +13,7 @@ type DocumentRow = {
   title: string
   kind: string | null
   status: string | null
+  repositoryId: string | null
   repository: string | null
   contentType: string | null
   sizeBytes: number | null
@@ -60,6 +61,7 @@ function parseDocument(value: unknown): DocumentRow | null {
     title,
     kind: displayValue(value.kind) || displayValue(value.type),
     status: displayValue(value.status) || displayValue(value.state),
+    repositoryId: displayValue(value.repository_id),
     repository,
     contentType: displayValue(value.content_type) || displayValue(value.mime_type),
     sizeBytes: numberValue(value.size_bytes) ?? numberValue(value.byte_size),
@@ -73,8 +75,9 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function metadata(row: DocumentRow): string[] {
-  return [row.contentType, row.sizeBytes == null ? null : formatBytes(row.sizeBytes), row.url ? "linked" : null].filter((item): item is string => Boolean(item))
+function documentHref(row: DocumentRow): string | null {
+  if (row.url) return row.url
+  return row.id && row.kind === "file" && row.status === "attached" ? `/api/v1/app/repository_documents/${encodeURIComponent(row.id)}/file` : null
 }
 
 export function parseRepoDocumentList(context: ToolCardContext): DocumentRow[] | null {
@@ -98,45 +101,39 @@ export function RepoDocumentListCard({ rows }: { rows: DocumentRow[] }) {
   if (rows.length === 0) return <EmptyState>No repository documents found.</EmptyState>
 
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Title
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Ref
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Type
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Status
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Repository
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Content
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row, index) => (
-            <tr key={row.id || row.ref || `${row.title}-${index}`}>
-              <td className="max-w-64 truncate px-2 py-1 font-medium text-gray-800 dark:text-gray-200" title={row.title}>
-                {row.title}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.ref || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.kind || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1">{row.status ? <StatePill state={row.status} /> : <span className="text-gray-400">—</span>}</td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.repository || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{metadata(row).join(" · ") || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-1 divide-y divide-border overflow-hidden rounded border border-border bg-surface">
+      {rows.map((row, index) => (
+        <article className="min-w-0 space-y-2 p-2" key={row.id || row.ref || `${row.title}-${index}`}>
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+            <EntityReference className="min-w-0 text-sm" href={documentHref(row) || undefined} id={row.id} kind="artifact" label={row.title} slug={row.title} />
+            {row.status ? <StatePill state={row.status} /> : null}
+          </div>
+          <dl className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {row.ref ? <Row label="Ref" value={row.ref} /> : null}
+            {row.kind ? <Row label="Type" value={row.kind} /> : null}
+            {row.repositoryId || row.repository ? (
+              <div className="min-w-0">
+                <SectionLabel>Repository</SectionLabel>
+                <EntityReference
+                  kind="repository"
+                  label={row.repository || `Repository #${row.repositoryId}`}
+                  repositoryId={row.repositoryId}
+                  repositorySlug={row.repository}
+                  slug={row.repository}
+                />
+              </div>
+            ) : null}
+            {row.contentType ? <Row label="Content type" value={row.contentType} /> : null}
+            {row.sizeBytes != null ? <Row label="Size" value={formatBytes(row.sizeBytes)} /> : null}
+            {row.url ? (
+              <div className="min-w-0 sm:col-span-2 lg:col-span-4">
+                <SectionLabel>URL</SectionLabel>
+                <EntityReference href={row.url} kind="artifact" label={row.url} slug={row.url} />
+              </div>
+            ) : null}
+          </dl>
+        </article>
+      ))}
     </div>
   )
 }
