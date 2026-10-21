@@ -217,10 +217,10 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ value }: { value: TargetContext }) {
+function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: TargetContext }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
-      {value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
+      {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
       {value.runId ? <Row label="Run" value={<EntityReference id={value.runId} jobId={value.jobId} kind="run" workflowId={value.workflowId} />} /> : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
@@ -297,7 +297,17 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
   )
 }
 
-export function PendingActionResultCard({ details, result }: { details?: ReactNode; result: PendingActionResult }) {
+export function PendingActionResultCard({
+  detailTitle = "Detail",
+  details,
+  omitJob = false,
+  result
+}: {
+  detailTitle?: string
+  details?: ReactNode
+  omitJob?: boolean
+  result: PendingActionResult
+}) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
   if (result.kind === "error")
     return (
@@ -307,7 +317,7 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
           <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span>
         </div>
         <MarkdownPreview maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows value={result} />
+        <ContextRows omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
@@ -327,7 +337,7 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
           </Badge>
         ) : null}
       </div>
-      <ContextRows value={result} />
+      <ContextRows omitJob={omitJob} value={result} />
       {details}
       {result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
@@ -342,7 +352,7 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
         </div>
       ) : null}
       {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
-      {result.detail ? <MarkdownPreview maxLines={4} modalLabel="Pending action detail" text={result.detail} title="Detail" /> : null}
+      {result.detail ? <MarkdownPreview maxLines={4} modalLabel={detailTitle} text={result.detail} title={detailTitle} /> : null}
       {result.executionError ? (
         <MarkdownPreview className="text-danger-text" maxLines={4} modalLabel="Execution error" text={result.executionError} title="Execution error" />
       ) : null}

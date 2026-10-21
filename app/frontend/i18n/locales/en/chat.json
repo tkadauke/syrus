@@ -618,6 +618,11 @@
     "example_pending": "Pending cancellation with selected targets",
     "example_error": "Ineligible cancellation request"
   },
+  "check_job_mergeability": {
+    "job": "Job",
+    "not_provided": "Not provided",
+    "outcome": "Mergeability outcome"
+  },
   "daemon_invocation_context": {
     "summary": "invocation context: {{surface}}{{identity}}",
     "summary_denied": "invocation context denied: {{error}}",
