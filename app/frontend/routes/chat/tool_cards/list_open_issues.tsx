@@ -25,7 +25,7 @@ export const examples: ToolCardExample[] = [
           created_at: "2026-10-18T10:00:00Z",
           updated_at: "2026-10-20T08:00:00Z",
           url: "https://github.com/acme/widgets/issues/42",
-          body_excerpt: "The navigation overlaps the main panel.\n\n![Screenshot](https://example.test/overlap.png)"
+          body_excerpt: `The navigation overlaps the main panel at narrow widths and makes the primary controls difficult to reach. ${"The content should reflow into a compact stacked presentation without hiding issue metadata. ".repeat(12)}\n\n![Screenshot](/icon-192.png)`
         }
       ]
     }

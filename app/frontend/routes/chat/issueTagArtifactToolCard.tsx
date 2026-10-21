@@ -104,7 +104,7 @@ function repositoryFromIssueUrl(url: string | null): string | null {
 
 function issueImageUrls(body: string | null): string[] {
   if (!body) return []
-  return Array.from(body.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi), (match) => match[1]).slice(0, 3)
+  return Array.from(body.matchAll(/!\[[^\]]*\]\(((?:https?:\/\/|\/)[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi), (match) => match[1]).slice(0, 3)
 }
 
 function timestampLabel(value: string | null): string | null {
