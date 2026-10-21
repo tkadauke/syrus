@@ -241,7 +241,7 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   wakeup: { label: (reference) => prefixedEntityLabel("WAKEUP", reference.id), href: noHref, copyValue: slugCopyValue },
   scheduled_task: { label: (reference) => prefixedEntityLabel("TASK", reference.id), href: idHref("/scheduled_tasks"), copyValue: slugCopyValue },
   preview_panel: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
-  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: noHref, copyValue: slugCopyValue },
+  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: () => "/memories", copyValue: slugCopyValue },
   insight: {
     label: (reference) => prefixedEntityLabel("INSIGHT", reference.id),
     href: (reference) => {
