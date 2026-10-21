@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import retryJobCard from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
@@ -31,7 +31,7 @@ import clearProviderCircuitCard from "./clear_provider_circuit"
 import repairProviderCircuitEvidenceCard from "./repair_provider_circuit_evidence"
 import adminKillProcessCard from "./admin_kill_process"
 import adminRetryStepCard from "./admin_retry_step"
-import adoptCurrentPrHeadCard from "./adopt_current_pr_head"
+import adoptCurrentPrHeadCard, { examples as adoptCurrentPrHeadExamples } from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_workflow_output"
 import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
@@ -154,6 +154,31 @@ describe("pending action tool card family", () => {
     expect(screen.getAllByRole("link", { name: /JOB-4222/ })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: /JOB-4222/ })[0]).toHaveAttribute("href", "/jobs/4222")
     expect(screen.getByText("1 changed file")).toBeInTheDocument()
+  })
+
+  it("registers reviewable adopt-current-PR-head catalog states", () => {
+    expect(adoptCurrentPrHeadExamples.map((example) => example.id)).toEqual(["dry_run_evidence", "pending_input_fallback", "structured_error", "empty_result"])
+  })
+
+  it.each([
+    ["dry_run_evidence", "Dry run"],
+    ["pending_input_fallback", "pending"],
+    ["structured_error", "invalid_base"]
+  ])("renders the %s adopt-current-PR-head catalog fixture", (id, expected) => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === id)
+    if (!example) throw new Error(`missing fixture: ${id}`)
+
+    const card = adoptCurrentPrHeadCard.renderExpanded(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))
+    expect(card).not.toBeNull()
+    render(<>{card}</>)
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
+  it("keeps the completed empty-result fixture on the generic fallback path", () => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === "empty_result")
+    if (!example) throw new Error("missing empty fixture")
+
+    expect(adoptCurrentPrHeadCard.renderExpanded(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))).toBeNull()
   })
 
   it("wires the destructive dry-run tool through to the shared card", () => {
