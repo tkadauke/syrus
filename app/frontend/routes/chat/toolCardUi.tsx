@@ -222,9 +222,11 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   run: {
     label: (reference) => prefixedEntityLabel("RUN", reference.id),
     href: (reference) => {
+      const id = compactEntityValue(reference.id)
       const jobId = compactEntityValue(reference.jobId)
       const workflowId = compactEntityValue(reference.workflowId)
-      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+      if (jobId && workflowId) return `/jobs/${jobId}?tab=workflows#workflow-${workflowId}`
+      return id ? `/admin/runs/${id}/transcript` : null
     },
     copyValue: slugCopyValue
   },
