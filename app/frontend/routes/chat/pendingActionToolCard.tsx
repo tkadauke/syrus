@@ -170,15 +170,29 @@ function humanizeAction(action: string) {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+const COLLAPSED_SUMMARY_MAX_CHARS = 160
+
+function compactCollapsedSummary(text: string) {
+  const plainText = text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[`*_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (plainText.length <= COLLAPSED_SUMMARY_MAX_CHARS) return plainText
+  return `${plainText.slice(0, COLLAPSED_SUMMARY_MAX_CHARS - 1).trimEnd()}…`
+}
+
 export function pendingActionCollapsedSummary(result: PendingActionResult): string {
-  if (result.kind === "error") return `${result.code}: ${result.message}`
+  if (result.kind === "error") return compactCollapsedSummary(`${result.code}: ${result.message}`)
   if (result.kind === "dry_run_evidence") {
     const jobId = result.context.jobId || result.evidence?.jobId
     return `Dry run: ${result.action}${jobId ? ` for ${entityReferenceLabel({ kind: "job", id: jobId })}` : ""}`
   }
   const identifier = result.groupId ? `Pending action group #${result.groupId}` : `Pending action #${result.pendingActionId}`
   const base = result.message || `${identifier} (${result.state})`
-  return result.memberCount == null ? base : `${base} · ${result.memberCount} ${result.memberCount === 1 ? "action" : "actions"}`
+  const summary = result.memberCount == null ? base : `${base} · ${result.memberCount} ${result.memberCount === 1 ? "action" : "actions"}`
+  return compactCollapsedSummary(summary)
 }
 
 function ShaRow({ label, sha }: { label: string; sha: string }) {
