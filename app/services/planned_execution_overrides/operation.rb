@@ -1,7 +1,7 @@
 module PlannedExecutionOverrides
 class Operation
   Unsafe = Class.new(ArgumentError)
-  Result = Data.define(:eligible, :reason, :job, :workflow, :runs, :profile, :before, :after, :worker_available, :audit) do
+  Result = Data.define(:eligible, :reason, :job, :workflow, :runs, :profile, :before, :after, :worker_available, :audit, :dispatch_status, :dispatch_error) do
     def as_json(*)
       {
         eligible: eligible,
@@ -14,7 +14,9 @@ class Operation
         proposed_placement: after,
         worker_available: worker_available,
         planned_repair: eligible ? "Update the Job#{workflow ? ' and queued initial Workflow' : ''} atomically, record an audit event, and re-resolve queued Run placement." : nil,
-        audit_id: audit&.id
+        audit_id: audit&.id,
+        dispatch_status: dispatch_status,
+        dispatch_error: dispatch_error
       }
     end
   end
@@ -31,27 +33,30 @@ class Operation
 
   def inspect
     job.reload
-    workflow = initial_workflow
-    runs = workflow ? workflow.runs.order(:id).to_a : []
-    refusal = refusal_reason(workflow, runs)
+    workflows = all_workflows
+    runs = all_runs
+    workflow = eligible_initial_workflow(workflows)
+    refusal = refusal_reason(workflows, runs)
     result(!refusal, refusal, workflow, runs)
   end
 
   def apply!
     queued_runs = []
     workflow_to_start = nil
-    outcome = nil
+    workflow = nil
+    runs = []
+    audit = nil
+    before = nil
     ApplicationRecord.transaction do
       job.lock!
       if expected_revision.present? && job.entity_revision != expected_revision.to_i
         raise Unsafe, "#{job.slug} changed after the repair was proposed; run a new dry-run and confirm again."
       end
-      workflow = initial_workflow
-      workflow&.lock!
-      runs = workflow ? workflow.runs.lock.order(:id).to_a : []
-      refusal = refusal_reason(workflow, runs)
+      workflows = all_workflows(lock: true)
+      runs = all_runs(lock: true)
+      workflow = eligible_initial_workflow(workflows)
+      refusal = refusal_reason(workflows, runs)
       raise Unsafe, refusal if refusal
-      replace_queued_deliveries!(runs.select(&:queued?))
 
       before = job.planned_execution_json
       replacement = requirement
@@ -70,24 +75,41 @@ class Operation
       )
       queued_runs = runs.select(&:queued?)
       workflow_to_start = workflow if runs.empty?
-      outcome = result(true, nil, workflow, runs, audit: audit, before: before)
     end
-    queued_runs.each(&:reenqueue!)
-    WorkUnits::Launcher.start!(workflow_to_start) if workflow_to_start
-    outcome
+    dispatch_status, dispatch_error = dispatch_or_reconcile(queued_runs, workflow_to_start)
+    result(true, nil, workflow, runs, audit:, before:, dispatch_status:, dispatch_error:)
   end
 
   private
 
   attr_reader :job, :profile, :actor, :reason, :provenance, :expected_revision
 
-  def initial_workflow
-    job.workflows.where(trigger_kind: "initial").order(:created_at, :id).first
+  def all_workflows(lock: false)
+    scope = job.workflows.order(:created_at, :id)
+    scope = scope.lock if lock
+    scope.to_a
   end
 
-  def refusal_reason(workflow, runs)
+  def all_runs(lock: false)
+    scope = job.runs.order(:created_at, :id)
+    scope = scope.lock if lock
+    scope.to_a
+  end
+
+  def eligible_initial_workflow(workflows)
+    workflows.one? && workflows.first.trigger_kind == "initial" ? workflows.first : nil
+  end
+
+  def refusal_reason(workflows, runs)
     return "Placement cannot be changed once #{job.slug} is #{job.state}; cancel or finish the active work, then create a fresh attempt." unless job.state.in?(%w[triaging backlog queued])
-    return nil unless workflow
+    if job.state.in?(%w[triaging backlog])
+      return nil if workflows.empty? && runs.empty?
+
+      return "#{job.slug} is #{job.state} but already has Workflow or Run history; use a fresh attempt rather than changing placement on inconsistent execution records."
+    end
+    return "#{job.slug} is queued without exactly one initial Workflow; reconcile or retry it as a fresh attempt before changing placement." unless workflows.one? && workflows.first.trigger_kind == "initial"
+
+    workflow = workflows.first
     return "#{workflow.slug} is #{workflow.state}; placement overrides only support a queued initial Workflow." unless workflow.queued?
     started = runs.find { |run| run.started_at.present? || !run.queued? }
     return "#{started.slug} has already started; retry as a fresh Workflow with the required placement." if started
@@ -97,27 +119,53 @@ class Operation
     nil
   end
 
+  def dispatch_or_reconcile(queued_runs, workflow_to_start)
+    delivery_state = replace_queued_deliveries!(queued_runs)
+    # A claimed delivery cannot be replaced safely. RunJob's host-admission
+    # preflight reads the newly committed Workflow requirements before it
+    # acquires execution, so the claimant either runs on a capable host or
+    # reroutes itself to the newly resolved lane.
+    return [ "claimed_delivery_revalidating", nil ] if delivery_state == :claimed
+
+    queued_runs.each(&:reenqueue!)
+    WorkUnits::Launcher.start!(workflow_to_start) if workflow_to_start
+    [ "dispatched", nil ]
+  rescue StandardError => e
+    Rails.logger.error("[PlannedExecutionOverrides::Operation] replacement dispatch failed for #{job.slug}: #{e.class}: #{e.message}")
+    request_reconciliation
+    [ "reconciliation_requested", "#{e.class}: #{e.message}" ]
+  end
+
+  def request_reconciliation
+    WorkEngine::Reconciler.request(source: self.class.name, job: job)
+  rescue StandardError => e
+    # The queued Run/Workflow remains durable and the every-minute stale-work
+    # reconciler will discover the missing delivery even if this immediate
+    # request cannot itself be enqueued.
+    Rails.logger.error("[PlannedExecutionOverrides::Operation] immediate reconciliation request failed for #{job.slug}: #{e.class}: #{e.message}")
+  end
+
   def requirement
     PlannedExecutionRequirement.new(capabilities: profile.capabilities, source: "operator_confirmed")
   end
 
   def replace_queued_deliveries!(runs)
-    return if runs.empty? || !defined?(SolidQueue::Job) || !SolidQueue::Job.table_exists?
+    return :none if runs.empty?
+    return :unavailable unless defined?(SolidQueue::Job) && SolidQueue::Job.table_exists?
 
-    queue_jobs = SolidQueue::Job.where(class_name: "RunJob", finished_at: nil).lock
-    ids = runs.flat_map { |run| SolidQueueRunJobQuery.matching(scope: queue_jobs, run_id: run.id).pluck(:id) }.uniq
-    return if ids.empty?
+    SolidQueue::Job.transaction do
+      queue_jobs = SolidQueue::Job.where(class_name: "RunJob", finished_at: nil).lock
+      ids = runs.flat_map { |run| SolidQueueRunJobQuery.matching(scope: queue_jobs, run_id: run.id).pluck(:id) }.uniq
+      return :none if ids.empty?
+      return :claimed if SolidQueue::ClaimedExecution.where(job_id: ids).exists?
 
-    claimed = SolidQueue::ClaimedExecution.where(job_id: ids).pluck(:job_id)
-    if claimed.any?
-      raise Unsafe, "Queued work is already claimed by a worker; retry as a fresh Workflow after it stops."
+      SolidQueue::ReadyExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ReadyExecution)
+      SolidQueue::ScheduledExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ScheduledExecution)
+      SolidQueue::BlockedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::BlockedExecution)
+      SolidQueue::FailedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::FailedExecution)
+      SolidQueue::Job.where(id: ids).delete_all
+      :replaced
     end
-
-    SolidQueue::ReadyExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ReadyExecution)
-    SolidQueue::ScheduledExecution.where(job_id: ids).delete_all if defined?(SolidQueue::ScheduledExecution)
-    SolidQueue::BlockedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::BlockedExecution)
-    SolidQueue::FailedExecution.where(job_id: ids).delete_all if defined?(SolidQueue::FailedExecution)
-    SolidQueue::Job.where(id: ids).delete_all
   end
 
   def worker_available
@@ -128,8 +176,8 @@ class Operation
     nil
   end
 
-  def result(eligible, refusal, workflow, runs, audit: nil, before: job.planned_execution_json)
-    Result.new(eligible:, reason: refusal, job:, workflow:, runs:, profile:, before:, after: requirement.to_h, worker_available:, audit:)
+  def result(eligible, refusal, workflow, runs, audit: nil, before: job.planned_execution_json, dispatch_status: nil, dispatch_error: nil)
+    Result.new(eligible:, reason: refusal, job:, workflow:, runs:, profile:, before:, after: requirement.to_h, worker_available:, audit:, dispatch_status:, dispatch_error:)
   end
 end
 end
