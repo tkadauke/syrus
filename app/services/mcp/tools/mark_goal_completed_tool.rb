@@ -24,6 +24,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("active goal not found") unless goal
         return Mcp::Tools.invalid("goal is not active") unless goal.active?
 
+        previous_status = goal.status
         goal.complete!(reason: Mcp::Tools.utf8(reason).strip.presence || "completed", details: details)
         chat_session.messages.create!(
           role: "system",
@@ -34,7 +35,16 @@ module Mcp::Tools
           }
         )
         chat_session.broadcast_controls
-        Mcp::Tools.success(goal_id: goal.id, status: goal.status, reason: goal.terminal_reason)
+        Mcp::Tools.success(
+          goal_id: goal.id,
+          status: goal.status,
+          previous_status: previous_status,
+          reason: goal.terminal_reason,
+          details: goal.terminal_details,
+          chat_session_id: chat_session.id,
+          chat_title: chat_session.title,
+          chat_path: "/chats/#{chat_session.id}"
+        )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
