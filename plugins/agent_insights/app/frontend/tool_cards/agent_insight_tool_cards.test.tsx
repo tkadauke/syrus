@@ -175,6 +175,86 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("Confirmed by the operator.")).toBeInTheDocument()
   })
 
+  it("renders every update_insight input field, markdown, links, and the text result", () => {
+    const longReason = `Changed after **RUN-99** and https://example.test/evidence. ${"More evidence. ".repeat(50)}`
+    const cardContext = context({
+      toolName: "update_insight",
+      resultBody: "Suggestion #41 updated.",
+      parsedResult: null,
+      input: {
+        target_insight_id: 41,
+        reason: longReason,
+        title: "Prepare failures share one cause",
+        summary: "Now connected to **JOB-200**.",
+        category: "repeated_failure",
+        severity: "high",
+        confidence: 0.94,
+        proposal_type: "create_job",
+        evidence: [{ job_id: 200, run_id: 99, kind: "run_transcript" }],
+        suggested_prompt: "Fix **JOB-200**.",
+        memory_suggestion: "Remember the shared setup.",
+        target_memory_id: 12,
+        stale_memory_text: "The old setup always succeeds.",
+        stale_memory_evidence: "Contradicted by **RUN-99**."
+      }
+    })
+
+    expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Updated insight #41")
+    render(<>{updateInsightToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("Suggestion #41 updated.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "INSIGHT-41" })).toHaveAttribute("href", "/s/INSIGHT-41")
+    expect(screen.getByText("Prepare failures share one cause")).toBeInTheDocument()
+    expect(screen.getByText("94%")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-200" }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("link", { name: "RUN-99" }).length).toBeGreaterThan(0)
+    expect(screen.getByText("MEMORY-12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://example.test/evidence" })).toHaveAttribute("href", "https://example.test/evidence")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("renders partial, pending, cleared, empty, and provider-wrapped updates", () => {
+    const wrappedContext = context({
+      toolName: "update_insight",
+      resultBody: JSON.stringify({ content: [{ type: "text", text: "Suggestion #42 updated." }] }),
+      parsedResult: { content: [{ type: "text", text: "Suggestion #42 updated." }] },
+      input: { target_insight_id: 42, reason: "Confidence increased.", confidence: 0.81, evidence: [], memory_suggestion: null }
+    })
+
+    expect(updateInsightToolCard.collapsedSummary?.(wrappedContext)).toBe("Updated insight #42")
+    render(<>{updateInsightToolCard.renderExpanded(wrappedContext)}</>)
+    expect(screen.getByText("81%")).toBeInTheDocument()
+    expect(screen.getByText("Evidence will be cleared.")).toBeInTheDocument()
+    expect(screen.getByText("This field will be cleared.")).toBeInTheDocument()
+
+    const pendingContext = context({
+      toolName: "update_insight",
+      resultBody: "",
+      parsedResult: null,
+      input: { target_insight_id: 43, reason: "" }
+    })
+    expect(updateInsightToolCard.collapsedSummary?.(pendingContext)).toBe("Updating insight #43")
+    render(<>{updateInsightToolCard.renderExpanded(pendingContext)}</>)
+    expect(screen.getByText("Waiting for the update result.")).toBeInTheDocument()
+    expect(screen.getByText("No changed fields were supplied.")).toBeInTheDocument()
+    expect(screen.getByText("No reason supplied.")).toBeInTheDocument()
+  })
+
+  it("renders update_insight errors without exposing an incomplete success card", () => {
+    const cardContext = context({
+      toolName: "update_insight",
+      resultBody: "Suggestion #44 is accepted and cannot be updated.",
+      resultError: true,
+      parsedResult: null,
+      input: { target_insight_id: 44, reason: "Refresh it.", title: "New title" }
+    })
+
+    expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Insight update failed")
+    render(<>{updateInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Suggestion #44 is accepted and cannot be updated.")).toBeInTheDocument()
+    expect(screen.queryByText("Changed fields")).not.toBeInTheDocument()
+  })
+
   it("normalizes wrapped provider envelopes and renders errors", () => {
     const wrapped = { content: [{ type: "text", text: JSON.stringify({ insights: [baseInsight] }) }] }
     expect(listInsightsToolCard.collapsedSummary?.(context({ parsedResult: wrapped }))).toBe("1 insight")
