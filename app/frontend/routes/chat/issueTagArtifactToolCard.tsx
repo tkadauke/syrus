@@ -316,7 +316,7 @@ export function parseTagAction(context: ToolCardContext, action: TagAction["acti
   const priorTag = action === "create" ? null : tagFromPriorResults(context, inputTag?.id ?? null)
   const tag = resultTag || priorTag || inputTag
   const success = resultTag != null || (isPlainObject(parsed) && parsed.success === true)
-  const pending = parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
+  const pending = context.resultSettled !== true && parsed == null && !context.resultError && context.resultBody === "" && inputTag != null
   if (!tag && !success && !parsedError && !context.resultError) return null
 
   return {

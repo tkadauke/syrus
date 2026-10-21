@@ -286,8 +286,9 @@ describe("issue, tag, and artifact tool cards", () => {
     const pending = context("remove_job_tag", { input: { job_id: 7, tag_id: 10 }, resultSettled: false })
     const emptyResult = context("remove_job_tag", {
       input: { job_id: 7, tag_id: 10 },
-      resultBody: "{}",
-      parsedResult: {}
+      resultBody: "",
+      parsedResult: null,
+      resultSettled: true
     })
 
     expect(removeJobTagToolCard.collapsedSummary?.(pending)).toBe("Removing tag #10 · JOB-7")
