@@ -918,7 +918,7 @@ function RetryFeedbackDialog({
           </button>
         </div>
         <form className="mt-4 space-y-3" onSubmit={submit}>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-provider">
+          <label className="block text-sm font-medium text-text-secondary" htmlFor="retry-provider">
             {t("retry_provider_label")}
           </label>
           <Select disabled={command.isPending} id="retry-provider" onChange={(event) => setProvider(event.target.value)} value={provider}>
@@ -928,7 +928,7 @@ function RetryFeedbackDialog({
               </option>
             ))}
           </Select>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="retry-feedback-text">
+          <label className="block text-sm font-medium text-text-secondary" htmlFor="retry-feedback-text">
             {t("retry_feedback_label")}
           </label>
           <textarea
