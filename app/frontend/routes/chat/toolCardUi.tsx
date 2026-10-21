@@ -99,7 +99,7 @@ export function Row({ label, value, wrap = false }: { label: string; value: Reac
       </Text>
       <Text
         as="div"
-        className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`}
+        className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} min-w-0 font-mono text-xs`}
         title={typeof value === "string" ? value : undefined}
       >
         {value}

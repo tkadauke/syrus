@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
 import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
@@ -15,6 +15,7 @@ import moveEpicToBacklogCard from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
 import updateEpicCard from "./update_epic"
 import addEpicDependencyCard from "./add_epic_dependency"
+import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import removeEpicDependencyCard from "./remove_epic_dependency"
 import addJobDependencyCard from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
@@ -171,6 +172,30 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("EPIC-12")).toBeInTheDocument()
     expect(screen.getByText("EPIC-19")).toBeInTheDocument()
     expect(screen.getByText("EPIC-18")).toBeInTheDocument()
+  })
+
+  it("renders the added Epic as a linked and marked current dependency from a normalized example", () => {
+    const example = addEpicDependencyExamples[0]
+    const ctx = toolCardContextForExample("add_epic_dependency", example)
+
+    render(<>{addEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getAllByRole("link", { name: "EPIC-41" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "EPIC-41" }).every((link) => link.getAttribute("href") === "/epics/41")).toBe(true)
+    expect(screen.getByText("added")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-40" })).toHaveAttribute("href", "/epics/40")
+  })
+
+  it("renders add Epic dependency plain-text errors from a normalized example", () => {
+    const example = addEpicDependencyExamples[1]
+    const ctx = toolCardContextForExample("add_epic_dependency", example)
+
+    expect(addEpicDependencyCard.collapsedSummary?.(ctx)).toBe("Add Epic Dependency failed · EPIC-42")
+    render(<>{addEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Epic cannot depend on itself")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "EPIC-42" }).every((link) => link.getAttribute("href") === "/epics/42")).toBe(true)
   })
 
   it("renders priority changes", () => {
