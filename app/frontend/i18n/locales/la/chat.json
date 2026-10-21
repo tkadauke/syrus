@@ -601,6 +601,23 @@
     "example_override_without_job": "Classificatio substituta sine Opere",
     "example_not_found": "Petitio incorporationis non inventa"
   },
+  "cancel_stale_work": {
+    "failure_title": "Operis obsoleti cancellatio",
+    "attempted": "Opus obsoletum cancellare",
+    "recovery": "Antequam iterum coneris, confirma fluxus et cursus selectos ad opus pertinere atque adhuc cancellari posse.",
+    "job": "Opus",
+    "workflows": "Fluxus operum",
+    "runs": "Cursus",
+    "reconcile": "Post cancellationem reconciliare",
+    "yes": "Ita",
+    "no": "Non",
+    "default_yes": "Ita (praedefinitum)",
+    "none": "Nulla",
+    "not_provided": "Non datum",
+    "input_unavailable": "Singula petitionis huic invocationi instrumenti servatae desunt.",
+    "example_pending": "Cancellatio pendens cum destinatis selectis",
+    "example_error": "Petitio cancellationis inhabilis"
+  },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",
     "summary_denied": "contextus invocationis negatus: {{error}}",

@@ -4,6 +4,7 @@ import type { ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
+import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -377,5 +378,72 @@ describe("pending action tool card: fallbacks", () => {
       kind: "dry_run_evidence",
       action: "some_pending_action_tool"
     })
+  })
+})
+
+describe("cancel_stale_work pending action card", () => {
+  const input = {
+    job_id: 4222,
+    workflow_ids: [26123, 26124, 26125, 26126],
+    run_ids: [99, 100, 101, 102],
+    reconcile: false,
+    reason: "These attempts are stale."
+  }
+
+  function cancelContext(parsedResult: unknown, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+    return {
+      toolName: "cancel_stale_work",
+      input,
+      resultBody: "",
+      resultError: false,
+      parsedResult,
+      ...overrides
+    }
+  }
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(standardPayload({ reason: input.reason })) }], structured_content: null }],
+    ["structured content", { structured_content: standardPayload({ reason: input.reason }), content: [] }]
+  ])("renders linked input targets from a normalizer-built %s envelope", (_label, envelope) => {
+    const toolContext = cancelContext(normalizedToolCardParsedResult(envelope))
+    render(<>{cancelStaleWorkCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getAllByRole("link", { name: /JOB-4222/ }).length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+    expect(screen.getByRole("link", { name: /RUN-99/ })).toHaveAttribute("href", "/admin/runs/99")
+    expect(screen.getByText("Reconcile after cancellation")).toBeInTheDocument()
+    expect(screen.getByText("No")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /WF-26123/ }).closest(".flex-wrap")).not.toBeNull()
+  })
+
+  it("renders the Error: path with the attempted targets", () => {
+    const envelope = { content: [{ type: "text", text: "Error: workflow is already terminal" }], structured_content: null }
+    const toolContext = cancelContext(normalizedToolCardParsedResult(envelope), {
+      resultBody: JSON.stringify(envelope),
+      resultError: true
+    })
+
+    expect(cancelStaleWorkCard.collapsedSummary?.(toolContext)).toContain("workflow is already terminal")
+    render(<>{cancelStaleWorkCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("workflow is already terminal")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /WF-26124/ })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /RUN-100/ })).toBeInTheDocument()
+  })
+
+  it("keeps a recorded pending action useful when its input is missing", () => {
+    const toolContext = cancelContext(standardPayload(), { input: undefined })
+    render(<>{cancelStaleWorkCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Request details are unavailable for this recorded tool call.")).toBeInTheDocument()
+  })
+
+  it("shows empty target lists and the default reconcile behavior", () => {
+    const toolContext = cancelContext(standardPayload(), { input: { job_id: 4222, reason: "Nothing selected." } })
+    render(<>{cancelStaleWorkCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getAllByText("None")).toHaveLength(2)
+    expect(screen.getByText("Yes (default)")).toBeInTheDocument()
   })
 })
