@@ -601,6 +601,23 @@
     "example_override_without_job": "Klassifizierungsüberschreibung ohne Job",
     "example_not_found": "Pull Request nicht gefunden"
   },
+  "cancel_stale_work": {
+    "failure_title": "Abbruch veralteter Arbeit",
+    "attempted": "Veraltete Arbeit abbrechen",
+    "recovery": "Prüfen Sie vor einem erneuten Versuch, ob die ausgewählten Workflows und Läufe zum Auftrag gehören und weiterhin abgebrochen werden können.",
+    "job": "Auftrag",
+    "workflows": "Workflows",
+    "runs": "Läufe",
+    "reconcile": "Nach dem Abbruch abgleichen",
+    "yes": "Ja",
+    "no": "Nein",
+    "default_yes": "Ja (Standard)",
+    "none": "Keine",
+    "not_provided": "Nicht angegeben",
+    "input_unavailable": "Anfragedetails sind für diesen aufgezeichneten Werkzeugaufruf nicht verfügbar.",
+    "example_pending": "Ausstehender Abbruch mit ausgewählten Zielen",
+    "example_error": "Nicht zulässige Abbruchanfrage"
+  },
   "daemon_invocation_context": {
     "summary": "Aufrufkontext: {{surface}}{{identity}}",
     "summary_denied": "Aufrufkontext verweigert: {{error}}",

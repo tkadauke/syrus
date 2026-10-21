@@ -601,6 +601,23 @@
     "example_override_without_job": "Classification override without a Job",
     "example_not_found": "Pull request not found"
   },
+  "cancel_stale_work": {
+    "failure_title": "Stale-work cancellation",
+    "attempted": "Cancel stale work",
+    "recovery": "Check that the selected workflows and runs belong to the Job and remain eligible for cancellation before retrying.",
+    "job": "Job",
+    "workflows": "Workflows",
+    "runs": "Runs",
+    "reconcile": "Reconcile after cancellation",
+    "yes": "Yes",
+    "no": "No",
+    "default_yes": "Yes (default)",
+    "none": "None",
+    "not_provided": "Not provided",
+    "input_unavailable": "Request details are unavailable for this recorded tool call.",
+    "example_pending": "Pending cancellation with selected targets",
+    "example_error": "Ineligible cancellation request"
+  },
   "daemon_invocation_context": {
     "summary": "invocation context: {{surface}}{{identity}}",
     "summary_denied": "invocation context denied: {{error}}",
