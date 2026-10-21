@@ -172,6 +172,19 @@ describe("MarkdownPreview", () => {
     expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
   })
 
+  it("links caller-provided slug hrefs in the preview and full modal", () => {
+    const onLinkClick = vi.fn()
+    const text = `See **RUN-99** for details. ${"More details. ".repeat(30)}`
+    render(<MarkdownPreview maxChars={80} onLinkClick={onLinkClick} slugHrefOverrides={{ "RUN-99": "/admin/runs/99/transcript" }} text={text} />)
+
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    fireEvent.click(screen.getByRole("link", { name: "RUN-99" }))
+    expect(onLinkClick).toHaveBeenCalledWith("/admin/runs/99/transcript", expect.anything())
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[1]).toHaveAttribute("href", "/admin/runs/99/transcript")
+  })
+
   it.each([
     ["mobile", 320],
     ["desktop", 960]
