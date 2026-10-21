@@ -5,6 +5,7 @@ import type { ToolCardContext } from "../../pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
 import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
+import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -162,6 +163,55 @@ describe("pending action tool card: standard shape", () => {
     const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), null))
 
     expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+})
+
+describe("check_job_mergeability tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), livePendingAction, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__check_job_mergeability")
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("renders its linked Job from input for a normalized %s envelope", (_label, envelope) => {
+    const cardContext = normalizedContext(envelope, { job_id: 4222 })
+
+    render(<>{checkJobMergeabilityCard.renderExpanded(cardContext)}</>)
+
+    expect(cardContext.toolName).toBe("check_job_mergeability")
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getAllByText("JOB-4222")).toHaveLength(1)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+  })
+
+  it("labels the live mergeability outcome and current execution state", () => {
+    const cardContext = normalizedContext(standardPayload(), { job_id: 4222 }, liveAction({ state: "confirmed", detail: "Mergeable after refreshing checks." }))
+
+    render(<>{checkJobMergeabilityCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("Mergeability outcome")).toBeInTheDocument()
+    expect(screen.getByText("Mergeable after refreshing checks.")).toBeInTheDocument()
+  })
+
+  it("keeps the target visible for errors", () => {
+    const cardContext = normalizedContext({ error: "job_not_found", message: "Job could not be found." }, { job_id: 4222 })
+
+    render(<>{checkJobMergeabilityCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByText("job_not_found")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+  })
+
+  it("calls out missing input instead of inferring a target from the message", () => {
+    render(<>{checkJobMergeabilityCard.renderExpanded(normalizedContext(standardPayload({ message: "Check JOB-4222?" })))}</>)
+
+    expect(screen.getByText("Not provided")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
   })
 })
 

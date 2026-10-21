@@ -618,6 +618,11 @@
     "example_pending": "Cancellatio pendens cum destinatis selectis",
     "example_error": "Petitio cancellationis inhabilis"
   },
+  "check_job_mergeability": {
+    "job": "Opus",
+    "not_provided": "Non datum",
+    "outcome": "Exitus coniungibilitatis"
+  },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",
     "summary_denied": "contextus invocationis negatus: {{error}}",
