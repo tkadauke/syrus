@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import retryJobCard from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
@@ -12,7 +12,7 @@ import adminCleanupWorkspaceCard from "./admin_cleanup_workspace"
 import adminClearGithubCacheCard from "./admin_clear_github_cache"
 import adminPausePollingCard from "./admin_pause_polling"
 import adminUnpausePollingCard from "./admin_unpause_polling"
-import adminPauseRunsCard from "./admin_pause_runs"
+import adminPauseRunsCard, { examples as adminPauseRunsExamples } from "./admin_pause_runs"
 import adminUnpauseRunsCard from "./admin_unpause_runs"
 import adminPauseUserSchedulingCard from "./admin_pause_user_scheduling"
 import adminUnpauseUserSchedulingCard from "./admin_unpause_user_scheduling"
@@ -27,9 +27,9 @@ import reenqueueWorkCard from "./reenqueue_work"
 import repairQueueAffinityCard from "./repair_queue_affinity"
 import wakeLandingQueueCard from "./wake_landing_queue"
 import wakeProviderAdmissionCard from "./wake_provider_admission"
-import clearProviderCircuitCard from "./clear_provider_circuit"
+import clearProviderCircuitCard, { examples as clearProviderCircuitExamples } from "./clear_provider_circuit"
 import repairProviderCircuitEvidenceCard from "./repair_provider_circuit_evidence"
-import adminKillProcessCard from "./admin_kill_process"
+import adminKillProcessCard, { examples as adminKillProcessExamples } from "./admin_kill_process"
 import adminRetryStepCard from "./admin_retry_step"
 import adoptCurrentPrHeadCard from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_workflow_output"
@@ -134,6 +134,27 @@ describe("pending action tool card family", () => {
     render(<>{adminKillProcessCard.renderExpanded(context("admin_kill_process", parsedResult))}</>)
     expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
+  })
+
+  it("publishes catalog examples for linked targets, long Markdown, and tool errors", () => {
+    expect(adminKillProcessExamples.map((example) => example.id)).toEqual(["bulk_process_targets"])
+    expect(clearProviderCircuitExamples.map((example) => example.id)).toEqual(["long_markdown_evidence"])
+    expect(adminPauseRunsExamples.map((example) => example.id)).toEqual(["provider_error"])
+
+    const processContext = toolCardContextForExample("admin_kill_process", adminKillProcessExamples[0])
+    render(<>{adminKillProcessCard.renderExpanded(processContext)}</>)
+    expect(screen.getByRole("link", { name: "41" })).toHaveAttribute("href", "/admin/processes/41")
+    expect(screen.getByRole("link", { name: "43" })).toHaveAttribute("href", "/admin/processes/43")
+
+    const circuitContext = toolCardContextForExample("clear_provider_circuit", clearProviderCircuitExamples[0])
+    render(<>{clearProviderCircuitCard.renderExpanded(circuitContext)}</>)
+    expect(screen.getByRole("link", { name: "7" })).toHaveAttribute("href", "/admin/users/7")
+    expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
+
+    const errorContext = toolCardContextForExample("admin_pause_runs", adminPauseRunsExamples[0])
+    render(<>{adminPauseRunsCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText(/Run control is temporarily unavailable/)).toBeInTheDocument()
   })
 
   it("wires a dry-run-evidence tool through to the shared card", () => {

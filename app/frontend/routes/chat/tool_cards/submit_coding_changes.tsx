@@ -30,7 +30,7 @@ const failureConfig: ToolFailureConfig = {
 
 function parseResult(context: ToolCardContext): SubmitCodingChangesResult | null {
   const pending = parsePendingActionResult(context)
-  if (!pending || pending.kind === "dry_run_evidence") return null
+  if (!pending || pending.kind === "dry_run_evidence" || pending.kind === "error") return null
 
   const input = context.input ?? {}
   const live = displayValue(context.livePendingAction?.id) === pending.pendingActionId ? context.livePendingAction : null

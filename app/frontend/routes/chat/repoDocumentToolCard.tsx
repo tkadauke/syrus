@@ -21,7 +21,7 @@ type DocumentRow = {
 
 type DocumentAction = {
   action: "create" | "delete"
-  pending: PendingActionResult
+  pending: Exclude<PendingActionResult, { kind: "error" }>
   title: string | null
   documentId: string | null
   repositoryId: string | null
@@ -188,7 +188,7 @@ export function renderRepoDocumentRead(context: ToolCardContext): ReactNode | nu
 
 export function parseRepoDocumentAction(context: ToolCardContext, action: "create" | "delete"): DocumentAction | null {
   const pending = parsePendingActionResult(context)
-  if (!pending) return null
+  if (!pending || pending.kind === "error") return null
 
   const parsed = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const live = context.livePendingAction

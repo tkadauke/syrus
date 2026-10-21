@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "../../pluginToolCards"
-import { isPlainObject } from "../../toolCardParsing"
-import { normalizedToolCardParsedResult } from "./toolRendering"
+import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel, StatePill, type ToolCardEntityKind } from "./toolCardUi"
 
@@ -94,8 +93,9 @@ function parseEvidence(value: unknown): PendingActionEvidence {
 
 export function parsePendingActionResult(context: ToolCardContext): PendingActionResult | null {
   const value = normalizedToolCardParsedResult(context.parsedResult)
-  if (context.resultError) return { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." }
-  if (!isPlainObject(value)) return null
+  if (!isPlainObject(value)) {
+    return context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
+  }
 
   // Dry-run previews carry evidence instead of a pending action; the same
   // tools return the standard shape on their non-dry-run branch.
@@ -114,7 +114,9 @@ export function parsePendingActionResult(context: ToolCardContext): PendingActio
 
   const pendingActionId = displayValue(value.pending_action_id) || displayValue(value.pending_confirmation_id)
   const state = displayValue(value.state)
-  if (!pendingActionId || !state) return null
+  if (!pendingActionId || !state) {
+    return context.resultError ? { kind: "error", message: errorMessage(value) || context.resultBody || "The tool returned an error." } : null
+  }
 
   const groupId = displayValue(value.pending_action_group_id)
   const memberCount = numberValue(value.member_count)
