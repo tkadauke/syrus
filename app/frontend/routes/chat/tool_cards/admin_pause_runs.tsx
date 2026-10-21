@@ -1,24 +1,10 @@
-import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import type { ToolCardExample } from "@app/pluginToolCards"
+import { pendingActionToolCard } from "../pendingActionToolCard"
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
 // consistent; this file only binds it to one MCP tool name.
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const adminPauseRunsToolCard: ToolCardRenderer = {
-  toolName: "admin_pause_runs",
-  collapsedSummary,
-  renderExpanded
-}
+const adminPauseRunsToolCard = pendingActionToolCard("admin_pause_runs")
 
 export const examples: ToolCardExample[] = [
   {
