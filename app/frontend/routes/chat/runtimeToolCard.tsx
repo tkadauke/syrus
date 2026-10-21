@@ -652,13 +652,13 @@ function collapsedSummary(context: ToolCardContext) {
   return null
 }
 
-function MetadataRows({ values }: { values: Record<string, unknown> }) {
+function MetadataRows({ values, title = "Metadata" }: { values: Record<string, unknown>; title?: string }) {
   const entries = objectEntries(values).filter(([, value]) => displayValue(value) || typeof value === "boolean")
   if (entries.length === 0) return null
 
   return (
     <div>
-      <SectionLabel>Metadata</SectionLabel>
+      <SectionLabel>{title}</SectionLabel>
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <Row key={key} label={key} value={displayValue(value) ?? String(value)} wrap />
