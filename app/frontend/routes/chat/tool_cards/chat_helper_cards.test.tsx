@@ -178,17 +178,67 @@ describe("chat helper tool cards", () => {
     expect(screen.getByText("Create an Epic from these findings")).toBeInTheDocument()
   })
 
-  it("renders goal status transitions and rejected transition errors clearly", () => {
-    const completed = { goal_id: 9, status: "completed", reason: "done" }
-    expect(markGoalCompletedToolCard.collapsedSummary?.(context("mark_goal_completed", { parsedResult: completed }))).toBe("Goal #9 -> completed")
-    render(<>{markGoalCompletedToolCard.renderExpanded(context("mark_goal_completed", { parsedResult: completed }))}</>)
-    expect(screen.getByText("active -> completed")).toBeInTheDocument()
-    expect(screen.getByText("done")).toBeInTheDocument()
-
+  it("renders rejected goal transition errors clearly", () => {
     const blockedError = context("mark_goal_blocked", { resultBody: "goal is not active", resultError: true })
     expect(markGoalBlockedToolCard.collapsedSummary?.(blockedError)).toBe("Goal blocked transition failed")
     render(<>{markGoalBlockedToolCard.renderExpanded(blockedError)}</>)
     expect(screen.getByText("goal is not active")).toBeInTheDocument()
+  })
+
+  it("renders completed-goal markdown, linked chat metadata, structured details, and the returned previous status", () => {
+    const reason = `Verified **all checks pass** for JOB-42 and https://example.test/checks. ${"Additional evidence. ".repeat(40)}`
+    const input = { reason, details: { tests: "passed", coverage: "87%" } }
+    const parsedResult = {
+      goal_id: 19,
+      status: "completed",
+      previous_status: "paused",
+      reason,
+      details: { tests: "passed", coverage: "87%" },
+      chat_session_id: 8,
+      chat_title: "Release planning",
+      chat_path: "/chats/8"
+    }
+
+    render(<MemoryRouter>{markGoalCompletedToolCard.renderExpanded(context("mark_goal_completed", { input, parsedResult }))}</MemoryRouter>)
+
+    expect(screen.getByText("paused -> completed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Goal #19 · Release planning" })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("all checks pass").tagName).toBe("STRONG")
+    expect(screen.getByText("JOB-42").closest("a")).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.test/checks" })).toHaveAttribute("href", "https://example.test/checks")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Completion details"))
+    expect(screen.getByText("tests")).toBeInTheDocument()
+    expect(screen.getByText("passed")).toBeInTheDocument()
+    expect(screen.getByText("coverage")).toBeInTheDocument()
+    expect(screen.getByText("87%")).toBeInTheDocument()
+  })
+
+  it("normalizes completed-goal provider envelopes and renders pending, empty-details, and no-active-goal states", () => {
+    const payload = { goal_id: 19, status: "completed", previous_status: "active", reason: "Verified", details: {} }
+    const contexts = [
+      context("mark_goal_completed", { parsedResult: payload }),
+      context("mark_goal_completed", { resultBody: JSON.stringify(payload) }),
+      context("mcp__syrus-chat-sidecar__mark_goal_completed", {
+        parsedResult: { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+      })
+    ]
+
+    for (const toolContext of contexts) {
+      expect(toolContext.toolName).toBe("mark_goal_completed")
+      expect(markGoalCompletedToolCard.collapsedSummary?.(toolContext)).toBe("Goal #19 -> completed")
+    }
+
+    const pending = context("mark_goal_completed", { input: { reason: "Verified **approval**", details: {} } })
+    const { rerender } = render(<>{markGoalCompletedToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("approval").tagName).toBe("STRONG")
+    expect(screen.getByText("No structured completion details were provided.")).toBeInTheDocument()
+    expect(screen.getByText("Waiting for the goal completion to finish.")).toBeInTheDocument()
+
+    rerender(<>{markGoalCompletedToolCard.renderExpanded(context("mark_goal_completed", { resultBody: "active goal not found", resultError: true }))}</>)
+    expect(screen.getByText("active goal not found")).toBeInTheDocument()
   })
 
   it("renders blocked-goal markdown, linked chat metadata, structured details, and the returned previous status", () => {
@@ -320,7 +370,7 @@ describe("chat helper tool rendering integration", () => {
     if (!summary) return
     fireEvent.click(summary)
 
-    expect(screen.getByText("active -> completed")).toBeInTheDocument()
+    expect(screen.getByText("unknown -> completed")).toBeInTheDocument()
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 })
