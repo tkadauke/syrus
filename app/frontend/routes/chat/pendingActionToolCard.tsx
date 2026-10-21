@@ -84,7 +84,7 @@ function parseContext(value: Record<string, unknown>, fallback: Record<string, u
   }
 }
 
-function parseEvidence(value: unknown, input: Record<string, unknown>): PendingActionEvidence {
+function parseEvidence(value: unknown, fallback: Record<string, unknown>): PendingActionEvidence {
   const evidence = isPlainObject(value) ? value : {}
   const diff = isPlainObject(evidence.diff_summary) ? evidence.diff_summary : {}
   const files = Array.isArray(diff.files)
@@ -94,7 +94,7 @@ function parseEvidence(value: unknown, input: Record<string, unknown>): PendingA
       })
     : []
   return {
-    ...parseContext(evidence, input),
+    ...parseContext(evidence, fallback),
     remoteSha: displayValue(evidence.remote_sha),
     workflowLocalSha: displayValue(evidence.workflow_local_sha),
     baseRef: displayValue(evidence.base_ref),
@@ -148,7 +148,11 @@ export function parsePendingActionResult(context: ToolCardContext): PendingActio
     }
   }
 
-  const evidence = isPlainObject(value.evidence) ? parseEvidence(value.evidence, input) : null
+  // Evidence payloads may omit target identity that remains available at the
+  // result level (notably adopt_current_pr_head's top-level job_id). Preserve
+  // both that result context and the original input when rendering evidence.
+  const evidenceFallback = { ...input, ...value }
+  const evidence = isPlainObject(value.evidence) ? parseEvidence(value.evidence, evidenceFallback) : null
   const plan = isPlainObject(value.plan) ? value.plan : input.dry_run === true || evidence ? value : null
   if (!plan && !evidence) return null
   return {
