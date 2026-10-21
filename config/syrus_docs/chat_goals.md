@@ -49,11 +49,11 @@ Chat agents get two goal-evaluation tools:
 - `mark_goal_completed(reason, details?)` marks the active goal `completed`.
 - `mark_goal_blocked(reason, details?)` marks the active goal `blocked`.
 
-Successful `mark_goal_blocked` results include the goal id, previous and new
-statuses, reason, structured details, and owning chat id, title, and path. The
-chat card uses that metadata to link the goal back to its conversation and to
-show the recorded reason and details. Older transcript results without the
-additional metadata remain readable.
+Successful completion and blocked results include the goal id, previous and
+new statuses, reason, structured details, and owning chat id, title, and path.
+Their chat cards use that metadata to link the goal back to its conversation
+and to show the recorded reason and details. Older transcript results without
+the additional metadata remain readable.
 
 Agents cannot pause, resume, stop, or cancel goals through MCP. Those state
 changes remain operator/API actions unless a later explicit auto policy adds a

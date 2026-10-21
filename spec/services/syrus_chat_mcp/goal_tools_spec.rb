@@ -10,12 +10,24 @@ RSpec.describe "goal MCP tools" do
 
     response = Mcp::Tools::MarkGoalCompletedTool.call(
       reason: "plan_is_ready",
+      details: { "checks" => "passed" },
       server_context: server_context
     )
 
     expect(response).not_to be_error
     expect(goal.reload).to have_attributes(status: "completed", terminal_reason: "plan_is_ready")
     expect(chat.messages.last.content).to include("source" => "goal_loop", "chat_goal_id" => goal.id)
+    payload = JSON.parse(response.content.first.fetch(:text))
+    expect(payload).to include(
+      "goal_id" => goal.id,
+      "previous_status" => "active",
+      "status" => "completed",
+      "reason" => "plan_is_ready",
+      "details" => { "checks" => "passed" },
+      "chat_session_id" => chat.id,
+      "chat_title" => chat.title,
+      "chat_path" => "/chats/#{chat.id}"
+    )
   end
 
   it "reloads a memoized active goal before checking active state" do

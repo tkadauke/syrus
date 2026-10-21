@@ -165,6 +165,35 @@ export function OptionalReason({ reason, onLinkClick, title }: { reason: string 
   )
 }
 
+function detailValue(value: unknown) {
+  const displayed = displayValue(value)
+  if (displayed) return displayed
+  if (value == null) return "—"
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+export function StructuredDetails({ details, emptyLabel, title }: { details: Record<string, unknown> | null; emptyLabel: string; title: string }) {
+  if (!details || Object.keys(details).length === 0) return <EmptyState>{emptyLabel}</EmptyState>
+
+  return (
+    <details className="min-w-0 rounded border border-border bg-surface px-2 py-1 sm:col-span-2">
+      <summary className="cursor-pointer break-words text-2xs font-semibold uppercase text-text-muted [overflow-wrap:anywhere]">{title}</summary>
+      <dl className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+        {Object.entries(details).map(([key, value]) => (
+          <div className="min-w-0" key={key}>
+            <dt className="break-words text-2xs font-semibold text-text-muted [overflow-wrap:anywhere]">{key}</dt>
+            <dd className="break-words font-mono text-xs text-text-primary [overflow-wrap:anywhere]">{detailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  )
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
 }
