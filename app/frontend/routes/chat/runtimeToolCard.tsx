@@ -240,8 +240,10 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
 
-  const session = parseSession(parsed)
-  const metadata = parseObject(parsed.metadata)
+  const lifecyclePayload = action === "stop" && isPlainObject(parsed.session_payload) ? parsed.session_payload : parsed
+  const sessionId = action === "stop" ? firstDisplayValue(lifecyclePayload.id, context.input?.session_id) : displayValue(lifecyclePayload.id)
+  const session = parseSession({ ...lifecyclePayload, id: sessionId })
+  const metadata = parseObject(lifecyclePayload.metadata)
   const options = parseObject(context.input?.options)
   const content = contentText(parsed.content)
   const error = withoutErrorPrefix(
@@ -256,8 +258,8 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
     kind: "lifecycle",
     action,
     session,
-    status: firstDisplayValue(parsed.command_status, parsed.build_status, parsed.status, parsed.state, session?.state),
-    url: firstDisplayValue(parsed.url, metadata.url),
+    status: firstDisplayValue(lifecyclePayload.command_status, lifecyclePayload.build_status, lifecyclePayload.status, lifecyclePayload.state, session?.state),
+    url: firstDisplayValue(lifecyclePayload.url, metadata.url),
     target: explicitTarget,
     command: firstDisplayValue(parsed.command, parsed.build_command, metadata.command, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
     error,
@@ -448,6 +450,7 @@ function errorMessage(context: ToolCardContext): string | null {
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_start" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "start")
+  if (context.toolName === "runtime_stop" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "stop")
 
   const error = errorMessage(context)
   if (error) return { kind: "error", action: context.toolName, message: error, sessionId: displayValue(context.input?.session_id) }
@@ -489,8 +492,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
   if (context.toolName === "runtime_input") return parseInputCard(context)
   if (context.toolName === "runtime_snapshot") return parseSnapshotCard(context)
   if (context.toolName === "runtime_capture_artifact") return parseArtifactCard(context)
-  if (context.toolName === "runtime_stop") return parseLifecycleCard(context, "stop")
-
   if (context.toolName === "runtime_acquire_control") {
     return { kind: "acquire", lease: parseLease(parsed), error: displayValue(parsed.error), raw: parsed }
   }
