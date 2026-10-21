@@ -175,6 +175,109 @@ describe("Agent Insights tool cards", () => {
     expect(screen.getByText("Confirmed by the operator.")).toBeInTheDocument()
   })
 
+  it("renders every update field, Markdown reason, and linked references responsively", () => {
+    const longReason = `Changed after **RUN-99** and https://example.test/evidence. ${"More context. ".repeat(60)}`
+    const cardContext = context({
+      toolName: "update_insight",
+      resultBody: "Suggestion #41 updated.",
+      parsedResult: null,
+      input: {
+        target_insight_id: 41,
+        title: "Updated title",
+        summary: "Summary with **JOB-200**",
+        category: "repeated_failure",
+        severity: "high",
+        confidence: 0.92,
+        proposal_type: "save_memory",
+        evidence: [{ job_id: 200, run_id: 99, kind: "run_transcript" }],
+        suggested_prompt: "Review **JOB-200**.",
+        memory_suggestion: "Remember the [runbook](https://example.test/runbook).",
+        target_memory_id: 12,
+        stale_memory_text: "Old **memory** text.",
+        stale_memory_evidence: "Superseded by **RUN-99**.",
+        reason: longReason
+      }
+    })
+
+    expect(updateInsightToolCard.collapsedSummary?.(cardContext)).toBe("Updated insight #41")
+    render(<>{updateInsightToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "INSIGHT-41" })).toHaveAttribute("href", "/s/INSIGHT-41")
+    expect(screen.getByRole("link", { name: "JOB-200" })).toHaveAttribute("href", "/jobs/200")
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[0]).toHaveAttribute("href", "/admin/runs/99/transcript")
+    expect(screen.getByText("MEMORY-12")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy MEMORY-12 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "runbook" })).toHaveAttribute("href", "https://example.test/runbook")
+    expect(screen.getByText("92%")).toBeInTheDocument()
+    expect(screen.getByText("repeated failure")).toBeInTheDocument()
+    expect(screen.getByText("save memory")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
+    expect(screen.getByText("Changed fields").nextElementSibling).toHaveClass("sm:grid-cols-2")
+  })
+
+  it("renders partial updates and explicit cleared values", () => {
+    const cardContext = context({
+      toolName: "update_insight",
+      resultBody: "Suggestion #41 updated.",
+      parsedResult: null,
+      input: { target_insight_id: 41, memory_suggestion: null, evidence: [], reason: "Remove stale values." }
+    })
+
+    render(<>{updateInsightToolCard.renderExpanded(cardContext)}</>)
+    expect(screen.getByText("Memory suggestion")).toBeInTheDocument()
+    expect(screen.getAllByText("Cleared")).toHaveLength(2)
+    expect(screen.queryByText("Title")).not.toBeInTheDocument()
+  })
+
+  it("renders update pending, empty, and error states", () => {
+    const pending = context({
+      toolName: "update_insight",
+      resultBody: "",
+      parsedResult: null,
+      input: { target_insight_id: 41, reason: "" },
+      livePendingAction: {
+        id: 9,
+        action: "update_insight",
+        state: "pending",
+        label: "Update insight",
+        detail: "Awaiting confirmation.",
+        app_confirm_path: "/confirm",
+        app_reject_path: "/reject"
+      }
+    })
+    const { unmount } = render(<>{updateInsightToolCard.renderExpanded(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("No changed fields were supplied.")).toBeInTheDocument()
+    expect(screen.getByText("No reason supplied.")).toBeInTheDocument()
+    unmount()
+
+    const failed = context({ toolName: "update_insight", resultBody: "Update rejected.", parsedResult: null, resultError: true })
+    expect(updateInsightToolCard.collapsedSummary?.(failed)).toBe("Insight update failed")
+    render(<>{updateInsightToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Update rejected.")).toBeInTheDocument()
+  })
+
+  it("normalizes structured update result envelopes independently of provider", () => {
+    const envelopes = [
+      { message: "Suggestion #41 updated." },
+      { data: { message: "Suggestion #41 updated." } },
+      { structured_content: { message: "Suggestion #41 updated." } },
+      { content: [{ type: "text", text: JSON.stringify({ message: "Suggestion #41 updated." }) }] }
+    ]
+
+    for (const parsedResult of envelopes) {
+      const { unmount } = render(
+        <>
+          {updateInsightToolCard.renderExpanded(
+            context({ toolName: "update_insight", input: { target_insight_id: 41, severity: "high", reason: "Changed." }, parsedResult })
+          )}
+        </>
+      )
+      expect(screen.getByText("Suggestion #41 updated.")).toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it("normalizes wrapped provider envelopes and renders errors", () => {
     const wrapped = { content: [{ type: "text", text: JSON.stringify({ insights: [baseInsight] }) }] }
     expect(listInsightsToolCard.collapsedSummary?.(context({ parsedResult: wrapped }))).toBe("1 insight")
