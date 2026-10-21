@@ -408,7 +408,7 @@ describe("cancel_stale_work pending action card", () => {
     const toolContext = cancelContext(normalizedToolCardParsedResult(envelope))
     render(<>{cancelStaleWorkCard.renderExpanded(toolContext)}</>)
 
-    expect(screen.getAllByRole("link", { name: /JOB-4222/ }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("link", { name: /JOB-4222/ })).toHaveLength(1)
     expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
     expect(screen.getByRole("link", { name: /RUN-99/ })).toHaveAttribute("href", "/admin/runs/99")
     expect(screen.getByText("Reconcile after cancellation")).toBeInTheDocument()
