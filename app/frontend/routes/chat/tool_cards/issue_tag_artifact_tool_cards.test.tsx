@@ -4,7 +4,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import addJobTagToolCard from "./add_job_tag"
 import createTagToolCard from "./create_tag"
-import listOpenIssuesToolCard from "./list_open_issues"
+import listOpenIssuesToolCard, { examples as issueExamples } from "./list_open_issues"
 import listTagsToolCard from "./list_tags"
 import removeJobTagToolCard from "./remove_job_tag"
 import submitArtifactToolCard from "./submit_artifact"
@@ -38,7 +38,7 @@ describe("issue, tag, and artifact tool cards", () => {
     expect(screen.getByText("No issues found.")).toBeInTheDocument()
   })
 
-  it("renders multiple issues with labels, state, timestamps, and links", () => {
+  it("renders issue query, links, author, full title, markdown body, media, and responsive cells", () => {
     const parsedResult = {
       issues: [
         {
@@ -48,23 +48,58 @@ describe("issue, tag, and artifact tool cards", () => {
           state: "open",
           created_at: "2026-05-01T12:00:00Z",
           updated_at: "2026-05-02T12:00:00Z",
-          url: "https://github.com/acme/widgets/issues/12"
+          url: "https://github.com/acme/widgets/issues/12",
+          author: "octocat",
+          body_excerpt: `A **detailed** report. ${"More context. ".repeat(80)}\n\n![Screenshot](https://example.test/screenshot.png)`
         },
         { number: 13, title: "Missing optional metadata", labels: [] }
       ]
     }
 
     expect(listOpenIssuesToolCard.collapsedSummary?.(context("list_open_issues", { parsedResult }))).toBe("2 issues")
-    render(<>{listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { parsedResult }))}</>)
+    const { container } = render(
+      <>{listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { input: { state: "open", label: "bug", limit: 2 }, parsedResult }))}</>
+    )
 
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByText("State:")).toBeInTheDocument()
+    expect(screen.getByText("Label:")).toBeInTheDocument()
+    expect(screen.getByText("Limit:")).toBeInTheDocument()
+    expect(screen.getByText("Limit reached; more issues may be available.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
+    expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "https://github.com/acme/widgets")
     expect(screen.getByText("Button sticks")).toBeInTheDocument()
-    expect(screen.getByText("bug")).toBeInTheDocument()
+    expect(screen.getByText("by octocat")).toBeInTheDocument()
+    expect(screen.getByText("detailed")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open Button sticks image 1" })).toBeInTheDocument()
+    expect(screen.getAllByText("bug").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText("frontend")).toBeInTheDocument()
     expect(screen.getAllByText("open").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByRole("link", { name: "open" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
     expect(screen.getByText("#13")).toBeInTheDocument()
     expect(screen.getByText("Missing optional metadata")).toBeInTheDocument()
+    expect(container.querySelector("table")?.className).toContain("sm:table")
+    expect(container.querySelector('[data-label="Details"]')).toBeInTheDocument()
+  })
+
+  it("handles issue envelopes, errors, malformed payloads, and rejects array roots", () => {
+    const envelope = normalizedToolCardParsedResult({ structured_content: { issues: [{ number: 7, title: "Envelope issue" }] } })
+    expect(listOpenIssuesToolCard.collapsedSummary?.(context("list_open_issues", { parsedResult: envelope }))).toBe("1 issue")
+    expect(listOpenIssuesToolCard.collapsedSummary?.(context("list_open_issues", { parsedResult: [{ number: 7, title: "Array issue" }] }))).toBeNull()
+
+    const errorContext = context("list_open_issues", {
+      input: { state: "open", limit: 10 },
+      resultError: true,
+      resultBody: "GitHub unavailable",
+      parsedResult: { error: "Could not reach GitHub" }
+    })
+    expect(listOpenIssuesToolCard.collapsedSummary?.(errorContext)).toBe("Could not list issues")
+    render(<>{listOpenIssuesToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("Could not reach GitHub")).toBeInTheDocument()
+    expect(listOpenIssuesToolCard.renderExpanded(context("list_open_issues", { parsedResult: { issues: "wrong" } }))).toBeNull()
+  })
+
+  it("publishes catalog examples for details, empty, and error states", () => {
+    expect(issueExamples.map(({ id }) => id)).toEqual(["issues_with_details", "empty", "error"])
   })
 
   it("renders an empty tag list", () => {
