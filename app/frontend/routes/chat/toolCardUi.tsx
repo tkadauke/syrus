@@ -91,13 +91,17 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value, wrap = false }: { label: string; value: string; wrap?: boolean }) {
+export function Row({ label, value, wrap = false }: { label: string; value: ReactNode; wrap?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text as="div" className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`} title={value}>
+      <Text
+        as="div"
+        className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`}
+        title={typeof value === "string" ? value : undefined}
+      >
         {value}
       </Text>
     </div>

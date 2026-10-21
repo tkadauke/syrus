@@ -2,11 +2,13 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "../../api/chats"
 import type { ToolCardContext } from "../../pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRendering"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "./pendingActionToolCard"
 
-function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
-    toolName: "some_pending_action_tool",
+    toolName: normalizedToolName("mcp__syrus-chat-sidecar__some_pending_action_tool"),
+    input,
     resultBody: "",
     resultError: false,
     parsedResult,
@@ -37,8 +39,8 @@ function standardPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderResult(payload: unknown, livePendingAction: ChatPendingActionInline | null = null) {
-  const result = parsePendingActionResult(context(payload, livePendingAction))
+function renderResult(payload: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>) {
+  const result = parsePendingActionResult(context(payload, livePendingAction, input))
   if (!result) throw new Error("expected payload to parse")
   render(<PendingActionResultCard result={result} />)
   return result
@@ -51,7 +53,7 @@ function summarize(payload: unknown, livePendingAction: ChatPendingActionInline 
 
 describe("pending action tool card: standard shape", () => {
   it("parses the single-target create_pending_action! payload", () => {
-    expect(parsePendingActionResult(context(standardPayload()))).toEqual({
+    expect(parsePendingActionResult(context(standardPayload()))).toMatchObject({
       kind: "standard",
       pendingActionId: "501",
       state: "pending",
@@ -160,7 +162,7 @@ describe("pending action tool card: bulk shape", () => {
   }
 
   it("distinguishes the bulk shape by its group id and member count", () => {
-    expect(parsePendingActionResult(context(bulkPayload))).toEqual({
+    expect(parsePendingActionResult(context(bulkPayload))).toMatchObject({
       kind: "bulk",
       pendingActionId: "501",
       state: "pending",
@@ -199,6 +201,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
       workflow_local_sha: "def456def456def456def456",
       base_sha: "111222111222111222111222",
       base_ref: "origin/main",
+      current_pr: { number: 44, repository: "tkadauke/syrus" },
       diff_summary: {
         available: true,
         stat: " app/models/job.rb | 2 +-",
@@ -213,7 +216,6 @@ describe("pending action tool card: dry-run evidence shape", () => {
     expect(result).toMatchObject({
       kind: "dry_run_evidence",
       action: "adopt_current_pr_head",
-      jobId: "4222",
       destructiveConfirmation: null
     })
   })
@@ -222,18 +224,19 @@ describe("pending action tool card: dry-run evidence shape", () => {
     expect(summarize(evidencePayload)).toBe("Dry run: adopt_current_pr_head for JOB-4222")
   })
 
-  it("renders the humanized action, job, branch, and truncated SHAs", () => {
+  it("renders the humanized action, linked entities, branch, and complete SHAs", () => {
     renderResult(evidencePayload)
 
     expect(screen.getByText("Dry run")).toBeInTheDocument()
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
+    expect(screen.getAllByText("JOB-4222")).toHaveLength(2)
     expect(screen.getByText("syrus/direct-322")).toBeInTheDocument()
-    expect(screen.getByText("abc123abc123")).toBeInTheDocument()
-    expect(screen.getByText("def456def456")).toBeInTheDocument()
-    expect(screen.getByText("111222111222")).toBeInTheDocument()
-    // The full SHA stays reachable through the title tooltip.
-    expect(screen.getByTitle("abc123abc123abc123abc123")).toBeInTheDocument()
+    expect(screen.getByText("abc123abc123abc123abc123")).toBeInTheDocument()
+    expect(screen.getByText("def456def456def456def456")).toBeInTheDocument()
+    expect(screen.getByText("111222111222111222111222")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+    expect(screen.getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/44")
+    expect(screen.getByRole("link", { name: "syrus/direct-322" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/syrus%2Fdirect-322")
   })
 
   it("renders the changed files behind a disclosure", () => {
@@ -276,6 +279,72 @@ describe("pending action tool card: dry-run evidence shape", () => {
 })
 
 describe("pending action tool card: fallbacks", () => {
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { structured_content: standardPayload(), content: [] }]
+  ])("parses the %s provider envelope through the shared normalizer", (_label, envelope) => {
+    expect(parsePendingActionResult(context(normalizedToolCardParsedResult(envelope)))).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+
+  it("uses input metadata when the result omits target context", () => {
+    const result = renderResult(standardPayload(), null, {
+      job_id: 4222,
+      workflow_id: 26123,
+      run_id: 99,
+      reason: "**Operator** reason",
+      blocker_key: "job:4222",
+      instructions: "Run **carefully**"
+    })
+    expect(result).toMatchObject({ jobId: "4222", workflowId: "26123", runId: "99", reason: "**Operator** reason" })
+    expect(screen.getByRole("link", { name: /JOB-4222/ })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("Operator", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("carefully", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("job:4222")).toBeInTheDocument()
+  })
+
+  it("tolerates undefined input on collapsed-summary paths", () => {
+    expect(summarize(standardPayload())).toBe("Job rebase requires operator confirmation.")
+  })
+
+  it("renders structured errors and valid bases", () => {
+    renderResult({ error: "invalid_base", message: "Choose another base", valid_bases: ["main", "release"] })
+    expect(screen.getByText("invalid_base")).toBeInTheDocument()
+    expect(screen.getByText("Choose another base")).toBeInTheDocument()
+    expect(screen.getByText("main, release")).toBeInTheDocument()
+  })
+
+  it("recognizes non-evidence dry-run plan and eligibility bodies", () => {
+    expect(parsePendingActionResult(context({ plan: { actions: [], branch_order: [] } }, null, { dry_run: true }))).toMatchObject({ kind: "dry_run_evidence" })
+    expect(parsePendingActionResult(context({ status: "eligible", operation: "retire_terminal_work_unit" }, null, { dry_run: true }))).toMatchObject({
+      kind: "dry_run_evidence",
+      action: "retire_terminal_work_unit"
+    })
+  })
+
+  it("renders live execution and resource details", () => {
+    renderResult(
+      standardPayload(),
+      liveAction({
+        execution_status: "failed",
+        execution_step: "release locks",
+        execution_error: "**Lock** failed",
+        detail: "Affected two locks",
+        resource_title: "Repair run",
+        resource_url: "/admin/runs/99"
+      })
+    )
+    expect(screen.getByText("release locks")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repair run" })).toHaveAttribute("href", "/admin/runs/99")
+    expect(screen.getByText("Lock", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("Affected two locks")).toBeInTheDocument()
+  })
+
+  it("bounds long markdown messages with Show more", () => {
+    renderResult(standardPayload({ message: `**Review**\n${"Long pending-action detail. ".repeat(80)}` }))
+    expect(screen.getByText("Review", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
   it("returns null for a payload with no recognizable shape", () => {
     expect(parsePendingActionResult(context({ oops: true }))).toBeNull()
   })
@@ -290,7 +359,10 @@ describe("pending action tool card: fallbacks", () => {
     expect(parsePendingActionResult(context({ pending_action_id: 501 }))).toBeNull()
   })
 
-  it("returns null when an evidence payload is missing its action name", () => {
-    expect(parsePendingActionResult(context({ job_id: 4222, evidence: { remote_sha: "abc" } }))).toBeNull()
+  it("uses the normalized tool name when an evidence payload omits its action name", () => {
+    expect(parsePendingActionResult(context({ job_id: 4222, evidence: { remote_sha: "abc" } }))).toMatchObject({
+      kind: "dry_run_evidence",
+      action: "some_pending_action_tool"
+    })
   })
 })
