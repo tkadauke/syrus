@@ -1130,50 +1130,53 @@ describe("tool result rendering", () => {
     expect(screen.getAllByText("custom summary")).toHaveLength(2)
   })
 
-  it("recomputes a registered card summary from live pending-action state instead of its cached result summary", () => {
-    const result = {
-      pending_action_id: 92,
-      message: "Accept these insights?",
-      insight_ids: [41, 42],
-      proposal_types: { 41: "create_job", 42: "save_memory" },
-      intended_transition: "accept_insights"
-    }
-    const item: ChatToolGroupItem = {
-      type: "tool_group",
-      tool: "Accept insight",
-      calls: [
-        {
-          message_id: 1,
-          tool_name: "accept_insight",
-          raw_name: "accept_insight",
-          detail: "",
-          display_label: "Accept insight",
-          progress_label: "Accepting insights",
-          raw_payload: { insight_ids: [41, 42] },
-          result_body: JSON.stringify(result),
-          result_json: result,
-          result_error: false,
-          result_kind: "record",
-          result_summary: "Accept requested · 2 insights · pending",
-          pending_action: {
-            id: 92,
-            action: "accept_insights",
-            state: "confirmed",
-            label: "Accept insights",
-            detail: null,
-            app_confirm_path: "/confirm",
-            app_reject_path: "/reject"
+  it.each(["confirmed", "rejected"] as const)(
+    "recomputes a registered card summary from the live %s pending-action state instead of its cached result summary",
+    (state) => {
+      const result = {
+        pending_action_id: 92,
+        message: "Accept these insights?",
+        insight_ids: [41, 42],
+        proposal_types: { 41: "create_job", 42: "save_memory" },
+        intended_transition: "accept_insights"
+      }
+      const item: ChatToolGroupItem = {
+        type: "tool_group",
+        tool: "Accept insight",
+        calls: [
+          {
+            message_id: 1,
+            tool_name: "accept_insight",
+            raw_name: "accept_insight",
+            detail: "",
+            display_label: "Accept insight",
+            progress_label: "Accepting insights",
+            raw_payload: { insight_ids: [41, 42] },
+            result_body: JSON.stringify(result),
+            result_json: result,
+            result_error: false,
+            result_kind: "record",
+            result_summary: "Accept requested · 2 insights · pending",
+            pending_action: {
+              id: 92,
+              action: "accept_insights",
+              state,
+              label: "Accept insights",
+              detail: null,
+              app_confirm_path: "/confirm",
+              app_reject_path: "/reject"
+            }
           }
-        }
-      ],
-      collapsed_by_default: true
+        ],
+        collapsed_by_default: true
+      }
+
+      render(<ToolGroup item={item} />)
+
+      expect(screen.getByText(`Accept requested · 2 insights · ${state}`)).toBeInTheDocument()
+      expect(screen.queryByText("Accept requested · 2 insights · pending")).not.toBeInTheDocument()
     }
-
-    render(<ToolGroup item={item} />)
-
-    expect(screen.getByText("Accept requested · 2 insights · confirmed")).toBeInTheDocument()
-    expect(screen.queryByText("Accept requested · 2 insights · pending")).not.toBeInTheDocument()
-  })
+  )
 
   it("shows a registered card's summary once in the header and its empty state once when expanded", () => {
     const item: ChatToolGroupItem = {
