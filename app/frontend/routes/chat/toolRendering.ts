@@ -398,7 +398,8 @@ export function toolResultPresentation(
   input: Record<string, unknown> = {},
   parsedResult?: unknown,
   contextCallsOrPriorResults: ChatToolContextCall[] | Readonly<Record<string, unknown>> = [],
-  priorResults?: Readonly<Record<string, unknown>>
+  priorResults?: Readonly<Record<string, unknown>>,
+  resultSettled = true
 ): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
@@ -416,7 +417,7 @@ export function toolResultPresentation(
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    resultSettled: true,
+    resultSettled,
     parsedResult: redactToolCardValue(cardParsed),
     priorCalls: contextCalls.map((call) => ({
       toolName: normalizedToolName(call.tool_name),

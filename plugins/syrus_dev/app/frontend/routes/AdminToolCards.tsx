@@ -111,7 +111,9 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     context.resultBody,
     input,
     context.parsedResult,
-    context.priorResults
+    context.priorResults,
+    undefined,
+    context.resultSettled
   )
 
   return {
@@ -123,7 +125,7 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     progress_label: entry.progressLabel,
     raw_payload: input,
     result_body: context.resultBody,
-    result_settled: true,
+    result_settled: context.resultSettled,
     result_json: context.parsedResult,
     result_error: context.resultError,
     result_kind: resultPresentation.kind,
