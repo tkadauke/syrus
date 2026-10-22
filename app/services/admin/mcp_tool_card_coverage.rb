@@ -15,6 +15,7 @@ module Admin
     TEST_CARD_PATTERN = /\.test\.tsx\z/
     TOOL_NAME_PATTERN = /toolName:\s*["']([^"']+)["']/
     TOOL_CARD_FACTORY_PATTERN = /export\s+default\s+\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)/
+    TOOL_CARD_BOUND_FACTORY_PATTERN = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\(["']([^"']+)["'](?:\s*,[^)]*)?\)[\s\S]*?export\s+default\s+\1\b/
     EXPLICIT_CARD_STATUSES = {
       "withdraw_pending_action" => "generic",
       "retire_terminal_work_unit" => "generic",
@@ -366,7 +367,7 @@ module Admin
 
     def card_from_path(path)
       source = File.read(path)
-      tool_name = source[TOOL_NAME_PATTERN, 1] || source[TOOL_CARD_FACTORY_PATTERN, 1]
+      tool_name = source[TOOL_NAME_PATTERN, 1] || source[TOOL_CARD_FACTORY_PATTERN, 1] || source[TOOL_CARD_BOUND_FACTORY_PATTERN, 2]
       return if tool_name.blank?
 
       owner_type, owner_name = card_owner(path)
@@ -374,7 +375,7 @@ module Admin
         tool_name: tool_name,
         owner_type: owner_type,
         owner_name: owner_name,
-        has_collapsed_summary: source.include?("collapsedSummary") || source.match?(TOOL_CARD_FACTORY_PATTERN),
+        has_collapsed_summary: source.include?("collapsedSummary") || source.match?(TOOL_CARD_FACTORY_PATTERN) || source.match?(TOOL_CARD_BOUND_FACTORY_PATTERN),
         path: relative_path(path)
       )
     rescue Errno::ENOENT
