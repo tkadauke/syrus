@@ -95,7 +95,9 @@ describe("admin_maintenance_tasks tool card", () => {
         events: [{ id: 92, level: "error", step_key: "backfill", step_title: "Backfill records", message: "token=secret-token-value failed", units_done: 401 }]
       })
     )
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { task: redacted } }))}</>)
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ input: { action: "read", task_id: 7 }, parsedResult: { task: redacted } }))}</>)
+    expect(screen.getByText("read")).toBeInTheDocument()
+    expect(screen.getAllByText("7").length).toBeGreaterThan(0)
     expect(screen.getByText("Runbook")).toBeInTheDocument()
     expect(screen.getByText(/"last_id": 400/)).toBeInTheDocument()
     expect(screen.getByText("Event #92")).toBeInTheDocument()
@@ -128,9 +130,25 @@ describe("admin_maintenance_tasks tool card", () => {
     expect(screen.getByText("999")).toBeInTheDocument()
   })
 
-  it("renders empty list results explicitly", () => {
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [] } }))}</>)
+  it("renders empty filtered list results with their invocation inputs", () => {
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ input: { action: "list", state: "paused", limit: 25 }, parsedResult: { tasks: [] } }))}</>)
     expect(screen.getByText("No maintenance tasks found.")).toBeInTheDocument()
+    expect(screen.getByText("list")).toBeInTheDocument()
+    expect(screen.getByText("paused")).toBeInTheDocument()
+    expect(screen.getByText("25")).toBeInTheDocument()
+  })
+
+  it("renders list and discover inputs with populated successful results", () => {
+    const listView = render(
+      <>{adminMaintenanceTasksToolCard.renderExpanded(context({ input: { action: "list", state: "running", limit: 1 }, parsedResult: { tasks: [task()] } }))}</>
+    )
+    expect(screen.getByText("list")).toBeInTheDocument()
+    expect(screen.getAllByText("running").length).toBeGreaterThan(0)
+    expect(screen.getByText("1")).toBeInTheDocument()
+    listView.unmount()
+
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ input: { action: "discover" }, parsedResult: { tasks: [task()] } }))}</>)
+    expect(screen.getByText("discover")).toBeInTheDocument()
   })
 
   it.each([

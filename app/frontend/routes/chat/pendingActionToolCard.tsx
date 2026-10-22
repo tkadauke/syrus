@@ -283,7 +283,7 @@ function InputValue({ field, value }: { field: PendingActionInputField; value: u
   return format === "badge" ? <Badge>{displayed}</Badge> : <span className="break-all text-text-primary [overflow-wrap:anywhere]">{displayed}</span>
 }
 
-function InputDetails({ fields, input }: { fields: PendingActionInputField[]; input?: Record<string, unknown> }) {
+export function InputDetails({ fields, input }: { fields: PendingActionInputField[]; input?: Record<string, unknown> }) {
   if (!input) return null
   const populated = fields.filter((field) => {
     const value = input[field.key]
