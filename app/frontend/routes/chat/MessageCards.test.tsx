@@ -1587,7 +1587,10 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')).toBeInTheDocument()
+    const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
+    expect(details).toHaveClass("basis-full", "break-words", "sm:basis-auto")
+    expect(details.closest("summary")).toHaveClass("max-w-full", "flex-wrap", "sm:flex-nowrap")
+    expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
   })
 
   it("renders typed success and record outputs instead of raw JSON", () => {
