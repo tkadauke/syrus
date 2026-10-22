@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import type { ChatPendingActionInline, ChatPendingActionState } from "@app/api/chats"
@@ -23,6 +23,7 @@ import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
 import { examples as archiveEpicExamples } from "./archive_epic"
 import updateEpicCard from "./update_epic"
+import { examples as updateEpicExamples } from "./update_epic"
 import addEpicDependencyCard from "./add_epic_dependency"
 import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import removeEpicDependencyCard from "./remove_epic_dependency"
@@ -914,6 +915,39 @@ describe("Job and Epic maintenance tool cards", () => {
 
     expect(screen.getByText("New title")).toBeInTheDocument()
     expect(screen.getByText("New Epic")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(updateEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: updateEpicExamples[0].parsedResult }]
+  ] as const)("renders changed fields and expandable Markdown from a normalized %s update envelope", (_label, envelope) => {
+    const example = updateEpicExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__update_epic"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(updateEpicCard.collapsedSummary?.(ctx)).toBe("Updated · EPIC-71")
+    render(<>{updateEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "EPIC-71" })).toHaveAttribute("href", "/epics/71")
+    expect(screen.getByText("Changed fields")).toBeInTheDocument()
+    expect(screen.getByText("Title, Description")).toBeInTheDocument()
+    expect(screen.getByText("Updated scope")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog", { name: "Updated Epic description" })).getByText("Updated scope")).toBeInTheDocument()
+  })
+
+  it("shows attempted update fields when the tool fails", () => {
+    const ctx = toolCardContextForExample("update_epic", updateEpicExamples[1])
+
+    expect(updateEpicCard.collapsedSummary?.(ctx)).toBe("Update Epic failed · EPIC-71")
+    render(<>{updateEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Error: title cannot be blank")).toBeInTheDocument()
+    expect(screen.getByText("Attempted title")).toBeInTheDocument()
+    expect(screen.getByText("Attempted description")).toBeInTheDocument()
+    expect(screen.getByText("attempted")).toBeInTheDocument()
   })
 
   it.each([
