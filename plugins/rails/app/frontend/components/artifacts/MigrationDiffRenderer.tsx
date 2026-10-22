@@ -35,10 +35,12 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
   const afterTables = after?.tables
   if (before?.structure || after?.structure) {
     return (
-      <div className="space-y-3">
-        <div className="font-mono text-sm font-semibold text-text-primary">{migration_name}</div>
+      <div data-testid="structure-migration-diff" className="min-w-0 space-y-3">
+        <div data-testid="migration-name" className="break-all font-mono text-sm font-semibold text-text-primary">
+          {migration_name}
+        </div>
         {payload.cumulative && <Outcome tone="warning" title={t("migration_cumulative")} message={payload.message} />}
-        <div className="grid min-w-[44rem] grid-cols-2 gap-4">
+        <div data-testid="structure-comparison" className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <StructureStatements title={t("migration_removed_structure")} statements={before?.structure ?? []} />
           <StructureStatements title={t("migration_added_structure")} statements={after?.structure ?? []} />
         </div>
@@ -89,14 +91,14 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
 function StructureStatements({ title, statements }: { title: string; statements: string[] }) {
   const { t } = useT("syrus_rails")
   return (
-    <div className="rounded border border-border">
+    <div className="min-w-0 rounded border border-border">
       <div className="bg-surface-raised px-3 py-1.5 text-xs font-semibold uppercase text-text-secondary">{title}</div>
       <div className="space-y-2 p-3">
         {statements.length === 0 ? (
           <div className="text-sm italic text-text-secondary">{t("migration_no_structure_statements")}</div>
         ) : (
           statements.map((statement, index) => (
-            <pre key={index} className="whitespace-pre-wrap break-words text-xs text-text-secondary">
+            <pre key={index} className="max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs text-text-secondary">
               {statement};
             </pre>
           ))
