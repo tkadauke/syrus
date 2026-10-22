@@ -1,12 +1,12 @@
 # Typed Artifacts
 
-Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are persisted under the `'typed_artifacts'` key in `Workflow#artifacts` and survive for the lifetime of the workflow record. They appear in the job detail UI with a renderer selected by the plugin registry.
+Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are available under the `'typed_artifacts'` key through the `Workflow#artifacts` API and survive for the lifetime of the workflow record. The growth-bound value is stored in `workflow_artifact_values`, separately from the frequently updated Workflow row. They appear in the job detail UI with a renderer selected by the plugin registry.
 
 Chat sessions have the same capability: a chat-surface `submit_artifact` MCP tool persists entries under the `'typed_artifacts'` key in `ChatSession#artifacts`, using the identical entry shape and replace-on-type idempotency described below. Both the workflow-surface and chat-surface tools share one `renderer_type` lookup implementation, `TypedArtifactRenderer.enrich`, so a new `:artifact_renderer` plugin registration is picked up on both surfaces automatically. See "Chat Media library" below.
 
 ## Convention
 
-Typed artifacts live as an array of entries under `Workflow#artifacts["typed_artifacts"]`. Each entry has this shape:
+Typed artifacts are exposed as an array of entries under `Workflow#artifacts["typed_artifacts"]`. The accessor merges external values with legacy inline JSON so callers use the same API during migration. The additive backfill retains inline values for old processes during a rolling deploy; new writes go to the side table and do not rewrite the large inline document. Each entry has this shape:
 
 ```json
 {
@@ -66,7 +66,7 @@ visible, centers it in the viewport, allows the page to settle briefly, and
 then captures the viewport. Omitting `subject` preserves the current scroll
 position.
 
-Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
+Unlike `submit_artifact`, the image bytes are not stored in the Workflow artifact value. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
 
 If the configured ActiveStorage backend is temporarily unreachable while serving that `image_url` (for example a transient MinIO connection refusal in the k3s service path), the app API returns `503` JSON with `error.code = "storage_unavailable"` and a short `Retry-After` header instead of raising a 500. The admin overview includes an "Artifact storage" tile backed by the same ActiveStorage probe so operators can distinguish a storage/backend outage from a broken workflow artifact.
 
