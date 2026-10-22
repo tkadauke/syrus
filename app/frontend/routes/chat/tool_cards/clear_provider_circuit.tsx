@@ -1,10 +1,10 @@
-import type { ToolCardExample } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { formatRelativeDate } from "@app/lib/relativeTime"
 import { pendingActionToolCard } from "../pendingActionToolCard"
 
-// Pending-action tool card (the pending-action tool-card work). All of the parsing and
-// presentation lives in ../pendingActionToolCard so the whole family stays
-// consistent; this file only binds it to one MCP tool name.
-const clearProviderCircuitToolCard = pendingActionToolCard("clear_provider_circuit", {
+// Parsing and presentation stay in the shared pending-action card; this wrapper
+// declares the tool-specific inputs and adds relative context to its deadline.
+const pendingActionCard = pendingActionToolCard("clear_provider_circuit", {
   inputFields: [
     { key: "provider", format: "badge" },
     { key: "mode", format: "badge" },
@@ -15,6 +15,26 @@ const clearProviderCircuitToolCard = pendingActionToolCard("clear_provider_circu
     { key: "reason", format: "markdown" }
   ]
 })
+
+function inputWithReadableRetryAfter(context: ToolCardContext) {
+  const retryAfter = context.input?.retry_after
+  if (typeof retryAfter !== "string" || !retryAfter.trim()) return context
+
+  const parsed = new Date(retryAfter)
+  if (Number.isNaN(parsed.getTime())) return context
+
+  return {
+    ...context,
+    input: { ...context.input, retry_after: `${retryAfter} (${formatRelativeDate(parsed)})` }
+  }
+}
+
+const clearProviderCircuitToolCard: ToolCardRenderer = {
+  ...pendingActionCard,
+  renderExpanded(context) {
+    return pendingActionCard.renderExpanded(inputWithReadableRetryAfter(context))
+  }
+}
 
 const LONG_POSITIVE_EVIDENCE = [
   "## Recovery evidence",
