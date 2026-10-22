@@ -34,7 +34,16 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
   const beforeTables = before?.tables
   const afterTables = after?.tables
   if (before?.structure || after?.structure) {
-    return <div className="space-y-3"><div className="font-mono text-sm font-semibold text-text-primary">{migration_name}</div>{payload.cumulative && <Outcome tone="warning" title={t("migration_cumulative")} message={payload.message} />}<div className="grid min-w-[44rem] grid-cols-2 gap-4"><StructureStatements title={t("migration_removed_structure")} statements={before?.structure ?? []} /><StructureStatements title={t("migration_added_structure")} statements={after?.structure ?? []} /></div></div>
+    return (
+      <div className="space-y-3">
+        <div className="font-mono text-sm font-semibold text-text-primary">{migration_name}</div>
+        {payload.cumulative && <Outcome tone="warning" title={t("migration_cumulative")} message={payload.message} />}
+        <div className="grid min-w-[44rem] grid-cols-2 gap-4">
+          <StructureStatements title={t("migration_removed_structure")} statements={before?.structure ?? []} />
+          <StructureStatements title={t("migration_added_structure")} statements={after?.structure ?? []} />
+        </div>
+      </div>
+    )
   }
   if (beforeTables || afterTables) {
     const names = Array.from(new Set([...(beforeTables ?? []).map((table) => table.name), ...(afterTables ?? []).map((table) => table.name)])).sort()
@@ -78,17 +87,91 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
 }
 
 function StructureStatements({ title, statements }: { title: string; statements: string[] }) {
-  return <div className="rounded border border-border"><div className="bg-surface-raised px-3 py-1.5 text-xs font-semibold uppercase text-text-secondary">{title}</div><div className="space-y-2 p-3">{statements.map((statement, index) => <pre key={index} className="whitespace-pre-wrap text-xs text-text-secondary">{statement};</pre>)}</div></div>
+  const { t } = useT("syrus_rails")
+  return (
+    <div className="rounded border border-border">
+      <div className="bg-surface-raised px-3 py-1.5 text-xs font-semibold uppercase text-text-secondary">{title}</div>
+      <div className="space-y-2 p-3">
+        {statements.length === 0 ? (
+          <div className="text-sm italic text-text-secondary">{t("migration_no_structure_statements")}</div>
+        ) : (
+          statements.map((statement, index) => (
+            <pre key={index} className="whitespace-pre-wrap break-words text-xs text-text-secondary">
+              {statement};
+            </pre>
+          ))
+        )}
+      </div>
+    </div>
+  )
 }
 
 function Outcome({ tone, title, message }: { tone: "error" | "warning" | "neutral"; title: string; message?: string }) {
-  const colors = tone === "error" ? "border-danger bg-danger-surface text-danger-text" : tone === "warning" ? "border-warning bg-warning-surface text-warning-text" : "border-border bg-surface-subtle text-text-secondary"
-  return <div role={tone === "error" ? "alert" : "status"} className={`rounded border px-3 py-2 ${colors}`}><div className="font-semibold">{title}</div>{message && <div className="mt-1 text-sm">{message}</div>}</div>
+  const colors =
+    tone === "error"
+      ? "border-danger bg-danger-surface text-danger-text"
+      : tone === "warning"
+        ? "border-warning bg-warning-surface text-warning-text"
+        : "border-border bg-surface-subtle text-text-secondary"
+  return (
+    <div role={tone === "error" ? "alert" : "status"} className={`rounded border px-3 py-2 ${colors}`}>
+      <div className="font-semibold">{title}</div>
+      {message && <div className="mt-1 text-sm">{message}</div>}
+    </div>
+  )
 }
 
 function CatalogTable({ title, table, name }: { title: string; table?: ErdTable; name: string }) {
   const { t } = useT("syrus_rails")
-  return <div className="rounded border border-border text-sm"><div className="bg-surface-raised px-3 py-1.5"><span className="text-xs font-semibold uppercase text-text-secondary">{title} — </span><span className="font-mono">{name}</span></div>{table ? <div className="divide-y divide-border">{table.columns.map((column) => <div key={column.name} className="flex justify-between gap-3 px-3 py-1 font-mono"><span>{column.name}</span><span className="text-right text-xs text-text-secondary">{column.sql_type ?? column.type}{column.nullable === false ? " · NOT NULL" : ""}{column.default != null ? ` · default ${String(column.default)}` : ""}</span></div>)}{table.indexes?.map((index) => <div key={`index-${index.name}`} className="px-3 py-1 text-xs text-text-secondary">{t("migration_index")}: <span className="font-mono">{index.name ?? index.columns.join("_")} ({index.columns.join(", ")}){index.unique ? " UNIQUE" : ""}</span></div>)}{table.foreign_keys?.map((key) => <div key={`fk-${key.from_column}-${key.to_table}`} className="px-3 py-1 text-xs text-text-secondary">{t("foreign_key")}: <span className="font-mono">{key.from_column} → {key.to_table}.{key.to_column}</span></div>)}{table.check_constraints?.map((check, index) => <div key={`check-${check.name ?? index}`} className="px-3 py-1 text-xs text-text-secondary">{t("migration_check")}: <span className="font-mono">{check.name ? `${check.name}: ` : ""}{check.expression}</span></div>)}</div> : <div className="px-3 py-3 text-sm italic text-text-secondary">{t("migration_absent")}</div>}</div>
+  return (
+    <div className="rounded border border-border text-sm">
+      <div className="bg-surface-raised px-3 py-1.5">
+        <span className="text-xs font-semibold uppercase text-text-secondary">{title} — </span>
+        <span className="font-mono">{name}</span>
+      </div>
+      {table ? (
+        <div className="divide-y divide-border">
+          {table.columns.map((column) => (
+            <div key={column.name} className="flex justify-between gap-3 px-3 py-1 font-mono">
+              <span>{column.name}</span>
+              <span className="text-right text-xs text-text-secondary">
+                {column.sql_type ?? column.type}
+                {column.nullable === false ? " · NOT NULL" : ""}
+                {column.default != null ? ` · default ${String(column.default)}` : ""}
+              </span>
+            </div>
+          ))}
+          {table.indexes?.map((index) => (
+            <div key={`index-${index.name}`} className="px-3 py-1 text-xs text-text-secondary">
+              {t("migration_index")}:{" "}
+              <span className="font-mono">
+                {index.name ?? index.columns.join("_")} ({index.columns.join(", ")}){index.unique ? " UNIQUE" : ""}
+              </span>
+            </div>
+          ))}
+          {table.foreign_keys?.map((key) => (
+            <div key={`fk-${key.from_column}-${key.to_table}`} className="px-3 py-1 text-xs text-text-secondary">
+              {t("foreign_key")}:{" "}
+              <span className="font-mono">
+                {key.from_column} → {key.to_table}.{key.to_column}
+              </span>
+            </div>
+          ))}
+          {table.check_constraints?.map((check, index) => (
+            <div key={`check-${check.name ?? index}`} className="px-3 py-1 text-xs text-text-secondary">
+              {t("migration_check")}:{" "}
+              <span className="font-mono">
+                {check.name ? `${check.name}: ` : ""}
+                {check.expression}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="px-3 py-3 text-sm italic text-text-secondary">{t("migration_absent")}</div>
+      )}
+    </div>
+  )
 }
 
 function ColumnTable({
