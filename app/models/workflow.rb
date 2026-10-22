@@ -18,6 +18,7 @@ class Workflow < ApplicationRecord
   # state alone — the rebase Workflow started right after will drive it.
   SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
   SUPERSEDED_BY_NEWER_WORKFLOW_REASON = "superseded_by_newer_workflow"
+  SUPERSEDED_BY_STATE_REPAIR_REASON = "superseded_by_state_repair"
 
   belongs_to :job
   belongs_to :user
@@ -354,7 +355,8 @@ class Workflow < ApplicationRecord
   def superseded_cancellation?
     artifact("cancelled_reason").in?([
       SUPERSEDED_BY_REBASE_REASON,
-      SUPERSEDED_BY_NEWER_WORKFLOW_REASON
+      SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+      SUPERSEDED_BY_STATE_REPAIR_REASON
     ])
   end
 
