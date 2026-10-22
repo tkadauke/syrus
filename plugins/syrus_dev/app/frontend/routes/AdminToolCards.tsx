@@ -6,7 +6,7 @@ import { Badge, Page, PanelMessage, Section, Text, type SemanticTone } from "@ap
 import { useCopyToClipboard } from "@app/hooks/useCopyToClipboard"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
-import { toolCardContextForExample } from "@app/pluginToolCards"
+import { pluginToolCardCollapsedSummary, toolCardContextForExample } from "@app/pluginToolCards"
 import { ToolGroup } from "@app/routes/chat/MessageCards"
 import { toolResultPresentation } from "@app/routes/chat/toolRendering"
 import { allToolPresentationEntries, type ToolOwnerType, type ToolPresentationEntry, type ToolPresentationExample } from "@app/toolPresentationRegistry"
@@ -105,6 +105,7 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
   const context = toolCardContextForExample(entry.toolName, example)
   const input = context.input ?? {}
   const resultPresentation = toolResultPresentation(entry.toolName, context.resultBody, context.resultError, context.resultBody, input, context.parsedResult)
+  const liveSummary = pluginToolCardCollapsedSummary(context)
 
   return {
     message_id: messageId,
@@ -119,8 +120,9 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     result_json: context.parsedResult,
     result_error: context.resultError,
     result_kind: resultPresentation.kind,
-    result_summary: resultPresentation.summary,
-    summary_metadata: resultPresentation.metadata
+    result_summary: liveSummary ?? resultPresentation.summary,
+    summary_metadata: resultPresentation.metadata,
+    pending_action: context.livePendingAction
   }
 }
 

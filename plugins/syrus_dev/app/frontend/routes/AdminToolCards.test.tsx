@@ -126,6 +126,23 @@ describe("AdminToolCards", () => {
     expect(within(region).getAllByText("No current dependencies")).toHaveLength(2)
   })
 
+  it("renders a confirmed feedback poll's live outcome across desktop and phone previews", () => {
+    renderRoute("/admin/tool_cards?tool_name=poll_job_feedback")
+
+    const region = screen.getByRole("region", { name: "Poll job feedback" })
+    fireEvent.click(within(region).getByRole("tab", { name: "Confirmed feedback poll with PR outcome" }))
+
+    expect(within(region).getByText(/Feedback poll queued · JOB-46/)).toBeInTheDocument()
+    expandToolGroup(region)
+    expect(within(region).getByRole("link", { name: "PR #321" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/321")
+    expect(within(region).getByText("succeeded")).toBeInTheDocument()
+    expect(within(region).getByText("Queueing PR feedback poll...")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Phone (390px)" }))
+    expect(within(region).getByRole("link", { name: "PR #321" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/321")
+    expect(within(region).getByText("succeeded")).toBeInTheDocument()
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 
