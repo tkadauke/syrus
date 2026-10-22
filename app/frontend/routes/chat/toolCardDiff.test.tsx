@@ -19,6 +19,6 @@ describe("tool card diff helpers", () => {
     const diff = Array.from({ length: 301 }, (_, index) => `+line ${index}`).join("\n")
     render(<RawDiffPreview diff={diff} />)
 
-    expect(screen.getByText("Showing first 300 of 301 lines")).toBeInTheDocument()
+    expect(screen.getByText("Showing first 300 of 301 lines.")).toBeInTheDocument()
   })
 })
