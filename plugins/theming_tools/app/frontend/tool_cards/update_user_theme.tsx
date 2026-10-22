@@ -1,24 +1,24 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { errorSummary, MalformedThemeCard, parseThemeResult, renderError, ThemeCard } from "../themeToolCard"
+import { errorSummary, MalformedThemeCard, parseThemeResult, renderError, t, ThemeCard } from "../themeToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
-  const error = errorSummary("Theme update", context)
+  const error = errorSummary(t("action_update"), context)
   if (error) return error
 
   const theme = parseThemeResult(context)
   if (!theme) return null
 
-  return `Updated ${theme.name} (#${theme.id})`
+  return t("summary_updated", { name: theme.name, id: theme.id })
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const error = renderError("Theme update", context)
+  const error = renderError(t("action_update"), context)
   if (error) return error
 
   const theme = parseThemeResult(context)
-  if (!theme) return <MalformedThemeCard action="Theme update" />
+  if (!theme) return <MalformedThemeCard action={t("action_update")} />
 
-  return <ThemeCard outcome="updated" theme={theme} />
+  return <ThemeCard outcome={t("state_updated")} theme={theme} />
 }
 
 const updateUserThemeToolCard: ToolCardRenderer = {

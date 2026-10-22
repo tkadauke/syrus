@@ -1,18 +1,18 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { DeleteThemeCard, errorSummary, parseDeleteOutcome, renderError } from "../themeToolCard"
+import { DeleteThemeCard, errorSummary, parseDeleteOutcome, renderError, t } from "../themeToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
-  const error = errorSummary("Theme delete", context)
+  const error = errorSummary(t("action_delete"), context)
   if (error) return error
 
   const outcome = parseDeleteOutcome(context)
   if (!outcome) return null
 
-  return `Deleted theme #${outcome.deletedThemeId}`
+  return t("summary_deleted", { id: outcome.deletedThemeId })
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const error = renderError("Theme delete", context)
+  const error = renderError(t("action_delete"), context)
   if (error) return error
 
   const outcome = parseDeleteOutcome(context)

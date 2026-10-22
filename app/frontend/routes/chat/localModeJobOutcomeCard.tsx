@@ -23,6 +23,12 @@ export type LocalModeJobOutcomeModel = {
   error: string | null
 }
 
+export type CreateCodingJobRequest = {
+  title: string | null
+  body: string | null
+  repositoryId: string | null
+}
+
 export function parseLocalModeJobOutcome(value: unknown): LocalModeJobOutcome | null {
   if (!isPlainObject(value)) return null
 
@@ -54,6 +60,14 @@ export function localModeJobOutcomeModel(context: ToolCardContext): LocalModeJob
   }
 }
 
+export function createCodingJobRequest(context: ToolCardContext): CreateCodingJobRequest {
+  return {
+    title: displayValue(context.input?.title),
+    body: displayValue(context.input?.body),
+    repositoryId: displayValue(context.input?.repository_id)
+  }
+}
+
 export function LocalModeJobOutcomeEmptyCard({ jobId }: { jobId: string | null }) {
   return (
     <EmptyState>
@@ -69,13 +83,13 @@ export function LocalModeJobOutcomeEmptyCard({ jobId }: { jobId: string | null }
   )
 }
 
-export function LocalModeJobOutcomeCard({ result }: { result: LocalModeJobOutcome }) {
+function LocalModeJobOutcomeDetails({ result, showRepository = true }: { result: LocalModeJobOutcome; showRepository?: boolean }) {
   return (
-    <CardShell>
+    <>
       <div className="flex flex-wrap items-center gap-2">
         <EntityReference id={result.jobId} kind="job" />
         <StatePill state={result.jobState} />
-        {result.repositorySlug ? (
+        {showRepository && result.repositorySlug ? (
           <EntityReference
             href={`https://github.com/${result.repositorySlug}`}
             kind="repository"
@@ -90,6 +104,45 @@ export function LocalModeJobOutcomeCard({ result }: { result: LocalModeJobOutcom
         </dl>
       ) : null}
       {result.message ? <MarkdownPreview text={result.message} title="Outcome" /> : null}
+    </>
+  )
+}
+
+export function LocalModeJobOutcomeCard({ result }: { result: LocalModeJobOutcome }) {
+  return (
+    <CardShell>
+      <LocalModeJobOutcomeDetails result={result} />
+    </CardShell>
+  )
+}
+
+export function CreateCodingJobOutcomeCard({ context }: { context: ToolCardContext }) {
+  const model = localModeJobOutcomeModel(context)
+  const request = createCodingJobRequest(context)
+  const repositorySlug = model.result?.repositorySlug
+
+  return (
+    <CardShell>
+      {request.title ? <h3 className="break-words text-sm font-semibold text-text-primary">{request.title}</h3> : null}
+      {request.repositoryId || repositorySlug ? (
+        <div className="grid min-w-0 gap-1 sm:grid-cols-2">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-text-muted">Repository</div>
+            <EntityReference
+              href={!request.repositoryId && repositorySlug ? `https://github.com/${repositorySlug}` : null}
+              kind="repository"
+              label={repositorySlug || (request.repositoryId ? `Repository ${request.repositoryId}` : null)}
+              repositoryId={request.repositoryId}
+              repositorySlug={repositorySlug}
+            />
+          </div>
+          {request.repositoryId ? <Row label="Repository ID" value={request.repositoryId} /> : null}
+        </div>
+      ) : null}
+      {request.body ? <MarkdownPreview text={request.body} title="Description" /> : null}
+      {model.error ? <EmptyState>{model.error}</EmptyState> : null}
+      {model.result ? <LocalModeJobOutcomeDetails result={model.result} showRepository={false} /> : null}
+      {!model.error && !model.result ? <LocalModeJobOutcomeEmptyCard jobId={null} /> : null}
     </CardShell>
   )
 }

@@ -97,7 +97,7 @@ describe("toolCardSecurity", () => {
     })
   })
 
-  it("keeps credential metadata objects while redacting secrets inside them", () => {
+  it("keeps allowlisted credential metadata while redacting arbitrary secret fields", () => {
     expect(
       redactToolCardValue({
         credential: {
@@ -105,7 +105,9 @@ describe("toolCardSecurity", () => {
           credential_name: "production-cluster",
           credential_type: "kubeconfig",
           client_secret: "hidden-value",
-          token: "hidden-token"
+          token: "hidden-token",
+          value: "abcdef123456789",
+          data: { opaque: "another-secret-value" }
         }
       })
     ).toEqual({
@@ -114,7 +116,9 @@ describe("toolCardSecurity", () => {
         credential_name: "production-cluster",
         credential_type: "kubeconfig",
         client_secret: "[redacted]",
-        token: "[redacted]"
+        token: "[redacted]",
+        value: "[redacted]",
+        data: "[redacted]"
       }
     })
   })
@@ -160,6 +164,28 @@ describe("toolCardSecurity", () => {
       key_names: ["DATABASE_PASSWORD_VALUE", "API_TOKEN_NAME"],
       resource_name: "application-secret-config",
       output: "DATABASE_PASSWORD_VALUE=[redacted]"
+    })
+  })
+
+  it("preserves theme design tokens while redacting real secrets nested beside them", () => {
+    expect(
+      redactToolCardValue({
+        tokens: {
+          light: { brand: "#b6492e", "text-primary": "#111827" },
+          dark: { surface: "#111827" },
+          shape: { "radius-control": "0.375rem" },
+          api_token: "real-secret-value"
+        },
+        access_token: "another-real-secret"
+      })
+    ).toEqual({
+      tokens: {
+        light: { brand: "#b6492e", "text-primary": "#111827" },
+        dark: { surface: "#111827" },
+        shape: { "radius-control": "0.375rem" },
+        api_token: "[redacted]"
+      },
+      access_token: "[redacted]"
     })
   })
 
