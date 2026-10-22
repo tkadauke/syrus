@@ -124,6 +124,13 @@ path, title, viewport, source, and capture time. An unexpected redirect to a
 login page is a blocker unless the auth screen is the changed surface being
 reviewed.
 
+Screenshot artifact types may be descriptive (for example,
+`visual_review_mobile_bulk_progress`). When `submit_visual_review` records the
+iteration, it associates image artifacts through the submitting Run's trusted
+provenance, image metadata, and image renderer identity. The association does
+not depend on an exact caller-chosen type; artifacts from other Runs and
+non-image typed artifacts remain excluded.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
