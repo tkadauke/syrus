@@ -374,6 +374,25 @@ RSpec.describe WorkUnits::Launcher do
     expect(second.work_unit).not_to eq(first.work_unit)
   end
 
+  it "only reuses a succeeded workflow when completion-aware deduplication is requested" do
+    key = "manual-visual-review:#{job.id}"
+    first = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: key)
+    first.update_columns(state: "succeeded", finished_at: Time.current)
+    first.work_unit.mark_terminal!("succeeded")
+
+    completed = described_class.instantiate(
+      kind: "manual_visual_review",
+      job: job,
+      idempotency_key: key,
+      completion_aware: true
+    )
+    retry_workflow = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: key)
+
+    expect(completed).to eq(first)
+    expect(retry_workflow).not_to eq(first)
+    expect(first.work_unit.work_intent.work_units.count).to eq(2)
+  end
+
   it "passes artifacts and agent provider through to the workflow template" do
     workflow = described_class.instantiate(
       kind: "ci_failure",
