@@ -22,6 +22,7 @@ class Workflow < ApplicationRecord
   belongs_to :job
   belongs_to :user
   has_many :workflow_warnings, dependent: :destroy
+  has_many :workflow_artifact_values, dependent: :destroy, inverse_of: :workflow
   has_many :provider_routing_holds, dependent: :destroy
   has_many :target_health_records, dependent: :nullify
   has_one :work_unit, dependent: nil, inverse_of: :workflow
@@ -56,6 +57,15 @@ class Workflow < ApplicationRecord
   # the contract between producing-step and consuming-step lives
   # in the Steps::* handler code where it belongs.
   serialize :artifacts, coder: JSON
+
+  EXTERNALIZED_ARTIFACT_KEYS = %w[
+    adversarial_review_iterations
+    iterations
+    typed_artifacts
+    visual_review_iterations
+  ].freeze
+
+  after_save :persist_assigned_external_artifacts
 
   # JSON-serialized workflow chain declaration used to reconstruct
   # loop nodes after instantiation. Shape:
@@ -554,18 +564,48 @@ class Workflow < ApplicationRecord
   # against a freshly-created Workflow whose `artifacts` column
   # hasn't been touched yet.
   def artifact(key)
-    (artifacts || {})[key.to_s]
+    key = key.to_s
+    if EXTERNALIZED_ARTIFACT_KEYS.include?(key)
+      external = workflow_artifact_values.find_by(key: key)
+      return external.value if external
+    end
+    self[:artifacts].to_h[key]
+  end
+
+  # Preserve the historical bag-shaped API while keeping growth-bound values
+  # out of the frequently updated workflows row. Inline fallback makes rows
+  # written before the backfill safe to read during a rolling deploy.
+  def artifacts
+    inline = self[:artifacts] || {}
+    return inline unless persisted?
+
+    external = workflow_artifact_values.to_h { |entry| [ entry.key, entry.value ] }
+    inline.merge(external)
+  end
+
+  def artifacts=(values)
+    normalized = values.to_h.deep_stringify_keys
+    @assigned_external_artifacts = normalized.slice(*EXTERNALIZED_ARTIFACT_KEYS)
+    super(normalized.except(*EXTERNALIZED_ARTIFACT_KEYS))
   end
 
   # Append-only artifact write. Inline domain-event subscribers can write
   # artifacts during a step before the step writes its own artifact, so merge
   # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
+    key = key.to_s
     self.class.transaction do
       locked = self.class.lock.find(id)
-      locked.artifacts = (locked.artifacts || {}).merge(key.to_s => value)
+      if EXTERNALIZED_ARTIFACT_KEYS.include?(key)
+        entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
+        entry.update!(value: value)
+        workflow_artifact_values.reset
+        return value
+      end
+
+      locked[:artifacts] = locked[:artifacts].to_h.merge(key => value)
       locked.save!
-      self.artifacts = locked.artifacts
+      self[:artifacts] = locked[:artifacts]
       # Already persisted through `locked`. Left dirty, this instance would
       # skip the save inside a later `attach` (Active Storage only saves a
       # record with no other pending changes), silently dropping e.g. the
@@ -577,11 +617,14 @@ class Workflow < ApplicationRecord
   # Remove selected artifacts without replacing values concurrently written
   # through another instance of this Workflow.
   def delete_artifacts!(*keys)
+    keys = keys.map(&:to_s)
     self.class.transaction do
       locked = self.class.lock.find(id)
-      locked.artifacts = (locked.artifacts || {}).except(*keys.map(&:to_s))
-      locked.save!
-      self.artifacts = locked.artifacts
+      locked.workflow_artifact_values.where(key: keys).delete_all
+      locked[:artifacts] = locked[:artifacts].to_h.except(*keys)
+      locked.save! if locked.changed?
+      self[:artifacts] = locked[:artifacts]
+      workflow_artifact_values.reset
       clear_attribute_changes([ :artifacts ])
     end
   end
@@ -832,6 +875,18 @@ class Workflow < ApplicationRecord
 
 
   private
+
+  def persist_assigned_external_artifacts
+    return unless defined?(@assigned_external_artifacts) && @assigned_external_artifacts
+
+    assigned = @assigned_external_artifacts
+    workflow_artifact_values.where.not(key: assigned.keys).delete_all
+    assigned.each do |key, value|
+      workflow_artifact_values.find_or_initialize_by(key: key).update!(value: value)
+    end
+    workflow_artifact_values.reset
+    @assigned_external_artifacts = nil
+  end
 
   def retry_until_barrier_step?(step)
     Step::Kind.fetch(step.kind).fail_policy == :loop_iteration

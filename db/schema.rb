@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_22_080636) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3906,6 +3906,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_205145) do
     t.index ["trigger_kind", "occurred_at"], name: "idx_workflow_activity_trigger_occurred"
     t.index ["workflow_id", "occurred_at"], name: "idx_workflow_activity_workflow_occurred"
     t.index ["workflow_id"], name: "index_workflow_activity_events_on_workflow_id"
+  end
+
+  create_table "workflow_artifact_values", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.string "key", null: false
+    t.text "value", limit: 16777215, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workflow_id", "key"], name: "index_workflow_artifact_values_on_workflow_id_and_key", unique: true
+    t.index ["workflow_id"], name: "index_workflow_artifact_values_on_workflow_id"
   end
 
   create_table "workflow_source_snapshots", force: :cascade do |t|
