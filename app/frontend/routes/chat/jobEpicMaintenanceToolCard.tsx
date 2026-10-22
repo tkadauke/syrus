@@ -15,6 +15,7 @@ type MaintenanceToolDefinition = {
   pendingVerb?: string
   confirmedSubjectState?: string
   warningMessage?: boolean
+  showsComment?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -27,7 +28,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     pendingVerb: "Cancel requested",
     confirmedSubjectState: "cancelled"
   },
-  close_job_successfully: { toolName: "close_job_successfully", subjectKind: "job", actionLabel: "Close Job Successfully", verb: "Close requested" },
+  close_job_successfully: {
+    toolName: "close_job_successfully",
+    subjectKind: "job",
+    actionLabel: "Close Job Successfully",
+    verb: "Closed successfully",
+    pendingVerb: "Close requested",
+    confirmedSubjectState: "closed",
+    showsComment: true
+  },
   set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
   update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
   rebase_job: { toolName: "rebase_job", subjectKind: "job", actionLabel: "Rebase Job", verb: "Rebase requested" },
@@ -76,6 +85,7 @@ type MaintenanceCard = {
   hasNewState: boolean
   failed: boolean
   message: string | null
+  comment: string | null
   rows: DetailRow[]
   dependencies: Dependency[]
   showsDependencies: boolean
@@ -284,6 +294,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     hasNewState: transitionExecuted && displayValue(result.new_state) != null,
     failed,
     message,
+    comment: definition.showsComment ? firstValue(objectValue(context.input, "comment")) : null,
     rows: buildRows(context, result, transitionExecuted),
     dependencies: dependencyList(context, definition, result),
     showsDependencies: [result.depends_on, result.depends_on_job_ids, result.depends_on_epic_ids, result.dependencies].some(Array.isArray)
@@ -375,6 +386,17 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
             text={messageWithLinkedTarget(card)}
           />
         </div>
+      ) : null}
+      {card.comment ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={360}
+          maxLines={3}
+          modalLabel={`${card.definition.actionLabel} comment`}
+          text={card.comment}
+          title="PR comment"
+        />
       ) : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
