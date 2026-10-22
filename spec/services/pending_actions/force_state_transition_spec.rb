@@ -108,6 +108,32 @@ RSpec.describe PendingActions::ForceStateTransition do
     )
   end
 
+  it "forces an ordinary running Workflow to implemented without cancellation changing the Job state" do
+    job = build_job("running", pr_number: 84)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "initial",
+      job: job,
+      idempotency_key: "forced-ordinary-workflow-implemented"
+    )
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "mark_implemented")
+
+    expect(action.confirm!(user: admin)).to be true
+
+    expect(job.reload).to be_implemented
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON)
+    expect(workflow.work_unit.reload).to be_cancelled
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+    expect(workflow.work_unit.work_unit_locks.active).to be_empty
+    expect(WorkIntent.where(scope_type: "job", scope_id: job.id, state: %w[requested waiting])).to be_empty
+
+    result = WorkEngine::Reconciler.call(source: "spec", job_id: job.id, execute_repairs: true)
+
+    expect(result.repair_plans.map(&:action)).not_to include("retry_job_after_cancelled_workflow")
+    expect(job.reload).to be_implemented
+    expect(job.workflows.count).to eq(1)
+  end
+
   it "leaves a forced implemented Job available for Coding Mode after cancelling a zero-run handoff" do
     allow(Feature).to receive(:coding_mode_enabled?).and_return(true)
     allow(ChatWorkspace).to receive(:ensure_job_branch_checkout!)

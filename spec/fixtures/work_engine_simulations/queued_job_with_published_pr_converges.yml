@@ -1,0 +1,45 @@
+name: queued job with published PR converges
+repository:
+  owner: simulation
+  name: queued-job-with-published-pr-converges
+jobs:
+  published:
+    title: Preserve a published implementation after terminal cleanup
+    state: queued
+    agent_provider: codex
+    pr_number: 84
+    branch_name: syrus/direct-published
+    commits_behind_base: 0
+    github_mergeable_state: clean
+    workflow:
+      kind: initial
+      state: cancelled
+      started_at: "2026-01-01 00:00:00 UTC"
+      finished_at: "2026-01-01 00:05:00 UTC"
+      intent:
+        state: cancelled
+      work_unit:
+        state: cancelled
+      artifacts:
+        publication_branch: syrus/direct-published
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: pr_open
+          state: succeeded
+          run:
+            state: succeeded
+success_states:
+  published:
+    - implemented
+expect:
+  jobs:
+    published:
+      - implemented
+  queues:
+    active_runs: empty
+  absent_events:
+    - launch_requested_work_intent
+    - retry_job_after_cancelled_workflow
