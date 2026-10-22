@@ -1136,7 +1136,14 @@ RSpec.describe "Mcp::Tools admin tools" do
       group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(state: "pending", member_count: 2)
+      expect(body).to include(
+        state: "pending",
+        member_count: 2,
+        observed: contain_exactly(
+          include(evidence_id: classification_one.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_one.classified_at.iso8601),
+          include(evidence_id: classification_two.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_two.classified_at.iso8601)
+        )
+      )
       expect(group.reason).to eq("Both classifications share the same misclassification root cause.")
       expect(group.chat_pending_actions.map { |a| a.payload["evidence_id"] }).to contain_exactly(classification_one.id, classification_two.id)
     end

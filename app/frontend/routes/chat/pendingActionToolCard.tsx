@@ -56,6 +56,7 @@ export type PendingActionResult =
       reason: string | null
       memberCount: number | null
       groupId: string | null
+      observed: unknown
     } & TargetContext &
       LiveDetails)
   | {
@@ -76,7 +77,7 @@ export type PendingActionInputField = {
   hrefPrefix?: string
 }
 
-export type PendingActionToolCardOptions = { inputFields?: PendingActionInputField[] }
+export type PendingActionToolCardOptions = { inputFields?: PendingActionInputField[]; observedSummary?: boolean }
 
 function parsedErrorMessage(value: unknown): string | null {
   if (typeof value === "string") return value.trim() || null
@@ -176,6 +177,7 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
       reason: liveMatch?.reason || displayValue(value.reason) || target.inputReason,
       memberCount,
       groupId,
+      observed: value.observed,
       ...parseContext(value, input),
       executionStatus: displayValue(liveMatch?.execution_status),
       executionStep: displayValue(liveMatch?.execution_step),
@@ -414,11 +416,13 @@ export function PendingActionResultCard({
   details,
   input,
   inputFields = [],
+  observedSummary = false,
   result
 }: {
   details?: ReactNode
   input?: Record<string, unknown>
   inputFields?: PendingActionInputField[]
+  observedSummary?: boolean
   result: PendingActionResult
 }) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
@@ -452,6 +456,7 @@ export function PendingActionResultCard({
         ) : null}
       </div>
       <InputDetails fields={inputFields} input={input} />
+      {observedSummary ? <ObservedSummary value={result.observed} /> : null}
       <ContextRows value={result} />
       {details}
       {result.resourceTitle && result.resourceUrl ? (
@@ -477,6 +482,34 @@ export function PendingActionResultCard({
   )
 }
 
+function ObservedSummary({ value }: { value: unknown }) {
+  const snapshots = (Array.isArray(value) ? value : [value]).filter(isPlainObject)
+  if (snapshots.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Observed evidence</SectionLabel>
+      <div className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
+        {snapshots.map((snapshot, index) => (
+          <div
+            className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1"
+            key={`${displayValue(snapshot.evidence_id) || index}`}
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {displayValue(snapshot.evidence_id) ? <EntityReference id={displayValue(snapshot.evidence_id)!} kind="artifact" wrap="break" /> : null}
+              {displayValue(snapshot.status) ? <Badge>{displayValue(snapshot.status)}</Badge> : null}
+              {displayValue(snapshot.source) ? <Badge>{displayValue(snapshot.source)}</Badge> : null}
+            </div>
+            {displayValue(snapshot.observed_at) ? (
+              <div className="mt-1 break-all font-mono text-2xs text-text-muted">{displayValue(snapshot.observed_at)}</div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function pendingActionToolCard(toolName: string, options: PendingActionToolCardOptions = {}): ToolCardRenderer {
   return {
     toolName,
@@ -486,7 +519,9 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
     },
     renderExpanded(context) {
       const result = parsePendingActionResult(context, true)
-      return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
+      return result ? (
+        <PendingActionResultCard input={context.input} inputFields={options.inputFields} observedSummary={options.observedSummary} result={result} />
+      ) : null
     }
   }
 }
