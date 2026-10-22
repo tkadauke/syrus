@@ -21,6 +21,16 @@ surfaces a confirm-and-cascade-disable prompt. See
 | `:artifact_renderer` | `SchemaErdRenderer` and `MigrationDiffRenderer`, mapping `submit_artifact` payload types to reviewer-facing ERD/migration-diff views |
 | `:prompt_injector` | Adds Rails-specific guidance (schema/migration awareness) to the implementing agent's system prompt |
 
+`explain_migration` discovers migrations newly added relative to the workflow base,
+loads the base schema into a uniquely named disposable database, and applies those
+migrations in timestamp order. Its catalog snapshots include columns and type
+parameters, indexes, foreign keys, and supported check constraints. SQLite needs no
+configuration. PostgreSQL and MySQL require a local-only
+`SYRUS_RAILS_ARTIFACT_DATABASE_URL` with create/drop privileges; Syrus replaces its
+database name for every invocation. If disposable database creation is unavailable,
+the tool labels a base/head schema comparison as cumulative instead of guessing which
+migration caused each change.
+
 ## Auto-detection
 
 The plugin activates for repositories that contain **all three** of:
