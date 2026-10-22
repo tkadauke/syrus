@@ -20,7 +20,7 @@ import adminReapStaleRunsCard from "./admin_reap_stale_runs"
 import adminRefreshInstallationsCard from "./admin_refresh_installations"
 import rerunCiRepairCard from "./rerun_ci_repair"
 import markCiRepairNoopCard from "./mark_ci_repair_noop"
-import overrideLandingBlockerOnceCard from "./override_landing_blocker_once"
+import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceExamples } from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
 import cancelStaleWorkCard from "./cancel_stale_work"
 import reenqueueWorkCard from "./reenqueue_work"
@@ -104,6 +104,15 @@ describe("pending action tool card family", () => {
   it.each(CARDS)("%s falls back to null for a non-object payload", (name, card) => {
     expect(card.collapsedSummary?.(context(name, "not json"))).toBeNull()
     expect(card.renderExpanded(context(name, "not json"))).toBeNull()
+  })
+
+  it("registers every visual-review state for the landing blocker override card", () => {
+    expect(overrideLandingBlockerOnceExamples.map((example) => example.id)).toEqual([
+      "pending_override",
+      "applied_override",
+      "validation_error",
+      "missing_input"
+    ])
   })
 
   it("wires a standard-shape tool through to the shared card", () => {
