@@ -623,6 +623,21 @@
     "not_provided": "Nicht angegeben",
     "outcome": "Ergebnis der Zusammenführbarkeit"
   },
+  "pause_landing_queue": {
+    "target": "Ziel",
+    "landing_queue": "Landing-Warteschlange",
+    "outcome": "Ergebnis",
+    "summary": "Landing-Warteschlange pausieren",
+    "summary_with_outcome": "Landing-Warteschlange pausieren · {{outcome}}",
+    "states": {
+      "pending": "Ausstehend",
+      "pausing": "Wird pausiert",
+      "paused": "Pausiert",
+      "rejected": "Abgelehnt",
+      "cancelled": "Abgebrochen",
+      "failed": "Fehlgeschlagen"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "Aufrufkontext: {{surface}}{{identity}}",
     "summary_denied": "Aufrufkontext verweigert: {{error}}",
