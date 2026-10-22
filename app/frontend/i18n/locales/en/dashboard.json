@@ -49,6 +49,7 @@
   "selected_count": "{{count}} selected",
   "bulk_action_error": "Bulk action failed.",
   "bulk_action_canceled": "Bulk action canceled after {{completed}} of {{total}} jobs.",
+  "bulk_action_partial": "Bulk action completed for {{succeeded}} of {{total}} jobs; {{failed}} failed or were skipped.",
   "bulk_progress": {
     "retry": "{{completed}} of {{total}} retried",
     "close": "{{completed}} of {{total}} closed",

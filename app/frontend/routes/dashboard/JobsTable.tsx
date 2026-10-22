@@ -140,29 +140,44 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
   const action = useMutation({
     mutationFn: async ({ bulkAction, jobIds }: { bulkAction: DashboardBulkJobAction; jobIds: number[] }) => {
       let lastMessage = ""
-      let completed = 0
+      let processed = 0
+      let succeeded = 0
+      let failed = 0
 
       for (const jobId of jobIds) {
         if (cancelRequestedRef.current) break
 
-        const payload = await bulkDashboardJobs({
-          job_ids: [jobId],
-          bulk_action: bulkAction,
-          owner_user_id: bulkAction === "assign_owner" && ownerUserId ? Number(ownerUserId) : undefined,
-          priority: bulkAction === "set_priority" ? priority : undefined
-        })
-        lastMessage = payload.message
-        completed += 1
-        setProgress({ action: bulkAction, completed, total: jobIds.length })
+        try {
+          const payload = await bulkDashboardJobs({
+            job_ids: [jobId],
+            bulk_action: bulkAction,
+            owner_user_id: bulkAction === "assign_owner" && ownerUserId ? Number(ownerUserId) : undefined,
+            priority: bulkAction === "set_priority" ? priority : undefined
+          })
+          lastMessage = payload.message
+          succeeded += payload.affected_job_ids?.length ?? 1
+          failed += payload.skipped_job_ids?.length ?? 0
+        } catch (_error) {
+          failed += 1
+        }
+
+        processed += 1
+        setProgress({ action: bulkAction, completed: succeeded, total: jobIds.length })
       }
 
-      return { canceled: cancelRequestedRef.current, completed, lastMessage, total: jobIds.length }
+      return { canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: jobIds.length }
     },
     onSuccess: (result) => {
-      setNotice(result.canceled ? t("bulk_action_canceled", { completed: result.completed, total: result.total }) : result.lastMessage)
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      if (result.canceled) {
+        setNotice(t("bulk_action_canceled", { completed: result.processed, total: result.total }))
+      } else if (result.failed > 0) {
+        setNotice(t("bulk_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
+      } else {
+        setNotice(result.lastMessage)
+      }
     },
     onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false
@@ -204,10 +219,6 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
     action.mutate({ bulkAction, jobIds })
   }
 
-  if (selectedIds.length === 0) {
-    return <>{dialog}<NoticeToast message={notice} onDismiss={() => setNotice(null)} /></>
-  }
-
   if (progress) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" role="status">
@@ -228,6 +239,10 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
         </button>
       </div>
     )
+  }
+
+  if (selectedIds.length === 0) {
+    return <>{dialog}<NoticeToast message={notice} onDismiss={() => setNotice(null)} /></>
   }
 
   return (

@@ -49,6 +49,7 @@
   "selected_count": "{{count}} ausgewählt",
   "bulk_action_error": "Massenoperation fehlgeschlagen.",
   "bulk_action_canceled": "Massenoperation nach {{completed}} von {{total}} Aufgaben abgebrochen.",
+  "bulk_action_partial": "Massenoperation für {{succeeded}} von {{total}} Aufgaben abgeschlossen; {{failed}} fehlgeschlagen oder übersprungen.",
   "bulk_progress": {
     "retry": "{{completed}} von {{total}} wiederholt",
     "close": "{{completed}} von {{total}} geschlossen",

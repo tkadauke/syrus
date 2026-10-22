@@ -49,6 +49,7 @@
   "selected_count": "{{count}} electa",
   "bulk_action_error": "Actio multa defecit.",
   "bulk_action_canceled": "Actio multa post {{completed}} ex {{total}} operibus omissa est.",
+  "bulk_action_partial": "Actio multa pro {{succeeded}} ex {{total}} operibus completa est; {{failed}} defecerunt vel omissa sunt.",
   "bulk_progress": {
     "retry": "{{completed}} ex {{total}} iterum temptata",
     "close": "{{completed}} ex {{total}} clausa",
