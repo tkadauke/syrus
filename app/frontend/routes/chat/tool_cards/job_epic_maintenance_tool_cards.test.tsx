@@ -17,6 +17,7 @@ import { examples as reopenJobExamples } from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
 import { examples as pollJobFeedbackExamples } from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
+import { examples as startEpicExamples } from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
 import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
@@ -693,13 +694,46 @@ describe("Job and Epic maintenance tool cards", () => {
     )
 
     expect(screen.getByText("EPIC-60")).toBeInTheDocument()
-    expect(screen.getByText("in progress")).toBeInTheDocument()
+    expect(screen.getAllByText("in progress").length).toBeGreaterThan(0)
     expect(screen.getByText("EPIC-61")).toBeInTheDocument()
     expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
     expect(screen.getAllByRole("link", { name: "EPIC-62" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "EPIC-62" }).every((link) => link.getAttribute("href") === "/epics/62")).toBe(true)
     expect(screen.getByText("pending #17")).toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Open child Jobs will be cancelled and closed when confirmed.")
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(startEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: startEpicExamples[0].parsedResult }]
+  ])("renders linked start-Epic transition pills from a normalized %s envelope", (_label, envelope) => {
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__start_epic"), {
+      ...startEpicExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(ctx.toolName).toBe("start_epic")
+    expect(startEpicCard.collapsedSummary?.(ctx)).toBe("Started · EPIC-60")
+    render(<>{startEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "EPIC-60" })).toHaveAttribute("href", "/epics/60")
+    expect(screen.getByText("ready").parentElement).toHaveClass("uppercase")
+    expect(screen.getAllByText("in progress").every((node) => node.parentElement?.classList.contains("uppercase"))).toBe(true)
+  })
+
+  it.each([
+    ["epic must be ready to start; current state is backlog", startEpicExamples[1]],
+    ["Product owners cannot advance Epics beyond backlog.", startEpicExamples[2]]
+  ])("renders the full start-Epic error: %s", (error, example) => {
+    const ctx = toolCardContextForExample("start_epic", example)
+
+    expect(startEpicCard.collapsedSummary?.(ctx)).toBe(`Start Epic failed · EPIC-${example.input?.epic_id}`)
+    render(<>{startEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).not.toHaveStyle({ overflow: "hidden" })
+    expect(screen.getByText(error)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: `EPIC-${example.input?.epic_id}` })).toHaveAttribute("href", `/epics/${example.input?.epic_id}`)
   })
 
   it.each([
