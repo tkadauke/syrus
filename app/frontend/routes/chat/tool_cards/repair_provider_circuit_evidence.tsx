@@ -6,11 +6,12 @@ import { pendingActionToolCard } from "../pendingActionToolCard"
 const repairProviderCircuitEvidenceToolCard = pendingActionToolCard("repair_provider_circuit_evidence", {
   inputFields: [
     { key: "evidence_type", format: "badge" },
-    { key: "evidence_id" },
-    { key: "evidence_ids", format: "list" },
+    { key: "evidence_id", format: "entity", entityKind: "artifact" },
+    { key: "evidence_ids", format: "entity_list", entityKind: "artifact" },
     { key: "repair_status", format: "badge" },
     { key: "reason", format: "markdown" }
-  ]
+  ],
+  observedSummary: true
 })
 
 export default repairProviderCircuitEvidenceToolCard

@@ -59,7 +59,8 @@ describe("pending action tool card: standard shape", () => {
       message: "Job rebase requires operator confirmation.",
       reason: null,
       memberCount: null,
-      groupId: null
+      groupId: null,
+      observed: undefined
     })
   })
 
@@ -168,7 +169,8 @@ describe("pending action tool card: bulk shape", () => {
       message: "Retry step 'graders' on 3 Workflows?",
       reason: null,
       memberCount: 3,
-      groupId: "88"
+      groupId: "88",
+      observed: undefined
     })
   })
 
