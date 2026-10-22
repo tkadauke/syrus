@@ -187,7 +187,7 @@ describe("toolCardSecurity", () => {
       credential_mode: "app",
       app_credential_active: true
     })
-    expect(kubectl.input.credential).toBe(7)
+    expect(kubectl.input).toEqual({ credential: 7 })
     expect(kubectl.parsedResult).toEqual({
       credential: { credential_id: 7, credential_name: "cluster-admin", credential_type: "kubeconfig", password: "[redacted]" }
     })
