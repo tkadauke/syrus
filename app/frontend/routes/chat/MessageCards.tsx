@@ -908,7 +908,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+        className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
@@ -919,9 +919,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="min-w-0 flex-1 break-words font-mono text-gray-600 [overflow-wrap:anywhere] dark:text-gray-400">{details}</span>
+        <span className="order-2 min-w-0 flex-1 basis-full break-words pl-5 font-mono text-gray-600 [overflow-wrap:anywhere] sm:order-none sm:basis-0 sm:pl-0 dark:text-gray-400">
+          {details}
+        </span>
         {item.calls.length > 1 ? (
-          <Pill className="ml-auto text-xs" tone="neutral">
+          <Pill className="order-1 ml-auto text-xs sm:order-none" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : null}
@@ -954,7 +956,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               {expanded && call.nested && call.nested.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {call.nested.map((nestedGroup) => (
-                    <ToolGroup chatSessionId={chatSessionId} item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                    <ToolGroup
+                      chatSessionId={chatSessionId}
+                      item={nestedGroup}
+                      key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
+                    />
                   ))}
                 </div>
               ) : null}

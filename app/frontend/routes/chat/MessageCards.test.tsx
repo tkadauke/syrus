@@ -1722,6 +1722,36 @@ describe("tool result rendering", () => {
     expect(summary).not.toHaveClass("shrink-0")
   })
 
+  it("gives long registered-card summaries a full-width second row on mobile", () => {
+    const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Admin maintenance tasks",
+      calls: [
+        {
+          message_id: 47,
+          tool_name: "admin_maintenance_tasks",
+          raw_name: "mcp__syrus-chat-sidecar__admin_maintenance_tasks",
+          detail: "No arguments",
+          display_label: "Admin maintenance tasks",
+          progress_label: "Reading maintenance tasks",
+          raw_payload: { action: "read", task_id: 47 },
+          result_body: JSON.stringify({ task: { id: 47, title, state: "running" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "",
+          result_settled: true
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const resultSummary = screen.getByText(`${title} (running)`)
+    expect(resultSummary).toHaveClass("order-2", "basis-full", "pl-5", "sm:order-none", "sm:basis-0", "sm:pl-0")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
+  })
+
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
     // list_design_docs's card lives entirely under
     // plugins/design_docs/app/frontend/tool_cards/ — this
