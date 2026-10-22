@@ -3,8 +3,8 @@ import { MarkdownPreview } from "./toolCardMarkdown"
 import { CardShell, displayValue, EmptyState, EntityReference, Row, StatePill } from "./toolCardUi"
 
 // Shared presentation for the Local Mode job-lifecycle tool family
-// (open_in_local_mode, cancel_local_mode, create_coding_job — the tool-card work /
-// All three return a `job_id`/`job_state`/`message` outcome,
+// (open_in_local_mode, open_in_coding_mode, cancel_local_mode,
+// create_coding_job). All four return a `job_id`/`job_state`/`message` outcome,
 // with `branch_name`/`repository_slug` present only where the underlying
 // tool actually resolves them; `tool_cards/<name>.tsx` files are thin
 // re-exports. Lives outside `tool_cards/` for the same reason as
@@ -14,6 +14,7 @@ export type LocalModeJobOutcome = {
   jobState: string
   message: string | null
   branchName: string | null
+  checkoutBranch: string | null
   repositorySlug: string | null
 }
 
@@ -59,6 +60,7 @@ export function parseLocalModeJobOutcome(value: unknown): LocalModeJobOutcome | 
     jobState,
     message: displayValue(value.message),
     branchName: displayValue(value.branch_name) || displayValue(releasedJob?.branch_name),
+    checkoutBranch: displayValue(value.checkout_branch),
     repositorySlug: displayValue(value.repository_slug)
   }
 }
@@ -145,9 +147,10 @@ function LocalModeJobOutcomeDetails({ result, showRepository = true }: { result:
           />
         ) : null}
       </div>
-      {result.branchName ? (
+      {result.branchName || result.checkoutBranch ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          <Row copyable label="Branch" value={result.branchName} wrap />
+          {result.branchName ? <Row copyable label="Branch" value={result.branchName} wrap /> : null}
+          {result.checkoutBranch ? <Row copyable label="Checkout branch" value={result.checkoutBranch} wrap /> : null}
         </dl>
       ) : null}
       {result.message ? <MarkdownPreview text={result.message} title="Outcome" /> : null}
