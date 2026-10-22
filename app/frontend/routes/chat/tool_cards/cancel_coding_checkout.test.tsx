@@ -40,6 +40,8 @@ describe("cancel_coding_checkout tool card", () => {
       expect(within(disclosure).getByText("Before")).toBeInTheDocument()
       expect(within(disclosure).getByText("After")).toBeInTheDocument()
       expect(within(disclosure).getByTitle("main")).toBeInTheDocument()
+      expect(within(disclosure).getByTitle("true")).toHaveTextContent("true")
+      expect(within(disclosure).getByTitle("false")).toHaveTextContent("false")
     }
   )
 
