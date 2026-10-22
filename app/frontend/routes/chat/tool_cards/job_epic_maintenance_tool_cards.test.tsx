@@ -18,6 +18,7 @@ import addEpicDependencyCard from "./add_epic_dependency"
 import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import removeEpicDependencyCard from "./remove_epic_dependency"
 import addJobDependencyCard from "./add_job_dependency"
+import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
@@ -172,6 +173,39 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("EPIC-12")).toBeInTheDocument()
     expect(screen.getByText("EPIC-19")).toBeInTheDocument()
     expect(screen.getByText("EPIC-18")).toBeInTheDocument()
+  })
+
+  it("renders linked per-dependency satisfaction details from a normalized add Job dependency example", () => {
+    const ctx = toolCardContextForExample("add_job_dependency", addJobDependencyExamples[0])
+
+    render(<>{addJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getAllByRole("link", { name: "JOB-49" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "JOB-49" }).every((link) => link.getAttribute("href") === "/jobs/49")).toBe(true)
+    expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.getByText("· success")).toBeInTheDocument()
+    expect(screen.getByText("· deployment_stage")).toBeInTheDocument()
+    expect(screen.getByText("· stage production")).toBeInTheDocument()
+  })
+
+  it("renders add Job dependency plain-text errors from a normalized example", () => {
+    const ctx = toolCardContextForExample("add_job_dependency", addJobDependencyExamples[1])
+
+    expect(addJobDependencyCard.collapsedSummary?.(ctx)).toBe("Add Job Dependency failed · JOB-50")
+    render(<>{addJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Job cannot depend on itself")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-50" }).every((link) => link.getAttribute("href") === "/jobs/50")).toBe(true)
+  })
+
+  it("renders an explicit empty state from a normalized add Job dependency example", () => {
+    const ctx = toolCardContextForExample("add_job_dependency", addJobDependencyExamples[2])
+
+    render(<>{addJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Current dependencies")).toBeInTheDocument()
+    expect(screen.getByText("No current dependencies")).toBeInTheDocument()
   })
 
   it("renders the added Epic as a linked and marked current dependency from a normalized example", () => {
