@@ -8,23 +8,23 @@ const migrationPayload: MigrationDiffPayload = {
   before: {
     table_name: "users",
     columns: [
-      { name: "id",         type: "integer" },
-      { name: "legacy_key", type: "string"  },
-      { name: "status",     type: "string"  }
+      { name: "id", type: "integer" },
+      { name: "legacy_key", type: "string" },
+      { name: "status", type: "string" }
     ]
   },
   after: {
     table_name: "users",
     columns: [
-      { name: "id",     type: "integer" },
-      { name: "email",  type: "string"  },
+      { name: "id", type: "integer" },
+      { name: "email", type: "string" },
       { name: "status", type: "integer" }
     ]
   },
   changes: [
-    { type: "added",    column: { name: "email",      type: "string"  } },
-    { type: "removed",  column: { name: "legacy_key", type: "string"  } },
-    { type: "modified", column: { name: "status",     type: "integer" } }
+    { type: "added", column: { name: "email", type: "string" } },
+    { type: "removed", column: { name: "legacy_key", type: "string" } },
+    { type: "modified", column: { name: "status", type: "integer" } }
   ]
 }
 
@@ -146,7 +146,26 @@ describe("MigrationDiffRenderer", () => {
   })
 
   it("renders database catalogs and makes an absent-before table explicit", () => {
-    render(<MigrationDiffRenderer payload={{ migration_name: "CreateWidgets", status: "success", before: { tables: [] }, after: { tables: [{ name: "widgets", columns: [{ name: "account_id", type: "bigint", sql_type: "bigint", nullable: false }], indexes: [{ name: "index_widgets_on_account_id", columns: ["account_id"], unique: true }], foreign_keys: [{ from_column: "account_id", to_table: "accounts", to_column: "id" }], check_constraints: [{ name: "account_positive", expression: "account_id > 0" }] }] } }} />)
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "success",
+          before: { tables: [] },
+          after: {
+            tables: [
+              {
+                name: "widgets",
+                columns: [{ name: "account_id", type: "bigint", sql_type: "bigint", nullable: false }],
+                indexes: [{ name: "index_widgets_on_account_id", columns: ["account_id"], unique: true }],
+                foreign_keys: [{ from_column: "account_id", to_table: "accounts", to_column: "id" }],
+                check_constraints: [{ name: "account_positive", expression: "account_id > 0" }]
+              }
+            ]
+          }
+        }}
+      />
+    )
     expect(screen.getByText("Absent")).toBeInTheDocument()
     expect(screen.getByText("account_id")).toBeInTheDocument()
     expect(screen.getByText(/index_widgets_on_account_id/)).toHaveTextContent("UNIQUE")
@@ -157,16 +176,52 @@ describe("MigrationDiffRenderer", () => {
   it("renders no-schema-change, cumulative fallback, and generation-error outcomes", () => {
     const { rerender } = render(<MigrationDiffRenderer payload={{ migration_name: "Backfill", status: "no_schema_changes" }} />)
     expect(screen.getByText("No schema changes")).toBeInTheDocument()
-    rerender(<MigrationDiffRenderer payload={{ migration_name: "Fallback", status: "cumulative_fallback", cumulative: true, message: "Attribution unavailable", before: { tables: [] }, after: { tables: [] } }} />)
+    rerender(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "Fallback",
+          status: "cumulative_fallback",
+          cumulative: true,
+          message: "Attribution unavailable",
+          before: { tables: [] },
+          after: { tables: [] }
+        }}
+      />
+    )
     expect(screen.getByText("Cumulative schema diff")).toBeInTheDocument()
     rerender(<MigrationDiffRenderer payload={{ migration_name: "Broken", status: "error", stage: "execution", message: "boom" }} />)
     expect(screen.getByRole("alert")).toHaveTextContent("execution: boom")
   })
 
   it("renders normalized structure.sql fallback changes", () => {
-    render(<MigrationDiffRenderer payload={{ migration_name: "CreateWidgets", status: "cumulative_fallback", cumulative: true, message: "structure fallback", before: { structure: ["DROP TABLE old_widgets"] }, after: { structure: ["CREATE TABLE widgets (id bigint)"] } }} />)
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "cumulative_fallback",
+          cumulative: true,
+          message: "structure fallback",
+          before: { structure: ["DROP TABLE old_widgets"] },
+          after: { structure: ["CREATE TABLE widgets (id bigint)"] }
+        }}
+      />
+    )
     expect(screen.getByText("Removed structure")).toBeInTheDocument()
     expect(screen.getByText(/DROP TABLE old_widgets/)).toBeInTheDocument()
     expect(screen.getByText(/CREATE TABLE widgets/)).toBeInTheDocument()
+  })
+
+  it("labels an empty structure fallback side", () => {
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "cumulative_fallback",
+          before: { structure: [] },
+          after: { structure: ["CREATE TABLE widgets (id bigint)"] }
+        }}
+      />
+    )
+    expect(screen.getByText("No structural statements")).toBeInTheDocument()
   })
 })
