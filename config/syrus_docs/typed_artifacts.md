@@ -175,9 +175,13 @@ Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload
 
 ## browser plugin artifact types
 
-### `visual_review_screenshot`
+### Visual-review screenshots
 
-Rendered as a single after screenshot (`:image_diff` renderer). Payload written by `submit_visual_artifact`:
+The preferred generic type is `visual_review_screenshot`, but callers may use
+descriptive types such as `visual_review_desktop_bulk_progress`. They are
+rendered as single after screenshots (`:image_diff` renderer). Visual-review
+iteration association uses trusted same-Run provenance and image metadata,
+not an exact original type. Payload written by `submit_visual_artifact`:
 
 ```json
 {

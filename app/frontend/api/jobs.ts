@@ -593,6 +593,10 @@ export type JobVisualReviewArtifact = {
   image_url: string | null
   content_type: string | null
   byte_size: number | null
+  page?: Record<string, unknown> | null
+  viewport?: Record<string, unknown> | null
+  source?: string | null
+  captured_at?: string | null
   created_at: string | null
 }
 

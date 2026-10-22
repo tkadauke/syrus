@@ -81,6 +81,14 @@ function parseVisualReviewArtifact(raw: unknown): JobVisualReviewArtifact[] {
     image_url: typeof obj.image_url === "string" ? obj.image_url : null,
     content_type: typeof obj.content_type === "string" ? obj.content_type : null,
     byte_size: typeof obj.byte_size === "number" ? obj.byte_size : null,
+    page: isRecord(obj.page) ? obj.page : null,
+    viewport: isRecord(obj.viewport) ? obj.viewport : null,
+    source: typeof obj.source === "string" ? obj.source : null,
+    captured_at: typeof obj.captured_at === "string" ? obj.captured_at : null,
     created_at: typeof obj.created_at === "string" ? obj.created_at : null
   }]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
