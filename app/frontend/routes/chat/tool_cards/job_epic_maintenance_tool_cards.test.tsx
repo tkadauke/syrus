@@ -10,6 +10,7 @@ import { examples as closeJobSuccessfullyExamples } from "./close_job_successful
 import setJobPriorityCard from "./set_job_priority"
 import { examples as setJobPriorityExamples } from "./set_job_priority"
 import updateJobCard from "./update_job"
+import { examples as updateJobExamples } from "./update_job"
 import rebaseJobCard from "./rebase_job"
 import { examples as rebaseJobExamples } from "./rebase_job"
 import reopenJobCard from "./reopen_job"
@@ -915,6 +916,41 @@ describe("Job and Epic maintenance tool cards", () => {
 
     expect(screen.getByText("New title")).toBeInTheDocument()
     expect(screen.getByText("New Epic")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(updateJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: updateJobExamples[0].parsedResult }]
+  ] as const)("renders Job changed fields and expandable Markdown from a normalized %s envelope", (_label, envelope) => {
+    const example = updateJobExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__update_job"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(updateJobCard.collapsedSummary?.(ctx)).toBe("Updated · JOB-70")
+    render(<>{updateJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-70" })).toHaveAttribute("href", "/jobs/70")
+    expect(screen.getByText("Changed fields")).toBeInTheDocument()
+    expect(screen.getByText("Title, Description")).toBeInTheDocument()
+    expect(screen.getByText("Updated implementation")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog", { name: "Updated Job description" })).getByText("Updated implementation")).toBeInTheDocument()
+  })
+
+  it("shows the closed Job state and attempted fields when an update fails", () => {
+    const ctx = toolCardContextForExample("update_job", updateJobExamples[1])
+
+    expect(updateJobCard.collapsedSummary?.(ctx)).toBe("Update Job failed · JOB-70")
+    render(<>{updateJobCard.renderExpanded(ctx)}</>)
+
+    expect(document.body).toHaveTextContent("JOB-70 is closed and cannot be updated.")
+    expect(screen.getByText("Job state")).toBeInTheDocument()
+    expect(screen.getByText("closed")).toBeInTheDocument()
+    expect(screen.getAllByText("Attempted title")).toHaveLength(2)
+    expect(screen.getByText("Attempted description")).toBeInTheDocument()
+    expect(screen.getByText("attempted")).toBeInTheDocument()
   })
 
   it.each([
