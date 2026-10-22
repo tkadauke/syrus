@@ -68,6 +68,12 @@ RSpec.describe VisualDiffSubmission do
     Thread.current[:syrus_current_run] = previous
   end
 
+  def finish_visual_diff(workflow, state)
+    Run.where(step_id: workflow.steps.select(:id)).update_all(state: state, finished_at: Time.current)
+    workflow.update_columns(state: state, finished_at: Time.current)
+    workflow.work_unit.mark_terminal!(state)
+  end
+
   it "dispatches a manual visual_diff workflow using existing after screenshots" do
     job = Factories.job_record(user: user, repository: repository, state: "implemented")
     after_workflow_for(job)
@@ -152,6 +158,66 @@ RSpec.describe VisualDiffSubmission do
     deferred = job.workflows.where(trigger_kind: "visual_diff").last
     expect(deferred).to have_attributes(priority: "low")
     expect(deferred.artifact("visual_diff_source")).to eq("visual_review")
+  end
+
+  it "does not create another automatic workflow after the matching comparison succeeds" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    source = after_workflow_for(job, trigger_kind: "initial")
+    first = described_class.enqueue_deferred_for_visual_review(source).workflow
+    finish_visual_diff(first, "succeeded")
+
+    expect {
+      result = described_class.enqueue_deferred_for_visual_review(source)
+      expect(result).to be_success
+      expect(result.workflow).to eq(first)
+      expect(result.run).to be_nil
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+  end
+
+  %w[failed cancelled].each do |terminal_state|
+    it "retries an automatic comparison after it is #{terminal_state}" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented")
+      source = after_workflow_for(job, trigger_kind: "initial")
+      first = described_class.enqueue_deferred_for_visual_review(source).workflow
+      finish_visual_diff(first, terminal_state)
+
+      expect {
+        result = described_class.enqueue_deferred_for_visual_review(source)
+        expect(result.workflow).not_to eq(first)
+        expect(result.run).to be_present
+      }.to change { job.workflows.where(trigger_kind: "visual_diff").count }.by(1)
+    end
+  end
+
+  it "creates new automatic comparisons for a newer source workflow or approved iteration" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    first_source = after_workflow_for(job, trigger_kind: "initial")
+    first = described_class.enqueue_deferred_for_visual_review(first_source).workflow
+    finish_visual_diff(first, "succeeded")
+
+    second_source = after_workflow_for(job, trigger_kind: "chat_feedback")
+    expect {
+      second = described_class.enqueue_deferred_for_visual_review(second_source).workflow
+      finish_visual_diff(second, "succeeded")
+
+      iterations = second_source.artifact("visual_review_iterations") + [
+        { "iteration" => 2, "verdict" => "approved", "critique" => "Updated.", "artifacts" => [ after_artifact ] }
+      ]
+      second_source.update!(artifacts: second_source.artifacts.merge("visual_review_iterations" => iterations))
+      described_class.enqueue_deferred_for_visual_review(second_source)
+    }.to change { job.workflows.where(trigger_kind: "visual_diff").count }.by(2)
+  end
+
+  it "allows a manual comparison to rerun after success" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    after_workflow_for(job)
+    first = described_class.call(job: job).workflow
+    finish_visual_diff(first, "succeeded")
+
+    expect {
+      result = described_class.call(job: job)
+      expect(result.workflow).not_to eq(first)
+    }.to change { job.workflows.where(trigger_kind: "visual_diff").count }.by(1)
   end
 
   it "does not create deferred work before the job is implemented" do
