@@ -46,10 +46,15 @@ module Steps
         end
 
         base = entry.fetch("base_branch")
-        git.run("merge-base", "--is-ancestor", base, branch, chdir: workspace.path.to_s)
+        git.run("merge-base", "--is-ancestor", base_ref_for(entry), branch, chdir: workspace.path.to_s)
       rescue GitRunner::GitError => e
         raise StepFailed, "stack_agent_rebase: #{branch} was not rebased onto #{base}: #{e.message}"
       end
+    end
+
+    def base_ref_for(entry)
+      base = entry.fetch("base_branch")
+      pending_entries.any? { |pending| pending.fetch("branch_name") == base } ? base : "refs/remotes/origin/#{base}"
     end
 
     def fetch_pending_branches

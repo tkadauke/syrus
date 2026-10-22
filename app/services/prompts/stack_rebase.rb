@@ -8,9 +8,12 @@ module Prompts
     end
 
     def to_s
+      pending_branches = @stack_entries.to_set { |entry| entry.fetch("branch_name") }
       rows = @stack_entries.map.with_index(1) do |entry, index|
         pr = entry["pr_number"].present? ? "PR ##{entry["pr_number"]}" : "no PR number"
-        "#{index}. #{::App::Presentation.job_slug(entry["job_id"])}: `#{entry["branch_name"]}` onto `#{entry["base_branch"]}` (#{pr})"
+        base = entry.fetch("base_branch")
+        base_ref = pending_branches.include?(base) ? base : "origin/#{base}"
+        "#{index}. #{::App::Presentation.job_slug(entry["job_id"])}: `#{entry["branch_name"]}` onto `#{base_ref}` (#{pr})"
       end.join("\n")
 
       context = <<~CONTEXT.strip
