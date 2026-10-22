@@ -30,6 +30,7 @@ import removeJobDependencyCard from "./remove_job_dependency"
 import { examples as removeJobDependencyExamples } from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
+import { examples as removeJobFromEpicExamples } from "./remove_job_from_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -685,20 +686,46 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
-  it("renders update and remove-from-epic metadata", () => {
+  it("renders update metadata", () => {
     render(
       <>
         {updateJobCard.renderExpanded(context("update_job", { parsedResult: { job_id: 70, title: "New title", description: "New body", state: "open" } }))}
         {updateEpicCard.renderExpanded(context("update_epic", { parsedResult: { epic_id: 71, title: "New Epic", state: "ready" } }))}
-        {removeJobFromEpicCard.renderExpanded(
-          context("remove_job_from_epic", { parsedResult: { job_id: 72, removed_from_epic_id: 73, removed_from_epic_title: "Old Epic" } })
-        )}
       </>
     )
 
     expect(screen.getByText("New title")).toBeInTheDocument()
     expect(screen.getByText("New Epic")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(removeJobFromEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: removeJobFromEpicExamples[0].parsedResult }]
+  ] as const)("renders the linked source Epic and title from a normalized %s envelope", (_label, envelope) => {
+    const example = removeJobFromEpicExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__remove_job_from_epic"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(removeJobFromEpicCard.collapsedSummary?.(ctx)).toBe("Removed from Epic · JOB-72")
+    render(<>{removeJobFromEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-72" })).toHaveAttribute("href", "/jobs/72")
+    expect(screen.getByText("Removed from")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-73" })).toHaveAttribute("href", "/epics/73")
     expect(screen.getByText("Old Epic")).toBeInTheDocument()
+  })
+
+  it("renders the plain-text membership error with linked Job context", () => {
+    const ctx = toolCardContextForExample("remove_job_from_epic", removeJobFromEpicExamples[1])
+
+    expect(removeJobFromEpicCard.collapsedSummary?.(ctx)).toBe("Remove Job From Epic failed · JOB-72")
+    render(<>{removeJobFromEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: job must currently belong to an epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-72" })).toHaveAttribute("href", "/jobs/72")
   })
 
   it("renders normalized close-success details and expandable Markdown comments", () => {
