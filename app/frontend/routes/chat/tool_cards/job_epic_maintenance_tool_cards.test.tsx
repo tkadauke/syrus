@@ -85,6 +85,10 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(card.toolName).toBe(name)
   })
 
+  it("lets the structured rebase card own the input reason", () => {
+    expect(rebaseJobCard.argumentSummary?.({ job_id: 48, reason: "Refresh after **main** changed." })).toBe("")
+  })
+
   it("renders a Job success acknowledgement with before and after state", () => {
     const parsedResult = { job_id: 42, previous_state: "implemented", new_state: "approved" }
 
@@ -269,11 +273,7 @@ describe("Job and Epic maintenance tool cards", () => {
   })
 
   it("expands a long rebase reason instead of truncating it as a detail row", () => {
-    const reason = `Rebase after **main** changed. ${"Preserve the dependency updates and rerun affected checks. ".repeat(10)}`
-    const ctx = context("rebase_job", {
-      input: { job_id: 48, reason },
-      parsedResult: { pending_action_id: 32, state: "pending", message: "Job rebase requires operator confirmation." }
-    })
+    const ctx = toolCardContextForExample("rebase_job", rebaseJobExamples[2])
 
     render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
 
