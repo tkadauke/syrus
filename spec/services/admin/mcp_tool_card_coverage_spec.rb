@@ -399,9 +399,9 @@ RSpec.describe "chat MCP custom-card coverage inventory" do
       .reject { |path| path.match?(Admin::McpToolCardCoverage::TEST_CARD_PATTERN) }
       .filter_map do |path|
         source = File.read(path)
-        next unless source.include?("collapsedSummary") || source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN)
+        next unless source.include?("collapsedSummary") || source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN) || source.match?(Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN)
 
-        source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] || source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1]
+        source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] || source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1] || source[Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN, 2]
       end
 
     expect(explicit_tool_names & registered_tool_names).to eq([])
