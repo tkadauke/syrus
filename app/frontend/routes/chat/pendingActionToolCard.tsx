@@ -222,7 +222,7 @@ function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBloc
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
-      {value.runId ? <Row label="Run" value={<EntityReference id={value.runId} jobId={value.jobId} kind="run" workflowId={value.workflowId} />} /> : null}
+      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}`} id={value.runId} kind="run" />} /> : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
       {value.branch ? (
         <Row
@@ -329,6 +329,12 @@ export function PendingActionResultCard({
         <MarkdownPreview linkifyUrls={linkifyMessageUrls} maxLines={4} modalLabel="Error details" text={result.message} />
         <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
         {details}
+        {!details && !omitReason && result.inputReason ? (
+          <div>
+            <SectionLabel>Reason</SectionLabel>
+            <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.inputReason} />
+          </div>
+        ) : null}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
     )

@@ -11,6 +11,7 @@ import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
 import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocker_once"
 import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
+import reenqueueWorkCard from "./tool_cards/reenqueue_work"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -842,5 +843,57 @@ describe("cancel_stale_work pending action card", () => {
 
     expect(screen.getAllByText("None")).toHaveLength(2)
     expect(screen.getByText("Yes (default)")).toBeInTheDocument()
+  })
+})
+
+describe("reenqueue_work pending action card", () => {
+  const input = {
+    job_id: 4222,
+    workflow_id: 26123,
+    run_id: 99,
+    reason: "**Retry** after the worker recovered."
+  }
+
+  function reenqueueContext(parsedResult: unknown, requestInput: Record<string, unknown> | undefined = input): ToolCardContext {
+    return {
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__reenqueue_work"),
+      input: requestInput,
+      resultBody: "",
+      resultError: false,
+      parsedResult
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("renders linked input targets and a Markdown reason from a normalized %s envelope", (_label, envelope) => {
+    render(<>{reenqueueWorkCard.renderExpanded(reenqueueContext(normalizedToolCardParsedResult(envelope)))}</>)
+
+    expect(screen.getByText("Job")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("Workflow")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WF-26123" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+    expect(screen.getByText("Run")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99")
+    expect(screen.getByText("Retry", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("keeps attempted targets and the Markdown reason in a structured error state", () => {
+    render(<>{reenqueueWorkCard.renderExpanded(reenqueueContext({ error: "invalid_request", message: "The selected run cannot be re-enqueued." }))}</>)
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "WF-26123" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "RUN-99" })).toBeInTheDocument()
+    expect(screen.getByText("Retry", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("renders a recorded pending action when its input is missing", () => {
+    render(<>{reenqueueWorkCard.renderExpanded({ ...reenqueueContext(standardPayload()), input: undefined })}</>)
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
+    expect(screen.queryByText("Job")).not.toBeInTheDocument()
   })
 })
