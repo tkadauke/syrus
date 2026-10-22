@@ -13,6 +13,7 @@ import pollJobFeedbackCard from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
+import { examples as archiveEpicExamples } from "./archive_epic"
 import updateEpicCard from "./update_epic"
 import addEpicDependencyCard from "./add_epic_dependency"
 import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
@@ -334,9 +335,55 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("in progress")).toBeInTheDocument()
     expect(screen.getByText("EPIC-61")).toBeInTheDocument()
     expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
-    expect(screen.getByText("EPIC-62")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "EPIC-62" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "EPIC-62" }).every((link) => link.getAttribute("href") === "/epics/62")).toBe(true)
     expect(screen.getByText("pending #17")).toBeInTheDocument()
-    expect(screen.getByText("Archive EPIC-62? Open child Jobs will be cancelled and closed when confirmed.")).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Open child Jobs will be cancelled and closed when confirmed.")
+  })
+
+  it("renders archive Epic pending and error envelopes through the normalizer", () => {
+    const pending = toolCardContextForExample("archive_epic", archiveEpicExamples[0])
+    const failure = toolCardContextForExample("archive_epic", archiveEpicExamples[1])
+
+    expect(archiveEpicCard.collapsedSummary?.(pending)).toBe("Archive requested · EPIC-62 · pending #17")
+    expect(archiveEpicCard.collapsedSummary?.(failure)).toBe("Archive Epic failed · EPIC-62")
+
+    render(
+      <>
+        {archiveEpicCard.renderExpanded(pending)}
+        {archiveEpicCard.renderExpanded(failure)}
+      </>
+    )
+
+    expect(screen.getByRole("alert")).toHaveClass("border-warning-border", "bg-warning-surface")
+    expect(screen.getAllByRole("link", { name: "EPIC-62" })).toHaveLength(3)
+    expect(screen.getByText("Error: epic is already archived")).toBeInTheDocument()
+  })
+
+  it("uses the live confirmation to show the Epic as archived", () => {
+    const pending = toolCardContextForExample("archive_epic", archiveEpicExamples[0])
+    const confirmed = { ...pending, livePendingAction: livePendingAction(17, "confirmed") }
+
+    expect(archiveEpicCard.collapsedSummary?.(confirmed)).toBe("Archived · EPIC-62")
+    render(<>{archiveEpicCard.renderExpanded(confirmed)}</>)
+
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+    expect(screen.getByText("Epic state")).toBeInTheDocument()
+    expect(screen.getByText("archived")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("renders long archive warnings as expandable Markdown", () => {
+    const warning = `Archive **EPIC-62**? ${"Open child Jobs will be cancelled and closed when confirmed. ".repeat(8)}`
+    const ctx = context("archive_epic", {
+      input: { epic_id: 62 },
+      parsedResult: { pending_action_id: 17, state: "pending", message: warning }
+    })
+
+    render(<>{archiveEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("alert").querySelector("strong")).toHaveTextContent("EPIC-62")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
   it("renders update and remove-from-epic metadata", () => {

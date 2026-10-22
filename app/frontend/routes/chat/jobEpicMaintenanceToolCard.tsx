@@ -1,6 +1,7 @@
 import { isValidElement, type ReactNode } from "react"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "../../toolCardParsing"
+import { MarkdownPreview } from "./toolCardMarkdown"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 type SubjectKind = "job" | "epic"
@@ -12,6 +13,8 @@ type MaintenanceToolDefinition = {
   actionLabel: string
   verb: string
   pendingVerb?: string
+  confirmedSubjectState?: string
+  warningMessage?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -29,7 +32,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
   start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
   move_epic_to_backlog: { toolName: "move_epic_to_backlog", subjectKind: "epic", actionLabel: "Move Epic To Backlog", verb: "Moved to backlog" },
-  archive_epic: { toolName: "archive_epic", subjectKind: "epic", actionLabel: "Archive Epic", verb: "Archive requested" },
+  archive_epic: {
+    toolName: "archive_epic",
+    subjectKind: "epic",
+    actionLabel: "Archive Epic",
+    verb: "Archived",
+    pendingVerb: "Archive requested",
+    confirmedSubjectState: "archived",
+    warningMessage: true
+  },
   update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
   remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
@@ -54,6 +65,7 @@ type MaintenanceCard = {
   pendingGroupId: string | null
   memberCount: number | null
   state: string
+  subjectState: string | null
   hasNewState: boolean
   failed: boolean
   message: string | null
@@ -214,6 +226,15 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const failed = context.resultError || state === "failed"
   const message = errorMessage(context) || displayValue(result.message)
   const transitionExecuted = (!pendingId && !pendingGroupId) || state === "confirmed"
+  const liveOutcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : {}
+  const subjectState = definition.confirmedSubjectState
+    ? firstValue(
+        liveOutcome.state,
+        objectValue(liveMatch?.after_snapshot, "state"),
+        transitionExecuted ? result.new_state : null,
+        state === "confirmed" ? definition.confirmedSubjectState : null
+      )
+    : null
   const hasRecognizedResult = [
     "job_id",
     "epic_id",
@@ -249,6 +270,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     pendingGroupId,
     memberCount,
     state,
+    subjectState,
     hasNewState: transitionExecuted && displayValue(result.new_state) != null,
     failed,
     message,
@@ -266,6 +288,13 @@ function targetSummary(card: MaintenanceCard) {
 
 function isAwaitingState(state: string) {
   return state === "pending" || state === "confirming" || state === "queued"
+}
+
+function messageWithLinkedTarget(card: MaintenanceCard) {
+  if (!card.message || !card.targetId) return card.message
+  const label = prefixedId(card.definition.subjectKind, card.targetId)
+  const href = card.definition.subjectKind === "epic" ? `/epics/${card.targetId}` : `/jobs/${card.targetId}`
+  return card.message.replaceAll(label, `[${label}](${href})`)
 }
 
 export function jobEpicMaintenanceCollapsedSummary(context: ToolCardContext) {
@@ -316,7 +345,27 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           </Badge>
         ) : null}
       </div>
-      {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
+      {card.subjectState ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Epic state</span>
+          <StatePill state={card.subjectState} tone={card.subjectState === "archived" ? "success" : undefined} />
+        </div>
+      ) : null}
+      {card.message ? (
+        <div
+          className={card.definition.warningMessage && awaitingConfirmation ? "rounded border border-warning-border bg-warning-surface p-2" : undefined}
+          role={card.definition.warningMessage && awaitingConfirmation ? "alert" : undefined}
+        >
+          <MarkdownPreview
+            className={card.definition.warningMessage && awaitingConfirmation ? "font-medium text-warning-text" : undefined}
+            linkifySlugs
+            maxChars={360}
+            maxLines={3}
+            modalLabel={`${card.definition.actionLabel} message`}
+            text={messageWithLinkedTarget(card)}
+          />
+        </div>
+      ) : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">
           {card.rows.map((row, index) => (
