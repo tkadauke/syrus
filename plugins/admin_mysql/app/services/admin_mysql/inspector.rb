@@ -44,18 +44,18 @@ module AdminMysql
       row = PerformanceLogging.suppress do
         select_all("SHOW FULL PROCESSLIST").find { |candidate| candidate["Id"].to_i == thread_id }
       end
-      normalize_process(row) if row
+      normalize_process(row).merge(statement_verifier: statement_verifier(row["Info"])) if row
     end
 
-    def kill_query(thread_id, expected_statement: nil, expected_statement_digest: nil)
+    def kill_query(thread_id, expected_statement: nil, expected_statement_verifier: nil)
       require_mysql!
       thread_id = normalize_thread_id(thread_id)
 
-      if expected_statement || expected_statement_digest
+      if expected_statement || expected_statement_verifier
         current = process(thread_id)
         raise ArgumentError, "MySQL thread #{thread_id} no longer exists" unless current
-        statement_matches = if expected_statement_digest
-          ActiveSupport::SecurityUtils.secure_compare(current[:statement_digest], expected_statement_digest)
+        statement_matches = if expected_statement_verifier
+          ActiveSupport::SecurityUtils.secure_compare(current[:statement_verifier], expected_statement_verifier)
         else
           current[:info] == expected_statement
         end
@@ -232,9 +232,12 @@ module AdminMysql
         command: row["Command"],
         time_seconds: row["Time"].to_i,
         state: row["State"],
-        info: redact_sql(raw_info),
-        statement_digest: Digest::SHA256.hexdigest(raw_info.to_s)
+        info: redact_sql(raw_info)
       }
+    end
+
+    def statement_verifier(value)
+      OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, "admin_mysql_kill_query\0#{value}")
     end
 
     def statement_digests(limit:)

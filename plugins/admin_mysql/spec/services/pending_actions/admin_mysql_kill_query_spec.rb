@@ -6,7 +6,7 @@ RSpec.describe PendingActions::AdminMysqlKillQuery do
     chat_session = ChatSession.create!(user: admin)
     pending_action = chat_session.pending_actions.create!(
       action: "admin_mysql_kill_query",
-      payload: { "thread_id" => 42, "statement" => "SELECT * FROM jobs", "statement_digest" => "safe-digest" },
+      payload: { "thread_id" => 42, "statement" => "SELECT * FROM jobs", "statement_verifier" => "safe-verifier" },
       requested_by: "agent"
     )
     inspector = instance_double(AdminMysql::Inspector)
@@ -17,7 +17,7 @@ RSpec.describe PendingActions::AdminMysqlKillQuery do
     expect(inspector).to have_received(:kill_query).with(
       42,
       expected_statement: "SELECT * FROM jobs",
-      expected_statement_digest: "safe-digest"
+      expected_statement_verifier: "safe-verifier"
     )
     expect(pending_action.reload).to be_confirmed
   end
