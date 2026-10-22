@@ -41,6 +41,17 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     pendingVerb: "Cancel requested",
     confirmedSubjectState: "cancelled"
   },
+  force_fail_job: {
+    toolName: "force_fail_job",
+    subjectKind: "job",
+    actionLabel: "Force Fail Job",
+    verb: "Force fail requested",
+    confirmedSubjectState: "failed",
+    warningMessage: true,
+    showsFullErrorMessage: true,
+    showsReasonMarkdown: true,
+    recoversTargetFromMessage: true
+  },
   close_job_successfully: {
     toolName: "close_job_successfully",
     subjectKind: "job",
