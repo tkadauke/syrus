@@ -16,6 +16,8 @@ type MaintenanceToolDefinition = {
   confirmedSubjectState?: string
   warningMessage?: boolean
   showsComment?: boolean
+  showsTargetTitle?: boolean
+  transitionStatePills?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -47,7 +49,14 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
   remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
   start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
-  move_epic_to_backlog: { toolName: "move_epic_to_backlog", subjectKind: "epic", actionLabel: "Move Epic To Backlog", verb: "Moved to backlog" },
+  move_epic_to_backlog: {
+    toolName: "move_epic_to_backlog",
+    subjectKind: "epic",
+    actionLabel: "Move Epic To Backlog",
+    verb: "Moved to backlog",
+    showsTargetTitle: true,
+    transitionStatePills: true
+  },
   archive_epic: {
     toolName: "archive_epic",
     subjectKind: "epic",
@@ -212,13 +221,21 @@ function dependencyList(context: ToolCardContext, definition: MaintenanceToolDef
   })
 }
 
-function buildRows(context: ToolCardContext, result: Record<string, unknown>, transitionExecuted = true) {
+function buildRows(context: ToolCardContext, definition: MaintenanceToolDefinition, result: Record<string, unknown>, transitionExecuted = true) {
   const rows: DetailRow[] = []
-  pushRow(rows, "Before", result.previous_state)
-  if (transitionExecuted) pushRow(rows, "After", result.new_state)
+  const previousState = firstValue(result.previous_state)
+  const newState = firstValue(result.new_state)
+  pushRow(rows, "Before", definition.transitionStatePills && previousState ? <StatePill state={previousState} /> : previousState)
+  if (transitionExecuted) pushRow(rows, "After", definition.transitionStatePills && newState ? <StatePill state={newState} /> : newState)
   pushRow(rows, "Previous priority", result.previous_priority)
   pushRow(rows, "New priority", result.new_priority)
-  pushRow(rows, "Title", result.title)
+  pushRow(
+    rows,
+    "Title",
+    definition.showsTargetTitle
+      ? firstValue(result.title, result.epic_title, objectValue(context.input, "title"), objectValue(context.input, "epic_title"))
+      : result.title
+  )
   pushRow(rows, "Description", result.description)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
   pushRow(rows, "Dependency", dependencyReference(context, result))
@@ -268,6 +285,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     "previous_priority",
     "new_priority",
     "title",
+    "epic_title",
     "description",
     "closure_reason",
     "reason",
@@ -295,7 +313,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     failed,
     message,
     comment: definition.showsComment ? firstValue(objectValue(context.input, "comment")) : null,
-    rows: buildRows(context, result, transitionExecuted),
+    rows: buildRows(context, definition, result, transitionExecuted),
     dependencies: dependencyList(context, definition, result),
     showsDependencies: [result.depends_on, result.depends_on_job_ids, result.depends_on_epic_ids, result.dependencies].some(Array.isArray)
   }
