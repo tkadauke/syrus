@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "../../../api/chats"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
-import pauseLandingQueueToolCard from "./pause_landing_queue"
+import pauseLandingQueueToolCard, { examples } from "./pause_landing_queue"
 
 const pending = { pending_action_id: 501, pending_confirmation_id: 501, state: "pending", message: "Pause the landing queue?" }
 
@@ -31,6 +31,24 @@ function liveAction(state: ChatPendingActionInline["state"], executionStatus?: s
 }
 
 describe("pause_landing_queue tool card", () => {
+  it("registers pending, paused, and rejected catalog fixtures", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_confirmation", "paused", "rejected"])
+  })
+
+  it.each([
+    ["pending_confirmation", "pending"],
+    ["paused", "paused"],
+    ["rejected", "rejected"]
+  ])("renders the %s catalog fixture", (id, outcome) => {
+    const example = examples.find((candidate) => candidate.id === id)
+    if (!example) throw new Error(`missing fixture: ${id}`)
+
+    render(<>{pauseLandingQueueToolCard.renderExpanded(toolCardContextForExample(pauseLandingQueueToolCard.toolName, example))}</>)
+
+    expect(screen.getByText("Landing queue")).toBeInTheDocument()
+    expect(screen.getAllByText(outcome)).not.toHaveLength(0)
+  })
+
   it.each([
     ["Claude text", { content: [{ type: "text", text: JSON.stringify(pending) }], structured_content: null }],
     ["Codex structured", { content: [], structured_content: pending }]
