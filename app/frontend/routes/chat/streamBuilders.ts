@@ -19,6 +19,7 @@ import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 // alone (the previous behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
+const TOOL_CARD_CONTEXT_CALL_LIMIT = 50
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -31,6 +32,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
   const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
   const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([ [ ROOT_KEY, null ] ])
   const openCallsByToolUseId = new Map<string, OpenCall>()
+  const settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]> = []
 
   for (const message of messages) {
     if (groupableToolUse(message)) {
@@ -52,6 +54,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         result_error: false,
         result_kind: "unknown",
         result_summary: "",
+        context_calls: settledContextCalls.slice(-TOOL_CARD_CONTEXT_CALL_LIMIT),
         // ChatPendingAction::anchor_to_tool_call! always anchors onto the
         // tool_use message, never the paired tool_result -- so this is the
         // only message carrying a live pending_action for the whole call.
@@ -116,11 +119,14 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
           open.call.result_error,
           unboundedBody,
           isPlainObject(open.call.raw_payload) ? open.call.raw_payload : {},
-          parsedResult
+          parsedResult,
+          open.call.context_calls
         )
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        settledContextCalls.push({ tool_name: open.call.raw_name || open.call.tool_name, input: open.call.raw_payload, result: parsedResult })
+        if (settledContextCalls.length > TOOL_CARD_CONTEXT_CALL_LIMIT) settledContextCalls.shift()
         updateToolGroupState(open.group)
       } else {
         resetLastGroup(message, lastGroupByParentKey)

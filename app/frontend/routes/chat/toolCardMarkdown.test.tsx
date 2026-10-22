@@ -129,6 +129,44 @@ describe("MarkdownPreview", () => {
     expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Description to clipboard" })).toBeInTheDocument()
   })
 
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>Nothing here</span>} text=" " />)
+    expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and passes link behavior through both views", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveTextContent("JOB-42")
+    expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["mobile", 320],
+    ["desktop", 960]
+  ])("does not visually clamp untruncated text at %s width", (_viewport, width) => {
+    const text = "Responsive paragraph content. ".repeat(35)
+    render(
+      <div style={{ width }}>
+        <MarkdownPreview maxChars={2_400} maxLines={6} text={text} />
+      </div>
+    )
+
+    const preview = screen.getByTestId("markdown-preview-content")
+    expect(preview).toHaveTextContent(text.trim())
+    expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
+    expect(preview.style.overflow).toBe("")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
   it("wraps long unbroken strings without horizontal overflow", () => {
     render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
 

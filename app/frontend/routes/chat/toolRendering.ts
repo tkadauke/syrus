@@ -8,6 +8,7 @@ import { isPlainObject, normalizedToolCardParsedResult, parseJsonText } from "..
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardArgumentSummary, pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import type { ChatToolContextCall } from "../../api/chats"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
 export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
@@ -395,7 +396,8 @@ export function toolResultPresentation(
   error = false,
   parseBody: string = body,
   input: Record<string, unknown> = {},
-  parsedResult?: unknown
+  parsedResult?: unknown,
+  contextCalls: ChatToolContextCall[] = []
 ): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
@@ -412,7 +414,12 @@ export function toolResultPresentation(
     resultBody: redactToolCardText(body),
     resultError: error,
     resultSettled: true,
-    parsedResult: redactToolCardValue(cardParsed)
+    parsedResult: redactToolCardValue(cardParsed),
+    priorCalls: contextCalls.map((call) => ({
+      toolName: normalizedToolName(call.tool_name),
+      input: (isPlainObject(call.input) ? redactToolCardValue(call.input) : {}) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(normalizedToolCardParsedResult(call.result))
+    }))
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
