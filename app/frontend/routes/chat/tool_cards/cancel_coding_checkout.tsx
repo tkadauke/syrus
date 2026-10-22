@@ -7,9 +7,10 @@ const DESTRUCTIVE_WARNING_CLASS =
   "rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-3 py-2 text-sm font-semibold text-warning-text"
 
 function snapshotValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "true" : "false"
   if (Array.isArray(value))
     return value
-      .map((item) => displayValue(item))
+      .map((item) => snapshotValue(item))
       .filter(Boolean)
       .join(", ")
   if (value && typeof value === "object") return JSON.stringify(value)
