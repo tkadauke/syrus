@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
-import repairProviderCircuitEvidenceToolCard from "./repair_provider_circuit_evidence"
+import repairProviderCircuitEvidenceToolCard, { examples } from "./repair_provider_circuit_evidence"
 
 const RESULT = {
   pending_action_id: 501,
@@ -30,6 +30,10 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 describe("repair_provider_circuit_evidence tool card", () => {
+  it("registers visual catalog examples for the changed states", () => {
+    expect(examples.map((example) => example.id)).toEqual(["single_pending", "group_confirmed", "rejected", "tool_error"])
+  })
+
   it("registers the raw sidecar name and renders every single-repair field", () => {
     expect(normalizedToolName("mcp__syrus-chat-sidecar__repair_provider_circuit_evidence")).toBe(repairProviderCircuitEvidenceToolCard.toolName)
 
