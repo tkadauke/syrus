@@ -740,7 +740,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
-  it("keeps collapsed tool metadata on one truncated line without hiding the call count", () => {
+  it("wraps collapsed tool metadata on narrow screens without hiding the call count", () => {
     const detail = "a very long argument detail that must not make a narrow tool row grow vertically"
     const calls: ChatToolGroupItem["calls"] = [1, 2].map((messageId) => ({
       message_id: messageId,
@@ -759,7 +759,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls }} />)
 
     const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
-    expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "basis-full", "break-words", "sm:basis-0")
+    expect(metadata).not.toHaveClass("truncate")
     expect(metadata).not.toHaveAttribute("title")
     const count = screen.getByText("2")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
@@ -1268,7 +1269,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("truncate")
+    expect(summary).toHaveClass("basis-full", "break-words", "sm:basis-0")
 
     expandToolGroup("Git status")
 
@@ -1787,6 +1788,36 @@ describe("tool result rendering", () => {
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
     expect(summary).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
     expect(summary).not.toHaveClass("shrink-0")
+  })
+
+  it("gives long registered-card summaries a full-width second row on mobile", () => {
+    const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Admin maintenance tasks",
+      calls: [
+        {
+          message_id: 47,
+          tool_name: "admin_maintenance_tasks",
+          raw_name: "mcp__syrus-chat-sidecar__admin_maintenance_tasks",
+          detail: "No arguments",
+          display_label: "Admin maintenance tasks",
+          progress_label: "Reading maintenance tasks",
+          raw_payload: { action: "read", task_id: 47 },
+          result_body: JSON.stringify({ task: { id: 47, title, state: "running" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "",
+          result_settled: true
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const resultSummary = screen.getByText(`${title} (running)`)
+    expect(resultSummary).toHaveClass("order-2", "basis-full", "pl-5", "sm:order-none", "sm:basis-0", "sm:pl-0")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {

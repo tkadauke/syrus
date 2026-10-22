@@ -56,6 +56,7 @@ export type PendingActionResult =
       reason: string | null
       memberCount: number | null
       groupId: string | null
+      observed: unknown
     } & TargetContext &
       LiveDetails)
   | {
@@ -74,9 +75,20 @@ export type PendingActionInputField = {
   format?: "plain" | "badge" | "list" | "markdown" | "entity" | "entity_list"
   entityKind?: ToolCardEntityKind
   hrefPrefix?: string
+  emptyLabel?: string
 }
 
-export type PendingActionToolCardOptions = { inputFields?: PendingActionInputField[] }
+export type PendingActionResultField = {
+  path: string
+  label: string
+  format?: "plain" | "badge" | "number"
+}
+
+export type PendingActionToolCardOptions = {
+  inputFields?: PendingActionInputField[]
+  observedSummary?: boolean
+  resultFields?: PendingActionResultField[]
+}
 
 function parsedErrorMessage(value: unknown): string | null {
   if (typeof value === "string") return value.trim() || null
@@ -176,6 +188,7 @@ export function parsePendingActionResult(context: ToolCardContext, includeError 
       reason: liveMatch?.reason || displayValue(value.reason) || target.inputReason,
       memberCount,
       groupId,
+      observed: value.observed,
       ...parseContext(value, input),
       executionStatus: displayValue(liveMatch?.execution_status),
       executionStep: displayValue(liveMatch?.execution_step),
@@ -349,6 +362,7 @@ function linkedPendingProse(value: string) {
 
 function InputValue({ field, value }: { field: PendingActionInputField; value: unknown }) {
   const format = field.format || "plain"
+  if ((value == null || displayValue(value) === "") && field.emptyLabel) return <span className="text-text-primary">{field.emptyLabel}</span>
   if (format === "markdown")
     return (
       <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel={`Full ${inputLabel(field).toLowerCase()}`} text={displayValue(value)} />
@@ -387,12 +401,13 @@ function InputValue({ field, value }: { field: PendingActionInputField; value: u
   return format === "badge" ? <Badge>{displayed}</Badge> : <span className="break-all text-text-primary [overflow-wrap:anywhere]">{displayed}</span>
 }
 
-function InputDetails({ fields, input }: { fields: PendingActionInputField[]; input?: Record<string, unknown> }) {
+export function InputDetails({ fields, input }: { fields: PendingActionInputField[]; input?: Record<string, unknown> }) {
   if (!input) return null
-  const populated = fields.filter((field) =>
-    Array.isArray(input[field.key]) ? (input[field.key] as unknown[]).length > 0 : input[field.key] != null && displayValue(input[field.key]) !== ""
-  )
-  if (!populated.length) return null
+  const populated = fields.filter((field) => {
+    const value = input[field.key]
+    return field.emptyLabel || (Array.isArray(value) ? value.length > 0 : value != null && displayValue(value) !== "")
+  })
+  if (populated.length === 0) return null
   return (
     <div>
       <SectionLabel>Targets and parameters</SectionLabel>
@@ -410,15 +425,49 @@ function InputDetails({ fields, input }: { fields: PendingActionInputField[]; in
   )
 }
 
+function valueAtPath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, key) => (isPlainObject(current) ? current[key] : undefined), value)
+}
+
+function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; value: unknown }) {
+  const populated = fields.flatMap((field) => {
+    const fieldValue = valueAtPath(value, field.path)
+    return fieldValue == null ? [] : [{ field, value: fieldValue }]
+  })
+  if (populated.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Previewed impact</SectionLabel>
+      <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
+        {populated.map(({ field, value: fieldValue }) => {
+          const displayed = field.format === "number" ? numberValue(fieldValue)?.toLocaleString() : displayValue(fieldValue)
+          if (!displayed) return null
+          return (
+            <div className="min-w-0" key={field.path}>
+              <dt className="text-2xs font-semibold uppercase text-text-muted">{field.label}</dt>
+              <dd className="mt-0.5 break-words text-text-primary [overflow-wrap:anywhere]">
+                {field.format === "badge" ? <Badge>{displayed}</Badge> : displayed}
+              </dd>
+            </div>
+          )
+        })}
+      </dl>
+    </div>
+  )
+}
+
 export function PendingActionResultCard({
   details,
   input,
   inputFields = [],
+  observedSummary = false,
   result
 }: {
   details?: ReactNode
   input?: Record<string, unknown>
   inputFields?: PendingActionInputField[]
+  observedSummary?: boolean
   result: PendingActionResult
 }) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
@@ -427,7 +476,7 @@ export function PendingActionResultCard({
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="failed" />
-          {result.code ? <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span> : null}
+          <span className="break-all font-mono font-semibold text-danger-text">{result.code || "Tool error"}</span>
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
@@ -452,6 +501,7 @@ export function PendingActionResultCard({
         ) : null}
       </div>
       <InputDetails fields={inputFields} input={input} />
+      {observedSummary ? <ObservedSummary value={result.observed} /> : null}
       <ContextRows value={result} />
       {details}
       {result.resourceTitle && result.resourceUrl ? (
@@ -462,7 +512,7 @@ export function PendingActionResultCard({
       {result.message ? (
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
       ) : null}
-      {result.reason ? (
+      {result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
           <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
@@ -477,6 +527,34 @@ export function PendingActionResultCard({
   )
 }
 
+function ObservedSummary({ value }: { value: unknown }) {
+  const snapshots = (Array.isArray(value) ? value : [value]).filter(isPlainObject)
+  if (snapshots.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Observed evidence</SectionLabel>
+      <div className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
+        {snapshots.map((snapshot, index) => (
+          <div
+            className="min-w-0 rounded-[var(--radius-panel)] border border-border bg-surface px-2 py-1"
+            key={`${displayValue(snapshot.evidence_id) || index}`}
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {displayValue(snapshot.evidence_id) ? <EntityReference id={displayValue(snapshot.evidence_id)!} kind="artifact" wrap="break" /> : null}
+              {displayValue(snapshot.status) ? <Badge>{displayValue(snapshot.status)}</Badge> : null}
+              {displayValue(snapshot.source) ? <Badge>{displayValue(snapshot.source)}</Badge> : null}
+            </div>
+            {displayValue(snapshot.observed_at) ? (
+              <div className="mt-1 break-all font-mono text-2xs text-text-muted">{displayValue(snapshot.observed_at)}</div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function pendingActionToolCard(toolName: string, options: PendingActionToolCardOptions = {}): ToolCardRenderer {
   return {
     toolName,
@@ -486,7 +564,16 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
     },
     renderExpanded(context) {
       const result = parsePendingActionResult(context, true)
-      return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
+      if (!result) return null
+      return (
+        <PendingActionResultCard
+          details={<ResultDetails fields={options.resultFields || []} value={normalizedToolCardParsedResult(context.parsedResult)} />}
+          input={context.input}
+          inputFields={options.inputFields}
+          observedSummary={options.observedSummary}
+          result={result}
+        />
+      )
     }
   }
 }
