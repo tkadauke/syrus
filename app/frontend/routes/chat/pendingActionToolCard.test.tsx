@@ -875,7 +875,7 @@ describe("reenqueue_work pending action card", () => {
     expect(screen.getByText("Workflow")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-26123" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
     expect(screen.getByText("Run")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99")
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
     expect(screen.getByText("Retry", { selector: "strong" })).toBeInTheDocument()
   })
 

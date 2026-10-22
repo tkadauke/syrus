@@ -222,7 +222,7 @@ function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBloc
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
-      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}`} id={value.runId} kind="run" />} /> : null}
+      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} /> : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
       {value.branch ? (
         <Row
