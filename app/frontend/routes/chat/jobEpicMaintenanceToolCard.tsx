@@ -19,7 +19,14 @@ type MaintenanceToolDefinition = {
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   approve_job: { toolName: "approve_job", subjectKind: "job", actionLabel: "Approve Job", verb: "Approved", pendingVerb: "Approval requested" },
-  cancel_job: { toolName: "cancel_job", subjectKind: "job", actionLabel: "Cancel Job", verb: "Cancel requested" },
+  cancel_job: {
+    toolName: "cancel_job",
+    subjectKind: "job",
+    actionLabel: "Cancel Job",
+    verb: "Cancelled",
+    pendingVerb: "Cancel requested",
+    confirmedSubjectState: "cancelled"
+  },
   close_job_successfully: { toolName: "close_job_successfully", subjectKind: "job", actionLabel: "Close Job Successfully", verb: "Close requested" },
   set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
   update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
@@ -109,7 +116,10 @@ function firstValue(...values: unknown[]) {
 function targetIdFor(context: ToolCardContext, definition: MaintenanceToolDefinition) {
   const result = isPlainObject(context.parsedResult) ? context.parsedResult : {}
   const key = definition.subjectKind === "epic" ? "epic_id" : "job_id"
-  return firstValue(result[key], objectValue(context.input, key))
+  const explicitTarget = firstValue(result[key], objectValue(context.input, key))
+  if (explicitTarget || definition.toolName !== "cancel_job") return explicitTarget
+
+  return displayValue(result.message)?.match(/\bJOB-(\d+)\b/i)?.[1] || null
 }
 
 function targetIdsFor(context: ToolCardContext, definition: MaintenanceToolDefinition) {
@@ -347,7 +357,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
       </div>
       {card.subjectState ? (
         <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-          <span>Epic state</span>
+          <span>{card.definition.subjectKind === "epic" ? "Epic" : "Job"} state</span>
           <StatePill state={card.subjectState} tone={card.subjectState === "archived" ? "success" : undefined} />
         </div>
       ) : null}
@@ -372,6 +382,18 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
             <Row key={`${row.label}-${index}`} label={row.label} value={row.value} />
           ))}
         </dl>
+      ) : null}
+      {card.targetIds.length > 0 ? (
+        <div>
+          <SectionLabel>{card.definition.subjectKind === "epic" ? "Epics" : "Jobs"}</SectionLabel>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {card.targetIds.map((id) => (
+              <Badge key={id}>
+                <EntityReference id={id} kind={SUBJECT_ENTITY_KIND[card.definition.subjectKind]} />
+              </Badge>
+            ))}
+          </div>
+        </div>
       ) : null}
       {card.showsDependencies ? (
         <div>
