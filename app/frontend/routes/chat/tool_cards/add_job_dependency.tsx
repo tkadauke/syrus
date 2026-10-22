@@ -14,7 +14,7 @@ export const examples: ToolCardExample[] = [
       depends_on_epic_ids: [12],
       dependencies: [
         { id: 101, depends_on_job_id: 49, satisfaction_mode: "success", required_deployment_stage_name: null },
-        { id: 102, epic_id: 12, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "production" }
+        { id: 102, depends_on_epic_id: 12, satisfaction_mode: "deployment_stage", required_deployment_stage_name: "production" }
       ]
     }
   },
