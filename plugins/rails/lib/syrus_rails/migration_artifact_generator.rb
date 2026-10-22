@@ -12,7 +12,14 @@ module SyrusRails
     RESULT_PREFIX = "SYRUS_MIGRATION_ARTIFACT="
     LOCAL_HOSTS = %w[localhost 127.0.0.1 ::1].freeze
 
-    class GenerationError < StandardError; end
+    class GenerationError < StandardError
+      attr_reader :stage
+
+      def initialize(message, stage: "setup")
+        @stage = stage
+        super(message)
+      end
+    end
     class DisposableDatabaseUnavailable < GenerationError; end
 
     def initialize(workspace:, workflow:, git: GitRunner.new(workflow: workflow), runner: ProcessRunner)
@@ -50,37 +57,64 @@ module SyrusRails
 
     def execute(base, migrations)
       schema_kind, schema = base_schema(base)
-      return fallback(base, migrations, "base revision uses db/structure.sql") if schema_kind == :structure
 
       Dir.mktmpdir("syrus-migration-artifact") do |dir|
-        schema_path = File.join(dir, "schema.rb")
+        schema_path = File.join(dir, schema_kind == :ruby ? "schema.rb" : "structure.sql")
         runner_path = File.join(dir, "runner.rb")
         File.write(schema_path, schema)
         File.write(runner_path, runner_source)
-        database_url = isolated_database_url(dir)
-        capture = @runner.new(
-          env: process_env(database_url, schema_path, migrations),
-          command: [ "bash", "-c", 'status=0; cleanup=0; bin/rails db:create && bin/rails runner "$SYRUS_ARTIFACT_RUNNER" || status=$?; DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bin/rails db:drop || cleanup=$?; if [ "$cleanup" -ne 0 ]; then echo "SYRUS_ARTIFACT_CLEANUP_ERROR: disposable database drop failed" >&2; fi; [ "$status" -ne 0 ] && exit "$status"; exit "$cleanup"' ],
-          mounts: ProcessRunner.mounts(@workspace.to_s, read_write: @workspace.to_s, read_only: dir),
-          network: "grader", timeout: TIMEOUT, kind: "artifact", workflow: @workflow,
-          display_command: "generate Rails migration artifacts"
-        ).capture
+        database_urls = isolated_database_urls(dir)
+        env = process_env(database_urls, schema_path, schema_kind, migrations)
+        mounts = ProcessRunner.mounts(@workspace.to_s, read_write: @workspace.to_s, read_only: dir)
+        capture = nil
+        cleanup = nil
+        begin
+          capture = process_capture(env:, mounts:, command: execution_command, timeout: TIMEOUT, display_command: "generate Rails migration artifacts")
+        ensure
+          begin
+            cleanup = process_capture(env:, mounts:, command: cleanup_command, timeout: 30, display_command: "drop Rails migration artifact databases")
+          rescue StandardError => e
+            raise GenerationError.new("cleanup failed to start: #{e.class}: #{e.message}", stage: "cleanup")
+          end
+        end
+        unless cleanup.result.success?
+          detail = cleanup.result.timed_out? ? "timed out after 30s" : cleanup.stderr.to_s.lines.last(12).join.strip
+          raise GenerationError.new("cleanup failed: #{detail.presence || "exit #{cleanup.result.exit_status}"}", stage: "cleanup")
+        end
         unless capture.result.success?
           detail = capture.result.timed_out? ? "timed out after #{TIMEOUT}s" : capture.stderr.to_s.lines.last(12).join.strip
-          stage = capture.stderr.include?("SYRUS_ARTIFACT_CLEANUP_ERROR") ? "cleanup" : "migration execution"
-          raise GenerationError, "#{stage} failed: #{detail.presence || "exit #{capture.result.exit_status}"}"
+          raise GenerationError.new("migration execution failed: #{detail.presence || "exit #{capture.result.exit_status}"}", stage: "execution")
         end
         line = capture.stdout.lines.reverse.find { |candidate| candidate.start_with?(RESULT_PREFIX) }
-        raise GenerationError, "migration introspection produced no result" unless line
-        JSON.parse(line.delete_prefix(RESULT_PREFIX)).transform_keys { |key| "db/migrate/#{key}" }
+        raise GenerationError.new("migration introspection produced no result", stage: "introspection") unless line
+        begin
+          JSON.parse(line.delete_prefix(RESULT_PREFIX)).transform_keys { |key| "db/migrate/#{key}" }
+        rescue JSON::ParserError => e
+          raise GenerationError.new("migration introspection returned invalid JSON: #{e.message}", stage: "introspection")
+        end
       ensure
-        FileUtils.rm_f(URI.parse(database_url).path) if database_url&.start_with?("sqlite3:")
+        Array(database_urls&.values).each { |url| FileUtils.rm_f(URI.parse(url).path) if url.start_with?("sqlite3:") }
       end
     rescue DisposableDatabaseUnavailable => e
       fallback(base, migrations, e.message)
     rescue GenerationError => e
-      stage = e.message.start_with?("cleanup failed:") ? "cleanup" : "execution"
-      migrations.index_with { |path| error_payload(path, stage, e.message) }
+      migrations.index_with { |path| error_payload(path, e.stage, e.message) }
+    end
+
+    def execution_command
+      schema_task = database_names.length > 1 ? "db:schema:load:primary" : "db:schema:load"
+      [ "bash", "-c", "bin/rails db:create #{schema_task} && bin/rails runner \"$SYRUS_ARTIFACT_RUNNER\"" ]
+    end
+
+    def cleanup_command
+      [ "bash", "-c", "DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bin/rails db:drop" ]
+    end
+
+    def process_capture(env:, mounts:, command:, timeout:, display_command:)
+      @runner.new(
+        env:, command:, mounts:, network: "grader", timeout:, kind: "artifact", workflow: @workflow,
+        display_command:
+      ).capture
     end
 
     def base_schema(base)
@@ -94,52 +128,107 @@ module SyrusRails
     end
 
     def isolated_database_url(dir)
+      isolated_database_urls(dir).fetch("primary")
+    end
+
+    def isolated_database_urls(dir)
       adapter = configured_adapter
-      return "sqlite3:#{File.join(dir, "artifact-#{SecureRandom.hex(12)}.sqlite3")}" if adapter.match?(/sqlite/i)
+      nonce = SecureRandom.hex(12)
+      if adapter.match?(/sqlite/i)
+        return database_names.index_with { |name| "sqlite3:#{File.join(dir, "artifact-#{nonce}-#{name}.sqlite3")}" }
+      end
 
       template = ENV["SYRUS_RAILS_ARTIFACT_DATABASE_URL"].presence
       raise DisposableDatabaseUnavailable, "#{adapter} artifact execution requires SYRUS_RAILS_ARTIFACT_DATABASE_URL" unless template
       uri = URI.parse(template)
       raise GenerationError, "artifact database target must use the repository adapter" unless uri.scheme.to_s.include?(adapter.sub("ql", ""))
       raise GenerationError, "artifact database target must be local" unless LOCAL_HOSTS.include?(uri.host)
-      uri.path = "/syrus_artifact_#{Digest::SHA256.hexdigest([ @workspace.realpath, Process.pid, SecureRandom.hex ].join(":"))[0, 24]}"
-      uri.to_s
+      identity = Digest::SHA256.hexdigest([ @workspace.realpath, Process.pid, nonce ].join(":"))[0, 20]
+      database_names.index_with do |name|
+        isolated = uri.dup
+        isolated.path = "/syrus_artifact_#{identity}_#{name}"
+        isolated.to_s
+      end
     rescue URI::InvalidURIError => e
       raise GenerationError, "invalid artifact database URL: #{e.message}"
     end
 
-    def configured_adapter
+    def database_configuration
       path = @workspace.join("config/database.yml")
       raw = path.read.gsub(/<%=.*?%>/m, "")
-      config = YAML.safe_load(raw, aliases: true) || {}
-      config.dig("development", "adapter") || config.dig("default", "adapter") || raise(GenerationError, "cannot determine database adapter")
+      YAML.safe_load(raw, aliases: true) || {}
     rescue Psych::Exception => e
       raise GenerationError, "cannot read database configuration: #{e.message}"
     end
 
-    def process_env(url, schema_path, migrations)
-      {
-        "RAILS_ENV" => "development", "DATABASE_URL" => url,
+    def configured_adapter
+      config = database_configuration
+      development = config["development"]
+      primary = development.is_a?(Hash) && development.values.all?(Hash) ? development["primary"] : development
+      primary&.fetch("adapter", nil) || config.dig("default", "adapter") || raise(GenerationError, "cannot determine database adapter")
+    end
+
+    def database_names
+      development = database_configuration["development"]
+      names = if development.is_a?(Hash) && development.values.all?(Hash)
+        development.keys
+      else
+        [ "primary" ]
+      end
+      names.each do |name|
+        raise GenerationError, "unsafe database configuration name #{name.inspect}" unless name.match?(/\A[a-zA-Z][a-zA-Z0-9_]*\z/)
+      end
+      names
+    end
+
+    def process_env(urls, schema_path, schema_kind, migrations)
+      primary_url = urls.fetch("primary")
+      env = {
+        "RAILS_ENV" => "development", "DATABASE_URL" => primary_url,
         "SYRUS_ARTIFACT_SANDBOX" => "1", "SYRUS_ARTIFACT_SCHEMA" => schema_path,
         "SYRUS_ARTIFACT_MIGRATIONS" => JSON.generate(migrations.map { |path| @workspace.join(path).to_s }),
         "SYRUS_ARTIFACT_RUNNER" => File.join(File.dirname(schema_path), "runner.rb"),
-        "CACHE_DATABASE_URL" => url, "QUEUE_DATABASE_URL" => url, "CABLE_DATABASE_URL" => url
+        "SCHEMA" => schema_path, "SCHEMA_FORMAT" => schema_kind == :ruby ? "ruby" : "sql",
+        "SYRUS_ARTIFACT_DATABASES" => JSON.generate(urls.values.map { |url| URI.parse(url).path.delete_prefix("/") })
       }
+      urls.each { |name, url| env["#{name.upcase}_DATABASE_URL"] = url }
+      env
     end
 
     def fallback(base, migrations, reason)
-      head = @workspace.join("db/schema.rb")
-      base_content = @git.run("show", "#{base}:db/schema.rb", chdir: @workspace.to_s)
+      kind, base_content = base_schema(base)
+      head = @workspace.join(kind == :ruby ? "db/schema.rb" : "db/structure.sql")
       raise GenerationError, "#{reason}; schema-dump fallback unavailable" unless head.file?
-      before = SchemaParser.new(base_content).parse[:tables]
-      after = SchemaParser.parse(head)[:tables]
-      payload = catalog_payload(File.basename(migrations.last, ".rb"), before, after)
+      payload = if kind == :ruby
+        catalog_payload(File.basename(migrations.last, ".rb"), SchemaParser.new(base_content).parse[:tables], SchemaParser.parse(head)[:tables])
+      else
+        structure_payload(File.basename(migrations.last, ".rb"), base_content, head.read)
+      end
       payload[:status] = "cumulative_fallback"
       payload[:cumulative] = true
       payload[:message] = "Cumulative schema diff for #{migrations.length} migration(s); per-migration attribution unavailable: #{reason}"
       migrations.index_with { payload }
     rescue StandardError => e
       migrations.index_with { |path| error_payload(path, "fallback", "#{reason}; #{e.message}") }
+    end
+
+    def structure_payload(name, before, after)
+      before_statements = normalize_structure(before)
+      after_statements = normalize_structure(after)
+      {
+        migration_name: name,
+        before: { structure: before_statements - after_statements },
+        after: { structure: after_statements - before_statements }
+      }
+    end
+
+    def normalize_structure(content)
+      content.lines
+        .reject { |line| line.lstrip.start_with?("--") }
+        .join
+        .split(/;\s*(?:\n|\z)/)
+        .map { |statement| statement.gsub(/\s+/, " ").strip }
+        .reject { |statement| statement.empty? || statement.match?(/schema_migrations/i) }
     end
 
     def catalog_payload(name, before, after)
@@ -161,9 +250,12 @@ module SyrusRails
       <<~'RUBY'
         require "json"
         abort "artifact sandbox marker missing" unless ENV["SYRUS_ARTIFACT_SANDBOX"] == "1"
+        allowed_databases = JSON.parse(ENV.fetch("SYRUS_ARTIFACT_DATABASES"))
+        configured = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env)
+        unsafe = configured.reject { |config| allowed_databases.include?(config.database.to_s.delete_prefix("/")) }
+        abort "artifact sandbox has non-isolated database configurations: #{unsafe.map(&:name).join(', ')}" if unsafe.any?
         ActiveRecord::Base.establish_connection(ENV.fetch("DATABASE_URL"))
         connection = ActiveRecord::Base.connection
-        load ENV.fetch("SYRUS_ARTIFACT_SCHEMA")
         ignored = %w[ar_internal_metadata schema_migrations]
         snapshot = lambda do
           connection.schema_cache.clear!

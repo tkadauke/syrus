@@ -29,7 +29,11 @@ configuration. PostgreSQL and MySQL require a local-only
 `SYRUS_RAILS_ARTIFACT_DATABASE_URL` with create/drop privileges; Syrus replaces its
 database name for every invocation. If disposable database creation is unavailable,
 the tool labels a base/head schema comparison as cumulative instead of guessing which
-migration caused each change.
+migration caused each change. Every named development connection is redirected to its
+own sandbox database before Rails boots, including application-specific databases such
+as analytics stores. Both `schema.rb` and adapter-native `structure.sql` baselines are
+loaded through Rails' schema task; structure-only fallback comparisons normalize SQL
+statements and show the cumulative additions and removals.
 
 ## Auto-detection
 
