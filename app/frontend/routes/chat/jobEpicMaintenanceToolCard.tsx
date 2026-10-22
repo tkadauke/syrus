@@ -302,7 +302,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const liveOutcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : {}
   const beforeSnapshot = isPlainObject(liveMatch?.before_snapshot) ? liveMatch.before_snapshot : {}
   const afterSnapshot = isPlainObject(liveMatch?.after_snapshot) ? liveMatch.after_snapshot : {}
-  const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error, liveMatch?.reason) : null
+  const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error) : null
   const prUrl = definition.showsLiveExecution ? firstValue(result.pr_url, liveOutcome.pr_url, afterSnapshot.pr_url, beforeSnapshot.pr_url) : null
   const prNumber = definition.showsLiveExecution
     ? firstValue(result.pr_number, liveOutcome.pr_number, afterSnapshot.pr_number, beforeSnapshot.pr_number, prUrl?.match(/\/pull\/(\d+)/)?.[1])
