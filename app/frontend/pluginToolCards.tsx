@@ -112,6 +112,10 @@ export type ToolCardExample = {
   resultError?: boolean
   resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
+  // Fresh state supplied by the owning message after a pending action runs.
+  // Catalog fixtures use this to demonstrate outcomes that are not present
+  // in the tool call's frozen result.
+  livePendingAction?: ChatPendingActionInline | null
 }
 
 type ToolCardModule = { default?: ToolCardRenderer; examples?: ToolCardExample[] }
@@ -152,7 +156,8 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
     resultBody,
     resultError: example.resultError ?? false,
     resultSettled: example.resultSettled ?? true,
-    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
+    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
+    livePendingAction: example.livePendingAction
   }
 }
 
