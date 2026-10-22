@@ -1169,10 +1169,16 @@ State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
-runs. When several related actions are proposed together as a batch, chat
-renders them as a single pending-action-group card instead of one card per
-action: the shared action name and target count, an expandable list of the
-affected targets, and one Confirm all/Reject all control. Confirming applies
+runs. Provider-admission wake requests show their provider, optional user
+scope, audit reason, and a preview of queued workflows and delayed automatic
+retries before confirmation. Those preview counts are returned as structured
+tool data as well as shown in the card; confirmation rechecks the normal
+provider and admission guards, so the preview is evidence rather than a
+guarantee that every item starts. When several related actions are proposed
+together as a batch, chat renders them as a single pending-action-group card
+instead of one card per action: the shared action name and target count, an
+expandable list of the affected targets, and one Confirm all/Reject all
+control. Confirming applies
 every target independently and shows which ones succeeded and which failed
 and why; rejecting discards the whole batch without applying any of it.
 Admins can also force-fail an open stuck Job from the stuck Jobs page,

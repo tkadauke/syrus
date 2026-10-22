@@ -209,6 +209,17 @@ combined with `job_ids`. The remaining strong-tier-adjacent tools --
 `force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
 intentionally do not wire into this infrastructure and stay single-confirm.
 
+`wake_provider_admission` prepares a single confirmed repair action after
+provider evidence has recovered. Its pending-action payload and immediate MCP
+result both include an `observed_preview` snapshot with `provider`,
+`workflow_ids`, `workflow_count`, `auto_retry_attempt_ids`, and
+`auto_retry_count`; confirmation still re-enters the normal provider,
+admission, and retry guards rather than promising that every previewed record
+will start. The chat card shows the requested provider, linked user scope (or
+all users), Markdown audit reason, pending-action state, and the previewed
+workflow and delayed-auto-retry counts. Confirmed and rejected actions use the
+live pending-action state instead of the original pending result snapshot.
+
 ## Deleting a chat
 
 `DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of
