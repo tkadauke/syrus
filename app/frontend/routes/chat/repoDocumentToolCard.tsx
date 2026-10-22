@@ -232,7 +232,7 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.kind === "error" ? "failed" : result.pending.state} />
+        <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.state} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{actionNoun(result.action)}</span>
         {result.pending.kind === "standard" || result.pending.kind === "bulk" ? <Badge>pending action #{result.pending.pendingActionId}</Badge> : null}
       </div>

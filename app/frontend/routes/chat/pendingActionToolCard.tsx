@@ -441,9 +441,9 @@ export function PendingActionResultCard({
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.state} />
         {result.groupId ? (
-          <EntityReference href={result.resourceUrl} id={result.groupId} kind="artifact" label={`Group #${result.groupId}`} />
+          <EntityReference href={result.resourceUrl} id={result.groupId} kind="artifact" label={`Pending action group #${result.groupId}`} />
         ) : (
-          <EntityReference href={result.resourceUrl} id={result.pendingActionId} kind="artifact" label={`#${result.pendingActionId}`} />
+          <EntityReference href={result.resourceUrl} id={result.pendingActionId} kind="artifact" label={`Pending action #${result.pendingActionId}`} />
         )}
         {result.memberCount != null ? (
           <Badge>

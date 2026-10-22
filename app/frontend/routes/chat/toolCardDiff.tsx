@@ -2,7 +2,6 @@ import { useState } from "react"
 import { Button, CodeSurface, Modal, Pill } from "../../components/ui"
 import { diffLineClass, diffMarkerClass, parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { useT } from "../../hooks/useT"
-import { useT } from "../../hooks/useT"
 
 // Shared raw-diff summary/preview rendering for the get_job_diff, read_pr,
 // and read_run_transcript tool cards (the Tier 1 tool-card work). Lives outside

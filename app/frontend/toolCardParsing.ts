@@ -23,6 +23,7 @@ export function parseJsonText(value: string): unknown {
 }
 
 export function normalizedToolCardParsedResult(parsed: unknown): unknown {
+  if (typeof parsed === "string") return parseJsonText(parsed) ?? parsed
   if (!isPlainObject(parsed)) return parsed
 
   if (parsed.structured_content != null) {

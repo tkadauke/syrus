@@ -111,7 +111,7 @@ describe("pending action tool card: standard shape", () => {
   it("renders the pending action id and message", () => {
     renderResult(standardPayload())
 
-    expect(screen.getByText("#501")).toBeInTheDocument()
+    expect(screen.getByText("Pending action #501")).toBeInTheDocument()
     expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
   })
 
@@ -198,7 +198,7 @@ describe("pending action tool card: bulk shape", () => {
   it("renders the group id and member count badge", () => {
     renderResult(bulkPayload)
 
-    expect(screen.getByText("Group #88")).toBeInTheDocument()
+    expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
   })
 })
