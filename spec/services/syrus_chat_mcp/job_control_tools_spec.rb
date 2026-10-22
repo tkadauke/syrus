@@ -59,8 +59,10 @@ RSpec.describe "Mcp::Tools job control tools" do
     job = Factories.job(repository: repository)
 
     response = call_tool("cancel_job", job_id: job.id)
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
 
+    expect(body).to include(message: "Cancel #{job.slug}? Cancellation requires operator confirmation.")
     expect(pending_action).to be_pending
     expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
     expect(pending_action.payload).to eq("job_id" => job.id)
