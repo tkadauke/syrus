@@ -131,7 +131,7 @@ function dependencyReference(context: ToolCardContext, result: Record<string, un
 
 function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind): Dependency | null {
   const record = isPlainObject(value) ? value : null
-  const id = firstValue(record?.[kind === "epic" ? "epic_id" : "depends_on_job_id"], record?.id, value)
+  const id = firstValue(record?.[kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"], record?.id, value)
   if (!id) return null
   const addedId = firstValue(objectValue(context.input, kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"))
   return {
@@ -149,7 +149,7 @@ function dependencyList(context: ToolCardContext, definition: MaintenanceToolDef
   const dependencyRecords = Array.isArray(result.dependencies) ? result.dependencies.filter(isPlainObject) : []
   const recordFor = (value: unknown, kind: SubjectKind) => {
     const id = firstValue(value)
-    const key = kind === "epic" ? "epic_id" : "depends_on_job_id"
+    const key = kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"
     return dependencyRecords.find((record) => firstValue(record[key]) === id) || value
   }
   const entries: Array<[unknown, SubjectKind]> =
@@ -168,7 +168,9 @@ function dependencyList(context: ToolCardContext, definition: MaintenanceToolDef
             .filter((record) => {
               const kind = record.depends_on_job_id !== undefined ? "job" : "epic"
               const ids = kind === "job" ? result.depends_on_job_ids : result.depends_on_epic_ids
-              return !Array.isArray(ids) || !ids.some((id) => firstValue(id) === firstValue(record[kind === "job" ? "depends_on_job_id" : "epic_id"]))
+              return (
+                !Array.isArray(ids) || !ids.some((id) => firstValue(id) === firstValue(record[kind === "job" ? "depends_on_job_id" : "depends_on_epic_id"]))
+              )
             })
             .map((record): [unknown, SubjectKind] => [record, record.depends_on_job_id !== undefined ? "job" : "epic"])
         ]
