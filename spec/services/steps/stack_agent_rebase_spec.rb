@@ -122,4 +122,58 @@ RSpec.describe Steps::StackAgentRebase do
 
     expect(handler.send(:rev_parse, "-detach")).to eq("abc123")
   end
+
+  it "gives the root entry's default-branch base a local ref before the agent runs" do
+    workflow.set_artifact!(
+      StackRebasePlan::AGENT_PENDING_ARTIFACT,
+      workflow.artifact(StackRebasePlan::STACK_ARTIFACT)
+    )
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    push_url = "https://push.example/repo.git"
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    allow(GithubClient).to receive(:for)
+      .with(repository: kind_of(Repository), user: user)
+      .and_return(instance_double(GithubClient, access_token: "token"))
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(git).to receive(:run).and_return("")
+
+    handler.send(:fetch_pending_branches)
+
+    # Without this the bare `main` in the ancestry check resolves to nothing,
+    # because the workspace clone only ever creates one local branch.
+    expect(git).to have_received(:run).with(
+      "branch", "-f", "--", "main", "refs/remotes/origin/main", chdir: "/tmp/workspace"
+    )
+  end
+
+  it "does not reset a stack-internal base back to origin after resetting it as a branch" do
+    workflow.set_artifact!(
+      StackRebasePlan::AGENT_PENDING_ARTIFACT,
+      workflow.artifact(StackRebasePlan::STACK_ARTIFACT)
+    )
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+    push_url = "https://push.example/repo.git"
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    allow(GithubClient).to receive(:for)
+      .with(repository: kind_of(Repository), user: user)
+      .and_return(instance_double(GithubClient, access_token: "token"))
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(git).to receive(:run).and_return("")
+
+    handler.send(:fetch_pending_branches)
+
+    expect(git).to have_received(:run).with(
+      "branch", "-f", "--", job.branch_name, "refs/remotes/origin/#{job.branch_name}", chdir: "/tmp/workspace"
+    ).once
+  end
 end
