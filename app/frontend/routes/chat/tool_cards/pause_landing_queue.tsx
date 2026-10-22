@@ -14,14 +14,7 @@ function PauseLandingQueueDetails({ result }: { result: PendingActionResult }) {
   const outcome = pauseOutcome(result)
   return (
     <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-      <Row
-        label={i18n.t("chat:pause_landing_queue.target")}
-        value={
-          <a className="font-medium text-brand hover:underline" href="/dashboard/jobs">
-            {i18n.t("chat:pause_landing_queue.landing_queue")}
-          </a>
-        }
-      />
+      <Row label={i18n.t("chat:pause_landing_queue.target")} value={i18n.t("chat:pause_landing_queue.landing_queue")} />
       {outcome ? <Row label={i18n.t("chat:pause_landing_queue.outcome")} value={<StatePill state={outcome} />} /> : null}
     </dl>
   )
