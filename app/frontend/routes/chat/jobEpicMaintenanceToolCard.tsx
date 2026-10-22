@@ -174,6 +174,7 @@ type MaintenanceCard = {
   prUrl: string | null
   rows: DetailRow[]
   updateDescription: string | null
+  updateDescriptionSupplied: boolean
   updateDescriptionAttempted: boolean
   dependencies: Dependency[]
   showsDependencies: boolean
@@ -189,6 +190,10 @@ function prefixedId(kind: SubjectKind, id: string) {
 
 function objectValue(value: unknown, key: string) {
   return isPlainObject(value) ? value[key] : undefined
+}
+
+function hasObjectKey(value: unknown, key: string) {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key)
 }
 
 function compactList(values: unknown): string[] {
@@ -474,7 +479,12 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     workflowId,
     prNumber,
     prUrl,
-    updateDescription: definition.showsEpicUpdate ? firstValue(context.resultError ? objectValue(context.input, "description") : result.description) : null,
+    updateDescription: definition.showsEpicUpdate
+      ? (displayValue(context.resultError ? objectValue(context.input, "description") : result.description) ?? null)
+      : null,
+    updateDescriptionSupplied: Boolean(
+      definition.showsEpicUpdate && (context.resultError ? hasObjectKey(context.input, "description") : hasObjectKey(result, "description"))
+    ),
     updateDescriptionAttempted: Boolean(definition.showsEpicUpdate && context.resultError),
     rows: [
       ...buildRows(context, definition, detailResult, transitionExecuted),
@@ -604,16 +614,25 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           title="Reason"
         />
       ) : null}
-      {card.updateDescription ? (
-        <MarkdownPreview
-          linkifySlugs
-          linkifyUrls
-          maxChars={360}
-          maxLines={3}
-          modalLabel={card.updateDescriptionAttempted ? "Attempted Epic description" : "Updated Epic description"}
-          text={card.updateDescription}
-          title={card.updateDescriptionAttempted ? "Attempted description" : "Description"}
-        />
+      {card.updateDescriptionSupplied ? (
+        card.updateDescription ? (
+          <MarkdownPreview
+            linkifySlugs
+            linkifyUrls
+            maxChars={360}
+            maxLines={3}
+            modalLabel={card.updateDescriptionAttempted ? "Attempted Epic description" : "Updated Epic description"}
+            text={card.updateDescription}
+            title={card.updateDescriptionAttempted ? "Attempted description" : "Description"}
+          />
+        ) : (
+          <div className="min-w-0 max-w-full overflow-hidden">
+            <div className="mb-1 break-words text-xs font-semibold text-text-primary">
+              {card.updateDescriptionAttempted ? "Attempted description" : "Description"}
+            </div>
+            <p className="text-xs text-text-muted">(empty)</p>
+          </div>
+        )
       ) : null}
       {card.workflowId && card.targetId ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">

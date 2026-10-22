@@ -18,5 +18,12 @@ export const examples: ToolCardExample[] = [
     input: { epic_id: 71, title: "", description: "Keep the **attempted** description visible." },
     resultBody: "Error: title cannot be blank",
     resultError: true
+  },
+  {
+    id: "empty_description_failed",
+    label: "Empty description update failed",
+    input: { epic_id: 72, description: "" },
+    resultBody: "Error: archived Epics cannot be updated",
+    resultError: true
   }
 ]
