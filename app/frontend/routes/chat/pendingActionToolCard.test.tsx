@@ -249,7 +249,10 @@ describe("force_landing_recheck tool card", () => {
           normalizedContext(
             payload,
             { job_ids: [41, 42, 43], reason: "Re-evaluate the landing blockers." },
-            liveAction({ detail: "Checks refreshed; JOB-42 remains blocked by dependencies." })
+            liveAction({
+              detail:
+                "- JOB-41 — observed state: approved; observed blocker: none; refreshed state: approved; refreshed blocker: none\n- JOB-42 — observed state: approved; observed blocker: dependencies; refreshed state: approved; refreshed blocker: dependencies\n- JOB-43 — observed state: landing; observed blocker: none; refreshed state: closed; refreshed blocker: none"
+            })
           )
         )}
       </>
@@ -259,7 +262,8 @@ describe("force_landing_recheck tool card", () => {
     expect(screen.getByText("3 actions")).toBeInTheDocument()
     expect(screen.getByText("Force landing recheck for 3 Jobs?")).toBeInTheDocument()
     expect(screen.getByText("Landing recheck outcome")).toBeInTheDocument()
-    expect(screen.getByText("Checks refreshed; JOB-42 remains blocked by dependencies.")).toBeInTheDocument()
+    expect(screen.getByText(/observed blocker: dependencies/)).toBeInTheDocument()
+    expect(screen.getByText(/refreshed state: closed/)).toBeInTheDocument()
   })
 
   it("keeps requested Jobs visible for errors", () => {
@@ -274,6 +278,7 @@ describe("force_landing_recheck tool card", () => {
     expect(screen.getByText("invalid_request")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-41" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-404" })).toBeInTheDocument()
+    expect(screen.getByText("Retry checks.")).toBeInTheDocument()
   })
 
   it("calls out missing input instead of inferring Jobs from the message", () => {
