@@ -47,6 +47,7 @@ RSpec.describe AdminMysql::Inspector do
 
     expect(rows.map { |row| row[:id] }).to eq([ 5, 4 ])
     expect(rows.first).to include(command: "Query", info: "SELECT ?")
+    expect(rows).to all(satisfy { |row| !row.key?(:statement_verifier) })
     expect(inspector).not_to have_received(:select_all).with(include("information_schema.PROCESSLIST"))
   end
 
@@ -67,11 +68,13 @@ RSpec.describe AdminMysql::Inspector do
         "State" => "executing", "Info" => "SELECT * FROM users WHERE token = 'top-secret'" }
     ])
 
-    expect(inspector.process(42)).to include(
+    process = inspector.process(42)
+    expect(process).to include(
       id: 42,
       info: "SELECT * FROM users WHERE token = ?",
-      statement_digest: Digest::SHA256.hexdigest("SELECT * FROM users WHERE token = 'top-secret'")
+      statement_verifier: match(/\A[0-9a-f]{64}\z/)
     )
+    expect(process[:statement_verifier]).not_to eq(Digest::SHA256.hexdigest("SELECT * FROM users WHERE token = 'top-secret'"))
   end
 
   it "redacts string literals truncated by the diagnostic limit" do
@@ -108,7 +111,7 @@ RSpec.describe AdminMysql::Inspector do
     expect(connection).not_to have_received(:execute)
   end
 
-  it "uses a digest to detect changes between statements with identical redaction" do
+  it "uses a keyed verifier to detect changes between statements with identical redaction" do
     inspector = described_class.new
     connection = spy
     allow(described_class).to receive(:mysql?).and_return(true)
@@ -122,7 +125,7 @@ RSpec.describe AdminMysql::Inspector do
       inspector.kill_query(
         42,
         expected_statement: "UPDATE jobs SET state = ?",
-        expected_statement_digest: Digest::SHA256.hexdigest("UPDATE jobs SET state = 'running'")
+        expected_statement_verifier: inspector.send(:statement_verifier, "UPDATE jobs SET state = 'running'")
       )
     }.to raise_error(ArgumentError, /different statement/)
     expect(connection).not_to have_received(:execute)

@@ -6,7 +6,7 @@ module PendingActions
       result = AdminMysql::Inspector.new.kill_query(
         payload.fetch("thread_id"),
         expected_statement: payload.fetch("statement"),
-        expected_statement_digest: payload["statement_digest"]
+        expected_statement_verifier: payload["statement_verifier"]
       )
       raise ArgumentError, result.dig(:error, :message) unless result[:killed]
 
