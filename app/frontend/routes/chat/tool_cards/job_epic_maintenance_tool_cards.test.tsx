@@ -950,6 +950,16 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("attempted")).toBeInTheDocument()
   })
 
+  it("preserves an explicitly attempted empty description when the tool fails", () => {
+    const ctx = toolCardContextForExample("update_epic", updateEpicExamples[2])
+
+    render(<>{updateEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Error: archived Epics cannot be updated")).toBeInTheDocument()
+    expect(screen.getByText("Attempted description")).toBeInTheDocument()
+    expect(screen.getByText("(empty)")).toBeInTheDocument()
+  })
+
   it.each([
     ["content text", { content: [{ type: "text", text: JSON.stringify(removeJobFromEpicExamples[0].parsedResult) }] }],
     ["structured content", { structured_content: removeJobFromEpicExamples[0].parsedResult }]
