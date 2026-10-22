@@ -57,7 +57,7 @@ describe("suggest_design_doc_change tool card", () => {
     expect(screen.getByText("5")).toBeInTheDocument()
     expect(screen.getByText("2")).toBeInTheDocument()
     expect(screen.getByText("range · 12–20")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Thread #7/ })).toHaveAttribute("href", "/design_docs/20?thread=7")
+    expect(screen.getByRole("link", { name: /Thread 7/ })).toHaveAttribute("href", "/design_docs/20?thread=7")
   })
 
   it("renders a conflict callout when the suggestion could not apply cleanly", () => {
