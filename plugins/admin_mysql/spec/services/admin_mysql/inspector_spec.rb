@@ -59,6 +59,21 @@ RSpec.describe AdminMysql::Inspector do
     )
   end
 
+  it "redacts literals when looking up one process for a pending kill action" do
+    inspector = described_class.new
+    allow(described_class).to receive(:mysql?).and_return(true)
+    allow(inspector).to receive(:select_all).with("SHOW FULL PROCESSLIST").and_return([
+      { "Id" => 42, "User" => "syrus", "Host" => "worker", "db" => "syrus", "Command" => "Query", "Time" => 3,
+        "State" => "executing", "Info" => "SELECT * FROM users WHERE token = 'top-secret'" }
+    ])
+
+    expect(inspector.process(42)).to include(
+      id: 42,
+      info: "SELECT * FROM users WHERE token = ?",
+      statement_digest: Digest::SHA256.hexdigest("SELECT * FROM users WHERE token = 'top-secret'")
+    )
+  end
+
   it "redacts string literals truncated by the diagnostic limit" do
     inspector = described_class.new
 
@@ -89,6 +104,26 @@ RSpec.describe AdminMysql::Inspector do
 
     expect {
       inspector.kill_query(42, expected_statement: "SELECT * FROM jobs")
+    }.to raise_error(ArgumentError, /different statement/)
+    expect(connection).not_to have_received(:execute)
+  end
+
+  it "uses a digest to detect changes between statements with identical redaction" do
+    inspector = described_class.new
+    connection = spy
+    allow(described_class).to receive(:mysql?).and_return(true)
+    allow(inspector).to receive(:connection).and_return(connection)
+    allow(inspector).to receive(:select_all).with("SHOW FULL PROCESSLIST").and_return([
+      { "Id" => 42, "User" => "syrus", "Host" => "worker", "db" => "syrus", "Command" => "Query", "Time" => 1,
+        "State" => "executing", "Info" => "UPDATE jobs SET state = 'failed'" }
+    ])
+
+    expect {
+      inspector.kill_query(
+        42,
+        expected_statement: "UPDATE jobs SET state = ?",
+        expected_statement_digest: Digest::SHA256.hexdigest("UPDATE jobs SET state = 'running'")
+      )
     }.to raise_error(ArgumentError, /different statement/)
     expect(connection).not_to have_received(:execute)
   end

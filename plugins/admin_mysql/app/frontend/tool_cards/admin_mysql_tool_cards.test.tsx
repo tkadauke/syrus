@@ -234,20 +234,69 @@ describe("Admin MySQL tool cards", () => {
   })
 
   it("renders admin_mysql_kill_query as a pending operator confirmation", () => {
+    const result = {
+      pending_confirmation_id: 90,
+      pending_action_id: 90,
+      state: "pending",
+      message: "Kill the query on MySQL thread 90?",
+      thread_id: 90,
+      statement: "SELECT * FROM users WHERE token = ?",
+      user: "syrus",
+      host: "worker:3306",
+      database: "syrus_production",
+      time_seconds: 12,
+      query_state: "executing"
+    }
     const pending = context({
       toolName: "admin_mysql_kill_query",
-      parsedResult: {
-        pending_confirmation_id: 90,
-        pending_action_id: 90,
-        state: "pending",
-        message: "Kill the query on MySQL thread 90?"
-      }
+      parsedResult: result
     })
 
     expect(killQueryToolCard.collapsedSummary?.(pending)).toBe("Kill the query on MySQL thread 90?")
     render(<>{killQueryToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("Kill the query on MySQL thread 90?")).toBeInTheDocument()
+    expect(screen.getByText("Pending action #90")).toBeInTheDocument()
+    expect(screen.getByText("SELECT * FROM users WHERE token = ?")).toBeInTheDocument()
+    expect(screen.getByText("syrus")).toBeInTheDocument()
+    expect(screen.getByText("worker:3306")).toBeInTheDocument()
+    expect(screen.getByText("syrus_production")).toBeInTheDocument()
+    expect(screen.getByText("12s")).toBeInTheDocument()
+    expect(screen.getByText("executing")).toBeInTheDocument()
+  })
+
+  it("normalizes structured and text MCP result envelopes for admin_mysql_kill_query", () => {
+    const result = {
+      pending_confirmation_id: 91,
+      state: "pending",
+      thread_id: 91,
+      statement: "DELETE FROM sessions WHERE token = ?"
+    }
+
+    for (const parsedResult of [{ structured_content: result }, { content: [{ type: "text", text: JSON.stringify(result) }] }]) {
+      const cardContext = context({ toolName: "mcp__syrus-chat-sidecar__admin_mysql_kill_query", parsedResult })
+      expect(killQueryToolCard.collapsedSummary?.(cardContext)).toBe("Kill MySQL query on thread 91")
+      const view = render(<>{killQueryToolCard.renderExpanded(cardContext)}</>)
+      expect(screen.getByText("DELETE FROM sessions WHERE token = ?")).toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it("renders purposeful kill-query errors with the requested thread", () => {
+    const failed = context({
+      toolName: "admin_mysql_kill_query",
+      input: { thread_id: 404 },
+      resultBody: "Invalid request: MySQL thread not found: 404",
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(killQueryToolCard.collapsedSummary?.(failed)).toBe("MySQL query interruption failed")
+    render(<>{killQueryToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("MySQL query interruption failed")).toBeInTheDocument()
+    expect(screen.getByText("404")).toBeInTheDocument()
+    expect(screen.getByText("Invalid request: MySQL thread not found: 404")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed JSON payloads", () => {

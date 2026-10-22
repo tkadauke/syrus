@@ -31,13 +31,24 @@ module AdminMysql
         return Mcp::Tools.invalid("MySQL thread not found: #{thread_id}") unless process
         return Mcp::Tools.invalid("MySQL thread #{process[:id]} has no current statement") unless process[:info].present?
 
+        query_details = {
+          "thread_id" => process[:id],
+          "statement" => process[:info],
+          "user" => process[:user],
+          "host" => process[:host],
+          "database" => process[:database],
+          "time_seconds" => process[:time_seconds],
+          "query_state" => process[:state]
+        }.compact
+        pending_payload = query_details.merge("statement_digest" => process[:statement_digest])
+
         create_pending_admin_action(
           server_context: server_context,
           chat_session: chat_session,
           action: "admin_mysql_kill_query",
-          payload: { "thread_id" => process[:id], "statement" => process[:info] },
+          payload: pending_payload,
           message: "Kill the query on MySQL thread #{process[:id]}?",
-          extra: { thread_id: process[:id], statement: process[:info] }
+          extra: query_details.symbolize_keys
         )
       rescue Inspector::Unavailable, ArgumentError => e
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.message}" } ], error: true)
