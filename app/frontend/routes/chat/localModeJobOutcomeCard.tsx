@@ -29,6 +29,23 @@ export type CreateCodingJobRequest = {
   repositoryId: string | null
 }
 
+export type CodingCheckoutSnapshot = Record<string, unknown>
+
+export type CancelCodingCheckoutOutcome = {
+  canceled: boolean
+  repositoryId: string | null
+  repositorySlug: string
+  releasedJob: {
+    id: string
+    slug: string | null
+    state: string
+    branchName: string | null
+  } | null
+  before: CodingCheckoutSnapshot | null
+  after: CodingCheckoutSnapshot | null
+  message: string | null
+}
+
 export function parseLocalModeJobOutcome(value: unknown): LocalModeJobOutcome | null {
   if (!isPlainObject(value)) return null
 
@@ -43,6 +60,36 @@ export function parseLocalModeJobOutcome(value: unknown): LocalModeJobOutcome | 
     message: displayValue(value.message),
     branchName: displayValue(value.branch_name) || displayValue(releasedJob?.branch_name),
     repositorySlug: displayValue(value.repository_slug)
+  }
+}
+
+export function parseCancelCodingCheckoutOutcome(value: unknown): CancelCodingCheckoutOutcome | null {
+  if (!isPlainObject(value) || value.canceled !== true) return null
+
+  const repositorySlug = displayValue(value.repository_slug)
+  if (!repositorySlug) return null
+
+  const releasedJobValue = isPlainObject(value.released_job) ? value.released_job : null
+  const releasedJobId = displayValue(releasedJobValue?.id)
+  const releasedJobState = displayValue(releasedJobValue?.state)
+  const releasedJob =
+    releasedJobId && releasedJobState
+      ? {
+          id: releasedJobId,
+          slug: displayValue(releasedJobValue?.slug),
+          state: releasedJobState,
+          branchName: displayValue(releasedJobValue?.branch_name)
+        }
+      : null
+
+  return {
+    canceled: true,
+    repositoryId: displayValue(value.repository_id),
+    repositorySlug,
+    releasedJob,
+    before: isPlainObject(value.before) ? value.before : null,
+    after: isPlainObject(value.after) ? value.after : null,
+    message: displayValue(value.message)
   }
 }
 
