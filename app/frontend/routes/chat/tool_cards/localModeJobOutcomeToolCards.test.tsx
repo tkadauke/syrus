@@ -18,7 +18,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["create_coding_job", createCodingJobCard],
   ["open_in_coding_mode", openInCodingModeCard]
 ]
-const LEGACY_NULL_FALLBACK_CARDS = CARDS.filter(([name]) => name !== "cancel_local_mode")
+const LEGACY_NULL_FALLBACK_CARDS = CARDS.filter(([name]) => !["cancel_local_mode", "create_coding_job"].includes(name))
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "", resultBody: "", resultError: false, parsedResult: null, ...overrides }
@@ -58,6 +58,35 @@ describe("Local Mode job-outcome tool card family", () => {
     expect(normalizedToolName("mcp__syrus-chat-sidecar__cancel_local_mode")).toBe("cancel_local_mode")
     expect(normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(payload) }] })).toEqual(payload)
     expect(normalizedToolCardParsedResult({ structured_content: payload })).toEqual(payload)
+  })
+
+  it.each([
+    {
+      content: [{ type: "text", text: JSON.stringify({ job_id: 42, job_state: "queued", repository_slug: "tkadauke/syrus", message: "Created **JOB-42**." }) }]
+    },
+    { structured_content: { job_id: 42, job_state: "queued", repository_slug: "tkadauke/syrus", message: "Created **JOB-42**." } }
+  ])("renders create_coding_job input and result through a normalized provider envelope", (envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    render(
+      <>{createCodingJobCard.renderExpanded(context({ input: { title: "Create a card", body: "Render **Markdown**.", repository_id: 7 }, parsedResult }))}</>
+    )
+
+    expect(screen.getByRole("heading", { name: "Create a card" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/jobs/42")
+  })
+
+  it("renders create_coding_job errors with the original request", () => {
+    const errorContext = context({
+      input: { title: "Create a card", body: "Render the request.", repository_id: 7 },
+      resultBody: "Repository is unavailable.",
+      resultError: true
+    })
+
+    expect(createCodingJobCard.collapsedSummary?.(errorContext)).toBe("Coding job creation failed")
+    render(<>{createCodingJobCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByRole("heading", { name: "Create a card" })).toBeInTheDocument()
+    expect(screen.getByText("Repository is unavailable.")).toBeInTheDocument()
   })
 
   it.each([
