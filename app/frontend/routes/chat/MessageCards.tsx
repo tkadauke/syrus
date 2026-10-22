@@ -939,9 +939,9 @@ export const ToolGroup = memo(function ToolGroup({
     item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
+    <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="flex min-w-0 cursor-pointer flex-nowrap items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+        className="flex min-w-0 max-w-full cursor-pointer flex-wrap items-baseline gap-x-2 gap-y-1 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
@@ -959,12 +959,12 @@ export const ToolGroup = memo(function ToolGroup({
           </Pill>
         ) : null}
       </summary>
-      <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
+      <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
         {item.calls.map((call) => {
           const detail = informativeDetail(call.detail)
           const resultSummary = toolCardAwareResultSummary(call, presentation)
           return (
-            <div key={call.message_id}>
+            <div className="min-w-0 max-w-full overflow-hidden" key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">
                 {call.display_label || item.tool}
                 {detail ? `(${detail})` : ""}

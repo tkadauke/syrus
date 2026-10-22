@@ -26,6 +26,7 @@ const CLOSE_BUTTON_CLASS = [
 export type MarkdownPreviewProps = {
   text: string | null | undefined
   className?: string
+  clamp?: boolean
   copyLabel?: string
   emptyLabel?: string
   highlightTerms?: string[]
@@ -70,6 +71,7 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 // complete Markdown renderer available in a dialog only when content is cut.
 export function MarkdownPreview({
   className,
+  clamp = true,
   copyLabel,
   emptyLabel,
   emptyState,
