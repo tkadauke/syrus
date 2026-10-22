@@ -650,7 +650,14 @@ describe("Job and Epic maintenance tool cards", () => {
       livePendingAction: livePendingAction(19, "confirmed", {
         action: "unapprove_job",
         label: "Unapprove Job",
-        outcome: { job_id: 56, previous_state: "approved", new_state: "implemented" }
+        outcome: {
+          status: "confirmed",
+          succeeded_job_ids: [56, 57],
+          failed_job_ids: [],
+          previous_state: "approved",
+          new_state: "implemented",
+          message: "Unapproved 2 Jobs."
+        }
       })
     }
 
@@ -664,6 +671,31 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Job state")).toBeInTheDocument()
     expect(screen.getByText("Before")).toBeInTheDocument()
     expect(screen.getByText("After")).toBeInTheDocument()
+  })
+
+  it("reports a partial bulk unapproval without claiming every Job succeeded", () => {
+    const pending = toolCardContextForExample("unapprove_job", unapproveJobExamples[1])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(19, "confirmed", {
+        action: "unapprove_job",
+        label: "Unapprove Job",
+        outcome: {
+          status: "partial_failure",
+          succeeded_job_ids: [56],
+          failed_job_ids: [57],
+          message: "Unapproved 1 of 2 Jobs; JOB-57: job must be in approved state"
+        }
+      })
+    }
+
+    expect(unapproveJobCard.collapsedSummary?.(ctx)).toBe("Unapprove Job failed · 2 JOBs")
+    render(<>{unapproveJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("partial failure")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-57" })).toHaveAttribute("href", "/jobs/57")
+    expect(screen.queryByText("Before")).not.toBeInTheDocument()
+    expect(screen.queryByText("After")).not.toBeInTheDocument()
   })
 
   it("links every Job slug in a bulk unapproval error", () => {
