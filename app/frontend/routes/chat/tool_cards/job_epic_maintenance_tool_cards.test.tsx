@@ -14,6 +14,7 @@ import reopenJobCard from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
+import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
 import archiveEpicCard from "./archive_epic"
 import { examples as archiveEpicExamples } from "./archive_epic"
 import updateEpicCard from "./update_epic"
@@ -25,6 +26,7 @@ import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -384,6 +386,38 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getAllByRole("link", { name: "EPIC-62" }).every((link) => link.getAttribute("href") === "/epics/62")).toBe(true)
     expect(screen.getByText("pending #17")).toBeInTheDocument()
     expect(screen.getByRole("alert")).toHaveTextContent("Open child Jobs will be cancelled and closed when confirmed.")
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify({ epic_id: 61, previous_state: "ready", new_state: "backlog" }) }] }],
+    ["structured content", { structured_content: { epic_id: 61, previous_state: "ready", new_state: "backlog" } }]
+  ])("renders move-to-backlog details from a normalized %s envelope", (_label, envelope) => {
+    const example = moveEpicToBacklogExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__move_epic_to_backlog"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(ctx.toolName).toBe("move_epic_to_backlog")
+    expect(moveEpicToBacklogCard.collapsedSummary?.(ctx)).toBe("Moved to backlog · EPIC-61")
+    render(<>{moveEpicToBacklogCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "EPIC-61" })).toHaveAttribute("href", "/epics/61")
+    expect(screen.getByText("Improve maintenance cards")).toBeInTheDocument()
+    expect(screen.getByText("ready").parentElement).toHaveClass("uppercase")
+    expect(screen.getAllByText("backlog").some((node) => node.parentElement?.classList.contains("uppercase"))).toBe(true)
+  })
+
+  it("renders a clear plain-text error for an Epic that cannot move", () => {
+    const ctx = toolCardContextForExample("move_epic_to_backlog", moveEpicToBacklogExamples[1])
+
+    expect(moveEpicToBacklogCard.collapsedSummary?.(ctx)).toBe("Move Epic To Backlog failed · EPIC-62")
+    render(<>{moveEpicToBacklogCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Epic cannot be moved to backlog from completed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-62" })).toHaveAttribute("href", "/epics/62")
+    expect(screen.getByText("Already completed Epic")).toBeInTheDocument()
   })
 
   it("renders archive Epic pending and error envelopes through the normalizer", () => {
