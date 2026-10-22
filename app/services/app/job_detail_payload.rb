@@ -1024,7 +1024,14 @@ module App
     def artifact_workflows_scope
       @job.workflows
         .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
-        .where.not(artifacts: [ nil, "", "{}" ])
+        .where(<<~SQL.squish)
+          workflows.artifacts IS NOT NULL AND workflows.artifacts NOT IN ('', '{}')
+          OR EXISTS (
+            SELECT 1 FROM workflow_artifact_values
+            WHERE workflow_artifact_values.workflow_id = workflows.id
+          )
+        SQL
+        .preload(:workflow_artifact_values)
         .reorder(created_at: :asc, id: :asc)
     end
 
@@ -1530,12 +1537,10 @@ module App
     end
 
     def visual_diff_available?
-      workflows = artifact_workflows_scope
-        .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
-        .where("artifacts LIKE ?", "%visual_review_iterations%")
-        .where("artifacts LIKE ?", "%image_url%")
-
-      sort_artifact_workflows(workflows.to_a, { created_at: :asc, id: :asc }).any? do |workflow|
+      artifact_workflows_matching(
+        "visual_review_iterations",
+        trigger_kinds: %w[initial retry pr_comment chat_feedback manual_visual_review]
+      ).any? do |workflow|
         Array(workflow.artifact("visual_review_iterations")).any? do |iteration|
           Array(iteration["artifacts"]).any? { |artifact| artifact.is_a?(Hash) && artifact["image_url"].present? }
         end

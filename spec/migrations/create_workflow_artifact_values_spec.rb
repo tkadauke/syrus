@@ -6,7 +6,7 @@ RSpec.describe CreateWorkflowArtifactValues, :ci_only do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository) }
 
-  it "moves growth-bound keys out of an existing workflow row" do
+  it "copies growth-bound keys without removing the rolling-deploy fallback" do
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     iterations = [ [ { "output" => "grader output" } ] ]
     workflow.update_column(:artifacts, { "head_sha" => "abc123", "iterations" => iterations })
@@ -16,7 +16,7 @@ RSpec.describe CreateWorkflowArtifactValues, :ci_only do
     workflow.reload
     expect(workflow.artifact("head_sha")).to eq("abc123")
     expect(workflow.artifact("iterations")).to eq(iterations)
-    expect(workflow.attributes_before_type_cast.fetch("artifacts")).to eq('{"head_sha":"abc123"}')
+    expect(workflow.attributes_before_type_cast.fetch("artifacts")).to include('"iterations"')
     expect(workflow.workflow_artifact_values.pluck(:key)).to eq([ "iterations" ])
   end
 end

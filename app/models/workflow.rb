@@ -566,7 +566,11 @@ class Workflow < ApplicationRecord
   def artifact(key)
     key = key.to_s
     if EXTERNALIZED_ARTIFACT_KEYS.include?(key)
-      external = workflow_artifact_values.find_by(key: key)
+      external = if workflow_artifact_values.loaded?
+        workflow_artifact_values.detect { |entry| entry.key == key }
+      else
+        workflow_artifact_values.find_by(key: key)
+      end
       return external.value if external
     end
     self[:artifacts].to_h[key]

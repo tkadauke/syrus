@@ -836,7 +836,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(preview_queries.join("\n")).to include("state")
   end
 
-  it "prefilters visual review artifacts before enabling the visual diff action" do
+  it "finds external visual review artifacts without scanning inline JSON" do
     Feature.find_or_create_by!(slug: "visual_review") do |feature|
       feature.category = "labs"
       feature.name = "Visual review"
@@ -872,9 +872,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("actions", "can_run_visual_diff")).to eq(true)
 
-    visual_artifact_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
-    expect(visual_artifact_queries).not_to be_empty
-    expect(visual_artifact_queries.join("\n").scan(/artifacts LIKE/i).size).to be >= 2
+    expect(queries.grep(/artifacts LIKE/i)).to be_empty
+    expect(queries.grep(/FROM ["`]?workflow_artifact_values["`]?/i)).not_to be_empty
   ensure
     Feature.clear_enabled_cache!("visual_review")
   end

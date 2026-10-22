@@ -43,7 +43,6 @@ class CreateWorkflowArtifactValues < ActiveRecord::Migration[8.1]
         entry = MigrationArtifactValue.find_or_initialize_by(workflow_id: workflow.id, key: key)
         entry.update!(value: JSON.generate(value), created_at: entry.created_at || now, updated_at: now)
       end
-      workflow.update_columns(artifacts: JSON.generate(artifacts.except(*EXTERNALIZED_KEYS)))
     end
   end
 

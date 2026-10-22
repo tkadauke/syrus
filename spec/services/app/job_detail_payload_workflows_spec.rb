@@ -84,6 +84,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       AppSetting.current.update!(show_work_unit_debug: true)
     end
 
+    it "preloads external artifact values for the paginated workflow list" do
+      job = Factories.job_record(user: user, repository: repo)
+      3.times do |index|
+        Workflow.create!(
+          job: job,
+          trigger_kind: "retry",
+          artifacts: { "iterations" => [ [ { "output" => "round #{index}" } ] ] }
+        )
+      end
+
+      queries = capture_sql { workflows_payload_for(job) }
+
+      expect(queries.grep(/FROM [`"]?workflow_artifact_values[`"]?/i).size).to eq(1)
+    end
+
     it "includes queue_wait only for queued runs" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
