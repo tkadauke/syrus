@@ -27,6 +27,7 @@ type MaintenanceToolDefinition = {
   hidesSatisfaction?: boolean
   showsPriorityTransition?: boolean
   showsLiveOutcome?: boolean
+  showsEpicUpdate?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -130,7 +131,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     confirmedSubjectState: "archived",
     warningMessage: true
   },
-  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
+  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated", showsEpicUpdate: true },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
   remove_epic_dependency: {
     toolName: "remove_epic_dependency",
@@ -172,6 +173,8 @@ type MaintenanceCard = {
   prNumber: string | null
   prUrl: string | null
   rows: DetailRow[]
+  updateDescription: string | null
+  updateDescriptionAttempted: boolean
   dependencies: Dependency[]
   showsDependencies: boolean
 }
@@ -342,14 +345,29 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
     pushRow(rows, "Previous priority", previousPriority)
     pushRow(rows, "New priority", newPriority)
   }
-  pushRow(
-    rows,
-    "Title",
-    definition.showsTargetTitle
-      ? firstValue(result.title, result.epic_title, objectValue(context.input, "title"), objectValue(context.input, "epic_title"))
-      : result.title
-  )
-  pushRow(rows, "Description", result.description)
+  if (definition.showsEpicUpdate) {
+    const requestedTitle = objectValue(context.input, "title")
+    const requestedDescription = objectValue(context.input, "description")
+    const changedFields = [
+      requestedTitle !== undefined && requestedTitle === result.title ? "Title" : null,
+      requestedDescription !== undefined && requestedDescription === result.description ? "Description" : null
+    ].filter(Boolean)
+    pushRow(
+      rows,
+      context.resultError ? "Attempted title" : "Title",
+      context.resultError && requestedTitle === "" ? "(empty)" : context.resultError ? requestedTitle : result.title
+    )
+    if (!context.resultError) pushRow(rows, "Changed fields", changedFields.join(", "))
+  } else {
+    pushRow(
+      rows,
+      "Title",
+      definition.showsTargetTitle
+        ? firstValue(result.title, result.epic_title, objectValue(context.input, "title"), objectValue(context.input, "epic_title"))
+        : result.title
+    )
+    pushRow(rows, "Description", result.description)
+  }
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
   pushRow(rows, definition.removedDependencyLabel ? "Removed" : "Dependency", dependencyReference(context, result))
   if (!definition.hidesSatisfaction) pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
@@ -456,6 +474,8 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     workflowId,
     prNumber,
     prUrl,
+    updateDescription: definition.showsEpicUpdate ? firstValue(context.resultError ? objectValue(context.input, "description") : result.description) : null,
+    updateDescriptionAttempted: Boolean(definition.showsEpicUpdate && context.resultError),
     rows: [
       ...buildRows(context, definition, detailResult, transitionExecuted),
       ...(definition.showsLiveExecution && liveMatch?.execution_status
@@ -582,6 +602,17 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           modalLabel={`${card.definition.actionLabel} reason`}
           text={card.reason}
           title="Reason"
+        />
+      ) : null}
+      {card.updateDescription ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={360}
+          maxLines={3}
+          modalLabel={card.updateDescriptionAttempted ? "Attempted Epic description" : "Updated Epic description"}
+          text={card.updateDescription}
+          title={card.updateDescriptionAttempted ? "Attempted description" : "Description"}
         />
       ) : null}
       {card.workflowId && card.targetId ? (
