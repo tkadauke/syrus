@@ -15,5 +15,6 @@
   "migration_index": "index",
   "migration_check": "condicio probationis",
   "migration_removed_structure": "Structura remota",
-  "migration_added_structure": "Structura addita"
+  "migration_added_structure": "Structura addita",
+  "migration_no_structure_statements": "Nullae sententiae structurae"
 }
