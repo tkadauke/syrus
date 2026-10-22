@@ -151,7 +151,7 @@ class Operation
 
   def replace_queued_deliveries!(runs)
     return :none if runs.empty?
-    return :unavailable unless defined?(SolidQueue::Job) && SolidQueue::Job.table_exists?
+    return :unavailable unless defined?(SolidQueue::Job) && SolidQueue::Job.connection.table_exists?(:solid_queue_jobs)
 
     SolidQueue::Job.transaction do
       queue_jobs = SolidQueue::Job.where(class_name: "RunJob", finished_at: nil).lock
@@ -166,6 +166,10 @@ class Operation
       SolidQueue::Job.where(id: ids).delete_all
       :replaced
     end
+  rescue ActiveRecord::StatementInvalid => e
+    raise unless e.message.include?("solid_queue_") && e.message.match?(/no such table|doesn't exist|does not exist/i)
+
+    :unavailable
   end
 
   def worker_available

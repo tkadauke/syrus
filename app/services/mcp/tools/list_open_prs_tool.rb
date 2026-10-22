@@ -74,7 +74,7 @@ module Mcp::Tools
           draft: pull_request.draft == true,
           created_at: pull_request.created_at&.iso8601,
           updated_at: pull_request.updated_at&.iso8601
-        }
+        }.compact
       end
 
       def branch_url(branch)
