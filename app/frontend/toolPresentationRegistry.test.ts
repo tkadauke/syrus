@@ -70,6 +70,10 @@ describe("toolPresentationRegistry", () => {
       const createCodingJob = toolPresentationEntryFor("create_coding_job")
       expect(createCodingJob.sourceType).toBe("local_mode_tool")
       expect(createCodingJob.renderer).not.toBeNull()
+
+      const openInCodingMode = toolPresentationEntryFor("open_in_coding_mode")
+      expect(openInCodingMode.sourceType).toBe("local_mode_tool")
+      expect(openInCodingMode.renderer).not.toBeNull()
     })
 
     it("resolves a chat surface component by its synthetic identifier", () => {
