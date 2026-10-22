@@ -213,6 +213,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_coding_mode` | `api/v1/app/job_coding_mode#open` |
 | core | POST | `/api/v1/app/jobs/:job_id/open_in_local_mode` | `api/v1/app/job_lifecycle#open_in_local_mode` |
 | core | POST | `/api/v1/app/jobs/:job_id/override_landing_blocker` | `api/v1/app/jobs#override_landing_blocker` |
+| core | POST | `/api/v1/app/jobs/:job_id/override_planned_execution` | `api/v1/app/job_lifecycle#override_planned_execution` |
 | core | PATCH | `/api/v1/app/jobs/:job_id/owner` | `api/v1/app/job_claims#update_owner` |
 | core | POST | `/api/v1/app/jobs/:job_id/pause` | `api/v1/app/job_lifecycle#pause` |
 | core | GET | `/api/v1/app/jobs/:job_id/pending_feedback` | `api/v1/app/pending_feedback#index` |

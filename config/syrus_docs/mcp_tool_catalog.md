@@ -39,6 +39,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `list_wakeups` | chat | deferred | read | no | - | - | - | - |
 | `move_epic_to_backlog` | chat | deferred | write | no | - | - | - | - |
 | `mutate_provider_routing_rules` | chat | deferred | write | no | - | - | - | - |
+| `override_job_planned_execution` | chat | deferred | write | no | - | - | - | - |
 | `pause_landing_queue` | chat | deferred | write | no | - | - | - | - |
 | `poll_job_feedback` | chat | deferred | write | no | - | - | - | - |
 | `read_artifact` | chat | deferred | read | no | - | - | - | - |

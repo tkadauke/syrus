@@ -14,6 +14,7 @@ RSpec.describe PlannedExecutionOverrides::Operation do
 
   it "updates a queued zero-start Run Job and Workflow, audits it, and re-resolves the queued Run" do
     run
+    allow(SolidQueue::Job.connection).to receive(:table_exists?).with(:solid_queue_jobs).and_return(false)
     job.update!(planned_execution_capabilities: ExecutionPlacementProfile.fetch("ios_xcode").capabilities, planned_execution_source: "classifier")
     workflow.update!(planned_execution_capabilities: ExecutionPlacementProfile.fetch("ios_xcode").capabilities, planned_execution_source: "classifier")
     expect_any_instance_of(Run).to receive(:reenqueue!)
@@ -76,6 +77,7 @@ RSpec.describe PlannedExecutionOverrides::Operation do
 
   it "commits placement and requests durable reconciliation when replacement enqueue fails" do
     run
+    allow(SolidQueue::Job.connection).to receive(:table_exists?).with(:solid_queue_jobs).and_return(false)
     allow_any_instance_of(Run).to receive(:reenqueue!).and_raise(ActiveJob::EnqueueError, "queue unavailable")
     expect(WorkEngine::Reconciler).to receive(:request).with(source: described_class.name, job: job)
 
