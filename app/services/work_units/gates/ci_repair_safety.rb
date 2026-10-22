@@ -38,9 +38,7 @@ module WorkUnits
 
         if require_clean_base_health? && !clean_base_health_known?
           return block("base_repair_active", active_base_repair_details) if active_base_repair?
-          return GateResult.pass if introduced_failing_check_names.present?
-
-          return block("base_not_known_healthy", base_not_known_healthy_details)
+          return block("base_not_known_healthy", base_not_known_healthy_details) if introduced_failing_check_names.blank?
         end
 
         if launch_gate_step? && (duplicate = active_duplicate_for_base)
