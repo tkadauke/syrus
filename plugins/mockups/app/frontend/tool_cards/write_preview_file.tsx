@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePreviewFileOp, PreviewErrorCard, PreviewFileOpCard, previewError } from "../previewPanelToolCard"
+import { parsePreviewFileOp, PreviewErrorCard, PreviewFileOpCard, previewError, previewPanelText } from "../previewPanelToolCard"
 
 // Plugin-owned tool card for write_preview_file (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
@@ -10,7 +10,7 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <PreviewErrorCard context={context} title="Write preview file" />
+  if (context.resultError) return <PreviewErrorCard context={context} title={previewPanelText("tool_write_preview_file")} />
   const op = parsePreviewFileOp(context.parsedResult, context.input)
   return op ? <PreviewFileOpCard action="Wrote file" op={op} /> : null
 }

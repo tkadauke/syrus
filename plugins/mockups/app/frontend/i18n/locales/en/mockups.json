@@ -38,5 +38,7 @@
   "tool_bytes": "{{count}} bytes",
   "tool_preview": "Preview",
   "tool_close_preview": "Close preview",
+  "tool_edit_preview_file": "Edit preview file",
+  "tool_write_preview_file": "Write preview file",
   "tool_failed_summary": "{{operation}} failed: {{error}}"
 }
