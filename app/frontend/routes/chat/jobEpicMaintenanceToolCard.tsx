@@ -95,7 +95,14 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     emptyDependenciesLabel: "No dependencies",
     hidesSatisfaction: true
   },
-  start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
+  start_epic: {
+    toolName: "start_epic",
+    subjectKind: "epic",
+    actionLabel: "Start Epic",
+    verb: "Started",
+    transitionStatePills: true,
+    showsFullErrorMessage: true
+  },
   move_epic_to_backlog: {
     toolName: "move_epic_to_backlog",
     subjectKind: "epic",
