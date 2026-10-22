@@ -51,5 +51,5 @@ export const examples: ToolCardExample[] = [
     resultBody: "",
     resultSettled: true
   },
-  { id: "pending", label: "Pending", input: { job_id: 7, tag_id: 10 }, resultSettled: false }
+  { id: "pending", label: "Pending", input: { job_id: 7, tag_id: 10 }, resultBody: "", resultSettled: false }
 ]
