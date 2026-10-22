@@ -301,11 +301,13 @@ export function PendingActionResultCard({
   detailTitle = "Detail",
   details,
   omitJob = false,
+  omitResource = false,
   result
 }: {
   detailTitle?: string
   details?: ReactNode
   omitJob?: boolean
+  omitResource?: boolean
   result: PendingActionResult
 }) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
@@ -339,7 +341,7 @@ export function PendingActionResultCard({
       </div>
       <ContextRows omitJob={omitJob} value={result} />
       {details}
-      {result.resourceTitle && result.resourceUrl ? (
+      {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
       ) : null}
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
