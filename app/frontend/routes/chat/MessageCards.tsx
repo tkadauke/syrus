@@ -193,6 +193,7 @@ export function SharedMessageRenderer({
   animateClass = "",
   as = "article",
   children,
+  compact = false,
   id,
   readOnly = false,
   testId
@@ -200,6 +201,7 @@ export function SharedMessageRenderer({
   animateClass?: string
   as?: "article" | "li"
   children: ReactNode
+  compact?: boolean
   id?: string
   readOnly?: boolean
   testId?: string
@@ -207,7 +209,7 @@ export function SharedMessageRenderer({
   const Component = as
   return (
     <Component
-      className={`group/message relative min-w-0 pt-6 text-sm text-text-primary${animateClass}`}
+      className={`group/message relative min-w-0 ${compact ? "pt-1" : "pt-6"} text-sm text-text-primary${animateClass}`}
       data-message-mode={readOnly ? "read-only" : "interactive"}
       data-testid={testId}
       id={id}
