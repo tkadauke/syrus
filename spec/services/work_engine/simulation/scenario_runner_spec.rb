@@ -32,6 +32,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     parallel_epic_siblings_implement_independently
     parallel_grader_worker_loss_retries
     pinned_host_admission_deferral_budget_reenqueues_elsewhere
+    queued_job_with_published_pr_converges
     queued_step_without_run
     queued_workflow_with_failed_step
     queued_workflow_without_first_run
@@ -92,6 +93,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(Job.find(result.job_ids.first)).to be_implemented
+  end
+
+  it "reconciles a queued Job with a published PR without launching replacement work" do
+    result = run_scenario("queued_job_with_published_pr_converges")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_implemented
+    expect(job.workflows.count).to eq(1)
+    expect(job.latest_workflow).to be_cancelled
+    expect(WorkUnits::Ownership.active_for_job?(job)).to be false
   end
 
   it "waits for job dependencies before starting dependent work" do
