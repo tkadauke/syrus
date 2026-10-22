@@ -268,7 +268,7 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: TargetContext }) {
+function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBlocker?: boolean; omitJob?: boolean; value: TargetContext }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
@@ -289,7 +289,7 @@ function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: Tar
           }
         />
       ) : null}
-      {value.blockerKey ? <Row label="Blocker key" value={<span className="break-all font-mono">{value.blockerKey}</span>} /> : null}
+      {!omitBlocker && value.blockerKey ? <Row label="Blocker key" value={<span className="break-all font-mono">{value.blockerKey}</span>} /> : null}
     </dl>
   )
 }
@@ -464,8 +464,10 @@ export function PendingActionResultCard({
   inputFields = [],
   linkifyMessageUrls = true,
   linkifyReasonUrls = true,
+  omitBlocker = false,
   omitJob = false,
   observedSummary = false,
+  omitReason = false,
   omitResource = false,
   result
 }: {
@@ -475,8 +477,10 @@ export function PendingActionResultCard({
   inputFields?: PendingActionInputField[]
   linkifyMessageUrls?: boolean
   linkifyReasonUrls?: boolean
+  omitBlocker?: boolean
   omitJob?: boolean
   observedSummary?: boolean
+  omitReason?: boolean
   omitResource?: boolean
   result: PendingActionResult
 }) {
@@ -490,7 +494,7 @@ export function PendingActionResultCard({
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows omitJob={omitJob} value={result} />
+        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
@@ -512,7 +516,7 @@ export function PendingActionResultCard({
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
-      <ContextRows omitJob={omitJob} value={result} />
+      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
@@ -522,7 +526,7 @@ export function PendingActionResultCard({
       {result.message ? (
         <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
       ) : null}
-      {result.reason && result.reason !== displayValue(input?.reason) ? (
+      {!omitReason && result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
           <MarkdownPreview linkifySlugs linkifyUrls={linkifyReasonUrls} maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
