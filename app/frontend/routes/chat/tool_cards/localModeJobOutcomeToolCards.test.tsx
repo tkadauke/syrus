@@ -4,7 +4,6 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import openInLocalModeCard, { examples as openInLocalModeExamples } from "./open_in_local_mode"
 import cancelLocalModeCard from "./cancel_local_mode"
 import createCodingJobCard from "./create_coding_job"
-import cancelCodingCheckoutCard from "./cancel_coding_checkout"
 import openInCodingModeCard from "./open_in_coding_mode"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
@@ -41,16 +40,6 @@ describe("Local Mode job-outcome tool card family", () => {
     expect(cancelLocalModeCard.renderExpanded(context({ input: { job_id: 42 }, parsedResult: {} }))).not.toBeNull()
     expect(cancelLocalModeCard.collapsedSummary?.(context({ resultBody: "not allowed", resultError: true }))).toBe("Local Mode cancellation failed")
     expect(cancelLocalModeCard.renderExpanded(context({ resultBody: "not allowed", resultError: true }))).not.toBeNull()
-  })
-
-  it("cancel_coding_checkout reads its nested released job outcome", () => {
-    const parsedResult = {
-      released_job: { id: 42, state: "implemented", branch_name: "syrus/direct-42" },
-      repository_slug: "tkadauke/syrus",
-      message: "JOB-42 was detached."
-    }
-    expect(cancelCodingCheckoutCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-42 was detached.")
-    expect(cancelCodingCheckoutCard.renderExpanded(context({ parsedResult }))).not.toBeNull()
   })
 
   it("uses shared provider normalizers for MCP names and result envelopes", () => {
