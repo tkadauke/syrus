@@ -874,6 +874,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(LandingQueueRecheck).to have_received(:call).with(job)
     expect(action.reload.before_snapshot).to include("jobs")
     expect(action.after_snapshot).to include("jobs")
+    expect(action.payload["refreshed_state"]).to eq(result.refreshed_state.deep_stringify_keys)
   end
 
   it "confirms override_landing_blocker_once only for the observed blocker" do

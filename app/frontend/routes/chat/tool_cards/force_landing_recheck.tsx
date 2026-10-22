@@ -1,5 +1,6 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import { MarkdownPreview } from "../toolCardMarkdown"
 import { displayValue, EmptyState, EntityReference, Row } from "../toolCardUi"
 
 function requestedJobIds(context: ToolCardContext) {
@@ -10,23 +11,28 @@ function requestedJobIds(context: ToolCardContext) {
   })
 }
 
-function RequestedJobs({ context }: { context: ToolCardContext }) {
+function ForceLandingRecheckDetails({ context, showReason }: { context: ToolCardContext; showReason: boolean }) {
   const jobIds = requestedJobIds(context)
   return (
-    <Row
-      label={jobIds.length === 1 ? "Job" : "Jobs"}
-      value={
-        jobIds.length ? (
-          <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-            {jobIds.map((jobId) => (
-              <EntityReference id={jobId} key={jobId} kind="job" />
-            ))}
-          </div>
-        ) : (
-          <EmptyState>Not provided</EmptyState>
-        )
-      }
-    />
+    <>
+      <Row
+        label={jobIds.length === 1 ? "Job" : "Jobs"}
+        value={
+          jobIds.length ? (
+            <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
+              {jobIds.map((jobId) => (
+                <EntityReference id={jobId} key={jobId} kind="job" />
+              ))}
+            </div>
+          ) : (
+            <EmptyState>Not provided</EmptyState>
+          )
+        }
+      />
+      {showReason && displayValue(context.input?.reason) ? (
+        <MarkdownPreview maxLines={4} modalLabel="Pending action reason" text={displayValue(context.input?.reason)} title="Reason" />
+      ) : null}
+    </>
   )
 }
 
@@ -40,7 +46,14 @@ function collapsedSummary(context: ToolCardContext) {
 
 function renderExpanded(context: ToolCardContext) {
   const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard detailTitle="Landing recheck outcome" details={<RequestedJobs context={context} />} omitJob result={result} /> : null
+  return result ? (
+    <PendingActionResultCard
+      detailTitle="Landing recheck outcome"
+      details={<ForceLandingRecheckDetails context={context} showReason={result.kind === "error"} />}
+      omitJob
+      result={result}
+    />
+  ) : null
 }
 
 const forceLandingRecheckToolCard: ToolCardRenderer = {
