@@ -40,7 +40,7 @@ module AdminMysql
           "time_seconds" => process[:time_seconds],
           "query_state" => process[:state]
         }.compact
-        pending_payload = query_details.merge("statement_digest" => process[:statement_digest])
+        pending_payload = query_details.merge("statement_verifier" => process[:statement_verifier])
 
         create_pending_admin_action(
           server_context: server_context,

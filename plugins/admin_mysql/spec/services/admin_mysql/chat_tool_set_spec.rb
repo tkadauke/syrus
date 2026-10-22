@@ -45,7 +45,7 @@ RSpec.describe AdminMysql::ChatToolSet do
       database: "syrus_production",
       time_seconds: 12,
       state: "executing",
-      statement_digest: "safe-digest"
+      statement_verifier: "safe-verifier"
     })
     allow(AdminMysql::Inspector).to receive(:new).and_return(inspector)
 
@@ -66,7 +66,7 @@ RSpec.describe AdminMysql::ChatToolSet do
         "database" => "syrus_production",
         "time_seconds" => 12,
         "query_state" => "executing",
-        "statement_digest" => "safe-digest"
+        "statement_verifier" => "safe-verifier"
       }
     )
     expect(payload).to include(
