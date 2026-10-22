@@ -89,7 +89,7 @@ RSpec.describe ClassifyIssueJob do
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
-          planned_execution: nil,
+          placement_recommendation: nil,
           raw_output: nil,
           spawned_process_id: nil,
           error: "ActiveModel::MissingAttributeError: can't write unknown attribute `job_id`"
@@ -114,7 +114,7 @@ RSpec.describe ClassifyIssueJob do
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
-          planned_execution: nil,
+          placement_recommendation: nil,
           raw_output: "not json",
           spawned_process_id: nil,
           error: "invalid JSON: expected an object"
@@ -138,7 +138,7 @@ RSpec.describe ClassifyIssueJob do
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
-          planned_execution: nil,
+          placement_recommendation: nil,
           raw_output: nil,
           spawned_process_id: nil,
           error: "ActiveModel::MissingAttributeError: can't write unknown attribute `job_id`"

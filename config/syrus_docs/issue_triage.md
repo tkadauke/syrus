@@ -23,6 +23,7 @@ from the admin processes surface.
 | `classifier_pending` | the classifier | automatic |
 | `pending_epic_ref` | the Epic named in the issue body to exist | automatic |
 | `classifier_uncertain` | **a person** | Accept or Reject |
+| `placement_confirmation` | **a person** confirming a non-Linux recommendation | Accept with suggested placement, Accept using Linux, or Cancel |
 | `proposed_job` | **a person** reviewing investigation-proposed work | Accept or Reject |
 
 ## Issue body markers
@@ -77,7 +78,7 @@ When a classifier result or exhausted retry budget reaches
 ## Accept and Reject
 
 The Job page shows two buttons while `triaging_reason` is
-`classifier_uncertain` or `proposed_job`, and only then:
+`classifier_uncertain`, `placement_confirmation`, or `proposed_job`, and only then:
 
 - **Accept** (`POST /api/v1/app/jobs/:job_id/accept_triage`) — "yes, work on
   this". Clears the uncertainty and advances the Job the same way a successful
@@ -86,6 +87,13 @@ The Job page shows two buttons while `triaging_reason` is
   accept does not re-run classification; the investigation-authored proposal
   already declared the work and execution capabilities, and triage is the
   acceptance gate.
+  For `placement_confirmation`, Accept opens a modal with the named profile,
+  exact capabilities, classifier explanation, and compatible-worker
+  availability when it can be determined. The endpoint requires either
+  `placement_decision: suggested` or `placement_decision: linux`; it applies
+  that operator-confirmed requirement and creates the initial Workflow in one
+  transaction. Cancel leaves the Job unchanged. Bulk Accept skips these Jobs
+  so it cannot silently choose placement.
 - **Reject** (`POST /api/v1/app/jobs/:job_id/reject_triage`) — "no". Closes the
   Job with `closure_reason: cancelled`. Not one of
   `Job::SUCCESSFUL_CLOSURE_REASONS`: rejecting an unclear request delivers
@@ -95,3 +103,15 @@ The Job page shows two buttons while `triaging_reason` is
 **Move to backlog is not offered while a Job is in triage.** An unclassified Job
 in the backlog has simply moved from one place nothing acts on to another;
 Accept or Reject is the decision that actually needs making.
+
+## Advisory placement recommendations
+
+Issue prose is classifier input, not an authoritative placement declaration.
+The classifier can recommend only the validated `linux`, `macos_desktop`, or
+`ios_xcode` profiles. A non-Linux recommendation is stored separately with its
+explanation, confidence when supplied, and `ingestion_classifier` provenance;
+it never changes the Job's active `planned_execution`. `macos_desktop` requires
+macOS/arm64 only, while `ios_xcode` additionally requires Xcode and an iOS
+simulator. Repository configuration, trusted structured metadata, direct/API
+input, and operator choices remain authoritative and bypass recommendation
+confirmation.

@@ -169,6 +169,7 @@ class McpToolRegistry
         chat(Mcp::Tools::ListJobsTool),
         chat(Mcp::Tools::SearchJobsTool),
         chat(Mcp::Tools::ReadJobTool),
+        chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
         chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
         chat(Mcp::Tools::MutateProviderRoutingRulesTool, tier: :deferred, mutation: true),

@@ -113,3 +113,15 @@ configured per-agent threshold.
 Operators can recheck usage and, when appropriate, override a provider pause.
 Overrides should be used when the account situation changed outside Syrus,
 such as buying extra credits or switching credentials.
+# Correcting execution placement
+
+Operators can correct a Job's execution profile from the Job management page
+before work starts. The control shows the current and replacement capabilities,
+compatible-worker availability, and requires an audit reason. It is available
+for triage/backlog Jobs and queued initial Workflows only while no Run has
+started and no mutable workspace exists. Once execution begins, create a fresh
+attempt with the required placement instead of moving its workspace between
+hosts.
+
+The profiles keep Linux, macOS desktop, and iOS/Xcode distinct: selecting
+macOS desktop does not request Xcode or an iOS simulator.

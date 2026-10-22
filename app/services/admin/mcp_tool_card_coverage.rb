@@ -27,7 +27,8 @@ module Admin
       "cancel_coding_checkout" => "generic",
       "open_in_coding_mode" => "generic",
       "reset_workspace" => "hidden",
-      "restack_epic" => "generic"
+      "restack_epic" => "generic",
+      "override_job_planned_execution" => "generic"
     }.freeze
 
     class << self
