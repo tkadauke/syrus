@@ -47,14 +47,19 @@ module AdminMysql
       normalize_process(row) if row
     end
 
-    def kill_query(thread_id, expected_statement: nil)
+    def kill_query(thread_id, expected_statement: nil, expected_statement_digest: nil)
       require_mysql!
       thread_id = normalize_thread_id(thread_id)
 
-      if expected_statement
+      if expected_statement || expected_statement_digest
         current = process(thread_id)
         raise ArgumentError, "MySQL thread #{thread_id} no longer exists" unless current
-        unless current[:info] == expected_statement
+        statement_matches = if expected_statement_digest
+          ActiveSupport::SecurityUtils.secure_compare(current[:statement_digest], expected_statement_digest)
+        else
+          current[:info] == expected_statement
+        end
+        unless statement_matches
           raise ArgumentError, "MySQL thread #{thread_id} is now running a different statement"
         end
       end
@@ -213,11 +218,11 @@ module AdminMysql
 
       rows.sort_by { |row| [ row["Command"].to_s.casecmp?("Sleep") ? 1 : 0, -row["Time"].to_i, row["Id"].to_i ] }
         .first(limit)
-        .map { |row| normalize_process(row, redact_info: true) }
+        .map { |row| normalize_process(row) }
     end
 
-    def normalize_process(row, redact_info: false)
-      info = redact_info ? redact_sql(row["Info"]) : row["Info"].to_s.presence
+    def normalize_process(row)
+      raw_info = row["Info"].to_s.presence
 
       {
         id: row["Id"].to_i,
@@ -227,7 +232,8 @@ module AdminMysql
         command: row["Command"],
         time_seconds: row["Time"].to_i,
         state: row["State"],
-        info: info
+        info: redact_sql(raw_info),
+        statement_digest: Digest::SHA256.hexdigest(raw_info.to_s)
       }
     end
 

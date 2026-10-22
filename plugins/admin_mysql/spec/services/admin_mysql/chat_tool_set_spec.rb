@@ -37,7 +37,16 @@ RSpec.describe AdminMysql::ChatToolSet do
   end
 
   it "creates a pending action with the current statement instead of killing immediately" do
-    inspector = instance_double(AdminMysql::Inspector, process: { id: 42, info: "SELECT * FROM jobs" })
+    inspector = instance_double(AdminMysql::Inspector, process: {
+      id: 42,
+      info: "SELECT * FROM jobs WHERE token = ?",
+      user: "syrus",
+      host: "worker:3306",
+      database: "syrus_production",
+      time_seconds: 12,
+      state: "executing",
+      statement_digest: "safe-digest"
+    })
     allow(AdminMysql::Inspector).to receive(:new).and_return(inspector)
 
     response = described_class.new.handle("admin_mysql_kill_query", { "thread_id" => 42 }, { chat_session: admin_chat })
@@ -49,8 +58,27 @@ RSpec.describe AdminMysql::ChatToolSet do
       action: "admin_mysql_kill_query",
       state: "pending",
       user: admin,
-      payload: { "thread_id" => 42, "statement" => "SELECT * FROM jobs" }
+      payload: {
+        "thread_id" => 42,
+        "statement" => "SELECT * FROM jobs WHERE token = ?",
+        "user" => "syrus",
+        "host" => "worker:3306",
+        "database" => "syrus_production",
+        "time_seconds" => 12,
+        "query_state" => "executing",
+        "statement_digest" => "safe-digest"
+      }
     )
+    expect(payload).to include(
+      "thread_id" => 42,
+      "statement" => "SELECT * FROM jobs WHERE token = ?",
+      "user" => "syrus",
+      "host" => "worker:3306",
+      "database" => "syrus_production",
+      "time_seconds" => 12,
+      "query_state" => "executing"
+    )
+    expect(response.content.first[:text]).not_to include("top-secret")
     expect(inspector).to have_received(:process).with(42)
   end
 
