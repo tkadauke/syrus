@@ -91,19 +91,22 @@ export function CapabilityBadges({ capabilities }: { capabilities: unknown }) {
   )
 }
 
-export function Row({ label, value, wrap = false }: { label: string; value: ReactNode; wrap?: boolean }) {
+export function Row({ label, value, wrap = false, copyable = false }: { label: string; value: ReactNode; wrap?: boolean; copyable?: boolean }) {
   return (
     <div className="min-w-0">
       <Text as="div" variant="label" tone="muted">
         {label}
       </Text>
-      <Text
-        as="div"
-        className={`${wrap ? "break-all sm:truncate" : "whitespace-pre-wrap break-words"} font-mono text-xs`}
-        title={typeof value === "string" ? value : undefined}
-      >
-        {value}
-      </Text>
+      <div className="flex min-w-0 items-center gap-1">
+        <Text
+          as="div"
+          className={`${wrap ? "whitespace-normal break-all" : "whitespace-pre-wrap break-words"} w-0 min-w-0 flex-1 font-mono text-xs`}
+          title={typeof value === "string" ? value : undefined}
+        >
+          {value}
+        </Text>
+        {copyable && typeof value === "string" ? <CopyOnlyIconButton value={value} /> : null}
+      </div>
     </div>
   )
 }
@@ -227,9 +230,11 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   run: {
     label: (reference) => prefixedEntityLabel("RUN", reference.id),
     href: (reference) => {
+      const id = compactEntityValue(reference.id)
       const jobId = compactEntityValue(reference.jobId)
       const workflowId = compactEntityValue(reference.workflowId)
-      return jobId && workflowId ? `/jobs/${jobId}?tab=workflows#workflow-${workflowId}` : null
+      if (jobId && workflowId) return `/jobs/${jobId}?tab=workflows#workflow-${workflowId}`
+      return id ? `/admin/runs/${id}/transcript` : null
     },
     copyValue: slugCopyValue
   },

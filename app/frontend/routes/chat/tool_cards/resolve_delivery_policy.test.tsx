@@ -49,7 +49,7 @@ describe("resolve_delivery_policy tool card", () => {
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
     expect(screen.getByRole("link", { name: "JOB-4225" })).toHaveAttribute("href", "/jobs/4225")
     expect(screen.getByText("staging")).toBeInTheDocument()
-    expect(screen.getByText("staging-branch")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("staging-branch")).toHaveClass("whitespace-normal", "break-all")
     expect(screen.getByText("approval: configured")).toBeInTheDocument()
     expect(screen.getByText("job approval: pending")).toBeInTheDocument()
     expect(screen.getByText("promotion approval: operator required")).toBeInTheDocument()

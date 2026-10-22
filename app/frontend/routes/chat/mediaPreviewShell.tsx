@@ -34,6 +34,18 @@ const MODAL_ACTION_CLASS = "inline-flex min-h-11 items-center rounded border bor
 const MODAL_ACTION_TONE_CLASS =
   "text-gray-600 hover:border-brand/50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
 
+function PreviewImage({ alt, className, fallbackLabel, src }: { alt: string; className: string; fallbackLabel: string; src: string }) {
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => setFailed(false), [src])
+
+  if (failed) {
+    return <span className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-300">{fallbackLabel}</span>
+  }
+
+  return <img alt={alt} className={className} loading="lazy" onError={() => setFailed(true)} src={src} />
+}
+
 export function MediaPreviewShell({
   item,
   thumbnailClassName = "w-56",
@@ -56,10 +68,10 @@ export function MediaPreviewShell({
       >
         <span className="block aspect-video w-full overflow-hidden bg-gray-100 dark:bg-gray-900">
           {item.src ? (
-            <img
+            <PreviewImage
               alt={item.alt ?? item.title}
               className="h-full w-full object-contain transition group-hover/media:scale-[1.02]"
-              loading="lazy"
+              fallbackLabel={item.fallbackLabel ?? "Preview unavailable"}
               src={item.src}
             />
           ) : (
@@ -135,7 +147,12 @@ function MediaPreviewModal({
             {item.previewChildren ? (
               item.previewChildren
             ) : item.src ? (
-              <img alt={item.alt ?? item.title} className="max-h-[calc(100dvh-16rem)] max-w-full object-contain" src={item.src} />
+              <PreviewImage
+                alt={item.alt ?? item.title}
+                className="max-h-[calc(100dvh-16rem)] max-w-full object-contain"
+                fallbackLabel={item.fallbackLabel ?? "No preview is available."}
+                src={item.src}
+              />
             ) : (
               <div className="px-4 py-8 text-center text-xs text-gray-500 dark:text-gray-400">{item.fallbackLabel ?? "No preview is available."}</div>
             )}

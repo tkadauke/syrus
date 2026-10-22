@@ -26,6 +26,16 @@ describe("toolCardUi Row", () => {
     expect(document.querySelector("dt")).toBeNull()
     expect(document.querySelector("dd")).toBeNull()
   })
+
+  it("constrains wrapped values beside copy controls without truncating them at desktop widths", () => {
+    const value = "syrus/direct-4225-improve-open-in-local-mode-tool-card-responsive-details"
+    render(<Row copyable label="Branch" value={value} wrap />)
+
+    const text = screen.getByText(value)
+    expect(text).toHaveClass("w-0", "min-w-0", "flex-1", "whitespace-normal", "break-all")
+    expect(text).not.toHaveClass("truncate", "sm:truncate")
+    expect(screen.getByRole("button", { name: `Copy ${value} to clipboard` })).toBeInTheDocument()
+  })
 })
 
 function renderReference(reference: ComponentProps<typeof EntityReference>) {
@@ -50,6 +60,8 @@ describe("EntityReference", () => {
     [{ kind: "chat", id: 5 }, "CHAT-5", "/chats/5"],
     [{ kind: "workflow", id: 3, jobId: 42 }, "WF-3", "/jobs/42?tab=workflows#workflow-3"],
     [{ kind: "run", id: 10, jobId: 42, workflowId: 3 }, "RUN-10", "/jobs/42?tab=workflows#workflow-3"],
+    [{ kind: "run", id: 10, jobId: 42 }, "RUN-10", "/admin/runs/10/transcript"],
+    [{ kind: "run", id: 10 }, "RUN-10", "/admin/runs/10/transcript"],
     [{ kind: "pull_request", id: 88, prUrl: "https://github.com/acme/widgets/pull/88" }, "PR #88", "https://github.com/acme/widgets/pull/88"],
     [{ kind: "issue", id: 12, issueUrl: "https://github.com/acme/widgets/issues/12" }, "#12", "https://github.com/acme/widgets/issues/12"],
     [
@@ -114,8 +126,6 @@ describe("EntityReference", () => {
 
   it.each([
     [{ kind: "workflow", id: 14 }, "WF-14"],
-    [{ kind: "run", id: 2, jobId: 8 }, "RUN-2"],
-    [{ kind: "run", id: 2 }, "RUN-2"],
     [{ kind: "issue", id: 12 }, "#12"],
     [{ kind: "repository", slug: "owner/private-repo" }, "owner/private-repo"],
     [{ kind: "proposal", slug: "ship-the-widget" }, "ship-the-widget"]

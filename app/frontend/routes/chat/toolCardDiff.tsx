@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Button, CodeSurface, Modal, Pill } from "../../components/ui"
 import { diffLineClass, diffMarkerClass, parseUnifiedDiff } from "../../components/diff/diffRendering"
+import { useT } from "../../hooks/useT"
 
 // Shared raw-diff summary/preview rendering for the get_job_diff, read_pr,
 // and read_run_transcript tool cards (the Tier 1 tool-card work). Lives outside
@@ -93,6 +94,7 @@ export function DiffStatBadges({ stats }: { stats: DiffStats }) {
 const PREVIEW_LINE_LIMIT = 300
 
 export function RawDiffPreview({ diff }: { diff: string }) {
+  const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const allLines = parseUnifiedDiff(diff)
   const lines = allLines.slice(0, PREVIEW_LINE_LIMIT)
@@ -113,7 +115,7 @@ export function RawDiffPreview({ diff }: { diff: string }) {
       </CodeSurface>
       {truncated ? (
         <div className="flex flex-wrap items-center gap-2 text-2xs text-text-muted">
-          <span>Showing first {PREVIEW_LINE_LIMIT} of {allLines.length} lines.</span>
+          <span>{t("tool_card_diff_preview_truncated", { shown: PREVIEW_LINE_LIMIT, total: allLines.length })}</span>
           <Button onClick={() => setOpen(true)} size="sm" variant="secondary">Show full diff</Button>
         </div>
       ) : null}

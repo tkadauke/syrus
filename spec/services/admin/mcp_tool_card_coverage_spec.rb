@@ -215,6 +215,24 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
     expect(report.fetch(:unclassified_advertised_tools)).to be_empty
   end
 
+  it "recognizes card factories exported through a bound variable" do
+    add_card("app/frontend/routes/chat/tool_cards/admin_action.tsx", <<~TS)
+      import { pendingActionToolCard } from "../pendingActionToolCard"
+      const adminActionToolCard = pendingActionToolCard("admin_action", { inputFields: [] })
+      export default adminActionToolCard
+    TS
+
+    report = described_class.call(
+      usages: McpToolUsage.none,
+      advertised_tools: %w[admin_action]
+    )
+
+    expect(report.fetch(:unused_advertised_tools)).to include(
+      include(tool_name: "admin_action", card_status: "registered")
+    )
+    expect(report.fetch(:unclassified_advertised_tools)).to be_empty
+  end
+
   it "ranks missing and weak card gaps by usage impact, ownership, and recency" do
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }
@@ -399,9 +417,13 @@ RSpec.describe "chat MCP custom-card coverage inventory" do
       .reject { |path| path.match?(Admin::McpToolCardCoverage::TEST_CARD_PATTERN) }
       .filter_map do |path|
         source = File.read(path)
-        next unless source.include?("collapsedSummary") || source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN)
+        next unless source.include?("collapsedSummary") ||
+          source.match?(Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN) ||
+          source.match?(Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN)
 
-        source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] || source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1]
+        source[Admin::McpToolCardCoverage::TOOL_NAME_PATTERN, 1] ||
+          source[Admin::McpToolCardCoverage::TOOL_CARD_FACTORY_PATTERN, 1] ||
+          source[Admin::McpToolCardCoverage::TOOL_CARD_BOUND_FACTORY_PATTERN, 2]
       end
 
     expect(explicit_tool_names & registered_tool_names).to eq([])

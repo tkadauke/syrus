@@ -56,7 +56,7 @@ describe("LocalModeJobOutcomeCard", () => {
       job_state: "coding",
       branch_name: "syrus/direct-325",
       repository_slug: "tkadauke/syrus",
-      message: "opened"
+      message: "opened on `syrus/direct-325`"
     })!
 
     render(<LocalModeJobOutcomeCard result={result} />)
@@ -64,7 +64,12 @@ describe("LocalModeJobOutcomeCard", () => {
     expect(screen.getByText("JOB-4225")).toBeInTheDocument()
     expect(screen.getByText("coding")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
-    expect(screen.getByText("opened")).toBeInTheDocument()
+    expect(screen.getByTitle("syrus/direct-325")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-325", { selector: "code" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-4225/ })).toHaveAttribute("href", "/jobs/4225")
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("button", { name: "Copy syrus/direct-325 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByTitle("syrus/direct-325")).toHaveClass("w-0", "flex-1", "whitespace-normal", "break-all")
+    expect(screen.getByTitle("syrus/direct-325")).not.toHaveClass("sm:truncate")
   })
 })

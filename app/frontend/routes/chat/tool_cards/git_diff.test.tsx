@@ -49,7 +49,7 @@ describe("git_diff tool card", () => {
 
     render(<>{gitDiffToolCard.renderExpanded(context({ parsedResult: { diff: manyFiles } }))}</>)
     expect(screen.getByText(/50 files/)).toBeInTheDocument()
-    expect(screen.getByText("Showing first 300 of 350 lines.")).toBeInTheDocument()
+    expect(screen.getByText("Preview shows the first 300 of 350 lines. Copy diff includes every line.")).toBeInTheDocument()
     expect(screen.queryByText("diff --git a/file49.rb b/file49.rb")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Show full diff" }))

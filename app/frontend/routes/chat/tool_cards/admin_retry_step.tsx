@@ -1,23 +1,15 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import { pendingActionToolCard } from "../pendingActionToolCard"
 
 // Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
 // consistent; this file only binds it to one MCP tool name.
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const adminRetryStepToolCard: ToolCardRenderer = {
-  toolName: "admin_retry_step",
-  collapsedSummary,
-  renderExpanded
-}
+const adminRetryStepToolCard = pendingActionToolCard("admin_retry_step", {
+  inputFields: [
+    { key: "workflow_id", label: "Workflow", format: "entity", entityKind: "workflow", hrefPrefix: "/admin/workflows" },
+    { key: "workflow_ids", label: "Workflows", format: "entity_list", entityKind: "workflow", hrefPrefix: "/admin/workflows" },
+    { key: "step_slug", label: "Step", format: "badge" },
+    { key: "reason", format: "markdown" }
+  ]
+})
 
 export default adminRetryStepToolCard

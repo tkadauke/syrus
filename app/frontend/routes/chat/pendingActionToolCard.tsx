@@ -1,8 +1,19 @@
 import type { ReactNode } from "react"
-import type { ToolCardContext } from "../../pluginToolCards"
-import { isPlainObject } from "../../toolCardParsing"
+import type { ToolCardContext, ToolCardRenderer } from "../../pluginToolCards"
+import { isPlainObject, normalizedToolCardParsedResult } from "../../toolCardParsing"
 import { MarkdownPreview } from "./toolCardMarkdown"
-import { Badge, CardShell, displayValue, EntityReference, entityReferenceLabel, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
+import {
+  Badge,
+  CardShell,
+  displayValue,
+  EntityReference,
+  entityReferenceLabel,
+  numberValue,
+  Row,
+  SectionLabel,
+  StatePill,
+  type ToolCardEntityKind
+} from "./toolCardUi"
 
 type TargetContext = {
   jobId: string | null
@@ -55,7 +66,26 @@ export type PendingActionResult =
       destructiveConfirmation: string | null
       context: TargetContext
     }
-  | ({ kind: "error"; code: string; message: string; validBases: string[] } & TargetContext)
+  | ({ kind: "error"; code: string | null; message: string; validBases: string[] } & TargetContext)
+
+export type PendingActionInputField = {
+  key: string
+  label?: string
+  format?: "plain" | "badge" | "list" | "markdown" | "entity" | "entity_list"
+  entityKind?: ToolCardEntityKind
+  hrefPrefix?: string
+}
+
+export type PendingActionToolCardOptions = { inputFields?: PendingActionInputField[] }
+
+function parsedErrorMessage(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null
+  if (!isPlainObject(value)) return null
+  const direct = displayValue(value.error) || displayValue(value.message)
+  if (direct) return direct
+  const first = Array.isArray(value.content) ? value.content[0] : null
+  return isPlainObject(first) ? displayValue(first.text) : null
+}
 
 function githubUrls(repository: string | null, prNumber: string | null, branch: string | null) {
   return {
@@ -114,8 +144,16 @@ function stringList(value: unknown) {
     : []
 }
 
-export function parsePendingActionResult(context: ToolCardContext): PendingActionResult | null {
-  const value = context.parsedResult
+export function parsePendingActionResult(context: ToolCardContext, includeError = false): PendingActionResult | null {
+  const value = normalizedToolCardParsedResult(context.parsedResult)
+  if (includeError && context.resultError)
+    return {
+      kind: "error",
+      code: null,
+      message: parsedErrorMessage(value) || context.resultBody || "The tool returned an error.",
+      validBases: [],
+      ...parseContext(context.input ?? {})
+    }
   if (!isPlainObject(value)) return null
   const input = context.input ?? {}
   const target = parseContext(input)
@@ -184,7 +222,7 @@ function compactCollapsedSummary(text: string) {
 }
 
 export function pendingActionCollapsedSummary(result: PendingActionResult): string {
-  if (result.kind === "error") return compactCollapsedSummary(`${result.code}: ${result.message}`)
+  if (result.kind === "error") return compactCollapsedSummary(result.code ? `${result.code}: ${result.message}` : result.message)
   if (result.kind === "dry_run_evidence") {
     const jobId = result.context.jobId || result.evidence?.jobId
     return `Dry run: ${result.action}${jobId ? ` for ${entityReferenceLabel({ kind: "job", id: jobId })}` : ""}`
@@ -297,16 +335,102 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
   )
 }
 
-export function PendingActionResultCard({ details, result }: { details?: ReactNode; result: PendingActionResult }) {
+function inputLabel(field: PendingActionInputField) {
+  return field.label || field.key.replace(/_/g, " ").replace(/^./, (character) => character.toUpperCase())
+}
+
+function linkedPendingProse(value: string) {
+  return value
+    .replace(/\bworkflow #(\d+)\b/gi, (_match, id: string) => `[workflow #${id}](/admin/workflows/${id})`)
+    .replace(/\bprocess #(\d+)\b/gi, (_match, id: string) => `[process #${id}](/admin/processes/${id})`)
+    .replace(/\buser #(\d+)\b/gi, (_match, id: string) => `[user #${id}](/admin/users/${id})`)
+    .replace(/(?<![\w@])([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})(?![\w@])/g, "[$1](mailto:$1)")
+}
+
+function InputValue({ field, value }: { field: PendingActionInputField; value: unknown }) {
+  const format = field.format || "plain"
+  if (format === "markdown")
+    return (
+      <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel={`Full ${inputLabel(field).toLowerCase()}`} text={displayValue(value)} />
+    )
+  if (format === "entity" || format === "entity_list") {
+    const values = format === "entity_list" && Array.isArray(value) ? value : [value]
+    return (
+      <div className="flex min-w-0 flex-wrap gap-1">
+        {values.map((item, index) => {
+          const id = displayValue(item)
+          return id ? (
+            <EntityReference
+              href={field.hrefPrefix ? `${field.hrefPrefix}/${id}` : null}
+              id={id}
+              key={`${id}-${index}`}
+              kind={field.entityKind || "artifact"}
+              touchTarget
+              wrap="break"
+            />
+          ) : null
+        })}
+      </div>
+    )
+  }
+  if (format === "list" && Array.isArray(value))
+    return (
+      <div className="flex min-w-0 flex-wrap gap-1">
+        {value.map((item, index) => {
+          const displayed = displayValue(item)
+          return displayed ? <Badge key={`${displayed}-${index}`}>{displayed}</Badge> : null
+        })}
+      </div>
+    )
+  const displayed = displayValue(value)
+  if (!displayed) return null
+  return format === "badge" ? <Badge>{displayed}</Badge> : <span className="break-all text-text-primary [overflow-wrap:anywhere]">{displayed}</span>
+}
+
+function InputDetails({ fields, input }: { fields: PendingActionInputField[]; input?: Record<string, unknown> }) {
+  if (!input) return null
+  const populated = fields.filter((field) =>
+    Array.isArray(input[field.key]) ? (input[field.key] as unknown[]).length > 0 : input[field.key] != null && displayValue(input[field.key]) !== ""
+  )
+  if (!populated.length) return null
+  return (
+    <div>
+      <SectionLabel>Targets and parameters</SectionLabel>
+      <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
+        {populated.map((field) => (
+          <div className={field.format === "markdown" ? "min-w-0 sm:col-span-2" : "min-w-0"} key={field.key}>
+            <dt className="text-2xs font-semibold uppercase text-text-muted">{inputLabel(field)}</dt>
+            <dd className="mt-0.5 min-w-0">
+              <InputValue field={field} value={input[field.key]} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+export function PendingActionResultCard({
+  details,
+  input,
+  inputFields = [],
+  result
+}: {
+  details?: ReactNode
+  input?: Record<string, unknown>
+  inputFields?: PendingActionInputField[]
+  result: PendingActionResult
+}) {
   if (result.kind === "dry_run_evidence") return <DryRunCard details={details} result={result} />
   if (result.kind === "error")
     return (
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="failed" />
-          <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span>
+          {result.code ? <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span> : null}
         </div>
-        <MarkdownPreview maxLines={4} modalLabel="Error details" text={result.message} />
+        <InputDetails fields={inputFields} input={input} />
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
         <ContextRows value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
@@ -317,9 +441,9 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.state} />
         {result.groupId ? (
-          <EntityReference href={result.resourceUrl} id={result.groupId} kind="artifact" label={`Group #${result.groupId}`} />
+          <EntityReference href={result.resourceUrl} id={result.groupId} kind="artifact" label={`Pending action group #${result.groupId}`} />
         ) : (
-          <EntityReference href={result.resourceUrl} id={result.pendingActionId} kind="artifact" label={`#${result.pendingActionId}`} />
+          <EntityReference href={result.resourceUrl} id={result.pendingActionId} kind="artifact" label={`Pending action #${result.pendingActionId}`} />
         )}
         {result.memberCount != null ? (
           <Badge>
@@ -327,6 +451,7 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
           </Badge>
         ) : null}
       </div>
+      <InputDetails fields={inputFields} input={input} />
       <ContextRows value={result} />
       {details}
       {result.resourceTitle && result.resourceUrl ? (
@@ -334,11 +459,13 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
       ) : null}
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
-      {result.message ? <MarkdownPreview maxLines={4} modalLabel="Pending action message" text={result.message} /> : null}
+      {result.message ? (
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
+      ) : null}
       {result.reason ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview maxLines={4} modalLabel="Pending action reason" text={result.reason} />
+          <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
         </div>
       ) : null}
       {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
@@ -348,4 +475,18 @@ export function PendingActionResultCard({ details, result }: { details?: ReactNo
       ) : null}
     </CardShell>
   )
+}
+
+export function pendingActionToolCard(toolName: string, options: PendingActionToolCardOptions = {}): ToolCardRenderer {
+  return {
+    toolName,
+    collapsedSummary(context) {
+      const result = parsePendingActionResult(context, true)
+      return result ? pendingActionCollapsedSummary(result) : null
+    },
+    renderExpanded(context) {
+      const result = parsePendingActionResult(context, true)
+      return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
+    }
+  }
 }
