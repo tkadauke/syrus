@@ -162,4 +162,11 @@ describe("MigrationDiffRenderer", () => {
     rerender(<MigrationDiffRenderer payload={{ migration_name: "Broken", status: "error", stage: "execution", message: "boom" }} />)
     expect(screen.getByRole("alert")).toHaveTextContent("execution: boom")
   })
+
+  it("renders normalized structure.sql fallback changes", () => {
+    render(<MigrationDiffRenderer payload={{ migration_name: "CreateWidgets", status: "cumulative_fallback", cumulative: true, message: "structure fallback", before: { structure: ["DROP TABLE old_widgets"] }, after: { structure: ["CREATE TABLE widgets (id bigint)"] } }} />)
+    expect(screen.getByText("Removed structure")).toBeInTheDocument()
+    expect(screen.getByText(/DROP TABLE old_widgets/)).toBeInTheDocument()
+    expect(screen.getByText(/CREATE TABLE widgets/)).toBeInTheDocument()
+  })
 })

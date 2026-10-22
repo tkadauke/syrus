@@ -73,8 +73,8 @@ export type MigrationDiffPayload = {
   stage?: string
   message?: string
   cumulative?: boolean
-  before?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[] }
-  after?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[] }
+  before?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[]; structure?: string[] }
+  after?: { table_name?: string; columns?: MigrationDiffColumn[]; tables?: ErdTable[]; structure?: string[] }
   changes?: MigrationDiffChange[]
 }
 

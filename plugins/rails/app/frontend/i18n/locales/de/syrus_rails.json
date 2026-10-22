@@ -13,5 +13,7 @@
   "migration_cumulative": "Kumulative Schemadifferenz",
   "migration_absent": "Nicht vorhanden",
   "migration_index": "Index",
-  "migration_check": "Prüfbedingung"
+  "migration_check": "Prüfbedingung",
+  "migration_removed_structure": "Entfernte Struktur",
+  "migration_added_structure": "Hinzugefügte Struktur"
 }
