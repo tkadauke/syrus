@@ -27,7 +27,7 @@ type MaintenanceToolDefinition = {
   hidesSatisfaction?: boolean
   showsPriorityTransition?: boolean
   showsLiveOutcome?: boolean
-  showsEpicUpdate?: boolean
+  showsUpdate?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -56,7 +56,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     verb: "Priority changed",
     showsPriorityTransition: true
   },
-  update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
+  update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated", showsUpdate: true },
   rebase_job: {
     toolName: "rebase_job",
     subjectKind: "job",
@@ -131,7 +131,7 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     confirmedSubjectState: "archived",
     warningMessage: true
   },
-  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated", showsEpicUpdate: true },
+  update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated", showsUpdate: true },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
   remove_epic_dependency: {
     toolName: "remove_epic_dependency",
@@ -350,7 +350,7 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
     pushRow(rows, "Previous priority", previousPriority)
     pushRow(rows, "New priority", newPriority)
   }
-  if (definition.showsEpicUpdate) {
+  if (definition.showsUpdate) {
     const requestedTitle = objectValue(context.input, "title")
     const requestedDescription = objectValue(context.input, "description")
     const changedFields = [
@@ -424,14 +424,17 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     ? firstValue(result.pr_number, liveOutcome.pr_number, afterSnapshot.pr_number, beforeSnapshot.pr_number, prUrl?.match(/\/pull\/(\d+)/)?.[1])
     : null
   const workflowId = definition.showsLiveExecution ? firstValue(result.workflow_id, liveOutcome.workflow_id, snapshotWorkflowId(afterSnapshot)) : null
-  const subjectState = definition.confirmedSubjectState
-    ? firstValue(
-        liveOutcome.state,
-        objectValue(liveMatch?.after_snapshot, "state"),
-        transitionExecuted ? result.new_state : null,
-        state === "confirmed" ? definition.confirmedSubjectState : null
-      )
-    : null
+  const updateErrorState = definition.showsUpdate && context.resultError && message?.includes("closed and cannot be updated") ? "closed" : null
+  const subjectState =
+    updateErrorState ||
+    (definition.confirmedSubjectState
+      ? firstValue(
+          liveOutcome.state,
+          objectValue(liveMatch?.after_snapshot, "state"),
+          transitionExecuted ? result.new_state : null,
+          state === "confirmed" ? definition.confirmedSubjectState : null
+        )
+      : null)
   const detailResult = definition.showsLiveOutcome && state === "confirmed" ? { ...result, ...liveOutcome } : result
   const hasRecognizedResult = [
     "job_id",
@@ -479,13 +482,13 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     workflowId,
     prNumber,
     prUrl,
-    updateDescription: definition.showsEpicUpdate
+    updateDescription: definition.showsUpdate
       ? (displayValue(context.resultError ? objectValue(context.input, "description") : result.description) ?? null)
       : null,
     updateDescriptionSupplied: Boolean(
-      definition.showsEpicUpdate && (context.resultError ? hasObjectKey(context.input, "description") : hasObjectKey(result, "description"))
+      definition.showsUpdate && (context.resultError ? hasObjectKey(context.input, "description") : hasObjectKey(result, "description"))
     ),
-    updateDescriptionAttempted: Boolean(definition.showsEpicUpdate && context.resultError),
+    updateDescriptionAttempted: Boolean(definition.showsUpdate && context.resultError),
     rows: [
       ...buildRows(context, definition, detailResult, transitionExecuted),
       ...(definition.showsLiveExecution && liveMatch?.execution_status
@@ -621,7 +624,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
             linkifyUrls
             maxChars={360}
             maxLines={3}
-            modalLabel={card.updateDescriptionAttempted ? "Attempted Epic description" : "Updated Epic description"}
+            modalLabel={`${card.updateDescriptionAttempted ? "Attempted" : "Updated"} ${card.definition.subjectKind === "epic" ? "Epic" : "Job"} description`}
             text={card.updateDescription}
             title={card.updateDescriptionAttempted ? "Attempted description" : "Description"}
           />
