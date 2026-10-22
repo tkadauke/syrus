@@ -1,6 +1,17 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { LocalModeJobOutcomeCard, localModeJobOutcomeSummary, parseLocalModeJobOutcome } from "./localModeJobOutcomeCard"
+import type { ToolCardContext } from "@app/pluginToolCards"
+import {
+  CreateCodingJobOutcomeCard,
+  LocalModeJobOutcomeCard,
+  createCodingJobRequest,
+  localModeJobOutcomeSummary,
+  parseLocalModeJobOutcome
+} from "./localModeJobOutcomeCard"
+
+function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+  return { toolName: "create_coding_job", resultBody: "", resultError: false, parsedResult: null, ...overrides }
+}
 
 describe("parseLocalModeJobOutcome", () => {
   it("parses the full open_in_local_mode shape", () => {
@@ -71,5 +82,51 @@ describe("LocalModeJobOutcomeCard", () => {
     expect(screen.getByRole("button", { name: "Copy syrus/direct-325 to clipboard" })).toBeInTheDocument()
     expect(screen.getByTitle("syrus/direct-325")).toHaveClass("w-0", "flex-1", "whitespace-normal", "break-all")
     expect(screen.getByTitle("syrus/direct-325")).not.toHaveClass("sm:truncate")
+  })
+})
+
+describe("CreateCodingJobOutcomeCard", () => {
+  it("parses and renders the request alongside linked result entities and markdown", () => {
+    const body = `Build a **responsive** card.\n\n${"Include all request context. ".repeat(60)}`
+    const toolContext = context({
+      input: { title: "Improve the coding card", body, repository_id: 12 },
+      parsedResult: {
+        job_id: 7589,
+        job_state: "queued",
+        repository_slug: "tkadauke/syrus",
+        message: "Created **JOB-7589** successfully."
+      }
+    })
+
+    expect(createCodingJobRequest(toolContext)).toEqual({ title: "Improve the coding card", body: body.trim(), repositoryId: "12" })
+    render(<CreateCodingJobOutcomeCard context={toolContext} />)
+
+    expect(screen.getByRole("heading", { name: "Improve the coding card" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/12")
+    expect(screen.getByTitle("12")).toHaveTextContent("12")
+    expect(screen.getByRole("link", { name: /JOB-7589/ })).toHaveAttribute("href", "/jobs/7589")
+    expect(screen.getByText("responsive")).toBeInTheDocument()
+    expect(screen.getByText("JOB-7589", { selector: "strong" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Description" })).toBeInTheDocument()
+    expect(screen.getByText(/Include all request context/, { selector: "p" })).toBeInTheDocument()
+  })
+
+  it("keeps request context visible when creation fails", () => {
+    render(
+      <CreateCodingJobOutcomeCard
+        context={context({
+          input: { title: "Unavailable repository", body: "Create the **job** anyway.", repository_id: 99 },
+          resultBody: "Repository is unavailable.",
+          resultError: true
+        })}
+      />
+    )
+
+    expect(screen.getByRole("heading", { name: "Unavailable repository" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository 99" })).toHaveAttribute("href", "/repositories/99")
+    expect(screen.getByText("job", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("Repository is unavailable.")).toBeInTheDocument()
   })
 })
