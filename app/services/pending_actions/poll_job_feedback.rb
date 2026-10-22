@@ -28,5 +28,17 @@ module PendingActions
     def presentation_label
       "Poll PR feedback for #{presentation_job_slug}"
     end
+
+    def tool_card_outcome
+      if payload["pr_number"].blank? || payload["pr_url"].blank?
+        scope = user.admin? ? Job.all : Job.accessible_to(user)
+        job = scope.find_by(id: payload["job_id"])
+      end
+      pr_number = payload["pr_number"].presence || job&.pr_number
+      pr_url = payload["pr_url"].presence || (App::Presentation.job_pr_url(job) if job)
+      return if pr_number.blank? || pr_url.blank?
+
+      { pr_number: pr_number, pr_url: pr_url }
+    end
   end
 end
