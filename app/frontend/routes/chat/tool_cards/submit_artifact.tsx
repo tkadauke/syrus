@@ -21,7 +21,7 @@ export const examples: ToolCardExample[] = [
     input: { type: "screenshot", title: "Mobile view", payload: { screenshot_url: "/icon-192.png" } },
     parsedResult: { message: "Saved.", workflow_id: 28622, run_id: 230581, job_id: 7705 }
   },
-  { id: "pending", label: "Pending submission", input: { type: "report", title: "Review report", payload: {} }, resultSettled: false },
+  { id: "pending", label: "Pending submission", input: { type: "report", title: "Review report", payload: {} }, parsedResult: null, resultSettled: false },
   {
     id: "error",
     label: "Submission error",

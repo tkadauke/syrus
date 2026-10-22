@@ -71,7 +71,7 @@ describe("video walkthrough analysis tool cards", () => {
     expect(screen.getByRole("button", { name: "Open Save button does nothing" })).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Save button does nothing at 1:12" })).toHaveAttribute("src", "data:image/jpeg;base64,jpeg")
     expect(screen.getByText("WALKTHROUGH-42")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "WALKTHROUGH-42" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "WALKTHROUGH-42" })).toHaveAttribute("href", "/s/WALKTHROUGH-42")
     expect(screen.getByRole("button", { name: "Copy WALKTHROUGH-42 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("[01:12] I click save and nothing happens.")).toBeInTheDocument()
     expect(screen.getByText("Should drafts autosave?")).toBeInTheDocument()

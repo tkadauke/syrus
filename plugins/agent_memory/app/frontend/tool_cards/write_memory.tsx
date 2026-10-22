@@ -94,5 +94,5 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: similar feedback memory already exists as memory #55; read_memory that id instead",
     resultError: true
   },
-  { id: "pending", label: "Pending write", input: { scope: "global", kind: "decision" } }
+  { id: "pending", label: "Pending write", input: { scope: "global", kind: "decision" }, resultBody: "" }
 ]
