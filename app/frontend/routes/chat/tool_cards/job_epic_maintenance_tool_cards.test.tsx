@@ -12,6 +12,7 @@ import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
 import reopenJobCard from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
+import { examples as pollJobFeedbackExamples } from "./poll_job_feedback"
 import startEpicCard from "./start_epic"
 import moveEpicToBacklogCard from "./move_epic_to_backlog"
 import { examples as moveEpicToBacklogExamples } from "./move_epic_to_backlog"
@@ -39,7 +40,7 @@ function context(toolName: string, overrides: Partial<ToolCardContext> = {}): To
   }
 }
 
-function livePendingAction(id: number, state: ChatPendingActionState): ChatPendingActionInline {
+function livePendingAction(id: number, state: ChatPendingActionState, overrides: Partial<ChatPendingActionInline> = {}): ChatPendingActionInline {
   return {
     id,
     state,
@@ -47,7 +48,8 @@ function livePendingAction(id: number, state: ChatPendingActionState): ChatPendi
     label: "Approve Job",
     detail: null,
     app_confirm_path: `/pending_actions/${id}/confirm`,
-    app_reject_path: `/pending_actions/${id}/reject`
+    app_reject_path: `/pending_actions/${id}/reject`,
+    ...overrides
   }
 }
 
@@ -194,6 +196,56 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Feedback poll rejected.")).toBeInTheDocument()
     expect(screen.queryByText("pending #8")).not.toBeInTheDocument()
     expect(screen.queryByText("pending #9")).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(pollJobFeedbackExamples[0].parsedResult) }] }, 46],
+    ["structured content", { structured_content: pollJobFeedbackExamples[1].parsedResult }, 47]
+  ] as const)("renders a linked pending feedback poll from normalized %s without relying on input", (_label, envelope, jobId) => {
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__poll_job_feedback"), {
+      ...pollJobFeedbackExamples[1],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(pollJobFeedbackCard.collapsedSummary?.(ctx)).toBe(`Feedback poll requested · JOB-${jobId} · pending #${jobId === 46 ? 29 : 30}`)
+    render(<>{pollJobFeedbackCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getAllByRole("link", { name: `JOB-${jobId}` }).every((link) => link.getAttribute("href") === `/jobs/${jobId}`)).toBe(true)
+  })
+
+  it("renders the live feedback-poll outcome, linked resource, PR, and execution failure", () => {
+    const pending = toolCardContextForExample("poll_job_feedback", pollJobFeedbackExamples[0])
+    const confirmed = {
+      ...pending,
+      livePendingAction: livePendingAction(29, "confirmed", {
+        action: "poll_job_feedback",
+        label: "Poll PR feedback",
+        resource_title: "Improve feedback polling",
+        resource_url: "/jobs/46?tab=workflows",
+        execution_status: "succeeded",
+        outcome: { pr_number: 321, pr_url: "https://github.com/acme/widgets/pull/321" }
+      })
+    }
+
+    expect(pollJobFeedbackCard.collapsedSummary?.(confirmed)).toBe("Feedback poll queued · JOB-46")
+    const { unmount } = render(<>{pollJobFeedbackCard.renderExpanded(confirmed)}</>)
+    expect(screen.getAllByRole("link", { name: "JOB-46" }).some((link) => link.getAttribute("href") === "/jobs/46?tab=workflows")).toBe(true)
+    expect(screen.getByRole("link", { name: "PR #321" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/321")
+    expect(screen.getByText("succeeded")).toBeInTheDocument()
+    unmount()
+
+    const failed = {
+      ...pending,
+      livePendingAction: livePendingAction(29, "failed", {
+        action: "poll_job_feedback",
+        label: "Poll PR feedback",
+        execution_status: "failed",
+        execution_error: "GitHub is temporarily unavailable."
+      })
+    }
+    expect(pollJobFeedbackCard.collapsedSummary?.(failed)).toBe("Poll Job Feedback failed · JOB-46")
+    render(<>{pollJobFeedbackCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("GitHub is temporarily unavailable.")).toBeInTheDocument()
   })
 
   it("renders dependency add and remove details for Job and Epic targets", () => {
