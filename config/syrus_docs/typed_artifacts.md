@@ -163,6 +163,8 @@ loads the workflow base schema into a uniquely named disposable database, applie
 migrations in timestamp order, and snapshots the catalog through Active Record around each one.
 Server-backed adapters require a local-only `SYRUS_RAILS_ARTIFACT_DATABASE_URL`; when disposable
 database creation is unavailable, the tool clearly labels a cumulative base/head schema-dump diff.
+All named development database configurations are redirected to separately named sandboxes before the app boots.
+Both `schema.rb` and adapter-native `structure.sql` baselines are supported.
 Data-only migrations use `no_schema_changes`, and setup, execution, introspection, or cleanup
 failures use `error` rather than an empty successful-looking diff.
 

@@ -33,6 +33,9 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
 
   const beforeTables = before?.tables
   const afterTables = after?.tables
+  if (before?.structure || after?.structure) {
+    return <div className="space-y-3"><div className="font-mono text-sm font-semibold text-text-primary">{migration_name}</div>{payload.cumulative && <Outcome tone="warning" title={t("migration_cumulative")} message={payload.message} />}<div className="grid min-w-[44rem] grid-cols-2 gap-4"><StructureStatements title={t("migration_removed_structure")} statements={before?.structure ?? []} /><StructureStatements title={t("migration_added_structure")} statements={after?.structure ?? []} /></div></div>
+  }
   if (beforeTables || afterTables) {
     const names = Array.from(new Set([...(beforeTables ?? []).map((table) => table.name), ...(afterTables ?? []).map((table) => table.name)])).sort()
     return (
@@ -72,6 +75,10 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
       )}
     </div>
   )
+}
+
+function StructureStatements({ title, statements }: { title: string; statements: string[] }) {
+  return <div className="rounded border border-border"><div className="bg-surface-raised px-3 py-1.5 text-xs font-semibold uppercase text-text-secondary">{title}</div><div className="space-y-2 p-3">{statements.map((statement, index) => <pre key={index} className="whitespace-pre-wrap text-xs text-text-secondary">{statement};</pre>)}</div></div>
 }
 
 function Outcome({ tone, title, message }: { tone: "error" | "warning" | "neutral"; title: string; message?: string }) {

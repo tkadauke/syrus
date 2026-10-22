@@ -33,7 +33,8 @@ The bundled Rails plugin's migration artifacts are execution-backed: it loads th
 workflow base schema into a disposable database, applies newly added migrations in
 order, and shows normalized before/after catalogs. Data-only migrations and artifact
 generation failures are labeled explicitly; environments without disposable-database
-support receive a clearly marked cumulative schema-dump comparison.
+support receive a clearly marked cumulative schema-dump comparison. The sandbox
+redirects every named application database to a distinct sandbox and supports both Ruby and SQL schema dumps.
 
 Plugins can also declare stable credential type names for a
 credential-management plugin to discover. These declarations are intentionally
