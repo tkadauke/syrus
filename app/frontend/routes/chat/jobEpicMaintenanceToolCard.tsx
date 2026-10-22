@@ -36,7 +36,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
 }
 
 type DetailRow = { label: string; value: ReactNode }
-type Dependency = { id: string; kind: SubjectKind; title: string | null; state: string | null; added: boolean }
+type Dependency = {
+  id: string
+  kind: SubjectKind
+  title: string | null
+  state: string | null
+  added: boolean
+  satisfactionMode: string | null
+  requiredStage: string | null
+}
 
 type MaintenanceCard = {
   definition: MaintenanceToolDefinition
@@ -51,6 +59,7 @@ type MaintenanceCard = {
   message: string | null
   rows: DetailRow[]
   dependencies: Dependency[]
+  showsDependencies: boolean
 }
 
 function subjectPrefix(kind: SubjectKind) {
@@ -122,7 +131,7 @@ function dependencyReference(context: ToolCardContext, result: Record<string, un
 
 function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind): Dependency | null {
   const record = isPlainObject(value) ? value : null
-  const id = firstValue(record?.id, value)
+  const id = firstValue(record?.[kind === "epic" ? "epic_id" : "depends_on_job_id"], record?.id, value)
   if (!id) return null
   const addedId = firstValue(objectValue(context.input, kind === "epic" ? "depends_on_epic_id" : "depends_on_job_id"))
   return {
@@ -130,17 +139,38 @@ function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind)
     kind,
     title: firstValue(record?.title, record?.issue_title),
     state: firstValue(record?.state),
-    added: context.toolName === `add_${kind}_dependency` && id === addedId
+    added: context.toolName.startsWith("add_") && context.toolName.endsWith("_dependency") && id === addedId,
+    satisfactionMode: firstValue(record?.satisfaction_mode),
+    requiredStage: firstValue(record?.required_deployment_stage_name)
   }
 }
 
 function dependencyList(context: ToolCardContext, definition: MaintenanceToolDefinition, result: Record<string, unknown>) {
+  const dependencyRecords = Array.isArray(result.dependencies) ? result.dependencies.filter(isPlainObject) : []
+  const recordFor = (value: unknown, kind: SubjectKind) => {
+    const id = firstValue(value)
+    const key = kind === "epic" ? "epic_id" : "depends_on_job_id"
+    return dependencyRecords.find((record) => firstValue(record[key]) === id) || value
+  }
   const entries: Array<[unknown, SubjectKind]> =
     definition.subjectKind === "epic"
       ? (Array.isArray(result.depends_on) ? result.depends_on : []).map((value) => [value, "epic"])
       : [
-          ...(Array.isArray(result.depends_on_job_ids) ? result.depends_on_job_ids : []).map((value): [unknown, SubjectKind] => [value, "job"]),
-          ...(Array.isArray(result.depends_on_epic_ids) ? result.depends_on_epic_ids : []).map((value): [unknown, SubjectKind] => [value, "epic"])
+          ...(Array.isArray(result.depends_on_job_ids) ? result.depends_on_job_ids : []).map((value): [unknown, SubjectKind] => [
+            recordFor(value, "job"),
+            "job"
+          ]),
+          ...(Array.isArray(result.depends_on_epic_ids) ? result.depends_on_epic_ids : []).map((value): [unknown, SubjectKind] => [
+            recordFor(value, "epic"),
+            "epic"
+          ]),
+          ...dependencyRecords
+            .filter((record) => {
+              const kind = record.depends_on_job_id !== undefined ? "job" : "epic"
+              const ids = kind === "job" ? result.depends_on_job_ids : result.depends_on_epic_ids
+              return !Array.isArray(ids) || !ids.some((id) => firstValue(id) === firstValue(record[kind === "job" ? "depends_on_job_id" : "epic_id"]))
+            })
+            .map((record): [unknown, SubjectKind] => [record, record.depends_on_job_id !== undefined ? "job" : "epic"])
         ]
   return entries.flatMap(([value, kind]) => {
     const item = dependency(context, value, kind)
@@ -201,6 +231,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     "depends_on",
     "depends_on_job_ids",
     "depends_on_epic_ids",
+    "dependencies",
     "removed_from_epic_id",
     "removed_from_epic_title",
     "error"
@@ -220,7 +251,8 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     failed,
     message,
     rows: buildRows(context, result, transitionExecuted),
-    dependencies: dependencyList(context, definition, result)
+    dependencies: dependencyList(context, definition, result),
+    showsDependencies: [result.depends_on, result.depends_on_job_ids, result.depends_on_epic_ids, result.dependencies].some(Array.isArray)
   }
 }
 
@@ -290,21 +322,27 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           ))}
         </dl>
       ) : null}
-      {card.dependencies.length > 0 ? (
+      {card.showsDependencies ? (
         <div>
           <SectionLabel>Current dependencies</SectionLabel>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {card.dependencies.map((dependency) => (
-              <Badge key={`${dependency.kind}-${dependency.id}`}>
-                <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
-                  <EntityReference id={dependency.id} kind={SUBJECT_ENTITY_KIND[dependency.kind]} />
-                  {dependency.title ? <span className="max-w-full break-words">{dependency.title}</span> : null}
-                  {dependency.state ? <StatePill state={dependency.state} /> : null}
-                  {dependency.added ? <StatePill state="added" tone="success" /> : null}
-                </span>
-              </Badge>
-            ))}
-          </div>
+          {card.dependencies.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {card.dependencies.map((dependency) => (
+                <Badge key={`${dependency.kind}-${dependency.id}`}>
+                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+                    <EntityReference id={dependency.id} kind={SUBJECT_ENTITY_KIND[dependency.kind]} />
+                    {dependency.title ? <span className="max-w-full break-words">{dependency.title}</span> : null}
+                    {dependency.state ? <StatePill state={dependency.state} /> : null}
+                    {dependency.added ? <StatePill state="added" tone="success" /> : null}
+                    {dependency.satisfactionMode ? <span>· {dependency.satisfactionMode}</span> : null}
+                    {dependency.requiredStage ? <span>· stage {dependency.requiredStage}</span> : null}
+                  </span>
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-1 text-xs text-text-secondary">No current dependencies</div>
+          )}
         </div>
       ) : null}
     </CardShell>
