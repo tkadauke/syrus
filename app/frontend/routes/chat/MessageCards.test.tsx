@@ -740,7 +740,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
-  it("keeps collapsed tool metadata on one truncated line without hiding the call count", () => {
+  it("wraps collapsed tool metadata on narrow screens without hiding the call count", () => {
     const detail = "a very long argument detail that must not make a narrow tool row grow vertically"
     const calls: ChatToolGroupItem["calls"] = [1, 2].map((messageId) => ({
       message_id: messageId,
@@ -759,7 +759,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls }} />)
 
     const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
-    expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "basis-full", "break-words", "sm:basis-0")
+    expect(metadata).not.toHaveClass("truncate")
     expect(metadata).not.toHaveAttribute("title")
     const count = screen.getByText("2")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
@@ -1268,7 +1269,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("truncate")
+    expect(summary).toHaveClass("basis-full", "break-words", "sm:basis-0")
 
     expandToolGroup("Git status")
 

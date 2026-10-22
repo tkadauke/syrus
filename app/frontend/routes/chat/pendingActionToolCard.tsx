@@ -476,7 +476,7 @@ export function PendingActionResultCard({
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state="failed" />
-          {result.code ? <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span> : null}
+          <span className="break-all font-mono font-semibold text-danger-text">{result.code || "Tool error"}</span>
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
@@ -512,7 +512,7 @@ export function PendingActionResultCard({
       {result.message ? (
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
       ) : null}
-      {result.reason ? (
+      {result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
           <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />

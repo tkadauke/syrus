@@ -129,7 +129,7 @@ describe("admin_cleanup_workspace tool card", () => {
 
     const card = screen.getByText("Pending action #501").closest("div.rounded-\\[var\\(--radius-panel\\)\\]")
     expect(card).toHaveClass("min-w-0", "max-w-full", "overflow-hidden")
-    expect(screen.getAllByTestId("markdown-preview-content")).toHaveLength(3)
+    expect(screen.getAllByTestId("markdown-preview-content")).toHaveLength(2)
     for (const preview of screen.getAllByTestId("markdown-preview-content")) {
       expect(preview).toHaveClass("break-words", "[overflow-wrap:anywhere]")
     }
