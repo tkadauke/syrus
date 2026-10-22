@@ -42,7 +42,8 @@ describe("pause_landing_queue tool card", () => {
     render(<>{pauseLandingQueueToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("Target")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Landing queue" })).toHaveAttribute("href", "/dashboard/jobs")
+    expect(screen.getByText("Landing queue")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Landing queue" })).not.toBeInTheDocument()
     expect(screen.getByText("Outcome")).toBeInTheDocument()
     expect(screen.getAllByText("pending")).toHaveLength(2)
   })
