@@ -37,7 +37,8 @@ module Mcp::Tools
             "observed_preview" => preview.as_json
           }.compact,
           reason: reason,
-          message: "Wake #{preview.workflow_count} queued #{provider} workflows and #{preview.auto_retry_count} delayed auto-retries?"
+          message: "Wake #{preview.workflow_count} queued #{provider} workflows and #{preview.auto_retry_count} delayed auto-retries?",
+          extra: { observed_preview: preview.as_json }
         )
       end
     end

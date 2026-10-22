@@ -54,9 +54,19 @@ export type PendingActionInputField = {
   format?: "plain" | "badge" | "list" | "markdown" | "entity" | "entity_list"
   entityKind?: ToolCardEntityKind
   hrefPrefix?: string
+  emptyLabel?: string
 }
 
-export type PendingActionToolCardOptions = { inputFields?: PendingActionInputField[] }
+export type PendingActionResultField = {
+  path: string
+  label: string
+  format?: "plain" | "badge" | "number"
+}
+
+export type PendingActionToolCardOptions = {
+  inputFields?: PendingActionInputField[]
+  resultFields?: PendingActionResultField[]
+}
 
 function errorMessage(value: unknown): string | null {
   if (typeof value === "string") return value.trim() || null
@@ -243,6 +253,7 @@ function linkedPendingProse(value: string) {
 
 function InputValue({ field, value }: { field: PendingActionInputField; value: unknown }) {
   const format = field.format || "plain"
+  if ((value == null || displayValue(value) === "") && field.emptyLabel) return <span className="text-text-primary">{field.emptyLabel}</span>
   if (format === "markdown")
     return (
       <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel={`Full ${inputLabel(field).toLowerCase()}`} text={displayValue(value)} />
@@ -287,7 +298,7 @@ function InputDetails({ fields, input }: { fields: PendingActionInputField[]; in
   if (!input) return null
   const populated = fields.filter((field) => {
     const value = input[field.key]
-    return Array.isArray(value) ? value.length > 0 : value != null && displayValue(value) !== ""
+    return field.emptyLabel || (Array.isArray(value) ? value.length > 0 : value != null && displayValue(value) !== "")
   })
   if (populated.length === 0) return null
   return (
@@ -307,20 +318,55 @@ function InputDetails({ fields, input }: { fields: PendingActionInputField[]; in
   )
 }
 
+function valueAtPath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, key) => (isPlainObject(current) ? current[key] : undefined), value)
+}
+
+function ResultDetails({ fields, value }: { fields: PendingActionResultField[]; value: unknown }) {
+  const populated = fields.flatMap((field) => {
+    const fieldValue = valueAtPath(value, field.path)
+    return fieldValue == null ? [] : [{ field, value: fieldValue }]
+  })
+  if (populated.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Previewed impact</SectionLabel>
+      <dl className="mt-1 grid min-w-0 gap-2 sm:grid-cols-2">
+        {populated.map(({ field, value: fieldValue }) => {
+          const displayed = field.format === "number" ? numberValue(fieldValue)?.toLocaleString() : displayValue(fieldValue)
+          if (!displayed) return null
+          return (
+            <div className="min-w-0" key={field.path}>
+              <dt className="text-2xs font-semibold uppercase text-text-muted">{field.label}</dt>
+              <dd className="mt-0.5 break-words text-text-primary [overflow-wrap:anywhere]">
+                {field.format === "badge" ? <Badge>{displayed}</Badge> : displayed}
+              </dd>
+            </div>
+          )
+        })}
+      </dl>
+    </div>
+  )
+}
+
 export function PendingActionResultCard({
   result,
   input,
-  inputFields = []
+  inputFields = [],
+  details
 }: {
   result: PendingActionResult
   input?: Record<string, unknown>
   inputFields?: PendingActionInputField[]
+  details?: ReactNode
 }) {
   if (result.kind === "error")
     return (
       <CardShell>
         <StatePill state="failed" />
         <InputDetails fields={inputFields} input={input} />
+        {details}
         <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={3} modalLabel="Full tool error" text={result.message} title="Tool error" />
       </CardShell>
     )
@@ -340,6 +386,7 @@ export function PendingActionResultCard({
         ) : null}
       </div>
       <InputDetails fields={inputFields} input={input} />
+      {details}
       {result.message ? (
         <MarkdownPreview
           linkifySlugs
@@ -376,7 +423,15 @@ export function pendingActionToolCard(toolName: string, options: PendingActionTo
     },
     renderExpanded(context) {
       const result = parsePendingActionResult(context, true)
-      return result ? <PendingActionResultCard input={context.input} inputFields={options.inputFields} result={result} /> : null
+      if (!result) return null
+      return (
+        <PendingActionResultCard
+          details={<ResultDetails fields={options.resultFields || []} value={normalizedToolCardParsedResult(context.parsedResult)} />}
+          input={context.input}
+          inputFields={options.inputFields}
+          result={result}
+        />
+      )
     }
   }
 }

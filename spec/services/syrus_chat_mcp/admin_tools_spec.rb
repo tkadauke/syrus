@@ -400,6 +400,10 @@ RSpec.describe "Mcp::Tools admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
+      if name == "wake_provider_admission"
+        expect(payload.fetch(:observed_preview)).to include(provider: "codex", workflow_count: 0, auto_retry_count: 0)
+        expect(action.payload.fetch("observed_preview")).to include("provider" => "codex", "workflow_count" => 0, "auto_retry_count" => 0)
+      end
       expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue repair_provider_circuit_evidence clear_provider_circuit wake_provider_admission])
     end
   end
