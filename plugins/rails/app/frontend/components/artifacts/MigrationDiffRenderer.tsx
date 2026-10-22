@@ -1,4 +1,4 @@
-import type { MigrationDiffChange, MigrationDiffPayload } from "@app/api/artifacts"
+import type { ErdTable, MigrationDiffChange, MigrationDiffPayload } from "@app/api/artifacts"
 import { useT } from "@app/hooks/useT"
 
 // Renders a Rails migration diff as a two-column before/after table.
@@ -24,6 +24,31 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
 
   const changeMap = new Map(changes.map((c) => [c.column.name, c.type]))
 
+  if (payload.status === "error") {
+    return <Outcome tone="error" title={t("migration_error")} message={`${payload.stage ? `${payload.stage}: ` : ""}${payload.message ?? t("unknown")}`} />
+  }
+  if (payload.status === "no_schema_changes") {
+    return <Outcome tone="neutral" title={t("migration_no_schema_changes")} message={payload.message} />
+  }
+
+  const beforeTables = before?.tables
+  const afterTables = after?.tables
+  if (beforeTables || afterTables) {
+    const names = Array.from(new Set([...(beforeTables ?? []).map((table) => table.name), ...(afterTables ?? []).map((table) => table.name)])).sort()
+    return (
+      <div className="min-w-full space-y-3">
+        <div className="font-mono text-sm font-semibold text-gray-700">{migration_name}</div>
+        {payload.cumulative && <Outcome tone="warning" title={t("migration_cumulative")} message={payload.message} />}
+        {names.map((name) => (
+          <div key={name} className="grid min-w-[44rem] grid-cols-2 gap-4">
+            <CatalogTable title={t("migration_before")} table={beforeTables?.find((table) => table.name === name)} name={name} />
+            <CatalogTable title={t("migration_after")} table={afterTables?.find((table) => table.name === name)} name={name} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="w-max min-w-full space-y-3">
       <div className="font-mono text-sm font-semibold text-gray-700">{migration_name}</div>
@@ -47,6 +72,16 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
       )}
     </div>
   )
+}
+
+function Outcome({ tone, title, message }: { tone: "error" | "warning" | "neutral"; title: string; message?: string }) {
+  const colors = tone === "error" ? "border-danger bg-danger-surface text-danger-text" : tone === "warning" ? "border-warning bg-warning-surface text-warning-text" : "border-border bg-surface-subtle text-text-secondary"
+  return <div role={tone === "error" ? "alert" : "status"} className={`rounded border px-3 py-2 ${colors}`}><div className="font-semibold">{title}</div>{message && <div className="mt-1 text-sm">{message}</div>}</div>
+}
+
+function CatalogTable({ title, table, name }: { title: string; table?: ErdTable; name: string }) {
+  const { t } = useT("syrus_rails")
+  return <div className="rounded border border-border text-sm"><div className="bg-surface-raised px-3 py-1.5"><span className="text-xs font-semibold uppercase text-text-secondary">{title} — </span><span className="font-mono">{name}</span></div>{table ? <div className="divide-y divide-border">{table.columns.map((column) => <div key={column.name} className="flex justify-between gap-3 px-3 py-1 font-mono"><span>{column.name}</span><span className="text-right text-xs text-text-secondary">{column.sql_type ?? column.type}{column.nullable === false ? " · NOT NULL" : ""}{column.default != null ? ` · default ${String(column.default)}` : ""}</span></div>)}{table.indexes?.map((index) => <div key={`index-${index.name}`} className="px-3 py-1 text-xs text-text-secondary">{t("migration_index")}: <span className="font-mono">{index.name ?? index.columns.join("_")} ({index.columns.join(", ")}){index.unique ? " UNIQUE" : ""}</span></div>)}{table.foreign_keys?.map((key) => <div key={`fk-${key.from_column}-${key.to_table}`} className="px-3 py-1 text-xs text-text-secondary">{t("foreign_key")}: <span className="font-mono">{key.from_column} → {key.to_table}.{key.to_column}</span></div>)}{table.check_constraints?.map((check, index) => <div key={`check-${check.name ?? index}`} className="px-3 py-1 text-xs text-text-secondary">{t("migration_check")}: <span className="font-mono">{check.name ? `${check.name}: ` : ""}{check.expression}</span></div>)}</div> : <div className="px-3 py-3 text-sm italic text-text-secondary">{t("migration_absent")}</div>}</div>
 }
 
 function ColumnTable({
@@ -76,7 +111,7 @@ function ColumnTable({
             return (
               <tr key={col.name} className={rowClass}>
                 <td className="whitespace-nowrap px-3 py-0.5 font-mono">{col.name}</td>
-                <td className="whitespace-nowrap px-3 py-0.5 text-right font-mono text-xs text-gray-500">{col.type}</td>
+                <td className="whitespace-nowrap px-3 py-0.5 text-right font-mono text-xs text-text-secondary">{col.type}</td>
               </tr>
             )
           })}
@@ -89,19 +124,19 @@ function ColumnTable({
 function rowHighlight(changeType: string | undefined, side: "before" | "after", index: number): string {
   const base = index % 2 === 0 ? "bg-white" : "bg-gray-50"
   if (!changeType) return base
-  if (changeType === "added" && side === "after") return "bg-emerald-50"
-  if (changeType === "removed" && side === "before") return "bg-red-50"
-  if (changeType === "modified") return "bg-amber-50"
+  if (changeType === "added" && side === "after") return "bg-success-bg"
+  if (changeType === "removed" && side === "before") return "bg-danger-bg"
+  if (changeType === "modified") return "bg-warning-bg"
   return base
 }
 
 function ChangePill({ type }: { type: string }) {
   const { t } = useT("syrus_rails")
   if (type === "added") {
-    return <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">{t("change_added")}</span>
+    return <span className="rounded bg-success-surface px-1.5 py-0.5 text-xs font-semibold text-success-text">{t("change_added")}</span>
   }
   if (type === "removed") {
-    return <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">{t("change_removed")}</span>
+    return <span className="rounded bg-danger-surface px-1.5 py-0.5 text-xs font-semibold text-danger-text">{t("change_removed")}</span>
   }
-  return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">{t("change_modified")}</span>
+  return <span className="rounded bg-warning-surface px-1.5 py-0.5 text-xs font-semibold text-warning-text">{t("change_modified")}</span>
 }
