@@ -874,6 +874,10 @@ describe("WorkflowsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review" }))
 
     expect(screen.getByText("Third visual pass")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Desktop bulk progress" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/10/visual_artifact?type=visual_review_desktop_bulk_progress_run_53_1"
+    )
     expect(screen.queryByText("First visual pass")).not.toBeInTheDocument()
     expect(screen.queryByText("Second visual pass")).not.toBeInTheDocument()
   })
@@ -2049,7 +2053,25 @@ function workflowWithVisualReviews() {
       visual_review_iterations: [
         { iteration: 1, critique: "First visual pass", verdict: "needs_work", artifacts: [] },
         { iteration: 2, critique: "Second visual pass", verdict: "needs_work", artifacts: [] },
-        { iteration: 3, step_id: 33, run_id: 53, critique: "Third visual pass", verdict: "approved", artifacts: [] }
+        {
+          iteration: 3,
+          step_id: 33,
+          run_id: 53,
+          critique: "Third visual pass",
+          verdict: "approved",
+          artifacts: [{
+            type: "visual_review_desktop_bulk_progress_run_53_1",
+            title: "Desktop bulk progress",
+            image_url: "/api/v1/app/workflows/10/visual_artifact?type=visual_review_desktop_bulk_progress_run_53_1",
+            content_type: "image/png",
+            byte_size: 2048,
+            page: { path: "/jobs" },
+            viewport: { width: 1280, height: 800 },
+            source: "current_browser",
+            captured_at: "2026-10-22T12:00:00Z",
+            created_at: "2026-10-22T12:00:01Z"
+          }]
+        }
       ]
     },
     cleaned_up_at: null,
