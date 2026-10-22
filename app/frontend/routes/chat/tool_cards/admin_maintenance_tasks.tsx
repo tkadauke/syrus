@@ -1,7 +1,13 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { Table, TBody, Td, THead } from "../adminToolCard"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import {
+  InputDetails,
+  parsePendingActionResult,
+  pendingActionCollapsedSummary,
+  PendingActionResultCard,
+  type PendingActionInputField
+} from "../pendingActionToolCard"
 import { MarkdownPreview, TextPreview } from "../toolCardMarkdown"
 import { Badge, CardShell, displayValue, EmptyState, InternalLink, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 
@@ -128,6 +134,13 @@ function parseTask(value: unknown): MaintenanceTask | null {
 }
 
 type MaintenancePayload = { kind: "list"; tasks: MaintenanceTask[] } | { kind: "single"; task: MaintenanceTask }
+const INPUT_FIELDS: PendingActionInputField[] = [
+  { key: "action", format: "badge" },
+  { key: "task_id", label: "Task ID" },
+  { key: "state", format: "badge" },
+  { key: "limit" }
+]
+
 function parsePayload(context: ToolCardContext): MaintenancePayload | null {
   const parsed = normalizedToolCardParsedResult(context.parsedResult)
   if (!isPlainObject(parsed)) return null
@@ -257,25 +270,26 @@ function collapsedSummary(context: ToolCardContext) {
 }
 function renderExpanded(context: ToolCardContext) {
   const pending = pendingResult(context)
-  if (pending)
-    return (
-      <PendingActionResultCard
-        input={context.input}
-        inputFields={[{ key: "action", format: "badge" }, { key: "task_id", label: "Task ID" }, { key: "state", format: "badge" }, { key: "limit" }]}
-        result={pending}
-      />
-    )
+  if (pending) return <PendingActionResultCard input={context.input} inputFields={INPUT_FIELDS} result={pending} />
   const payload = parsePayload(context)
   if (!payload) return null
   if (payload.kind === "single")
     return (
       <CardShell>
+        <InputDetails fields={INPUT_FIELDS} input={context.input} />
         <TaskDetails task={payload.task} />
       </CardShell>
     )
-  if (payload.tasks.length === 0) return <EmptyState>No maintenance tasks found.</EmptyState>
+  if (payload.tasks.length === 0)
+    return (
+      <CardShell>
+        <InputDetails fields={INPUT_FIELDS} input={context.input} />
+        <EmptyState>No maintenance tasks found.</EmptyState>
+      </CardShell>
+    )
   return (
     <CardShell>
+      <InputDetails fields={INPUT_FIELDS} input={context.input} />
       <Table responsive>
         <THead columns={["Task", "Details"]} />
         <TBody>
