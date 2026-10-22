@@ -288,6 +288,7 @@ describe("Job and Epic maintenance tool cards", () => {
       livePendingAction: livePendingAction(32, "confirmed", {
         action: "rebase_job",
         label: "Rebase JOB-48",
+        reason: "Refresh the branch after **main** changed.",
         execution_status: "applied",
         execution_step: "Applied.",
         resource_title: "Refresh the feature branch",
@@ -301,6 +302,8 @@ describe("Job and Epic maintenance tool cards", () => {
 
     expect(screen.getByText("applied")).toBeInTheDocument()
     expect(screen.getByText("Applied.")).toBeInTheDocument()
+    expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
+    expect(screen.getAllByText(/Refresh the branch after/)).toHaveLength(1)
     expect(screen.getByRole("link", { name: "WF-801" })).toHaveAttribute("href", "/jobs/48?tab=workflows#workflow-801")
   })
 
