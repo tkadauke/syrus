@@ -26,6 +26,7 @@ type MaintenanceToolDefinition = {
   emptyDependenciesLabel?: string
   hidesSatisfaction?: boolean
   showsPriorityTransition?: boolean
+  showsLiveOutcome?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -83,7 +84,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     showsFullErrorMessage: true,
     recoversTargetFromMessage: true
   },
-  unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved", pendingVerb: "Unapproval requested" },
+  unapprove_job: {
+    toolName: "unapprove_job",
+    subjectKind: "job",
+    actionLabel: "Unapprove Job",
+    verb: "Unapproved",
+    pendingVerb: "Unapproval requested",
+    confirmedSubjectState: "implemented",
+    showsLiveOutcome: true
+  },
   remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
   remove_job_dependency: {
@@ -393,6 +402,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
         state === "confirmed" ? definition.confirmedSubjectState : null
       )
     : null
+  const detailResult = definition.showsLiveOutcome && state === "confirmed" ? { ...result, ...liveOutcome } : result
   const hasRecognizedResult = [
     "job_id",
     "epic_id",
@@ -440,7 +450,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     prNumber,
     prUrl,
     rows: [
-      ...buildRows(context, definition, result, transitionExecuted),
+      ...buildRows(context, definition, detailResult, transitionExecuted),
       ...(definition.showsLiveExecution && liveMatch?.execution_status
         ? [{ label: "Execution", value: <StatePill state={liveMatch.execution_status} /> }]
         : []),
