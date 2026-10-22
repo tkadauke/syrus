@@ -1060,6 +1060,15 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"]) {
+  // Pending-action state is refreshed from the owning tool-call message,
+  // while result_summary is frozen when the original tool result arrives.
+  // Give a registered card the live record before falling back to that
+  // stored summary so confirmed/rejected outcomes do not keep saying pending.
+  if (call.pending_action) {
+    const liveCardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
+    if (liveCardSummary) return redactToolCardText(liveCardSummary)
+  }
+
   if (call.result_summary) return redactToolCardText(call.result_summary)
 
   const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
