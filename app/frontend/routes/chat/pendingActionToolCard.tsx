@@ -217,7 +217,7 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: TargetContext }) {
+function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBlocker?: boolean; omitJob?: boolean; value: TargetContext }) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
@@ -238,7 +238,7 @@ function ContextRows({ omitJob = false, value }: { omitJob?: boolean; value: Tar
           }
         />
       ) : null}
-      {value.blockerKey ? <Row label="Blocker key" value={<span className="break-all font-mono">{value.blockerKey}</span>} /> : null}
+      {!omitBlocker && value.blockerKey ? <Row label="Blocker key" value={<span className="break-all font-mono">{value.blockerKey}</span>} /> : null}
     </dl>
   )
 }
@@ -302,7 +302,9 @@ export function PendingActionResultCard({
   details,
   linkifyMessageUrls = false,
   linkifyReasonUrls = false,
+  omitBlocker = false,
   omitJob = false,
+  omitReason = false,
   omitResource = false,
   result
 }: {
@@ -310,7 +312,9 @@ export function PendingActionResultCard({
   details?: ReactNode
   linkifyMessageUrls?: boolean
   linkifyReasonUrls?: boolean
+  omitBlocker?: boolean
   omitJob?: boolean
+  omitReason?: boolean
   omitResource?: boolean
   result: PendingActionResult
 }) {
@@ -323,7 +327,7 @@ export function PendingActionResultCard({
           <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span>
         </div>
         <MarkdownPreview linkifyUrls={linkifyMessageUrls} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows omitJob={omitJob} value={result} />
+        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
       </CardShell>
@@ -343,7 +347,7 @@ export function PendingActionResultCard({
           </Badge>
         ) : null}
       </div>
-      <ContextRows omitJob={omitJob} value={result} />
+      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
@@ -351,7 +355,7 @@ export function PendingActionResultCard({
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
       {result.message ? <MarkdownPreview linkifyUrls={linkifyMessageUrls} maxLines={4} modalLabel="Pending action message" text={result.message} /> : null}
-      {result.reason ? (
+      {!omitReason && result.reason ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
           <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.reason} />

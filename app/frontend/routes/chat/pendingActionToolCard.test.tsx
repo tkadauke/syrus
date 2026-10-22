@@ -9,6 +9,7 @@ import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
 import delegateIssueCard from "./tool_cards/delegate_issue"
 import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
 import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
+import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocker_once"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -166,6 +167,65 @@ describe("pending action tool card: standard shape", () => {
     const result = parsePendingActionResult(context(standardPayload({ state: "pending" }), null))
 
     expect(result).toMatchObject({ pendingActionId: "501", state: "pending" })
+  })
+})
+
+describe("override_landing_blocker_once tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), null, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__override_landing_blocker_once")
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("renders the linked Job, wrapping blocker key, and Markdown audit reason from a normalized %s envelope", (_label, envelope) => {
+    render(
+      <>
+        {overrideLandingBlockerOnceCard.renderExpanded(
+          normalizedContext(envelope, {
+            job_id: 4222,
+            blocker_key: "dependency_blocked_by_an_exceptionally_long_upstream_job_identifier",
+            reason: "**Reviewed** the blocker before granting this one-time override."
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("Blocker key")).toBeInTheDocument()
+    expect(screen.getByText("dependency_blocked_by_an_exceptionally_long_upstream_job_identifier")).toHaveClass("break-all")
+    expect(screen.getByText("Audit reason")).toBeInTheDocument()
+    expect(screen.getByText("Reviewed", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("preserves request details in a structured error state", () => {
+    render(
+      <>
+        {overrideLandingBlockerOnceCard.renderExpanded(
+          normalizedContext(
+            { error: "invalid_request", message: "The landing blocker changed before confirmation." },
+            { job_id: 4222, blocker_key: "dependencies", reason: "Override approved after **manual review**." }
+          )
+        )}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("dependencies")).toBeInTheDocument()
+    expect(screen.getByText("manual review", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("labels every unavailable request field when input is missing", () => {
+    render(<>{overrideLandingBlockerOnceCard.renderExpanded(normalizedContext(standardPayload()))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(3)
+    expect(screen.getByText("Job")).toBeInTheDocument()
+    expect(screen.getByText("Blocker key")).toBeInTheDocument()
+    expect(screen.getByText("Audit reason")).toBeInTheDocument()
   })
 })
 
