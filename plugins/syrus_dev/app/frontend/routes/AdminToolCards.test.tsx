@@ -135,6 +135,21 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("pending")).toBeInTheDocument()
   })
 
+  it("renders live pending-action detail and state for catalog fixtures", () => {
+    renderRoute("/admin/tool_cards?tool_name=force_landing_recheck")
+
+    const region = screen.getByRole("region", { name: "Force landing recheck" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText(/observed blocker: dependencies/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Bulk confirmed with refreshed outcome" }))
+
+    expect(within(region).getByText("confirmed")).toBeInTheDocument()
+    expect(within(region).getByText("Landing recheck outcome")).toBeInTheDocument()
+    expect(within(region).getByText(/refreshed state: closed/)).toBeInTheDocument()
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 
