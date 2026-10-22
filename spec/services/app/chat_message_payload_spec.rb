@@ -382,6 +382,31 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes the tracked pull request in a feedback poll pending action outcome" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Review feedback", state: "implemented", pr_number: 42)
+    action = chat.pending_actions.create!(
+      action: "poll_job_feedback",
+      requested_by: "agent",
+      payload: {
+        "job_id" => job.id,
+        "pr_number" => job.pr_number,
+        "pr_url" => App::Presentation.job_pr_url(job)
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Poll feedback?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      resource_title: "Review feedback",
+      resource_url: "/jobs/#{job.id}",
+      outcome: {
+        pr_number: 42,
+        pr_url: "https://github.com/acme/widgets/pull/42"
+      }
+    )
+  end
+
   it "includes the created repository document result in an inline pending action" do
     action = chat.pending_actions.create!(
       action: "create_repo_document",

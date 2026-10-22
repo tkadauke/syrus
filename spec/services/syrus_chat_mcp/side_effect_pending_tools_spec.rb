@@ -217,7 +217,18 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
 
     action = pending_action_from(call_tool("poll_job_feedback", job_id: job.id))
 
-    expect(action).to have_attributes(action: "poll_job_feedback", payload: { "job_id" => job.id })
+    expect(action).to have_attributes(
+      action: "poll_job_feedback",
+      payload: {
+        "job_id" => job.id,
+        "pr_number" => 42,
+        "pr_url" => "https://github.com/acme/widgets/pull/42"
+      }
+    )
+    expect(PendingActions::PollJobFeedback.new(action).tool_card_outcome).to eq(
+      pr_number: 42,
+      pr_url: "https://github.com/acme/widgets/pull/42"
+    )
     expect {
       expect(action.confirm!).to be true
     }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true)
