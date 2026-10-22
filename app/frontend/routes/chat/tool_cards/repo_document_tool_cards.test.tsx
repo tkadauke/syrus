@@ -205,13 +205,13 @@ describe("repository document tool cards", () => {
     const input = { document_id: 99 }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { input, parsedResult }))).toBe(
-      'Delete document 99 · Delete document "Old notes"?'
+      'Delete Old notes · Delete document "Old notes"?'
     )
     render(<>{deleteRepoDocumentToolCard.renderExpanded(context("delete_repo_document", { input, parsedResult }))}</>)
 
     expect(screen.getByText("Delete document")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("99")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Old notes" })).toHaveAttribute("href", "/api/v1/app/repository_documents/99/file")
     expect(screen.getByText("Document disappeared before confirmation.")).toBeInTheDocument()
   })
 
@@ -224,8 +224,24 @@ describe("repository document tool cards", () => {
     }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { parsedResult, resultError: true }))).toBe(
-      'Delete document "Old notes"?'
+      'Delete repository document failed: Delete document "Old notes"?'
     )
+  })
+
+  it("renders document-not-found failures with recovery context", () => {
+    const failed = context("delete_repo_document", {
+      input: { document_id: 404 },
+      parsedResult: { error: "Document not found" },
+      resultBody: JSON.stringify({ error: "Document not found" }),
+      resultError: true
+    })
+
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Delete repository document failed")).toBeInTheDocument()
+    expect(screen.getByText("Document not found")).toBeInTheDocument()
+    expect(screen.getByText("Delete document 404")).toBeInTheDocument()
+    expect(screen.getByText(/Check that the document still exists/)).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {

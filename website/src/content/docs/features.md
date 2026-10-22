@@ -644,7 +644,10 @@ it with the same immediate continuation. Editing an already-active goal does
 not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
-remain operator controls. If a chat turn crashes and Syrus schedules an
+remain operator controls. Completed- and blocked-goal tool results record the
+previous and new statuses, reason, structured details, and owning chat
+metadata; their chat cards link back to the conversation and render long
+reasons as expandable Markdown. If a chat turn crashes and Syrus schedules an
 automatic retry, the retry status pill keeps the countdown visible and also
 offers a manual retry control so an operator can start the retry immediately.
 Automatic and manual retries wake the transcript with a Retry system message
@@ -662,11 +665,13 @@ through Job workflow and Run history progressively, search Jobs in the
 attached repository, read stored Job diffs, list and create the operator's
 tags, attach or remove tags on Jobs, manage repository documents after
 confirmation, search prior chat messages for the same user, read
-paginated chat transcripts, inspect Solid Queue health, update the chat's
-pinned context for future turns, and create proposal cards for the operator
-to confirm. New chats use a short interpreted title from the first prompt,
-with the repository name as the fallback. The app sidebar groups recent chats
-by repository by default, with sidebar settings for grouping by date, status,
+paginated chat transcripts, inspect Solid Queue health, update or remove the
+chat's pinned context for future turns, and create proposal cards for the
+operator to confirm. Removing pinned context shows the previous note as a
+linked Markdown preview, with a full-content view for longer notes and clear
+pending or error states. New chats use a short interpreted title from the
+first prompt, with the repository name as the fallback. The app sidebar groups
+recent chats by repository by default, with sidebar settings for grouping by date, status,
 mode, chat type, or chat agent when those distinctions are available; each
 group can be collapsed when the operator wants to fold that section away.
 Rows show spinners for associated Jobs doing implementation work and fresh

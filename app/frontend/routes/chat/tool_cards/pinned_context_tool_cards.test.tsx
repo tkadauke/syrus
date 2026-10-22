@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, type ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import removePinnedContextToolCard from "./remove_pinned_context"
 import updatePinnedContextToolCard from "./update_pinned_context"
 
@@ -78,15 +79,50 @@ describe("pinned context tool cards", () => {
     expect(screen.getByText("Pinned context is empty.")).toBeInTheDocument()
   })
 
-  it("renders removed pinned context state", () => {
-    const parsedResult = { pinned_context: null, message: "Pinned context removed." }
+  it.each([
+    ["direct result", "remove_pinned_context", (payload: Record<string, unknown>) => payload],
+    ["sidecar-prefixed result", "syrus-chat-sidecar.remove_pinned_context", (payload: Record<string, unknown>) => payload],
+    [
+      "Codex MCP envelope",
+      "mcp__syrus-chat-sidecar__remove_pinned_context",
+      (payload: Record<string, unknown>) => ({ content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null, isError: false })
+    ]
+  ])("normalizes and dispatches removed pinned context from a %s", (_label, rawToolName, wrapResult) => {
+    const removedContext = `${Array.from({ length: 12 }, (_, index) => `Line ${index + 1}`).join("\n")}\n**JOB-42** https://example.test/runbook`
+    const payload = { chat_id: 9, pinned_context: null, removed_pinned_context: removedContext, message: "Pinned context removed." }
+    const parsedResult = normalizedToolCardParsedResult(wrapResult(payload))
+    const cardContext = context(normalizedToolName(rawToolName), { parsedResult, resultBody: JSON.stringify(wrapResult(payload)) })
 
-    expect(removePinnedContextToolCard.collapsedSummary?.(context("remove_pinned_context", { parsedResult }))).toBe("Pinned context removed.")
-    render(<>{removePinnedContextToolCard.renderExpanded(context("remove_pinned_context", { parsedResult }))}</>)
+    expect(parsedResult).toEqual(payload)
+    expect(pluginToolCardCollapsedSummary(cardContext)).toBe("Pinned context removed.")
+    render(<>{pluginToolCardExpandedBody(cardContext)}</>)
 
     expect(screen.getByText("removed")).toBeInTheDocument()
     expect(screen.getByText("Pinned context removed.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "CHAT-9" })).toHaveAttribute("href", "/chats/9")
+    expect(screen.getByText("Removed context")).toBeInTheDocument()
+    expect(screen.getByText(/Line 1/)).toBeInTheDocument()
+    expect(screen.queryByText("Line 12")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     expect(screen.queryByText("Context preview")).not.toBeInTheDocument()
+  })
+
+  it("renders remove error envelopes and pending state", () => {
+    const errorContext = context("syrus-chat-sidecar.remove_pinned_context", {
+      resultBody: "No pinned context exists for this chat.",
+      resultError: true,
+      parsedResult: { error: { message: "No pinned context exists for this chat." } }
+    })
+
+    expect(removePinnedContextToolCard.collapsedSummary?.(errorContext)).toBe("Pinned context removal failed")
+    render(<>{removePinnedContextToolCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("No pinned context exists for this chat.")).toBeInTheDocument()
+
+    const pending = context("remove_pinned_context")
+    expect(removePinnedContextToolCard.collapsedSummary?.(pending)).toBe("Removing pinned context")
+    render(<>{removePinnedContextToolCard.renderPending?.(pending)}</>)
+    expect(screen.getByText("pending")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {
@@ -94,6 +130,6 @@ describe("pinned context tool cards", () => {
       "Pinned context update returned an unexpected response"
     )
     expect(updatePinnedContextToolCard.renderExpanded(context("update_pinned_context", { parsedResult: "not json", resultBody: "not json" }))).not.toBeNull()
-    expect(removePinnedContextToolCard.renderExpanded(context("remove_pinned_context", { parsedResult: { pinned_context: 7 } }))).toBeNull()
+    expect(removePinnedContextToolCard.renderExpanded(context("remove_pinned_context", { parsedResult: { pinned_context: 7 } }))).not.toBeNull()
   })
 })

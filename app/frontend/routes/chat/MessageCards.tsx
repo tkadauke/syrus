@@ -11,6 +11,7 @@ import {
   deleteChatMessagePin,
   fetchSourceFileContent,
   sourceFileUrl,
+  type ChatMediaPayload,
   type ChatMessageItem,
   type ChatPayload,
   type ChatRenderItem,
@@ -46,7 +47,13 @@ import {
   typedToolResult,
   type TypedToolResult
 } from "./toolRendering"
-import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody, pluginToolCardPendingBody, pluginToolCardRendererFor } from "../../pluginToolCards"
+import {
+  pluginToolCardCollapsedSummary,
+  pluginToolCardExpandedBody,
+  pluginToolCardPendingBody,
+  pluginToolCardRendererFor,
+  type ToolCardContext
+} from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -894,11 +901,22 @@ export function ChatCommandOutputSurface({
   )
 }
 
-export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chatSessionId?: number | string; item: ChatToolGroupItem }) {
+export const ToolGroup = memo(function ToolGroup({
+  chatSessionId,
+  item,
+  payload,
+  chatMedia
+}: {
+  chatSessionId?: number | string
+  item: ChatToolGroupItem
+  payload?: ChatPayload
+  chatMedia?: ChatMediaPayload
+}) {
   const [open, setOpen] = useState(false)
+  const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
 
   const details = item.calls
-    .map((call) => [toolCardAwareResultSummary(call), informativeDetail(call.detail)].filter(Boolean).join(" · "))
+    .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
@@ -929,7 +947,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => {
           const detail = informativeDetail(call.detail)
-          const resultSummary = toolCardAwareResultSummary(call)
+          const resultSummary = toolCardAwareResultSummary(call, presentation)
           return (
             <div key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">
@@ -938,9 +956,9 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
-                <ToolResultBody call={call} chatSessionId={chatSessionId} />
+                <ToolResultBody call={call} chatSessionId={chatSessionId} presentation={presentation} />
               ) : expanded ? (
-                pluginToolCardPendingBody(toolCardContext(call, chatSessionId))
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation))
               ) : null}
               {expanded ? (
                 <RawToolDetails
@@ -956,7 +974,9 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
                   {call.nested.map((nestedGroup) => (
                     <ToolGroup
                       chatSessionId={chatSessionId}
+                      chatMedia={chatMedia}
                       item={nestedGroup}
+                      payload={payload}
                       key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`}
                     />
                   ))}
@@ -994,7 +1014,15 @@ function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
   return pluginToolCardRendererFor(toolCardName(call))?.renderWhilePending === true
 }
 
-function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["calls"][number]; chatSessionId?: number | string }) {
+function ToolResultBody({
+  call,
+  chatSessionId,
+  presentation
+}: {
+  call: ChatToolGroupItem["calls"][number]
+  chatSessionId?: number | string
+  presentation?: ToolCardContext["presentation"]
+}) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -1012,7 +1040,7 @@ function ToolResultBody({ call, chatSessionId }: { call: ChatToolGroupItem["call
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation))
   if (pluginBody != null) return <>{pluginBody}</>
 
   // Registered cards may have a useful in-flight view derived entirely from
@@ -1029,15 +1057,19 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
   return normalizedToolName(call.raw_name || call.tool_name)
 }
 
-function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
+function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"]) {
   if (call.result_summary) return redactToolCardText(call.result_summary)
 
-  const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call))
+  const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
 
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
 
-export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSessionId?: number | string) {
+export function toolCardContext(
+  call: ChatToolGroupItem["calls"][number],
+  chatSessionId?: number | string,
+  presentation?: ToolCardContext["presentation"]
+): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
@@ -1048,7 +1080,8 @@ export function toolCardContext(call: ChatToolGroupItem["calls"][number], chatSe
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     chatSessionId,
-    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"]
+    livePendingAction: redactToolCardValue(call.pending_action ?? null) as ChatToolGroupItem["calls"][number]["pending_action"],
+    presentation
   }
 }
 

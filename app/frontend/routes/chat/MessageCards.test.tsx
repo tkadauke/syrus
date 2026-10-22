@@ -1554,6 +1554,48 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Keep", { exact: false })).toBeInTheDocument()
   })
 
+  it("supplies live chat context so propose_job renders attached media thumbnails", () => {
+    const result = { slug: "job-image-card", title: "Image card", body: "Use the screenshot.", kind: "job", state: "proposed" }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose job",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "propose_job",
+          raw_name: "mcp__syrus-chat-sidecar__propose_job",
+          detail: "Image card",
+          display_label: "Propose job",
+          progress_label: "Proposing",
+          raw_payload: { title: "Image card", media: ["chat_image:77", "snapshot:42"] },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(
+      <ToolGroup
+        chatMedia={{
+          snapshots: [{ id: 42, name: "Checkout sketch", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-18T12:00:00Z" }],
+          chat_images: [],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }}
+        item={item}
+        payload={makePayload()}
+      />
+    )
+    expandToolGroup("Propose job")
+
+    expect(screen.getByRole("img", { name: "chat_image:77" })).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file")
+    expect(screen.getAllByText("Checkout sketch").length).toBeGreaterThan(0)
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
       content: [

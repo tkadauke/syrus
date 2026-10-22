@@ -276,6 +276,13 @@ state. They are idempotent: pinning an already-pinned chat or
 unpinning an already-unpinned chat succeeds and returns the current `pinned`
 state.
 
+`remove_pinned_context` returns the current chat's `chat_id`, the cleared
+`pinned_context` value, and the previous text as `removed_pinned_context`.
+The chat card links back to that chat and renders the removed text as a
+bounded Markdown preview with a full-content dialog. Pending, empty,
+malformed, and tool-error responses use explicit card states; raw details
+remain available through the standard redacted tool-result disclosure.
+
 Job-navigation MCP tools use the same compact-card posture. `search_jobs`
 searches across all repositories visible to the current chat user by Job title
 and stored body text, accepts an optional exact `state` filter, defaults to 20
