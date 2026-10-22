@@ -22,6 +22,8 @@ type MaintenanceToolDefinition = {
   showsLiveExecution?: boolean
   showsReasonMarkdown?: boolean
   recoversTargetFromMessage?: boolean
+  removedDependencyLabel?: boolean
+  emptyDependenciesLabel?: string
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -90,7 +92,14 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   },
   update_epic: { toolName: "update_epic", subjectKind: "epic", actionLabel: "Update Epic", verb: "Updated" },
   add_epic_dependency: { toolName: "add_epic_dependency", subjectKind: "epic", actionLabel: "Add Epic Dependency", verb: "Dependency added" },
-  remove_epic_dependency: { toolName: "remove_epic_dependency", subjectKind: "epic", actionLabel: "Remove Epic Dependency", verb: "Dependency removed" }
+  remove_epic_dependency: {
+    toolName: "remove_epic_dependency",
+    subjectKind: "epic",
+    actionLabel: "Remove Epic Dependency",
+    verb: "Dependency removed",
+    removedDependencyLabel: true,
+    emptyDependenciesLabel: "No dependencies"
+  }
 }
 
 type DetailRow = { label: string; value: ReactNode }
@@ -265,7 +274,7 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   )
   pushRow(rows, "Description", result.description)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
-  pushRow(rows, "Dependency", dependencyReference(context, result))
+  pushRow(rows, definition.removedDependencyLabel ? "Removed" : "Dependency", dependencyReference(context, result))
   pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
@@ -534,7 +543,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
               ))}
             </div>
           ) : (
-            <div className="mt-1 text-xs text-text-secondary">No current dependencies</div>
+            <div className="mt-1 text-xs text-text-secondary">{card.definition.emptyDependenciesLabel || "No current dependencies"}</div>
           )}
         </div>
       ) : null}
