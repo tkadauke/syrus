@@ -13,5 +13,7 @@
   "migration_cumulative": "Differentia schematis cumulativa",
   "migration_absent": "Abest",
   "migration_index": "index",
-  "migration_check": "condicio probationis"
+  "migration_check": "condicio probationis",
+  "migration_removed_structure": "Structura remota",
+  "migration_added_structure": "Structura addita"
 }
