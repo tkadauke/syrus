@@ -7,6 +7,7 @@ import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionT
 import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
 import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
 import delegateIssueCard from "./tool_cards/delegate_issue"
+import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -211,6 +212,72 @@ describe("check_job_mergeability tool card", () => {
 
   it("calls out missing input instead of inferring a target from the message", () => {
     render(<>{checkJobMergeabilityCard.renderExpanded(normalizedContext(standardPayload({ message: "Check JOB-4222?" })))}</>)
+
+    expect(screen.getByText("Not provided")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
+  })
+})
+
+describe("force_landing_recheck tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), livePendingAction, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__force_landing_recheck")
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("renders its linked Job and Markdown reason from a normalized %s envelope", (_label, envelope) => {
+    render(<>{forceLandingRecheckCard.renderExpanded(normalizedContext(envelope, { job_id: 4222, reason: "**Checks** are stale." }))}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("Checks", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("are stale.")).toBeInTheDocument()
+  })
+
+  it("renders every bulk Job with wrapping links and the live outcome", () => {
+    const payload = {
+      ...standardPayload({ message: "Force landing recheck for 3 Jobs?" }),
+      pending_action_group_id: 88,
+      member_count: 3
+    }
+    render(
+      <>
+        {forceLandingRecheckCard.renderExpanded(
+          normalizedContext(
+            payload,
+            { job_ids: [41, 42, 43], reason: "Re-evaluate the landing blockers." },
+            liveAction({ detail: "Checks refreshed; JOB-42 remains blocked by dependencies." })
+          )
+        )}
+      </>
+    )
+
+    for (const id of [41, 42, 43]) expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    expect(screen.getByText("3 actions")).toBeInTheDocument()
+    expect(screen.getByText("Force landing recheck for 3 Jobs?")).toBeInTheDocument()
+    expect(screen.getByText("Landing recheck outcome")).toBeInTheDocument()
+    expect(screen.getByText("Checks refreshed; JOB-42 remains blocked by dependencies.")).toBeInTheDocument()
+  })
+
+  it("keeps requested Jobs visible for errors", () => {
+    render(
+      <>
+        {forceLandingRecheckCard.renderExpanded(
+          normalizedContext({ error: "invalid_request", message: "One or more Jobs could not be rechecked." }, { job_ids: [41, 404], reason: "Retry checks." })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-41" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-404" })).toBeInTheDocument()
+  })
+
+  it("calls out missing input instead of inferring Jobs from the message", () => {
+    render(<>{forceLandingRecheckCard.renderExpanded(normalizedContext(standardPayload({ message: "Force landing recheck for JOB-4222?" })))}</>)
 
     expect(screen.getByText("Not provided")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
