@@ -3737,13 +3737,13 @@ describe("App", () => {
     )
 
     fireEvent.click(await screen.findByLabelText("Select Repair aqueduct"))
-    const retryButton = screen.getByRole("button", { name: "Retry" })
-    const closeButton = screen.getByRole("button", { name: "Close" })
-    fireEvent.click(retryButton)
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
 
     await waitFor(() => {
-      expect(retryButton).toBeDisabled()
-      expect(closeButton).toBeDisabled()
+      expect(screen.getByText("0 of 1 retried")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled()
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument()
     })
 
     resolveBulkAction?.(
@@ -3756,8 +3756,8 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
     expect(screen.getByText("1 selected")).toBeInTheDocument()
     await waitFor(() => {
-      expect(retryButton).toBeEnabled()
-      expect(closeButton).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Close" })).toBeEnabled()
     })
   })
 
