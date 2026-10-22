@@ -113,7 +113,13 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "title" => "Different run",
         "payload" => {
           "run_id" => 999,
-          "image_url" => "/other"
+          "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_999_1",
+          "content_type" => "image/png",
+          "byte_size" => 987,
+          "source" => "current_browser",
+          "captured_at" => "2026-10-10T12:01:00.000Z",
+          "page" => { "path" => "/other" },
+          "viewport" => { "width" => 390, "height" => 844 }
         }
       }
     ])
@@ -142,6 +148,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
+    expect(artifact.fetch("artifacts").pluck("title")).not_to include("Different run")
     expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
   end
 
