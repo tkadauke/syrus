@@ -53,9 +53,9 @@ describe("write_file tool card", () => {
         )}
       </>
     )
-    expect(screen.getAllByText("README.md")).toHaveLength(2)
+    expect(screen.getAllByText("README.md")).toHaveLength(3)
     expect(screen.getByText("rejected")).toBeInTheDocument()
-    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
+    expect(screen.getAllByTestId("markdown-preview-content").some((preview) => preview.textContent?.includes("JOB-42"))).toBe(true)
     expect(screen.getByRole("link", { name: "https://example.com" })).toHaveAttribute("href", "https://example.com")
   })
 

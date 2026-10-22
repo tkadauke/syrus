@@ -68,7 +68,7 @@ function parseContext(value: Record<string, unknown>, fallback: Record<string, u
   const currentPr = isPlainObject(value.current_pr) ? value.current_pr : {}
   const repository = displayValue(currentPr.repository) || displayValue(value.repository) || displayValue(fallback.repository)
   const prNumber = displayValue(currentPr.number) || displayValue(value.pr_number) || displayValue(fallback.pr_number)
-  const branch = displayValue(value.branch) || displayValue(fallback.branch)
+  const branch = displayValue(value.branch) || displayValue(value.branch_name) || displayValue(fallback.branch) || displayValue(fallback.branch_name)
   const urls = githubUrls(repository, prNumber, branch)
   return {
     jobId: displayValue(value.job_id) || displayValue(fallback.job_id),
