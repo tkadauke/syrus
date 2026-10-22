@@ -210,9 +210,20 @@ function dependencyReference(context: ToolCardContext, result: Record<string, un
   if (dependsOnJobId) return <EntityReference id={dependsOnJobId} kind="job" />
   const dependsOnEpicId = firstValue(objectValue(context.input, "depends_on_epic_id"))
   if (dependsOnEpicId) return <EntityReference id={dependsOnEpicId} kind="epic" />
-  const removedFromEpicId = firstValue(result.removed_from_epic_id)
-  if (removedFromEpicId) return <EntityReference id={removedFromEpicId} kind="epic" />
   return null
+}
+
+function removedFromEpicReference(result: Record<string, unknown>) {
+  const id = firstValue(result.removed_from_epic_id)
+  const title = firstValue(result.removed_from_epic_title)
+  if (!id) return title
+
+  return (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+      <EntityReference id={id} kind="epic" />
+      {title ? <span>{title}</span> : null}
+    </span>
+  )
 }
 
 function dependency(context: ToolCardContext, value: unknown, kind: SubjectKind): Dependency | null {
@@ -286,7 +297,7 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   pushRow(rows, definition.removedDependencyLabel ? "Removed" : "Dependency", dependencyReference(context, result))
   if (!definition.hidesSatisfaction) pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
-  pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
+  pushRow(rows, "Removed from", removedFromEpicReference(result))
   if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
   return rows
 }
