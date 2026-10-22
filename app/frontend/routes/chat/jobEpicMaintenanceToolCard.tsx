@@ -18,6 +18,7 @@ type MaintenanceToolDefinition = {
   showsComment?: boolean
   showsTargetTitle?: boolean
   transitionStatePills?: boolean
+  showsFullErrorMessage?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -55,7 +56,8 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     actionLabel: "Move Epic To Backlog",
     verb: "Moved to backlog",
     showsTargetTitle: true,
-    transitionStatePills: true
+    transitionStatePills: true,
+    showsFullErrorMessage: true
   },
   archive_epic: {
     toolName: "archive_epic",
@@ -397,6 +399,7 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
         >
           <MarkdownPreview
             className={card.definition.warningMessage && awaitingConfirmation ? "font-medium text-warning-text" : undefined}
+            clamp={!(card.failed && card.definition.showsFullErrorMessage)}
             linkifySlugs
             maxChars={360}
             maxLines={3}
