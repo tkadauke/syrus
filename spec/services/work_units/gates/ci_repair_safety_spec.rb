@@ -249,6 +249,27 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     )
   end
 
+  it "still blocks a duplicate when an introduced failure exempts unknown base health" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    job.update!(pr_checks_failing_names: [ "rspec", "react" ])
+    MainBranchHealthCheck.create!(
+      repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
+      ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+    )
+    other = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "approved", commits_behind_base: 0)
+    duplicate = ci_unit_for(other, state: "running")
+    unit = ci_unit_for(job)
+
+    result = described_class.call(unit)
+
+    expect(result).to be_blocked
+    expect(result.details).to include(
+      "kind" => "duplicate_active_ci_repair",
+      "duplicate_workflow_id" => duplicate.workflow_id,
+      "duplicate_job_id" => other.id
+    )
+  end
+
   it "lets only the oldest of two queued CI repairs reserve the same base" do
     older_job = Factories.job_record(user: user, repository: repository, issue_number: 45, state: "approved", commits_behind_base: 0)
     older = ci_unit_for(older_job)
