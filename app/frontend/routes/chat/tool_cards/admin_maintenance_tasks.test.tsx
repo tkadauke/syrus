@@ -1,16 +1,12 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { redactToolCardValue } from "@app/toolCardSecurity"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 import adminMaintenanceTasksToolCard from "./admin_maintenance_tasks"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
-  return {
-    toolName: "admin_maintenance_tasks",
-    resultBody: "",
-    resultError: false,
-    parsedResult: null,
-    ...overrides
-  }
+  return { toolName: "admin_maintenance_tasks", resultBody: "", resultError: false, parsedResult: null, ...overrides }
 }
 
 function task(overrides: Record<string, unknown> = {}) {
@@ -21,94 +17,137 @@ function task(overrides: Record<string, unknown> = {}) {
     state: "running",
     recurrence: "one_off",
     category: "backfill",
-    title: "Backfill widget owners",
-    summary: "Backfills owner_id on legacy widgets.",
+    title:
+      "Backfill widget owners with a deliberately long title that must wrap cleanly instead of truncating around one hundred and thirty-one characters on narrow screens",
+    summary: "Backfills **owner_id** on legacy widgets.",
+    trigger_kind: "manual",
+    trigger_key: "operator",
+    required_role: "admin",
     current_step_key: "backfill",
     current_step_title: "Backfilling rows",
     total_units: 1000,
     completed_units: 400,
     failed_units: 0,
     progress_percent: 40,
+    eta_seconds: 90,
+    started_at: "2026-09-01T00:00:00Z",
+    finished_at: null,
+    paused_at: null,
+    cancelled_at: null,
+    dismissed_at: null,
     last_error: null,
     pending_reason: null,
+    checkpoint: { last_id: 400 },
+    documentation: "# Runbook\n\nUse **carefully**.",
+    steps: [{ key: "backfill", title: "Backfill records", description: "Updates legacy rows." }],
+    events: [
+      {
+        id: 91,
+        level: "info",
+        step_key: "backfill",
+        step_title: "Backfill records",
+        message: "Updated batch",
+        units_done: 400,
+        units_total: 1000,
+        created_at: "2026-09-01T00:01:00Z"
+      }
+    ],
+    requested_by: { id: 3, display_name: "Ada Admin" },
+    paths: { admin: "/admin/maintenance_tasks/7", api: "/api/v1/app/admin/maintenance_tasks/7" },
     ...overrides
   }
 }
 
 describe("admin_maintenance_tasks tool card", () => {
-  it("registers under the exact MCP tool name", () => {
-    expect(adminMaintenanceTasksToolCard.toolName).toBe("admin_maintenance_tasks")
+  it("registers under the exact MCP tool name", () => expect(adminMaintenanceTasksToolCard.toolName).toBe("admin_maintenance_tasks"))
+
+  it("renders every list-row field in a responsive table without truncating titles", () => {
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [task()] } }))}</>)
+    expect(screen.getAllByText(/Backfill widget owners with a deliberately long title/)[0]).toHaveClass("whitespace-normal", "break-words")
+    for (const value of [
+      "backfill_widgets",
+      "backfill_widgets:2026-09-01",
+      "manual",
+      "operator",
+      "admin",
+      "backfill",
+      "Backfilling rows",
+      "1000",
+      "400",
+      "0",
+      "40%",
+      "90s",
+      "Ada Admin (#3)",
+      "/api/v1/app/admin/maintenance_tasks/7"
+    ]) {
+      expect(screen.getAllByText(value).length).toBeGreaterThan(0)
+    }
+    expect(screen.getByText("owner_id")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open task" })).toHaveAttribute("href", "/admin/maintenance_tasks/7")
+    expect(screen.getByRole("table")).toHaveClass("block")
   })
 
-  it("summarizes a task list with a count", () => {
-    const parsedResult = { tasks: [ task(), task({ id: 8, title: "Rebuild search index" }) ] }
-    expect(adminMaintenanceTasksToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("2 maintenance tasks")
+  it("renders read-only detail fields, markdown, checkpoint, events, and redacted log previews", () => {
+    const redacted = redactToolCardValue(
+      task({
+        last_error: "authorization=secret-token-value",
+        pending_reason: "Waiting for **approval**.",
+        events: [{ id: 92, level: "error", step_key: "backfill", step_title: "Backfill records", message: "token=secret-token-value failed", units_done: 401 }]
+      })
+    )
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { task: redacted } }))}</>)
+    expect(screen.getByText("Runbook")).toBeInTheDocument()
+    expect(screen.getByText(/"last_id": 400/)).toBeInTheDocument()
+    expect(screen.getByText("Event #92")).toBeInTheDocument()
+    expect(screen.getByText("authorization=[redacted]")).toBeInTheDocument()
+    expect(screen.getByText("token=[redacted] failed")).toBeInTheDocument()
+    expect(screen.queryByText(/secret-token-value/)).not.toBeInTheDocument()
   })
 
-  it("summarizes a single task with its title and state", () => {
-    const parsedResult = { task: task() }
-    expect(adminMaintenanceTasksToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Backfill widget owners (running)")
-  })
-
-  it("renders a task list as a dense table", () => {
-    const parsedResult = { tasks: [ task(), task({ id: 8, title: "Rebuild search index", state: "paused", category: "index", progress_percent: 10, failed_units: 2 }) ] }
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult }))}</>)
-
-    expect(screen.getByText("Backfill widget owners")).toBeInTheDocument()
-    expect(screen.getByText("Rebuild search index")).toBeInTheDocument()
+  it("uses the shared pending-action card and echoes mutation inputs", () => {
+    const parsedResult = { pending_action_id: 501, state: "pending", message: "Pause maintenance task #7?" }
+    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ input: { action: "pause", task_id: 7, state: "running" }, parsedResult }))}</>)
+    expect(screen.getByText("Pending action #501")).toBeInTheDocument()
+    expect(screen.getByText("pause")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
-    expect(screen.getByText("paused")).toBeInTheDocument()
-    expect(screen.getByText("40%")).toBeInTheDocument()
-    expect(screen.getByText("10%")).toBeInTheDocument()
-    expect(screen.getByText("2")).toBeInTheDocument()
+    expect(adminMaintenanceTasksToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Pause maintenance task #7?")
   })
 
-  it("renders an explicit empty state for a well-formed empty list", () => {
+  it("renders tool errors with input context", () => {
+    render(
+      <>
+        {adminMaintenanceTasksToolCard.renderExpanded(
+          context({ input: { action: "read", task_id: 999 }, resultError: true, resultBody: "maintenance task not found", parsedResult: null })
+        )}
+      </>
+    )
+    expect(screen.getByText("Tool error")).toBeInTheDocument()
+    expect(screen.getByText("maintenance task not found")).toBeInTheDocument()
+    expect(screen.getByText("read")).toBeInTheDocument()
+    expect(screen.getByText("999")).toBeInTheDocument()
+  })
+
+  it("renders empty list results explicitly", () => {
     render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [] } }))}</>)
     expect(screen.getByText("No maintenance tasks found.")).toBeInTheDocument()
   })
 
-  it("renders a single task's status, counts, and current step", () => {
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { task: task() } }))}</>)
-
-    expect(screen.getByText("running")).toBeInTheDocument()
-    expect(screen.getByText("backfill")).toBeInTheDocument()
-    expect(screen.getByText("one_off")).toBeInTheDocument()
-    expect(screen.getByText("Backfill widget owners")).toBeInTheDocument()
-    expect(screen.getByText("Backfilling rows")).toBeInTheDocument()
-    expect(screen.getByText("40%")).toBeInTheDocument()
-    expect(screen.getByText("400 / 1000")).toBeInTheDocument()
+  it.each([
+    ["direct", task()],
+    ["structured content", { structured_content: { task: task() } }],
+    ["text content", { content: [{ type: "text", text: JSON.stringify({ task: task() }) }], structured_content: null }]
+  ])("normalizes %s results for namespaced agent calls", (_label, envelope) => {
+    const parsedResult = _label === "direct" ? { task: envelope } : envelope
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__admin_maintenance_tasks")).toBe("admin_maintenance_tasks")
+    expect(
+      adminMaintenanceTasksToolCard.collapsedSummary?.(
+        context({ toolName: "mcp__syrus-chat-sidecar__admin_maintenance_tasks", parsedResult: normalizedToolCardParsedResult(parsedResult) })
+      )
+    ).toContain("Backfill widget owners")
   })
 
-  it("surfaces the last error and a recommended follow-up for a failed task", () => {
-    const parsedResult = { task: task({ state: "failed", last_error: "PG::ConnectionBad: could not connect", failed_units: 3 }) }
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult }))}</>)
-
-    expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("Last error")).toBeInTheDocument()
-    expect(screen.getByText("PG::ConnectionBad: could not connect")).toBeInTheDocument()
-    expect(screen.getByText("Follow-up")).toBeInTheDocument()
-    expect(screen.getByText("Investigate the last error, then resume or cancel.")).toBeInTheDocument()
-  })
-
-  it("surfaces the pending reason for a paused task", () => {
-    const parsedResult = { task: task({ state: "paused", pending_reason: "Waiting for downstream table lock to clear." }) }
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult }))}</>)
-
-    expect(screen.getByText("Follow-up")).toBeInTheDocument()
-    expect(screen.getByText("Waiting for downstream table lock to clear.")).toBeInTheDocument()
-  })
-
-  it("omits last error, pending reason, and follow-up sections when the task carries none", () => {
-    render(<>{adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { task: task() } }))}</>)
-
-    expect(screen.queryByText("Last error")).not.toBeInTheDocument()
-    expect(screen.queryByText("Follow-up")).not.toBeInTheDocument()
-  })
-
-  it("falls back to null for a malformed or error payload", () => {
-    expect(adminMaintenanceTasksToolCard.collapsedSummary?.(context({ parsedResult: { oops: true } }))).toBeNull()
-    expect(adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
-    expect(adminMaintenanceTasksToolCard.renderExpanded(context({ resultError: true, parsedResult: null, resultBody: "Error: maintenance task not found" }))).toBeNull()
+  it("falls back for malformed successful payloads", () => {
+    expect(adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { oops: true } }))).toBeNull()
   })
 })
