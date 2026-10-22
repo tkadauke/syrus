@@ -25,9 +25,10 @@ module Steps
 
       pushes.each do |entry|
         branch = entry.fetch("branch_name")
+        post_sha = entry.fetch("post_sha")
         log("stack_force_push: pushing rebased #{branch} (#{workflow.slug})")
         GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_stack_force_push", log: method(:log)) do |push_url|
-          git.run("push", force_with_lease_arg(entry), push_url, "#{branch}:refs/heads/#{branch}", chdir: workspace.path.to_s)
+          git.run("push", force_with_lease_arg(entry), push_url, "#{post_sha}:refs/heads/#{branch}", chdir: workspace.path.to_s)
         end
       rescue GitRunner::GitError => e
         raise unless push_rejected?(e)
