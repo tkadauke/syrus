@@ -219,6 +219,7 @@ describe("issue, tag, and artifact tool cards", () => {
   it("shows a clear tag id fallback and pending state without prior context", () => {
     const pending = context("add_job_tag", { input: { job_id: 7, tag_id: 10 }, resultSettled: false })
 
+    expect(addJobTagToolCard.renderWhilePending).toBe(true)
     expect(addJobTagToolCard.collapsedSummary?.(pending)).toBe("Adding tag #10 · JOB-7")
     render(<>{addJobTagToolCard.renderExpanded(pending)}</>)
 

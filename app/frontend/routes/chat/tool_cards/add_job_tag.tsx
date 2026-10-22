@@ -14,7 +14,8 @@ function renderExpanded(context: ToolCardContext) {
 const addJobTagToolCard: ToolCardRenderer = {
   toolName: "add_job_tag",
   collapsedSummary,
-  renderExpanded
+  renderExpanded,
+  renderWhilePending: true
 }
 
 export default addJobTagToolCard
