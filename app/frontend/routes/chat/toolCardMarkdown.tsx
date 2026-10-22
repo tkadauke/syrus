@@ -26,6 +26,7 @@ const CLOSE_BUTTON_CLASS = [
 export type MarkdownPreviewProps = {
   text: string | null | undefined
   className?: string
+  clamp?: boolean
   copyLabel?: string
   emptyLabel?: string
   linkifySlugs?: boolean
@@ -67,6 +68,7 @@ type TruncatedMarkdown = { preview: string; truncated: boolean }
 // complete Markdown renderer available in a dialog only when content is cut.
 export function MarkdownPreview({
   className,
+  clamp = true,
   copyLabel,
   emptyLabel,
   emptyState,
@@ -93,12 +95,14 @@ export function MarkdownPreview({
     return <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>
   }
 
-  const lineClampStyle = {
-    display: "-webkit-box",
-    overflow: "hidden",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: Math.max(1, maxLines)
-  } as CSSProperties
+  const lineClampStyle = clamp
+    ? ({
+        display: "-webkit-box",
+        overflow: "hidden",
+        WebkitBoxOrient: "vertical",
+        WebkitLineClamp: Math.max(1, maxLines)
+      } as CSSProperties)
+    : undefined
   const dialogLabel = modalLabel || title || t("show_more")
 
   return (

@@ -415,6 +415,7 @@ describe("Job and Epic maintenance tool cards", () => {
     render(<>{moveEpicToBacklogCard.renderExpanded(ctx)}</>)
 
     expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByTestId("markdown-preview-content")).not.toHaveStyle({ overflow: "hidden" })
     expect(screen.getByText("Error: Epic cannot be moved to backlog from completed")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-62" })).toHaveAttribute("href", "/epics/62")
     expect(screen.getByText("Already completed Epic")).toBeInTheDocument()
