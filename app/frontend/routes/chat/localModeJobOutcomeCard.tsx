@@ -129,6 +129,7 @@ export function CreateCodingJobOutcomeCard({ context }: { context: ToolCardConte
           <div className="min-w-0">
             <div className="text-xs font-medium text-text-muted">Repository</div>
             <EntityReference
+              href={!request.repositoryId && repositorySlug ? `https://github.com/${repositorySlug}` : null}
               kind="repository"
               label={repositorySlug || (request.repositoryId ? `Repository ${request.repositoryId}` : null)}
               repositoryId={request.repositoryId}

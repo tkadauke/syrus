@@ -129,4 +129,23 @@ describe("CreateCodingJobOutcomeCard", () => {
     expect(screen.getByText("job", { selector: "strong" })).toBeInTheDocument()
     expect(screen.getByText("Repository is unavailable.")).toBeInTheDocument()
   })
+
+  it("links the result repository when the optional repository_id was omitted", () => {
+    render(
+      <CreateCodingJobOutcomeCard
+        context={context({
+          input: { title: "Use the attached repository", body: "Create the job." },
+          parsedResult: {
+            job_id: 7590,
+            job_state: "queued",
+            repository_slug: "tkadauke/syrus",
+            message: "Created JOB-7590."
+          }
+        })}
+      />
+    )
+
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("link", { name: /JOB-7590/ })).toHaveAttribute("href", "/jobs/7590")
+  })
 })
