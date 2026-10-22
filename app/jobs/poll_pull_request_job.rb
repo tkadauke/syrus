@@ -465,7 +465,7 @@ class PollPullRequestJob < ApplicationJob
     return if ci_repair_base_not_ready?(head_sha)
     return if active_ci_repair_for_same_base?
 
-    enqueue_ci_failure_run(head_sha, detail[:failed_checks])
+    enqueue_ci_failure_run(head_sha, repairable_failed_checks(detail[:failed_checks]))
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # Check-runs requires `Checks: read` (fine-grained) or `repo`
     # (classic). PR-comment polling above doesn't, so we treat
@@ -676,9 +676,66 @@ class PollPullRequestJob < ApplicationJob
     return false unless @job.repository.main_branch_health_enabled?
     return false if clean_base_health_known?(base_sha)
 
+    # An unhealthy base used to suppress repair outright. That is right for
+    # failures the PR *inherited* -- repairing a check that is broken on the
+    # base chases someone else's bug, and a base refresh is what fixes it once
+    # the base is green. It is wrong for failures the PR *introduced*: a check
+    # that passes on the base and fails here is this branch's own, repairable
+    # whatever else is broken upstream. Suppressing those meant one broken check
+    # on the base silently disabled CI repair for every Job in the fleet.
+    if (introduced = introduced_failing_check_names(base_sha)).present?
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: base #{base_sha[0, 7]} is unhealthy but #{introduced.join(', ')} fail only here; repairing those")
+      PollMainBranchHealthJob.perform_later(@job.repository_id)
+      return false
+    end
+
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because base #{base_sha[0, 7]} is not known healthy")
     PollMainBranchHealthJob.perform_later(@job.repository_id)
     true
+  end
+
+  # Checks failing on this PR that are NOT failing on its base. Empty means every
+  # failure is inherited and there is nothing here to repair.
+  #
+  # Both sides are read from what the poll just persisted, so this never issues
+  # another API call: `cache_pr_checks_state` wrote `pr_checks_failing_names`
+  # earlier in this same `react_to_ci_failures` pass.
+  def introduced_failing_check_names(base_sha)
+    pr_failing = Array(@job.pr_checks_failing_names).map { |name| name.to_s.strip }.reject(&:empty?)
+    return nil if pr_failing.empty?
+
+    base_failing = base_failing_check_names(base_sha)
+    # No evidence about the base means we cannot call anything introduced. Absent
+    # knowledge is not the same as knowing a check passes upstream, so fall back
+    # to suppressing rather than guessing this branch's failures are its own.
+    return nil if base_failing.nil?
+
+    (pr_failing - base_failing).presence
+  end
+
+  # Names known to be failing on the base, or nil when we have no health record
+  # to judge by. Falls back to the newest record for the repository when the base
+  # SHA itself was never evaluated: what is broken on main now is the best
+  # available proxy for what this PR inherited.
+  def base_failing_check_names(base_sha)
+    checks = MainBranchHealthCheck.where(repository_id: @job.repository_id, sha: base_sha).to_a
+    # The base SHA itself may never have been evaluated. What is broken on main
+    # now is the best available proxy for what this PR inherited.
+    if checks.empty?
+      latest = MainBranchHealthCheck.where(repository_id: @job.repository_id).order(id: :desc).first
+      checks = [ latest ].compact
+    end
+    return nil if checks.empty?
+
+    # Union across every record for this SHA rather than the newest alone: a
+    # later record can be written mid-poll with no failure detail, and a check
+    # known to fail upstream is inherited regardless of which record saw it.
+    checks.flat_map { |check|
+      ci = Array(check.ci_failed_checks).filter_map do |entry|
+        entry.is_a?(Hash) ? (entry["name"] || entry[:name]) : entry
+      end
+      ci + Array(check.grader_failed_names)
+    }.map { |name| name.to_s.strip }.reject(&:empty?).uniq
   end
 
   def pr_base_sha
@@ -742,6 +799,25 @@ class PollPullRequestJob < ApplicationJob
 
   def ci_failure_base_sha_for(workflow)
     workflow.artifact("base_sha") || workflow.work_unit&.work_intent&.payload_artifact("base_sha")
+  end
+
+  # When the base is unhealthy we only got here because some checks fail on this
+  # PR and not on the base. Hand the repair exactly those, so the agent does not
+  # spend its attempt chasing a failure it cannot fix from this branch. With a
+  # healthy base every failure is this branch's own, so nothing is filtered.
+  def repairable_failed_checks(failed_checks)
+    base_sha = pr_base_sha
+    return failed_checks if base_sha.blank?
+    return failed_checks if clean_base_health_known?(base_sha)
+
+    introduced = introduced_failing_check_names(base_sha)
+    return failed_checks if introduced.blank?
+
+    scoped = Array(failed_checks).select do |check|
+      name = check.is_a?(Hash) ? (check[:name] || check["name"]) : check
+      introduced.include?(name.to_s.strip)
+    end
+    scoped.presence || failed_checks
   end
 
   def enqueue_ci_failure_run(head_sha, failed_checks)
