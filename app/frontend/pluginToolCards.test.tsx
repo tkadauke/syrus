@@ -191,6 +191,26 @@ describe("pluginToolCards", () => {
       expect(context.livePendingAction?.detail).toContain("refreshed state: closed")
     })
 
+    it("preserves live pending-action state for catalog outcome fixtures", () => {
+      const livePendingAction = {
+        id: 9,
+        action: "poll_job_feedback",
+        state: "confirmed" as const,
+        label: "Poll feedback",
+        detail: null,
+        app_confirm_path: "/pending_actions/9/confirm",
+        app_reject_path: "/pending_actions/9/reject"
+      }
+      const context = toolCardContextForExample("poll_job_feedback", {
+        id: "confirmed",
+        label: "Confirmed",
+        parsedResult: { pending_action_id: 9, state: "pending" },
+        livePendingAction
+      })
+
+      expect(context.livePendingAction).toBe(livePendingAction)
+    })
+
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {
       const example: ToolCardExample = { id: "malformed", label: "malformed", resultBody: "not valid json {" }
       const context = toolCardContextForExample("list_jobs", example)
