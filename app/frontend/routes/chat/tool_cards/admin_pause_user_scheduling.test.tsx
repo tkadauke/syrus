@@ -57,7 +57,8 @@ describe("admin_pause_user_scheduling tool card", () => {
       }
     })
 
-    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe(SINGLE_RESULT.message)
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pending action #501 · pending")
+    expect(adminPauseUserSchedulingToolCard.argumentSummary?.(cardContext.input)).toBe("")
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
     expect(screen.getByText("pending")).toBeInTheDocument()
@@ -84,6 +85,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Group #82 · 2 actions · confirmed")
     expect(screen.getByText("confirmed")).toBeInTheDocument()
     expect(screen.getByText("Pending action group #82")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
@@ -103,6 +105,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pending action #501 · rejected")
     expect(screen.getByText("rejected")).toBeInTheDocument()
     expect(screen.getByText("Rejected after operator review.")).toBeInTheDocument()
   })
@@ -122,6 +125,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pause scheduling failed")
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
     expect(screen.queryByText(new RegExp(secret))).not.toBeInTheDocument()
