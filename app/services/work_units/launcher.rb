@@ -213,10 +213,10 @@ module WorkUnits
         end
 
         unit = create_unit!(intent)
+        create_locks!(unit)
         workflow = definition.workflow_template.instantiate(**instantiate_arguments)
         unit.update!(workflow: workflow)
         create_members!(unit)
-        create_locks!(unit)
         preempt_superseded_ci_repairs!(unit) if definition.preempts_ci_failure?
         workflow
       end
