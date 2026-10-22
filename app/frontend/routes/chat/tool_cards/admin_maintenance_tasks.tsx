@@ -1,4 +1,4 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 import {
@@ -310,4 +310,96 @@ function renderExpanded(context: ToolCardContext) {
 }
 
 const adminMaintenanceTasksToolCard: ToolCardRenderer = { toolName: "admin_maintenance_tasks", argumentSummary: () => "", collapsedSummary, renderExpanded }
+
+const catalogTask = {
+  id: 47,
+  definition_key: "rebuild_search_index",
+  task_key: "rebuild_search_index:catalog",
+  state: "running",
+  recurrence: "one_off",
+  category: "search",
+  title: "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title",
+  summary: "Rebuilds the **repository search index** in bounded batches.",
+  trigger_kind: "manual",
+  trigger_key: "catalog_preview",
+  required_role: "admin",
+  current_step_key: "index_records",
+  current_step_title: "Index repository records",
+  total_units: 1200,
+  completed_units: 450,
+  failed_units: 0,
+  progress_percent: 37.5,
+  eta_seconds: 180,
+  started_at: "2026-10-22T10:00:00Z",
+  finished_at: null,
+  paused_at: null,
+  cancelled_at: null,
+  dismissed_at: null,
+  last_error: null,
+  pending_reason: null,
+  steps: [{ key: "index_records", title: "Index repository records", description: "Writes searchable records in **small batches**." }],
+  requested_by: { id: 12, display_name: "Preview Operator" },
+  paths: { admin: "/admin/maintenance_tasks/47", api: "/api/v1/app/admin/maintenance_tasks/47" }
+}
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_pause",
+    label: "Pending pause",
+    description: "Mutation result using the shared pending-action presentation with its task target and action.",
+    input: { action: "pause", task_id: 47 },
+    parsedResult: { pending_action_id: 801, pending_confirmation_id: 801, state: "pending", message: "Pause maintenance task #47?" }
+  },
+  {
+    id: "populated_list",
+    label: "Populated task list",
+    description: "Responsive list layout with complete task metadata, Markdown summary, long-title wrapping, and links.",
+    input: { action: "list", state: "running", limit: 20 },
+    parsedResult: { tasks: [catalogTask] }
+  },
+  {
+    id: "rich_detail",
+    label: "Rich task detail",
+    description: "Read result with documentation, checkpoint, events, and already-redacted log previews.",
+    input: { action: "read", task_id: 47 },
+    parsedResult: {
+      task: {
+        ...catalogTask,
+        state: "failed",
+        last_error: "authorization=[redacted] while updating the index",
+        pending_reason: "Waiting for **operator review** before resuming.",
+        checkpoint: { last_repository_id: 450, cursor: "page-9" },
+        documentation: "# Search-index rebuild\n\nReview failed batches, then resume from the saved checkpoint.",
+        events: [
+          {
+            id: 902,
+            level: "error",
+            step_key: "index_records",
+            step_title: "Index repository records",
+            message: "token=[redacted] was rejected by the search service",
+            units_done: 450,
+            units_total: 1200,
+            created_at: "2026-10-22T10:08:00Z"
+          }
+        ]
+      }
+    }
+  },
+  {
+    id: "empty_filtered_list",
+    label: "Empty filtered list",
+    description: "Empty state that preserves the action, state filter, and limit that produced it.",
+    input: { action: "list", state: "paused", limit: 20 },
+    parsedResult: { tasks: [] }
+  },
+  {
+    id: "tool_error",
+    label: "Task lookup error",
+    description: "Error result with the attempted read target and redacted diagnostic text.",
+    input: { action: "read", task_id: 999 },
+    resultBody: "authorization=[redacted]: maintenance task not found",
+    resultError: true
+  }
+]
+
 export default adminMaintenanceTasksToolCard

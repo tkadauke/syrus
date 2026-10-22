@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
-import adminMaintenanceTasksToolCard from "./admin_maintenance_tasks"
+import adminMaintenanceTasksToolCard, { examples } from "./admin_maintenance_tasks"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "admin_maintenance_tasks", resultBody: "", resultError: false, parsedResult: null, ...overrides }
@@ -167,5 +167,26 @@ describe("admin_maintenance_tasks tool card", () => {
 
   it("falls back for malformed successful payloads", () => {
     expect(adminMaintenanceTasksToolCard.renderExpanded(context({ parsedResult: { oops: true } }))).toBeNull()
+  })
+
+  it("publishes visually reviewable catalog fixtures for every important state", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_pause", "populated_list", "rich_detail", "empty_filtered_list", "tool_error"])
+
+    for (const example of examples) {
+      const view = render(<>{adminMaintenanceTasksToolCard.renderExpanded(toolCardContextForExample("admin_maintenance_tasks", example))}</>)
+      expect(view.container).not.toBeEmptyDOMElement()
+      view.unmount()
+    }
+  })
+
+  it("keeps redacted detail and error content safe in catalog fixtures", () => {
+    for (const id of ["rich_detail", "tool_error"]) {
+      const example = examples.find((candidate) => candidate.id === id)
+      expect(example).toBeDefined()
+      const view = render(<>{adminMaintenanceTasksToolCard.renderExpanded(toolCardContextForExample("admin_maintenance_tasks", example!))}</>)
+      expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
+      expect(view.container).not.toHaveTextContent("secret-token-value")
+      view.unmount()
+    }
   })
 })
