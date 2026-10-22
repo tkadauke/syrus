@@ -24,6 +24,7 @@ type MaintenanceToolDefinition = {
   recoversTargetFromMessage?: boolean
   removedDependencyLabel?: boolean
   emptyDependenciesLabel?: string
+  hidesSatisfaction?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -70,7 +71,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   unapprove_job: { toolName: "unapprove_job", subjectKind: "job", actionLabel: "Unapprove Job", verb: "Unapproved", pendingVerb: "Unapproval requested" },
   remove_job_from_epic: { toolName: "remove_job_from_epic", subjectKind: "job", actionLabel: "Remove Job From Epic", verb: "Removed from Epic" },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
-  remove_job_dependency: { toolName: "remove_job_dependency", subjectKind: "job", actionLabel: "Remove Job Dependency", verb: "Dependency removed" },
+  remove_job_dependency: {
+    toolName: "remove_job_dependency",
+    subjectKind: "job",
+    actionLabel: "Remove Job Dependency",
+    verb: "Dependency removed",
+    removedDependencyLabel: true,
+    emptyDependenciesLabel: "No dependencies",
+    hidesSatisfaction: true
+  },
   start_epic: { toolName: "start_epic", subjectKind: "epic", actionLabel: "Start Epic", verb: "Started" },
   move_epic_to_backlog: {
     toolName: "move_epic_to_backlog",
@@ -275,7 +284,7 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   pushRow(rows, "Description", result.description)
   pushRow(rows, "Closure reason", result.closure_reason || objectValue(context.input, "closure_reason"))
   pushRow(rows, definition.removedDependencyLabel ? "Removed" : "Dependency", dependencyReference(context, result))
-  pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
+  if (!definition.hidesSatisfaction) pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
   if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
