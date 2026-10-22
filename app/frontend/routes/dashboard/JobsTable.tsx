@@ -1,4 +1,17 @@
-import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, WorkflowTriggerPill } from "./components"
+import {
+  SortableColumnHeader,
+  TimestampCell,
+  useMediaQuery,
+  ExternalMetadataLink,
+  ExternalPrBadge,
+  MetadataLine,
+  NeutralStatePill,
+  OwnerBadge,
+  PendingJobTitle,
+  RepositorySlugLink,
+  WorkflowBadges,
+  WorkflowTriggerPill
+} from "./components"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
@@ -20,20 +33,51 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning, ProviderMismatchPill } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
-import { bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload } from "../../api/dashboard"
+import {
+  bulkDashboardJobs,
+  unpauseDashboardJob,
+  type DashboardBulkJobAction,
+  type DashboardJobItem,
+  type DashboardLandingQueueEntry,
+  type DashboardLandingQueueStatus,
+  type DashboardPayload
+} from "../../api/dashboard"
 import { type LandingQueueBlockerJob } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
 import { PluginUiSlotCarousel, type UiSlotPanel } from "../../pluginUiSlots"
 
-
 // Dashboard jobs table extracted from Dashboard.tsx: JobsDashboardTable and its
 // subtree — the desktop jobs table, the landing-queue grouping/topology, the
 // per-job cells, and the mobile jobs list. Entry point rendered by the table
 // view. Depends only on leaf modules and shared UI imports.
 
-export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, onReorderColumns, prefix, reorderPending, sortState, t, uiPanels }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; onReorderColumns?: (nextOrder: string[]) => void; prefix: string; reorderPending?: boolean; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string; uiPanels?: UiSlotPanel[] }) {
+export function JobsDashboardTable({
+  items,
+  columns,
+  controls,
+  landingQueueEntries,
+  landingQueueStatus,
+  onReorderColumns,
+  prefix,
+  reorderPending,
+  sortState,
+  t,
+  uiPanels
+}: {
+  items: DashboardJobItem[]
+  columns: string[]
+  controls: DashboardPayload["controls"]
+  landingQueueEntries: DashboardLandingQueueEntry[]
+  landingQueueStatus?: DashboardLandingQueueStatus | null
+  onReorderColumns?: (nextOrder: string[]) => void
+  prefix: string
+  reorderPending?: boolean
+  sortState: DashboardSortState
+  t: (key: string, opts?: Record<string, unknown>) => string
+  uiPanels?: UiSlotPanel[]
+}) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -50,7 +94,7 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
   function toggleAll() {
     setSelectedIds((current) => {
       if (allSelected) return new Set()
-      return new Set([ ...Array.from(current), ...visibleIds ])
+      return new Set([...Array.from(current), ...visibleIds])
     })
   }
 
@@ -87,7 +131,15 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
   )
 }
 
-export function JobDashboardNoticePanels({ panels, prefix, t }: { panels?: UiSlotPanel[]; prefix: string; t: (key: string, opts?: Record<string, unknown>) => string }) {
+export function JobDashboardNoticePanels({
+  panels,
+  prefix,
+  t
+}: {
+  panels?: UiSlotPanel[]
+  prefix: string
+  t: (key: string, opts?: Record<string, unknown>) => string
+}) {
   return (
     <PluginUiSlotCarousel
       labels={{
@@ -103,11 +155,12 @@ export function JobDashboardNoticePanels({ panels, prefix, t }: { panels?: UiSlo
 }
 
 function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueueStatus; prefix: string }) {
-  const toneClasses = status.tone === "danger"
-    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
-    : status.tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
-      : "border-info/30 bg-info/10 text-info"
+  const toneClasses =
+    status.tone === "danger"
+      ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
+      : status.tone === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+        : "border-info/30 bg-info/10 text-info"
 
   return (
     <section className={`rounded border px-4 py-3 text-sm ${toneClasses}`} role="status">
@@ -116,7 +169,11 @@ function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueue
       {status.links && status.links.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {status.links.map((link) => (
-            <Link className="font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current" key={`${link.label}-${link.path}`} to={withRoutePrefix(link.path, prefix)}>
+            <Link
+              className="font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current"
+              key={`${link.label}-${link.path}`}
+              to={withRoutePrefix(link.path, prefix)}
+            >
               {link.label}
             </Link>
           ))}
@@ -125,7 +182,6 @@ function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueue
     </section>
   )
 }
-
 
 function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[] }) {
   const { t } = useT("dashboard")
@@ -190,7 +246,8 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
   }, [items, selectedIds])
   const canRun = useMemo(() => {
     const selected = selectedJobs.length > 0 ? selectedJobs : []
-    const allSelectedCan = (bulkAction: DashboardBulkJobAction) => selected.length > 0 && selected.every((job) => dashboardJobBulkActionApplies(job, bulkAction))
+    const allSelectedCan = (bulkAction: DashboardBulkJobAction) =>
+      selected.length > 0 && selected.every((job) => dashboardJobBulkActionApplies(job, bulkAction))
 
     return {
       retry: allSelectedCan("retry"),
@@ -210,9 +267,14 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
 
   async function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
-    if (bulkAction === "close" && !await confirm({ message: t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }), destructive: true })) return
-    if (bulkAction === "move_to_backlog" && !await confirm({ message: t("move_to_backlog_confirm", { count: selectedIds.length }), destructive: false })) return
-    const jobIds = [ ...selectedIds ]
+    if (
+      bulkAction === "close" &&
+      !(await confirm({ message: t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }), destructive: true }))
+    )
+      return
+    if (bulkAction === "move_to_backlog" && !(await confirm({ message: t("move_to_backlog_confirm", { count: selectedIds.length }), destructive: false })))
+      return
+    const jobIds = [...selectedIds]
     cancelRequestedRef.current = false
     setCancellationRequested(false)
     setProgress({ action: bulkAction, completed: 0, total: jobIds.length })
@@ -221,9 +283,15 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
 
   if (progress) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" role="status">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+        role="status"
+      >
         <div className="inline-flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
-          <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-200" />
+          <span
+            aria-hidden="true"
+            className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-200"
+          />
           <span>{t(`bulk_progress.${progress.action}`, { completed: progress.completed, total: progress.total })}</span>
         </div>
         <button
@@ -242,7 +310,12 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
   }
 
   if (selectedIds.length === 0) {
-    return <>{dialog}<NoticeToast message={notice} onDismiss={() => setNotice(null)} /></>
+    return (
+      <>
+        {dialog}
+        <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+      </>
+    )
   }
 
   return (
@@ -250,36 +323,113 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
       <div>
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
+        {action.isError ? (
+          <span className="ml-3 text-red-700 dark:text-red-300" role="alert">
+            {errorMessage(action.error, t("bulk_action_error"))}
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        {canRun.retry ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button> : null}
-        {canRun.release_from_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button> : null}
-        {canRun.move_to_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button> : null}
-        {canRun.pause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button> : null}
-        {canRun.unpause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button> : null}
-        {canRun.claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button> : null}
-        {canRun.release_claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button> : null}
+        {canRun.retry ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">
+            {t("retry")}
+          </button>
+        ) : null}
+        {canRun.release_from_backlog ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">
+            {t("release_from_backlog")}
+          </button>
+        ) : null}
+        {canRun.move_to_backlog ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">
+            {t("move_to_backlog")}
+          </button>
+        ) : null}
+        {canRun.pause ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">
+            {t("pause")}
+          </button>
+        ) : null}
+        {canRun.unpause ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">
+            {t("unpause")}
+          </button>
+        ) : null}
+        {canRun.claim ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">
+            {t("claim")}
+          </button>
+        ) : null}
+        {canRun.release_claim ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">
+            {t("release")}
+          </button>
+        ) : null}
         {canRun.assign_owner ? (
           <>
-            <Select aria-label={t("assign_owner")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
+            <Select
+              aria-label={t("assign_owner")}
+              className="px-2 py-1 text-xs"
+              disabled={disabled}
+              fullWidth={false}
+              onChange={(event) => setOwnerUserId(event.target.value)}
+              value={ownerUserId}
+            >
               <option value="">{t("assign_owner")}</option>
-              {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
+              {controls.owners.map((owner) => (
+                <option key={owner.id} value={owner.id}>
+                  {owner.label}
+                </option>
+              ))}
             </Select>
-            <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
+            <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">
+              {t("assign")}
+            </button>
           </>
         ) : null}
         {canRun.set_priority ? (
           <>
-            <Select aria-label={t("priority")} className="px-2 py-1 text-xs" disabled={disabled} fullWidth={false} onChange={(event) => setPriority(event.target.value)} value={priority}>
-              {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            <Select
+              aria-label={t("priority")}
+              className="px-2 py-1 text-xs"
+              disabled={disabled}
+              fullWidth={false}
+              onChange={(event) => setPriority(event.target.value)}
+              value={priority}
+            >
+              {(
+                controls.priorities ?? [
+                  { value: "urgent", label: "Urgent" },
+                  { value: "high", label: "High" },
+                  { value: "medium", label: "Medium" },
+                  { value: "low", label: "Low" }
+                ]
+              ).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </Select>
-            <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
+            <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">
+              {t("set_priority")}
+            </button>
           </>
         ) : null}
-        {canRun.approve ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button> : null}
-        {canRun.accept_triage ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("accept_triage")} type="button">{t("accept_triage")}</button> : null}
-        {canRun.close ? <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button> : null}
+        {canRun.approve ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">
+            {t("approve")}
+          </button>
+        ) : null}
+        {canRun.accept_triage ? (
+          <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("accept_triage")} type="button">
+            {t("accept_triage")}
+          </button>
+        ) : null}
+        {canRun.close ? (
+          <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">
+            {t("close_action")}
+          </button>
+        ) : null}
       </div>
       {dialog}
     </div>
@@ -302,7 +452,8 @@ function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: Dashbo
   if (bulkAction === "assign_owner") return open
   if (bulkAction === "set_priority") return open
   if (bulkAction === "approve") return Boolean(job.can_approve)
-  if (bulkAction === "accept_triage") return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
+  if (bulkAction === "accept_triage")
+    return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
   if (bulkAction === "close") return job.state !== "closed"
 
   return false
@@ -423,24 +574,28 @@ function JobsTable({
   return (
     <DataTable.Root>
       <DataTable.Header>
-          <DataTable.Row>
-            {orderedColumns.map((column) => (
-              <DataTable.HeadCell
-                aria-sort={columnAriaSort("job", column, sortState)}
-                checkbox={column === "checkbox"}
-                className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
-                key={column}
-                title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}
-                {...(draggable(column) ? dragProps(column) : {})}
-              >
-                {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
-              </DataTable.HeadCell>
-            ))}
-          </DataTable.Row>
-        </DataTable.Header>
-        <DataTable.Body>
-          {groupByEpic ? (
-            landingQueueGroups.map((group, index) => (
+        <DataTable.Row>
+          {orderedColumns.map((column) => (
+            <DataTable.HeadCell
+              aria-sort={columnAriaSort("job", column, sortState)}
+              checkbox={column === "checkbox"}
+              className={dragOverKey === column ? "outline outline-2 -outline-offset-2 outline-brand" : undefined}
+              key={column}
+              title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}
+              {...(draggable(column) ? dragProps(column) : {})}
+            >
+              {column === "checkbox" ? (
+                <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} />
+              ) : (
+                <SortableColumnHeader column={column} sortState={sortState} subject="job" />
+              )}
+            </DataTable.HeadCell>
+          ))}
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {groupByEpic
+          ? landingQueueGroups.map((group, index) => (
               <LandingQueueJobGroup
                 columns={orderedColumns}
                 expanded={expandedBlockerGroups.has(group.key)}
@@ -453,19 +608,27 @@ function JobsTable({
                 topSeparator={index > 0 && (isMultiJobLandingUnitKey(group.key) || isMultiJobLandingUnitKey(landingQueueGroups[index - 1].key))}
               />
             ))
-          ) : (
-            items.map((job, index) => {
+          : items.map((job, index) => {
               const separatorClass = startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : ""
               const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
               return (
                 <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
-                  {orderedColumns.map((column) => <JobCell column={column} job={job} key={column} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+                  {orderedColumns.map((column) => (
+                    <JobCell
+                      column={column}
+                      job={job}
+                      key={column}
+                      navigationItems={items}
+                      onToggleOne={onToggleOne}
+                      prefix={prefix}
+                      selected={selectedIds.has(job.id)}
+                    />
+                  ))}
                 </DataTable.Row>
               )
-            })
-          )}
-        </DataTable.Body>
-      </DataTable.Root>
+            })}
+      </DataTable.Body>
+    </DataTable.Root>
   )
 }
 
@@ -535,8 +698,13 @@ function LandingQueueJobGroup({
         const separatorClass = blockerCount === 0 && topSeparator && index === 0 ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined
         if (row.kind === "blocker") {
           return (
-            <DataTable.Row className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`} key={`blocker-${group.key}-${row.id}`}>
-              {columns.map((column) => <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} prefix={prefix} />)}
+            <DataTable.Row
+              className={`bg-gray-50/70 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400${separatorClass ? ` ${separatorClass}` : ""}`}
+              key={`blocker-${group.key}-${row.id}`}
+            >
+              {columns.map((column) => (
+                <LandingQueueBlockerCell column={column} job={row.job} attribution={row.attribution} key={column} prefix={prefix} />
+              ))}
             </DataTable.Row>
           )
         }
@@ -544,7 +712,17 @@ function LandingQueueJobGroup({
         const urgentClass = row.job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
         return (
           <DataTable.Row className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={row.job.id}>
-            {columns.map((column) => <JobCell column={column} job={row.job} key={column} navigationItems={group.jobs} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
+            {columns.map((column) => (
+              <JobCell
+                column={column}
+                job={row.job}
+                key={column}
+                navigationItems={group.jobs}
+                onToggleOne={onToggleOne}
+                prefix={prefix}
+                selected={selectedIds.has(row.job.id)}
+              />
+            ))}
           </DataTable.Row>
         )
       })}
@@ -552,7 +730,17 @@ function LandingQueueJobGroup({
   )
 }
 
-function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: LandingQueueBlockerJob; column: string; attribution: string | null; prefix: string }) {
+function LandingQueueBlockerCell({
+  job,
+  column,
+  attribution,
+  prefix
+}: {
+  job: LandingQueueBlockerJob
+  column: string
+  attribution: string | null
+  prefix: string
+}) {
   if (column === "checkbox") return <DataTable.Cell className="align-top" />
   if (column === "landing_queue_position") return <DataTable.Cell />
   if (column === "landing_queue_blocked_reason") return <DataTable.Cell />
@@ -560,18 +748,22 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
   if (column === "issue" || column === "title") {
     return (
       <DataTable.Cell className="max-w-md">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.job_path, prefix)}>
+          {job.title}
+        </Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
             <CopyableSlug slug={`JOB-${job.id}`} />
           </SlugHoverCard>
           {job.pr_number && job.pr_path ? (
-              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_path}>
-                <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
-              </PrHoverCard>
-            ) : null}
+            <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_path}>
+              <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
+            </PrHoverCard>
+          ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
-          {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-2xs text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
+          {attribution ? (
+            <span className="rounded border border-gray-200 px-1.5 py-0.5 text-2xs text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span>
+          ) : null}
         </div>
       </DataTable.Cell>
     )
@@ -584,7 +776,15 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
     )
   }
   if (column === "repository") {
-    return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
+    return (
+      <DataTable.Cell>
+        <RepositorySlugLink
+          className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300"
+          prefix={prefix}
+          repository={job.repository}
+        />
+      </DataTable.Cell>
+    )
   }
   if (column === "latest") {
     if (job.latest_workflow_id == null) return <DataTable.Cell />
@@ -601,7 +801,11 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
   return <DataTable.Cell className="text-gray-400 dark:text-gray-500">-</DataTable.Cell>
 }
 
-function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardLandingQueueEntry[], t: (key: string, opts?: Record<string, unknown>) => string) {
+function groupByLandingQueueEntry(
+  items: DashboardJobItem[],
+  entries: DashboardLandingQueueEntry[],
+  t: (key: string, opts?: Record<string, unknown>) => string
+) {
   const entriesByKey = new Map(entries.map((entry) => [entry.key, entry]))
   const groups: LandingQueueDisplayGroup[] = []
   const groupsByKey = new Map<string, LandingQueueDisplayGroup>()
@@ -626,7 +830,7 @@ function groupByLandingQueueEntry(items: DashboardJobItem[], entries: DashboardL
       attribution: blockerAttribution(job, group.key, t)
     }))
     const approvedRows: LandingQueueApprovedRow[] = group.jobs.map((job) => ({ kind: "approved", id: job.id, job }))
-    group.rows = topologicalLandingQueueRows([ ...approvedRows, ...group.blockerJobs ], entry)
+    group.rows = topologicalLandingQueueRows([...approvedRows, ...group.blockerJobs], entry)
   })
 
   return groups
@@ -673,7 +877,7 @@ function topologicalLandingQueueRows(rows: LandingQueueDisplayRow[], entry?: Das
   }
 
   const orderedIds = new Set(ordered.map((row) => row.id))
-  return [ ...ordered, ...rows.filter((row) => !orderedIds.has(row.id)) ]
+  return [...ordered, ...rows.filter((row) => !orderedIds.has(row.id))]
 }
 
 function sortLandingQueueRows(rows: LandingQueueDisplayRow[], originalIndex: Map<number, number>) {
@@ -713,28 +917,52 @@ function MobileJobsList({
   return (
     <div className="border-y border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 sm:rounded sm:border">
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {groupByEpic ? (
-          landingQueueGroups.map((group, index) => (
-            <MobileLandingQueueJobGroup
-              expanded={expandedBlockerGroups.has(group.key)}
-              group={group}
-              key={group.key}
-              onToggleBlockers={onToggleBlockers}
-              onToggleOne={onToggleOne}
-              prefix={prefix}
-              selectedIds={selectedIds}
-              topSeparator={index > 0 && (isMultiJobLandingUnitKey(group.key) || isMultiJobLandingUnitKey(landingQueueGroups[index - 1].key))}
-            />
-          ))
-        ) : (
-          items.map((job, index) => <MobileJobRow job={job} key={job.id} navigationItems={items} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)
-        )}
+        {groupByEpic
+          ? landingQueueGroups.map((group, index) => (
+              <MobileLandingQueueJobGroup
+                expanded={expandedBlockerGroups.has(group.key)}
+                group={group}
+                key={group.key}
+                onToggleBlockers={onToggleBlockers}
+                onToggleOne={onToggleOne}
+                prefix={prefix}
+                selectedIds={selectedIds}
+                topSeparator={index > 0 && (isMultiJobLandingUnitKey(group.key) || isMultiJobLandingUnitKey(landingQueueGroups[index - 1].key))}
+              />
+            ))
+          : items.map((job, index) => (
+              <MobileJobRow
+                job={job}
+                key={job.id}
+                navigationItems={items}
+                onToggleOne={onToggleOne}
+                prefix={prefix}
+                selected={selectedIds.has(job.id)}
+                topSeparator={startsNewEpicGroup(items, index, groupByEpic)}
+              />
+            ))}
       </div>
     </div>
   )
 }
 
-function MobileLandingQueueJobGroup({ expanded, group, onToggleBlockers, onToggleOne, prefix, selectedIds, topSeparator }: { expanded: boolean; group: LandingQueueDisplayGroup; onToggleBlockers: (key: string) => void; onToggleOne: (id: number) => void; prefix: string; selectedIds: Set<number>; topSeparator: boolean }) {
+function MobileLandingQueueJobGroup({
+  expanded,
+  group,
+  onToggleBlockers,
+  onToggleOne,
+  prefix,
+  selectedIds,
+  topSeparator
+}: {
+  expanded: boolean
+  group: LandingQueueDisplayGroup
+  onToggleBlockers: (key: string) => void
+  onToggleOne: (id: number) => void
+  prefix: string
+  selectedIds: Set<number>
+  topSeparator: boolean
+}) {
   const { t } = useT("dashboard")
   const blockerCount = group.blockerJobs.length
   const rows = expanded ? group.rows : group.rows.filter((row) => row.kind === "approved")
@@ -754,26 +982,48 @@ function MobileLandingQueueJobGroup({ expanded, group, onToggleBlockers, onToggl
           </button>
         </div>
       ) : null}
-      {rows.map((row) => row.kind === "blocker" ? (
-        <MobileLandingQueueBlockerRow attribution={row.attribution} job={row.job} key={`blocker-${group.key}-${row.id}`} prefix={prefix} />
-      ) : (
-        <MobileJobRow job={row.job} key={row.job.id} navigationItems={group.jobs} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />
-      ))}
+      {rows.map((row) =>
+        row.kind === "blocker" ? (
+          <MobileLandingQueueBlockerRow attribution={row.attribution} job={row.job} key={`blocker-${group.key}-${row.id}`} prefix={prefix} />
+        ) : (
+          <MobileJobRow
+            job={row.job}
+            key={row.job.id}
+            navigationItems={group.jobs}
+            onToggleOne={onToggleOne}
+            prefix={prefix}
+            selected={selectedIds.has(row.job.id)}
+          />
+        )
+      )}
     </div>
   )
 }
 
 function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attribution: string | null; job: LandingQueueBlockerJob; prefix: string }) {
   return (
-    <article aria-label={job.title} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 bg-gray-50/70 px-4 py-3 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400">
+    <article
+      aria-label={job.title}
+      className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 bg-gray-50/70 px-4 py-3 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400"
+    >
       <div aria-hidden="true" className="mt-1 h-4 w-4 rounded border border-dashed border-gray-300 dark:border-gray-700" />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <NeutralStatePill state={job.state} />
-          <RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} />
+          <RepositorySlugLink
+            className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300"
+            prefix={prefix}
+            repository={job.repository}
+          />
         </div>
         <div className="mt-1 min-w-0">
-          <Link className="block max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={job.title} to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+          <Link
+            className="block max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            title={job.title}
+            to={withRoutePrefix(job.job_path, prefix)}
+          >
+            {job.title}
+          </Link>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
@@ -786,15 +1036,39 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
           ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
           {attribution ? <span>{attribution}</span> : null}
-          {job.latest_workflow_id == null ? null : <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />}
-          <span><RelativeTimestamp value={job.started_at || job.created_at} /></span>
+          {job.latest_workflow_id == null ? null : (
+            <WorkflowBadges
+              state={job.latest_workflow_state ?? ""}
+              triggerAriaPrefix="Latest workflow trigger"
+              triggerKind={job.latest_workflow_trigger_kind}
+            />
+          )}
+          <span>
+            <RelativeTimestamp value={job.started_at || job.created_at} />
+          </span>
         </MetadataLine>
       </div>
     </article>
   )
 }
 
-function DashboardJobNavigationLink({ ariaLabel, children, className, currentJob, items, prefix, title }: { ariaLabel?: string; children: ReactNode; className: string; currentJob: DashboardJobItem; items: DashboardJobItem[]; prefix: string; title?: string }) {
+function DashboardJobNavigationLink({
+  ariaLabel,
+  children,
+  className,
+  currentJob,
+  items,
+  prefix,
+  title
+}: {
+  ariaLabel?: string
+  children: ReactNode
+  className: string
+  currentJob: DashboardJobItem
+  items: DashboardJobItem[]
+  prefix: string
+  title?: string
+}) {
   const { t } = useT("dashboard")
   const navigate = useNavigate()
   const fallbackHref = withRoutePrefix(currentJob.paths.job_path, prefix)
@@ -822,47 +1096,83 @@ function DashboardJobNavigationLink({ ariaLabel, children, className, currentJob
   )
 }
 
-function MobileJobRow({ job, navigationItems, selected, onToggleOne, prefix, topSeparator = false }: { job: DashboardJobItem; navigationItems: DashboardJobItem[]; selected: boolean; onToggleOne: (id: number) => void; prefix: string; topSeparator?: boolean }) {
+function MobileJobRow({
+  job,
+  navigationItems,
+  selected,
+  onToggleOne,
+  prefix,
+  topSeparator = false
+}: {
+  job: DashboardJobItem
+  navigationItems: DashboardJobItem[]
+  selected: boolean
+  onToggleOne: (id: number) => void
+  prefix: string
+  topSeparator?: boolean
+}) {
   const { t } = useT("dashboard")
 
   return (
-    <article aria-label={job.title} className={[
-      "grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3",
-      topSeparator && "border-t-4 border-gray-300 dark:border-gray-600",
-      job.priority === "urgent" && "bg-red-50 dark:bg-red-950/40"
-    ].filter(Boolean).join(" ")}>
+    <article
+      aria-label={job.title}
+      className={[
+        "grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3",
+        topSeparator && "border-t-4 border-gray-300 dark:border-gray-600",
+        job.priority === "urgent" && "bg-red-50 dark:bg-red-950/40"
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>}
+          {job.total_cost_usd == null ? null : (
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>
+          )}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-          <DashboardJobNavigationLink ariaLabel={job.title} className="block min-w-0 max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" currentJob={job} items={navigationItems} prefix={prefix} title={job.title}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></DashboardJobNavigationLink>
+          <DashboardJobNavigationLink
+            ariaLabel={job.title}
+            className="block min-w-0 max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            currentJob={job}
+            items={navigationItems}
+            prefix={prefix}
+            title={job.title}
+          >
+            <PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} />
+          </DashboardJobNavigationLink>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.pr_number ? (
-              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
-                <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
-              </PrHoverCard>
-            ) : null}
+            <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
+              <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
+            </PrHoverCard>
+          ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
-          <span><RelativeTimestamp value={job.latest_workflow_started_at || job.started_at || job.created_at} /></span>
+          <span>
+            <RelativeTimestamp value={job.latest_workflow_started_at || job.started_at || job.created_at} />
+          </span>
           <MobileJobQueueStatus job={job} />
         </MetadataLine>
         <JobAttentionLine includeBlockedReason job={job} />
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
-            {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
+            {job.tags.map((tag) => (
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>
+                {tag.name}
+              </span>
+            ))}
           </div>
         ) : null}
       </div>
@@ -870,31 +1180,68 @@ function MobileJobRow({ job, navigationItems, selected, onToggleOne, prefix, top
   )
 }
 
-function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; navigationItems: DashboardJobItem[]; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
+function JobCell({
+  job,
+  column,
+  navigationItems,
+  selected,
+  onToggleOne,
+  prefix
+}: {
+  job: DashboardJobItem
+  column: string
+  navigationItems: DashboardJobItem[]
+  selected: boolean
+  onToggleOne: (id: number) => void
+  prefix: string
+}) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <DataTable.Cell className="align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></DataTable.Cell>
+    return (
+      <DataTable.Cell className="align-top">
+        <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} />
+      </DataTable.Cell>
+    )
   }
   if (column === "issue" || column === "title") {
     return (
       <DataTable.Cell className="max-w-md">
         <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <DashboardJobNavigationLink className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" currentJob={job} items={navigationItems} prefix={prefix} title={job.title}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></DashboardJobNavigationLink>
-          {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
+          <DashboardJobNavigationLink
+            className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline"
+            currentJob={job}
+            items={navigationItems}
+            prefix={prefix}
+            title={job.title}
+          >
+            <PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} />
+          </DashboardJobNavigationLink>
+          {job.needs_attention ? (
+            <span
+              aria-label={t("needs_attention_aria")}
+              className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200"
+            >
+              !
+            </span>
+          ) : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.pr_number ? (
-              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
-                <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
-              </PrHoverCard>
-            ) : null}
+            <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
+              <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
+            </PrHoverCard>
+          ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
-          {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
+          {job.tags.map((tag) => (
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>
+              {tag.name}
+            </span>
+          ))}
         </MetadataLine>
         <JobAttentionLine job={job} />
       </DataTable.Cell>
@@ -911,7 +1258,9 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
     return (
       <DataTable.Cell>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</span>
+          <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">
+            {job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}
+          </span>
           <LandingQueueStatusBadges job={job} showEmpty={false} truncate />
         </div>
       </DataTable.Cell>
@@ -924,17 +1273,39 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
     return <LandingQueueStatusCell job={job} />
   }
   if (column === "blocked_reason") {
-    return <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? <CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /> : "-"}</DataTable.Cell>
+    return (
+      <DataTable.Cell className="text-xs text-gray-500 dark:text-gray-400">
+        {job.blocked_reason ? <CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /> : "-"}
+      </DataTable.Cell>
+    )
   }
   if (column === "repository") {
-    return <DataTable.Cell><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></DataTable.Cell>
+    return (
+      <DataTable.Cell>
+        <RepositorySlugLink
+          className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300"
+          prefix={prefix}
+          repository={job.repository}
+        />
+      </DataTable.Cell>
+    )
   }
-  if (column === "owner") return <DataTable.Cell><DashboardOwnerLabel job={job} prefix={prefix} /></DataTable.Cell>
+  if (column === "owner")
+    return (
+      <DataTable.Cell>
+        <DashboardOwnerLabel job={job} prefix={prefix} />
+      </DataTable.Cell>
+    )
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "deployment") return <DeploymentStageCell job={job} prefix={prefix} />
   if (column === "workflows_count") return <DataTable.Cell className="text-gray-700 dark:text-gray-200">{job.workflows_count}</DataTable.Cell>
   if (column === "priority") return <PriorityPillCell priority={job.priority} />
-  if (column === "commits_behind_base") return <DataTable.Cell><CommitsBehindBadge count={job.commits_behind_base} /></DataTable.Cell>
+  if (column === "commits_behind_base")
+    return (
+      <DataTable.Cell>
+        <CommitsBehindBadge count={job.commits_behind_base} />
+      </DataTable.Cell>
+    )
   if (column === "kind" || column === "job_type") return <TextCell value={humanizeOption(job.kind)} />
   if (column === "agent_provider") return <TextCell value={job.agent_provider ? humanizeOption(job.agent_provider) : null} />
   if (column === "closure_reason") return <TextCell value={job.closure_reason ? humanizeOption(job.closure_reason) : null} />
@@ -951,7 +1322,11 @@ function JobCell({ job, column, navigationItems, selected, onToggleOne, prefix }
 }
 
 function TextCell({ value, mono = false }: { value: string | null | undefined; mono?: boolean }) {
-  return <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>{value || "-"}</DataTable.Cell>
+  return (
+    <DataTable.Cell className={`max-w-56 truncate text-xs text-gray-700 dark:text-gray-200 ${mono ? "font-mono" : ""}`} title={value || undefined}>
+      {value || "-"}
+    </DataTable.Cell>
+  )
 }
 
 function ExternalNumberCell({ href, label }: { href: string | null | undefined; label: string | null }) {
@@ -984,14 +1359,15 @@ function ClaimedByCell({ job, prefix }: { job: DashboardJobItem; prefix: string 
 function JobAttentionLine({ job, includeBlockedReason = false }: { job: DashboardJobItem; includeBlockedReason?: boolean }) {
   const { t } = useT("dashboard")
   const hasUnreadFeedback = jobHasUnreadFeedback(job)
-  const hasAttention = Boolean(job.needs_attention)
-    || hasUnreadFeedback
-    || Boolean(job.provider_mismatch)
-    || isNotableDeliveryStatus(job.delivery_status)
-    || Boolean(job.retry_state && job.retry_state.state_label !== "No failure")
-    || (job.state === "queued" && Boolean(job.start_blocked_reason))
-    || Boolean(job.manual_paused)
-    || (includeBlockedReason && Boolean(job.blocked_reason))
+  const hasAttention =
+    Boolean(job.needs_attention) ||
+    hasUnreadFeedback ||
+    Boolean(job.provider_mismatch) ||
+    isNotableDeliveryStatus(job.delivery_status) ||
+    Boolean(job.retry_state && job.retry_state.state_label !== "No failure") ||
+    (job.state === "queued" && Boolean(job.start_blocked_reason)) ||
+    Boolean(job.manual_paused) ||
+    (includeBlockedReason && Boolean(job.blocked_reason))
 
   if (!hasAttention) return null
 
@@ -1002,10 +1378,20 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
       {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
       {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
       {job.state === "queued" && job.start_blocked_reason ? (
-        <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
+        <StartBlockedReasonPill
+          count={job.start_blocked_count}
+          details={job.start_blocked_details}
+          nextCheckAt={job.start_blocked_next_check_at}
+          reason={job.start_blocked_reason}
+          startBlockedAt={job.start_blocked_at}
+        />
       ) : null}
       {job.manual_paused ? <ManualPauseInline job={job} /> : null}
-      {includeBlockedReason && job.blocked_reason ? <span><CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} /></span> : null}
+      {includeBlockedReason && job.blocked_reason ? (
+        <span>
+          <CopyableBlockedReason reason={translateBlockedReason(job.blocked_reason, t)} />
+        </span>
+      ) : null}
     </MetadataLine>
   )
 }
@@ -1019,7 +1405,11 @@ function NeedsAttentionReasonPill({ hasUnreadFeedback, reason }: { hasUnreadFeed
     label = t("attention_reason.unread_pr_feedback")
   }
 
-  return <TonePill ariaLabel={t("needs_attention_aria")} tone="amber">{label}</TonePill>
+  return (
+    <TonePill ariaLabel={t("needs_attention_aria")} tone="amber">
+      {label}
+    </TonePill>
+  )
 }
 
 function jobHasUnreadFeedback(job: DashboardJobItem) {
@@ -1045,14 +1435,31 @@ function MobileJobQueueStatus({ job }: { job: DashboardJobItem }) {
   return <LandingQueueStatusBadges job={job} wrapPill />
 }
 
-function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false, truncate = false }: { job: DashboardJobItem; showEmpty?: boolean; wrapPill?: boolean; truncate?: boolean }) {
+function LandingQueueStatusBadges({
+  job,
+  showEmpty = true,
+  wrapPill = false,
+  truncate = false
+}: {
+  job: DashboardJobItem
+  showEmpty?: boolean
+  wrapPill?: boolean
+  truncate?: boolean
+}) {
   const { t } = useT("dashboard")
 
   if (job.landing_queue_blocked_reason) {
     const reason = translateBlockedReason(job.landing_queue_blocked_reason, t)
     return (
       <>
-        <TonePill title={truncate ? reason : undefined} tone={landingQueueBlockedReasonTone(job.landing_queue_blocked_reason)} truncate={truncate} wrap={wrapPill}><CopyableBlockedReason reason={reason} /></TonePill>
+        <TonePill
+          title={truncate ? reason : undefined}
+          tone={landingQueueBlockedReasonTone(job.landing_queue_blocked_reason)}
+          truncate={truncate}
+          wrap={wrapPill}
+        >
+          <CopyableBlockedReason reason={reason} />
+        </TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </>
     )
@@ -1062,7 +1469,9 @@ function LandingQueueStatusBadges({ job, showEmpty = true, wrapPill = false, tru
     const reason = translateBlockedReason(job.landing_queue_wait_reason, t)
     return (
       <>
-        <TonePill title={truncate ? reason : undefined} tone="gray" truncate={truncate} wrap={wrapPill}><CopyableBlockedReason reason={reason} /></TonePill>
+        <TonePill title={truncate ? reason : undefined} tone="gray" truncate={truncate} wrap={wrapPill}>
+          <CopyableBlockedReason reason={reason} />
+        </TonePill>
         <LandingBlockerOverrideBadge job={job} />
       </>
     )
@@ -1090,9 +1499,7 @@ function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
 
   const requestedBy = job.landing_blocker_override_requested_by?.name || job.landing_blocker_override_requested_by?.email_address
   const used = Boolean(job.landing_blocker_override_used_at)
-  const title = requestedBy
-    ? t("landing_blocker_override_granted_by", { time: job.landing_blocker_override_requested_at, user: requestedBy })
-    : undefined
+  const title = requestedBy ? t("landing_blocker_override_granted_by", { time: job.landing_blocker_override_requested_at, user: requestedBy }) : undefined
 
   return (
     <TonePill title={title} tone={used ? "gray" : "amber"}>
@@ -1105,7 +1512,11 @@ export function CommitsBehindBadge({ count }: { count: number | null | undefined
   if (count == null || count === 0) return null
 
   const tone: "red" | "amber" | "gray" = count >= 20 ? "red" : count >= 10 ? "amber" : "gray"
-  return <TonePill ariaLabel={`${count} commits behind base`} tone={tone}>{count} behind</TonePill>
+  return (
+    <TonePill ariaLabel={`${count} commits behind base`} tone={tone}>
+      {count} behind
+    </TonePill>
+  )
 }
 
 export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
@@ -1117,7 +1528,11 @@ export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
 function PriorityPillCell({ priority }: { priority: string }) {
   const tone = PRIORITY_TONE[priority]
   if (!tone) return <DataTable.Cell />
-  return <DataTable.Cell><TonePill tone={tone}>{priority}</TonePill></DataTable.Cell>
+  return (
+    <DataTable.Cell>
+      <TonePill tone={tone}>{priority}</TonePill>
+    </DataTable.Cell>
+  )
 }
 
 function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
@@ -1126,7 +1541,11 @@ function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: s
 
   return (
     <DataTable.Cell>
-      <Link className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`} title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
+      <Link
+        className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`}
+        title={stage.reached_at ?? undefined}
+        to={withRoutePrefix(job.paths.job_path, prefix)}
+      >
         {stage.label || stage.name}
       </Link>
     </DataTable.Cell>
@@ -1151,7 +1570,11 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
   }
 
   if (!job.latest_workflow_trigger_kind) {
-    return <DataTable.Cell><StatusPill state={job.latest_workflow_state} /></DataTable.Cell>
+    return (
+      <DataTable.Cell>
+        <StatusPill state={job.latest_workflow_state} />
+      </DataTable.Cell>
+    )
   }
 
   return (
@@ -1169,7 +1592,9 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
     return (
       <span className="inline-flex items-center">
         <SlugHoverCard id={job.epic.id} kind="epic">
-          <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+          <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.epic.path, prefix)}>
+            {job.epic.display_number}
+          </Link>
         </SlugHoverCard>
         <span>/</span>
         <SlugHoverCard id={job.id} kind="job">
@@ -1211,7 +1636,9 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ring-1 ${PILL_TONE_CLASSES.amber}`} title={title}>
       <span>{t("manual_paused")}</span>
-      <span aria-hidden="true" className="select-none">·</span>
+      <span aria-hidden="true" className="select-none">
+        ·
+      </span>
       <button
         className="rounded border border-amber-300 bg-white px-1 py-0 text-2xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-900/50"
         disabled={!canUnpause || unpauseMutation.isPending}
@@ -1226,7 +1653,11 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
         {t("unpause")}
       </button>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {unpauseMutation.isError ? <span className="text-red-700 dark:text-red-300" role="alert">{errorMessage(unpauseMutation.error, t("manual_pause_error"))}</span> : null}
+      {unpauseMutation.isError ? (
+        <span className="text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(unpauseMutation.error, t("manual_pause_error"))}
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -1295,9 +1726,15 @@ function RetryStateInline({ job }: { job: DashboardJobItem }) {
     `${retry.retry_budget_remaining} left`,
     retry.next_auto_retry_at ? `next ${formatRelativeDate(new Date(retry.next_auto_retry_at))}` : null,
     retry.provider_circuit_open ? "provider circuit open" : null
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
 
   const tone = retry.auto_retry_exhausted ? "red" : retry.provider_circuit_open ? "amber" : "gray"
 
-  return <TonePill title={details} tone={tone}>{retry.state_label}</TonePill>
+  return (
+    <TonePill title={details} tone={tone}>
+      {retry.state_label}
+    </TonePill>
+  )
 }

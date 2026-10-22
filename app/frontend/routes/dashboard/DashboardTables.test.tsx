@@ -334,7 +334,12 @@ describe("dashboard DataTable migrations", () => {
   it("cancels the remaining jobs in an active bulk action", async () => {
     setDesktop(true)
     let resolveRequest: ((response: Response) => void) | undefined
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>((resolve) => { resolveRequest = resolve }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveRequest = resolve
+        })
+    )
 
     renderWithProviders(
       <JobsDashboardTable
@@ -371,10 +376,17 @@ describe("dashboard DataTable migrations", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => {
       request += 1
       if (request === 2) {
-        return Promise.resolve(new Response(JSON.stringify({ error: { message: "Job changed state." } }), { status: 422, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: { message: "Job changed state." } }), { status: 422, headers: { "Content-Type": "application/json" } })
+        )
       }
 
-      return Promise.resolve(new Response(JSON.stringify({ message: "Approved 1 job.", affected_job_ids: [request], skipped_job_ids: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(
+        new Response(JSON.stringify({ message: "Approved 1 job.", affected_job_ids: [request], skipped_job_ids: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
