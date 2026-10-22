@@ -23,6 +23,7 @@ import updateEpicCard from "./update_epic"
 import addEpicDependencyCard from "./add_epic_dependency"
 import { examples as addEpicDependencyExamples } from "./add_epic_dependency"
 import removeEpicDependencyCard from "./remove_epic_dependency"
+import { examples as removeEpicDependencyExamples } from "./remove_epic_dependency"
 import addJobDependencyCard from "./add_job_dependency"
 import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
@@ -409,6 +410,48 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: Epic cannot depend on itself")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "EPIC-42" }).every((link) => link.getAttribute("href") === "/epics/42")).toBe(true)
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(removeEpicDependencyExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: removeEpicDependencyExamples[0].parsedResult }]
+  ] as const)("renders the removed Epic and remaining dependencies from normalized %s", (_label, envelope) => {
+    const example = removeEpicDependencyExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__remove_epic_dependency"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(removeEpicDependencyCard.collapsedSummary?.(ctx)).toBe("Dependency removed · EPIC-42")
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
+    expect(screen.getByText("Current dependencies")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-40" })).toHaveAttribute("href", "/epics/40")
+  })
+
+  it("renders an explicit empty remaining dependency state", () => {
+    const ctx = toolCardContextForExample("remove_epic_dependency", removeEpicDependencyExamples[1])
+
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
+    expect(screen.getByText("No dependencies")).toBeInTheDocument()
+    expect(screen.queryByText("No current dependencies")).not.toBeInTheDocument()
+  })
+
+  it("renders remove Epic dependency errors with linked input context", () => {
+    const ctx = toolCardContextForExample("remove_epic_dependency", removeEpicDependencyExamples[2])
+
+    expect(removeEpicDependencyCard.collapsedSummary?.(ctx)).toBe("Remove Epic Dependency failed · EPIC-42")
+    render(<>{removeEpicDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Epic dependency does not exist")).toBeInTheDocument()
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
   })
 
   it("renders priority changes", () => {
