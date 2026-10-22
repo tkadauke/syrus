@@ -36,5 +36,5 @@ export const examples: ToolCardExample[] = [
     parsedResult: { error: "tag not found for this user: 99" },
     resultError: true
   },
-  { id: "pending", label: "Pending", input: { job_id: 7, tag_id: 10 }, resultSettled: false }
+  { id: "pending", label: "Pending", input: { job_id: 7, tag_id: 10 }, resultBody: "", resultSettled: false }
 ]
