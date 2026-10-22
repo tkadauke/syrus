@@ -6,8 +6,12 @@ import { pendingActionToolCard } from "../pendingActionToolCard"
 const wakeProviderAdmissionToolCard = pendingActionToolCard("wake_provider_admission", {
   inputFields: [
     { key: "provider", format: "badge" },
-    { key: "user_id", label: "User", format: "entity", hrefPrefix: "/admin/users" },
+    { key: "user_id", label: "User scope", format: "entity", hrefPrefix: "/admin/users", emptyLabel: "All users" },
     { key: "reason", format: "markdown" }
+  ],
+  resultFields: [
+    { path: "observed_preview.workflow_count", label: "Queued workflows", format: "number" },
+    { path: "observed_preview.auto_retry_count", label: "Delayed auto-retries", format: "number" }
   ]
 })
 
