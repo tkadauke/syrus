@@ -94,6 +94,66 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     expect(result.details).to include("kind" => "base_not_known_healthy", "base_sha" => base_sha)
   end
 
+  it "passes when an unknown-health base does not have one of the Job's failing checks" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    job.update!(pr_checks_failing_names: [ "rspec", "react" ])
+    MainBranchHealthCheck.create!(
+      repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
+      ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+    )
+
+    expect(described_class.call(ci_unit_for(job))).to be_pass
+  end
+
+  it "blocks when every Job failure is also failing on the unknown-health base" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    job.update!(pr_checks_failing_names: [ "rspec" ])
+    MainBranchHealthCheck.create!(
+      repository: repository, sha: base_sha, checked_at: Time.current, source: "ci_poll",
+      ci_health: "broken", grader_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+    )
+
+    result = described_class.call(ci_unit_for(job))
+
+    expect(result).to be_blocked
+    expect(result.details).to include("kind" => "base_not_known_healthy")
+  end
+
+  it "blocks when neither base health nor failing check names are recorded" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    job.update!(pr_checks_failing_names: nil)
+
+    result = described_class.call(ci_unit_for(job))
+
+    expect(result).to be_blocked
+    expect(result.details).to include("kind" => "base_not_known_healthy")
+  end
+
+  it "passes a stacked Job with a failure absent from its unevaluated parent base" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    parent = Factories.job_record(
+      user: user, repository: repository, issue_number: 41, state: "implemented",
+      pr_checks_failing_names: [ "rspec" ]
+    )
+    job.update!(parent_job: parent, pr_checks_failing_names: [ "rspec", "react" ])
+
+    expect(described_class.call(ci_unit_for(job))).to be_pass
+  end
+
+  it "does not exempt a stacked failure already recorded on its parent" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    parent = Factories.job_record(
+      user: user, repository: repository, issue_number: 41, state: "implemented",
+      pr_checks_failing_names: [ "rspec" ]
+    )
+    job.update!(parent_job: parent, pr_checks_failing_names: [ "rspec" ])
+
+    result = described_class.call(ci_unit_for(job))
+
+    expect(result).to be_blocked
+    expect(result.details).to include("kind" => "base_not_known_healthy")
+  end
+
   it "marks an unknown-health base as superseded when it is no longer the job's current base" do
     current_base_sha = "9991234567890000000000000000000000000000"
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
