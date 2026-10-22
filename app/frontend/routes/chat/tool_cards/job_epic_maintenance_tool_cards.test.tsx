@@ -215,23 +215,14 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it("renders the live feedback-poll outcome, linked resource, PR, and execution failure", () => {
     const pending = toolCardContextForExample("poll_job_feedback", pollJobFeedbackExamples[0])
-    const confirmed = {
-      ...pending,
-      livePendingAction: livePendingAction(29, "confirmed", {
-        action: "poll_job_feedback",
-        label: "Poll PR feedback",
-        resource_title: "Improve feedback polling",
-        resource_url: "/jobs/46?tab=workflows",
-        execution_status: "succeeded",
-        outcome: { pr_number: 321, pr_url: "https://github.com/acme/widgets/pull/321" }
-      })
-    }
+    const confirmed = toolCardContextForExample("poll_job_feedback", pollJobFeedbackExamples[2])
 
     expect(pollJobFeedbackCard.collapsedSummary?.(confirmed)).toBe("Feedback poll queued · JOB-46")
     const { unmount } = render(<>{pollJobFeedbackCard.renderExpanded(confirmed)}</>)
-    expect(screen.getAllByRole("link", { name: "JOB-46" }).some((link) => link.getAttribute("href") === "/jobs/46?tab=workflows")).toBe(true)
+    expect(screen.getAllByRole("link", { name: "JOB-46" }).some((link) => link.getAttribute("href") === "/jobs/46")).toBe(true)
     expect(screen.getByRole("link", { name: "PR #321" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/321")
     expect(screen.getByText("succeeded")).toBeInTheDocument()
+    expect(screen.getByText("Queueing PR feedback poll...")).toBeInTheDocument()
     unmount()
 
     const failed = {
