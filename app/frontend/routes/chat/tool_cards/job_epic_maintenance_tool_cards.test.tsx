@@ -27,6 +27,7 @@ import { examples as removeEpicDependencyExamples } from "./remove_epic_dependen
 import addJobDependencyCard from "./add_job_dependency"
 import { examples as addJobDependencyExamples } from "./add_job_dependency"
 import removeJobDependencyCard from "./remove_job_dependency"
+import { examples as removeJobDependencyExamples } from "./remove_job_dependency"
 import unapproveJobCard from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
@@ -377,6 +378,52 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: Job cannot depend on itself")).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "JOB-50" }).every((link) => link.getAttribute("href") === "/jobs/50")).toBe(true)
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(removeJobDependencyExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: removeJobDependencyExamples[0].parsedResult }]
+  ] as const)("renders the removed Job and remaining dependencies from normalized %s", (_label, envelope) => {
+    const example = removeJobDependencyExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__remove_job_dependency"), {
+      ...example,
+      input: { ...example.input, satisfaction_mode: "deployment_stage" },
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(removeJobDependencyCard.collapsedSummary?.(ctx)).toBe("Dependency removed · JOB-50")
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-49" })).toHaveAttribute("href", "/jobs/49")
+    expect(screen.getByText("Current dependencies")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-48" })).toHaveAttribute("href", "/jobs/48")
+    expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.queryByText("Satisfaction")).not.toBeInTheDocument()
+    expect(screen.queryByText("deployment_stage")).not.toBeInTheDocument()
+  })
+
+  it("renders the removed Epic and an explicit empty remaining dependency state", () => {
+    const ctx = toolCardContextForExample("remove_job_dependency", removeJobDependencyExamples[1])
+
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.getByText("No dependencies")).toBeInTheDocument()
+    expect(screen.queryByText("No current dependencies")).not.toBeInTheDocument()
+  })
+
+  it("renders remove Job dependency errors with linked input context", () => {
+    const ctx = toolCardContextForExample("remove_job_dependency", removeJobDependencyExamples[2])
+
+    expect(removeJobDependencyCard.collapsedSummary?.(ctx)).toBe("Remove Job Dependency failed · JOB-50")
+    render(<>{removeJobDependencyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("Error: Job dependency does not exist")).toBeInTheDocument()
+    expect(screen.getByText("Removed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-49" })).toHaveAttribute("href", "/jobs/49")
   })
 
   it("renders an explicit empty state from a normalized add Job dependency example", () => {
