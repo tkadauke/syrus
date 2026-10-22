@@ -47,5 +47,20 @@
   "slow_log": "Slow Log",
   "hide_slow_log": "Slow-Log-Zeilen ausblenden",
   "load_slow_log": "Slow-Log-Zeilen laden",
-  "slow_log_unavailable": "Slow-Log-Zeilen sind nicht verfuegbar."
+  "slow_log_unavailable": "Slow-Log-Zeilen sind nicht verfuegbar.",
+  "tool_kill_failed": "MySQL-Abfrage konnte nicht unterbrochen werden",
+  "tool_thread": "Thread",
+  "tool_full_error": "Vollstaendiger MySQL-Fehler",
+  "tool_error": "Fehler",
+  "tool_pending_action": "Ausstehende Aktion #{{id}}",
+  "tool_mysql_thread": "MySQL-Thread",
+  "tool_full_redacted_statement": "Vollstaendige redigierte Anweisung",
+  "tool_redacted_statement": "Redigierte Anweisung",
+  "tool_unknown_error": "Die Anfrage zum Unterbrechen der Abfrage ist ohne Fehlermeldung fehlgeschlagen.",
+  "tool_kill_summary": "MySQL-Abfrage in Thread {{id}} beenden",
+  "tool_query_state": "Abfragestatus",
+  "tool_user": "Benutzer",
+  "tool_host": "Host",
+  "tool_database": "Datenbank",
+  "tool_running": "Laufzeit"
 }

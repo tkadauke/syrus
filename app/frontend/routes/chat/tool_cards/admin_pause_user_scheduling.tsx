@@ -14,6 +14,7 @@ const sharedPendingActionToolCard = pendingActionToolCard("admin_pause_user_sche
 
 const adminPauseUserSchedulingToolCard: ToolCardRenderer = {
   ...sharedPendingActionToolCard,
+  toolName: "admin_pause_user_scheduling",
   // The expanded card already presents every target and parameter. Omitting the
   // generic argument digest and successful result summary leaves the collapsed
   // row usable on narrow screens, where the shared header has no room for a

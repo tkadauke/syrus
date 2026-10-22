@@ -31,6 +31,7 @@ function inputWithReadableRetryAfter(context: ToolCardContext) {
 
 const clearProviderCircuitToolCard: ToolCardRenderer = {
   ...pendingActionCard,
+  toolName: "clear_provider_circuit",
   renderExpanded(context) {
     return pendingActionCard.renderExpanded(inputWithReadableRetryAfter(context))
   }

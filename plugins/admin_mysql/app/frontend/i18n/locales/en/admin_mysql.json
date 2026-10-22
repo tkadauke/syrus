@@ -47,5 +47,20 @@
   "slow_log": "Slow log",
   "hide_slow_log": "Hide slow log rows",
   "load_slow_log": "Load slow log rows",
-  "slow_log_unavailable": "Slow log rows are unavailable."
+  "slow_log_unavailable": "Slow log rows are unavailable.",
+  "tool_kill_failed": "MySQL query interruption failed",
+  "tool_thread": "Thread",
+  "tool_full_error": "Full MySQL error",
+  "tool_error": "Error",
+  "tool_pending_action": "Pending action #{{id}}",
+  "tool_mysql_thread": "MySQL thread",
+  "tool_full_redacted_statement": "Full redacted statement",
+  "tool_redacted_statement": "Redacted statement",
+  "tool_unknown_error": "The query interruption request failed without an error message.",
+  "tool_kill_summary": "Kill MySQL query on thread {{id}}",
+  "tool_query_state": "Query state",
+  "tool_user": "User",
+  "tool_host": "Host",
+  "tool_database": "Database",
+  "tool_running": "Running"
 }
