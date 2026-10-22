@@ -224,4 +224,26 @@ describe("MigrationDiffRenderer", () => {
     )
     expect(screen.getByText("No structural statements")).toBeInTheDocument()
   })
+
+  it("stacks structure fallback panels and wraps long content on narrow screens", () => {
+    const longMigrationName = "CreateExtremelyLongNamedAuditRecordsForExternalWorkflowArtifactReferences"
+    const longStatement = "CREATE TABLE extremely_long_named_audit_records (external_workflow_artifact_reference_identifier varchar(255) NOT NULL)"
+    const { container } = render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: longMigrationName,
+          status: "cumulative_fallback",
+          cumulative: true,
+          before: { structure: [] },
+          after: { structure: [longStatement] }
+        }}
+      />
+    )
+
+    expect(screen.getByTestId("structure-migration-diff")).toHaveClass("min-w-0")
+    expect(screen.getByTestId("migration-name")).toHaveClass("break-all")
+    expect(screen.getByTestId("structure-comparison")).toHaveClass("min-w-0", "grid-cols-1", "md:grid-cols-2")
+    expect(screen.getByTestId("structure-comparison")).not.toHaveClass("min-w-[44rem]")
+    expect(container.querySelector("pre")).toHaveClass("max-w-full", "whitespace-pre-wrap", "[overflow-wrap:anywhere]")
+  })
 })
