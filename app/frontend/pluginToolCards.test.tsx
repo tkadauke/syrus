@@ -152,6 +152,14 @@ describe("pluginToolCards", () => {
       expect(context.parsedResult).toBeNull()
     })
 
+    it("preserves live pending-action state for outcome fixtures", () => {
+      const example = findExample("force_landing_recheck", "bulk_confirmed")
+      const context = toolCardContextForExample("force_landing_recheck", example)
+
+      expect(context.livePendingAction).toMatchObject({ id: 501, state: "confirmed", execution_status: "applied" })
+      expect(context.livePendingAction?.detail).toContain("refreshed state: closed")
+    })
+
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {
       const example: ToolCardExample = { id: "malformed", label: "malformed", resultBody: "not valid json {" }
       const context = toolCardContextForExample("list_jobs", example)
