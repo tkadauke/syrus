@@ -4,7 +4,7 @@ import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer 
 import openInLocalModeCard, { examples as openInLocalModeExamples } from "./open_in_local_mode"
 import cancelLocalModeCard from "./cancel_local_mode"
 import createCodingJobCard from "./create_coding_job"
-import openInCodingModeCard from "./open_in_coding_mode"
+import openInCodingModeCard, { examples as openInCodingModeExamples } from "./open_in_coding_mode"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 // Parity guard for the Local Mode job-outcome tool card family (the tool-card work /
@@ -117,6 +117,59 @@ describe("Local Mode job-outcome tool card family", () => {
     expect(openInLocalModeCard.collapsedSummary?.(errorContext)).toBe("Failed to open Local Mode")
     render(<>{openInLocalModeCard.renderExpanded(errorContext)}</>)
     expect(screen.getByText("Local Mode daemon is unavailable.")).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            job_id: 42,
+            job_state: "coding",
+            branch_name: "syrus/direct-42",
+            checkout_branch: "coding/chat-98",
+            repository_slug: "tkadauke/syrus",
+            message: "Opened in **Coding Mode**."
+          })
+        }
+      ]
+    },
+    {
+      structured_content: {
+        job_id: 42,
+        job_state: "coding",
+        branch_name: "syrus/direct-42",
+        checkout_branch: "coding/chat-98",
+        repository_slug: "tkadauke/syrus",
+        message: "Opened in **Coding Mode**."
+      }
+    }
+  ])("renders open_in_coding_mode through a normalized provider envelope", (envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__open_in_coding_mode")).toBe("open_in_coding_mode")
+    render(<>{openInCodingModeCard.renderExpanded(context({ toolName: "mcp__syrus-chat-sidecar__open_in_coding_mode", parsedResult }))}</>)
+
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getByRole("button", { name: "Copy syrus/direct-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy coding/chat-98 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByText("Coding Mode", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("renders an open_in_coding_mode error result", () => {
+    const errorContext = context({ input: { job_id: 42 }, resultBody: "The job is not ready for Coding Mode.", resultError: true })
+
+    expect(openInCodingModeCard.collapsedSummary?.(errorContext)).toBe("Failed to open Coding Mode")
+    render(<>{openInCodingModeCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("The job is not ready for Coding Mode.")).toBeInTheDocument()
+  })
+
+  it("registers reviewable open_in_coding_mode success and error examples", () => {
+    expect(openInCodingModeExamples).toEqual([
+      expect.objectContaining({ id: "opened", parsedResult: expect.objectContaining({ checkout_branch: "coding/chat-98" }) }),
+      expect.objectContaining({ id: "error", resultError: true })
+    ])
   })
 
   it("registers reviewable open_in_local_mode success and error examples", () => {
