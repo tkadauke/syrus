@@ -380,12 +380,19 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const memberCount = numberValue(result.member_count)
   const livePendingAction = context.livePendingAction
   const liveMatch = livePendingAction && displayValue(livePendingAction.id) === pendingId ? livePendingAction : null
-  const state =
-    firstValue(liveMatch?.state, result.state, result.new_state, context.resultError ? "failed" : null, pendingId ? "pending" : "success") || "success"
-  const failed = context.resultError || state === "failed"
-  const message = errorMessage(context) || displayValue(result.message)
-  const transitionExecuted = (!pendingId && !pendingGroupId) || state === "confirmed"
   const liveOutcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : {}
+  const state =
+    firstValue(
+      definition.showsLiveOutcome ? liveOutcome.status : null,
+      liveMatch?.state,
+      result.state,
+      result.new_state,
+      context.resultError ? "failed" : null,
+      pendingId ? "pending" : "success"
+    ) || "success"
+  const failed = context.resultError || state === "failed" || state === "partial_failure"
+  const message = errorMessage(context) || firstValue(definition.showsLiveOutcome ? liveOutcome.message : null, result.message)
+  const transitionExecuted = (!pendingId && !pendingGroupId) || state === "confirmed"
   const beforeSnapshot = isPlainObject(liveMatch?.before_snapshot) ? liveMatch.before_snapshot : {}
   const afterSnapshot = isPlainObject(liveMatch?.after_snapshot) ? liveMatch.after_snapshot : {}
   const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error) : null
