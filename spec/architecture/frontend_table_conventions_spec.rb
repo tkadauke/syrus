@@ -39,7 +39,6 @@ RSpec.describe "frontend table conventions" do
     "plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx" => "compact chat tool-card result summary",
     "plugins/test_insights/app/frontend/testRunResultsToolCard.tsx" => "compact chat tool-card result summary",
     "plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx" => "compact chat tool-card result summary",
-    "plugins/test_insights/app/frontend/tool_cards/list_repository_test_insights.tsx" => "compact chat tool-card result summary",
     "plugins/theming_tools/app/frontend/themeToolCard.tsx" => "compact chat tool-card result summary"
   }.freeze
 
