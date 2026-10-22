@@ -161,6 +161,58 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes the authoritative grouped outcome for bulk unapproval" do
+    jobs = 2.times.map do |index|
+      job = Factories.job_record(user: user, repository: repository, issue_number: 40 + index, state: "implemented")
+      job.approve!(via: "operator", by_user: user)
+      job
+    end
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: jobs.map { |job| { action: "unapprove_job", payload: { "job_id" => job.id } } }
+    )
+    anchor, failed = group.chat_pending_actions.order(:id).to_a
+    message = chat.messages.create!(role: "tool_use", tool_name: "unapprove_job", pending_action: anchor, content: { "text" => "Unapprove 2 Jobs?" })
+    anchor.update!(state: "confirmed")
+    failed.update!(state: "failed", execution_error: "job must be in approved state")
+    group.update!(state: "confirmed", confirmed_at: Time.current)
+
+    payload = described_class.messages([ message.reload ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :outcome)).to eq(
+      status: "partial_failure",
+      succeeded_job_ids: [ jobs.first.id ],
+      failed_job_ids: [ jobs.second.id ],
+      message: "Unapproved 1 of 2 Jobs; #{jobs.second.slug}: job must be in approved state"
+    )
+  end
+
+  it "includes state transitions when every bulk unapproval succeeds" do
+    jobs = 2.times.map do |index|
+      job = Factories.job_record(user: user, repository: repository, issue_number: 50 + index, state: "implemented")
+      job.approve!(via: "operator", by_user: user)
+      job
+    end
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: jobs.map { |job| { action: "unapprove_job", payload: { "job_id" => job.id } } }
+    )
+    anchor = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(role: "tool_use", tool_name: "unapprove_job", pending_action: anchor, content: { "text" => "Unapprove 2 Jobs?" })
+
+    expect(group.confirm_all!(user: user)).to be_all_succeeded
+    payload = described_class.messages([ message.reload ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :outcome)).to eq(
+      status: "confirmed",
+      succeeded_job_ids: jobs.map(&:id),
+      failed_job_ids: [],
+      previous_state: "approved",
+      new_state: "implemented",
+      message: "Unapproved 2 Jobs."
+    )
+  end
+
   it "batch-loads spawned chat outcomes without querying each pending-action group" do
     message_ids = 3.times.map do |group_index|
       group = PendingActionGroup.create_with_members!(
