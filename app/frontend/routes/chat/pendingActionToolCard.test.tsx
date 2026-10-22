@@ -6,6 +6,7 @@ import { normalizedToolCardParsedResult, normalizedToolName } from "./toolRender
 import { parsePendingActionResult, pendingActionCollapsedSummary, pendingActionToolCard, PendingActionResultCard } from "./pendingActionToolCard"
 import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
 import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
+import delegateIssueCard from "./tool_cards/delegate_issue"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -213,6 +214,76 @@ describe("check_job_mergeability tool card", () => {
 
     expect(screen.getByText("Not provided")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
+  })
+})
+
+describe("delegate_issue tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>, livePendingAction: ChatPendingActionInline | null = null): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), livePendingAction, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__delegate_issue")
+    }
+  }
+
+  it.each([
+    [
+      "text content",
+      {
+        content: [{ type: "text", text: JSON.stringify(standardPayload({ message: "Delegate issue #73 in tkadauke/syrus to Syrus?" })) }],
+        structured_content: null
+      }
+    ],
+    ["structured content", { content: [], structured_content: standardPayload({ message: "Delegate issue #73 in tkadauke/syrus to Syrus?" }) }]
+  ])("renders linked input context from a normalized %s envelope", (_label, envelope) => {
+    render(<>{delegateIssueCard.renderExpanded(normalizedContext(envelope, { repository_id: 12, issue_number: 73 }))}</>)
+
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/12")
+    expect(screen.getByRole("link", { name: "#73" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/issues/73")
+    expect(screen.getByText("Delegate issue #73 in tkadauke/syrus to Syrus?")).toBeInTheDocument()
+  })
+
+  it("shows the resulting Job after execution", () => {
+    render(
+      <>
+        {delegateIssueCard.renderExpanded(
+          normalizedContext(
+            standardPayload({ message: "Delegate issue #73 in tkadauke/syrus to Syrus?" }),
+            { repository_id: 12, issue_number: 73 },
+            liveAction({
+              state: "confirmed",
+              resource_title: "Improve delegation",
+              resource_url: "/jobs/7607"
+            })
+          )
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Resulting Job")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-7607" })).toHaveAttribute("href", "/jobs/7607")
+    expect(screen.getByText("Improve delegation")).toBeInTheDocument()
+    expect(screen.getByText("confirmed")).toBeInTheDocument()
+  })
+
+  it("keeps input context visible for errors", () => {
+    render(
+      <>
+        {delegateIssueCard.renderExpanded(
+          normalizedContext({ error: "issue_not_found", message: "The GitHub issue was not found." }, { repository_id: 12, issue_number: 404 })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("issue_not_found")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository #12" })).toHaveAttribute("href", "/repositories/12")
+    expect(screen.getByText("#404")).toBeInTheDocument()
+  })
+
+  it("calls out missing input instead of inferring issue identity from the message", () => {
+    render(<>{delegateIssueCard.renderExpanded(normalizedContext(standardPayload({ message: "Delegate issue #73 in tkadauke/syrus to Syrus?" })))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(2)
+    expect(screen.queryByRole("link", { name: "#73" })).not.toBeInTheDocument()
   })
 })
 
