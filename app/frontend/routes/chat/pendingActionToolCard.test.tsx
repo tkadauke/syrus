@@ -10,6 +10,7 @@ import delegateIssueCard from "./tool_cards/delegate_issue"
 import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
 import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocker_once"
+import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -275,6 +276,79 @@ describe("check_job_mergeability tool card", () => {
 
     expect(screen.getByText("Not provided")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
+  })
+})
+
+describe("reconcile_job_state tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), null, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__reconcile_job_state")
+    }
+  }
+
+  it.each([
+    ["text content", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { content: [], structured_content: standardPayload() }]
+  ])("renders mode, a linked Job, and Markdown reason from a normalized %s envelope", (_label, envelope) => {
+    render(
+      <>
+        {reconcileJobStateCard.renderExpanded(
+          normalizedContext(envelope, { job_id: 4222, mode: "mark_failed", reason: "Repair the **stale state** after review." })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Mode")).toBeInTheDocument()
+    expect(screen.getByText("mark_failed")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByText("stale state", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getAllByText("JOB-4222")).toHaveLength(1)
+  })
+
+  it("renders every bulk Job as a wrapping link with the auto mode", () => {
+    render(
+      <>
+        {reconcileJobStateCard.renderExpanded(
+          normalizedContext(
+            { ...standardPayload(), pending_action_group_id: 88, member_count: 3 },
+            { job_ids: [41, "42", 43], mode: "auto", reason: "The Jobs share **reconciler drift**." }
+          )
+        )}
+      </>
+    )
+
+    for (const id of [41, 42, 43]) expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    expect(screen.getByText("auto")).toBeInTheDocument()
+    expect(screen.getByText("reconciler drift", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("Jobs").parentElement).toHaveClass("min-w-0")
+  })
+
+  it("preserves request details in an error state", () => {
+    render(
+      <>
+        {reconcileJobStateCard.renderExpanded(
+          normalizedContext(
+            { error: "invalid_request", message: "The requested reconciliation is not eligible." },
+            { job_id: 4222, mode: "auto", reason: "Retry after **checking ownership**." }
+          )
+        )}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toBeInTheDocument()
+    expect(screen.getByText("auto")).toBeInTheDocument()
+    expect(screen.getByText("checking ownership", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("labels every unavailable request field when input is missing", () => {
+    render(<>{reconcileJobStateCard.renderExpanded(normalizedContext(standardPayload()))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(3)
+    expect(screen.getByText("Mode")).toBeInTheDocument()
+    expect(screen.getByText("Jobs")).toBeInTheDocument()
+    expect(screen.getByText("Reason")).toBeInTheDocument()
   })
 })
 
