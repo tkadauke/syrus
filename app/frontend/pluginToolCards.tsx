@@ -112,6 +112,10 @@ export type ToolCardExample = {
   resultError?: boolean
   resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
+  // Live pending-action state is distinct from the frozen tool result. Cards
+  // that surface confirmation/execution outcomes need fixtures for this path,
+  // just like real chat messages receive it on every payload refresh.
+  livePendingAction?: ChatPendingActionInline | null
 }
 
 type ToolCardModule = { default?: ToolCardRenderer; examples?: ToolCardExample[] }
@@ -152,7 +156,8 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
     resultBody,
     resultError: example.resultError ?? false,
     resultSettled: example.resultSettled ?? true,
-    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
+    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
+    livePendingAction: example.livePendingAction
   }
 }
 
