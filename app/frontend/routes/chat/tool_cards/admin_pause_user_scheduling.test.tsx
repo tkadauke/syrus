@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
-import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
+import { normalizedToolCardParsedResult, normalizedToolName, toolResultPresentation } from "../toolRendering"
 import adminPauseUserSchedulingToolCard from "./admin_pause_user_scheduling"
 
 function context(parsedResult: unknown, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -57,7 +57,7 @@ describe("admin_pause_user_scheduling tool card", () => {
       }
     })
 
-    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pending action #501 · pending")
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBeNull()
     expect(adminPauseUserSchedulingToolCard.argumentSummary?.(cardContext.input)).toBe("")
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
@@ -85,7 +85,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
-    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Group #82 · 2 actions · confirmed")
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBeNull()
     expect(screen.getByText("confirmed")).toBeInTheDocument()
     expect(screen.getByText("Pending action group #82")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
@@ -97,6 +97,20 @@ describe("admin_pause_user_scheduling tool card", () => {
     expect(screen.getByRole("link", { name: "user #4" })).toHaveAttribute("href", "/admin/users/4")
   })
 
+  it("leaves successful collapsed rows free of a narrow detail column", () => {
+    const result = {
+      ...SINGLE_RESULT,
+      pending_action_group_id: 82,
+      member_count: 2,
+      message: "Pause scheduling for 2 users."
+    }
+    const body = JSON.stringify(result)
+
+    expect(
+      toolResultPresentation("mcp__syrus-chat-sidecar__admin_pause_user_scheduling", body, false, body, { user_ids: [17, 29] }, result).summary
+    ).toBe("")
+  })
+
   it("renders the live rejected state and reason", () => {
     const cardContext = context(SINGLE_RESULT, {
       input: { user_id: 17, reason: "Requested by **security**." },
@@ -105,7 +119,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
-    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pending action #501 · rejected")
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBeNull()
     expect(screen.getByText("rejected")).toBeInTheDocument()
     expect(screen.getByText("Rejected after operator review.")).toBeInTheDocument()
   })
@@ -125,7 +139,7 @@ describe("admin_pause_user_scheduling tool card", () => {
 
     render(<>{adminPauseUserSchedulingToolCard.renderExpanded(cardContext)}</>)
 
-    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Pause scheduling failed")
+    expect(adminPauseUserSchedulingToolCard.collapsedSummary?.(cardContext)).toBe("Error")
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(0)
     expect(screen.queryByText(new RegExp(secret))).not.toBeInTheDocument()
