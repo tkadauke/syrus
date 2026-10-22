@@ -60,7 +60,11 @@ module WorkUnits
       ).instantiate
     end
 
-    def self.create_and_start!(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, before_start: nil, **options)
+    def self.create_and_start!(
+      kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil,
+      source_type: "workflow_launch", source_id: nil, before_start: nil,
+      completion_aware: false, **options
+    )
       workflow = instantiate(
         kind: kind,
         job: job,
@@ -69,8 +73,22 @@ module WorkUnits
         idempotency_key: idempotency_key,
         source_type: source_type,
         source_id: source_id,
+        completion_aware: completion_aware,
         **options
       )
+      if completion_aware && workflow.succeeded?
+        unit = workflow.work_unit
+        return Result.new(
+          workflow: workflow,
+          run: nil,
+          intent: unit&.work_intent,
+          work_unit: unit,
+          status: "not_started",
+          reason: "already_succeeded",
+          gate_result: nil
+        )
+      end
+
       before_start&.call(workflow)
       start!(workflow)
     end
@@ -198,6 +216,7 @@ module WorkUnits
       @planned_execution_override = @options.delete(:planned_execution_requirements)
       @member_jobs_override = Array(@options.delete(:member_jobs)).presence
       @parent_work_unit = @options.delete(:parent_work_unit)
+      @completion_aware = @options.delete(:completion_aware)
       @existing_intent = existing_intent
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
       @member_jobs = @member_jobs_override || @definition.members_for(job: job, artifacts: payload_artifacts, **options)
@@ -208,7 +227,11 @@ module WorkUnits
       WorkIntent.transaction do
         job.ensure_planned_execution_requirements!
         intent = find_or_create_intent!
+        intent.lock! if idempotency_key.present?
         if (workflow = active_workflow_for(intent))
+          return workflow
+        end
+        if (workflow = succeeded_workflow_for(intent))
           return workflow
         end
 
@@ -269,6 +292,19 @@ module WorkUnits
         .where.not(workflow_id: nil)
         .includes(:workflow)
         .order(created_at: :desc, id: :desc)
+        .first
+      unit&.workflow
+    end
+
+    def succeeded_workflow_for(intent)
+      return nil unless @completion_aware && idempotency_key.present?
+
+      unit = intent.work_units
+        .joins(:workflow)
+        .where(work_units: { state: "succeeded" })
+        .where(workflows: { state: "succeeded" })
+        .includes(:workflow)
+        .order("work_units.created_at DESC, work_units.id DESC")
         .first
       unit&.workflow
     end
