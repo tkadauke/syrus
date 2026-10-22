@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatPendingActionInline } from "@app/api/chats"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolName } from "../toolRendering"
-import card from "./wake_provider_admission"
+import card, { examples } from "./wake_provider_admission"
 
 const result = {
   pending_confirmation_id: 501,
@@ -46,6 +46,15 @@ function liveAction(state: ChatPendingActionInline["state"]): ChatPendingActionI
 }
 
 describe("wake_provider_admission tool card", () => {
+  it("exports catalog fixtures for every reviewable action state", () => {
+    expect(examples.map((example) => example.id)).toEqual(["pending_scoped_wake", "confirmed_scoped_wake", "rejected_all_users_wake", "preview_error"])
+
+    for (const example of examples) {
+      const exampleContext = toolCardContextForExample(card.toolName, example)
+      expect(() => card.renderExpanded(exampleContext)).not.toThrow()
+    }
+  })
+
   it("renders scoped inputs and labelled preview counts from structured content", () => {
     const rawName = "mcp__syrus-chat-sidecar__wake_provider_admission"
     const parsedResult = normalizedToolCardParsedResult({ structured_content: result })
