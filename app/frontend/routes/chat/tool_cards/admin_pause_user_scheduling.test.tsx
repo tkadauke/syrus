@@ -106,9 +106,7 @@ describe("admin_pause_user_scheduling tool card", () => {
     }
     const body = JSON.stringify(result)
 
-    expect(
-      toolResultPresentation("mcp__syrus-chat-sidecar__admin_pause_user_scheduling", body, false, body, { user_ids: [17, 29] }, result).summary
-    ).toBe("")
+    expect(toolResultPresentation("mcp__syrus-chat-sidecar__admin_pause_user_scheduling", body, false, body, { user_ids: [17, 29] }, result).summary).toBe("")
   })
 
   it("renders the live rejected state and reason", () => {
