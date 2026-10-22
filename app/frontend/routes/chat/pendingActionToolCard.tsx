@@ -300,12 +300,16 @@ function DryRunCard({ details, result }: { details?: ReactNode; result: Extract<
 export function PendingActionResultCard({
   detailTitle = "Detail",
   details,
+  linkifyMessageUrls = false,
+  linkifyReasonUrls = false,
   omitJob = false,
   omitResource = false,
   result
 }: {
   detailTitle?: string
   details?: ReactNode
+  linkifyMessageUrls?: boolean
+  linkifyReasonUrls?: boolean
   omitJob?: boolean
   omitResource?: boolean
   result: PendingActionResult
@@ -318,7 +322,7 @@ export function PendingActionResultCard({
           <StatePill state="failed" />
           <span className="break-all font-mono font-semibold text-danger-text">{result.code}</span>
         </div>
-        <MarkdownPreview maxLines={4} modalLabel="Error details" text={result.message} />
+        <MarkdownPreview linkifyUrls={linkifyMessageUrls} maxLines={4} modalLabel="Error details" text={result.message} />
         <ContextRows omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
@@ -346,11 +350,11 @@ export function PendingActionResultCard({
       ) : null}
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
-      {result.message ? <MarkdownPreview maxLines={4} modalLabel="Pending action message" text={result.message} /> : null}
+      {result.message ? <MarkdownPreview linkifyUrls={linkifyMessageUrls} maxLines={4} modalLabel="Pending action message" text={result.message} /> : null}
       {result.reason ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview maxLines={4} modalLabel="Pending action reason" text={result.reason} />
+          <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.reason} />
         </div>
       ) : null}
       {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}

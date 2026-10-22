@@ -8,6 +8,7 @@ import cancelStaleWorkCard from "./tool_cards/cancel_stale_work"
 import checkJobMergeabilityCard from "./tool_cards/check_job_mergeability"
 import delegateIssueCard from "./tool_cards/delegate_issue"
 import forceLandingRecheckCard from "./tool_cards/force_landing_recheck"
+import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -285,6 +286,75 @@ describe("force_landing_recheck tool card", () => {
 
     expect(screen.getByText("Not provided")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "JOB-4222" })).not.toBeInTheDocument()
+  })
+})
+
+describe("mark_ci_repair_noop tool card", () => {
+  function normalizedContext(envelope: unknown, input?: Record<string, unknown>): ToolCardContext {
+    return {
+      ...context(normalizedToolCardParsedResult(envelope), null, input),
+      toolName: normalizedToolName("mcp__syrus-chat-sidecar__mark_ci_repair_noop")
+    }
+  }
+
+  it.each(["text content", "structured content"])("renders linked single targets and linkified prose from a normalized %s envelope", (label) => {
+    const message = "RSpec failed: https://github.com/acme/widgets/actions/runs/123456789"
+    const reason = "No progress after reviewing https://ci.example.test/builds/42."
+    const payload = standardPayload({ message })
+    const normalizedEnvelope =
+      label === "structured content"
+        ? { content: [], structured_content: payload }
+        : { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+
+    render(<>{markCiRepairNoopCard.renderExpanded(normalizedContext(normalizedEnvelope, { job_id: 4222, workflow_id: 8444, reason }))}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "WF-8444" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-8444")
+    expect(screen.getByRole("link", { name: "https://github.com/acme/widgets/actions/runs/123456789" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/widgets/actions/runs/123456789"
+    )
+    expect(screen.getByRole("link", { name: "https://ci.example.test/builds/42" })).toHaveAttribute("href", "https://ci.example.test/builds/42")
+  })
+
+  it("renders every bulk Workflow as a wrapping admin link", () => {
+    const payload = {
+      ...standardPayload({ message: "Mark 3 CI repairs as no-op?" }),
+      pending_action_group_id: 88,
+      member_count: 3
+    }
+
+    render(
+      <>
+        {markCiRepairNoopCard.renderExpanded(
+          normalizedContext(payload, { workflow_ids: [101, "102", 103], reason: "The repairs made no branch or check progress." })
+        )}
+      </>
+    )
+
+    for (const id of [101, 102, 103]) {
+      expect(screen.getByRole("link", { name: `WF-${id}` })).toHaveAttribute("href", `/admin/workflows/${id}`)
+    }
+    expect(screen.getByText("Workflows").parentElement).toHaveClass("min-w-0")
+  })
+
+  it("keeps input targets visible when the tool returns an error", () => {
+    render(
+      <>
+        {markCiRepairNoopCard.renderExpanded(
+          normalizedContext(
+            { error: "invalid_request", message: "Workflow validation failed. See https://ci.example.test/help." },
+            { job_id: 4222, workflow_id: 8444, reason: "**Investigate** the validation failure." }
+          )
+        )}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "WF-8444" })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-8444")
+    expect(screen.getByRole("link", { name: "https://ci.example.test/help" })).toHaveAttribute("href", "https://ci.example.test/help")
+    expect(screen.getByText("Investigate", { selector: "strong" })).toBeInTheDocument()
   })
 })
 
