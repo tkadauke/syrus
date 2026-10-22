@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -291,6 +291,74 @@ describe("dashboard DataTable migrations", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
     expect(screen.getByText("2 selected")).toBeInTheDocument()
+  })
+
+  it("reports bulk job action progress while blocking the other actions", async () => {
+    setDesktop(true)
+    const responses: Array<(response: Response) => void> = []
+    vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>((resolve) => responses.push(resolve)))
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state"]}
+        controls={controls}
+        items={[
+          job({ bulk_actions: { approve: true } }),
+          job({ id: 2, title: "Ship widgets", bulk_actions: { approve: true } }),
+          job({ id: 3, title: "Polish widgets", bulk_actions: { approve: true } })
+        ]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(screen.getByText("0 of 3 approved")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+
+    await waitFor(() => expect(responses).toHaveLength(1))
+    responses[0](new Response(JSON.stringify({ message: "Approved 1 job." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    expect(await screen.findByText("1 of 3 approved")).toBeInTheDocument()
+    await waitFor(() => expect(responses).toHaveLength(2))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    responses[1](new Response(JSON.stringify({ message: "Approved 1 job." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    expect(await screen.findByText("Bulk action canceled after 2 of 3 jobs.")).toBeInTheDocument()
+  })
+
+  it("cancels the remaining jobs in an active bulk action", async () => {
+    setDesktop(true)
+    let resolveRequest: ((response: Response) => void) | undefined
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>((resolve) => { resolveRequest = resolve }))
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "state"]}
+        controls={controls}
+        items={[job({ bulk_actions: { approve: true } }), job({ id: 2, title: "Ship widgets", bulk_actions: { approve: true } })]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "select_all_jobs" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.getByRole("button", { name: "Canceling…" })).toBeDisabled()
+    resolveRequest?.(new Response(JSON.stringify({ message: "Approved 1 job." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    expect(await screen.findByText("Bulk action canceled after 1 of 2 jobs.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
   })
 
   it("renders dashboard plugin panels directly above the data table", () => {

@@ -32,6 +32,9 @@ Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
 view for dependency relationships.
+The Jobs dashboard shows per-Job progress while a bulk action is running and
+lets you cancel the remaining selected Jobs without interrupting a request
+that has already started.
 For landed Jobs, Syrus can also record configured deployment stage progress
 from repository tags, such as staging, production, or public release. The
 Jobs dashboard has an optional Deployment column, hidden by default, that
