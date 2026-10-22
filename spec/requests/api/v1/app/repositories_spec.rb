@@ -528,7 +528,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       [ "poll", -> { post "/api/v1/app/repositories/#{repository.id}/poll" } ],
       [ "archive", -> { post "/api/v1/app/repositories/#{repository.id}/archive" } ],
       [ "unarchive", -> { post "/api/v1/app/repositories/#{repository.id}/unarchive" } ],
-      [ "retry_failed_jobs", -> { post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs" } ],
       [ "run_main_branch_graders", -> { post "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders" } ],
       [ "repair_main_branch", -> { post "/api/v1/app/repositories/#{repository.id}/repair_main_branch" } ],
       [ "sync_fork", -> { post "/api/v1/app/repositories/#{repository.id}/sync_fork" } ],
@@ -793,8 +792,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     # Members tab is gone from every repository page's tab bar.
     expect(body["tabs"].map { |tab| tab["key"] }).not_to include("members")
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 2)
-    expect(body["retry_failed_jobs"]).to include("count" => 1, "agent_provider_label" => "Codex")
-    expect(body.dig("retry_failed_jobs", "provider_circuit")).to include("provider" => "codex", "open" => false)
+    expect(body["provider_retry_status"]).to include("agent_provider_label" => "Codex")
+    expect(body.dig("provider_retry_status", "provider_circuit")).to include("provider" => "codex", "open" => false)
     expect(body["credential_status"]).to include(
       "mode" => "pat",
       "label" => "PAT fallback: no active App installation",
@@ -829,7 +828,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "edit_repository_path" => edit_repository_path(repository),
       "app_poll_repository_path" => "/api/v1/app/repositories/#{repository.id}/poll",
       "app_archive_repository_path" => "/api/v1/app/repositories/#{repository.id}/archive",
-      "app_retry_failed_jobs_repository_path" => "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
       "app_resume_landing_repository_path" => "/api/v1/app/repositories/#{repository.id}/resume_landing",
       "app_run_main_branch_graders_repository_path" => "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
       "app_repair_main_branch_repository_path" => "/api/v1/app/repositories/#{repository.id}/repair_main_branch",
@@ -1568,40 +1566,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("active_repositories", 0, "slug")).to eq("acme/widgets")
   end
 
-  it "retries failed jobs through the app API" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
-    failed_a = Factories.job_with_run(
-      repository: repository,
-      issue_number: 1,
-      state: "failed",
-      workflow_attrs: { state: "failed" },
-      step_attrs: { state: "failed" },
-      run_attrs: { state: "failed", finished_at: Time.current }
-    )
-    failed_b = Factories.job_with_run(
-      repository: repository,
-      issue_number: 2,
-      state: "failed",
-      workflow_attrs: { state: "failed" },
-      step_attrs: { state: "failed" },
-      run_attrs: { state: "failed", finished_at: Time.current }
-    )
-    Factories.job_with_run(repository: repository, issue_number: 3, run_attrs: { state: "succeeded", finished_at: Time.current })
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
-    }.not_to change { Workflow.where(trigger_kind: "retry").count }
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Retry enqueued for 2 failed jobs with Codex.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(parse_body.dig("retry_summary", "actions")).to eq("failed step retried" => 2)
-    expect(parse_body.dig("retry_failed_jobs", "count")).to eq(0)
-    expect(failed_a.reload.agent_provider).to eq("codex")
-    expect(failed_b.reload.latest_workflow.first_step.runs.last.agent_provider).to eq("codex")
-  end
-
   it "lists and releases needs-triage jobs for developers" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
@@ -1684,120 +1648,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:forbidden)
     expect(job.reload).to be_needs_triage
-  end
-
-  it "rejects retrying when there are no failed jobs" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user)
-    Factories.job_record(repository: repository)
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
-    }.not_to change { Workflow.where(trigger_kind: "retry").count }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")
-  end
-
-  it "does not retry failed jobs that are owned by active WorkUnits" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    failed = Factories.job_with_run(
-      repository: repository,
-      issue_number: 1,
-      state: "failed",
-      workflow_attrs: { state: "failed" },
-      step_attrs: { state: "failed" },
-      run_attrs: { state: "failed", finished_at: Time.current }
-    )
-    attach_active_work_unit(owner_job: failed, member_job: failed, kind: "manual_visual_review")
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
-    }.not_to change { Run.count }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")
-  end
-
-  it "scopes retryable failed job ownership checks to repository candidates" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    failed = Factories.job_with_run(
-      repository: repository,
-      issue_number: 1,
-      state: "failed",
-      workflow_attrs: { state: "failed" },
-      step_attrs: { state: "failed" },
-      run_attrs: { state: "failed", finished_at: Time.current }
-    )
-    other_repository = Factories.repository(user: user, owner: "acme", name: "other")
-    other_failed = Factories.job_with_run(
-      repository: other_repository,
-      issue_number: 2,
-      state: "failed",
-      workflow_attrs: { state: "failed" },
-      step_attrs: { state: "failed" },
-      run_attrs: { state: "failed", finished_at: Time.current }
-    )
-    attach_active_work_unit(owner_job: other_failed, member_job: other_failed, kind: "manual_visual_review")
-
-    allow(WorkUnits::Ownership).to receive(:active_units_by_job_id).and_call_original
-    expect(WorkUnits::Ownership).not_to receive(:active_job_ids)
-    expect(WorkUnits::Ownership).not_to receive(:all_active_job_ids)
-    expect(WorkUnits::Ownership).not_to receive(:active_workflows_by_job_id)
-
-    queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
-    end
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("retry_failed_jobs", "count")).to eq(1)
-    expect(WorkUnits::Ownership).to have_received(:active_units_by_job_id).with([ failed.id ]).once
-    retry_count_query = queries.find { |query| query.include?("COUNT(*)") && query.include?("work_unit_members") }
-    expect(retry_count_query).to include("work_units")
-    expect(retry_count_query).to include(%("jobs"."repository_id" = ?))
-    expect(retry_count_query).to include(%("work_unit_members"."job_id" IN))
-  end
-
-  it "rejects repository-wide retries while the provider circuit is open" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
-    failed = Factories.job(repository: repository, issue_number: 1, agent_provider: "codex")
-    failed.update!(state: "failed")
-    failed.current_run.update!(state: "failed", finished_at: Time.current)
-    5.times do |index|
-      job = Factories.job(repository: repository, issue_number: index + 100, agent_provider: "codex")
-      # Transition queued -> failed via #update! (like the real fail!
-      # path) rather than creating the Run pre-failed, so the model's
-      # after_update_commit callbacks fire and refresh the provider
-      # circuit's process-level read cache the way production traffic
-      # would — a Run created already-terminal never fires them.
-      run = Run.create!(
-        job: job,
-        step: job.latest_workflow.first_step,
-        trigger_kind: "initial",
-        state: "queued",
-        agent_provider: "codex"
-      )
-      run.update!(state: "failed", agent_outcome: "provider_transient", finished_at: 1.minute.ago)
-    end
-    ProviderCircuitBreaker.clear_read_cache!
-
-    # Factories.job(agent_provider: "codex") above already exercises
-    # ProviderCircuitBreaker.call("codex", include_logs: false), which caches
-    # a "closed" decision for 30s (READ_CACHE_TTL) before the failing Runs
-    # created here exist. Without clearing it, the retry endpoint's own
-    # ProviderCircuitBreaker.call below reads that stale cached decision
-    # instead of recomputing against the Runs just created.
-    ProviderCircuitBreaker.clear_read_cache!
-
-    expect {
-      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
-    }.not_to change { Workflow.where(trigger_kind: "retry").count }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("Codex appears degraded")
   end
 
   it "does not expose another user's repository commands" do

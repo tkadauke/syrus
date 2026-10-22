@@ -136,7 +136,6 @@ en:
       archived_first: "%{slug} is archived — unarchive it first."
       archived: "%{slug} archived."
       unarchived: "%{slug} unarchived. Re-enable polling to start ingestion again."
-      no_failed_jobs: "No failed jobs to retry."
       developer_required: "Developer or admin access required."
       not_triage: "Job is not waiting for triage release."
       polling: "Polling %{slug} now."
@@ -144,11 +143,6 @@ en:
       repository_landing_resumed: "Work resumed for %{slug}."
       no_github_token: "No GitHub token configured — add one in Settings."
       github_error: "GitHub error: %{error}"
-      circuit_open: "%{label} appears degraded; automatic retries are paused."
-      circuit_open_until: "%{label} appears degraded until %{until}; automatic retries are paused."
-      retry_enqueued:
-        one: "Retry enqueued for 1 failed job with %{provider}."
-        other: "Retry enqueued for %{count} failed jobs with %{provider}."
       bulk_delegated:
         one: "1 issue delegated to Syrus."
         other: "%{count} issues delegated to Syrus."

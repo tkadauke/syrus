@@ -60,8 +60,7 @@ function repositoryDetailPayload() {
     tabs: [],
     cognitive_debt: cognitiveDebtPayload(),
     counts: { running: 0, queued: 0, failed_7d: 0 },
-    retry_failed_jobs: {
-      count: 0,
+    provider_retry_status: {
       agent_provider: "claude",
       agent_provider_label: "Claude",
       provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
@@ -90,7 +89,6 @@ function repositoryDetailPayload() {
       edit_repository_path: "/repositories/1/edit",
       app_poll_repository_path: "/api/v1/app/repositories/1/poll",
       app_archive_repository_path: ARCHIVE_PATH,
-      app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/1/retry_failed_jobs",
       app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/1/release_needs_triage",
       app_resume_landing_repository_path: "/api/v1/app/repositories/1/resume_landing",
       app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/1/run_main_branch_graders",
@@ -275,18 +273,26 @@ describe("RepositoryDetailRoute more menu", () => {
     expect(screen.queryByRole("menuitem", { name: "Poll now" })).not.toBeInTheDocument()
   })
 
-  it("hides retry failed from members without repository admin access", async () => {
+  it("keeps the provider-circuit warning without offering a repository-wide retry", async () => {
     renderRoute({
-      can_edit: false,
-      retry_failed_jobs: {
-        count: 2,
+      provider_retry_status: {
         agent_provider: "claude",
         agent_provider_label: "Claude",
-        provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
+        provider_circuit: {
+          provider: "claude",
+          open: true,
+          reason: "usage limit",
+          retry_after: null,
+          failure_count: 3,
+          job_count: 2,
+          signature: null
+        }
       }
     })
+
+    expect(await screen.findByText("Claude retries are paused: usage limit.")).toBeInTheDocument()
     await openMoreMenu()
-    expect(screen.queryByRole("menuitem", { name: /Retry 2 failed/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /Retry .* failed/ })).not.toBeInTheDocument()
   })
 
   it("links to the skill launch picker from the more menu", async () => {

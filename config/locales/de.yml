@@ -103,7 +103,6 @@ de:
       archived_first: "%{slug} ist archiviert — bitte zuerst de-archivieren."
       archived: "%{slug} archiviert."
       unarchived: "%{slug} de-archiviert. Polling wieder aktivieren, um die Aufnahme zu starten."
-      no_failed_jobs: "Keine fehlgeschlagenen Aufgaben zum Wiederholen."
       developer_required: "Entwickler- oder Administrator-Zugriff erforderlich."
       not_triage: "Aufgabe wartet nicht auf Triage-Freigabe."
       polling: "Polling von %{slug} gestartet."
@@ -111,11 +110,6 @@ de:
       repository_landing_resumed: "Arbeit für %{slug} fortgesetzt."
       no_github_token: "Kein GitHub-Token konfiguriert — bitte in den Einstellungen hinzufügen."
       github_error: "GitHub-Fehler: %{error}"
-      circuit_open: "%{label} scheint beeinträchtigt zu sein; automatische Wiederholungen sind pausiert."
-      circuit_open_until: "%{label} scheint beeinträchtigt zu sein bis %{until}; automatische Wiederholungen sind pausiert."
-      retry_enqueued:
-        one: "Wiederholung für 1 fehlgeschlagene Aufgabe mit %{provider} eingereiht."
-        other: "Wiederholung für %{count} fehlgeschlagene Aufgaben mit %{provider} eingereiht."
       bulk_delegated:
         one: "1 Issue an Syrus delegiert."
         other: "%{count} Issues an Syrus delegiert."

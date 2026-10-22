@@ -397,11 +397,15 @@ export function toolResultPresentation(
   parseBody: string = body,
   input: Record<string, unknown> = {},
   parsedResult?: unknown,
-  contextCalls: ChatToolContextCall[] = []
+  contextCallsOrPriorResults: ChatToolContextCall[] | Readonly<Record<string, unknown>> = [],
+  priorResults?: Readonly<Record<string, unknown>>,
+  resultSettled = true
 ): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
   const cardParsed = normalizedToolCardParsedResult(parsed)
+  const contextCalls = Array.isArray(contextCallsOrPriorResults) ? contextCallsOrPriorResults : []
+  const resolvedPriorResults = Array.isArray(contextCallsOrPriorResults) ? priorResults : contextCallsOrPriorResults
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -413,13 +417,14 @@ export function toolResultPresentation(
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    resultSettled: true,
+    resultSettled,
     parsedResult: redactToolCardValue(cardParsed),
     priorCalls: contextCalls.map((call) => ({
       toolName: normalizedToolName(call.tool_name),
       input: (isPlainObject(call.input) ? redactToolCardValue(call.input) : {}) as Record<string, unknown>,
       parsedResult: redactToolCardValue(normalizedToolCardParsedResult(call.result))
-    }))
+    })),
+    priorResults: redactToolCardValue(resolvedPriorResults ?? {}) as Readonly<Record<string, unknown>>
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
