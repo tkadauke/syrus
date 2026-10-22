@@ -182,7 +182,9 @@ describe("Job and Epic maintenance tool cards", () => {
 
     expect(screen.getAllByRole("link", { name: "JOB-49" })).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "JOB-49" }).every((link) => link.getAttribute("href") === "/jobs/49")).toBe(true)
+    expect(screen.getAllByRole("link", { name: "EPIC-12" })).toHaveLength(1)
     expect(screen.getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(screen.queryByRole("link", { name: "EPIC-102" })).not.toBeInTheDocument()
     expect(screen.getByText("· success")).toBeInTheDocument()
     expect(screen.getByText("· deployment_stage")).toBeInTheDocument()
     expect(screen.getByText("· stage production")).toBeInTheDocument()
