@@ -462,6 +462,8 @@ export function PendingActionResultCard({
   details,
   input,
   inputFields = [],
+  linkifyMessageUrls = true,
+  linkifyReasonUrls = true,
   omitJob = false,
   observedSummary = false,
   omitResource = false,
@@ -471,6 +473,8 @@ export function PendingActionResultCard({
   details?: ReactNode
   input?: Record<string, unknown>
   inputFields?: PendingActionInputField[]
+  linkifyMessageUrls?: boolean
+  linkifyReasonUrls?: boolean
   omitJob?: boolean
   observedSummary?: boolean
   omitResource?: boolean
@@ -485,7 +489,7 @@ export function PendingActionResultCard({
           <span className="break-all font-mono font-semibold text-danger-text">{result.code || "Tool error"}</span>
         </div>
         <InputDetails fields={inputFields} input={input} />
-        <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
+        <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
         <ContextRows omitJob={omitJob} value={result} />
         {details}
         {result.validBases.length ? <Row label="Valid bases" value={<span className="break-words font-mono">{result.validBases.join(", ")}</span>} /> : null}
@@ -516,12 +520,12 @@ export function PendingActionResultCard({
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
       {result.message ? (
-        <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
+        <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
       ) : null}
       {result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview linkifySlugs linkifyUrls maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
+          <MarkdownPreview linkifySlugs linkifyUrls={linkifyReasonUrls} maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
         </div>
       ) : null}
       {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
