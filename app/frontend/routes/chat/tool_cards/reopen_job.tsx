@@ -1,4 +1,4 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { jobEpicMaintenanceCollapsedSummary, jobEpicMaintenanceExpandedBody } from "../jobEpicMaintenanceToolCard"
 import {
   countFromInputArray,
@@ -45,3 +45,35 @@ const reopenJobToolCard: ToolCardRenderer = {
 }
 
 export default reopenJobToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_without_input",
+    label: "Pending reopen without call input",
+    parsedResult: {
+      pending_confirmation_id: 35,
+      pending_action_id: 35,
+      state: "pending",
+      message: "Reopen JOB-71?"
+    }
+  },
+  {
+    id: "bulk_pending",
+    label: "Bulk reopen confirmation",
+    input: { job_ids: [71, 72, 73] },
+    parsedResult: {
+      pending_action_group_id: 12,
+      pending_action_id: 36,
+      state: "pending",
+      member_count: 3,
+      message: "Reopen 3 Jobs?"
+    }
+  },
+  {
+    id: "validation_error",
+    label: "Job cannot be reopened",
+    input: { job_id: 74 },
+    resultBody: "Error: JOB-74 is not closed.",
+    resultError: true
+  }
+]
