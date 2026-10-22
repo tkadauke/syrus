@@ -157,8 +157,8 @@ describe("Runtime tool cards", () => {
     expect(screen.getByRole("link", { name: "Stream" })).toHaveAttribute("target", "_blank")
     expect(screen.getByRole("link", { name: "Latest frame" })).toHaveAttribute("href", "/runtime/7/frame?size=large")
     expect(screen.getByRole("link", { name: "Latest frame" })).toHaveClass("min-h-11", "break-all")
-    expect(screen.getByText(workspaceRef)).toHaveClass("break-all", "sm:truncate")
-    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText(workspaceRef)).toHaveClass("whitespace-normal", "break-all")
+    expect(screen.getByText("https://runtime.example.test/a/very/long/path")).toHaveClass("whitespace-normal", "break-all")
     expect(screen.getByText("no lease")).toBeInTheDocument()
     expect(screen.getByText("Last error")).toBeInTheDocument()
 
