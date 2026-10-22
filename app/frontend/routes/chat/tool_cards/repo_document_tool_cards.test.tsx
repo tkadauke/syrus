@@ -61,7 +61,7 @@ describe("repository document tool cards", () => {
       })
 
       expect(toolName).toBe("create_repo_document")
-      expect(createRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe("Create API Guide · Create **API Guide**?")
+      expect(createRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe("Create API Guide · Create API Guide?")
     }
   })
 

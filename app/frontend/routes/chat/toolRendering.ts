@@ -348,6 +348,7 @@ export function typedToolResult(name: string, body: string, error = false): Type
 }
 
 export function normalizedToolCardParsedResult(parsed: unknown): unknown {
+  if (typeof parsed === "string") return parseJsonText(parsed) ?? parsed
   if (!isPlainObject(parsed)) return parsed
 
   if (parsed.structured_content != null) {

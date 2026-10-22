@@ -12,6 +12,7 @@ class JobRebasePlan
     {
       "job_id" => @job.id,
       "slug" => @job.slug,
+      "repository_slug" => @job.repository.slug,
       "state" => @job.state,
       "branch_name" => @job.branch_name,
       "current_base" => @job.mergeability_base_ref.presence || @job.effective_base_branch,

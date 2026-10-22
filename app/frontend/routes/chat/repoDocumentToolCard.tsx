@@ -232,9 +232,9 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.state} />
+        <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.kind === "error" ? "failed" : result.pending.state} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{actionNoun(result.action)}</span>
-        {result.pending.kind !== "dry_run_evidence" ? <Badge>pending action #{result.pending.pendingActionId}</Badge> : null}
+        {result.pending.kind === "standard" || result.pending.kind === "bulk" ? <Badge>pending action #{result.pending.pendingActionId}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {result.title ? <Row label="Title" value={result.title} /> : null}
@@ -261,10 +261,10 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
         {result.contentType ? <Row label="Content type" value={result.contentType} /> : null}
         {result.sizeBytes != null ? <Row label="Size" value={formatBytes(result.sizeBytes)} /> : null}
       </dl>
-      {result.pending.kind !== "dry_run_evidence" && result.pending.message ? (
+      {(result.pending.kind === "standard" || result.pending.kind === "bulk") && result.pending.message ? (
         <MarkdownPreview linkifyUrls maxChars={600} maxLines={3} text={result.pending.message} />
       ) : null}
-      {result.pending.kind !== "dry_run_evidence" && result.pending.reason ? (
+      {(result.pending.kind === "standard" || result.pending.kind === "bulk") && result.pending.reason ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
           <div className="mt-0.5">

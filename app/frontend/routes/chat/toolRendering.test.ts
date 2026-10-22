@@ -158,13 +158,9 @@ describe("toolResultPresentation", () => {
       isError: false
     }
 
-    const result = toolResultPresentation(
-      "mcp__syrus-chat-sidecar__update_pinned_context",
-      JSON.stringify(envelope),
-      false,
-      undefined,
-      { content: "Review https://example.test/runbook" }
-    )
+    const result = toolResultPresentation("mcp__syrus-chat-sidecar__update_pinned_context", JSON.stringify(envelope), false, undefined, {
+      content: "Review https://example.test/runbook"
+    })
 
     expect(result).toMatchObject({ kind: "text", summary: "Pinned context updated." })
   })
@@ -176,13 +172,7 @@ describe("toolResultPresentation", () => {
       isError: true
     }
 
-    const result = toolResultPresentation(
-      "mcp__syrus-chat-sidecar__update_pinned_context",
-      JSON.stringify(envelope),
-      true,
-      undefined,
-      { content: " " }
-    )
+    const result = toolResultPresentation("mcp__syrus-chat-sidecar__update_pinned_context", JSON.stringify(envelope), true, undefined, { content: " " })
 
     expect(result).toMatchObject({ kind: "error", summary: "Pinned context update failed" })
   })
@@ -331,6 +321,12 @@ describe("toolResultPresentation", () => {
 })
 
 describe("normalizedToolCardParsedResult", () => {
+  it("parses JSON supplied directly as a string result", () => {
+    expect(normalizedToolCardParsedResult(JSON.stringify({ job: { id: 2, state: "running" } }))).toEqual({
+      job: { id: 2, state: "running" }
+    })
+  })
+
   it("unwraps a Codex MCP content envelope with JSON text", () => {
     expect(
       normalizedToolCardParsedResult({

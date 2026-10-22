@@ -69,7 +69,7 @@ function deleteDesignDoc(context: ToolCardContext): DeleteDesignDocResult | null
   }
 
   const pending = parsePendingActionResult(context)
-  if (!pending || pending.kind === "dry_run_evidence") return null
+  if (!pending || (pending.kind !== "standard" && pending.kind !== "bulk")) return null
 
   return {
     kind: "pending",

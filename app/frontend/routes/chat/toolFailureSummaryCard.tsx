@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
@@ -40,7 +41,7 @@ export function toolFailureCollapsedSummary(context: ToolCardContext, config: To
   return `${config.title} failed: ${failureMessage(context)}`
 }
 
-export function ToolFailureSummaryCard({ context, config }: { context: ToolCardContext; config: ToolFailureConfig }) {
+export function ToolFailureSummaryCard({ children, context, config }: { children?: ReactNode; context: ToolCardContext; config: ToolFailureConfig }) {
   if (!toolFailureDetected(context)) return null
 
   const message = failureMessage(context)
@@ -64,21 +65,31 @@ export function ToolFailureSummaryCard({ context, config }: { context: ToolCardC
         {errorClass ? <Row label="Error class" value={errorClass} /> : null}
       </dl>
 
+      {children}
+
       {ids.length > 0 ? (
         <div>
           <SectionLabel>Relevant IDs</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {ids.map((id) => <Badge key={id}>{id}</Badge>)}
+            {ids.map((id) => (
+              <Badge key={id}>{id}</Badge>
+            ))}
           </div>
         </div>
       ) : null}
 
       <Disclosure label="Failure details">
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{JSON.stringify({
-          tool: context.toolName,
-          input: context.input ?? null,
-          result: context.parsedResult ?? context.resultBody
-        }, null, 2)}</pre>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+          {JSON.stringify(
+            {
+              tool: context.toolName,
+              input: context.input ?? null,
+              result: context.parsedResult ?? context.resultBody
+            },
+            null,
+            2
+          )}
+        </pre>
       </Disclosure>
     </CardShell>
   )
@@ -116,13 +127,8 @@ export function toolFailureDetected(context: ToolCardContext) {
 function retrySafety(context: ToolCardContext, config: ToolFailureConfig) {
   const explicit = explicitRetryable(context.parsedResult)
   const inferred = explicit ?? inferredRetryable(failureMessage(context))
-  const safety = explicit === false
-    ? "caution"
-    : inferred === true
-      ? "safe"
-      : inferred === false && config.retrySafety !== "safe"
-        ? "caution"
-        : config.retrySafety
+  const safety =
+    explicit === false ? "caution" : inferred === true ? "safe" : inferred === false && config.retrySafety !== "safe" ? "caution" : config.retrySafety
 
   if (safety === "safe") return { label: "Safe to retry", tone: "success" as const }
   if (safety === "caution") return { label: "Check before retrying", tone: "warning" as const }
@@ -220,10 +226,12 @@ function firstObject(value: unknown): Record<string, unknown> | null {
 function mcpEnvelopeErrorMessage(value: unknown): string | null {
   if (!isPlainObject(value) || value.structured_content != null || !Array.isArray(value.content)) return null
 
-  const text = value.content.map((item) => {
-    if (!isPlainObject(item) || item.type !== "text" || typeof item.text !== "string") return null
-    return item.text.trim()
-  }).find((item): item is string => !!item)
+  const text = value.content
+    .map((item) => {
+      if (!isPlainObject(item) || item.type !== "text" || typeof item.text !== "string") return null
+      return item.text.trim()
+    })
+    .find((item): item is string => !!item)
 
   const match = text?.match(/^Error:\s*(.+)$/is)
   return match ? match[1].trim() : null
