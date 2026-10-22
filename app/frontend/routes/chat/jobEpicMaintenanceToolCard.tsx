@@ -25,6 +25,7 @@ type MaintenanceToolDefinition = {
   removedDependencyLabel?: boolean
   emptyDependenciesLabel?: string
   hidesSatisfaction?: boolean
+  showsPriorityTransition?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -46,7 +47,13 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     confirmedSubjectState: "closed",
     showsComment: true
   },
-  set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
+  set_job_priority: {
+    toolName: "set_job_priority",
+    subjectKind: "job",
+    actionLabel: "Set Job Priority",
+    verb: "Priority changed",
+    showsPriorityTransition: true
+  },
   update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
   rebase_job: {
     toolName: "rebase_job",
@@ -213,6 +220,23 @@ function pushRow(rows: DetailRow[], label: string, value: unknown) {
   if (displayed) rows.push({ label, value: displayed })
 }
 
+function PriorityPill({ priority }: { priority: string }) {
+  const tone = priority === "urgent" ? "failure" : priority === "high" ? "warning" : priority === "low" ? "info" : "neutral"
+  return <StatePill state={priority} tone={tone} />
+}
+
+function priorityTransition(previousPriority: string, newPriority: string) {
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5" aria-label={`${previousPriority} to ${newPriority}`}>
+      <PriorityPill priority={previousPriority} />
+      <span aria-hidden="true" className="text-text-muted">
+        →
+      </span>
+      <PriorityPill priority={newPriority} />
+    </span>
+  )
+}
+
 function dependencyReference(context: ToolCardContext, result: Record<string, unknown>) {
   const dependsOnJobId = firstValue(objectValue(context.input, "depends_on_job_id"))
   if (dependsOnJobId) return <EntityReference id={dependsOnJobId} kind="job" />
@@ -291,8 +315,17 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   const newState = firstValue(result.new_state)
   pushRow(rows, "Before", definition.transitionStatePills && previousState ? <StatePill state={previousState} /> : previousState)
   if (transitionExecuted) pushRow(rows, "After", definition.transitionStatePills && newState ? <StatePill state={newState} /> : newState)
-  pushRow(rows, "Previous priority", result.previous_priority)
-  pushRow(rows, "New priority", result.new_priority)
+  const previousPriority = firstValue(result.previous_priority)
+  const newPriority = firstValue(result.new_priority)
+  if (definition.showsPriorityTransition && previousPriority && newPriority) {
+    pushRow(rows, "Priority", priorityTransition(previousPriority, newPriority))
+  } else if (definition.showsPriorityTransition && context.resultError) {
+    const requestedPriority = firstValue(objectValue(context.input, "priority"))
+    pushRow(rows, "Requested priority", requestedPriority ? <PriorityPill priority={requestedPriority} /> : null)
+  } else {
+    pushRow(rows, "Previous priority", previousPriority)
+    pushRow(rows, "New priority", newPriority)
+  }
   pushRow(
     rows,
     "Title",
