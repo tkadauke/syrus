@@ -1,7 +1,14 @@
 import type { ToolCardExample } from "@app/pluginToolCards"
 import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
-export default maintenanceToolCard("rebase_job")
+const rebaseJobCard = maintenanceToolCard("rebase_job")
+
+export default {
+  ...rebaseJobCard,
+  // The structured card owns the reason as Markdown. Repeating the generic
+  // input summary here exposes raw Markdown and crowds narrow layouts.
+  argumentSummary: (_input?: Record<string, unknown>) => ""
+}
 
 export const examples: ToolCardExample[] = [
   {
@@ -23,5 +30,20 @@ export const examples: ToolCardExample[] = [
     parsedResult: { error: "A rebase is already in progress." },
     resultError: true,
     resultBody: "Error: A rebase is already in progress."
+  },
+  {
+    id: "long_reason",
+    label: "Long rebase reason",
+    description: "Exercises the expandable Markdown reason on narrow and wide layouts.",
+    input: {
+      job_id: 50,
+      reason: `Rebase after **main** changed. ${"Preserve the dependency updates and rerun affected checks. ".repeat(10)}`
+    },
+    parsedResult: {
+      pending_confirmation_id: 33,
+      pending_action_id: 33,
+      state: "pending",
+      message: "Job rebase requires operator confirmation."
+    }
   }
 ]
