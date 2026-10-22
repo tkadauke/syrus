@@ -15,5 +15,6 @@
   "migration_index": "Index",
   "migration_check": "Prüfbedingung",
   "migration_removed_structure": "Entfernte Struktur",
-  "migration_added_structure": "Hinzugefügte Struktur"
+  "migration_added_structure": "Hinzugefügte Struktur",
+  "migration_no_structure_statements": "Keine Strukturanweisungen"
 }

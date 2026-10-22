@@ -15,5 +15,6 @@
   "migration_index": "index",
   "migration_check": "check constraint",
   "migration_removed_structure": "Removed structure",
-  "migration_added_structure": "Added structure"
+  "migration_added_structure": "Added structure",
+  "migration_no_structure_statements": "No structural statements"
 }
