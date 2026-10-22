@@ -112,6 +112,9 @@ Check:
 4. The user's GitHub token can read check runs.
 5. The Job has not already hit the rolling CI failure cap: three
    `ci_failure` Workflows per 24 hours.
+6. If the base is not known healthy, at least one named check fails only on
+   the PR. Syrus waits when every failure is inherited from the base or it has
+   no base failure evidence to compare.
 
 If the token lacks Checks read access, PR-comment handling may still
 work while CI-failure handling logs a permission warning.

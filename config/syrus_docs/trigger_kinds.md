@@ -179,6 +179,13 @@ they're exempt from the `ci_failure` cap, since a repair job must keep
 absorbing CI feedback until main is actually fixed. See `main_branch_repair`
 below for what happens to PRs deferred this way once main recovers.
 
+The workflow start gate applies the same introduced-failure rule as the
+poller: when the base is not known healthy, repair may still start if the PR
+has a failing check absent from the base's recorded failures. It remains
+blocked when every failure is inherited or there is no base failure evidence.
+For stacked Jobs, the gate consults the parent PR's recorded failing names
+before falling back to the repository's newest main-branch health record.
+
 ## retry
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.

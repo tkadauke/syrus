@@ -389,11 +389,12 @@ already-`broken` signal to `inconclusive`, so a landing queue does not stay
 paused indefinitely just because GitHub itself is unreachable; it never
 manufactures a `healthy` result from a poll that couldn't reach GitHub.
 
-While main branch health is `broken`, Syrus also holds off on opening new
-`ci_failure` repair Workflows for PRs whose checks are failing — a red check
-next to a broken base usually isn't the PR's own fault. Once main recovers,
-Syrus proactively rebases affected PRs onto the healthy base so their checks
-get a fresh run, instead of leaving them red until something else pokes them.
+While main branch health is `broken`, Syrus holds off on opening a new
+`ci_failure` repair Workflow when every failing PR check is also failing on
+the base. A check that fails only on the PR can still start repair. Once main
+recovers, Syrus proactively rebases affected PRs onto the healthy base so
+their checks get a fresh run, instead of leaving them red until something
+else pokes them.
 
 If no Job appears, start with
 [the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).

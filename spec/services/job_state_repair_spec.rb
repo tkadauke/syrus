@@ -359,6 +359,20 @@ RSpec.describe JobStateRepair do
       expect(result.job.reload.state).to eq("no_change_needed")
     end
 
+    it "revalidates after cleanup and rolls back when cleanup changes the Job state" do
+      job = build_job("running")
+      allow(job).to receive(:cancel_active_execution!) do |reason:|
+        expect(reason).to eq(Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON)
+        job.update_columns(state: "failed")
+      end
+
+      expect {
+        described_class.force_transition!(job: job, event: "mark_implemented", reason: "operator")
+      }.to raise_error(ArgumentError, /cannot apply mark_implemented from failed after runtime cleanup/)
+
+      expect(job.reload).to be_running
+    end
+
     it "records a StateTransition with reconciler source" do
       job = build_job("failed")
 

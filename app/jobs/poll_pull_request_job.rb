@@ -701,41 +701,7 @@ class PollPullRequestJob < ApplicationJob
   # another API call: `cache_pr_checks_state` wrote `pr_checks_failing_names`
   # earlier in this same `react_to_ci_failures` pass.
   def introduced_failing_check_names(base_sha)
-    pr_failing = Array(@job.pr_checks_failing_names).map { |name| name.to_s.strip }.reject(&:empty?)
-    return nil if pr_failing.empty?
-
-    base_failing = base_failing_check_names(base_sha)
-    # No evidence about the base means we cannot call anything introduced. Absent
-    # knowledge is not the same as knowing a check passes upstream, so fall back
-    # to suppressing rather than guessing this branch's failures are its own.
-    return nil if base_failing.nil?
-
-    (pr_failing - base_failing).presence
-  end
-
-  # Names known to be failing on the base, or nil when we have no health record
-  # to judge by. Falls back to the newest record for the repository when the base
-  # SHA itself was never evaluated: what is broken on main now is the best
-  # available proxy for what this PR inherited.
-  def base_failing_check_names(base_sha)
-    checks = MainBranchHealthCheck.where(repository_id: @job.repository_id, sha: base_sha).to_a
-    # The base SHA itself may never have been evaluated. What is broken on main
-    # now is the best available proxy for what this PR inherited.
-    if checks.empty?
-      latest = MainBranchHealthCheck.where(repository_id: @job.repository_id).order(id: :desc).first
-      checks = [ latest ].compact
-    end
-    return nil if checks.empty?
-
-    # Union across every record for this SHA rather than the newest alone: a
-    # later record can be written mid-poll with no failure detail, and a check
-    # known to fail upstream is inherited regardless of which record saw it.
-    checks.flat_map { |check|
-      ci = Array(check.ci_failed_checks).filter_map do |entry|
-        entry.is_a?(Hash) ? (entry["name"] || entry[:name]) : entry
-      end
-      ci + Array(check.grader_failed_names)
-    }.map { |name| name.to_s.strip }.reject(&:empty?).uniq
+    CiRepair::FailingCheckComparison.call(job: @job, base_sha: base_sha)
   end
 
   def pr_base_sha

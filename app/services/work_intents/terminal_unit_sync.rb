@@ -4,6 +4,7 @@ module WorkIntents
     SUPERSEDING_CANCEL_REASONS = [
       Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       Workflow::SUPERSEDED_BY_REBASE_REASON,
+      Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON,
       WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
       WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
       "operator_cancelled",
