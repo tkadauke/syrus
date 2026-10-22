@@ -6,6 +6,7 @@ import approveJobCard from "./approve_job"
 import cancelJobCard from "./cancel_job"
 import { examples as cancelJobExamples } from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
+import { examples as closeJobSuccessfullyExamples } from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
 import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
@@ -446,11 +447,8 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("Old Epic")).toBeInTheDocument()
   })
 
-  it("renders close-success details and grouped pending confirmations", () => {
-    const close = context("close_job_successfully", {
-      input: { job_id: 80, closure_reason: "no_changes" },
-      parsedResult: { job_id: 80, pending_action_id: 15, state: "pending", closure_reason: "no_changes" }
-    })
+  it("renders normalized close-success details and expandable Markdown comments", () => {
+    const close = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[0])
     const bulk = context("approve_job", {
       input: { job_ids: [81, 82] },
       parsedResult: { pending_action_group_id: 3, pending_action_id: 16, state: "pending", member_count: 2, message: "Approve 2 Jobs?" }
@@ -464,9 +462,51 @@ describe("Job and Epic maintenance tool cards", () => {
     )
 
     expect(screen.getByText("no_changes")).toBeInTheDocument()
+    expect(screen.getByText("PR comment")).toBeInTheDocument()
+    expect(screen.getByText("Closing note")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
     expect(screen.getByText("2 JOBs")).toBeInTheDocument()
     expect(screen.getByText("group #3")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
+  })
+
+  it("links every Job in a normalized bulk close request", () => {
+    const ctx = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[1])
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe("Close requested · 3 JOBs · pending group #9")
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    for (const id of [81, 82, 83]) {
+      expect(screen.getByRole("link", { name: `JOB-${id}` })).toHaveAttribute("href", `/jobs/${id}`)
+    }
+    expect(screen.getByText("duplicate")).toBeInTheDocument()
+    expect(screen.getByText("JOB-40").tagName).toBe("STRONG")
+  })
+
+  it.each([
+    ["confirmed", "Closed successfully · JOB-80", "closed"],
+    ["rejected", "Close Job Successfully rejected · JOB-80", null]
+  ] as const)("renders the live %s close outcome", (state, summary, subjectState) => {
+    const pending = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[0])
+    const ctx = { ...pending, livePendingAction: livePendingAction(15, state) }
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe(summary)
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText(state)).toBeInTheDocument()
+    if (subjectState) expect(screen.getByText(subjectState)).toBeInTheDocument()
+    else expect(screen.queryByText("Job state")).not.toBeInTheDocument()
+  })
+
+  it("renders a normalized close-success error with its linked target", () => {
+    const ctx = toolCardContextForExample("close_job_successfully", closeJobSuccessfullyExamples[2])
+
+    expect(closeJobSuccessfullyCard.collapsedSummary?.(ctx)).toBe("Close Job Successfully failed · JOB-84")
+    render(<>{closeJobSuccessfullyCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(document.body).toHaveTextContent("Error: JOB-84 cannot be closed from running.")
+    expect(screen.getAllByRole("link", { name: "JOB-84" }).every((link) => link.getAttribute("href") === "/jobs/84")).toBe(true)
   })
 
   it("falls back to the generic renderer for malformed payloads without target context", () => {
