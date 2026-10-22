@@ -57,7 +57,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     showsLiveExecution: true,
     showsReasonMarkdown: true
   },
-  reopen_job: { toolName: "reopen_job", subjectKind: "job", actionLabel: "Reopen Job", verb: "Reopen requested" },
+  reopen_job: {
+    toolName: "reopen_job",
+    subjectKind: "job",
+    actionLabel: "Reopen Job",
+    verb: "Reopened",
+    pendingVerb: "Reopen requested",
+    confirmedSubjectState: "triaging",
+    recoversTargetFromMessage: true
+  },
   poll_job_feedback: {
     toolName: "poll_job_feedback",
     subjectKind: "job",
