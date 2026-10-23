@@ -937,8 +937,8 @@ export const ToolGroup = memo(function ToolGroup({
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
-  const outcome =
-    item.outcome_label || (item.calls.some((call) => call.result_error) ? t("system.failed") : item.calls.some((call) => !toolCallSettled(call)) ? t("running") : t("system.done"))
+  const outcomeState = item.calls.some((call) => call.result_error) ? "failed" : item.calls.some((call) => !toolCallSettled(call)) ? "running" : "done"
+  const outcome = item.outcome_label || t(outcomeState === "failed" ? "system.failed" : outcomeState === "running" ? "running" : "system.done")
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
@@ -951,7 +951,7 @@ export const ToolGroup = memo(function ToolGroup({
       >
         <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
         <span className="min-w-0 font-medium text-gray-900 dark:text-gray-100">{summary}</span>
-        <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
+        <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
@@ -1145,7 +1145,10 @@ function RawToolDetails({ payload }: { payload: unknown }) {
   return (
     <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">
-        {t("raw_details")} <span className="font-mono text-2xs">({sizeLabel}, {t("redacted")})</span>
+        {t("raw_details")}{" "}
+        <span className="font-mono text-2xs">
+          ({sizeLabel}, {t("redacted")})
+        </span>
       </summary>
       {open ? (
         <div className="mt-1 space-y-2">

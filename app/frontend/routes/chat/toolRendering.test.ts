@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "../../i18n"
 import {
   NO_ARGUMENTS_SENTINEL,
   fullResultBody,
@@ -13,6 +14,15 @@ import {
 } from "./toolRendering"
 
 describe("tool result rendering", () => {
+  afterEach(async () => i18n.changeLanguage("en"))
+
+  it("localizes generic summaries and count-driven plurals", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(toolDetail("runtime_snapshot", { options: {} })).toBe("Momentaufnahme")
+    expect(toolDetail("ask_user_question", { questions: [{}, {}] })).toBe("2 Fragen")
+    expect(toolResultPresentation("Glob", Array.from({ length: 9 }, (_, index) => `path-${index}`).join("\n")).summary).toBe("9 Pfade")
+  })
   it("caps large tool result previews before the browser renders them", () => {
     const body = fullResultBody("x".repeat(25_000))
 
@@ -286,7 +296,7 @@ describe("toolResultPresentation", () => {
       true
     )
 
-    expect(result).toMatchObject({ kind: "error", summary: "Delete repository document failed: Delete document \"Old notes\"?" })
+    expect(result).toMatchObject({ kind: "error", summary: 'Delete repository document failed: Delete document "Old notes"?' })
   })
 
   it("passes tool input to registered collapsed-summary cards", () => {

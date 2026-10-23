@@ -7,6 +7,7 @@ import { renderItemKey } from "./messageStreamItems"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
+import i18n from "../../i18n"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -177,7 +178,8 @@ function systemMessageItem(
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage("en")
   setSlugReferenceRegistryForTests(null)
   vi.mocked(fetchSourceFileContent).mockReset()
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
@@ -901,6 +903,27 @@ describe("tool result rendering", () => {
     fireEvent(details, new Event("toggle"))
 
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
+  })
+
+  it("keeps translated fallback outcomes tied to semantic pill tones", async () => {
+    await i18n.changeLanguage("de")
+    const call = {
+      message_id: 1,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail: "README.md",
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: {},
+      result_body: "failed",
+      result_error: true,
+      result_kind: "error" as const,
+      result_summary: "failed"
+    }
+
+    render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls: [call] }} />)
+
+    expect(screen.getByText("Fehlgeschlagen").parentElement).toHaveClass("bg-danger-surface")
   })
 
   it("keeps an 18-call group on one ellipsized line at a 402px mobile viewport and preserves full expanded details", () => {
