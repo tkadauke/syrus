@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import resumeScheduledTaskToolCard from "./resume_scheduled_task"
+import resumeScheduledTaskToolCard, { examples } from "./resume_scheduled_task"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -14,6 +15,17 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 }
 
 const resumed = { scheduled_task_id: 12, label: "Nightly main-branch health check", enabled: true }
+const detailed = {
+  ...resumed,
+  scheduled_task: {
+    id: 12,
+    label: "Nightly main-branch health check",
+    state: "scheduled",
+    repository_id: 8,
+    repository_slug: "tkadauke/syrus",
+    next_fire_at: "2026-10-24T03:00:00Z"
+  }
+}
 
 describe("resume_scheduled_task tool card", () => {
   it("registers under the exact MCP tool name", () => {
@@ -33,6 +45,38 @@ describe("resume_scheduled_task tool card", () => {
     expect(screen.getByText("This task is scheduled again and will fire on its next due tick.")).toBeInTheDocument()
   })
 
+  it("renders state, repository, and relative, local, and UTC next-fire times", () => {
+    render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult: detailed }))}</>)
+
+    expect(screen.getByText("scheduled")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/8")
+    expect(screen.getByText("Next fire (relative)")).toBeInTheDocument()
+    expect(screen.getByText("Next fire (local)")).toBeInTheDocument()
+    expect(screen.getByText("Next fire (UTC)")).toBeInTheDocument()
+    expect(screen.getByText(/AM UTC|PM UTC/)).toBeInTheDocument()
+    expect(document.querySelector("time")).toHaveTextContent(/ago|today|tomorrow|in /)
+  })
+
+  it.each(["scheduled task is already enabled", "scheduled task not found: 404"])("renders a styled error and preserves the input task link: %s", (message) => {
+    render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ input: { scheduled_task_id: 404 }, resultError: true, resultBody: message }))}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-404" })).toHaveAttribute("href", "/scheduled_tasks/404")
+  })
+
+  it.each([
+    ["Codex structured content", { structured_content: detailed }],
+    ["Claude text content", { content: [{ type: "text", text: JSON.stringify(detailed) }] }]
+  ])("renders normalized %s envelopes", (_label, envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+    const toolContext = context({ toolName: normalizedToolName("mcp__syrus-chat-sidecar__resume_scheduled_task"), parsedResult })
+
+    render(<>{resumeScheduledTaskToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByRole("link", { name: "TASK-12" })).toBeInTheDocument()
+    expect(screen.getByText("scheduled")).toBeInTheDocument()
+  })
+
   it("falls back to null for a malformed payload", () => {
     const parsedResult = { oops: true }
 
@@ -45,5 +89,9 @@ describe("resume_scheduled_task tool card", () => {
 
     expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+  })
+
+  it("publishes success and error catalog examples", () => {
+    expect(examples.map((example) => example.id)).toEqual(["resumed_with_next_fire", "already_enabled_error"])
   })
 })
