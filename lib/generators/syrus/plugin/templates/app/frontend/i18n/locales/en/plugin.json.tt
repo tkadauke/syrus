@@ -1,4 +1,9 @@
 {
+  "plugin": {
+    "display_name": "<%= display_name %>",
+    "description": "Syrus plugin: <%= display_name %>.",
+    "long_description": "Use <%= display_name %> to extend Syrus with plugin-owned functionality."
+  },
   "admin": {
     "title": "<%= display_name %>",
     "description": "A plugin-owned page using Syrus semantic UI primitives.",

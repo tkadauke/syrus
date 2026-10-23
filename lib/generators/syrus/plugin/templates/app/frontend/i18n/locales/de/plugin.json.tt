@@ -1,4 +1,9 @@
 {
+  "plugin": {
+    "display_name": "<%= display_name %>",
+    "description": "Syrus-Plugin: <%= display_name %>.",
+    "long_description": "Mit <%= display_name %> lässt sich Syrus um Plugin-Funktionen erweitern."
+  },
   "admin": {
     "title": "<%= display_name %>",
     "description": "Eine plugin-eigene Seite mit semantischen Syrus-UI-Bausteinen.",

@@ -3,9 +3,13 @@ module <%= module_name %>
 
   syrus_plugin "<%= file_name %>" do
     display_name "<%= display_name %>"
+    display_name_i18n_key "<%= file_name %>:plugin.display_name"
     category     "tooling"
     author       ""
     description  "Syrus plugin: <%= display_name %>."
+    description_i18n_key "<%= file_name %>:plugin.description"
+    long_description "Use <%= display_name %> to extend Syrus with plugin-owned functionality."
+    long_description_i18n_key "<%= file_name %>:plugin.long_description"
 <% if frontend? -%>
 
     provides admin_page: "<%= module_name %>::AdminPages"

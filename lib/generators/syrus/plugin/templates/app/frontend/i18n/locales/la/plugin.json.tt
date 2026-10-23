@@ -1,4 +1,9 @@
 {
+  "plugin": {
+    "display_name": "<%= display_name %>",
+    "description": "Plugin Syrus: <%= display_name %>.",
+    "long_description": "Utere <%= display_name %> ut Syrus muneribus plugin propriis augeas."
+  },
   "admin": {
     "title": "<%= display_name %>",
     "description": "Pagina propria plugin utensilia UI semantica Syrus adhibens.",

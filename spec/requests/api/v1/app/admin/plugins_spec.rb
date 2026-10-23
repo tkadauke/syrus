@@ -506,8 +506,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
         name: "detail_plugin",
         version: "1.0.0",
         display_name: "Detail Plugin",
+        display_name_i18n_key: "detail_plugin:plugin.display_name",
         description: "Short detail.",
+        description_i18n_key: "detail_plugin:plugin.description",
         long_description: "Long detail.",
+        long_description_i18n_key: "detail_plugin:plugin.long_description",
         author: "Ada",
         homepage: "https://example.test/detail",
         category: "tooling",
@@ -534,8 +537,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(plugin).to include(
         "name" => "detail_plugin",
         "display_name" => "Detail Plugin",
+        "display_name_i18n_key" => "detail_plugin:plugin.display_name",
         "enabled" => true,
         "long_description" => "Long detail.",
+        "description_i18n_key" => "detail_plugin:plugin.description",
+        "long_description_i18n_key" => "detail_plugin:plugin.long_description",
         "links" => [
           { "label" => "Open Detail", "href" => "/detail", "description" => "Primary surface", "kind" => "surface", "enabled_only" => true }
         ],

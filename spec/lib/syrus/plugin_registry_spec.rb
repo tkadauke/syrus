@@ -880,6 +880,19 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(plugin.syrus_plugin_definition.manifest_arguments.fetch(:experimental)).to be(true)
     end
 
+    it "accepts localizable metadata keys from the manifest DSL" do
+      definition = Syrus::PluginApi::Definition.new(name: "localized", namespace: Module.new, lib_dir: Rails.root.to_s)
+      definition.display_name_i18n_key "localized:plugin.display_name"
+      definition.description_i18n_key "localized:plugin.description"
+      definition.long_description_i18n_key "localized:plugin.long_description"
+
+      expect(definition.manifest_arguments).to include(
+        display_name_i18n_key: "localized:plugin.display_name",
+        description_i18n_key: "localized:plugin.description",
+        long_description_i18n_key: "localized:plugin.long_description"
+      )
+    end
+
     it "rejects invalid credential type names" do
       expect {
         described_class.register(
@@ -1338,6 +1351,30 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to change { PluginRecord.where(name: "new_plugin", enabled: false, default_enabled: false).count }.by(1)
     end
 
+    it "reconstructs missing records with raw and localizable manifest metadata" do
+      described_class.register(
+        name: "localized_plugin",
+        version: "1.0.0",
+        display_name: "Localized Plugin",
+        display_name_i18n_key: "localized_plugin:plugin.display_name",
+        description: "Short fallback.",
+        description_i18n_key: "localized_plugin:plugin.description",
+        long_description: "Long fallback.",
+        long_description_i18n_key: "localized_plugin:plugin.long_description"
+      )
+      PluginRecord.where(name: "localized_plugin").delete_all
+      described_class.clear_plugin_record_cache!
+
+      described_class.all_plugins
+
+      expect(PluginRecord.find_by!(name: "localized_plugin").config.fetch("manifest")).to include(
+        "display_name_i18n_key" => "localized_plugin:plugin.display_name",
+        "description_i18n_key" => "localized_plugin:plugin.description",
+        "long_description" => "Long fallback.",
+        "long_description_i18n_key" => "localized_plugin:plugin.long_description"
+      )
+    end
+
     it "does not flip enabled on an existing PluginRecord" do
       PluginRecord.create!(name: "existing_plugin", enabled: false, default_enabled: false)
       described_class.register(name: "existing_plugin", version: "1.0.0", default_enabled: true)
@@ -1435,9 +1472,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       described_class.register(
         name:        "manifest_plugin",
         display_name: "Manifest Plugin",
+        display_name_i18n_key: "manifest_plugin:plugin.display_name",
         version:     "3.0.0",
         custom_key:  "value",
         description: "Desc",
+        description_i18n_key: "manifest_plugin:plugin.description",
+        long_description: "Long desc",
+        long_description_i18n_key: "manifest_plugin:plugin.long_description",
         homepage:    "https://example.com",
         default_enabled: false,
         disableable: true,
@@ -1449,10 +1490,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest).to be_a(Syrus::Plugin::Manifest)
       expect(manifest.name).to eq("manifest_plugin")
       expect(manifest.display_name).to eq("Manifest Plugin")
+      expect(manifest.display_name_i18n_key).to eq("manifest_plugin:plugin.display_name")
       expect(manifest.version).to eq("3.0.0")
       expect(manifest.provides).to eq({})
       expect(manifest.metadata).to eq({ custom_key: "value" })
       expect(manifest.description).to eq("Desc")
+      expect(manifest.description_i18n_key).to eq("manifest_plugin:plugin.description")
+      expect(manifest.long_description).to eq("Long desc")
+      expect(manifest.long_description_i18n_key).to eq("manifest_plugin:plugin.long_description")
       expect(manifest.homepage).to eq("https://example.com")
       expect(manifest.icon_url).to be_nil
       expect(manifest.enabled).to be(false)

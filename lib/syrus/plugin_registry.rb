@@ -133,7 +133,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -169,11 +169,14 @@ module Syrus
           @plugins << Syrus::Plugin::Manifest.new(
             name:            name,
             display_name:    display_name,
+            display_name_i18n_key: display_name_i18n_key,
             version:         version,
             provides:        provides,
             metadata:        metadata,
             description:     description,
+            description_i18n_key: description_i18n_key,
             long_description: long_description,
+            long_description_i18n_key: long_description_i18n_key,
             homepage:        homepage,
             icon_url:        icon_url,
             default_enabled: default_enabled,
@@ -204,8 +207,11 @@ module Syrus
             metadata: {
               version: version,
               display_name: display_name,
+              display_name_i18n_key: display_name_i18n_key,
               description: description,
+              description_i18n_key: description_i18n_key,
               long_description: long_description,
+              long_description_i18n_key: long_description_i18n_key,
               homepage: homepage,
               icon_url: icon_url,
               category: category,
@@ -655,7 +661,11 @@ module Syrus
             metadata: manifest.metadata.to_h.merge(
               version: manifest.version,
               display_name: manifest.display_name,
+              display_name_i18n_key: manifest.display_name_i18n_key,
               description: manifest.description,
+              description_i18n_key: manifest.description_i18n_key,
+              long_description: manifest.long_description,
+              long_description_i18n_key: manifest.long_description_i18n_key,
               homepage: manifest.homepage,
               icon_url: manifest.icon_url,
               category: manifest.category,

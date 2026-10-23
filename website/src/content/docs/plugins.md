@@ -97,6 +97,12 @@ assets are present. Enabled means Syrus uses the plugin at runtime. This lets
 operators install a plugin during deployment but turn it on only for the
 repositories or users that need it.
 
+Plugin authors can localize the display name, short description, and long
+description shown in Admin → Plugins by declaring fully qualified i18next keys
+alongside the raw metadata. The raw strings remain the fallback when a key,
+locale, or plugin translation bundle is unavailable, and remain the stable
+text used for search.
+
 Some plugins may be non-disableable because they provide core surfaces for a
 given distribution. Most should be disableable.
 

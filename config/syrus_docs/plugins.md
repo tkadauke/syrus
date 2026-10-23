@@ -80,6 +80,16 @@ shared server-side enable path enforces the same rule for API callers and
 blocks the whole request when a dependency cascade would enable an experimental
 plugin.
 
+Plugin manifests may pair `display_name`, `description`, and
+`long_description` with fully qualified frontend i18next keys named
+`display_name_i18n_key`, `description_i18n_key`, and
+`long_description_i18n_key` (for example,
+`admin_mysql:plugin.display_name`). Admin plugin cards and detail pages use the
+active locale when that key and bundle exist, while the raw manifest strings
+remain the locale-neutral fallback and search text. This makes localization
+backward compatible: plugins without keys, missing bundles, and incomplete
+locales render their existing raw copy.
+
 Fresh installs also leave Build Cache, Design Docs, Spending Insights, and
 Team Directory disabled until an admin opts in. Credential Store and Git
 History are experimental as well as default-disabled, so beta mode must be

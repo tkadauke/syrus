@@ -116,6 +116,9 @@ function PluginsView({ plugins, betaModeEnabled, isFiltered }: { plugins: AdminP
 
 function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
   const { t } = useT("admin")
+  const displayName = localizedPluginMetadata(t, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
+  const description = localizedPluginMetadata(t, plugin.description_i18n_key, plugin.description)
+  const longDescription = localizedPluginMetadata(t, plugin.long_description_i18n_key, plugin.long_description)
   const navigate = useNavigate()
   const dependsOn = plugin.depends_on || []
   const dependents = plugin.dependents || []
@@ -136,7 +139,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
             <SectionHeading className="break-words">
               <Link className="hover:underline" to={`/admin/plugins/${encodeURIComponent(plugin.name)}`}>
-                {plugin.display_name || plugin.name}
+                {displayName}
               </Link>
             </SectionHeading>
             {plugin.display_name && plugin.display_name !== plugin.name ? (
@@ -147,10 +150,8 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
             {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
           </div>
-          {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
-          {plugin.long_description ? (
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p>
-          ) : null}
+          {description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{description}</p> : null}
+          {longDescription ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? (
               <span>
@@ -330,6 +331,9 @@ function HomepageLink({ homepage }: { homepage: string }) {
 
 function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
   const { t } = useT("admin")
+  const displayName = localizedPluginMetadata(t, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
+  const description = localizedPluginMetadata(t, plugin.description_i18n_key, plugin.description)
+  const longDescription = localizedPluginMetadata(t, plugin.long_description_i18n_key, plugin.long_description)
   const visibleLinks = (plugin.links || []).filter((link) => plugin.enabled || link.enabled_only === false)
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
@@ -342,7 +346,7 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-9 w-9 shrink-0" src={plugin.icon_url} /> : null}
-              <Page.Title className="break-words">{plugin.display_name || plugin.name}</Page.Title>
+              <Page.Title className="break-words">{displayName}</Page.Title>
               <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</span>
               <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
               {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
@@ -355,9 +359,9 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
                 ))}
               </ul>
             ) : null}
-            {plugin.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{plugin.description}</p> : null}
-            {plugin.long_description ? (
-              <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p>
+            {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
+            {longDescription ? (
+              <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>
             ) : null}
             {plugin.recommendation ? (
               <p className="mt-3 max-w-3xl rounded border border-info/25 bg-info/10 px-3 py-2 text-sm leading-6 text-info">
@@ -605,6 +609,14 @@ function statusTone(status: string) {
 
 function extensionPointLabel(point: string, t: (key: string, opts?: Record<string, unknown>) => string) {
   return t(`plugins.extension_points.${point}`, { defaultValue: point })
+}
+
+function localizedPluginMetadata(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  key: string | null | undefined,
+  fallback: string | null | undefined
+) {
+  return key ? t(key, { defaultValue: fallback || "" }) : fallback
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {

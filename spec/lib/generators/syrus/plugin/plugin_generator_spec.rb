@@ -34,11 +34,17 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
     expect(manifest).to include('provides admin_page: "SamplePlugin::AdminPages"')
     expect(manifest).to include('"sample_plugin/AdminExample" => "app/frontend/routes/AdminExample.tsx"')
     expect(manifest).to include('i18n: [ "app/frontend/i18n/locales/*/sample_plugin.json" ]')
+    expect(manifest).to include('display_name_i18n_key "sample_plugin:plugin.display_name"')
+    expect(manifest).to include('description_i18n_key "sample_plugin:plugin.description"')
+    expect(manifest).to include('long_description_i18n_key "sample_plugin:plugin.long_description"')
     en_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/en/sample_plugin.json"))
     de_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/de/sample_plugin.json"))
     la_locale = JSON.parse(read("plugins/sample_plugin/app/frontend/i18n/locales/la/sample_plugin.json"))
 
     expect(en_locale.dig("admin", "title")).to eq("Sample plugin")
+    expect(en_locale.fetch("plugin").keys).to match_array(%w[display_name description long_description])
+    expect(de_locale.fetch("plugin").keys).to match_array(en_locale.fetch("plugin").keys)
+    expect(la_locale.fetch("plugin").keys).to match_array(en_locale.fetch("plugin").keys)
     expect(de_locale.dig("admin", "title")).to eq("Sample plugin")
     expect(la_locale.dig("admin", "title")).to eq("Sample plugin")
     expect(en_locale.fetch("admin").keys).to include(

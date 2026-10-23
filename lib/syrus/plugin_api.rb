@@ -75,7 +75,8 @@ module Syrus
     # the definition can be introspected by specs and by the plugin itself.
     class Definition
       SCALARS = %i[
-        display_name description long_description homepage icon_url author category
+        display_name display_name_i18n_key description description_i18n_key
+        long_description long_description_i18n_key homepage icon_url author category
         version default_enabled disableable experimental home_queue tick_interval prepare_priority
       ].freeze
 

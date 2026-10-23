@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
+import i18n from "../i18n"
 
 const reloadMock = vi.hoisted(() => vi.fn())
 
@@ -78,6 +79,62 @@ const pluginFilterSchema = [
 ]
 
 describe("AdminPlugins", () => {
+  it("localizes plugin metadata on cards and preserves raw fallbacks for missing keys", async () => {
+    i18n.addResourceBundle("en", "localized_plugin", {
+      plugin: { display_name: "Localized name", description: "Localized description" }
+    }, true, true)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [{
+        name: "localized_plugin",
+        display_name: "Raw name",
+        display_name_i18n_key: "localized_plugin:plugin.display_name",
+        description: "Raw description",
+        description_i18n_key: "localized_plugin:plugin.description",
+        long_description: "Raw long description",
+        long_description_i18n_key: "localized_plugin:plugin.missing_long_description",
+        disable_blockers: [],
+        disableable: true,
+        version: "1.0.0",
+        enabled: true,
+        extension_points: []
+      }]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByRole("link", { name: "Localized name" })).toBeInTheDocument()
+    expect(screen.getByText("Localized description")).toBeInTheDocument()
+    expect(screen.getByText("Raw long description")).toBeInTheDocument()
+  })
+
+  it("localizes plugin metadata on the detail view", async () => {
+    i18n.addResourceBundle("en", "localized_detail", {
+      plugin: { display_name: "Localized detail", description: "Localized short", long_description: "Localized long" }
+    }, true, true)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: {
+        name: "localized_detail",
+        display_name: "Raw detail",
+        display_name_i18n_key: "localized_detail:plugin.display_name",
+        description: "Raw short",
+        description_i18n_key: "localized_detail:plugin.description",
+        long_description: "Raw long",
+        long_description_i18n_key: "localized_detail:plugin.long_description",
+        disable_blockers: [],
+        disableable: true,
+        version: "1.0.0",
+        enabled: true,
+        extension_points: []
+      }
+    }))
+
+    renderDetailRoute("/admin/plugins/localized_detail")
+
+    expect((await screen.findAllByRole("heading", { name: "Localized detail" })).length).toBeGreaterThan(0)
+    expect(screen.getByText("Localized short")).toBeInTheDocument()
+    expect(screen.getByText("Localized long")).toBeInTheDocument()
+  })
+
   it("preserves the app-shell prefix in the plugin detail back link", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugin: {
