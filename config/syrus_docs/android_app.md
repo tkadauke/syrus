@@ -16,6 +16,9 @@ desktop app.
 - Local emulator development uses `http://10.0.2.2:3000` to reach a Rails
   server running on the host. Cleartext HTTP is allowed only for emulator
   loopback hostnames in the Android network security config.
+- The UI supports English, German, and Latin through standard Android locale
+  resources. The device or app locale selects the catalog, with English as the
+  default fallback.
 
 ## Automation
 
