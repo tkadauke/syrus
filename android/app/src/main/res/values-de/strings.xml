@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Syrus</string>
+    <string name="instance_url_hint">URL der Syrus-Instanz</string>
+    <string name="api_token_hint">API-Token</string>
+    <string name="connect">Verbinden</string>
+    <string name="connect_prompt">Verbinde dich, um deine Syrus-Jobs zu laden.</string>
+    <string name="credentials_required">Instanz-URL und API-Token sind erforderlich.</string>
+    <string name="loading">Syrus wird geladen…</string>
+    <string name="connection_failed">Verbindung mit Syrus nicht möglich.</string>
+    <plurals name="signed_in_job_count">
+        <item quantity="one">Angemeldet als %1$s · %2$d Job</item>
+        <item quantity="other">Angemeldet als %1$s · %2$d Jobs</item>
+    </plurals>
+    <string name="no_jobs">Für dieses Token sind noch keine Jobs sichtbar.</string>
+    <string name="job_card">#%1$d  %2$s\n%3$s\n%4$s\n%5$s</string>
+    <string name="bootstrap_missing_user">Die Bootstrap-Antwort enthielt kein whoami.</string>
+    <string name="token_user_missing">Das API-Token konnte keinem angemeldeten Syrus-Benutzer zugeordnet werden.</string>
+    <string name="untitled_job">Job ohne Titel</string>
+    <string name="unknown_state">unbekannt</string>
+    <string name="api_http_error">Die Syrus-API-Anfrage ist mit HTTP %1$d fehlgeschlagen.</string>
+    <string name="instance_url_required">Die URL der Syrus-Instanz ist erforderlich.</string>
+    <string name="api_token_required">Das Syrus-API-Token ist erforderlich.</string>
+</resources>
