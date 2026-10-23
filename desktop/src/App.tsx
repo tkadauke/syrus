@@ -1100,8 +1100,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
             <button
               type="button"
               className="icon-button"
-              title="Back"
-              aria-label="Back"
+              title={t("common.back")}
+              aria-label={t("common.back")}
               onClick={() => setNavigation({ view: "job-detail", jobId: navigation.jobId })}
             >
               <BackIcon />
@@ -1122,7 +1122,13 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         ) : navigation.view === "notifications" ? (
           <>
             <div className="flex w-24 items-center">
-              <button type="button" className="icon-button" title="Back" aria-label="Back" onClick={() => setNavigation({ view: "inbox" })}>
+              <button
+                type="button"
+                className="icon-button"
+                title={t("common.back")}
+                aria-label={t("common.back")}
+                onClick={() => setNavigation({ view: "inbox" })}
+              >
                 <BackIcon />
               </button>
             </div>
@@ -1144,7 +1150,13 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           <>
             <div className="flex min-w-0 items-center gap-2">
               {navigation.view === "job-detail" ? (
-                <button type="button" className="icon-button" title="Back" aria-label="Back" onClick={() => setNavigation({ view: "inbox" })}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={t("common.back")}
+                  aria-label={t("common.back")}
+                  onClick={() => setNavigation({ view: "inbox" })}
+                >
                   <BackIcon />
                 </button>
               ) : null}
@@ -1167,8 +1179,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                   <button
                     type="button"
                     className="icon-button icon-button--badged"
-                    title={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                    title={t("renderer.notifications")}
+                    aria-label={t("renderer.notifications")}
                     onClick={openNotifications}
                   >
                     <BellIcon />
@@ -1601,7 +1613,7 @@ function NotificationsView({
   if (isError) {
     return (
       <StatusPanel
-        title="Could not load notifications"
+        title={t("repo_picker.error")}
         detail={error instanceof Error ? error.message : t("renderer.try_later")}
         actionLabel={t("common.retry")}
         onAction={onRetryLoad}
@@ -1780,7 +1792,7 @@ function JobDetailView({
         <StatusPill state={displayState} />
       </section>
 
-      <div className="job-detail__tabs" role="tablist" aria-label="Job detail sections">
+      <div className="job-detail__tabs" role="tablist" aria-label={t("renderer.actions")}>
         <button
           type="button"
           className={["job-detail__tab", activeTab === "summary" ? "job-detail__tab--active" : ""].join(" ")}
@@ -1810,7 +1822,10 @@ function JobDetailView({
         </button>
       </div>
 
-      <section className="job-detail__tab-content" aria-label={activeTab === "summary" ? "Summary" : activeTab === "test-plan" ? "Test plan" : "Feedback"}>
+      <section
+        className="job-detail__tab-content"
+        aria-label={activeTab === "summary" ? t("renderer.summary") : activeTab === "test-plan" ? t("renderer.test_plan") : t("renderer.feedback")}
+      >
         {activeTab === "summary" ? (
           summary ? (
             <BlockMarkdown text={summary.text} />
@@ -1870,7 +1885,7 @@ function JobDetailView({
         ) : null}
       </section>
 
-      <section className="job-detail__actions" aria-label="Actions">
+      <section className="job-detail__actions" aria-label={t("renderer.actions")}>
         <JobActionButtons
           job={job}
           checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
@@ -1964,12 +1979,12 @@ function JobActionButtons({
     <div className="detail-actions">
       {isFailed ? (
         <button type="button" className="detail-action-button" disabled={retrying} onClick={onRetry}>
-          {retrying ? "Retrying" : "Retry"}
+          {retrying ? t("common.retry") : t("common.retry")}
         </button>
       ) : null}
       {isImplemented ? (
         <button type="button" className="detail-action-button" disabled={approving} onClick={onApprove}>
-          {approving ? "Approving" : "Approve"}
+          {approving ? t("renderer.approving") : t("renderer.approve")}
         </button>
       ) : null}
       {isImplemented || isFailed ? (
@@ -2321,7 +2336,7 @@ function JobRow({
       <div className="job-row__actions" ref={menuRef}>
         {isFailed ? (
           <button type="button" className="row-primary-action" title="Retry job" aria-label={`Retry JOB-${job.id}`} disabled={retrying} onClick={onRetry}>
-            {retrying ? "Retrying" : "Retry"}
+            {retrying ? t("common.retry") : t("common.retry")}
           </button>
         ) : null}
         <button
@@ -2347,12 +2362,12 @@ function JobRow({
             {isImplemented ? (
               <MenuAction
                 disabled={approving}
-                label={approving ? "Approving" : "Approve for landing"}
+                label={approving ? t("renderer.approving") : t("renderer.approve")}
                 icon={<CheckIcon />}
                 onSelect={() => runAction(onApprove)}
               />
             ) : null}
-            <MenuAction label="Open in Syrus" icon={<ExternalIcon />} onSelect={() => runAction(onOpenJob)} />
+            <MenuAction label={t("renderer.open_syrus")} icon={<ExternalIcon />} onSelect={() => runAction(onOpenJob)} />
             <MenuAction
               disabled={!job.pr_url}
               label={job.pr_url ? "Open pull request" : "No pull request yet"}
@@ -2361,7 +2376,7 @@ function JobRow({
             />
             <MenuAction
               disabled={!checkoutEnabled}
-              label="Checkout locally"
+              label={t("renderer.checkout")}
               icon={<TerminalIcon />}
               title={checkoutTitle}
               onSelect={() => runAction(onCheckout)}
@@ -2861,7 +2876,7 @@ export function App() {
                   Get a token from Syrus
                 </button>
                 <button type="submit" className="primary-button" disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? t("common.save") : t("common.save")}
                 </button>
               </div>
 
@@ -2884,7 +2899,7 @@ export function App() {
                   {isRecordingHotkey ? (
                     <div className="shortcut-actions">
                       <button type="button" className="primary-button" disabled={isSavingHotkey || hotkeyDraft.trim() === ""} onClick={() => saveHotkey()}>
-                        {isSavingHotkey ? "Saving..." : "Save"}
+                        {isSavingHotkey ? t("common.save") : t("common.save")}
                       </button>
                       <button type="button" className="secondary-button" disabled={isSavingHotkey} onClick={cancelHotkeyRecording}>
                         Cancel
