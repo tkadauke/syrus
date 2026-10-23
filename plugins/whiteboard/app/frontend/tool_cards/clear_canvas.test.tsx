@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { fetchWhiteboardSnapshot } from "@app/api/chats"
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw"
 import clearCanvasToolCard, { examples } from "./clear_canvas"
 
 vi.mock("@app/api/chats", async (importOriginal) => ({
@@ -10,6 +11,7 @@ vi.mock("@app/api/chats", async (importOriginal) => ({
 }))
 
 vi.mock("@excalidraw/excalidraw", () => ({
+  convertToExcalidrawElements: vi.fn((elements) => elements),
   exportToSvg: vi.fn(async () => document.createElementNS("http://www.w3.org/2000/svg", "svg"))
 }))
 
@@ -77,6 +79,7 @@ describe("clear_canvas tool card", () => {
       expect(screen.getByRole("img", { name: "Auto-saved canvas snapshot" })).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"))
     )
     expect(fetchWhiteboardSnapshot).not.toHaveBeenCalled()
+    expect(convertToExcalidrawElements).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: "title", type: "text" })]))
   })
 
   it("summarizes and renders an already-empty canvas with its version", () => {
