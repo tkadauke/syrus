@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { defaultLocale, localizedPath, type Locale } from "./locales.ts";
+import { defaultLocale, localePublication, localizedPath, type Locale, type LocalePublication } from "./locales.ts";
 
 export const siteOrigin = "https://syrus-ai.dev";
 export const siteTitle = "Syrus — self-hosted AI coding agents for developers";
@@ -14,11 +14,16 @@ function textFor(value: LocalizedText, locale: Locale): string {
   return text;
 }
 
-export function languageAlternates(pathname: string, availableLocales: readonly Locale[]): Record<string, string> {
+export function languageAlternates(
+  pathname: string,
+  availableLocales: readonly Locale[],
+  publication: LocalePublication = localePublication,
+): Record<string, string> {
+  const publishedVariants = publication.publishedVariants(availableLocales);
   const languages = Object.fromEntries(
-    availableLocales.map((locale) => [locale, localizedPath(pathname, locale)]),
+    publishedVariants.map((locale) => [locale, localizedPath(pathname, locale)]),
   );
-  if (availableLocales.includes(defaultLocale)) languages["x-default"] = localizedPath(pathname, defaultLocale);
+  if (publishedVariants.includes(defaultLocale)) languages["x-default"] = localizedPath(pathname, defaultLocale);
   return languages;
 }
 
@@ -28,6 +33,7 @@ type LocalizedMetadataOptions = {
   title: LocalizedText;
   description: LocalizedText;
   availableLocales?: readonly Locale[];
+  publication?: LocalePublication;
   absoluteTitle?: boolean;
 };
 
@@ -37,8 +43,10 @@ export function localizedMetadata({
   title,
   description,
   availableLocales = [locale],
+  publication = localePublication,
   absoluteTitle = false,
 }: LocalizedMetadataOptions): Metadata {
+  if (!publication.includes(locale)) throw new Error(`Cannot build metadata for unpublished locale: ${locale}`);
   const localizedTitle = textFor(title, locale);
   const localizedDescription = textFor(description, locale);
   const canonical = localizedPath(pathname, locale);
@@ -46,7 +54,7 @@ export function localizedMetadata({
   return {
     title: absoluteTitle ? { absolute: localizedTitle } : localizedTitle,
     description: localizedDescription,
-    alternates: { canonical, languages: languageAlternates(pathname, availableLocales) },
+    alternates: { canonical, languages: languageAlternates(pathname, availableLocales, publication) },
     openGraph: {
       type: "website",
       url: canonical,
