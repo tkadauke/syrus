@@ -200,6 +200,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
       repository_slug: repository.slug,
       schedule_explanation: "Every day at 9:00 AM UTC",
       schedule_timezone: "UTC",
+      fire_at: nil,
       deleted: true
     )
     expect(task.reload.archived_at).to be_present
