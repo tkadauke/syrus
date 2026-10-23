@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Syrus</string>
+    <string name="instance_url_hint">URL sedis Syri</string>
+    <string name="api_token_hint">Signum API</string>
+    <string name="connect">Coniunge</string>
+    <string name="connect_prompt">Coniunge ut opera tua Syri onerentur.</string>
+    <string name="credentials_required">URL sedis et signum API requiruntur.</string>
+    <string name="loading">Syrus oneratur…</string>
+    <string name="connection_failed">Cum Syro coniungi non potuit.</string>
+    <plurals name="signed_in_job_count">
+        <item quantity="one">Coniunctus ut %1$s · %2$d opus</item>
+        <item quantity="other">Coniunctus ut %1$s · %2$d opera</item>
+    </plurals>
+    <string name="no_jobs">Nulla opera huic signo adhuc apparent.</string>
+    <string name="job_card">#%1$d  %2$s\n%3$s\n%4$s\n%5$s</string>
+    <string name="bootstrap_missing_user">Responsum initiale whoami non continuit.</string>
+    <string name="token_user_missing">Signum API ad usorem Syri coniunctum non pertinuit.</string>
+    <string name="untitled_job">Opus sine titulo</string>
+    <string name="unknown_state">ignotus</string>
+    <string name="api_http_error">Petitio API Syri HTTP %1$d defecit.</string>
+    <string name="instance_url_required">URL sedis Syri requiritur.</string>
+    <string name="api_token_required">Signum API Syri requiritur.</string>
+</resources>
