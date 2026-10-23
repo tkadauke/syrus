@@ -1,12 +1,13 @@
 {
   "name": "syrus-ai-dev",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "Marketing site for Syrus — the issue-to-PR automation harness.",
   "scripts": {
     "sync-plugin-icons": "node scripts/sync-plugin-icons.mjs",
     "dev": "npm run sync-plugin-icons && next dev",
-    "build": "npm run sync-plugin-icons && next build && node scripts/assert-static-export.mjs",
+    "build": "npm run sync-plugin-icons && next build && node --experimental-strip-types scripts/assert-static-export.ts",
     "test:locales": "node --experimental-strip-types --test lib/locales.test.ts",
     "start": "next start",
     "capture-product-media": "node scripts/capture-product-media.mjs",

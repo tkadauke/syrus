@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   images: { unoptimized: true },
   reactStrictMode: true,
+  experimental: { globalNotFound: true },
   poweredByHeader: false,
   // Surfaced to the client for the footer build stamp. The Pages workflow
   // injects GIT_SHA / GIT_REF from the triggering commit.
