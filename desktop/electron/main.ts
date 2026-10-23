@@ -1465,7 +1465,7 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
     buttons: [pause ? "Pause" : "Resume", "Cancel"],
     defaultId: 1,
     cancelId: 1,
-    message: `${pause ? "Pause" : "Resume"} ${label}?`,
+    message: t("dialog.pause_resume", { action: t(pause ? "dialog.pause" : "dialog.resume"), label }),
     detail: pause
       ? `Syrus will stop ${control === "polling" ? "polling repositories" : "starting new Runs"} until an admin resumes it.`
       : `Syrus will resume ${control === "polling" ? "repository polling" : "starting new Runs"}.`
@@ -1674,7 +1674,7 @@ const showPreferencesWindow = async () => {
     height: 620,
     minWidth: 420,
     minHeight: 480,
-    title: "Syrus Preferences",
+    title: t("shell.preferences_title"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -1998,10 +1998,10 @@ const offerBackendUpdateIfPinned = async () => {
   offeredBackendImage = image
   const choice = await dialog.showMessageBox({
     type: "question",
-    buttons: ["Update Backend", "Not Now"],
+    buttons: [t("dialog.update_backend_button"), t("dialog.not_now")],
     defaultId: 0,
     cancelId: 1,
-    message: "Update the Syrus backend?",
+    message: t("dialog.update_backend"),
     detail:
       `This version of Syrus was tested with ${image}` +
       `${current ? `, but the local backend is pinned to ${current}` : ""}. ` +
@@ -2024,7 +2024,7 @@ const offerBackendUpdateIfPinned = async () => {
   })
 
   if (ok) {
-    new Notification({ title: "Syrus backend updated", body: image }).show()
+    new Notification({ title: t("notification.backend_updated"), body: image }).show()
     void webAppWindow?.loadServerUrl()
   } else {
     await reportBackendActionFailure("update the Syrus backend")
@@ -2057,11 +2057,11 @@ const runSetupAgain = async ({ skipConfirmation = false } = {}) => {
   if (!skipConfirmation) {
     const confirmation = await dialog.showMessageBox({
       type: "question",
-      buttons: ["Run Setup", "Cancel"],
+      buttons: [t("dialog.run_setup"), t("common.cancel")],
       defaultId: 0,
       cancelId: 1,
-      message: "Set up Syrus again?",
-      detail: "Choose again where Syrus runs. Your credentials and any local Syrus data stay untouched."
+      message: t("dialog.setup_again"),
+      detail: t("dialog.setup_detail")
     })
 
     if (confirmation.response !== 0) {
@@ -2092,10 +2092,10 @@ const offerSetupAfterDataLoss = async () => {
   dataLossPromptShown = true
   const choice = await dialog.showMessageBox({
     type: "warning",
-    buttons: ["Run Setup Again", "Not Now"],
+    buttons: [t("dialog.run_setup_again"), t("dialog.not_now")],
     defaultId: 0,
     cancelId: 1,
-    message: "Your local Syrus data is gone.",
+    message: t("dialog.data_gone"),
     detail:
       "Docker is running, but the Syrus data volume no longer exists (it may have been deleted along with your containers). Syrus can't start again until it's set up fresh."
   })
@@ -2108,11 +2108,11 @@ const offerSetupAfterDataLoss = async () => {
 const confirmStopBackend = async () => {
   const confirmation = await dialog.showMessageBox({
     type: "warning",
-    buttons: ["Stop Syrus", "Cancel"],
+    buttons: [t("dialog.stop_button"), t("common.cancel")],
     defaultId: 1,
     cancelId: 1,
-    message: "Stop Syrus?",
-    detail: "GitHub polling and agent runs stop until you start it again from the Backend menu."
+    message: t("dialog.stop"),
+    detail: t("dialog.stop_detail")
   })
 
   if (confirmation.response !== 0) {
@@ -2158,15 +2158,15 @@ const confirmAndUninstall = async () => {
   const appName = app.getName()
   const choice = await dialog.showMessageBox({
     type: "warning",
-    title: `Uninstall ${appName}`,
-    message: `Uninstall ${appName} from this computer?`,
+    title: t("dialog.uninstall_title", { app: appName }),
+    message: t("dialog.uninstall", { app: appName }),
     detail:
       channel === "test"
         ? `This removes the ${appName} app, the syrus-test command-line tool, and the ${appName} test Docker stack (project syrus-test) and its images. Your production Syrus install is left untouched.\n\n${appName} will quit when the uninstall starts.`
         : "This removes the Syrus app, the syrus command-line tool, the Claude Code skill, and Syrus's local Docker containers and downloaded images.\n\nSyrus will quit when the uninstall starts. Docker Desktop / OrbStack itself is not removed.",
     checkboxLabel: `Also delete my ${appName} data (jobs, chats, settings — cannot be undone)`,
     checkboxChecked: false,
-    buttons: ["Cancel", "Uninstall"],
+    buttons: [t("common.cancel"), t("dialog.uninstall_button")],
     defaultId: 0,
     cancelId: 0
   })
@@ -2261,8 +2261,8 @@ const confirmAndResetTestSetup = async () => {
   if (backendLifecycle.backendBusy()) {
     void dialog.showMessageBox({
       type: "info",
-      message: "Finishing backend update…",
-      detail: "Syrus is updating the test backend right now. Try Reset Test Setup again once that finishes — usually a minute or two."
+      message: t("dialog.finishing_update"),
+      detail: t("dialog.update_busy_test")
     })
     return
   }
@@ -2270,8 +2270,8 @@ const confirmAndResetTestSetup = async () => {
   const identity = currentStackIdentity()
   const choice = await dialog.showMessageBox({
     type: "warning",
-    title: "Reset Test Setup",
-    message: "Wipe this test build's setup and start over?",
+    title: t("dialog.reset_title"),
+    message: t("dialog.reset"),
     detail: [
       "This clears the Syrus Test slate so you can run the initial setup again from scratch. It removes:",
       "",
@@ -2284,7 +2284,7 @@ const confirmAndResetTestSetup = async () => {
       "",
       "Syrus Test will relaunch into the setup screen. This can't be undone."
     ].join("\n"),
-    buttons: ["Cancel", "Reset & Restart"],
+    buttons: [t("common.cancel"), t("dialog.reset_button")],
     defaultId: 0,
     cancelId: 0
   })
@@ -2319,8 +2319,8 @@ const confirmAndResetTestSetup = async () => {
 const reportBackendActionFailure = async (label: string) => {
   await dialog.showMessageBox({
     type: "warning",
-    message: `Couldn't ${label}.`,
-    detail: "Another backend operation may still be in progress, or Docker isn't ready. Check Backend → Open Install Log for details."
+    message: t("dialog.action_failed", { action: label }),
+    detail: t("dialog.action_failed_detail")
   })
 }
 
@@ -2353,8 +2353,8 @@ const deferRelaunchWhileBackendBusy = (): boolean => {
 
   void dialog.showMessageBox({
     type: "info",
-    message: "Finishing backend update…",
-    detail: "Syrus is updating its local backend right now. Relaunch to update the app once the backend update completes — usually a minute or two."
+    message: t("dialog.finishing_update"),
+    detail: t("dialog.update_busy")
   })
   return true
 }
@@ -2392,7 +2392,7 @@ const checkForUpdatesInteractively = async () => {
     case "disabled":
       await dialog.showMessageBox({
         type: "info",
-        message: "Automatic updates are unavailable in this build.",
+        message: t("updates.unavailable"),
         detail:
           process.platform === "win32"
             ? "Updates apply to the packaged app installed with the Syrus setup program."
@@ -2403,7 +2403,7 @@ const checkForUpdatesInteractively = async () => {
     case "downloading":
       await dialog.showMessageBox({
         type: "info",
-        message: `Syrus ${result.version} is on its way.`,
+        message: t("updates.arriving", { version: result.version }),
         detail:
           result.outcome === "downloaded"
             ? "The update is ready — restart Syrus from the menu to apply it."
@@ -2413,15 +2413,15 @@ const checkForUpdatesInteractively = async () => {
     case "up-to-date":
       await dialog.showMessageBox({
         type: "info",
-        message: `You're up to date.`,
-        detail: `Syrus ${result.version} is the latest version.`
+        message: t("updates.current"),
+        detail: t("updates.latest", { version: result.version })
       })
       break
     case "error":
       await dialog.showMessageBox({
         type: "warning",
-        message: "Couldn't check for updates.",
-        detail: "Check your network connection and try again later."
+        message: t("updates.failed"),
+        detail: t("updates.failed_detail")
       })
       break
   }
@@ -2730,7 +2730,7 @@ ipcMain.handle("shell:relaunch-to-update", (event) => {
 })
 ipcMain.handle("shell:install-skill", async (event) => {
   if (!shellSenderAllowed(event, "shell:install-skill")) {
-    return { ok: false, message: "This action is only available to the Syrus app window." }
+    return { ok: false, message: t("shell.window_only") }
   }
 
   return installSkillFromShell()
