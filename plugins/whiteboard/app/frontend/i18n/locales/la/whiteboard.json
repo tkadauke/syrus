@@ -81,6 +81,7 @@
   "tool_replaced_scene_summary": "Scaena substituta: {{summary}}",
   "tool_replaced_scene": "Scaena substituta",
   "tool_snapshot": "snapshot",
+  "tool_snapshot_title": "Imago #{{id}}",
   "tool_snapshot_id": "ID imaginis",
   "tool_version": "Versio",
   "tool_copy_id": "ID exscribe",
