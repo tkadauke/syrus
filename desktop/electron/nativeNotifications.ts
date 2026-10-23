@@ -1,4 +1,5 @@
 import { Notification, shell } from "electron"
+import { t } from "./i18n.js"
 
 type Credentials = {
   url: string
@@ -13,28 +14,27 @@ type NativeNotificationPayload = {
 }
 
 const KIND_LABELS: Record<string, string> = {
-  ci_failed: "CI failed",
-  ci_failure: "CI failed",
-  job_failed: "Job failed",
-  job_finished: "Job finished",
-  job_succeeded: "Job succeeded",
-  job_needs_attention: "Job needs attention",
-  pr_closed: "PR closed",
-  pr_failed: "PR failed",
-  pr_merged: "PR merged",
-  pr_opened: "PR ready for review",
-  pr_ready: "PR ready for review",
-  pr_ready_for_review: "PR ready for review",
-  pull_request_closed: "PR closed",
-  pull_request_failed: "PR failed",
-  pull_request_merged: "PR merged",
-  pull_request_opened: "PR ready for review",
-  pull_request_ready_for_review: "PR ready for review",
-  investigation_escalated: "Investigation escalated"
+  ci_failed: "notification.ci_failed",
+  ci_failure: "notification.ci_failed",
+  job_failed: "notification.job_failed",
+  job_finished: "notification.job_finished",
+  job_succeeded: "notification.job_succeeded",
+  job_needs_attention: "notification.job_attention",
+  pr_closed: "notification.pr_closed",
+  pr_failed: "notification.pr_failed",
+  pr_merged: "notification.pr_merged",
+  pr_opened: "notification.pr_ready",
+  pr_ready: "notification.pr_ready",
+  pr_ready_for_review: "notification.pr_ready",
+  pull_request_closed: "notification.pr_closed",
+  pull_request_failed: "notification.pr_failed",
+  pull_request_merged: "notification.pr_merged",
+  pull_request_opened: "notification.pr_ready",
+  pull_request_ready_for_review: "notification.pr_ready",
+  investigation_escalated: "notification.investigation"
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value)
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
 const stringValue = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
@@ -89,22 +89,19 @@ export const nativeNotificationTitle = (kind: string) => {
   const normalized = kind.trim().toLowerCase()
   const label = KIND_LABELS[normalized]
   if (label) {
-    return label
+    return t(label)
   }
 
   const words = normalized.split(/[_\-. ]+/).filter(Boolean)
   if (words.length === 0) {
-    return "Syrus notification"
+    return t("notification.default")
   }
 
   const firstWord = words[0] === "pr" ? "PR" : words[0][0].toUpperCase() + words[0].slice(1)
   return [firstWord, ...words.slice(1)].join(" ")
 }
 
-export const nativeNotificationClickUrl = (
-  payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">,
-  credentials: Credentials | null
-) => {
+export const nativeNotificationClickUrl = (payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">, credentials: Credentials | null) => {
   if (payload.prUrl) {
     return payload.prUrl
   }
