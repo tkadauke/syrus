@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { localizedMetadata } from "@/lib/metadata";
 import { ArrowRight, CheckIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/button";
 import { Footer } from "@/components/footer";
@@ -7,12 +8,10 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/reveal";
 import { SectionHeader } from "@/components/section";
 import { ScreenshotFrame } from "@/components/screenshot-frame";
 
-export const metadata: Metadata = {
-  title: "Control Plane",
-  description:
-    "Syrus is the deterministic control plane around coding agents: durable Jobs, scoped credentials, review notes, CI repair, and landing policy.",
-  alternates: { canonical: "/control-plane" },
-};
+export const metadata: Metadata = localizedMetadata({
+  locale: "en", pathname: "/control-plane", title: "Control Plane",
+  description: "Syrus is the deterministic control plane around coding agents: durable Jobs, scoped credentials, review notes, CI repair, and landing policy.",
+});
 
 const rawAgentRows = [
   "Session context lives in chat, shell history, or a local transcript.",

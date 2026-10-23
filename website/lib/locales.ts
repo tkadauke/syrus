@@ -18,6 +18,11 @@ export function localizedHref(href: string, locale: Locale): string {
   return href === "/" ? `/${locale}/` : `/${locale}${href}`;
 }
 
+export function localizedPath(pathname: string, locale: Locale): string {
+  const path = pathname === "/" ? pathname : `/${pathname.replace(/^\/+|\/+$/g, "")}/`;
+  return localizedHref(path, locale);
+}
+
 export function localizedStaticParams(): Array<{ locale: Locale }> {
   return publishedLocales.filter((locale) => locale !== defaultLocale).map((locale) => ({ locale }));
 }
