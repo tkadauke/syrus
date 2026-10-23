@@ -71,9 +71,7 @@ afterEach(() => {
 
 describe("bundlePathFromExecPath", () => {
   it("walks from the binary to the .app bundle root", () => {
-    expect(bundlePathFromExecPath("/Volumes/Syrus 0.1.0/Syrus.app/Contents/MacOS/Syrus")).toBe(
-      "/Volumes/Syrus 0.1.0/Syrus.app"
-    )
+    expect(bundlePathFromExecPath("/Volumes/Syrus 0.1.0/Syrus.app/Contents/MacOS/Syrus")).toBe("/Volumes/Syrus 0.1.0/Syrus.app")
   })
 })
 
@@ -93,9 +91,7 @@ describe("shouldSelfInstall", () => {
 
   it("stays put for dev (unpackaged) builds and non-mac platforms", () => {
     expect(shouldSelfInstall({ ...base, isPackaged: false, bundlePath: "/Volumes/Syrus/Syrus.app" })).toBe(false)
-    expect(
-      shouldSelfInstall({ ...base, platform: "linux" as NodeJS.Platform, bundlePath: "/opt/Syrus.app" })
-    ).toBe(false)
+    expect(shouldSelfInstall({ ...base, platform: "linux" as NodeJS.Platform, bundlePath: "/opt/Syrus.app" })).toBe(false)
   })
 
   it("does not guess when the exec path is not inside a .app bundle", () => {
@@ -137,46 +133,53 @@ describe("chooseInstallTarget", () => {
   const facts = { bundleName: "Syrus.app", homeDir: home }
 
   it("prefers a fresh install into /Applications when it is writable", () => {
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: false, userExists: false, systemWritable: true })
-    ).toEqual({ path: "/Applications/Syrus.app", existingInstall: false })
+    expect(chooseInstallTarget({ ...facts, systemExists: false, userExists: false, systemWritable: true })).toEqual({
+      path: "/Applications/Syrus.app",
+      existingInstall: false
+    })
   })
 
   it("falls back to ~/Applications when /Applications needs admin rights", () => {
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: false, userExists: false, systemWritable: false })
-    ).toEqual({ path: `${home}/Applications/Syrus.app`, existingInstall: false })
+    expect(chooseInstallTarget({ ...facts, systemExists: false, userExists: false, systemWritable: false })).toEqual({
+      path: `${home}/Applications/Syrus.app`,
+      existingInstall: false
+    })
   })
 
   it("replaces the existing install wherever it lives", () => {
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: true, userExists: false, systemWritable: true })
-    ).toEqual({ path: "/Applications/Syrus.app", existingInstall: true })
+    expect(chooseInstallTarget({ ...facts, systemExists: true, userExists: false, systemWritable: true })).toEqual({
+      path: "/Applications/Syrus.app",
+      existingInstall: true
+    })
     // An existing ~/Applications install wins over a fresh /Applications
     // install — replacing beats creating a coexisting duplicate.
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: false, userExists: true, systemWritable: true })
-    ).toEqual({ path: `${home}/Applications/Syrus.app`, existingInstall: true })
+    expect(chooseInstallTarget({ ...facts, systemExists: false, userExists: true, systemWritable: true })).toEqual({
+      path: `${home}/Applications/Syrus.app`,
+      existingInstall: true
+    })
   })
 
   it("prefers /Applications when both locations hold an install", () => {
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: true, userExists: true, systemWritable: true })
-    ).toEqual({ path: "/Applications/Syrus.app", existingInstall: true })
+    expect(chooseInstallTarget({ ...facts, systemExists: true, userExists: true, systemWritable: true })).toEqual({
+      path: "/Applications/Syrus.app",
+      existingInstall: true
+    })
   })
 
   it("never targets a /Applications copy it cannot replace without admin rights", () => {
     // A standard user with an admin-installed /Applications/Syrus.app: the
     // replace must not aim at a guaranteed EACCES failure. The user copy is
     // replaced when it exists…
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: true, userExists: true, systemWritable: false })
-    ).toEqual({ path: `${home}/Applications/Syrus.app`, existingInstall: true })
+    expect(chooseInstallTarget({ ...facts, systemExists: true, userExists: true, systemWritable: false })).toEqual({
+      path: `${home}/Applications/Syrus.app`,
+      existingInstall: true
+    })
     // …and a fresh ~/Applications install happens when it does not (the
     // admin copy stays; instance takeover handles the duality at launch).
-    expect(
-      chooseInstallTarget({ ...facts, systemExists: true, userExists: false, systemWritable: false })
-    ).toEqual({ path: `${home}/Applications/Syrus.app`, existingInstall: false })
+    expect(chooseInstallTarget({ ...facts, systemExists: true, userExists: false, systemWritable: false })).toEqual({
+      path: `${home}/Applications/Syrus.app`,
+      existingInstall: false
+    })
   })
 })
 
@@ -219,11 +222,7 @@ describe("installedBundleVersion", () => {
 
     await expect(installedBundleVersion("/Applications/Syrus.app")).resolves.toBe("0.2.0")
     // defaults wants the plist path without the extension.
-    expect(execFileAsyncMock).toHaveBeenCalledWith("/usr/bin/defaults", [
-      "read",
-      "/Applications/Syrus.app/Contents/Info",
-      "CFBundleShortVersionString"
-    ])
+    expect(execFileAsyncMock).toHaveBeenCalledWith("/usr/bin/defaults", ["read", "/Applications/Syrus.app/Contents/Info", "CFBundleShortVersionString"])
   })
 
   it("returns null (unknown) when no reader can produce a version", async () => {
@@ -252,6 +251,14 @@ describe("replacePrompt", () => {
     expect(prompt.detail).toContain("Syrus 0.1.3")
     expect(prompt.detail).toContain("/Applications")
     expect(prompt.buttons).toEqual(["Ersetzen", "Vorhandenes behalten"])
+    expect(prompt.detail).not.toContain("unknown-version dev build")
+    expect(prompt.detail).not.toContain("appears newer")
+  })
+
+  it("localizes failed-copy destination grammar", () => {
+    const prompt = installFailedPrompt({ bundleName: "Syrus.app", targetPath, locale: "de" })
+    expect(prompt.detail).toContain(" nach /Applications")
+    expect(prompt.detail).not.toContain(" to /Applications")
   })
 
   it("flags a downgrade as the installed copy appearing newer", () => {
@@ -403,9 +410,9 @@ describe("installBundle", () => {
 
     await expect(installBundle("/Volumes/Syrus/Syrus.app", target)).rejects.toThrow("rename blocked")
     expect(renameMock.mock.calls).toEqual([
-      [target, previous],   // move the existing install aside
-      [staging, target],    // failed swap
-      [previous, target]    // restore the existing install
+      [target, previous], // move the existing install aside
+      [staging, target], // failed swap
+      [previous, target] // restore the existing install
     ])
     expect(rmMock).toHaveBeenCalledWith(staging, { recursive: true, force: true })
   })
@@ -427,9 +434,7 @@ describe("installBundle", () => {
       return { stdout: "", stderr: "" }
     })
 
-    await expect(installBundle("/Volumes/Syrus/Syrus.app", `${home}/Applications/Syrus.app`)).resolves.toBe(
-      `${home}/Applications/Syrus.app`
-    )
+    await expect(installBundle("/Volumes/Syrus/Syrus.app", `${home}/Applications/Syrus.app`)).resolves.toBe(`${home}/Applications/Syrus.app`)
   })
 
   it("propagates a failed copy so the caller can explain and quit", async () => {

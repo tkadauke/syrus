@@ -10,15 +10,21 @@ import { promisify } from "node:util"
 import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
 import { AppUserCableClient } from "./appUserCable.js"
 import { dispatchNativeNotification } from "./nativeNotifications.js"
-import {
-  deleteCredentialsFile,
-  parseCredentials,
-  readCredentialsFile,
-  validateCredentialsShape,
-  writeCredentialsFile
-} from "./credentialsStore.js"
+import { deleteCredentialsFile, parseCredentials, readCredentialsFile, validateCredentialsShape, writeCredentialsFile } from "./credentialsStore.js"
 import type { Credentials } from "./credentialsStore.js"
-import { clearBackendConfig, currentChannel, currentStackIdentity, defaultGlobalHotkey, getBackendMode, getOnboardingResumeLocal, getServerUrl, localStateDir, migrateBackendConfig, saveBackendConfig, store } from "./settings.js"
+import {
+  clearBackendConfig,
+  currentChannel,
+  currentStackIdentity,
+  defaultGlobalHotkey,
+  getBackendMode,
+  getOnboardingResumeLocal,
+  getServerUrl,
+  localStateDir,
+  migrateBackendConfig,
+  saveBackendConfig,
+  store
+} from "./settings.js"
 import type { DesktopSettings, DesktopSettingsInput } from "./settings.js"
 import * as appUpdates from "./appUpdates.js"
 import * as backendLifecycle from "./installer/backendLifecycle.js"
@@ -327,17 +333,12 @@ const normalizeUnreadCount = (value: unknown) => {
   return Math.max(0, Math.floor(value))
 }
 
-const trayBadgeLabel = (count: number) => count > 9 ? "9+" : String(count)
+const trayBadgeLabel = (count: number) => (count > 9 ? "9+" : String(count))
 
 // The mac menu bar wants the monochrome template glyph; the Windows
 // taskbar wants the full-color brand icon (a black template glyph is
 // invisible on Win11's dark taskbar).
-const trayIconPath = () =>
-  path.join(
-    app.getAppPath(),
-    "assets",
-    process.platform === "win32" ? "syrusIcon.png" : "syrusMenubarTemplate.png"
-  )
+const trayIconPath = () => path.join(app.getAppPath(), "assets", process.platform === "win32" ? "syrusIcon.png" : "syrusMenubarTemplate.png")
 
 const createPlainTrayIcon = () => {
   const size = process.platform === "win32" ? 16 : 18
@@ -654,14 +655,9 @@ const fetchInboxJobs = async () => {
     throw new Error("Connect Syrus before loading inbox jobs.")
   }
 
-  const lists = await Promise.all([
-    fetchJobList(credentials, "implemented"),
-    fetchJobList(credentials, "failed")
-  ])
+  const lists = await Promise.all([fetchJobList(credentials, "implemented"), fetchJobList(credentials, "failed")])
 
-  return lists
-    .flatMap((list) => list.jobs)
-    .sort(compareInboxJobs)
+  return lists.flatMap((list) => list.jobs).sort(compareInboxJobs)
 }
 
 const fetchJobDetail = async (jobID: number) => {
@@ -872,12 +868,7 @@ const localBinSyrus = () => {
   const name = cliBinaryName()
   if (process.platform === "win32") {
     const appDir = currentChannel() === "test" ? "Syrus Test" : "Syrus"
-    return path.join(
-      process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"),
-      appDir,
-      "bin",
-      `${name}.exe`
-    )
+    return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), appDir, "bin", `${name}.exe`)
   }
   return path.join(os.homedir(), ".local", "bin", name)
 }
@@ -956,9 +947,7 @@ const bundledCliPath = () => {
   // so ONE level up reaches desktop/, where stage-cli.mjs stages
   // resources/cli. Two levels up would point at <repo>/resources/cli and
   // report the bundled CLI missing on every dev run.
-  const bundledDir = app.isPackaged
-    ? path.join(process.resourcesPath, "cli")
-    : path.join(__dirname, "..", "resources", "cli")
+  const bundledDir = app.isPackaged ? path.join(process.resourcesPath, "cli") : path.join(__dirname, "..", "resources", "cli")
   const suffix = process.platform === "win32" ? ".exe" : ""
   return path.join(bundledDir, `syrus-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${suffix}`)
 }
@@ -1140,10 +1129,7 @@ type ShellNoticeState = {
 // The legacy dialog-era keys still count as a dismissal: an install that
 // already answered "Not now" (or the even older CLI-offer dialog with the
 // skill checkbox) must not be re-nagged by the sidebar notice.
-const skillOfferDismissed = () =>
-  store.get("skillOfferDismissed", false) ||
-  store.get("skillInstallOffered", false) ||
-  store.get("cliInstallOffered", false)
+const skillOfferDismissed = () => store.get("skillOfferDismissed", false) || store.get("skillInstallOffered", false) || store.get("cliInstallOffered", false)
 
 // The backend update currently in flight — set by offerBackendUpdateIfPinned's
 // progress feed, cleared (null) when updateBackend finishes either way.
@@ -1242,9 +1228,7 @@ const shellSenderAllowed = (event: Electron.IpcMainInvokeEvent, channel: string)
   }
 
   if (instanceOrigin === null || senderOrigin !== instanceOrigin) {
-    console.warn(
-      `[shell-ipc] refused ${channel}: sender origin ${senderOrigin ?? "<unparseable>"} is not the configured instance origin`
-    )
+    console.warn(`[shell-ipc] refused ${channel}: sender origin ${senderOrigin ?? "<unparseable>"} is not the configured instance origin`)
     return false
   }
 
@@ -1269,7 +1253,7 @@ const installSkillFromShell = async (): Promise<{ ok: boolean; message: string |
     // The skill is stable-only (v1) — refuse on the test channel so a test
     // build can never rewrite the shared production skill.
     if (currentChannel() === "test") {
-      return { ok: false, message: "The Claude skill is available from the production Syrus app." }
+      return { ok: false, message: t("skill.production_only") }
     }
 
     // Server-side re-check of the offer's own gates. The sidebar only shows
@@ -1278,7 +1262,7 @@ const installSkillFromShell = async (): Promise<{ ok: boolean; message: string |
     // writing into another tool's config dir, and an already-installed
     // skill is idempotent success — the broadcast below clears the notice.
     if (!(await agentToolPresent())) {
-      return { ok: false, message: "No coding agent (Claude Code or Codex) was detected on this machine." }
+      return { ok: false, message: t("skill.agent_missing") }
     }
 
     const alreadyInstalled = await fs
@@ -1392,11 +1376,7 @@ const localStatusCandidatePaths = () => {
 const parseLocalStatus = (output: string): LocalStatus | null => {
   const payload = JSON.parse(output) as Partial<LocalStatus>
 
-  if (
-    typeof payload.job_id !== "number" ||
-    typeof payload.branch !== "string" ||
-    typeof payload.behind !== "number"
-  ) {
+  if (typeof payload.job_id !== "number" || typeof payload.branch !== "string" || typeof payload.behind !== "number") {
     return null
   }
 
@@ -1477,22 +1457,18 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
     throw new Error("Connect Syrus before changing admin controls.")
   }
 
-  const label = control === "polling" ? "polling" : "new Run starts"
-  const action = pause ? "pause" : "resume"
+  const label = t(control === "polling" ? "admin.polling" : "admin.runs")
+  const action = t(pause ? "admin.pause" : "admin.resume")
   const parentWindow = BrowserWindow.fromWebContents(sender)
   const confirmationOptions: MessageBoxOptions = {
     type: "warning",
-    buttons: [pause ? "Pause" : "Resume", "Cancel"],
+    buttons: [action, t("common.cancel")],
     defaultId: 1,
     cancelId: 1,
-    message: `${pause ? "Pause" : "Resume"} ${label}?`,
-    detail: pause
-      ? `Syrus will stop ${control === "polling" ? "polling repositories" : "starting new Runs"} until an admin resumes it.`
-      : `Syrus will resume ${control === "polling" ? "repository polling" : "starting new Runs"}.`
+    message: t("admin.confirm", { action, target: label }),
+    detail: pause ? t("admin.pause_detail", { target: label }) : t("admin.resume_detail", { target: label })
   }
-  const confirmation = parentWindow
-    ? await dialog.showMessageBox(parentWindow, confirmationOptions)
-    : await dialog.showMessageBox(confirmationOptions)
+  const confirmation = parentWindow ? await dialog.showMessageBox(parentWindow, confirmationOptions) : await dialog.showMessageBox(confirmationOptions)
 
   if (confirmation.response !== 0) {
     return { cancelled: true, controls: await fetchAdminControls() }
@@ -1696,7 +1672,7 @@ const showPreferencesWindow = async () => {
     height: 620,
     minWidth: 420,
     minHeight: 480,
-    title: "Syrus Preferences",
+    title: `${app.getName()} ${t("menu.preferences")}`,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -2020,14 +1996,11 @@ const offerBackendUpdateIfPinned = async () => {
   offeredBackendImage = image
   const choice = await dialog.showMessageBox({
     type: "question",
-    buttons: ["Update Backend", "Not Now"],
+    buttons: [t("backend.update_button"), t("common.not_now")],
     defaultId: 0,
     cancelId: 1,
-    message: "Update the Syrus backend?",
-    detail:
-      `This version of Syrus was tested with ${image}` +
-      `${current ? `, but the local backend is pinned to ${current}` : ""}. ` +
-      "Updating pulls the new image and restarts the backend — agent runs pause for a minute or two."
+    message: t("backend.update_title"),
+    detail: t("backend.update_detail", { image, current: current ? `, ${current}` : "" })
   })
 
   if (choice.response !== 0) {
@@ -2046,7 +2019,7 @@ const offerBackendUpdateIfPinned = async () => {
   })
 
   if (ok) {
-    new Notification({ title: "Syrus backend updated", body: image }).show()
+    new Notification({ title: t("backend.updated"), body: image }).show()
     void webAppWindow?.loadServerUrl()
   } else {
     await reportBackendActionFailure("update the Syrus backend")
@@ -2079,11 +2052,11 @@ const runSetupAgain = async ({ skipConfirmation = false } = {}) => {
   if (!skipConfirmation) {
     const confirmation = await dialog.showMessageBox({
       type: "question",
-      buttons: ["Run Setup", "Cancel"],
+      buttons: [t("setup.run"), t("common.cancel")],
       defaultId: 0,
       cancelId: 1,
-      message: "Set up Syrus again?",
-      detail: "Choose again where Syrus runs. Your credentials and any local Syrus data stay untouched."
+      message: t("setup.title"),
+      detail: t("setup.detail")
     })
 
     if (confirmation.response !== 0) {
@@ -2114,11 +2087,11 @@ const offerSetupAfterDataLoss = async () => {
   dataLossPromptShown = true
   const choice = await dialog.showMessageBox({
     type: "warning",
-    buttons: ["Run Setup Again", "Not Now"],
+    buttons: [t("setup.again"), t("common.not_now")],
     defaultId: 0,
     cancelId: 1,
-    message: "Your local Syrus data is gone.",
-    detail: "Docker is running, but the Syrus data volume no longer exists (it may have been deleted along with your containers). Syrus can't start again until it's set up fresh."
+    message: t("data_gone.title"),
+    detail: t("data_gone.detail")
   })
 
   if (choice.response === 0) {
@@ -2129,11 +2102,11 @@ const offerSetupAfterDataLoss = async () => {
 const confirmStopBackend = async () => {
   const confirmation = await dialog.showMessageBox({
     type: "warning",
-    buttons: ["Stop Syrus", "Cancel"],
+    buttons: [t("menu.stop"), t("common.cancel")],
     defaultId: 1,
     cancelId: 1,
-    message: "Stop Syrus?",
-    detail: "GitHub polling and agent runs stop until you start it again from the Backend menu."
+    message: t("stop.title"),
+    detail: t("stop.detail")
   })
 
   if (confirmation.response !== 0) {
@@ -2179,15 +2152,12 @@ const confirmAndUninstall = async () => {
   const appName = app.getName()
   const choice = await dialog.showMessageBox({
     type: "warning",
-    title: `Uninstall ${appName}`,
-    message: `Uninstall ${appName} from this computer?`,
-    detail:
-      channel === "test"
-        ? `This removes the ${appName} app, the syrus-test command-line tool, and the ${appName} test Docker stack (project syrus-test) and its images. Your production Syrus install is left untouched.\n\n${appName} will quit when the uninstall starts.`
-        : "This removes the Syrus app, the syrus command-line tool, the Claude Code skill, and Syrus's local Docker containers and downloaded images.\n\nSyrus will quit when the uninstall starts. Docker Desktop / OrbStack itself is not removed.",
-    checkboxLabel: `Also delete my ${appName} data (jobs, chats, settings — cannot be undone)`,
+    title: t("uninstall.title", { app: appName }),
+    message: t("uninstall.message", { app: appName }),
+    detail: t(channel === "test" ? "uninstall.test_detail" : "uninstall.stable_detail", { app: appName }),
+    checkboxLabel: t("uninstall.checkbox", { app: appName }),
     checkboxChecked: false,
-    buttons: ["Cancel", "Uninstall"],
+    buttons: [t("common.cancel"), t("uninstall.button")],
     defaultId: 0,
     cancelId: 0
   })
@@ -2223,10 +2193,7 @@ const confirmAndUninstall = async () => {
       clearTimeout(quitTimer)
       quitTimer = null
     }
-    dialog.showErrorBox(
-      "Uninstall could not start",
-      `The uninstall script failed to launch, so nothing was removed.\n\nScript: ${scriptPath}\nError: ${error.message}\n\nYou can try again from the menu, or run the script manually.`
-    )
+    dialog.showErrorBox(t("uninstall.failed"), t("uninstall.failed_detail", { script: scriptPath, error: error.message }))
   })
 
   child.unref()
@@ -2282,9 +2249,8 @@ const confirmAndResetTestSetup = async () => {
   if (backendLifecycle.backendBusy()) {
     void dialog.showMessageBox({
       type: "info",
-      message: "Finishing backend update…",
-      detail:
-        "Syrus is updating the test backend right now. Try Reset Test Setup again once that finishes — usually a minute or two."
+      message: t("backend.finishing"),
+      detail: t("backend.finishing_test")
     })
     return
   }
@@ -2292,21 +2258,10 @@ const confirmAndResetTestSetup = async () => {
   const identity = currentStackIdentity()
   const choice = await dialog.showMessageBox({
     type: "warning",
-    title: "Reset Test Setup",
-    message: "Wipe this test build's setup and start over?",
-    detail: [
-      "This clears the Syrus Test slate so you can run the initial setup again from scratch. It removes:",
-      "",
-      `  •  The test backend and its data volume (Docker project "${identity.project}") — every job, chat, and setting stored in the test instance.`,
-      `  •  The test state folder (${identity.stateDir}) — its .env and Compose file.`,
-      `  •  The test credentials file (${identity.credentialsFile}).`,
-      "  •  This app's saved setup — the backend connection and onboarding progress.",
-      "",
-      "Your production Syrus stays completely untouched: its app, backend, data volume, credentials, and settings are all separate and are NOT removed. Downloaded Docker images are kept, so the next setup is fast.",
-      "",
-      "Syrus Test will relaunch into the setup screen. This can't be undone."
-    ].join("\n"),
-    buttons: ["Cancel", "Reset & Restart"],
+    title: t("reset.title"),
+    message: t("reset.message"),
+    detail: t("reset.detail", { project: identity.project, state: identity.stateDir, credentials: identity.credentialsFile }),
+    buttons: [t("common.cancel"), t("reset.button")],
     defaultId: 0,
     cancelId: 0
   })
@@ -2319,10 +2274,8 @@ const confirmAndResetTestSetup = async () => {
     await resetTestSetup()
   } catch (error) {
     dialog.showErrorBox(
-      "Reset didn't finish",
-      `Couldn't fully reset the test setup, so some state may remain.\n\n${
-        error instanceof Error ? error.message : String(error)
-      }\n\nYou can try again, or clean up manually under ${currentStackIdentity().stateDir}.`
+      t("reset.failed"),
+      t("reset.failed_detail", { error: error instanceof Error ? error.message : String(error), directory: currentStackIdentity().stateDir })
     )
     return
   }
@@ -2341,9 +2294,8 @@ const confirmAndResetTestSetup = async () => {
 const reportBackendActionFailure = async (label: string) => {
   await dialog.showMessageBox({
     type: "warning",
-    message: `Couldn't ${label}.`,
-    detail:
-      "Another backend operation may still be in progress, or Docker isn't ready. Check Backend → Open Install Log for details."
+    message: t("backend.action_failed", { action: label }),
+    detail: t("backend.action_failed_detail")
   })
 }
 
@@ -2376,8 +2328,8 @@ const deferRelaunchWhileBackendBusy = (): boolean => {
 
   void dialog.showMessageBox({
     type: "info",
-    message: "Finishing backend update…",
-    detail: "Syrus is updating its local backend right now. Relaunch to update the app once the backend update completes — usually a minute or two."
+    message: t("backend.finishing"),
+    detail: t("backend.finishing_local")
   })
   return true
 }
@@ -2416,10 +2368,7 @@ const checkForUpdatesInteractively = async () => {
       await dialog.showMessageBox({
         type: "info",
         message: t("update.unavailable"),
-        detail:
-          process.platform === "win32"
-            ? "Updates apply to the packaged app installed with the Syrus setup program."
-            : "Updates apply to the packaged, signed app installed from the DMG."
+        detail: process.platform === "win32" ? t("update.windows_detail") : t("update.mac_detail")
       })
       break
     case "downloaded":
@@ -2427,10 +2376,7 @@ const checkForUpdatesInteractively = async () => {
       await dialog.showMessageBox({
         type: "info",
         message: t("update.available", { version: result.version }),
-        detail:
-          result.outcome === "downloaded"
-            ? t("update.ready")
-            : t("update.downloading")
+        detail: result.outcome === "downloaded" ? t("update.ready") : t("update.downloading")
       })
       break
     case "up-to-date":
@@ -2549,9 +2495,7 @@ const saveGlobalHotkey = (globalHotkey: string) => {
       registerGlobalHotkey(previousHotkey)
     }
 
-    throw error instanceof Error
-      ? error
-      : new Error("That keyboard shortcut could not be registered. It may already be in use.")
+    throw error instanceof Error ? error : new Error("That keyboard shortcut could not be registered. It may already be in use.")
   }
 }
 
@@ -2611,15 +2555,7 @@ const createMenu = () => {
     },
     {
       role: "editMenu",
-      submenu: [
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" }
-      ]
+      submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }]
     },
     {
       role: "viewMenu",
@@ -2692,9 +2628,7 @@ ipcMain.handle("choose-local-projects-root", async () => {
     properties: ["openDirectory"],
     title: t("dialog.choose_projects")
   }
-  const result = browserWindow
-    ? await dialog.showOpenDialog(browserWindow, options)
-    : await dialog.showOpenDialog(options)
+  const result = browserWindow ? await dialog.showOpenDialog(browserWindow, options) : await dialog.showOpenDialog(options)
 
   return result.canceled ? null : result.filePaths[0]
 })
@@ -2711,9 +2645,7 @@ ipcMain.handle("install-syrus-cli", async (_event, options?: CliInstallOptions) 
   // off on the test channel so Preferences' "Add Claude Code skill" button can
   // never rewrite the shared ~/.claude/skills/syrus with a test build's
   // unreleased content. Mirrors the ensureCliCurrent / shell-bridge gates.
-  performCliInstall(
-    currentChannel() === "test" && options?.withSkill ? { ...options, withSkill: false } : options
-  )
+  performCliInstall(currentChannel() === "test" && options?.withSkill ? { ...options, withSkill: false } : options)
 )
 ipcMain.handle("checkout-availability", async (_event, repoSlug: string) => checkoutAvailability(repoSlug))
 ipcMain.handle("checkout-job", async (_event, request: CheckoutRequest) => checkoutJob(request))
@@ -2767,7 +2699,7 @@ ipcMain.handle("shell:relaunch-to-update", (event) => {
 })
 ipcMain.handle("shell:install-skill", async (event) => {
   if (!shellSenderAllowed(event, "shell:install-skill")) {
-    return { ok: false, message: "This action is only available to the Syrus app window." }
+    return { ok: false, message: t("shell.app_only") }
   }
 
   return installSkillFromShell()
@@ -2865,9 +2797,7 @@ ipcMain.handle("fetch-repositories", async () => fetchRepositories())
 ipcMain.handle("get-last-used-repo", async () => getLastUsedRepo())
 ipcMain.handle("set-last-used-repo", async (_event, repoSlug: string) => setLastUsedRepo(repoSlug))
 ipcMain.handle("fetch-admin-controls", async () => fetchAdminControls())
-ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) =>
-  toggleAdminControl(event.sender, control, pause)
-)
+ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) => toggleAdminControl(event.sender, control, pause))
 ipcMain.handle("create-direct-job", async (_event, request: CreateJobRequest) => createDirectJob(request))
 // "Generate a token" in Preferences: API tokens live on the instance's own
 // account-settings page (generate/rotate/revoke), so open that in the
@@ -2898,13 +2828,9 @@ ipcMain.handle("onboarding:get-state", async () => ensureOnboardingDriver().getS
 ipcMain.handle("onboarding:choose-mode", async (_event, mode: "local" | "remote") => {
   ensureOnboardingDriver().chooseMode(mode)
 })
-ipcMain.handle("onboarding:connect-remote", async (_event, request: { url: string }) =>
-  ensureOnboardingDriver().connectRemote(request)
-)
+ipcMain.handle("onboarding:connect-remote", async (_event, request: { url: string }) => ensureOnboardingDriver().connectRemote(request))
 // Advisory: powers the connect form's live "Syrus found here" check.
-ipcMain.handle("onboarding:probe-instance", async (_event, request: { url: string }) =>
-  ensureOnboardingDriver().probeInstance(request)
-)
+ipcMain.handle("onboarding:probe-instance", async (_event, request: { url: string }) => ensureOnboardingDriver().probeInstance(request))
 // One-click WSL 2 install (Windows; elevates via UAC).
 ipcMain.handle("onboarding:install-wsl", async () => ensureOnboardingDriver().installWsl())
 ipcMain.handle("onboarding:start-install", async (_event, port?: number) => {
@@ -2919,12 +2845,8 @@ ipcMain.handle("onboarding:retry", async () => ensureOnboardingDriver().precheck
 ipcMain.handle("onboarding:back", async () => {
   await ensureOnboardingDriver().backToWelcome()
 })
-ipcMain.handle("onboarding:locate-env", async (event) =>
-  ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender))
-)
-ipcMain.handle("onboarding:wipe-data", async (event) =>
-  ensureOnboardingDriver().wipeData(BrowserWindow.fromWebContents(event.sender))
-)
+ipcMain.handle("onboarding:locate-env", async (event) => ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender)))
+ipcMain.handle("onboarding:wipe-data", async (event) => ensureOnboardingDriver().wipeData(BrowserWindow.fromWebContents(event.sender)))
 ipcMain.handle("onboarding:open-orbstack-download", async () => {
   ensureOnboardingDriver().openOrbStackDownload()
 })
@@ -2995,11 +2917,7 @@ app.on("second-instance", (_event, _argv, _cwd, additionalData) => {
   // macOS-only for now, matching selfInstall.ts.
   // darwin + win32: both platforms can launch the incoming copy directly
   // (open -n / spawn of the exe path); see selfInstall.launchInstalledCopy.
-  if (
-    (process.platform === "darwin" || process.platform === "win32") &&
-    !takeoverPromptOpen &&
-    decideOnSecondInstance(own, incoming) === "offer"
-  ) {
+  if ((process.platform === "darwin" || process.platform === "win32") && !takeoverPromptOpen && decideOnSecondInstance(own, incoming) === "offer") {
     takeoverPromptOpen = true
     const prompt = takeoverPrompt(own, incoming as InstanceIdentity)
     void dialog

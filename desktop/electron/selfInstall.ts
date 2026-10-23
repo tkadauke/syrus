@@ -23,8 +23,7 @@ export const SYSTEM_APPLICATIONS = "/Applications"
 export const UNKNOWN_VERSION = "0.0.0"
 
 // <bundle>.app/Contents/MacOS/<binary> → <bundle>.app
-export const bundlePathFromExecPath = (execPath: string): string =>
-  path.resolve(execPath, "..", "..", "..")
+export const bundlePathFromExecPath = (execPath: string): string => path.resolve(execPath, "..", "..", "..")
 
 export const shouldSelfInstall = ({
   isPackaged,
@@ -47,9 +46,7 @@ export const shouldSelfInstall = ({
   }
 
   const userApplications = path.join(homeDir, "Applications")
-  return ![SYSTEM_APPLICATIONS, userApplications].some(
-    (dir) => bundlePath.startsWith(`${dir}${path.sep}`)
-  )
+  return ![SYSTEM_APPLICATIONS, userApplications].some((dir) => bundlePath.startsWith(`${dir}${path.sep}`))
 }
 
 export type InstallTarget = {
@@ -101,10 +98,7 @@ const canAccess = async (target: string, mode?: number): Promise<boolean> => {
 }
 
 // Probes the filesystem, then delegates the decision to the pure chooser.
-export const resolveInstallTarget = async (
-  bundlePath: string,
-  homeDir: string
-): Promise<InstallTarget> => {
+export const resolveInstallTarget = async (bundlePath: string, homeDir: string): Promise<InstallTarget> => {
   const bundleName = path.basename(bundlePath)
   return chooseInstallTarget({
     bundleName,
@@ -161,10 +155,7 @@ const parseVersion = (value: string | null | undefined): number[] | null => {
 
 // How `candidate` (the launching copy) relates to `existing` (the installed
 // copy). 0.0.0, null, or unparseable on EITHER side is "unknown".
-export const compareVersions = (
-  candidate: string | null | undefined,
-  existing: string | null | undefined
-): VersionComparison => {
+export const compareVersions = (candidate: string | null | undefined, existing: string | null | undefined): VersionComparison => {
   const left = parseVersion(candidate)
   const right = parseVersion(existing)
   if (!left || !right) {
@@ -187,13 +178,13 @@ export const compareVersions = (
 // prerelease suffix makes it unparseable for ORDERING (compareVersions stays
 // strict; the newer/older note is simply omitted). Only the 0.0.0 sentinel
 // and a missing plist read as a dev build.
-const describeVersion = (version: string | null | undefined): string => {
+const describeVersion = (version: string | null | undefined, locale: Locale): string => {
   const trimmed = version?.trim()
   if (!trimmed || trimmed === UNKNOWN_VERSION) {
-    return "an unknown-version dev build"
+    return translate(locale, "install.version_unknown")
   }
 
-  return `Syrus ${trimmed}`
+  return translate(locale, "install.version_name", { version: trimmed })
 }
 
 // Dialog copy for replacing an existing install. Shown BEFORE any copying;
@@ -209,16 +200,22 @@ export const replacePrompt = ({
   targetPath: string
   locale?: Locale
 }) => {
-  const note = {
-    newer: " (this copy appears newer)",
-    older: " (the installed copy appears newer)",
-    same: " (same version)",
+  const noteKey = {
+    newer: "install.note_newer",
+    older: "install.note_older",
+    same: "install.note_same",
     unknown: ""
   }[compareVersions(newVersion, existingVersion)]
+  const note = noteKey ? translate(locale, noteKey) : ""
 
   return {
     message: translate(locale, "install.replace.title"),
-    detail: translate(locale, "install.replace.detail", { existing: describeVersion(existingVersion), directory: path.dirname(targetPath), next: describeVersion(newVersion), note }),
+    detail: translate(locale, "install.replace.detail", {
+      existing: describeVersion(existingVersion, locale),
+      directory: path.dirname(targetPath),
+      next: describeVersion(newVersion, locale),
+      note
+    }),
     buttons: [translate(locale, "install.replace"), translate(locale, "install.keep")] as const,
     replaceIndex: 0,
     cancelId: 1
@@ -230,10 +227,8 @@ export type InstallDecision = "replace" | "launch-existing"
 // Maps the dialog response to an action. Anything that isn't an explicit
 // Replace (Escape, Keep Existing) launches the existing install — the
 // session must not continue from the DMG either way.
-export const installDecisionForResponse = (
-  prompt: Pick<ReturnType<typeof replacePrompt>, "replaceIndex">,
-  response: number
-): InstallDecision => (response === prompt.replaceIndex ? "replace" : "launch-existing")
+export const installDecisionForResponse = (prompt: Pick<ReturnType<typeof replacePrompt>, "replaceIndex">, response: number): InstallDecision =>
+  response === prompt.replaceIndex ? "replace" : "launch-existing"
 
 // Dialog copy for a failed install COPY (the existing install, if any, is
 // untouched — installBundle stages before it swaps): the app quits
@@ -251,7 +246,11 @@ export const installFailedPrompt = ({
   locale?: Locale
 }) => ({
   message: translate(locale, "install.failed"),
-  detail: translate(locale, "install.failed_detail", { bundle: bundleName, destination: targetPath ? ` to ${path.dirname(targetPath)}` : "", reason: reason ? `\n\n(${reason})` : "" }),
+  detail: translate(locale, "install.failed_detail", {
+    bundle: bundleName,
+    destination: targetPath ? translate(locale, "install.destination", { directory: path.dirname(targetPath) }) : "",
+    reason: reason ? `\n\n(${reason})` : ""
+  }),
   buttons: [translate(locale, "install.quit")] as const
 })
 
@@ -270,10 +269,12 @@ export const launchFailedPrompt = ({
   reason?: string | null
   locale?: Locale
 }) => ({
-  message: justInstalled
-    ? translate(locale, "install.launch_new_failed")
-    : translate(locale, "install.launch_existing_failed"),
-  detail: translate(locale, justInstalled ? "install.launch_new_detail" : "install.launch_existing_detail", { directory: path.dirname(targetPath), path: targetPath, reason: reason ? `\n\n(${reason})` : "" }),
+  message: justInstalled ? translate(locale, "install.launch_new_failed") : translate(locale, "install.launch_existing_failed"),
+  detail: translate(locale, justInstalled ? "install.launch_new_detail" : "install.launch_existing_detail", {
+    directory: path.dirname(targetPath),
+    path: targetPath,
+    reason: reason ? `\n\n(${reason})` : ""
+  }),
   buttons: [translate(locale, "install.quit")] as const
 })
 
