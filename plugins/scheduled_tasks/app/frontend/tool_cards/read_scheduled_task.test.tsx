@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
@@ -72,14 +72,22 @@ describe("read_scheduled_task tool card", () => {
 
   it("renders linked markdown and exposes a Show more modal with copy", () => {
     const prompt = `Review **main**, visit https://example.test/status, and update JOB-42. ${"More context. ".repeat(80)}`
-    render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult: { scheduled_task: { ...task, prompt } } }))}</>)
+    const onLinkClick = vi.fn()
+    render(<>{readScheduledTaskToolCard.renderExpanded(context({ onLinkClick, parsedResult: { scheduled_task: { ...task, prompt } } }))}</>)
 
     expect(screen.getByText("Prompt")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "https://example.test/status" })).toHaveAttribute("href", "https://example.test/status")
+    const inlineLink = screen.getByRole("link", { name: "https://example.test/status" })
+    expect(inlineLink).toHaveAttribute("href", "https://example.test/status")
+    fireEvent.click(inlineLink)
+    expect(onLinkClick).toHaveBeenCalledWith((inlineLink as HTMLAnchorElement).href, expect.anything())
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
 
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const modalLink = within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/status" })
+    fireEvent.click(modalLink)
+    expect(onLinkClick).toHaveBeenCalledWith((modalLink as HTMLAnchorElement).href, expect.anything())
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole("button", { name: "Copy Prompt to clipboard" }))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(prompt)
   })

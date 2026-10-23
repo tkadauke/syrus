@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { MouseEvent, ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 import type { MarkdownLinkHandler } from "./lib/Markdown"
 export { isPlainObject } from "./toolCardParsing"
@@ -43,6 +43,10 @@ export type ToolCardContext = {
   // Owning chat when rendered in a chat surface. Admin transcripts and
   // catalog fixtures do not necessarily have one.
   chatSessionId?: number | string
+  // Chat-owned Markdown navigation. Tool cards forward this to Markdown
+  // surfaces so workspace-file links open the same source preview as links
+  // in assistant prose. Catalog/admin contexts may omit it.
+  onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
   // Earlier settled calls, normalized and redacted like the current call.
   priorCalls?: ToolCardPriorCall[]
   // Current state of the ChatPendingAction this tool call created, read

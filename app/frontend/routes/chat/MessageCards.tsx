@@ -975,7 +975,7 @@ export const ToolGroup = memo(function ToolGroup({
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
                 <ToolResultBody call={call} chatSessionId={chatSessionId} onLinkClick={payload ? handleMarkdownLink : undefined} presentation={presentation} />
               ) : expanded ? (
-                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation))
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, payload ? handleMarkdownLink : undefined))
               ) : null}
               {expanded ? (
                 <RawToolDetails

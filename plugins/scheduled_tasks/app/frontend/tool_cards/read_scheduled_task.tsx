@@ -19,7 +19,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <ScheduledTaskSummary task={detail.task} />
-      {detail.hasPrompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
+      {detail.hasPrompt ? <PromptDisclosure onLinkClick={context.onLinkClick} prompt={detail.prompt} /> : null}
     </CardShell>
   )
 }
