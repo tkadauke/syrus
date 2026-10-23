@@ -77,6 +77,36 @@ RSpec.describe TestInsightsPruneJob do
     expect(messages).to include("[TestInsightsPruneJob] deleted 1 test_insight_isolated_repro_attempts")
   end
 
+  it "deletes prunable rows in bounded batches" do
+    test_run = create_test_run
+    old_cases = 3.times.map { create_case(test_run) }
+    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago) }
+    stub_const("TestInsightsPruneJob::DELETE_BATCH_SIZE", 2)
+
+    deletes = []
+    allow(TestInsights::TestCase).to receive(:where).and_wrap_original do |method, conditions|
+      deletes << conditions.fetch(:id).size if conditions.is_a?(Hash) && conditions.key?(:id)
+      method.call(conditions)
+    end
+
+    described_class.perform_now
+
+    expect(deletes).to eq([ 2, 1 ])
+    expect(TestInsights::TestCase.where(id: old_cases.map(&:id))).to be_empty
+  end
+
+  it "bounds each pruning pass" do
+    test_run = create_test_run
+    old_cases = 3.times.map { create_case(test_run) }
+    old_cases.each { |test_case| test_case.update_columns(created_at: (TestInsights::TestCase::RETAIN_AFTER + 1.day).ago) }
+    stub_const("TestInsightsPruneJob::DELETE_BATCH_SIZE", 1)
+    stub_const("TestInsightsPruneJob::MAX_DELETE_BATCHES", 2)
+
+    described_class.perform_now
+
+    expect(TestInsights::TestCase.where(id: old_cases.map(&:id)).count).to eq(1)
+  end
+
   it "is a no-op when nothing is prunable" do
     test_run = create_test_run
     create_case(test_run)

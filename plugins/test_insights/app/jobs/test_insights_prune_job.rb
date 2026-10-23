@@ -18,16 +18,32 @@ class TestInsightsPruneJob < ApplicationJob
 
   queue_as :cleanup
 
+  DELETE_BATCH_SIZE = 1_000
+  MAX_DELETE_BATCHES = 100
+
   def perform
-    cases_deleted = TestInsights::TestCase.prunable.delete_all
+    cases_deleted = prune(TestInsights::TestCase)
     Rails.logger.info("[TestInsightsPruneJob] deleted #{cases_deleted} test_insight_cases") if cases_deleted > 0
 
-    runs_deleted = TestInsights::TestRun.prunable.delete_all
+    runs_deleted = prune(TestInsights::TestRun)
     Rails.logger.info("[TestInsightsPruneJob] deleted #{runs_deleted} test_insight_runs") if runs_deleted > 0
 
-    isolated_repro_attempts_deleted = TestInsights::IsolatedReproAttempt.prunable.delete_all
+    isolated_repro_attempts_deleted = prune(TestInsights::IsolatedReproAttempt)
     if isolated_repro_attempts_deleted > 0
       Rails.logger.info("[TestInsightsPruneJob] deleted #{isolated_repro_attempts_deleted} test_insight_isolated_repro_attempts")
     end
+  end
+
+  private
+
+  def prune(model)
+    deleted = 0
+    MAX_DELETE_BATCHES.times do
+      ids = model.prunable.reorder(:created_at, :id).limit(DELETE_BATCH_SIZE).pluck(:id)
+      break if ids.empty?
+
+      deleted += model.where(id: ids).delete_all
+    end
+    deleted
   end
 end
