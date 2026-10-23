@@ -133,6 +133,8 @@ describe("AdminToolCards", () => {
 
     expandToolGroup(region)
     expect(within(region).getByText("pending")).toBeInTheDocument()
+  })
+
   it("renders add_job_dependency examples and links across desktop and phone previews", () => {
     renderRoute("/admin/tool_cards?tool_name=add_job_dependency")
 
