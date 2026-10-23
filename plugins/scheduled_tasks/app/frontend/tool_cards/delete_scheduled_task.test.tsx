@@ -28,8 +28,8 @@ describe("delete_scheduled_task tool card", () => {
     expect(deleteScheduledTaskToolCard.toolName).toBe("delete_scheduled_task")
   })
 
-  it("summarizes the collapsed row with the deleted label and id", () => {
-    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe("Deleted 'Nightly main-branch health check' (#12)")
+  it("keeps the collapsed deletion summary compact enough for narrow cards", () => {
+    expect(deleteScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: deleted }))).toBe("Deleted task #12")
   })
 
   it("renders all deleted-task context without linking the removed task", () => {
