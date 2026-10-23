@@ -53,7 +53,7 @@ export function deleteSmartFolder(id: number) {
 export type SmartFolderNavigationPayload = {
   active_smart_folder_id: number | null
   filter: Record<string, unknown>
-  smart_folders: AdminSmartFolder[]
+  smart_folders?: AdminSmartFolder[]
 }
 
 export function fetchSmartFolderNavigation(apiPath: string, search = "") {

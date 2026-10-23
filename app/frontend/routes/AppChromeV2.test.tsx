@@ -589,6 +589,42 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("treats an omitted plugin smart-folder collection as empty", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "design_docs",
+            label: "Design Docs",
+            label_key: null,
+            path: "/design_docs",
+            paths: ["/design_docs"],
+            order: 25,
+            component: "DesignDocs",
+            icon: "document",
+            smart_folder_api_path: "/api/v1/app/design_docs",
+            smart_folder_subject: "design_doc"
+          }]
+        }))
+      }
+
+      if (url.pathname === "/api/v1/app/design_docs") {
+        return Promise.resolve(jsonResponse({ active_smart_folder_id: null, filter: { and: [] } }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Design Docs</div>, { initialEntries: ["/design_docs"] })
+
+    const folderNav = await screen.findByRole("navigation", { name: "Design Docs smart folders" })
+    expect(within(folderNav).getByRole("link", { name: "All design docs" })).toHaveAttribute("href", "/design_docs")
+  })
+
   it("omits the generic All link for a plugin page whose own smart folders already include an unfiltered one", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)

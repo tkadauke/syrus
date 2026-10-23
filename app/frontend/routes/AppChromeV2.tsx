@@ -1855,7 +1855,7 @@ function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boo
             allowSaveWithoutActiveFolder
             ariaLabel={t("nav:sidebar_smart_folders_aria", { label: item.label })}
             currentFilter={payload.data.filter}
-            folders={payload.data.smart_folders}
+            folders={payload.data.smart_folders ?? []}
             heading={t("nav:sidebar_smart_folders_heading")}
             onMutationSuccess={() => {
               void queryClient.invalidateQueries({ queryKey: ["sidebar", "smart_folders", item.id] })
