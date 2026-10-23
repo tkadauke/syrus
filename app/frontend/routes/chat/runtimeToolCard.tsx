@@ -105,12 +105,13 @@ type RuntimeCard =
     }
   | {
       kind: "inspect"
-      health: string | null
-      framework: string | null
-      ports: string | null
-      processState: string | null
-      warnings: string[]
+      sessionId: string | null
+      inspectKind: string | null
+      bytes: string | null
+      options: Record<string, unknown>
+      error: string | null
       details: string | null
+      tailDetails: boolean
       raw: unknown
     }
   | { kind: "logs"; entries: string[]; cursor: string | null; nextCursor: string | null; raw: unknown }
@@ -194,25 +195,6 @@ function valuePreview(value: unknown): string | null {
   return displayed.length > INPUT_VALUE_PREVIEW_LIMIT ? `${displayed.slice(0, INPUT_VALUE_PREVIEW_LIMIT)}...` : displayed
 }
 
-function portList(value: unknown): string | null {
-  if (Array.isArray(value)) {
-    const ports = value.flatMap((item) => {
-      if (typeof item === "number" || typeof item === "string") {
-        const displayed = displayValue(item)
-        return displayed ? [displayed] : []
-      }
-      if (!isPlainObject(item)) return []
-      const port = displayValue(item.port)
-      const state = displayValue(item.state) ?? displayValue(item.status)
-      if (!port) return []
-      return [state ? `${port} ${state}` : port]
-    })
-    return ports.length > 0 ? ports.join(", ") : null
-  }
-
-  return displayValue(value)
-}
-
 function parseLease(value: unknown): RuntimeLease | null {
   if (!isPlainObject(value)) return null
   const id = displayValue(value.id)
@@ -294,25 +276,20 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
 function parseInspectCard(context: ToolCardContext): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
-  const process = parseObject(parsed.process)
-  const metadata = parseObject(parsed.metadata)
-  const health = firstDisplayValue(parsed.health, parsed.app_health, parsed.status, parsed.state)
   const details = firstDisplayValue(parsed.summary, parsed.message, contentText(parsed.content), parsed.xml, parsed.tree, parsed.scrollback)
+  const failed = context.resultError || parsed.error === true
 
   return {
     kind: "inspect",
-    health,
-    framework: firstDisplayValue(parsed.framework, parsed.detected_framework, parsed.framework_name, metadata.framework),
-    ports: portList(parsed.ports) ?? portList(parsed.port) ?? portList(metadata.ports) ?? portList(metadata.port),
-    processState: firstDisplayValue(
-      parsed.process_state,
-      process.state,
-      process.status,
-      parsed.pid ? `pid ${displayValue(parsed.pid)}` : null,
-      metadata.pid ? `pid ${displayValue(metadata.pid)}` : null
-    ),
-    warnings: stringList(parsed.warnings).concat(stringList(parsed.warning)),
+    sessionId: displayValue(context.input?.session_id),
+    inspectKind: displayValue(parsed.kind),
+    bytes: displayValue(parsed.bytes),
+    options: parseObject(context.input?.options),
+    error: failed
+      ? (withoutErrorPrefix(firstDisplayValue(parsed.message, parsed.error_message, contentText(parsed.content), parsed.error)) ?? "Runtime inspection failed")
+      : null,
     details,
+    tailDetails: parsed.kind === "terminal_scrollback" || displayValue(parsed.scrollback) != null,
     raw: parsed
   }
 }
@@ -611,9 +588,9 @@ function collapsedSummary(context: ToolCardContext) {
     return `Runtime ${noun}${session}: ${status}${destination ? ` at ${destination}` : ""}`
   }
   if (card.kind === "inspect") {
-    const pieces = [card.health, card.framework, card.ports ? `ports ${card.ports}` : null, card.processState].filter(Boolean)
-    const warningLabel = card.warnings.length > 0 ? `, ${plural(card.warnings.length, "warning")}` : ""
-    return pieces.length > 0 ? `Runtime inspect: ${pieces.join(", ")}${warningLabel}` : `Runtime inspect${warningLabel || ": no health fields"}`
+    if (card.error) return "Runtime inspect failed"
+    const detail = [card.inspectKind, card.bytes ? `${card.bytes} bytes` : null].filter(Boolean).join(", ")
+    return detail ? `Runtime inspect: ${detail}` : "Runtime inspect complete"
   }
   if (card.kind === "logs") {
     return card.entries.length === 0
@@ -987,25 +964,16 @@ function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "insp
     <CardShell>
       <FieldRows
         rows={[
-          ["Health", card.health],
-          ["Framework", card.framework],
-          ["Ports", card.ports],
-          ["Process", card.processState]
+          ["Session ID", card.sessionId],
+          ["Kind", card.inspectKind],
+          ["Bytes", card.bytes]
         ]}
       />
-      {card.warnings.length > 0 ? (
-        <div>
-          <SectionLabel>Warnings</SectionLabel>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-amber-800 dark:text-amber-200">
-            {card.warnings.map((warning, index) => (
-              <li key={`${warning}-${index}`}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <OptionRows values={card.options} />
+      {card.error ? <RuntimeNotice message={card.error} tone="error" /> : null}
       {card.details ? (
         <Disclosure label="Inspection details">
-          <TextPreview text={card.details} truncate="headTail" />
+          <TextPreview maxLines={40} text={card.details} truncate={card.tailDetails ? "tail" : "headTail"} />
         </Disclosure>
       ) : (
         <EmptyState>No detailed inspection output was returned.</EmptyState>
