@@ -30,6 +30,10 @@
 en:
   hello: "Hello world"
 
+  time:
+    formats:
+      long: "%Y-%m-%d %H:%M"
+
   errors:
     messages:
       inclusion: "is not included in the list"
@@ -53,6 +57,7 @@ en:
 
   system_alert_mailer:
     alarm:
+      subject: "[Syrus alarm] %{title}"
       severity: "Severity:"
       dismissal_key: "Dismissal key:"
       action_steps: "Action steps"

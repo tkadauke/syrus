@@ -117,10 +117,12 @@ RSpec.describe SystemAlertDelivery do
       delivery_attempts: 1
     )
 
-    with_env("SYRUS_ALERT_WEBHOOK_URL" => nil, "SYRUS_ALERT_EMAIL_TO" => "ops@example.test") do
-      expect {
-        described_class.deliver([])
-      }.to change(ActionMailer::Base.deliveries, :count).by(1)
+    I18n.with_locale(:de) do
+      with_env("SYRUS_ALERT_WEBHOOK_URL" => nil, "SYRUS_ALERT_EMAIL_TO" => "ops@example.test") do
+        expect {
+          described_class.deliver([])
+        }.to change(ActionMailer::Base.deliveries, :count).by(1)
+      end
     end
 
     notification = SystemAlertNotification.sole

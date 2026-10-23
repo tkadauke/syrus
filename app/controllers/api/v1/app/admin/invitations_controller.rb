@@ -18,10 +18,10 @@ module Api
           end
 
           def create
-            invitation = Invitation.new(invitation_params.merge(invited_by: Current.user))
+            invitation = Invitation.new(invitation_params.merge(invited_by: Current.user, locale: Current.user.locale))
 
             if invitation.save
-              InvitationMailer.invite(invitation).deliver_later
+              InvitationMailer.with(locale: invitation.locale).invite(invitation).deliver_later
 
               render json: invitations_payload.merge(message: I18n.t("api.admin_invitations.created", email: invitation.email_address)),
                      status: :created
