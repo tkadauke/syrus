@@ -30,7 +30,8 @@ module ScheduledTasks
             :repository_id,
             :repository_slug,
             :schedule_explanation,
-            :schedule_timezone
+            :schedule_timezone,
+            :fire_at
           )
           task.soft_delete!
 
