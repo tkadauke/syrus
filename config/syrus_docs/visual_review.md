@@ -124,6 +124,13 @@ path, title, viewport, source, and capture time. An unexpected redirect to a
 login page is a blocker unless the auth screen is the changed surface being
 reviewed.
 
+Screenshot artifact types may be descriptive (for example,
+`visual_review_mobile_bulk_progress`). When `submit_visual_review` records the
+iteration, it associates image artifacts through the submitting Run's trusted
+provenance, image metadata, and image renderer identity. The association does
+not depend on an exact caller-chosen type; artifacts from other Runs and
+non-image typed artifacts remain excluded.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
@@ -141,7 +148,9 @@ verdicts:
 If the agent does not call `submit_visual_review`, the step fails with
 "agent didn't call submit_visual_review".
 
-Findings accumulate in `workflow.artifacts["visual_review_iterations"]`. The
+Findings accumulate through `workflow.artifacts["visual_review_iterations"]`.
+The growth-bound value is stored separately in `workflow_artifact_values`, and the
+Workflow artifact API merges it with legacy inline values. The
 reviewer itself sees every prior iteration via `prior_findings` in
 `Prompts::VisualReview`; the `needs_work` iterations are separately rendered
 by `Prompts::ReviewFeedback` and appended to the next `implement`/`respond`
@@ -297,7 +306,10 @@ The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`,
 image-capable sibling of `submit_artifact`. The preferred path is
 `capture_current_browser: true` (also the default when no image input is
 provided), which captures the active MCP browser session and stamps page
-provenance. The tool still accepts `image_path` for an existing screenshot
+provenance. A supplied `subject` is scrolled into view and must have at least
+half its area in the viewport by default before capture; the artifact records
+the subject rectangle, visible fraction, and scroll position. The tool still
+accepts `image_path` for an existing screenshot
 file inside the workflow workspace or `image_base64` when image bytes are
 already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists the image as
 an ActiveStorage blob on the current Workflow, and records a `typed_artifacts`
@@ -312,8 +324,11 @@ inspects the after screenshots' page provenance, starts the same
 preview/browser capture flow on that before revision, asks the agent to
 capture matching baseline screenshots, then persists a
 `visual_diff_comparison` typed artifact with `before` (merge-base) and
-`after` (PR/head) images side by side. This work does not block approval or
-landing; automatically queued comparisons are cancelled or skipped once the
+`after` (PR/head) images. The Job review UI overlays each matching pair in an
+interactive slider, with the after image on the left and the before image on
+the right. The divider supports pointer, touch, and keyboard input; tapping
+without dragging opens a full-size, swipeable before/after preview. This work
+does not block approval or landing; automatically queued comparisons are cancelled or skipped once the
 Job has already moved to approval/landing, while operators can still request
 an explicit rerun from the Job detail actions.
 

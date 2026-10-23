@@ -56,7 +56,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     @git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(@git)
     allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
+    allow(@git).to receive(:run).with("rev-parse", "origin/main", chdir: anything).and_return("base123\n")
     allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
+    allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return("")
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
     allow(GithubAuthenticatedGit).to receive(:run) { |**_, &block| block.call("file://remote") }
     allow(@git).to receive(:run)
@@ -71,6 +73,14 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     File.write(@ws_path.join(".syrus.yml"), contents)
   end
 
+  it "captures the base SHA for collection on a worker without the workflow checkout" do
+    write_config("grade:\n  steps: []\n")
+
+    handler.call
+
+    expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY)).to eq("base123")
+  end
+
   def write_grade_config(command)
     @ws_path.join(".syrus.yml").write(<<~YAML)
       grade:
@@ -80,8 +90,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     YAML
   end
 
-  def record_prepared_workspace!
+  def record_prepared_workspace!(locally: true)
     plan = RepoPrepPlan.for(@ws_path)
+    PreparedWorkspaceState.new(@ws_path).record!(plan.commands) if locally
     workflow.set_artifact!("prepared_workspace", {
       "source" => plan.source,
       "note" => plan.note,
@@ -712,6 +723,23 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.steps.find_by!(kind: "grader").details["source_snapshot"]).to include(
       "source_ref" => snapshot.source_ref
     )
+  end
+
+  it "does not publish a prepared archive when only the workflow artifact claims preparation" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      prepare:
+        - bundle install
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_prepared_workspace!(locally: false)
+
+    handler.call
+
+    expect(workflow.source_snapshots.sole.prepared_workspace_archive).not_to be_attached
   end
 
   it "lets a retried prepare unblock the prepared-workspace archive that an earlier failed attempt had vetoed" do

@@ -32,6 +32,10 @@ Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
 view for dependency relationships.
+The Jobs list supports bulk lifecycle and ownership actions. During a bulk
+operation its selection toolbar becomes a progress indicator with completed
+and total Job counts and a cancel control, preventing another bulk action from
+starting against the same selection until the operation finishes or stops.
 For landed Jobs, Syrus can also record configured deployment stage progress
 from repository tags, such as staging, production, or public release. The
 Jobs dashboard has an optional Deployment column, hidden by default, that
@@ -201,6 +205,12 @@ saved commits onto that Job branch, then hand off with
 `complete_implement_step`. `submit_coding_changes` is for new chat-authored
 work; it refuses branches that already belong to a Syrus Job because accepting
 one would create a new Job rather than update the existing one.
+An explicit branch names the branch that worker-side capture must later find in
+the selected repository's chat checkout; confirmation-time capture rejects a
+missing checkout, a different active branch, a dirty tree, or no committed
+changes. Normal submissions wait for operator confirmation. When the active
+Chat Goal has automatic Job submission enabled, Syrus queues that confirmation
+immediately instead.
 
 Coding Mode chats also get a set of generic `runtime_*` tools for working
 with a live Runtime Session — a dev server, browser, or other running
@@ -638,7 +648,10 @@ it with the same immediate continuation. Editing an already-active goal does
 not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
-remain operator controls. If a chat turn crashes and Syrus schedules an
+remain operator controls. Completed- and blocked-goal tool results record the
+previous and new statuses, reason, structured details, and owning chat
+metadata; their chat cards link back to the conversation and render long
+reasons as expandable Markdown. If a chat turn crashes and Syrus schedules an
 automatic retry, the retry status pill keeps the countdown visible and also
 offers a manual retry control so an operator can start the retry immediately.
 Automatic and manual retries wake the transcript with a Retry system message
@@ -656,11 +669,13 @@ through Job workflow and Run history progressively, search Jobs in the
 attached repository, read stored Job diffs, list and create the operator's
 tags, attach or remove tags on Jobs, manage repository documents after
 confirmation, search prior chat messages for the same user, read
-paginated chat transcripts, inspect Solid Queue health, update the chat's
-pinned context for future turns, and create proposal cards for the operator
-to confirm. New chats use a short interpreted title from the first prompt,
-with the repository name as the fallback. The app sidebar groups recent chats
-by repository by default, with sidebar settings for grouping by date, status,
+paginated chat transcripts, inspect Solid Queue health, update or remove the
+chat's pinned context for future turns, and create proposal cards for the
+operator to confirm. Removing pinned context shows the previous note as a
+linked Markdown preview, with a full-content view for longer notes and clear
+pending or error states. New chats use a short interpreted title from the
+first prompt, with the repository name as the fallback. The app sidebar groups
+recent chats by repository by default, with sidebar settings for grouping by date, status,
 mode, chat type, or chat agent when those distinctions are available; each
 group can be collapsed when the operator wants to fold that section away.
 Rows show spinners for associated Jobs doing implementation work and fresh
@@ -728,6 +743,9 @@ Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript
 view that requires normal Syrus sign-in and does not expose compose controls,
 pending actions, or agent controls.
+Chat agents can also immediately withdraw an unconfirmed action they proposed
+in error. Withdrawal remains scoped to the current conversation and operator;
+grouped actions must still be rejected together from their group card.
 At the end of a turn, the chat agent can suggest the operator's likely next
 message; the suggestion appears as muted ghost text in the empty composer
 with an accept button. Tapping the button or pressing Tab fills the composer
@@ -754,6 +772,9 @@ screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
 screenshot; further discussion or markup happens in chat once it's attached.
+When the chat agent lists available media, its result card shows image
+thumbnails, labeled whiteboard snapshot tiles, links to each available source,
+and a full preview that remains usable on small screens.
 When chat speech-to-text is enabled, the composer microphone uses the best
 available dictation mode reported by the backend: an enabled and healthy
 speech-to-text provider such as the bundled `whisper_stt` plugin receives
@@ -762,11 +783,17 @@ Final text is committed once without disturbing text already in the composer.
 The browser retains the complete recording and automatically retries backend
 batch transcription if streaming fails; disabled or unavailable providers use
 the browser's built-in speech recognition where supported, with the same
-interim replacement behavior.
+interim replacement behavior. Empty or extremely short recordings are not
+uploaded. A final batch request is retried once only when the backend is
+unavailable or times out; input errors are not retried, and existing or
+progressive composer text remains intact when transcription fails.
 Once the current chat session has a pending or confirmed proposal, or a Job
 directly linked to it, a Jobs tab appears in the workspace panel. A "Proposed"
 section at the top lists this chat's own pending Job and Epic proposals, each
-linking back to the message where it was posted. Below that, confirmed
+linking back to the message where it was posted. Operators can select proposals
+individually or all at once, then send the selection to the backlog, start
+implementation, or reject it; Epic proposals can be implemented or rejected
+but cannot be routed to the backlog. Below that, confirmed
 proposals are grouped into their respective Epics (collapsible, with a
 done/total progress pill), with remaining standalone Jobs shown as a flat
 list. Each confirmed-Job card displays the Job state, the active workflow
@@ -784,6 +811,10 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
+Job proposal cards show the requested priority. A proposal can select urgent,
+high, medium, or low (medium by default), including a separate priority for
+each child in an Epic bundle. Confirmation applies it before work starts, so
+the first scheduling decision already observes the selected priority.
 Standalone direct Job proposal cards also show a route before confirmation:
 **Start normally** by default, or **Backlog** when the card is explicitly
 routed there. Operators can change that route on the single direct Job card.
@@ -852,17 +883,38 @@ current repository/user provider each time a new workflow is created, or choose
 a concrete enabled provider for later feedback, rebase, and retry workflows on
 that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
-why future work will use a provider before starting another workflow. Existing
-workflow pins are not rewritten.
-Dashboard and repository bulk retry choose a narrower recovery path first:
-resume a failed agentic step when possible, retry the failed step while its
-workspace remains available, retry or rebuild landing workflows for landing
-failures, and use a full implementation retry only as the fallback. Bulk retry
-responses include action and skipped-reason counts, including active Runs,
-already-current passing PRs, duplicate retry workflows, and open provider
-circuits. When a short synthesis step cannot resume the provider session,
-Syrus can retry it from durable Job, summary, and diff context instead of
-discarding the completed implementation.
+why future work will use a provider before starting another workflow. Rules can
+be enabled inline, duplicated, edited, deleted, and reordered without disabled
+rules losing their ordered position. Disabled rules remain visible but muted,
+are skipped during evaluation, and the first enabled matching rule wins. A rule
+can route to ordered provider candidates or hold work with a reason and manual,
+condition-based, or timed resumption policy. Job pages show active hold status
+and the next scheduled wake when applicable. A matching hold action
+stops first-match evaluation and leaves the workflow queued without launching a
+Run or treating the decision as provider failure. Holds are durable and retain
+their matched scope, reason, condition evidence, and resumption policy. They can
+resume when their conditions clear, at a configured time, or after an audited
+admin release or override; every wake evaluates the ordered routing rules again.
+Because routing admission happens before Run creation, a hold never interrupts
+an already-running provider process. Usage-based rules can match provider state
+or remaining-capacity thresholds, and fresh provider evidence wakes matching
+holds immediately rather than waiting for their safety timer.
+Existing workflow pins are not rewritten.
+Chat agents can inspect those same user, repository, and Job rule sets, explain
+the effective first-match decision, and prepare atomic rule changes for operator
+confirmation. Every change requires the latest rule-set revision, displays a
+before/after summary, and is rechecked when confirmed so a stale request cannot
+overwrite newer edits.
+Dashboard bulk retry acts only on the Jobs an operator explicitly selects. It
+can use each Job's configured provider or a provider chosen for that retry, and
+chooses a narrower recovery path first: resume a failed agentic step when
+possible, retry the failed step while its workspace remains available, retry
+or rebuild landing workflows for landing failures, and use a full
+implementation retry only as the fallback. Bulk retry responses include action
+and skipped-reason counts, including active Runs, already-current passing PRs,
+duplicate retry workflows, and open provider circuits. When a short synthesis
+step cannot resume the provider session, Syrus can retry it from durable Job,
+summary, and diff context instead of discarding the completed implementation.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.
@@ -890,6 +942,10 @@ describing it in prose. The attached media becomes a Job attachment the
 implementing agent sees automatically on the very next feedback round.
 When the chat agent lists available media, the transcript shows a compact
 thumbnail gallery with raw tool details still available for debugging.
+Read-only GitHub lookup results receive the same purpose-built treatment. The
+open-PR card shows the requested state and limit, links each PR and available
+head/base branch, includes creation and update times, and stacks its fields on
+small screens instead of forcing a wide horizontal table.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.
@@ -943,8 +999,10 @@ other chat's turn — useful for sharing context or coordinating work between
 chats running different repositories or different chat providers/models. A new
 thread can only be opened as a direct result of the operator's own message in
 the current chat, so an automated turn (a wakeup, a scheduled message, and so
-on) can never spontaneously start one on its own; once a thread is open, either
-side can reply until the exchange reaches a small hop cap, at which point
+on) can never spontaneously start one on its own. Confirming a grouped chat
+spawn is also explicit authorization: Syrus pre-opens a higher-hop coordination
+thread between the spawning chat and each chat it creates. Once a thread is
+open, either side can reply until the exchange reaches its hop cap, at which point
 Syrus auto-closes it and posts a visible notice to both chats. This is
 same-operator-only for now — a chat can only message another chat it owns.
 
@@ -1019,8 +1077,11 @@ owns, separate from pinned-message previews and pinned context notes.
 They can request up to ten new chat threads at once, each with an initial
 prompt and optional title, provider, and accessible repository. Syrus shows
 one confirmation for the whole batch and, after confirmation, reports the new
-`CHAT-<id>` values in the originating thread so the agent can coordinate them
-without manual setup.
+`CHAT-<id>` values and pre-opened bridge thread IDs in the originating thread.
+The spawning agent can immediately send follow-up instructions on those threads
+without duplicating each new chat's initial prompt or waiting for another
+operator message. Cross-chat threads allow 100 messages by default, while the
+`send_chat_message` tool can request a smaller positive cap when opening one.
 Workflow and chat MCP calls are also recorded as durable usage rows so the
 admin API can report top tools, unused advertised tools, error rates, and
 chat-versus-workflow usage over a time window without reparsing transcripts.
@@ -1128,17 +1189,26 @@ State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
-runs. When several related actions are proposed together as a batch, chat
-renders them as a single pending-action-group card instead of one card per
-action: the shared action name and target count, an expandable list of the
-affected targets, and one Confirm all/Reject all control. Confirming applies
+runs. Provider-admission wake requests show their provider, optional user
+scope, audit reason, and a preview of queued workflows and delayed automatic
+retries before confirmation. Those preview counts are returned as structured
+tool data as well as shown in the card; confirmation rechecks the normal
+provider and admission guards, so the preview is evidence rather than a
+guarantee that every item starts. When several related actions are proposed
+together as a batch, chat renders them as a single pending-action-group card
+instead of one card per action: the shared action name and target count, an
+expandable list of the affected targets, and one Confirm all/Reject all
+control. Confirming applies
 every target independently and shows which ones succeeded and which failed
 and why; rejecting discards the whole batch without applying any of it.
 Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
 results in 50-item pages, while the admin overview shows the first page and a
-total stuck count.
+total stuck count. The `admin_stuck_jobs` chat tool uses the same 50-item
+default, accepts bounded `page` and `per` inputs, and reports totals plus
+next/previous-page availability so large watchlists stay safe for the MCP
+transport.
 Admin queue filters can be saved as smart folders from the queue sidebar,
 then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders. The

@@ -237,6 +237,25 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message.content["text"]).to include("coding checkout not found")
   end
 
+  it "reports when the explicitly requested branch is not the active checkout branch" do
+    action = pending_action
+    allow(CodingHandoffCapture).to receive(:capture!).and_raise(
+      CodingHandoffCapture::CaptureError,
+      'coding checkout is on "main", expected "feature/my-work"'
+    )
+
+    expect {
+      described_class.perform_now(action.id)
+    }.to have_enqueued_job(ChatTurnJob)
+
+    expect(Job.count).to eq(0)
+    message = chat_session.messages.where(role: "system").order(:created_at).last
+    expect(message.content["text"]).to include(
+      "Coding handoff failed",
+      'coding checkout is on "main", expected "feature/my-work"'
+    )
+  end
+
   it "posts a failure message and enqueues ChatTurnJob when start_coding_handoff! is blocked" do
     action = pending_action
     Feature.find_by(slug: "coding_mode")&.update!(enabled: false)

@@ -236,6 +236,13 @@ if [ "$SKIP_BUILD" = false ]; then
   syrus_docker_prune_old_repo_tags "$SHA" "$REGISTRY" "$WORKER_DEV_REGISTRY" ${PLUGIN_REGISTRIES[@]+"${PLUGIN_REGISTRIES[@]}"}
   syrus_docker_prune_build_cache_since "$BUILD_STARTED_AT"
 else
+  # `verify_pushed` authenticates through the docker credential store, and the
+  # only login lives in the build branch above -- so --skip-build went straight
+  # to verification with no credentials and failed on every tag, including tags
+  # a previous run had definitely pushed.
+  echo "→ ${REGISTRY} login"
+  syrus_ghcr_login "$GHCR_USER" "$GHCR_TOKEN"
+
   echo "→ skipping build/push (--skip-build); verifying existing tags in registry"
   verify_pushed "${REGISTRY}"            "${SHA}"
   verify_pushed "${WORKER_DEV_REGISTRY}" "${SHA}"

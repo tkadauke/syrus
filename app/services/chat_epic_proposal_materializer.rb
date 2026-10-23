@@ -147,6 +147,7 @@ class ChatEpicProposalMaterializer
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       job_provider_setting: provider_setting,
+      priority: proposal.priority,
       planned_execution_project_label: proposal.planned_execution_project_label,
       planned_execution_target_label: proposal.planned_execution_target_label,
       planned_execution_capabilities: proposal.planned_execution_capabilities,

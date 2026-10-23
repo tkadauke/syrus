@@ -54,5 +54,14 @@
   "entity_user": "User",
   "entity_repository": "Repository",
   "scope_range": "{{scope}} / {{start}} to {{end}}",
-  "scope_all_users": "All users"
+  "scope_all_users": "All users",
+  "tool_total_cost": "Total cost",
+  "tool_input_tokens": "Input tokens",
+  "tool_output_tokens": "Output tokens",
+  "tool_daily_spend": "Daily spend",
+  "tool_day_cost": "{{date}}: {{cost}}",
+  "tool_top_runs": "Top runs",
+  "tool_repository": "Repository #{{id}}",
+  "tool_no_spend": "No spend in window.",
+  "tool_invalid_window": "Window must be one of 7d, 30d, 90d."
 }

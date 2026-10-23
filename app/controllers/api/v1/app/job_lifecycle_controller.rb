@@ -90,8 +90,34 @@ module Api
             return
           end
 
-          job.accept_triage!
+          if job.triaging_reason_placement_confirmation?
+            decision = params[:placement_decision].to_s
+            unless %w[suggested linux].include?(decision)
+              render_error("validation_failed", lifecycle_t("placement_decision_required"), status: :unprocessable_content)
+              return
+            end
+            job.accept_placement_confirmation!(decision)
+          else
+            job.accept_triage!
+          end
           render_job(job.reload, message: lifecycle_t("accepted"), changed: [ "state", "runs" ])
+        end
+
+        def override_planned_execution
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          PlannedExecutionOverrides::Operation.new(
+            job: job,
+            profile: params[:profile],
+            actor: current_user,
+            reason: params[:reason],
+            provenance: "job_ui",
+            expected_revision: params[:entity_revision]
+          ).apply!
+          render_job(job.reload, message: "Planned execution placement updated.", changed: [ "planned_execution", "workflows", "runs" ])
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         # And reject means "no". Closed as `cancelled` rather than one of the

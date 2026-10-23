@@ -81,8 +81,9 @@ RSpec.describe "queue partitioning" do
     # split on whitespace, since a queue name never contains a space and a
     # space-joined string is itself the bug this spec guards against.
     tokens = workers.flat_map { |w| Array(w["queues"]).map(&:to_s) }
-    resume, regular = tokens.partition { |q| q.start_with?("resume-") }
-    { resume: resume, regular: regular }
+    targeted, regular = tokens.partition { |q| q.start_with?("resume-", "worker-") }
+    resume, dispatch = targeted.partition { |q| q.start_with?("resume-") }
+    { resume: resume, dispatch: dispatch, regular: regular }
   end
 
   it "declares every multi-queue worker as a YAML array, not a space/comma-joined string" do
@@ -203,5 +204,14 @@ RSpec.describe "queue partitioning" do
       expect(resume).to eq([ expected ]),
         "#{config} must consume exactly its own resume queue, got #{resume.inspect}"
     end
+  end
+
+  it "gives run workers a hostname-specific dispatch queue" do
+    expected = WorkerStorageIdentity.dispatch_queue_name
+    expect(expected).to start_with("worker-")
+
+    expect(queues_for("config/queue.yml")[:dispatch].uniq).to eq([ expected ])
+    expect(queues_for("config/queue.compute.yml")[:dispatch].uniq).to eq([ expected ])
+    expect(queues_for("config/queue.home.yml")[:dispatch]).to be_empty
   end
 end

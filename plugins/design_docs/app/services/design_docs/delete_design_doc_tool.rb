@@ -55,6 +55,7 @@ module DesignDocs
           state: pending_action.state,
           message: "Archive #{design_doc.display_id}?",
           doc_ref: design_doc.display_id,
+          design_doc_id: design_doc.id,
           title: design_doc.title,
           confirmation_required: true,
           confirmation_reason: confirmation_reason(design_doc)

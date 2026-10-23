@@ -393,6 +393,21 @@ RSpec.describe "Docker image scripts" do
     expect(worker_section).not_to include("privileged")
   end
 
+  # verify_pushed authenticates through the docker credential store, so a
+  # --skip-build run that never logs in fails on every tag -- including tags an
+  # earlier run definitely pushed -- and reports them as missing from GHCR.
+  it "logs into the registry on the --skip-build path before verifying tags" do
+    marker = deploy.index("skipping build/push (--skip-build)")
+    expect(marker).not_to be_nil
+
+    branch_start = deploy.rindex("\nelse\n", marker)
+    branch_end = deploy.index("\nfi\n", marker)
+    skip_block = deploy[branch_start...branch_end]
+
+    expect(skip_block).to include('syrus_ghcr_login "$GHCR_USER" "$GHCR_TOKEN"')
+    expect(skip_block.index("syrus_ghcr_login")).to be < skip_block.index('verify_pushed "${REGISTRY}"')
+  end
+
   it "tracks suspended rollout controls so failures resume them" do
     expect(deploy).to include("trap cleanup_rollout_controls EXIT")
     expect(deploy).to include('ACTIVE_FLUX_KUBECONFIG="$kubeconfig"')

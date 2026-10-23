@@ -136,7 +136,6 @@ en:
       archived_first: "%{slug} is archived — unarchive it first."
       archived: "%{slug} archived."
       unarchived: "%{slug} unarchived. Re-enable polling to start ingestion again."
-      no_failed_jobs: "No failed jobs to retry."
       developer_required: "Developer or admin access required."
       not_triage: "Job is not waiting for triage release."
       polling: "Polling %{slug} now."
@@ -144,11 +143,6 @@ en:
       repository_landing_resumed: "Work resumed for %{slug}."
       no_github_token: "No GitHub token configured — add one in Settings."
       github_error: "GitHub error: %{error}"
-      circuit_open: "%{label} appears degraded; automatic retries are paused."
-      circuit_open_until: "%{label} appears degraded until %{until}; automatic retries are paused."
-      retry_enqueued:
-        one: "Retry enqueued for 1 failed job with %{provider}."
-        other: "Retry enqueued for %{count} failed jobs with %{provider}."
       bulk_delegated:
         one: "1 issue delegated to Syrus."
         other: "%{count} issues delegated to Syrus."
@@ -283,6 +277,7 @@ en:
       no_preview_configured: "No preview is configured for this repository."
 
     speech_to_text:
+      audio_too_small: "The recording is too short to transcribe."
       backend_batch_unavailable: "Backend batch transcription is not configured."
       backend_streaming_unavailable: "Backend streaming transcription is not configured."
       missing_file: "Attach an audio file."
@@ -342,6 +337,7 @@ en:
       moved_to_backlog: "Job moved to backlog."
       not_awaiting_triage: "%{slug} is not awaiting triage."
       accepted: "Job accepted."
+      placement_decision_required: "Choose the suggested placement or Linux before accepting this Job."
       rejected: "Job rejected."
       retry_enqueued: "Retry workflow enqueued."
       retry_enqueued_with_provider: "Retry workflow enqueued with %{provider}."

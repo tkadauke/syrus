@@ -60,12 +60,14 @@ RSpec.describe "Mcp::Tools PR classification tools" do
         pr(number: 20, title: "Add widget", author: "alice")
       )
 
+      response = nil
       expect {
-        described_class.call(pr_number: 20, server_context: chat_context)
+        response = described_class.call(pr_number: 20, server_context: chat_context)
       }.to change(Job, :count).by(1)
 
       job = Job.find_by!(repository: repository, external_pr_number: 20)
       expect(job.kind).to eq("external_pr")
+      expect(payload(response)[:pr_url]).to eq("https://github.com/acme/widgets/pull/20")
     end
 
     it "returns the existing job idempotently when already ingested and no override is given" do
@@ -76,6 +78,7 @@ RSpec.describe "Mcp::Tools PR classification tools" do
       expect(response).not_to be_error
       body = payload(response)
       expect(body[:already_ingested]).to be(true)
+      expect(body[:pr_url]).to eq("https://github.com/acme/widgets/pull/30")
       expect(body.dig(:job, :id)).to eq(existing.id)
     end
 

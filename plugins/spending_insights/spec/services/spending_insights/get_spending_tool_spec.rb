@@ -76,7 +76,7 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
       body = payload(response)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(total_cost_usd: 9.25, total_input_tokens: 100, total_output_tokens: 20)
+      expect(body).to include(total_cost_usd: 1.25, total_input_tokens: 100, total_output_tokens: 20)
       expect(body[:top_runs]).to contain_exactly(job_id: mine.id, title: "Mine", cost_usd: 1.25)
       expect(body[:by_day].size).to eq(7)
       expect(body[:by_day].select { |point| point[:cost_usd].positive? }).to eq([
@@ -84,7 +84,7 @@ RSpec.describe "SpendingInsights::GetSpendingTool" do
       ])
 
       all_repositories_body = payload(call_tool("get_spending", window: "7d"))
-      expect(all_repositories_body[:total_cost_usd]).to eq(12.5)
+      expect(all_repositories_body[:total_cost_usd]).to eq(3.75)
     end
   end
 

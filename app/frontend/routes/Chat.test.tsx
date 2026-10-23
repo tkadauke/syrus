@@ -27,17 +27,22 @@ import { __resetInFlightComposerDraftsForTests } from "./chat/inFlightComposerDr
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../lib/slugReferenceRegistry"
 import type { ChatPayload } from "../api/chats"
 
-const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
+const actionCableSubscriptions: Array<{
+  params: Record<string, string | number>
+  mixin: { connected?: () => void; received: (data: unknown) => void }
+  perform: ReturnType<typeof vi.fn>
+  unsubscribe: ReturnType<typeof vi.fn>
+}> = []
+const dictationBatchRequests: FakeDictationXMLHttpRequest[] = []
 
 vi.mock("@rails/actioncable", () => ({
   createConsumer: () => ({
     subscriptions: {
       create: (params: Record<string, string | number>, mixin: { connected?: () => void; received: (data: unknown) => void }) => {
-        actionCableSubscriptions.push({ params, mixin })
-        return {
-          perform: vi.fn(),
-          unsubscribe: vi.fn()
-        }
+        const perform = vi.fn()
+        const unsubscribe = vi.fn()
+        actionCableSubscriptions.push({ params, mixin, perform, unsubscribe })
+        return { perform, unsubscribe }
       }
     }
   })
@@ -70,10 +75,12 @@ beforeEach(() => {
 
 afterEach(() => {
   actionCableSubscriptions.length = 0
+  dictationBatchRequests.length = 0
   setSlugReferenceRegistryForTests(null)
   vi.unstubAllGlobals()
   __resetDraftAttachmentsForTests()
   __resetInFlightComposerDraftsForTests()
+  window.history.replaceState({}, "", "/")
 })
 
 describe("activeChatRefetchInterval", () => {
@@ -631,6 +638,24 @@ describe("ChatWorkspace panel collapse", () => {
     expect(screen.queryByRole("button", { name: "Open workspace panel" })).not.toBeInTheDocument()
   })
 
+  it("opens the Media workspace for an anchored walkthrough despite a saved collapsed preference", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
+    window.history.replaceState({}, "", "/chats/8#walkthrough-42")
+    mockChatRouteFetch(
+      chatPayload({}, {
+        video_walkthroughs: [
+          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        ]
+      })
+    )
+
+    renderRoute()
+
+    expect(await screen.findByRole("complementary", { name: "Chat workspace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Media" })).toHaveClass("text-brand")
+    expect(screen.getByText("Checkout walkthrough").closest("article")).toHaveAttribute("id", "walkthrough-42")
+  })
+
   it("collapses the panel when in-app navigation opens an unstarted chat", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     const firstChat = chatPayload()
@@ -732,6 +757,26 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(within(tabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
   })
 
+  it("opens the mobile Media tab for an anchored walkthrough", async () => {
+    mockMobileViewport()
+    window.history.replaceState({}, "", "/chats/8#walkthrough-42")
+    mockChatRouteFetch(
+      chatPayload({}, {
+        video_walkthroughs: [
+          { id: 42, title: "Checkout walkthrough", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        ]
+      })
+    )
+
+    renderRoute()
+
+    const tabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    expect(within(tabs).getByRole("button", { name: "Media" })).toHaveClass("text-brand")
+    expect(screen.getByTestId("mobile-workspace-panel-shell")).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+    expect(screen.getByText("Checkout walkthrough").closest("article")).toHaveAttribute("id", "walkthrough-42")
+  })
+
   it("shows the mobile tab strip for an established paginated chat whose loaded tail is empty", async () => {
     mockMobileViewport()
     mockChatRouteFetch(chatPayload({ messages: [] }, { has_more_older: true }))
@@ -821,6 +866,26 @@ describe("ChatWorkspace split breakpoint", () => {
     expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
   })
 
+  it("opens the Media workspace from a chat deep link on mobile", async () => {
+    mockMobileViewport()
+    const payload = chatPayload({ chat: { typed_artifact_count: 1 } })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({ snapshots: [], chat_images: [], typed_artifacts: [], whiteboard_has_unsaved_content: false }))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute("/app-shell/chats/8?workspace=media")
+
+    const mobileTabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+    await waitFor(() => expect(within(mobileTabs).getByRole("button", { name: "Media" })).toHaveClass("text-brand"))
+    expect(screen.getByTestId("mobile-workspace-panel-shell")).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
+  })
+
   it("keeps non-chat mobile workspace tabs below the app header and tab chrome", async () => {
     mockMobileViewport()
     mockChatRouteFetch()
@@ -857,6 +922,15 @@ describe("ChatWorkspace split breakpoint", () => {
     const unavailableShell = screen.getByTestId("unavailable-chat-shell")
     expect(unavailableShell).toHaveStyle({ paddingTop: "calc(var(--mobile-chat-app-header-height,0px) + 44px + 0.75rem)" })
     expect(screen.queryByTestId("mobile-chat-route-shell")).not.toBeInTheDocument()
+  })
+
+  it("names the effective non-Claude provider in the unavailable-chat notice", async () => {
+    mockChatRouteFetch(chatPayload({}, { chat_available: false, chat_provider_display_name: "Codex" }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Codex credentials are required.")).toBeInTheDocument()
+    expect(screen.getByText(/Chat uses Codex/)).toBeInTheDocument()
   })
 })
 
@@ -1736,6 +1810,207 @@ describe("chat composer dictation", () => {
     })
 
     await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
+    expect(dictationBatchRequests).toHaveLength(1)
+    const calls = dictationSubscription()?.perform.mock.calls || []
+    expect(calls.filter(([, payload]) => payload?.type === "stop")).toHaveLength(0)
+  })
+
+  it("preserves progressive text when stream finalization and batch fallback fail", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ streaming: true, batch: true }), { batchError: true })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Keep" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
+    await act(async () => {
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "transcript_delta", text: "partial words", final: false })
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
+    })
+
+    expect(await screen.findByText("model unavailable")).toBeInTheDocument()
+    expect(textarea).toHaveValue("Keep partial words")
+    expect(dictationBatchRequests).toHaveLength(1)
+  })
+
+  it("does not abort an in-flight batch fallback when the stream tears down", async () => {
+    const requests: ControlledDictationXMLHttpRequest[] = []
+    class ControlledDictationXMLHttpRequest {
+      responseType = ""
+      response: unknown = null
+      status = 0
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onabort: (() => void) | null = null
+      aborted = false
+      constructor() {
+        requests.push(this)
+      }
+      open() {}
+      setRequestHeader() {}
+      send() {}
+      abort() {
+        this.aborted = true
+        this.onabort?.()
+      }
+      respond(text: string) {
+        this.status = 200
+        this.response = { transcript: { text, source: "backend_batch", confidence: null } }
+        this.onload?.()
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", ControlledDictationXMLHttpRequest)
+    installMediaRecorderMock()
+    mockAudioPermission()
+    const payload = chatPayloadWithDictation({ streaming: true, batch: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          stream: { transport: "action_cable", channel: "ChatDictationChannel", chat_session_id: 8, events: [] }
+        }))
+      }
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(jsonResponse(payload))
+    })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await waitFor(() => expect(dictationSubscription()).toBeDefined())
+    await act(async () => {
+      dictationSubscription()?.mixin.connected?.()
+      dictationSubscription()?.mixin.received({ type: "error", message: "stream unavailable" })
+    })
+    await waitFor(() => expect(requests).toHaveLength(1))
+
+    await act(async () => dictationSubscription()?.mixin.received({ type: "done" }))
+    expect(requests[0].aborted).toBe(false)
+    await act(async () => requests[0].respond("fallback survived teardown"))
+
+    expect(textarea).toHaveValue("fallback survived teardown")
+    expect(requests).toHaveLength(1)
+  })
+
+  it("waits for the terminal recorder chunk before final batch transcription", async () => {
+    class TerminalChunkMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        window.setTimeout(() => {
+          this.ondataavailable?.({ data: new Blob(["a".repeat(512)], { type: "audio/webm" }) } as BlobEvent)
+          this.onstop?.()
+        }, 0)
+      }
+    }
+    vi.stubGlobal("MediaRecorder", TerminalChunkMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }), { batchText: "terminal chunk text" })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+
+    await waitFor(() => expect(textarea).toHaveValue("terminal chunk text"))
+  })
+
+  it("does not upload a rapid-stop recording and preserves composer text", async () => {
+    class TinyMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        this.ondataavailable?.({ data: new Blob(["tiny"], { type: "audio/webm" }) } as BlobEvent)
+        this.onstop?.()
+      }
+    }
+    vi.stubGlobal("MediaRecorder", TinyMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Keep this" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+
+    expect(await screen.findByText("No speech detected.")).toBeInTheDocument()
+    expect(textarea).toHaveValue("Keep this")
+    expect(dictationBatchRequests).toHaveLength(0)
+  })
+
+  it("handles repeated short, long, and rapid-stop cycles without duplicate uploads", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }), { batchText: "dictated" })
+    const now = vi.spyOn(Date, "now")
+    now.mockReturnValue(1_000)
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    const shortStop = await screen.findByRole("button", { name: "Stop dictation" })
+    now.mockReturnValue(3_000)
+    fireEvent.click(shortStop)
+    await screen.findByRole("button", { name: "Start dictation" })
+
+    now.mockReturnValue(10_000)
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    const longStop = await screen.findByRole("button", { name: "Stop dictation" })
+    now.mockReturnValue(21_000)
+    fireEvent.click(longStop)
+    await waitFor(() => expect(dictationBatchRequests).toHaveLength(2))
+
+    const longForm = dictationBatchRequests[1].body as FormData
+    expect(longForm.get("duration_seconds")).toBe("11")
+
+    class RapidStopMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+      state: "inactive" | "recording" = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+      start() {
+        this.state = "recording"
+      }
+      stop() {
+        this.state = "inactive"
+        this.ondataavailable?.({ data: new Blob(["tiny"], { type: "audio/webm" }) } as BlobEvent)
+        this.onstop?.()
+      }
+    }
+    vi.stubGlobal("MediaRecorder", RapidStopMediaRecorder)
+    fireEvent.click(await screen.findByRole("button", { name: "Start dictation" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Stop dictation" }))
+    await screen.findByText("No speech detected.")
+
+    expect(dictationBatchRequests).toHaveLength(2)
+    expect(screen.queryByText("Dictation failed.")).not.toBeInTheDocument()
   })
 
   it("keeps browser speech recognition active after backend batch transcription fails", async () => {
@@ -7373,10 +7648,10 @@ describe("group chat participants and composer hint", () => {
   })
 })
 
-function renderRoute() {
+function renderRoute(initialEntry = "/app-shell/chats/8") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
         </Routes>
@@ -7609,6 +7884,7 @@ class FakeDictationXMLHttpRequest {
   response: unknown = null
   status = 0
   headers: Record<string, string> = {}
+  body: XMLHttpRequestBodyInit | null = null
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
@@ -7627,7 +7903,8 @@ class FakeDictationXMLHttpRequest {
     this.headers[name] = value
   }
 
-  send(_body: XMLHttpRequestBodyInit | null) {
+  send(body: XMLHttpRequestBodyInit | null) {
+    this.body = body
     this.status = this.batchError ? 502 : 200
     this.response = this.batchError
       ? { error: { code: "speech_to_text_transcription_failed", message: "model unavailable" } }
@@ -7650,6 +7927,7 @@ function fakeDictationXMLHttpRequestClass(transcriptText: string, batchError = f
   return class extends FakeDictationXMLHttpRequest {
     constructor() {
       super(transcriptText, batchError)
+      dictationBatchRequests.push(this)
     }
   }
 }
@@ -7716,7 +7994,7 @@ function installMediaRecorderMock() {
 
     stop() {
       this.state = "inactive"
-      this.ondataavailable?.({ data: new Blob(["audio"], { type: "audio/webm" }) } as BlobEvent)
+      this.ondataavailable?.({ data: new Blob(["a".repeat(512)], { type: "audio/webm" }) } as BlobEvent)
       this.onstop?.()
     }
   }
@@ -7983,6 +8261,7 @@ function chatPayload(
       ...overrides.chat
     },
     chat_available: true,
+    chat_provider_display_name: "Claude",
     turn_in_flight: false,
     agent_busy: false,
     switching_provider: false,

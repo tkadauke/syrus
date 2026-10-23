@@ -1,5 +1,7 @@
 module PendingActions
   class Base
+    DEFERRED_CONFIRMATION = Object.new.freeze
+
     def self.admin_only!
       @admin_only = true
     end
@@ -84,6 +86,12 @@ module PendingActions
     def execution_label
       "Running #{self.class.action_key.to_s.humanize(capitalize: false)}..."
     end
+
+    def deferred_confirmation
+      DEFERRED_CONFIRMATION
+    end
+
+    def group_confirmation_strategy = "independent"
 
     def repair_action?
       false

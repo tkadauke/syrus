@@ -36,11 +36,18 @@ class VisualReviewEvidenceGuard
   }ix
   AUTH_TEXT_PATTERN = /\b(auth(?:entication)? required|log in|login|sign in|signin|session expired)\b/i
   ERROR_TEXT_PATTERN = /\b(application error|forbidden|internal server error|not found|page not found|unauthorized)\b/i
+  CREDENTIALS_TEXT_PATTERN = /\bcredentials?\s+(?:are\s+required|(?:is|are|will be)\s+needed|need(?:s|ed)?)\b/i
+  ENVIRONMENT_CONTEXT_PATTERN = /\b(?:auth(?:entication)?|credentials?|environment|infrastructure|preview|seed data|session|tooling)\b/i
+  BLOCKER_PATTERN = /\b(?:block(?:ed|er)?|cannot|can't|could not|failed|missing|need(?:ed|s)?|require[ds]?|unavailable|unreachable)\b/i
   ROUTE_PATTERN = /(?<![A-Za-z0-9_])\/[A-Za-z0-9][A-Za-z0-9_\-.\/]*/
   FILE_EXTENSION_PATTERN = /\.(?:css|erb|gif|html|jpe?g|js|jsx|json|md|png|rb|scss|ts|tsx|txt|ya?ml)\z/i
 
   def self.validate_visual_diff_after_artifacts(job:, artifacts:, prompt: nil)
     new(job: job, prompt: prompt, artifacts: artifacts).validate_visual_diff_after_artifacts
+  end
+
+  def self.blocked_evidence_reason(job:, artifacts:, verdict:, critique:, prompt: nil)
+    new(job: job, prompt: prompt, artifacts: artifacts).blocked_evidence_reason(verdict: verdict, critique: critique)
   end
 
   def initialize(job:, artifacts:, prompt: nil)
@@ -67,6 +74,13 @@ class VisualReviewEvidenceGuard
     VisualDiffResult.new(accepted_artifacts: accepted, rejected_artifacts: rejected)
   end
 
+  def blocked_evidence_reason(verdict:, critique:)
+    return "every captured screenshot shows an authentication, credentials, or error wall" if @artifacts.any? && @artifacts.all? { |artifact| wall_artifact?(artifact) }
+    if verdict == "skipped" && critique.to_s.match?(ENVIRONMENT_CONTEXT_PATTERN) && critique.to_s.match?(BLOCKER_PATTERN)
+      "the review was skipped because the preview environment was blocked"
+    end
+  end
+
   private
 
   def wall_artifact?(artifact)
@@ -84,7 +98,7 @@ class VisualReviewEvidenceGuard
     return true if normalized_path.match?(AUTH_PATH_PATTERN) || normalized_path.match?(ERROR_PATH_PATTERN)
 
     [ title, text ].compact_blank.any? do |value|
-      value.to_s.match?(AUTH_TEXT_PATTERN) || value.to_s.match?(ERROR_TEXT_PATTERN)
+      value.to_s.match?(AUTH_TEXT_PATTERN) || value.to_s.match?(ERROR_TEXT_PATTERN) || value.to_s.match?(CREDENTIALS_TEXT_PATTERN)
     end
   end
 

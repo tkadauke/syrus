@@ -462,7 +462,8 @@ module WorkEngine
           ).tap do |step|
             step_keys[step_config["key"].to_s] = step if step_config["key"].present?
             step.update_columns(created_at: parse_optional_time(step_config["created_at"])) if step_config["created_at"].present?
-            create_run!(job, workflow, step, step_config["run"]) if step_config["run"]
+            run_configs = step_config.key?("runs") ? Array(step_config["runs"]) : [step_config["run"]].compact
+            run_configs.each { |run_config| create_run!(job, workflow, step, run_config) }
           end
         end
         steps.each_cons(2) do |step, next_step|

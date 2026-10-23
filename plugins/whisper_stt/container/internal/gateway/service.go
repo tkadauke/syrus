@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -77,7 +79,12 @@ func NewService(config Config) *Service {
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Log only method/status-independent routing metadata; bodies, audio, and transcript text never enter logs.
-	log.Printf("whisper gateway: %s %s", r.Method, routeName(r.URL.Path))
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = newID()
+	}
+	w.Header().Set("X-Request-ID", requestID)
+	log.Printf("whisper gateway ingress: request_id=%s method=%s route=%s", requestID, r.Method, routeName(r.URL.Path))
 	defer func() {
 		if recover() != nil {
 			writeError(w, protocolError{500, "internal server error"})
@@ -144,24 +151,99 @@ func (s *Service) proxy(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return protocolError{400, "invalid request"}
 	}
+	if len(body) > MaxBytes+64*1024 {
+		return protocolError{413, "invalid inference request size"}
+	}
+	if err := validateInferenceAudio(body, r.Header.Get("Content-Type")); err != nil {
+		return err
+	}
 	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, s.config.Upstream+"/inference", bytes.NewReader(body))
 	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
+	req.Header.Set("X-Request-ID", w.Header().Get("X-Request-ID"))
+	log.Printf("whisper gateway upstream: request_id=%s method=POST route=/inference", w.Header().Get("X-Request-ID"))
 	response, err := s.client.Do(req)
 	if err != nil {
-		return protocolError{502, "transcription backend failed"}
+		return upstreamError(err)
 	}
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		return protocolError{502, "transcription backend failed"}
+		return protocolError{503, "transcription backend unavailable"}
 	}
 	if response.StatusCode >= 400 {
-		return protocolError{response.StatusCode, "transcription backend failed"}
+		if response.StatusCode == http.StatusGatewayTimeout {
+			return protocolError{504, "transcription backend timed out"}
+		}
+		if response.StatusCode >= 500 {
+			return protocolError{503, "transcription backend unavailable"}
+		}
+		return protocolError{response.StatusCode, "transcription request rejected"}
 	}
 	w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
 	w.WriteHeader(response.StatusCode)
 	_, _ = w.Write(responseBody)
 	return nil
+}
+
+const minInferenceAudioBytes = 256
+
+var inferenceAudioTypes = map[string]func([]byte) bool{
+	"audio/webm":  func(value []byte) bool { return hasPrefix(value, []byte{0x1a, 0x45, 0xdf, 0xa3}) },
+	"audio/ogg":   func(value []byte) bool { return hasPrefix(value, []byte("OggS")) },
+	"audio/wav":   isWAV,
+	"audio/x-wav": isWAV,
+	"audio/mpeg": func(value []byte) bool {
+		return hasPrefix(value, []byte("ID3")) || (len(value) >= 2 && value[0] == 0xff && value[1]&0xe0 == 0xe0)
+	},
+	"audio/mp4": func(value []byte) bool { return len(value) >= 8 && string(value[4:8]) == "ftyp" },
+}
+
+func validateInferenceAudio(body []byte, contentType string) error {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return protocolError{400, "invalid multipart request"}
+	}
+	reader := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+	for {
+		part, partErr := reader.NextPart()
+		if partErr == io.EOF {
+			break
+		}
+		if partErr != nil {
+			return protocolError{400, "invalid multipart request"}
+		}
+		if part.FormName() != "file" {
+			continue
+		}
+		audio, readErr := io.ReadAll(io.LimitReader(part, MaxBytes+1))
+		if readErr != nil {
+			return protocolError{400, "invalid audio upload"}
+		}
+		if len(audio) < minInferenceAudioBytes {
+			return protocolError{422, "audio upload is too small"}
+		}
+		if len(audio) > MaxBytes {
+			return protocolError{413, "audio upload is too large"}
+		}
+		partType := strings.ToLower(strings.TrimSpace(strings.Split(part.Header.Get("Content-Type"), ";")[0]))
+		valid, supported := inferenceAudioTypes[partType]
+		if !supported {
+			return protocolError{415, "unsupported audio content type"}
+		}
+		if !valid(audio) {
+			return protocolError{422, "invalid or truncated audio"}
+		}
+		return nil
+	}
+	return protocolError{422, "audio file is missing"}
+}
+
+func hasPrefix(value, prefix []byte) bool {
+	return len(value) >= len(prefix) && bytes.Equal(value[:len(prefix)], prefix)
+}
+
+func isWAV(value []byte) bool {
+	return len(value) >= 12 && string(value[:4]) == "RIFF" && string(value[8:12]) == "WAVE"
 }
 
 func (s *Service) create(w http.ResponseWriter, r *http.Request) error {
@@ -316,11 +398,14 @@ func (u *upstreamTranscriber) Transcribe(ctx context.Context, session *session, 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	response, err := u.service.client.Do(req)
 	if err != nil {
-		return "", protocolError{502, "transcription backend failed"}
+		return "", upstreamError(err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return "", protocolError{502, "transcription backend failed"}
+		if response.StatusCode == http.StatusGatewayTimeout {
+			return "", protocolError{504, "transcription backend timed out"}
+		}
+		return "", protocolError{503, "transcription backend unavailable"}
 	}
 	var payload struct {
 		Text string `json:"text"`
@@ -329,6 +414,16 @@ func (u *upstreamTranscriber) Transcribe(ctx context.Context, session *session, 
 		return "", protocolError{502, "transcription backend failed"}
 	}
 	return strings.TrimSpace(payload.Text), nil
+}
+
+func upstreamError(err error) protocolError {
+	if err == context.DeadlineExceeded {
+		return protocolError{504, "transcription backend timed out"}
+	}
+	if value, ok := err.(net.Error); ok && value.Timeout() {
+		return protocolError{504, "transcription backend timed out"}
+	}
+	return protocolError{503, "transcription backend unavailable"}
 }
 func wavBytes(pcm []byte) []byte {
 	result := make([]byte, 44+len(pcm))

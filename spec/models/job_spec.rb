@@ -769,6 +769,50 @@ RSpec.describe Job, :ci_only do
       expect(job).not_to be_active_runtime_work
     end
 
+    it "atomically retires a zero-run coding handoff and cannot be revived by its delayed admission callback" do
+      job = Factories.job_record(state: "implemented", branch_name: "syrus/direct-zero-run-handoff")
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "coding_handoff",
+        job: job,
+        idempotency_key: "zero-run-coding-handoff"
+      )
+      unit = workflow.work_unit
+      intent = unit.work_intent
+      step = workflow.steps.order(:position).first
+
+      expect(workflow.runs).to be_empty
+      expect(unit.work_unit_locks.active).to exist
+
+      job.cancel_active_runs_and_close!("cancelled")
+      WorkflowPhaseAdmissionJob.perform_now(workflow.id, step.id)
+
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "cancelled")
+      expect(workflow.reload).to be_cancelled
+      expect(workflow.runs).to be_empty
+      expect(unit.reload).to have_attributes(state: "cancelled", preemption_reason: "operator_cancelled")
+      expect(intent.reload).to be_cancelled
+      expect(unit.work_unit_locks.active).to be_empty
+      expect(job).not_to be_active_runtime_work
+    end
+
+    it "rolls runtime cancellation back when closing the Job fails" do
+      job = Factories.job_record(state: "running")
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "coding_handoff",
+        job: job,
+        idempotency_key: "atomic-cancellation-rollback"
+      )
+      unit = workflow.work_unit
+
+      allow(job).to receive(:close_with_reason!).and_raise("close failed")
+
+      expect { job.cancel_active_runs_and_close!("cancelled") }.to raise_error("close failed")
+      expect(workflow.reload).to be_queued
+      expect(unit.reload).to be_queued
+      expect(unit.work_intent.reload).to be_requested
+      expect(unit.work_unit_locks.active).to exist
+    end
+
     it "finishes stale job-scoped WorkUnits when the job closes normally" do
       job = Factories.job_record(state: "landing")
       workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "succeeded", finished_at: 1.minute.ago)

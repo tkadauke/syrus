@@ -40,6 +40,7 @@ module K8sCluster
         hosts: rules.filter_map { |rule| rule["host"] },
         rules: rules.map { |rule| rule_summary(rule) },
         tls_hosts: (item.dig("spec", "tls") || []).flat_map { |tls| tls["hosts"] || [] }.uniq,
+        load_balancer_addresses: (item.dig("status", "loadBalancer", "ingress") || []).filter_map { |address| address["ip"] || address["hostname"] }.uniq,
         created_at: item.dig("metadata", "creationTimestamp")
       }
     end

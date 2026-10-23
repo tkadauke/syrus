@@ -1,8 +1,8 @@
 module EmergencyLand
-  # Lands a Coding Mode chat's already-pushed branch immediately, bypassing
+  # Lands an eligible Job's already-pushed branch immediately, bypassing
   # Syrus's own grader/adversarial-review/visual-review pipeline. Opens the
   # PR the normal way (PullRequestOpener) if one doesn't exist yet for the
-  # chat's coding-mode branch, then merges it through GitHub's merge API the
+  # recorded Job branch, then merges it through GitHub's merge API the
   # same way Steps::AutoMerge does. Never pushes directly to the default
   # branch and never runs a grader or review step -- it only skips Syrus's
   # own gates, not GitHub's (a real merge conflict still refuses).
@@ -27,7 +27,10 @@ module EmergencyLand
 
     FEATURE_DISABLED_MESSAGE = "Emergency land is not enabled on this instance.".freeze
     PERMISSION_DENIED_MESSAGE = "Emergency land requires repository admin permissions.".freeze
-    NOT_CODING_MODE_MESSAGE = "Emergency land is only available for a Job actively linked to a Coding Mode chat.".freeze
+    ELIGIBLE_STATES = %w[queued implemented approved failed coding].freeze
+    SKIPPED_CONTROLS = %w[graders adversarial_review visual_review admission_control normal_worker_queue].freeze
+
+    def self.eligible_state?(job) = job.state.in?(ELIGIBLE_STATES)
 
     def self.land(job:, user:, client: nil)
       new(job: job, user: user, client: client).land
@@ -43,19 +46,31 @@ module EmergencyLand
     def land
       return refuse(FEATURE_DISABLED_MESSAGE) unless Feature.emergency_land_enabled?
       return refuse(PERMISSION_DENIED_MESSAGE) unless Permission.granted?(user: user, repository: repository)
-      return refuse(NOT_CODING_MODE_MESSAGE) unless coding_mode_job?
+      return refuse("#{job.slug} is not in an emergency-land eligible state (current: #{job.state}).") unless self.class.eligible_state?(job)
+      return refuse("#{job.slug} has active runtime work; cancel or finish it before emergency landing.") unless runtime_retirable?
+      return refuse("#{job.slug} has unsatisfied dependencies.") unless job.dependencies_satisfied?
+      return refuse("Branch #{job.branch_name} belongs to more than one open Job; select an unambiguous branch.") if ambiguous_branch?
       return refuse(no_commits_message) unless commits_ahead_of_default_branch?
 
       pr_number = open_pull_request!
       pull_request = validated_pull_request(pr_number)
+      return refuse(pr_identity_mismatch_message(pr_number, pull_request)) unless pull_request_matches_job?(pull_request)
       return refuse(not_mergeable_message(pr_number)) unless mergeable?(pull_request)
       expected_sha = pr_head_sha(pull_request)
       return failure("GitHub did not report a head SHA for PR ##{pr_number}.") if expected_sha.blank?
 
+      runtime_retired = job.with_lock do
+        next false unless runtime_retirable?
+
+        retire_zero_run_handoffs!
+        true
+      end
+      return refuse("#{job.slug} acquired active runtime work while emergency land was validating; retry after it finishes.") unless runtime_retired
+
       merge = merge!(pr_number, expected_sha: expected_sha)
       return failure("GitHub did not report PR ##{pr_number} as merged.") unless merged?(merge)
 
-      record_audit!(pr_number: pr_number, merge: merge)
+      record_audit!(pr_number: pr_number, merge: merge, source_sha: expected_sha)
       success(pr_number)
     rescue Octokit::Error => e
       failure("GitHub error: #{e.class}: #{e.message}")
@@ -67,12 +82,30 @@ module EmergencyLand
 
     attr_reader :job, :user, :repository
 
-    def coding_mode_job?
-      job.coding? && chat_session.present? && chat_session.coding?
+    def runtime_retirable?
+      return false if job.any_active_run?
+
+      WorkUnits::Ownership.active_units_for_job(job).all? do |unit|
+        workflow = unit.workflow
+        !unit.running? && !workflow&.runs&.exists?
+      end
     end
 
-    def chat_session
-      job.linked_chat
+    def retire_zero_run_handoffs!
+      WorkUnits::Ownership.active_units_for_job(job).each do |unit|
+        workflow = unit.workflow
+        if workflow&.queued?
+          WorkUnits::WorkflowCancellation.cancel!(workflow, reason: "emergency_land_superseded",
+            artifacts: { "cancelled_reason" => "emergency_land_superseded", "cancelled_at" => Time.current.iso8601 })
+        end
+        unit.preempt!(reason: "emergency_land_superseded") if unit.active?
+      end
+    end
+
+    def ambiguous_branch?
+      return false if job.branch_name.blank?
+
+      repository.jobs.where(branch_name: job.branch_name).where.not(id: job.id).where.not(state: "closed").exists?
     end
 
     def commits_ahead_of_default_branch?
@@ -112,8 +145,22 @@ module EmergencyLand
       client.pull_request(repository.slug, pr_number, bypass_cache: true)
     end
 
+    def pull_request_matches_job?(pull_request)
+      pull_request&.head&.ref.to_s == job.branch_name.to_s &&
+        pull_request&.head&.repo&.full_name.to_s.casecmp?(repository.slug) &&
+        pull_request&.base&.ref.to_s == job.effective_base_branch.to_s
+    end
+
+    def pr_identity_mismatch_message(pr_number, pull_request)
+      actual_head_repo = pull_request&.head&.repo&.full_name.to_s.presence || "unknown repository"
+      actual_head_ref = pull_request&.head&.ref.to_s.presence || "unknown branch"
+      actual_base_ref = pull_request&.base&.ref.to_s.presence || "unknown base"
+      "PR ##{pr_number} targets #{actual_base_ref} from #{actual_head_repo}:#{actual_head_ref}; expected " \
+        "#{job.effective_base_branch} from #{repository.slug}:#{job.branch_name}."
+    end
+
     def mergeable?(pull_request)
-      pull_request.mergeable != false
+      pull_request.mergeable == true
     end
 
     def not_mergeable_message(pr_number)
@@ -140,13 +187,15 @@ module EmergencyLand
       merge.respond_to?(:sha) ? merge.sha : merge[:sha]
     end
 
-    def record_audit!(pr_number:, merge:)
+    def record_audit!(pr_number:, merge:, source_sha:)
       attrs = {
         pr_number: pr_number,
         closure_reason: "emergency_landed",
         emergency_landed_at: Time.current,
         emergency_landed_by_user_id: user.id,
-        emergency_landed_by_membership_tier: confirmer_tier
+        emergency_landed_by_membership_tier: confirmer_tier,
+        emergency_land_source_sha: source_sha,
+        emergency_land_skipped_controls: SKIPPED_CONTROLS
       }
       sha = merge_sha(merge)
       attrs[:landed_sha] = sha if sha.present?

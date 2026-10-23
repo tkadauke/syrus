@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolName, normalizedToolCardParsedResult } from "../toolRendering"
 import forceRebaseToolCard, { examples } from "./force_rebase"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -16,6 +17,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 const plan = {
   job_id: 4222,
   slug: "repair-ci",
+  repository_slug: "tkadauke/syrus",
   state: "approved",
   branch_name: "syrus/direct-4222",
   current_base: "main",
@@ -67,8 +69,11 @@ describe("force_rebase tool card", () => {
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("pending #77")).toBeInTheDocument()
     expect(screen.getByText("Bypass queue position.")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4222 (repair-ci) PR #314")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4222")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-4222 \(repair-ci\)/ })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "PR #314" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/314")
+    const branch = screen.getByRole("link", { name: "syrus/direct-4222" })
+    expect(branch).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/syrus/direct-4222")
+    expect(branch.querySelector("span")).toHaveClass("break-all")
     expect(screen.getByText("successful rebase will retry landing immediately")).toBeInTheDocument()
     expect(screen.getByText("not_front_of_queue")).toBeInTheDocument()
     expect(screen.getByText(/Waiting for operator confirmation/i)).toBeInTheDocument()
@@ -146,6 +151,73 @@ describe("force_rebase tool card", () => {
     ).toBe("Force rebase workflow queued · JOB-4222 (repair-ci) PR #314 · syrus/direct-4222")
   })
 
+  it("shows live confirmation, execution failure, and linked pending-action outcomes", () => {
+    const parsedResult = {
+      pending_action_group_id: 15,
+      pending_action_id: 77,
+      state: "pending",
+      reason: "**Audit** reason",
+      message: "Force rebase with **care**.",
+      plan
+    }
+    const livePendingAction = {
+      id: 77,
+      action: "force_rebase",
+      state: "failed" as const,
+      label: "Force rebase repair-ci",
+      detail: "job_id: 4222",
+      reason: "**Updated** audit reason",
+      execution_status: "failed",
+      execution_error: "Branch update failed after confirmation.",
+      app_confirm_path: "/api/v1/app/chats/12/pending_actions/77/confirm",
+      app_reject_path: "/api/v1/app/chats/12/pending_actions/77/reject"
+    }
+
+    render(<>{forceRebaseToolCard.renderExpanded(context({ parsedResult, livePendingAction }))}</>)
+
+    expect(screen.getByText("outcome: failed")).toBeInTheDocument()
+    expect(screen.getByText("Branch update failed after confirmation.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "pending #77" })).toHaveAttribute("href", "/chats/12#pending-action-77")
+    expect(screen.getByRole("link", { name: "group #15" })).toHaveAttribute("href", "/chats/12#pending-action-group-15")
+    expect(screen.getByText("Updated").tagName).toBe("STRONG")
+    expect(screen.getByText("care").tagName).toBe("STRONG")
+  })
+
+  it("uses shared provider normalizers for MCP names and result envelopes", () => {
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__force_rebase")).toBe("force_rebase")
+
+    const envelopes = [
+      { content: [{ type: "text", text: JSON.stringify({ plan }) }] },
+      { structured_content: { plans: [plan, { ...plan, job_id: 4223, slug: "second" }] } }
+    ]
+    const summaries = envelopes.map((envelope) => forceRebaseToolCard.collapsedSummary?.(context({ parsedResult: normalizedToolCardParsedResult(envelope) })))
+
+    expect(summaries[0]).toContain("JOB-4222")
+    expect(summaries[1]).toContain("JOB-4222")
+  })
+
+  it("renders long markdown fields as bounded previews with Show more controls", () => {
+    const longMarkdown = `**Important** ${"downstream impact ".repeat(40)}`
+    render(
+      <>
+        {forceRebaseToolCard.renderExpanded(
+          context({
+            parsedResult: {
+              pending_action_id: 77,
+              state: "pending",
+              message: longMarkdown,
+              reason: longMarkdown,
+              plan: { ...plan, expected_landing_impact: longMarkdown }
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(3)
+    expect(screen.getAllByTestId("markdown-preview-content")).toHaveLength(3)
+  })
+
   it("uses the shared failure card for conflict or permission failures", () => {
     const failure = context({
       input: { job_id: 4224, reason: "Repair branch drift." },
@@ -184,8 +256,8 @@ describe("force_rebase tool card", () => {
     expect(screen.getByText("group #15")).toBeInTheDocument()
     expect(screen.getByText("2 actions")).toBeInTheDocument()
     expect(screen.getByText("Both branches drifted behind the same base rewrite.")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4225 (first-branch) PR #316")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4226 (second-branch) PR #317")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-4225 \(first-branch\)/ })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-4226 \(second-branch\)/ })).toBeInTheDocument()
   })
 
   it("falls back to null for malformed payloads", () => {
@@ -194,6 +266,12 @@ describe("force_rebase tool card", () => {
   })
 
   it("includes catalog examples for required scenarios", () => {
-    expect(examples.map((example) => example.id)).toEqual(["requested", "already_current_noop", "conflict_failure", "permission_pending_action"])
+    expect(examples.map((example) => example.id)).toEqual([
+      "requested",
+      "executed_live_action",
+      "already_current_noop",
+      "conflict_failure",
+      "permission_pending_action"
+    ])
   })
 })

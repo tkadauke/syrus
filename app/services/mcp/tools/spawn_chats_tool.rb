@@ -14,7 +14,9 @@ module Mcp::Tools
     description <<~DESC
       Request creation of up to #{MAX_CHATS} new chat threads. Each chat starts
       with the supplied user prompt. Nothing is created until the operator
-      confirms the grouped pending action.
+      confirms the grouped pending action. After confirmation, the result
+      includes a bridge thread for each spawned chat; message it with
+      send_chat_message(thread_id: ...).
     DESC
 
     input_schema(

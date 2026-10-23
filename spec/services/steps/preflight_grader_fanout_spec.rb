@@ -52,8 +52,9 @@ RSpec.describe Steps::PreflightGraderFanout do
     File.write(@ws_path.join(".syrus.yml"), content)
   end
 
-  def record_prepared_workspace!
+  def record_prepared_workspace!(locally: true)
     plan = RepoPrepPlan.for(@ws_path)
+    PreparedWorkspaceState.new(@ws_path).record!(plan.commands) if locally
     workflow.set_artifact!("prepared_workspace", {
       "source" => plan.source,
       "note" => plan.note,
@@ -247,6 +248,23 @@ RSpec.describe Steps::PreflightGraderFanout do
       "tree_sha" => "tree123",
       "prepare_source" => ".syrus.yml"
     )
+  end
+
+  it "does not publish a prepared archive when only the workflow artifact claims preparation" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      prepare:
+        - bundle install
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+    record_prepared_workspace!(locally: false)
+
+    handler.call
+
+    expect(workflow.source_snapshots.sole.prepared_workspace_archive).not_to be_attached
   end
 
   it "snapshots the published base ref for unpublished main repair branches" do

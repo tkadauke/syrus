@@ -173,6 +173,15 @@ class RunJob < ApplicationJob
     self.class.set(queue: queue, wait: delay, priority: sq_num).perform_later(run_id)
   end
 
+  def dispatch_run(run_id, queue:, delay: nil)
+    run = ::Run.find_by(id: run_id)
+    return unless run && !run.terminal?
+
+    options = { queue: queue, priority: run.solid_queue_priority }
+    options[:wait] = delay if delay
+    self.class.set(**options).perform_later(run_id)
+  end
+
   # Global, cluster-wide cap on concurrent agent Runs (the `:runs` queue),
   # admin-configured via AppSetting.max_concurrent_agent_runs. SolidQueue's
   # per-job concurrency key (job:<id>) is already used for per-Job
@@ -233,7 +242,16 @@ class RunJob < ApplicationJob
     admission = RunHostAdmission.call(run: @run, queue_name: queue_name)
     return false if admission.admit?
 
-    admission_artifact = record_host_admission_deferral!(admission)
+    routing = DistributedRunAdmissionRouter.call(run: @run, admission: admission)
+    admission_artifact = record_host_admission_deferral!(admission, routing: routing)
+    if routing.reroute?
+      Rails.logger.info(
+        "[RunJob] host admission #{admission.reason} on #{admission.details['hostname']} - " \
+          "rerouting Run ##{@run.id} to #{routing.queue_name}"
+      )
+      dispatch_run(@run.id, queue: routing.queue_name)
+      return true
+    end
     if pinned_host_admission_budget_exhausted?(admission_artifact)
       pruned = SolidQueueRunJobPruner.delete_pending_for_run!(@run.id)
       clear_workflow_storage_affinity!
@@ -246,7 +264,7 @@ class RunJob < ApplicationJob
       "[RunJob] host admission #{admission.reason} on #{admission.details['hostname']} - " \
         "deferring Run ##{@run.id} by #{admission.delay.inspect}"
     )
-    defer_run(@run.id, admission.delay)
+    defer_run(@run.id, routing.delay)
     true
   end
 
@@ -303,19 +321,21 @@ class RunJob < ApplicationJob
     Array(WorkerCapabilities.current.fetch(:capabilities).fetch("os", [])).map(&:to_s).include?("macos")
   end
 
-  def record_host_admission_deferral!(admission)
+  def record_host_admission_deferral!(admission, routing: nil)
     prior = @workflow.artifact("run_host_admission").to_h
     count = prior["run_id"].to_i == @run.id ? prior["deferral_count"].to_i + 1 : 1
     first_deferred_at = count == 1 ? Time.current.iso8601 : prior["first_deferred_at"].presence || Time.current.iso8601
-    payload = admission.details.merge(
-      "action" => admission.action,
+    payload = admission.details.merge(routing&.details.to_h || {}).merge(
+      "action" => routing&.action || admission.action,
       "reason" => admission.reason,
       "run_id" => @run.id,
       "step_id" => @step.id,
       "workflow_id" => @workflow.id,
       "deferred_at" => Time.current.iso8601,
       "first_deferred_at" => first_deferred_at,
-      "retry_at" => (Time.current + admission.delay).iso8601,
+      "retry_at" => routing&.reroute? ? nil : (Time.current + (routing&.delay || admission.delay)).iso8601,
+      "routed_at" => routing&.reroute? ? Time.current.iso8601 : nil,
+      "routed_queue" => routing&.queue_name,
       "deferral_count" => count,
       "deferral_budget" => PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
     )

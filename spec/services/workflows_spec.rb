@@ -109,6 +109,64 @@ RSpec.describe Workflows do
       )
     end
 
+    it "creates no Run when a matching provider routing rule holds the workflow" do
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: "initial",
+        action: { type: "hold", reason: "Await operator approval" },
+        candidates: []
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      workflow = Workflows::Initial.instantiate(job: job)
+      result = WorkUnits::Launcher.start!(workflow)
+
+      expect(result).to be_not_started
+      expect(result.reason).to eq("provider_routing_hold")
+      expect(workflow.reload).to be_queued
+      expect(workflow.runs).to be_empty
+      expect(workflow.artifact("agent_provider_routing_decision")).to include(
+        "held" => true,
+        "routing_resolution" => include("decision" => include("status" => "held", "failure" => false))
+      )
+      expect(workflow.artifact("agent_provider_routing_decision")).not_to have_key("selected_provider")
+      expect(workflow.provider_routing_holds.active.sole).to have_attributes(
+        provider_routing_rule_id: ProviderRoutingRule.last.id,
+        resumption_mode: "manual",
+        reason: "Await operator approval"
+      )
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+    end
+
+    it "creates no Run when a matching step-specific rule holds the first agentic step" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps :implement
+
+        def self.trigger_kind = "initial"
+      end
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        trigger: { type: "step", kind: "implement" },
+        action: { type: "hold", reason: "Hold implementation" },
+        candidates: []
+      )
+      allow(App::ProviderAvailability).to receive(:for_user)
+
+      workflow = workflow_class.instantiate(job: job)
+      result = WorkUnits::Launcher.start!(workflow)
+
+      expect(result).to be_not_started
+      expect(result.reason).to eq("provider_routing_hold")
+      expect(workflow.reload.runs).to be_empty
+      expect(workflow.artifact("agent_provider_routing_decision")).to include(
+        "held" => true,
+        "routing_resolution" => include("final_action" => include("type" => "hold"))
+      )
+      expect(App::ProviderAvailability).not_to have_received(:for_user)
+    end
+
     it "leaves model/effort_level nil and records default selection when not passed" do
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))

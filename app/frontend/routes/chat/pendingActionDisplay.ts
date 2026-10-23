@@ -40,6 +40,7 @@ export function pendingActionBadgeLabel(pendingAction: ChatPendingActionInline |
   if (actionKey === "reopen_job") return "Reopen"
   if (actionKey === "archive_epic") return "Archive Epic"
   if (actionKey === "emergency_land") return "Emergency land"
+  if (actionKey === "write_file") return "Write file"
   if ("action_type" in pendingAction && pendingAction.action_type) return pendingAction.action_type.replace(/_/g, " ")
   return "Action"
 }

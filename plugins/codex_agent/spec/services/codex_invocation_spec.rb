@@ -665,6 +665,7 @@ RSpec.describe CodexInvocation do
       Dir.mktmpdir do |home|
         Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
         allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+        allow(WorkerHostHealthSampler).to receive(:io_pressure_snapshot).and_return({})
         PerformanceLogging::Store.clear!
         chat_session = ChatSession.create!(user: Factories.user)
         Thread.current[:syrus_current_chat_session] = chat_session
@@ -798,6 +799,41 @@ RSpec.describe CodexInvocation do
         expect(events).to include([ expected, {} ])
         expect(result.final_text).not_to include("prompt_template")
         expect(events.join("\n")).not_to include("Do not store this provider prompt template")
+      end
+    end
+  end
+
+  describe "oversized output records" do
+    it "discards the oversized record and continues parsing later JSONL" do
+      events = []
+      runner_result = ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+        operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+      )
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run) do
+          kwargs.fetch(:on_output_line_fragment).call("discarded fragment")
+          kwargs.fetch(:on_output_line_fragment).call("discarded tail\n")
+          kwargs.fetch(:on_output_line).call(
+            { type: "turn.completed", usage: { input_tokens: 5, output_tokens: 10 } }.to_json
+          )
+          runner_result
+        end
+        fake
+      end
+
+      Dir.mktmpdir do |home|
+        result = described_class.new(
+          "/tmp/wkt", prompt: "x", api_key: "sk-test", codex_home: home,
+          log_sink: ->(message, **) { events << message }
+        ).run
+
+        expect(result).to be_success
+        expect(result.input_tokens).to eq(5)
+        expect(result.output_tokens).to eq(10)
+        expect(events.grep(/oversized JSONL record omitted/).size).to eq(1)
+        expect(events.join).not_to include("discarded fragment", "discarded tail")
       end
     end
   end

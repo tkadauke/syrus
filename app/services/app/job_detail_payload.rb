@@ -221,6 +221,8 @@ module App
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
+        planned_execution_override: planned_execution_override_json,
+        placement_recommendation: placement_recommendation_json,
         provider_routing_options: provider_routing_options_json(@user),
         provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
         inherited_provider_routing_context: provider_routing_inherited_context_json(
@@ -231,6 +233,7 @@ module App
           user_id: @job.effective_owner_id
         ),
         provider_routing_resolution: provider_routing_resolution_json,
+        active_provider_routing_holds: active_provider_routing_holds_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -260,6 +263,8 @@ module App
         emergency_landed_at: iso8601(@job.emergency_landed_at),
         emergency_landed_by_user: user_reference_json(@job.emergency_landed_by_user),
         emergency_landed_by_membership_tier: @job.emergency_landed_by_membership_tier,
+        emergency_land_source_sha: @job.emergency_land_source_sha,
+        emergency_land_skipped_controls: @job.emergency_land_skipped_controls,
         runaway_protection: @job.runaway_protection,
         failure_count: @job.failure_count,
         landing_failure_reason: @job.landing_failure_reason,
@@ -313,6 +318,24 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
+    end
+
+    def active_provider_routing_holds_json
+      ProviderRoutingHold.active
+        .joins(:workflow)
+        .where(workflows: { job_id: @job.id })
+        .order(:created_at)
+        .map do |hold|
+          {
+            id: hold.id,
+            workflow_id: hold.workflow_id,
+            provider_routing_rule_id: hold.provider_routing_rule_id,
+            reason: hold.reason,
+            resumption_mode: hold.resumption_mode,
+            next_reevaluation_at: hold.next_reevaluation_at&.iso8601,
+            created_at: hold.created_at.iso8601
+          }
+        end
     end
 
     def provider_routing_resolution_json
@@ -1003,7 +1026,14 @@ module App
     def artifact_workflows_scope
       @job.workflows
         .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
-        .where.not(artifacts: [ nil, "", "{}" ])
+        .where(<<~SQL.squish)
+          workflows.artifacts IS NOT NULL AND workflows.artifacts NOT IN ('', '{}')
+          OR EXISTS (
+            SELECT 1 FROM workflow_artifact_values
+            WHERE workflow_artifact_values.workflow_id = workflows.id
+          )
+        SQL
+        .preload(:workflow_artifact_values)
         .reorder(created_at: :asc, id: :asc)
     end
 
@@ -1059,6 +1089,8 @@ module App
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
       {
         can_write: writable,
+        can_override_planned_execution: writable && planned_execution_override_json[:eligible],
+        planned_execution_override_blocked_reason: planned_execution_override_json[:refusal_reason],
         can_submit_feedback: writable && @job.state.in?(%w[implemented failed no_change_needed]),
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
@@ -1119,6 +1151,62 @@ module App
         rebase_agent_options: alternate_agent_options,
         retry_agent_options: @job.retry_with_agent_providers
       }
+    end
+
+    def placement_recommendation_json
+      recommendation = @job.placement_recommendation.to_h
+      return nil if recommendation.blank?
+
+      recommendation.merge(
+        "status" => @job.placement_recommendation_status,
+        "compatible_worker_available" => compatible_worker_available(recommendation["capabilities"])
+      )
+    end
+
+    def planned_execution_override_json
+      @planned_execution_override_json ||= begin
+        profile = ExecutionPlacementProfile::PROFILES.keys.find do |name|
+          ExecutionPlacementProfile.fetch(name).capabilities == @job.planned_execution_requirement.capabilities
+        end
+        inspection = PlannedExecutionOverrides::Operation.new(
+          job: @job, profile: profile || "linux", actor: @user,
+          reason: "eligibility check", provenance: "job_ui"
+        ).inspect
+        latest = @job.planned_execution_overrides.order(created_at: :desc, id: :desc).first
+        {
+          eligible: inspection.eligible,
+          refusal_reason: inspection.reason,
+          current_profile: profile,
+          profiles: ExecutionPlacementProfile::PROFILES.map { |name, value| value.merge("name" => name) },
+          worker_availability: ExecutionPlacementProfile::PROFILES.keys.to_h { |name|
+            check = PlannedExecutionOverrides::Operation.new(job: @job, profile: name, actor: @user, reason: "eligibility check", provenance: "job_ui").inspect
+            [ name, check.worker_available ]
+          },
+          latest_audit: latest && {
+            actor: latest.user.display_name,
+            reason: latest.reason,
+            provenance: latest.provenance,
+            created_at: latest.created_at.iso8601
+          }
+        }
+      end
+    end
+
+    def compatible_worker_available(capabilities)
+      workflow = Workflow.new(
+        trigger_kind: "initial",
+        planned_execution_capabilities: capabilities,
+        job: @job
+      )
+      step = Step.new(
+        workflow: workflow,
+        placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+        details: {},
+        kind: "prepare"
+      )
+      !RunQueueResolver.resolve_candidate(workflow: workflow, step: step).blocked?
+    rescue StandardError
+      nil
     end
 
     def pr_checks_landing_blocker_overridable?
@@ -1183,6 +1271,7 @@ module App
         app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",
         app_move_to_backlog_path: "/api/v1/app/jobs/#{@job.id}/move_to_backlog",
         app_accept_triage_path: "/api/v1/app/jobs/#{@job.id}/accept_triage",
+        app_override_planned_execution_path: "/api/v1/app/jobs/#{@job.id}/override_planned_execution",
         app_reject_triage_path: "/api/v1/app/jobs/#{@job.id}/reject_triage",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
@@ -1509,12 +1598,10 @@ module App
     end
 
     def visual_diff_available?
-      workflows = artifact_workflows_scope
-        .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
-        .where("artifacts LIKE ?", "%visual_review_iterations%")
-        .where("artifacts LIKE ?", "%image_url%")
-
-      sort_artifact_workflows(workflows.to_a, { created_at: :asc, id: :asc }).any? do |workflow|
+      artifact_workflows_matching(
+        "visual_review_iterations",
+        trigger_kinds: %w[initial retry pr_comment chat_feedback manual_visual_review]
+      ).any? do |workflow|
         Array(workflow.artifact("visual_review_iterations")).any? do |iteration|
           Array(iteration["artifacts"]).any? { |artifact| artifact.is_a?(Hash) && artifact["image_url"].present? }
         end

@@ -15,7 +15,8 @@
                    `runs-macos-arm64`.
       - `merges` — deterministic landing / rebase / stack-rebase Workflows.
       - `merges-<os>-<arch>` — capability-specific landing/validation lanes.
-    Each pod also consumes its storage-affinity
+    Each pod also consumes its hostname-specific `worker-<hostname>` dispatch
+    queue for distributed admission reroutes, plus its storage-affinity
     `resume-<worker-storage-key>` queue: a workspace lives on the data root
     that first ran it, so "Retry from failed step" and post-crash re-enqueues
     must resume on a worker that can see that same data root
@@ -45,13 +46,13 @@ default: &default
     # POD, so total concurrency across the cluster is JOB_CONCURRENCY ×
     # (compute pod count); a cluster-wide ceiling lives in
     # AppSetting.max_concurrent_agent_runs. Listed first with this pod's
-    # `resume-<worker-storage-key>` queue so operator resumes land ahead of
-    # fresh work.
+    # `worker-<hostname>` and `resume-<worker-storage-key>` queues so targeted
+    # reroutes and operator resumes land ahead of fresh work.
     # Multi-queue workers MUST be a YAML array: Solid Queue 1.4 does NOT split a
     # space-joined string (`Array("resume-x runs")` is one literal queue), so a
     # string here would claim zero agent jobs.
     - queues:
-<% ([WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
+<% ([WorkerStorageIdentity.dispatch_queue_name, WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
         - "<%= queue_name %>"
 <% end %>
       threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>

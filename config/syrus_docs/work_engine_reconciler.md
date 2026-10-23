@@ -361,7 +361,9 @@ list; it must not run a global reconciliation inline because that path can be
 too expensive for the dashboard and the `admin_overview` chat tool.
 
 The React admin overview and dedicated stuck list paginate visible stuck items
-in 50-item pages. The `/api/v1/app/admin/stuck` and `/api/v1/admin/stuck`
+in 50-item pages. The `admin_stuck_jobs` chat tool also defaults to 50 items,
+accepts `page` and `per` (capped at 100), and returns page totals plus
+next/previous availability. The `/api/v1/app/admin/stuck` and `/api/v1/admin/stuck`
 payloads accept `page` and return live `pagination` metadata with the total
 count; the overview embeds the first page from the cached snapshot plus
 `stuck_pagination` so the health tile can show the last known total without

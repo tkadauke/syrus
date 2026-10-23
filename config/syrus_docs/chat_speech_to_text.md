@@ -75,6 +75,11 @@ Operational logs are structured as `chat_speech_to_text.*` events and include
 mode, provider name, latency, fallback reason, and error class/code. They must
 not include transcript text, prompts, uploaded audio bytes, executable paths, or
 model paths. Provider-specific diagnostics belong in the provider plugin's docs.
+Batch recordings under 256 bytes are rejected as `audio_too_small` (422).
+Backend timeouts return `speech_to_text_timeout` (504), and unavailable
+backends return `speech_to_text_backend_unavailable` (503). The composer retries
+either status once, does not retry 4xx input errors, and keeps existing or
+progressive composer text when finalization fails.
 Disconnect, cancel, idle timeout, normal finalization, and provider error paths
 close the provider session. Failures emit mode and fallback metadata without
 audio bytes or transcript text.

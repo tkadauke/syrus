@@ -61,6 +61,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       "commands" => [],
       "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(@ws_path))
     )
+    expect(PreparedWorkspaceState.new(@ws_path).commands).to eq([])
   end
 
   it "fails loudly when explicit prepare config has the wrong type" do
@@ -161,6 +162,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       "commands" => [ "echo first", "echo second" ],
       "prepare_fingerprint" => PreparedWorkspaceArchive.prepare_fingerprint_for(RepoPrepPlan.for(@ws_path))
     )
+    expect(PreparedWorkspaceState.new(@ws_path).commands).to eq([ "echo first", "echo second" ])
   end
 
   it "auto-detects bundle install on a Gemfile-bearing repo" do

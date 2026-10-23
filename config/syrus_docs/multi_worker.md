@@ -596,6 +596,20 @@ step kind, Run id, queue name, whether the queue was sticky resume,
 `deferred_at`, and `retry_at`. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
 
+Distributed immutable-source graders are not tied to the rejecting worker's
+workspace. For `local_worker_pressure_critical` and
+`host_resource_semaphore_busy`, Syrus checks live workers that satisfy the
+grader's declared capabilities. When one has fresh healthy telemetry and
+compute headroom, the same queued Run is dispatched immediately to that
+worker's hostname-specific `worker-<hostname>` queue with its original
+priority. This queue is distinct from `resume-<storage-key>` and therefore
+still targets one worker when several workers share an RWX data root. The
+admission artifact names
+the rejecting worker and reason, alternatives considered, selected queue, and
+worker. Rejected workers are excluded within a routing cycle; if every eligible
+worker is pressured, Syrus clears the bounded exclusion set and uses increasing
+backoff instead of bouncing the Run continuously between hosts.
+
 For `host_resource_semaphore_busy`, the Job page's queued-Run banner and the
 artifact's `resource_guard_binding_terms` identify whether compute units,
 reserved memory, measured memory, or more than one term bound admission. Compare

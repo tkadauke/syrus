@@ -1,17 +1,23 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { EntityReference } from "../toolCardUi"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { DataTable } from "../../../components/ui"
+import { Table, TBody, Td, THead } from "../adminToolCard"
+import { MarkdownPreview } from "../toolCardMarkdown"
+import { EmptyState, EntityReference, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for list_epics (the Tier 1 tool-card work). Renders results
-// as a dense table optimized for scanning, mirroring the list_jobs card.
 type EpicRow = {
   key: string
-  epicId: string
   title: string
+  description: string | null
   state: string
   repositorySlug: string | null
   childJobCount: number | null
   openJobCount: number | null
+  createdAt: string | null
 }
+
+const DEFAULT_LIMIT = 20
+const MIN_LIMIT = 1
+const MAX_LIMIT = 100
 
 function displayValue(value: unknown): string | null {
   if (typeof value === "number" && Number.isFinite(value)) return String(value)
@@ -28,119 +34,152 @@ function parseEpicRow(value: unknown): EpicRow | null {
   const id = displayValue(value.id)
   const state = displayValue(value.state)
   if (!id || !state) return null
-
   return {
     key: id,
-    epicId: `EPIC-${id}`,
     title: displayValue(value.title) || `EPIC-${id}`,
+    description: displayValue(value.description),
     state,
     repositorySlug: displayValue(value.repository_slug),
     childJobCount: numberValue(value.child_job_count),
-    openJobCount: numberValue(value.open_job_count)
+    openJobCount: numberValue(value.open_job_count),
+    createdAt: displayValue(value.created_at)
   }
 }
 
 function epicRows(context: ToolCardContext): EpicRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.epics)) return null
-
   return parsed.epics.flatMap((epic) => {
     const row = parseEpicRow(epic)
     return row ? [row] : []
   })
 }
 
-function collapsedSummary(context: ToolCardContext) {
-  const rows = epicRows(context)
-  if (!rows) return null
-  return `${rows.length} Epic${rows.length === 1 ? "" : "s"}`
+function effectiveLimit(input: Record<string, unknown> | undefined) {
+  const requested = input?.limit
+  const numeric = typeof requested === "number" ? requested : typeof requested === "string" ? Number.parseInt(requested, 10) : DEFAULT_LIMIT
+  const integer = Number.isFinite(numeric) ? Math.trunc(numeric) : 0
+  return Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, integer))
 }
 
-function progressLabel(row: EpicRow) {
-  if (row.childJobCount == null) return "—"
-  const doneCount = row.childJobCount - (row.openJobCount ?? 0)
-  return `${doneCount}/${row.childJobCount} done`
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const rows = epicRows(context)
-  if (!rows) return null
-
-  if (rows.length === 0) {
-    return (
-      <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-        No Epics found.
-      </div>
-    )
-  }
-
+function QuerySummary({ context, count }: { context: ToolCardContext; count?: number }) {
+  const limit = effectiveLimit(context.input)
+  const state = displayValue(context.input?.state) || "non-archived"
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Epic
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Title
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              State
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Repository
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              Progress
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="whitespace-nowrap px-2 py-1"><EntityReference id={row.key} kind="epic" /></td>
-              <td className="max-w-[16rem] truncate px-2 py-1 text-gray-800 dark:text-gray-200" title={row.title}>
-                {row.title}
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 capitalize text-gray-600 dark:text-gray-300">{row.state.replace(/_/g, " ")}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{row.repositorySlug || "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{progressLabel(row)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+      <span>
+        State: <span className="font-medium text-text-primary">{state.replace(/_/g, " ")}</span>
+      </span>
+      <span>
+        Limit: <span className="font-medium text-text-primary">{limit}</span>
+      </span>
+      {count != null && count >= limit ? <span>Limit reached; more Epics may be available.</span> : null}
     </div>
   )
 }
 
-const listEpicsToolCard: ToolCardRenderer = {
-  toolName: "list_epics",
-  collapsedSummary,
-  renderExpanded
+function collapsedSummary(context: ToolCardContext) {
+  if (context.resultError) return "Could not list Epics"
+  const rows = epicRows(context)
+  return rows ? `${rows.length} Epic${rows.length === 1 ? "" : "s"}` : null
 }
 
+function progressLabel(row: EpicRow) {
+  if (row.childJobCount == null) return "—"
+  return `${row.childJobCount - (row.openJobCount ?? 0)}/${row.childJobCount} done`
+}
+
+function createdLabel(value: string | null) {
+  if (!value) return "—"
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function errorMessage(context: ToolCardContext) {
+  if (isPlainObject(context.parsedResult)) {
+    return displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message) || "Unable to list Epics."
+  }
+  return context.resultBody.trim() || "Unable to list Epics."
+}
+
+function EpicsTable({ rows }: { rows: EpicRow[] }) {
+  return (
+    <Table responsive>
+      <THead columns={["Epic", "Title and description", "State", "Repository", "Progress", "Created"]} />
+      <TBody>
+        {rows.map((row) => (
+          <DataTable.Row key={row.key}>
+            <Td>
+              <EntityReference id={row.key} kind="epic" />
+            </Td>
+            <Td maxWidth wrap>
+              <div className="break-words font-medium text-text-primary">{row.title}</div>
+              {row.description ? <MarkdownPreview maxLines={3} modalLabel={`${row.title} description`} text={row.description} /> : null}
+            </Td>
+            <Td>
+              <StatePill state={row.state} />
+            </Td>
+            <Td>{row.repositorySlug ? <EntityReference kind="repository" slug={row.repositorySlug} /> : "—"}</Td>
+            <Td>{progressLabel(row)}</Td>
+            <Td wrap>{createdLabel(row.createdAt)}</Td>
+          </DataTable.Row>
+        ))}
+      </TBody>
+    </Table>
+  )
+}
+
+function renderExpanded(context: ToolCardContext) {
+  if (context.resultError)
+    return (
+      <>
+        <QuerySummary context={context} />
+        <EmptyState>{errorMessage(context)}</EmptyState>
+      </>
+    )
+  const rows = epicRows(context)
+  if (!rows) return null
+  return (
+    <>
+      <QuerySummary context={context} count={rows.length} />
+      {rows.length ? <EpicsTable rows={rows} /> : <EmptyState>No Epics found.</EmptyState>}
+    </>
+  )
+}
+
+const listEpicsToolCard: ToolCardRenderer = { toolName: "list_epics", collapsedSummary, renderExpanded }
 export default listEpicsToolCard
 
-// Reviewable sample payloads for the Tool Card Catalog (a later Job) — see
-// pluginToolCards.tsx's ToolCardExample.
-export const examples = [
+export const examples: ToolCardExample[] = [
   {
     id: "two_epics_in_progress",
     label: "Two Epics in progress",
-    input: { state: "open" },
+    input: { state: "open", limit: 2 },
     parsedResult: {
       epics: [
-        { id: 12, title: "Dark Mode And Theming Polish", state: "open", repository_slug: "acme/widget-app", child_job_count: 5, open_job_count: 2 },
-        { id: 9, title: "Checkout Flow Redesign", state: "landing", repository_slug: "acme/widget-app", child_job_count: 3, open_job_count: 0 }
+        {
+          id: 12,
+          title: "Dark Mode And Theming Polish",
+          description: "Improve **theme consistency** across every surface.",
+          state: "open",
+          repository_slug: "acme/widget-app",
+          child_job_count: 5,
+          open_job_count: 2,
+          created_at: "2026-10-12T12:00:00Z"
+        },
+        {
+          id: 9,
+          title: "Checkout Flow Redesign",
+          description: "Simplify the checkout flow.",
+          state: "landing",
+          repository_slug: "acme/widget-app",
+          child_job_count: 3,
+          open_job_count: 0,
+          created_at: "2026-10-10T09:30:00Z"
+        }
       ]
     }
   },
-  {
-    id: "no_open_epics",
-    label: "No open Epics",
-    description: 'Empty result set -- the card renders its own "No Epics found." row.',
-    input: { state: "open" },
-    parsedResult: { epics: [] }
-  }
+  { id: "no_open_epics", label: "No open Epics", input: { state: "open" }, parsedResult: { epics: [] } },
+  { id: "error", label: "Error listing Epics", input: { state: "open", limit: 10 }, parsedResult: { error: "Epic service unavailable" }, resultError: true }
 ]

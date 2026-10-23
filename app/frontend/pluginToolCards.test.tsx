@@ -31,24 +31,15 @@ describe("pluginToolCards", () => {
     // of core) never names "design_docs" or imports that module directly.
     expect(pluginToolCardRendererKeys()).toContain("list_design_docs")
     expect(pluginToolCardRendererKeys()).toContain("list_design_doc_sections")
-    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
-      "compare_test_runtime",
-      "read_job_test_results",
-      "read_test_insight"
-    ]))
+    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining(["compare_test_runtime", "read_job_test_results", "read_test_insight"]))
     expect(pluginToolCardRendererFor("list_design_docs")).not.toBeNull()
     expect(pluginToolCardRendererFor("list_design_doc_sections")).not.toBeNull()
   })
 
   it("discovers Browser plugin cards by directory convention", () => {
-    expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
-      "browser_navigate",
-      "browser_snapshot",
-      "browser_screenshot",
-      "browser_resize",
-      "browser_wait_for",
-      "browser_close"
-    ]))
+    expect(pluginToolCardRendererKeys()).toEqual(
+      expect.arrayContaining(["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_resize", "browser_wait_for", "browser_close"])
+    )
   })
 
   it("discovers the emergency land core card by directory convention", () => {
@@ -65,7 +56,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when renderExpanded throws on a malformed payload", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      renderExpanded: () => { throw new Error("boom") }
+      renderExpanded: () => {
+        throw new Error("boom")
+      }
     }
 
     expect(renderToolCard(renderer, context({ toolName: "broken_tool" }))).toBeNull()
@@ -74,7 +67,9 @@ describe("pluginToolCards", () => {
   it("falls back to null when collapsedSummary throws", () => {
     const renderer: ToolCardRenderer = {
       toolName: "broken_tool",
-      collapsedSummary: () => { throw new Error("boom") },
+      collapsedSummary: () => {
+        throw new Error("boom")
+      },
       renderExpanded: () => null
     }
 
@@ -117,6 +112,12 @@ describe("pluginToolCards", () => {
       expect(entry?.examples.length).toBeGreaterThan(0)
     })
 
+    it("discovers the visual-review states for the CI repair no-op card", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "mark_ci_repair_noop")
+
+      expect(entry?.examples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "validation_error"])
+    })
+
     it("discovers examples exported alongside a plugin card module, purely by directory convention", () => {
       const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "browser_click")
       expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "browser" })
@@ -146,6 +147,23 @@ describe("pluginToolCards", () => {
       expect(context.resultError).toBe(false)
       expect(context.parsedResult).toEqual(example.parsedResult)
       expect(context.resultBody).toBe(JSON.stringify(example.parsedResult))
+      expect(context.resultSettled).toBe(true)
+    })
+
+    it("preserves an example's explicit in-flight result state", () => {
+      const context = toolCardContextForExample("pin_chat", { id: "pending", label: "Pending", resultSettled: false })
+
+      expect(context.resultSettled).toBe(false)
+      expect(context.resultBody).toBe("")
+      expect(context.parsedResult).toBeNull()
+    })
+
+    it("preserves live pending-action state for outcome fixtures", () => {
+      const example = findExample("force_landing_recheck", "bulk_confirmed")
+      const context = toolCardContextForExample("force_landing_recheck", example)
+
+      expect(context.livePendingAction).toMatchObject({ id: 501, state: "confirmed", execution_status: "applied" })
+      expect(context.livePendingAction?.detail).toContain("refreshed state: closed")
     })
 
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {

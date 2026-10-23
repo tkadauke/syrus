@@ -20,6 +20,8 @@ RSpec.describe Steps do
       expect(described_class.handler_for("push_after_rebase")).to eq(Steps::PushAfterRebase)
       expect(described_class.handler_for("analyze_and_fix")).to eq(Steps::AnalyzeAndFix)
       expect(described_class.handler_for("auto_rebase")).to eq(Steps::AutoRebase)
+      expect(described_class.handler_for("base_refresh_rebase")).to eq(Steps::BaseRefreshRebase)
+      expect(described_class.handler_for("publish_source_snapshot")).to eq(Steps::PublishSourceSnapshot)
       expect(described_class.handler_for("agent_rebase")).to eq(Steps::AgentRebase)
       expect(described_class.handler_for("force_push")).to eq(Steps::ForcePush)
       expect(described_class.handler_for("stack_auto_rebase")).to eq(Steps::StackAutoRebase)

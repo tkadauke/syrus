@@ -16,7 +16,17 @@ module Mcp::Tools
       branch; open that Job in Coding Mode and use complete_implement_step
       instead. Branches that already belong to a Syrus Job in this repository
       are refused because this tool creates a new Job rather than updating the
-      existing one.
+      existing one. Pass branch to name the expected local checkout branch, or
+      omit it to read the current branch from the selected repository's Coding
+      Mode checkout. Request time does not prove that an explicit branch is the
+      active checkout: after confirmation, the worker requires that checkout to
+      exist, be on exactly branch, be clean, and contain committed changes. A
+      normal call creates only a pending action and waits for operator confirmation.
+      If the active Chat Goal has auto_submit_jobs enabled, the same call instead
+      auto-enqueues confirmation immediately and returns state `confirming`.
+      Successful confirmation queues worker-side capture; capture then creates
+      one new direct Job plus its coding_handoff Workflow and WorkUnit and starts
+      that work through admission control and worker-queue routing.
       Only available when the coding_mode feature is enabled.
     DESC
 
@@ -28,7 +38,7 @@ module Mcp::Tools
         },
         branch: {
           type: "string",
-          description: "The current git branch containing the committed implementation. Defaults to the active coding checkout branch."
+          description: "Expected local checkout branch containing the committed implementation. Defaults to the current branch read from the selected repository's Coding Mode checkout; an explicit value is validated during worker-side capture, after confirmation."
         },
         title: {
           type: "string",

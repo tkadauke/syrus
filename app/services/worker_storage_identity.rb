@@ -20,6 +20,13 @@ class WorkerStorageIdentity
     "resume-#{queue_key(data_root: data_root)}"
   end
 
+  # Unlike the storage-affinity queue, this queue identifies exactly one
+  # worker host. Distributed immutable-source work uses it for a one-hop
+  # admission reroute even when several workers mount the same data root.
+  def self.dispatch_queue_name(hostname: Socket.gethostname)
+    "worker-#{sanitize(hostname)}"
+  end
+
   def self.sanitize(value)
     sanitized = value.to_s.strip.gsub(SAFE_KEY_PATTERN, "-").byteslice(0, MAX_KEY_BYTES)
     sanitized unless sanitized.empty?

@@ -60,6 +60,40 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     expect(workflow.work_unit.work_intent.reload).to be_cancelled
   end
 
+  it "cancels the work intent for an operator stale-work repair" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "coding_handoff", job: job, idempotency_key: "cancel-stale-intent-sync-spec")
+
+    described_class.cancel!(
+      workflow,
+      reason: described_class::OPERATOR_STALE_WORK_REASON,
+      artifacts: { "cancelled_reason" => described_class::OPERATOR_STALE_WORK_REASON }
+    )
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: described_class::OPERATOR_STALE_WORK_REASON
+    )
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+  end
+
+  it "cancels the work intent when a forced state repair supersedes the Workflow" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "force-state-repair-intent-sync-spec")
+
+    described_class.cancel!(
+      workflow,
+      reason: Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON,
+      artifacts: { "cancelled_reason" => Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON }
+    )
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON
+    )
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+  end
+
   it "preserves legacy cancellation for workflows without work units" do
     workflow = Workflows::Initial.instantiate(job: job)
 

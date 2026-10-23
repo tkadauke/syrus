@@ -20,6 +20,13 @@ RSpec.describe DirectJobs::ProposalCreator do
     )
   end
 
+  it "stores the requested priority on the proposal and Job" do
+    result = create_job(title: "Urgent direct work", priority: "urgent")
+
+    expect(result.proposal).to have_attributes(priority: "urgent")
+    expect(result.job).to have_attributes(priority: "urgent")
+  end
+
   # ProposeJobTool refuses a Job aimed at a non-empty Epic unless it names one
   # of that Epic's Jobs, because Epics execute as one stacked branch. An agent
   # passes the tail explicitly; this path has no dependency control in its form

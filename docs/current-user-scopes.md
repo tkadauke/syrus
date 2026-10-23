@@ -250,6 +250,7 @@ admin-only:
   - app/controllers/api/v1/app/maintenance_tasks_controller.rb
   - app/controllers/api/v1/app/admin/mcp_tool_usage_controller.rb
   - app/controllers/api/v1/app/admin/plugins_controller.rb
+  - app/controllers/api/v1/app/admin/provider_routing_holds_controller.rb
   - app/controllers/api/v1/app/admin/queue_controller.rb
   - app/controllers/api/v1/app/admin/restart_controller.rb
   - app/controllers/api/v1/app/admin/settings_controller.rb
@@ -372,6 +373,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
 | `app/controllers/api/v1/app/provider_routing_rules_controller.rb` | per-user/private and repository-write affordance | User-scoped routing rules are created/updated/deleted under `Current.user.id`; repository-scoped rules resolve the repository through `policy_scope(Repository)` and require `RepositoryPolicy#update?` for `Current.user`. |
+| `app/controllers/api/v1/app/admin/provider_routing_holds_controller.rb` | admin-only | Releases or overrides a durable provider-routing hold from the in-app Job UI and records `Current.user` as the operator who released it. |
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |

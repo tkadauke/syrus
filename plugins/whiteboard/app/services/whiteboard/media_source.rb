@@ -30,7 +30,8 @@ module Whiteboard
           kind: "snapshot",
           name: snapshot.name,
           element_count: snapshot.element_count,
-          created_at: snapshot.created_at&.iso8601
+          created_at: snapshot.created_at&.iso8601,
+          whiteboard_url: "/chats/#{chat_session.id}"
         }
       end
     end

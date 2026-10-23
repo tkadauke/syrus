@@ -574,14 +574,17 @@ class ProcessRunner
   # `activity_probe` may return a changing marker for meaningful activity
   # that occurs outside stdout; probe failures are treated as no activity.
   # `on_output_line` always receives complete newline-delimited records. A
-  # record over MAX_OUTPUT_LINE_BYTES raises unless the caller explicitly
-  # supplies `on_output_line_fragment` and can consume partial records safely.
+  # record over `max_output_line_bytes` raises unless the caller explicitly
+  # supplies a fragment consumer or an oversized-record callback. The latter
+  # discards through the next newline before normal delivery resumes.
   def initialize(env:, command:, mounts:, network:, timeout:, stdin_data: nil,
                  unsetenv_others: true, pgroup: true,
                  stop_requested: -> { false },
                  on_output_chunk: nil,
                  on_output_line: nil,
                  on_output_line_fragment: nil,
+                 on_output_line_too_long: nil,
+                 max_output_line_bytes: MAX_OUTPUT_LINE_BYTES,
                  kill_grace_seconds: TERM_GRACE_SECONDS,
                  silent_timeout: nil,
                  kind: nil,
@@ -607,6 +610,10 @@ class ProcessRunner
     @on_output_chunk = on_output_chunk
     @on_output_line = on_output_line
     @on_output_line_fragment = on_output_line_fragment
+    @on_output_line_too_long = on_output_line_too_long
+    @max_output_line_bytes = Integer(max_output_line_bytes)
+    raise ArgumentError, "max_output_line_bytes must be positive" unless @max_output_line_bytes.positive?
+    @discarding_output_line = false
     @kill_grace_seconds = kill_grace_seconds
     @silent_timeout = silent_timeout
     @activity_probe = activity_probe
@@ -1246,6 +1253,7 @@ class ProcessRunner
 
   def stream_output(output, wait_thread, silent_check)
     line_buffer = +""
+    fragmented_line = false
     last_chunk_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     loop do
@@ -1265,7 +1273,7 @@ class ProcessRunner
         last_chunk_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         heartbeat!
         @on_output_chunk&.call(chunk)
-        stream_lines(chunk, line_buffer)
+        fragmented_line = stream_lines(chunk, line_buffer, fragmented_line)
       rescue IO::WaitReadable
         next
       rescue EOFError
@@ -1273,15 +1281,17 @@ class ProcessRunner
       end
     end
 
-    drain_output(output, line_buffer)
-    @on_output_line&.call(line_buffer) if @on_output_line && !line_buffer.empty?
+    fragmented_line = drain_output(output, line_buffer, fragmented_line)
+    if @on_output_line && !@discarding_output_line && !line_buffer.empty?
+      (fragmented_line ? @on_output_line_fragment : @on_output_line).call(line_buffer)
+    end
   end
 
-  def drain_output(output, line_buffer)
+  def drain_output(output, line_buffer, fragmented_line)
     loop do
       chunk = output.read_nonblock(READ_CHUNK_BYTES)
       @on_output_chunk&.call(chunk)
-      stream_lines(chunk, line_buffer)
+      fragmented_line = stream_lines(chunk, line_buffer, fragmented_line)
     rescue IO::WaitReadable
       ready, = IO.select([ output ], nil, nil, 0)
       next if ready
@@ -1289,27 +1299,46 @@ class ProcessRunner
     rescue EOFError
       break
     end
+    fragmented_line
   end
 
-  def stream_lines(chunk, line_buffer)
-    return unless @on_output_line
+  def stream_lines(chunk, line_buffer, fragmented_line = false)
+    return fragmented_line unless @on_output_line
 
     line_buffer << chunk
     loop do
-      newline = line_buffer.index("\n")
-      if newline && newline < MAX_OUTPUT_LINE_BYTES
-        @on_output_line.call(line_buffer.slice!(0..newline))
-      elsif line_buffer.bytesize > MAX_OUTPUT_LINE_BYTES || newline
-        unless @on_output_line_fragment
-          raise OutputLineTooLongError,
-            "subprocess output line exceeds #{MAX_OUTPUT_LINE_BYTES} bytes"
+      if @discarding_output_line
+        newline = line_buffer.index("\n")
+        unless newline
+          line_buffer.clear
+          break
         end
 
-        @on_output_line_fragment.call(line_buffer.slice!(0, MAX_OUTPUT_LINE_BYTES))
+        line_buffer.slice!(0..newline)
+        @discarding_output_line = false
+      end
+
+      newline = line_buffer.index("\n")
+      if newline && newline < @max_output_line_bytes
+        callback = fragmented_line ? @on_output_line_fragment : @on_output_line
+        callback.call(line_buffer.slice!(0..newline))
+        fragmented_line = false
+      elsif line_buffer.bytesize > @max_output_line_bytes || newline
+        if @on_output_line_fragment
+          @on_output_line_fragment.call(line_buffer.slice!(0, @max_output_line_bytes))
+          fragmented_line = true
+        elsif @on_output_line_too_long
+          @on_output_line_too_long.call(@max_output_line_bytes)
+          @discarding_output_line = true
+        else
+          raise OutputLineTooLongError,
+            "subprocess output line exceeds #{@max_output_line_bytes} bytes"
+        end
       else
         break
       end
     end
+    fragmented_line
   end
 
   def terminate(pid)

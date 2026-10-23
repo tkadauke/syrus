@@ -10,12 +10,14 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     closed_job_active_work_unit
     codex_overload_initial_retries
     cross_epic_approved_parent_waits_for_merge
+    distributed_grader_admission_reroute_collects
     epic_chain_waits_for_operator_approval
     epic_dependency_waits_for_upstream_epic
     epic_merge_train_after_approval_events
     failed_unit_running_workflow_queued_tail
     failed_unit_unfailed_intent
     grader_fanout_worker_loss_stays_in_loop
+    healthy_reenqueue_loop_clears_affinity
     happy_path_epic_job_depends_on_external_job_lands
     happy_path_epic_merge_train_lands
     happy_path_epic_with_job_dependencies_lands
@@ -30,6 +32,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     parallel_epic_siblings_implement_independently
     parallel_grader_worker_loss_retries
     pinned_host_admission_deferral_budget_reenqueues_elsewhere
+    queued_job_with_published_pr_converges
     queued_step_without_run
     queued_workflow_with_failed_step
     queued_workflow_without_first_run
@@ -42,11 +45,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     single_initial_success
     stale_active_merge_train_blocks_landing
     stale_initial_intent_after_successful_retry
+    stalled_intake_reclassifies
     succeeded_merge_train_failed_member_reconciliation
     succeeded_unit_unsatisfied_intent
     superseded_ci_repair_base_resolves
     superseded_unit_uncancelled_intent
     terminal_bundle_train_final_fix_rebuilds
+    terminal_cleanup_cancelled_retry_recovers
     terminal_work_unit_active_lock
     terminal_workflow_active_descendants
     waiting_intent_with_active_unit
@@ -88,6 +93,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(Job.find(result.job_ids.first)).to be_implemented
+  end
+
+  it "reconciles a queued Job with a published PR without launching replacement work" do
+    result = run_scenario("queued_job_with_published_pr_converges")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_implemented
+    expect(job.workflows.count).to eq(1)
+    expect(job.latest_workflow).to be_cancelled
+    expect(WorkUnits::Ownership.active_for_job?(job)).to be false
   end
 
   it "waits for job dependencies before starting dependent work" do
@@ -241,6 +257,22 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(workflow.artifact("manual_grade_loop_restarts")).to be_nil
   end
 
+  it "reroutes a pressured distributed grader on shared storage and completes collection" do
+    result = run_scenario("distributed_grader_admission_reroute_collects")
+
+    expect(result).to be_success, <<~MESSAGE
+      events:
+      #{result.events.join("\n")}
+      stuck:
+      #{result.stuck_reasons.join("\n")}
+    MESSAGE
+    expect(result.events.join("\n")).to include(
+      "admission rerouted grader:lint from worker-pressured to worker-idle on worker-worker-idle",
+      "grader_collect -> {\"status\" => \"success\""
+    )
+    expect(Job.find(result.job_ids.first)).to be_implemented
+  end
+
   it "rebuilds a terminal bundle train even when the poisoned workflow still owns runtime" do
     result = run_scenario("terminal_bundle_train_final_fix_rebuilds")
 
@@ -308,6 +340,24 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(job).to be_implemented
     expect(job.workflows.where(trigger_kind: "initial")).to be_empty
     expect(WorkIntent.find(result.work_intent_ids.first)).to be_satisfied
+  end
+
+  it "recovers a transient failure hidden by terminal cleanup without duplicating retry work" do
+    result = run_scenario("terminal_cleanup_cancelled_retry_recovers")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    failed_workflow = job.workflows.find_by!(state: "failed")
+    failed_run = failed_workflow.steps.find_by!(kind: "visual_review").runs.find_by!(state: "failed")
+
+    expect(job).to be_implemented
+    expect(failed_run.run_failure_classification).to have_attributes(
+      classification: "provider_transient",
+      retryable: true
+    )
+    expect(AutoRetryAttempt.where(run: failed_run).count).to eq(1)
+    expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
+    expect(result.events.join("\n")).to include("retryable_run_failure", "auto retry")
   end
 
   {

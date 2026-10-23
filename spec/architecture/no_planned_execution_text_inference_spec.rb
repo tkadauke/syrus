@@ -81,4 +81,12 @@ RSpec.describe "planned execution placement" do
       #{offenders.join("\n")}
     MSG
   end
+
+  it "keeps GitHub-ingestion recommendations out of active planned execution" do
+    source = Rails.root.join("app/services/ingestion_classifier.rb").read
+
+    expect(source).to include("persist_placement_recommendation!")
+    expect(source).not_to match(/PlannedExecutionRequirement\.new\([^)]*source:\s*["']classifier/m)
+    expect(source).not_to include("result.placement_recommendation.assign_to")
+  end
 end

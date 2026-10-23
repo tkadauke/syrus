@@ -1,6 +1,26 @@
 require "rails_helper"
 
 RSpec.describe ProviderAvailabilityEvidence do
+  describe "#summary" do
+    it "includes the evidence id needed by circuit repair tools" do
+      evidence = described_class.create!(
+        user: Factories.user,
+        provider: "codex",
+        status: "warning",
+        source: "usage_probe",
+        observed_at: Time.current,
+        details: { "message" => "Approaching limit" }
+      )
+
+      expect(evidence.summary).to include(
+        id: evidence.id,
+        provider: "codex",
+        status: "warning",
+        details: { "message" => "Approaching limit" }
+      )
+    end
+  end
+
   describe ".record_invocation_auth_error!" do
     let(:user) { Factories.user }
     let(:job) { Factories.job(user: user, repository: Factories.repository(user: user), agent_provider: "codex") }

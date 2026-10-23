@@ -104,7 +104,17 @@ const catalogFilterLink = buildCatalogFilterLink(FILTER_FIELDS)
 function callForExample(entry: ToolPresentationEntry, example: ToolPresentationExample, messageId: number): ChatToolGroupCall {
   const context = toolCardContextForExample(entry.toolName, example)
   const input = context.input ?? {}
-  const resultPresentation = toolResultPresentation(entry.toolName, context.resultBody, context.resultError, context.resultBody, input, context.parsedResult)
+  const resultPresentation = toolResultPresentation(
+    entry.toolName,
+    context.resultBody,
+    context.resultError,
+    context.resultBody,
+    input,
+    context.parsedResult,
+    context.priorResults,
+    undefined,
+    context.resultSettled
+  )
 
   return {
     message_id: messageId,
@@ -115,12 +125,14 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     progress_label: entry.progressLabel,
     raw_payload: input,
     result_body: context.resultBody,
-    result_settled: true,
+    result_settled: context.resultSettled,
     result_json: context.parsedResult,
     result_error: context.resultError,
     result_kind: resultPresentation.kind,
     result_summary: resultPresentation.summary,
-    summary_metadata: resultPresentation.metadata
+    summary_metadata: resultPresentation.metadata,
+    prior_results: context.priorResults,
+    pending_action: context.livePendingAction
   }
 }
 

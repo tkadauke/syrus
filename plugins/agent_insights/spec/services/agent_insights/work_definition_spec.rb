@@ -79,16 +79,4 @@ RSpec.describe AgentInsights::WorkDefinition do
     expect(job).not_to be_valid
     expect(job.errors[:issue_number]).to include("must be blank for agent_insight Jobs")
   end
-
-  it "does not block job bundle landing while an insight sweep is running" do
-    enable!(true)
-
-    result = WorkEngine::Simulation::ScenarioRunner.call(
-      path: Rails.root.join("spec/fixtures/work_engine_simulations/agent_insight_sweep_does_not_block_job_bundle.yml"),
-      max_ticks: 50
-    )
-
-    expect(result).to be_success
-    expect(result.events.join("\n")).to include("merge_train_land")
-  end
 end

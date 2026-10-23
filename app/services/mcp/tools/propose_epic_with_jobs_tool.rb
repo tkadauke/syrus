@@ -72,6 +72,8 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
+      Set jobs[].priority to urgent, high, medium, or low to control each
+      child's first scheduling decision. Each child defaults to medium.
       Set jobs[].planned_execution to declare where each child has to run.
       Nothing reads the child Job text to guess this, so if a child needs a
       host other than Linux you must say so here. Supported dimensions are os,
@@ -135,6 +137,7 @@ module Mcp::Tools
               },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
+              priority: { type: "string", enum: Job::PRIORITIES, description: "Child Job scheduling priority. Defaults to medium." },
               planned_execution: {
                 type: "object",
                 properties: {
@@ -293,6 +296,7 @@ module Mcp::Tools
           dependency_requirements: [],
           provider_setting: provider_setting,
           provider_error: provider_error,
+          priority: job.fetch("priority", "medium").to_s,
           planned_execution: job["planned_execution"],
           media_ids: Array(job["media"])
         }
@@ -387,6 +391,7 @@ module Mcp::Tools
           return "proposal item #{job[:slug]} target_repo is required" if job[:target_repo].empty?
           return "proposal item #{job[:slug]} cannot depend on itself" if job[:depends_on].include?(job[:slug])
           return "proposal item #{job[:slug]} #{job[:provider_error]}" if job[:provider_error]
+          return "proposal item #{job[:slug]} priority must be one of: #{Job::PRIORITIES.join(', ')}" unless Job::PRIORITIES.include?(job[:priority])
         end
 
         jobs.each do |job|
@@ -576,6 +581,7 @@ module Mcp::Tools
             depends_on_job_ids: job[:depends_on_job_ids],
             dependency_requirements: job[:dependency_requirements],
             provider_setting: job[:provider_setting],
+            priority: job[:priority],
             **job.fetch(:planned_execution_attrs),
             media_ids: job[:media_ids],
             state: "proposed",
@@ -612,30 +618,56 @@ module Mcp::Tools
       end
 
       def payload_for(proposal)
+        media_previews = media_previews_for(proposal)
         {
           id: proposal.id,
           slug: proposal.slug,
+          title: proposal.title,
+          description: proposal.body,
           state: proposal.state,
           kind: proposal.kind,
           target_epic: Mcp::Tools.target_epic_payload(proposal),
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
+          depends_on_job_ids: proposal.depends_on_job_ids || [],
           goal_provenance: App::GoalProvenancePayload.for(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,
               slug: child.slug,
+              title: child.title,
+              description: child.body,
               state: child.state,
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
               dependency_requirements: child.dependency_requirements || [],
               provider_setting: child.provider_setting,
+              provider: child.provider_setting,
+              planned_execution: child.planned_execution_json,
+              media: child.media_ids || [],
+              media_previews: Array(child.media_ids).filter_map { |ref| media_previews[ref] },
+              priority: child.priority,
               goal_provenance: App::GoalProvenancePayload.for(child),
-              depends_on: child.dependencies.order(:slug).pluck(:slug)
+              depends_on: child.dependencies.order(:slug).pluck(:slug),
+              materialized: Mcp::Tools.materialized_payload(child)
             }
           end
         }
+      end
+
+      def media_previews_for(proposal)
+        refs = proposal.child_proposals.flat_map { |child| Array(child.media_ids) }.uniq
+        refs.group_by { |ref| ChatMediaRef.split(ref).first }.each_with_object({}) do |(kind, kind_refs), previews|
+          source = ChatMediaSources.for_kind(kind)
+          next unless source
+
+          wanted = kind_refs.to_set
+          Array(source.list_chat_media(chat_session: proposal.chat_session)).each do |entry|
+            ref = entry[:id].to_s
+            previews[ref] = entry if wanted.include?(ref)
+          end
+        end
       end
 
       def job_scope_for(user)

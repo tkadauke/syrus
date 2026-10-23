@@ -63,6 +63,7 @@ import {
   patchChatGoal,
   updateScratchpadItem,
   fetchChat,
+  fetchChatMedia,
   fetchChatBookmarks,
   fetchChatMessages,
   fetchChatSearchMessages,
@@ -176,6 +177,7 @@ import {
   availableWorkspaceTabs,
   clampWorkspaceWidth,
   defaultWorkspaceTab,
+  linkedWorkspaceTab,
   mobileChatTabLabel,
   requestedWorkspaceTab,
   storeWorkspacePreference,
@@ -392,8 +394,8 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) =>
         item.type === "tool_group" ? (
-          <SharedMessageRenderer key={renderItemKey(item)} readOnly>
-            <ToolGroup item={item} />
+          <SharedMessageRenderer compact key={renderItemKey(item)} readOnly>
+            <ToolGroup chatSessionId={payload.chat.id} item={item} payload={placeholderPayload} />
           </SharedMessageRenderer>
         ) : (
           <ChatMessage
@@ -429,6 +431,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       cumulative_cost_usd: 0
     },
     chat_available: false,
+    chat_provider_display_name: "Claude",
     turn_in_flight: false,
     agent_busy: false,
     switching_provider: false,
@@ -518,7 +521,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       {!payload.chat_available ? (
-        <UnavailableChatNotice prefix={prefix} />
+        <UnavailableChatNotice prefix={prefix} provider={payload.chat_provider_display_name || "AI provider"} />
       ) : (
         <ChatWorkspace
           chatId={chatId}
@@ -536,7 +539,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   )
 }
 
-function UnavailableChatNotice({ prefix }: { prefix: string }) {
+function UnavailableChatNotice({ prefix, provider }: { prefix: string; provider: string }) {
   const { t } = useT("chat")
   const isDesktopChrome = useMediaQuery("(min-width: 1024px)", true)
   const { revealHeader, topInset } = useMobileChatHeaderControls()
@@ -551,9 +554,9 @@ function UnavailableChatNotice({ prefix }: { prefix: string }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-4" data-testid="unavailable-chat-shell" style={mobileStyle}>
       <section className="rounded border border-amber-200 bg-white p-6 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-        <div className="font-semibold">{t("credentials_required_title")}</div>
+        <div className="font-semibold">{t("credentials_required_title", { provider })}</div>
         <p className="mt-1">
-          {t("credentials_required_body_prefix")}{" "}
+          {t("credentials_required_body_prefix", { provider })}{" "}
           <Link className="underline hover:no-underline" to={withRoutePrefix("/credentials", prefix)}>
             {t("credentials_required_link")}
           </Link>{" "}
@@ -620,6 +623,13 @@ function mergeChatFindMatches(localMatches: ChatSearchMatch[], remoteMatches: Ch
   return merged
 }
 
+function toolGroupReferencesMedia(group: ChatToolGroupItem): boolean {
+  return group.calls.some((call) => {
+    const media = call.raw_payload && typeof call.raw_payload === "object" ? (call.raw_payload as Record<string, unknown>).media : null
+    return (Array.isArray(media) && media.length > 0) || (call.nested?.some((nestedGroup) => toolGroupReferencesMedia(nestedGroup)) ?? false)
+  })
+}
+
 function MessageStream({
   bookmarkTarget,
   contextFindOpenerRef,
@@ -683,6 +693,11 @@ function MessageStream({
     () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)),
     [visibleItems, payload.pending_actions, pendingActionGroups]
   )
+  const toolCardMedia = useQuery({
+    queryKey: ["chat_media", String(payload.chat.id)],
+    queryFn: () => fetchChatMedia(payload.chat.id),
+    enabled: streamItems.some((item) => item.type === "tool_group" && toolGroupReferencesMedia(item))
+  })
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
@@ -1129,8 +1144,8 @@ function MessageStream({
             ) : item.type === "pending_action_group" ? (
               <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
-              <SharedMessageRenderer key={renderItemKey(item)}>
-                <ToolGroup item={item} />
+              <SharedMessageRenderer compact key={renderItemKey(item)}>
+                <ToolGroup chatMedia={toolCardMedia.data} chatSessionId={payload.chat.id} item={item} payload={payload} />
               </SharedMessageRenderer>
             ) : (
               <ChatMessage
@@ -1262,12 +1277,15 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
-  const linkedWorkspace = requestedWorkspaceTab(payload)
-  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => linkedWorkspace || storedWorkspaceTab() || defaultWorkspaceTab(payload))
-  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => linkedWorkspace || "chat")
+  const location = useLocation()
+  const initialLinkedTab = requestedWorkspaceTab(payload, location.search) || linkedWorkspaceTab(payload, location.hash)
+  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => initialLinkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => initialLinkedTab || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const initialPanelStateRef = useRef<ReturnType<typeof initialWorkspacePanelState> | null>(null)
-  if (initialPanelStateRef.current === null) initialPanelStateRef.current = initialWorkspacePanelState(payload)
+  if (initialPanelStateRef.current === null) {
+    initialPanelStateRef.current = initialLinkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
+  }
   const [panelCollapsed, setPanelCollapsed] = useState(initialPanelStateRef.current.collapsed)
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
@@ -1286,23 +1304,23 @@ function ChatWorkspace({
   const { autoHideEnabled: mobileHeaderAutoHideEnabled, revealHeader, topInset: mobileChatTopInset } = useMobileChatHeaderControls()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, hasPins)
-  const showMobileWorkspaceTabs = mobileWorkspaceTabsVisible(payload)
+  const showMobileWorkspaceTabs = initialLinkedTab !== null || mobileWorkspaceTabsVisible(payload)
   const showMobileChatColumn = activeMobileTab === "chat" || !showMobileWorkspaceTabs
   const mobileTabsAutoHideActive = !isDesktop && showMobileWorkspaceTabs && activeMobileTab === "chat" && mobileHeaderAutoHideEnabled
   const mobileWorkspacePanelStyle =
     !isDesktop && !showMobileChatColumn
       ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties)
       : undefined
+  const requestedTab = requestedWorkspaceTab(payload, location.search)
 
   useLayoutEffect(() => {
-    const nextPanelState = initialWorkspacePanelState(payload)
+    const linkedTab = requestedWorkspaceTab(payload, window.location.search) || linkedWorkspaceTab(payload, window.location.hash)
+    const nextPanelState = linkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
-    const requested = requestedWorkspaceTab(payload)
-    setActiveTab(requested || storedWorkspaceTab() || defaultWorkspaceTab(payload))
-    setActiveMobileTab(requested || "chat")
-    if (requested) setPanelCollapsed(false)
+    if (linkedTab) setActiveTab(linkedTab)
+    setActiveMobileTab(linkedTab || "chat")
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
     setPendingJobsTabRequest(false)
@@ -1312,9 +1330,27 @@ function ChatWorkspace({
   }, [payload.chat.id, revealHeader])
 
   useEffect(() => {
+    const match = window.location.hash.match(/^#(walkthrough-\d+)$/)
+    if (!match || initialLinkedTab === null) return
+    if (isDesktop ? panelCollapsed : showMobileChatColumn) return
+
+    const frame = window.requestAnimationFrame(() => document.getElementById(match[1])?.scrollIntoView({ block: "nearest" }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [initialLinkedTab, isDesktop, panelCollapsed, showMobileChatColumn])
+
+  useEffect(() => {
     if (activeTab === null || !availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload))
     if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
   }, [activeMobileTab, activeTab, availableTabs, payload])
+
+  useEffect(() => {
+    if (requestedTab === null || !availableTabs.includes(requestedTab)) return
+
+    setPanelCollapsed(false)
+    setActiveTab(requestedTab)
+    setActiveMobileTab(requestedTab)
+    setActiveFindSurface("workspace")
+  }, [availableTabs, payload.chat.id, requestedTab])
 
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")

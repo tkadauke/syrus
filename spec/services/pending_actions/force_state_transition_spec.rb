@@ -83,4 +83,116 @@ RSpec.describe PendingActions::ForceStateTransition do
 
     expect(job.reload.state).to eq("closed")
   end
+
+  it "retires active runtime ownership before forcing a terminal Job state" do
+    job = build_job("running")
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "coding_handoff",
+      job: job,
+      idempotency_key: "forced-terminal-state"
+    )
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "mark_failed")
+
+    expect(action.confirm!(user: admin)).to be true
+
+    expect(job.reload).to be_failed
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to be_cancelled
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+    expect(workflow.work_unit.work_unit_locks.active).to be_empty
+    expect(action.after_snapshot.dig("jobs", 0, "runtime_ownership", "work_units", 0)).to include(
+      "id" => workflow.work_unit.id,
+      "state" => "cancelled",
+      "work_intent_state" => "cancelled",
+      "active_lock_ids" => []
+    )
+  end
+
+  it "forces an ordinary running Workflow to implemented without cancellation changing the Job state" do
+    job = build_job("running", pr_number: 84)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "initial",
+      job: job,
+      idempotency_key: "forced-ordinary-workflow-implemented"
+    )
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "mark_implemented")
+
+    expect(action.confirm!(user: admin)).to be true
+
+    expect(job.reload).to be_implemented
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON)
+    expect(workflow.work_unit.reload).to be_cancelled
+    expect(workflow.work_unit.work_intent.reload).to be_cancelled
+    expect(workflow.work_unit.work_unit_locks.active).to be_empty
+    expect(WorkIntent.where(scope_type: "job", scope_id: job.id, state: %w[requested waiting])).to be_empty
+
+    result = WorkEngine::Reconciler.call(source: "spec", job_id: job.id, execute_repairs: true)
+
+    expect(result.repair_plans.map(&:action)).not_to include("retry_job_after_cancelled_workflow")
+    expect(job.reload).to be_implemented
+    expect(job.workflows.count).to eq(1)
+  end
+
+  it "leaves a forced implemented Job available for Coding Mode after cancelling a zero-run handoff" do
+    allow(Feature).to receive(:coding_mode_enabled?).and_return(true)
+    allow(ChatWorkspace).to receive(:ensure_job_branch_checkout!)
+    admin.update!(github_token: "test-token")
+    job = build_job("running", branch_name: "syrus/direct-reopen-in-coding")
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "coding_handoff",
+      job: job,
+      idempotency_key: "forced-implemented-state"
+    )
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "mark_implemented")
+
+    action.confirm!(user: admin)
+
+    coding_chat = ChatSession.create!(user: admin, repository: admin_repository, mode: "coding")
+    result = JobCodingMode::Takeover.call(job: job.reload, user: admin, chat_session: coding_chat)
+
+    expect(workflow.reload).to be_cancelled
+    expect(result.job).to be_coding
+    expect(result.job.linked_chat_id).to eq(coding_chat.id)
+  end
+
+  it "does not duplicate a succeeded automatic visual comparison when repair returns the Job to implemented" do
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+    )
+    job = build_job("implemented")
+    source = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "succeeded",
+      artifacts: {
+        "visual_review_iterations" => [
+          {
+            "iteration" => 1,
+            "verdict" => "approved",
+            "artifacts" => [
+              {
+                "type" => "visual_review_screenshot_run_1_1",
+                "title" => "Dashboard",
+                "image_url" => "/api/v1/app/workflows/10/visual_artifact?type=visual_review_screenshot_run_1_1"
+              }
+            ]
+          }
+        ]
+      }
+    )
+    comparison = VisualDiffSubmission.enqueue_deferred_for_visual_review(source).workflow
+    Run.where(step_id: comparison.steps.select(:id)).update_all(state: "succeeded", finished_at: Time.current)
+    comparison.update_columns(state: "succeeded", finished_at: Time.current)
+    comparison.work_unit.mark_terminal!("succeeded")
+
+    pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "force_fail").confirm!(user: admin)
+    pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "retry_after_failure").confirm!(user: admin)
+
+    expect {
+      pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "mark_implemented").confirm!(user: admin)
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+
+    expect(job.reload).to be_implemented
+  end
 end

@@ -144,6 +144,22 @@ describe("JobPreviewCard", () => {
     )
   })
 
+  it("renders the authoritative dependency reason for a queued job", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: {
+        id: 42,
+        state: "queued",
+        issue_title: "Wait for its parent",
+        issue_body: "",
+        start_blocked_reason: "stack_dependencies_not_ready"
+      }
+    }))
+    renderCard(42)
+
+    await waitFor(() => expect(screen.getByText("Waiting on dependency")).toBeInTheDocument())
+    expect(screen.queryByText("Main branch broken")).not.toBeInTheDocument()
+  })
+
   it("renders the issue body", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       job: { id: 1, state: "open", issue_title: "T", issue_body: "Some description here." }

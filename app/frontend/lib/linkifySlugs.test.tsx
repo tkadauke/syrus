@@ -59,6 +59,14 @@ describe("linkifySlugs", () => {
     expect(screen.getByRole("link", { name: "INSIGHT-5" })).toHaveAttribute("href", "/s/INSIGHT-5")
   })
 
+  it("uses caller-supplied href fallbacks when optional slug metadata is unavailable", () => {
+    setSlugReferenceRegistryForTests([])
+
+    render(<MemoryRouter>{linkifySlugs("See DOC-9", { hrefFallbacks: { DOC: "/design_docs/:id" } })}</MemoryRouter>)
+
+    expect(screen.getByRole("link", { name: "DOC-9" })).toHaveAttribute("href", "/design_docs/9")
+  })
+
   it("keeps one polished control for registered refs that are both linked and copyable", () => {
     setSlugReferenceRegistryForTests([registryEntry({ prefix: "JOB", type: "job", hrefTemplate: "/jobs/JOB-:id" })])
 

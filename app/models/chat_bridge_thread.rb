@@ -1,6 +1,6 @@
 class ChatBridgeThread < ApplicationRecord
   STATES = %w[open closed].freeze
-  DEFAULT_MAX_HOPS = 6
+  DEFAULT_MAX_HOPS = 100
 
   belongs_to :origin_chat_session, class_name: "ChatSession"
   belongs_to :target_chat_session, class_name: "ChatSession"

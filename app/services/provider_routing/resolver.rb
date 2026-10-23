@@ -10,12 +10,23 @@ module ProviderRouting
       def to_h = super.compact
     end
     Resolution = Data.define(:candidates, :source_scope, :source_id, :matched_rule, :match_details, :fallback, :reason) do
+      def held? = matched_rule&.hold_action? || false
+
+      def decision
+        if held?
+          { "status" => "held", "failure" => false, "reason" => matched_rule.serialized_action["reason"] }.compact
+        else
+          { "status" => "routed", "failure" => false }
+        end
+      end
+
       def explanation
         {
           "source_scope" => source_scope,
           "source_id" => source_id,
           "fallback" => fallback,
           "reason" => reason,
+          "decision" => decision,
           "matched_rule" => matched_rule_payload,
           "condition_results" => match_details,
           "final_action" => final_action
@@ -32,6 +43,7 @@ module ProviderRouting
           "scope_type" => matched_rule.scope_type,
           "scope_id" => matched_rule.scope_id,
           "position" => matched_rule.position,
+          "enabled" => matched_rule.enabled?,
           "trigger" => matched_rule.trigger,
           "conditions" => matched_rule.conditions
         }.compact
@@ -39,7 +51,9 @@ module ProviderRouting
 
       def final_action
         if matched_rule
-          matched_rule.action.to_h.deep_stringify_keys.merge("candidates" => serialized_candidates)
+          matched_rule.serialized_action.merge("candidates" => serialized_candidates).then do |payload|
+            held? ? payload.except("candidates") : payload
+          end
         else
           { "strategy" => "fallback_order", "candidates" => serialized_candidates }
         end
@@ -56,19 +70,20 @@ module ProviderRouting
       resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).candidates
     end
 
-    def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
-      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).resolve
+    def self.resolve(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
+      new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind, released_hold_rule_ids: released_hold_rule_ids).resolve
     end
 
     def self.rule_configured?(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, include_default: true)
       new(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind).send(:rule_configured?, include_default: include_default)
     end
 
-    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
+    def initialize(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, released_hold_rule_ids: [])
       @job = job
       @task_key = task_key.to_s
       @trigger = trigger
       @workflow_trigger_kind = workflow_trigger_kind
+      @released_hold_rule_ids = Array(released_hold_rule_ids).map(&:to_i)
     end
 
     def call
@@ -85,7 +100,7 @@ module ProviderRouting
 
     private
 
-    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind
+    attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :released_hold_rule_ids
 
     def job_override_candidates
       return nil if job.job_provider_setting_default?
@@ -190,17 +205,20 @@ module ProviderRouting
         .where(scope_type: scope_type, scope_id: scope_id)
         .order(:position, :id)
         .then { |rules| matching_rule_from(rules) }
-      return nil if match.nil? || match.fetch(:rule).action_candidates.blank?
+      return nil if match.nil?
 
-      candidates = match.fetch(:rule).action_candidates.map { |candidate| candidate_from_hash(candidate) }
+      rule = match.fetch(:rule)
+      return nil if rule.action_candidates.blank? && !rule.hold_action?
+
+      candidates = rule.action_candidates.map { |candidate| candidate_from_hash(candidate) }
       Resolution.new(
         candidates: candidates,
         source_scope: scope_type,
         source_id: scope_id,
-        matched_rule: match.fetch(:rule),
+        matched_rule: rule,
         match_details: match.fetch(:details),
         fallback: false,
-        reason: "matched_rule"
+        reason: rule.hold_action? ? "matched_hold" : "matched_rule"
       )
     end
 
@@ -238,7 +256,7 @@ module ProviderRouting
 
       scopes.any? do |scope_type, scope_id|
         ProviderRoutingRule
-          .where(scope_type: scope_type, scope_id: scope_id)
+          .where(scope_type: scope_type, scope_id: scope_id, enabled: true)
           .any? do |rule|
             next false if !include_default && rule.trigger.to_h["type"] == "default"
 
@@ -253,6 +271,9 @@ module ProviderRouting
 
     def matching_rule_from(rules)
       rules.each do |rule|
+        next unless rule.enabled?
+        next if rule.hold_action? && released_hold_rule_ids.include?(rule.id)
+
         invocations(include_default: true).each do |candidate_invocation|
           details = rule.match_details(invocation: candidate_invocation, job: job, workflow_trigger_kind: workflow_trigger_kind)
           return { rule: rule, details: details } if details["matched"]

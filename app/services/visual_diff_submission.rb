@@ -78,6 +78,7 @@ class VisualDiffSubmission
       idempotency_key: idempotency_key,
       source_type: "visual_diff",
       source_id: after_workflow&.id,
+      completion_aware: source == AUTOMATIC_SOURCE,
       before_start: ->(workflow) { workflow.update!(priority: "low") }
     )
     Result.new(workflow: result.workflow, run: result.run, error: nil)

@@ -301,7 +301,7 @@ module Api
           skipped_ids = []
 
           jobs.find_each do |job|
-            unless JobPolicy.new(Current.user, job).write? && job.awaiting_triage_decision?
+            unless JobPolicy.new(Current.user, job).write? && job.awaiting_triage_decision? && !job.triaging_reason_placement_confirmation?
               skipped_ids << job.id
               next
             end

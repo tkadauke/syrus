@@ -65,7 +65,8 @@ module Mcp::Tools
             action: "repair_provider_circuit_evidence",
             payload: payload_for.call(ids.first, records.first),
             reason: reason,
-            message: "Mark #{evidence_type} ##{ids.first} as #{repair_status} for provider-circuit decisions?"
+            message: "Mark #{evidence_type} ##{ids.first} as #{repair_status} for provider-circuit decisions?",
+            extra: { observed: observed_summary(ids.first, records.first) }
           )
         end
 
@@ -77,7 +78,11 @@ module Mcp::Tools
           },
           reason: reason
         )
-        bulk_action_response(group: group, message: "Mark #{records.size} #{evidence_type} evidence items as #{repair_status} for provider-circuit decisions?")
+        bulk_action_response(
+          group: group,
+          message: "Mark #{records.size} #{evidence_type} evidence items as #{repair_status} for provider-circuit decisions?",
+          extra: { observed: ids.zip(records).map { |id, record| observed_summary(id, record) } }
+        )
       end
 
       private
@@ -109,6 +114,16 @@ module Mcp::Tools
           reason: record.reason,
           classified_at: record.classified_at&.iso8601,
           repair: record.repair_summary
+        }.compact
+      end
+
+      def observed_summary(evidence_id, record)
+        observed = observed_payload(record)
+        {
+          evidence_id: evidence_id,
+          status: observed[:status] || observed[:classification],
+          source: observed[:source] || "run_failure_classification",
+          observed_at: observed[:observed_at] || observed[:classified_at]
         }.compact
       end
     end

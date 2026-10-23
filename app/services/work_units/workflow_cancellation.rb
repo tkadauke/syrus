@@ -1,5 +1,7 @@
 module WorkUnits
   class WorkflowCancellation
+    OPERATOR_STALE_WORK_REASON = "operator_stale_work_repair".freeze
+
     def self.cancel!(workflow, reason:, artifacts: {}, by_work_unit: nil)
       new(workflow, reason: reason, artifacts: artifacts, by_work_unit: by_work_unit).cancel!
     end

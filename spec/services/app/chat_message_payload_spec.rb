@@ -44,6 +44,99 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:text)).to eq("")
   end
 
+  it "includes spawned chat ids in a confirmed spawn-chats action outcome" do
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        { action: "spawn_chat", payload: { "prompt" => "First", "batch_size" => 2 } },
+        { action: "spawn_chat", payload: { "prompt" => "Second", "batch_size" => 2 } }
+      ]
+    )
+    anchor = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "spawn_chats", tool_use_id: "spawn-1", pending_action: anchor,
+      content: { "type" => "tool_use", "id" => "spawn-1", "name" => "spawn_chats", "input" => {} }
+    )
+    group.chat_pending_actions.order(:id).each_with_index do |action, index|
+      action.update!(payload: action.payload.merge("spawned_chat_id" => 101 + index), state: "confirmed")
+    end
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
+  end
+
+  it "serializes every force landing recheck group member's observed and refreshed state" do
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        {
+          action: "force_landing_recheck",
+          reason: "Refresh stale landing metadata.",
+          payload: {
+            "job_id" => 41,
+            "observed_state" => { "state" => "approved" },
+            "observed_blocker" => { "key" => "dependencies" },
+            "refreshed_state" => { "state" => "landing", "landing_queue_blocked_reason" => nil }
+          }
+        },
+        {
+          action: "force_landing_recheck",
+          reason: "Refresh stale landing metadata.",
+          payload: {
+            "job_id" => 42,
+            "observed_state" => { "state" => "landing" },
+            "observed_blocker" => nil
+          }
+        }
+      ]
+    )
+    anchor = group.chat_pending_actions.order(:id).first
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "force_landing_recheck", tool_use_id: "recheck-1", pending_action: anchor,
+      content: { "type" => "tool_use", "id" => "recheck-1", "name" => "force_landing_recheck", "input" => {} }
+    )
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:pending_action, :detail)).to eq(
+      "- JOB-41 — observed state: approved; observed blocker: dependencies; refreshed state: landing; refreshed blocker: none\n" \
+      "- JOB-42 — observed state: landing; observed blocker: none"
+    )
+  end
+
+  it "batch-loads spawned chat outcomes without querying each pending-action group" do
+    message_ids = 3.times.map do |group_index|
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat,
+        member_attributes: 2.times.map do |member_index|
+          {
+            action: "spawn_chat",
+            payload: {
+              "prompt" => "Chat #{group_index}-#{member_index}",
+              "batch_size" => 2,
+              "spawned_chat_id" => 100 + (group_index * 2) + member_index
+            }
+          }
+        end
+      )
+      anchor = group.chat_pending_actions.order(:id).first
+      chat.messages.create!(
+        role: "tool_use",
+        tool_name: "spawn_chats",
+        tool_use_id: "spawn-#{group_index}",
+        pending_action: anchor,
+        content: { "type" => "tool_use", "id" => "spawn-#{group_index}", "name" => "spawn_chats", "input" => {} }
+      ).id
+    end
+    messages = chat.messages.where(id: message_ids).order(:id).to_a
+
+    queries = capture_sql { described_class.messages(messages, repository: repository) }
+
+    expect(queries.grep(/FROM ["`]?pending_action_groups["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?chat_pending_actions["`]?/i).size).to eq(2)
+  end
+
   it "includes sidechain + parent_tool_use_id for a subagent's nested tool call" do
     message = chat.messages.create!(
       role: "tool_use", tool_name: "Read", tool_use_id: "sub1",
@@ -286,6 +379,33 @@ RSpec.describe App::ChatMessagePayload do
       app_reject_path: "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/reject",
       resource_title: "Inject memories into chat system prompt",
       resource_url: "/jobs/#{job.id}"
+    )
+  end
+
+  it "includes the created repository document result in an inline pending action" do
+    action = chat.pending_actions.create!(
+      action: "create_repo_document",
+      requested_by: "agent",
+      payload: { "repository_id" => repository.id, "title" => "Runbook", "body" => "# Ship safely" }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Create it?" })
+
+    expect(action.confirm!).to be(true)
+    document = action.reload.result
+    payload = described_class.messages([ message.reload ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      resource_title: "Runbook",
+      resource_url: "/api/v1/app/repository_documents/#{document.id}/file",
+      document: {
+        id: document.id,
+        title: "Runbook",
+        repository_id: repository.id,
+        repository_slug: repository.slug,
+        content_type: "text/markdown",
+        size_bytes: 13,
+        url: "/api/v1/app/repository_documents/#{document.id}/file"
+      }
     )
   end
 
@@ -935,8 +1055,19 @@ RSpec.describe App::ChatMessagePayload do
         title: "Pending job",
         state: "proposed",
         anchor_message_id: anchor.id,
+        dependency_ids: [],
         active_children_count: nil
       )
+    end
+
+    it "includes proposal dependencies for dependency-aware bulk confirmation" do
+      dependency = chat.proposals.create!(slug: "foundation", title: "Foundation", body: "Work.", kind: "job")
+      proposal = chat.proposals.create!(slug: "dependent", title: "Dependent", body: "Work.", kind: "job")
+      proposal.dependency_edges.create!(depends_on: dependency)
+
+      payload = described_class.job_status_proposal_json(proposal)
+
+      expect(payload.fetch(:dependency_ids)).to eq([ dependency.id ])
     end
 
     it "includes the active child count for an Epic bundle proposal" do

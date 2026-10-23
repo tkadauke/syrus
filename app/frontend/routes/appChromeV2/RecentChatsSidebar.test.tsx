@@ -770,6 +770,24 @@ describe("RecentChatsSidebar action and marker slot", () => {
     }
   })
 
+  it("bounds long Job popovers to one third of the viewport and makes them scrollable", () => {
+    const jobs = Array.from({ length: 30 }, (_, index) => ({
+      id: index + 1,
+      slug: `JOB-${index + 1}`,
+      state: "running",
+      step: "implement",
+      group: "running" as const,
+      app_path: `/jobs/${index + 1}`
+    }))
+    renderSidebar([chatNav({ job_summary: { active_count: jobs.length, outcome: null, jobs } })])
+
+    fireEvent.mouseEnter(screen.getByTestId("job-running-marker").parentElement!)
+
+    const popover = screen.getByTestId("recent-chat-indicator-popover")
+    expect(popover).toHaveClass("max-h-[33dvh]", "overflow-y-auto", "overscroll-contain")
+    expect(within(popover).getByRole("link", { name: "JOB-30" })).toBeInTheDocument()
+  })
+
   it("rolls Job activity and worst outcome into a collapsed group", () => {
     renderSidebar([], { groups: [chatGroup({ key: "repository-7", label: "acme/widgets", chats: [
       chatNav({ id: 1, job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] } }),

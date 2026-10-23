@@ -91,6 +91,34 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "ordered scoped rules" do
+    it "skips disabled rules without changing their positions" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      disabled = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, position: 1, enabled: false, task_key: "ci_failure", candidates: [ { "provider" => "codex" } ])
+      enabled = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, position: 2, task_key: "ci_failure", candidates: [ { "provider" => "claude" } ])
+
+      resolution = described_class.resolve(job: job, task_key: "ci_failure")
+
+      expect(resolution.matched_rule).to eq(enabled)
+      expect(resolution.candidates).to eq([ candidate(provider: "claude") ])
+      expect(disabled.reload.position).to eq(1)
+    end
+
+    it "returns a terminal structured hold decision without falling through to broader scopes" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      hold = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "ci_failure", candidates: [], action: { type: "hold", reason: "Await capacity" })
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "claude" } ])
+
+      resolution = described_class.resolve(job: job, task_key: "ci_failure")
+
+      expect(resolution).to be_held
+      expect(resolution.candidates).to eq([])
+      expect(resolution.matched_rule).to eq(hold)
+      expect(resolution.reason).to eq("matched_hold")
+      expect(resolution.decision).to eq("status" => "held", "failure" => false, "reason" => "Await capacity")
+      expect(resolution.explanation.fetch("decision")).to eq(resolution.decision)
+      expect(resolution.explanation.fetch("final_action")).to eq("type" => "hold", "reason" => "Await capacity")
+    end
+
     it "uses the first matching repository-scoped rule by position" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 

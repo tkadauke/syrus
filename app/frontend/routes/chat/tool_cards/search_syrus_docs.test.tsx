@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import searchSyrusDocsToolCard from "./search_syrus_docs"
@@ -24,31 +24,41 @@ describe("search_syrus_docs tool card", () => {
     expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ parsedResult }))).toBe('"landing queue" - 4 hits')
   })
 
-  it("renders ranked results with title, path, source, reference, and snippets", () => {
+  it("renders input, ranked results, scores, linked references, and expandable markdown", () => {
     const parsedResult = {
       query: "prepare",
       count: 1,
-      results: [{
-        rank: 1,
-        title: "Workflow Steps",
-        heading: "Prepare",
-        path: "config/syrus_docs/workflow_steps.md",
-        source: "core",
-        reference: "config/syrus_docs/workflow_steps.md > Prepare",
-        snippet: "Runs setup commands before the agent starts."
-      }]
+      results: [
+        {
+          rank: 1,
+          title: "Workflow Steps",
+          heading: "Prepare",
+          path: "config/syrus_docs/workflow_steps.md",
+          source: "core",
+          reference: "config/syrus_docs/workflow_steps.md > Prepare",
+          score: 2,
+          text: `## Workflow setup\n\nRuns **setup commands** before the agent starts.\n\n${"Full details stay available. ".repeat(30)}`
+        }
+      ]
     }
 
-    render(<>{searchSyrusDocsToolCard.renderExpanded(context({ parsedResult }))}</>)
+    render(<>{searchSyrusDocsToolCard.renderExpanded(context({ input: { query: "prepare", limit: 3 }, parsedResult }))}</>)
 
     expect(screen.getByText("prepare")).toBeInTheDocument()
     expect(screen.getByText("1")).toBeInTheDocument()
+    expect(screen.getByText("3")).toBeInTheDocument()
     expect(screen.getByText("#1")).toBeInTheDocument()
     expect(screen.getByText("Workflow Steps > Prepare")).toBeInTheDocument()
-    expect(screen.getByText("config/syrus_docs/workflow_steps.md")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "config/syrus_docs/workflow_steps.md" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("github.com/tkadauke/syrus/blob/main/config/syrus_docs/workflow_steps.md")
+    )
     expect(screen.getByText("core")).toBeInTheDocument()
-    expect(screen.getByText("config/syrus_docs/workflow_steps.md > Prepare")).toBeInTheDocument()
-    expect(screen.getByText("Runs setup commands before the agent starts.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "config/syrus_docs/workflow_steps.md > Prepare" })).toHaveAttribute("href", expect.stringContaining("#prepare"))
+    expect(screen.getByText("score 2")).toBeInTheDocument()
+    expect(screen.getByText("setup commands").tagName).toBe("STRONG")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "Workflow setup" })).toBeInTheDocument()
   })
 
   it("renders a no-results state for an empty result list", () => {
@@ -68,9 +78,19 @@ describe("search_syrus_docs tool card", () => {
   })
 
   it("renders a malformed payload state instead of throwing", () => {
-    expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ parsedResult: { oops: true }, input: { query: "prepare" } }))).toBe('"prepare" returned an unexpected response')
+    expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ parsedResult: { oops: true }, input: { query: "prepare" } }))).toBe(
+      '"prepare" returned an unexpected response'
+    )
 
     render(<>{searchSyrusDocsToolCard.renderExpanded(context({ parsedResult: "not json" }))}</>)
     expect(screen.getByText("Unexpected Syrus Docs search response.")).toBeInTheDocument()
+  })
+
+  it("renders a pending state with the requested query and limit", () => {
+    render(<>{searchSyrusDocsToolCard.renderExpanded(context({ input: { query: "graders", limit: 2 } }))}</>)
+
+    expect(searchSyrusDocsToolCard.collapsedSummary?.(context({ input: { query: "graders" } }))).toBe('Searching Syrus Docs for "graders"')
+    expect(screen.getByText("Searching Syrus Docs…")).toBeInTheDocument()
+    expect(screen.getByText("2")).toBeInTheDocument()
   })
 })

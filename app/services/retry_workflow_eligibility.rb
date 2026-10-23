@@ -1,4 +1,9 @@
 class RetryWorkflowEligibility
+  CLOSED_JOB_STATES = %w[closed].freeze
+  APPROVAL_JOB_STATES = %w[approved landing].freeze
+  INELIGIBLE_JOB_STATES = (CLOSED_JOB_STATES + APPROVAL_JOB_STATES).freeze
+  CANDIDATE_JOB_STATES = (Job.aasm.states.map { |state| state.name.to_s } - INELIGIBLE_JOB_STATES).freeze
+
   Result = Data.define(:eligible, :code, :message) do
     def eligible? = eligible
   end
@@ -11,8 +16,8 @@ class RetryWorkflowEligibility
   end
 
   def call
-    return failure("closed", closed_job_message) if job.closed?
-    return failure("approved", "Job is already approved for landing - unapprove it before retrying.") if job.approved? || job.landing?
+    return failure("closed", closed_job_message) if CLOSED_JOB_STATES.include?(job.state)
+    return failure("approved", "Job is already approved for landing - unapprove it before retrying.") if APPROVAL_JOB_STATES.include?(job.state)
     if job.landing_failure_reason.present?
       return failure("landing_failed", "Landing failed - reapprove the Job or retry the failed landing workflow instead of retrying implementation.")
     end

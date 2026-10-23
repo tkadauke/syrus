@@ -196,6 +196,7 @@ export type ChatProposal = {
   route_label?: string
   investigation?: boolean
   provider_setting?: string | null
+  priority?: string
   planned_execution?: PlannedExecution | null
   app_update_path: string
   app_confirm_path: string
@@ -244,6 +245,7 @@ export type ChatProposalChild = {
   dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   provider_setting?: string | null
+  priority?: string
   planned_execution?: PlannedExecution | null
   goal_provenance?: GoalProvenance | null
   media_ids?: string[]
@@ -434,8 +436,10 @@ export type ChatPendingActionInline = {
   reason?: string | null
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
+  outcome?: Record<string, unknown>
   resource_title?: string
   resource_url?: string
+  document?: ChatPendingActionDocument
   app_confirm_path: string
   app_reject_path: string
   app_cancel_path?: string
@@ -470,9 +474,13 @@ export type ChatToolGroupCall = {
   // builders (e.g. the admin transcript grouper) that haven't computed it;
   // treat that the same as null.
   result_json?: unknown
+  // Bounded, normalized results from earlier calls that dedicated cards may
+  // use for display context (for example resolving a tag id from list_tags).
+  prior_results?: Readonly<Record<string, unknown>>
   result_error: boolean
   result_kind: ChatToolResultKind
   result_summary: string
+  context_calls?: ChatToolContextCall[]
   summary_metadata?: ChatToolSummaryMetadata
   // Live current state of the ChatPendingAction this call's tool_use
   // message is anchored to (ChatPendingAction::anchor_to_tool_call! always
@@ -485,6 +493,8 @@ export type ChatToolGroupCall = {
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]
 }
+
+export type ChatToolContextCall = { tool_name: string; input: unknown; result: unknown }
 
 export type ChatToolGroupItem = {
   type: "tool_group"
@@ -529,9 +539,20 @@ export type ChatPendingAction = {
   chat_message_id?: number | null
   resource_title?: string
   resource_url?: string
+  document?: ChatPendingActionDocument
   app_confirm_path: string
   app_reject_path: string
   app_cancel_path: string
+}
+
+export type ChatPendingActionDocument = {
+  id: number
+  title: string
+  repository_id?: number | null
+  repository_slug?: string | null
+  content_type?: string | null
+  size_bytes?: number | null
+  url?: string | null
 }
 
 export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"
@@ -867,6 +888,7 @@ export type ChatPayload = {
   message?: string | null
   chat: ChatRecord
   chat_available: boolean
+  chat_provider_display_name?: string
   turn_in_flight: boolean
   agent_busy: boolean
   agent_activity?: ChatAgentActivity | null
@@ -1606,6 +1628,7 @@ export type ChatJobStatusPendingProposal = {
   title: string | null
   state: string
   anchor_message_id: number | null
+  dependency_ids?: number[]
   active_children_count: number | null
   created_at: string | null
 }

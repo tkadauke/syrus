@@ -424,6 +424,9 @@ export function JobDetailView({
       {mainHealthBannerVisible(payload) ? (
         <Notice className="flex items-center gap-3" role="alert" tone="warning">
           <span>{payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}</span>
+          {!payload.job.main_branch_repair && payload.job.start_blocked_reason ? (
+            <StartBlockedReasonPill reason={payload.job.start_blocked_reason} />
+          ) : null}
           {!payload.job.main_branch_repair ? (
             <Link
               className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
@@ -1238,7 +1241,9 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         <p className="text-xs text-text-secondary">{t("routing_job_description")}</p>
       </div>
       <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("routing_resolved_heading")}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {resolution?.final_action?.type === "hold" ? t("routing_hold_decision_heading") : t("routing_resolved_heading")}
+        </p>
         <p className="mt-1 text-sm text-text-primary">{routingResolutionSummary(payload, t)}</p>
         {matchedRule ? (
           <p className="mt-1 text-xs text-text-secondary">
@@ -1260,6 +1265,17 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
           </div>
         ) : null}
       </div>
+      {(payload.job.active_provider_routing_holds || []).map((hold) => (
+        <div className="mt-3 rounded border border-warning-border bg-warning-subtle p-3" key={hold.id}>
+          <p className="text-xs font-medium uppercase tracking-wide text-warning-text">{t("routing_active_hold")}</p>
+          <p className="mt-1 text-sm text-text-primary">{hold.reason}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {hold.resumption_mode === "until_time" && hold.next_reevaluation_at
+              ? t("routing_hold_wakes_at", { time: new Date(hold.next_reevaluation_at).toLocaleString() })
+              : t(`routing_hold_${hold.resumption_mode}`)}
+          </p>
+        </div>
+      ))}
       <ProviderRoutingRulesEditor
         basePath={`/api/v1/app/jobs/${payload.job.id}/provider_routing_rules`}
         description={t("routing_job_panel_description")}
@@ -1276,6 +1292,12 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
 function routingResolutionSummary(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]) {
   const resolution = payload.job.provider_routing_resolution
   if (!resolution) return t("routing_resolution_unknown")
+
+  if (resolution.final_action?.type === "hold") {
+    const source = routingScopeLabel(resolution.source_scope, t)
+    const holdReason = typeof resolution.final_action.reason === "string" ? resolution.final_action.reason : t("routing_hold_reason_unknown")
+    return t("routing_hold_resolution_summary", { source, reason: holdReason })
+  }
 
   const resolvedProvider = resolution.final_action?.candidates?.[0]?.provider || payload.job.agent_provider
   const provider = resolvedProvider ? agentProviderLabel(payload, resolvedProvider) : t("provider_setting_default")
@@ -1988,7 +2010,7 @@ function mainHealthBannerVisible(payload: JobDetailPayload) {
   if (payload.repository.main_health !== "broken") return false
   if (!payload.repository.main_branch_repair_blocks_work) return false
 
-  return payload.job.state === "queued" || MAIN_HEALTH_REASONS.includes(payload.job.start_blocked_reason ?? "")
+  return payload.job.main_branch_repair || MAIN_HEALTH_REASONS.includes(payload.job.start_blocked_reason ?? "")
 }
 
 // Every reason Syrus is not working on this job, not just admission budget.
@@ -2001,6 +2023,7 @@ function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const reason = payload.job.start_blocked_reason
   if (!reason) return null
+  if (MAIN_HEALTH_REASONS.includes(reason) && !mainHealthBannerVisible(payload)) return null
   if (mainHealthBannerVisible(payload)) return null
 
   const breakdown = payload.job.start_blocked_breakdown

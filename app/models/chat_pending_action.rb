@@ -10,6 +10,7 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     close_job_successfully
     retry_job
+    base_refresh_retry_job
     rebase_job
     force_rebase
     restack_epic
@@ -65,6 +66,8 @@ class ChatPendingAction < ApplicationRecord
     repair_provider_circuit_evidence
     clear_provider_circuit
     wake_provider_admission
+    mutate_provider_routing_rules
+    override_job_planned_execution
     local_tool_call
     spawn_chat
     accept_insights
@@ -83,7 +86,9 @@ class ChatPendingAction < ApplicationRecord
     cancel_job
     close_job_successfully
     retry_job
+    base_refresh_retry_job
     force_fail_job
+    override_job_planned_execution
     rebase_job
     force_rebase
     reopen_job
@@ -195,9 +200,10 @@ class ChatPendingAction < ApplicationRecord
     end
   end
 
-  def execute_confirmation!(raise_on_error: false)
+  def execute_confirmation!(raise_on_error: false, finalize: true)
     should_execute = with_lock do
       return false unless confirming?
+      return false if !finalize && execution_status == "running"
 
       update_confirmation_progress!("running", "Starting pending action...")
       true
@@ -216,6 +222,7 @@ class ChatPendingAction < ApplicationRecord
 
     update_confirmation_progress!("running", command.execution_label)
     record = command.execute
+    return true if record.equal?(PendingActions::Base::DEFERRED_CONFIRMATION)
 
     if command.repair_action?
       update_confirmation_progress!("running", "Capturing after snapshot...")
@@ -224,22 +231,40 @@ class ChatPendingAction < ApplicationRecord
 
     record_repair_admin_action!(record) if command.repair_action?
     repair_outcome = command.repair_action? && before_snapshot == after_snapshot ? "noop" : "applied"
-    updates = {
-      state: "confirmed",
-      confirmed_at: Time.current,
-      execution_status: repair_outcome,
-      execution_step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.",
-      execution_error: nil,
-      execution_finished_at: Time.current
-    }
-    updates[:result] = record if record
-    update!(updates)
+    if finalize
+      complete_confirmation!(record, outcome: repair_outcome,
+        step: repair_outcome == "noop" ? "No mutations were applied." : "Applied.")
+    else
+      updates = {
+        execution_status: "waiting", execution_step: "Waiting for refresh workflow to finish...",
+        execution_error: nil
+      }
+      updates[:result] = record if record
+      update!(updates)
+    end
     true
   rescue StandardError => e
     fail_confirmation!(e)
     raise if raise_on_error
 
     false
+  end
+
+  def complete_confirmation!(record = nil, outcome: "applied", step: "Applied.")
+    updates = {
+      state: "confirmed",
+      confirmed_at: Time.current,
+      execution_status: outcome,
+      execution_step: step,
+      execution_error: nil,
+      execution_finished_at: Time.current
+    }
+    updates[:result] = record if record
+    update!(updates)
+  end
+
+  def complete_sequenced_confirmation!
+    complete_confirmation!(outcome: "applied", step: "Refresh workflow succeeded.")
   end
 
   def update_confirmation_progress!(status, step)

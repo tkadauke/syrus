@@ -9,8 +9,14 @@ RSpec.describe K8sCluster::Secrets do
 
   def secret(name: "db-credentials")
     {
-      "metadata" => { "name" => name, "namespace" => "default", "creationTimestamp" => "2026-01-01T00:00:00Z" },
+      "metadata" => {
+        "name" => name,
+        "namespace" => "default",
+        "creationTimestamp" => "2026-01-01T00:00:00Z",
+        "ownerReferences" => [ { "kind" => "Deployment", "name" => "api" } ]
+      },
       "type" => "Opaque",
+      "immutable" => true,
       "data" => { "password" => "c3VwZXItc2VjcmV0", "username" => "YWRtaW4=" }
     }
   end
@@ -28,6 +34,8 @@ RSpec.describe K8sCluster::Secrets do
       expect(row[:type]).to eq("Opaque")
       expect(row[:key_count]).to eq(2)
       expect(row[:key_names]).to eq([ "password", "username" ])
+      expect(row[:immutable]).to be(true)
+      expect(row[:owner_references]).to eq([ "Deployment/api" ])
       expect(row[:created_at]).to eq("2026-01-01T00:00:00Z")
       expect(payload.to_json).not_to include("c3VwZXItc2VjcmV0", "YWRtaW4=")
     end

@@ -167,7 +167,7 @@ class ChatProposalFiler
       job_provider_setting: provider_setting,
       model: direct_options[:model],
       effort_level: direct_options[:effort_level],
-      priority: direct_options[:priority].presence || "medium",
+      priority: direct_options[:priority].presence || proposal.priority,
       owner_user: direct_options[:owner_user],
       target_branch: direct_options[:target_branch],
       delivery_track: direct_options[:delivery_track],

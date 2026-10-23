@@ -1,12 +1,12 @@
 # Typed Artifacts
 
-Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are persisted under the `'typed_artifacts'` key in `Workflow#artifacts` and survive for the lifetime of the workflow record. They appear in the job detail UI with a renderer selected by the plugin registry.
+Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are available under the `'typed_artifacts'` key through the `Workflow#artifacts` API and survive for the lifetime of the workflow record. The growth-bound value is stored in `workflow_artifact_values`, separately from the frequently updated Workflow row. They appear in the job detail UI with a renderer selected by the plugin registry.
 
 Chat sessions have the same capability: a chat-surface `submit_artifact` MCP tool persists entries under the `'typed_artifacts'` key in `ChatSession#artifacts`, using the identical entry shape and replace-on-type idempotency described below. Both the workflow-surface and chat-surface tools share one `renderer_type` lookup implementation, `TypedArtifactRenderer.enrich`, so a new `:artifact_renderer` plugin registration is picked up on both surfaces automatically. See "Chat Media library" below.
 
 ## Convention
 
-Typed artifacts live as an array of entries under `Workflow#artifacts["typed_artifacts"]`. Each entry has this shape:
+Typed artifacts are exposed as an array of entries under `Workflow#artifacts["typed_artifacts"]`. The accessor merges external values with legacy inline JSON so callers use the same API during migration. The additive backfill retains inline values for old processes during a rolling deploy; new writes go to the side table and do not rewrite the large inline document. Each entry has this shape:
 
 ```json
 {
@@ -54,13 +54,19 @@ Image-capable sibling of `submit_artifact`, for screenshots and other images. Sa
 | `type`                    | string  | yes      | Artifact type identifier (non-empty)                                  |
 | `title`                   | string  | yes      | Human-readable title (non-empty)                                      |
 | `capture_current_browser` | boolean | no       | Capture the current authenticated MCP browser page directly; this is also the default when all image inputs are omitted |
+| `subject`                 | string  | no       | Exact `browser_snapshot` ref (for example `e12`) or CSS selector to center before a current-browser capture |
 | `image_path`              | string  | no       | Path to an image file inside the workflow workspace, relative to the workspace root or absolute within it |
 | `image_base64`            | string  | no       | Base64-encoded image bytes, no `data:` URI prefix                     |
 | `content_type`            | string  | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults from the captured image, from `image_path` extension, or to `image/png` |
 
 Provide at most one of `capture_current_browser`, `image_path`, or `image_base64`; omitting all three captures the current browser. Agent-supplied file paths are resolved inside the workflow workspace and rejected if they point outside it.
 
-Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
+For current-browser captures, Syrus waits for an optional `subject` to become
+visible, centers it in the viewport, allows the page to settle briefly, and
+then captures the viewport. Omitting `subject` preserves the current scroll
+position.
+
+Unlike `submit_artifact`, the image bytes are not stored in the Workflow artifact value. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, `source`, `captured_at`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Current-browser captures also include `page` (`url`, `path`, `title`) and `viewport` (`width`, `height`, `device_scale_factor`) when the browser can report them. Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
 
 If the configured ActiveStorage backend is temporarily unreachable while serving that `image_url` (for example a transient MinIO connection refusal in the k3s service path), the app API returns `503` JSON with `error.code = "storage_unavailable"` and a short `Retry-After` header instead of raising a 500. The admin overview includes an "Artifact storage" tile backed by the same ActiveStorage probe so operators can distinguish a storage/backend outage from a broken workflow artifact.
 
@@ -169,9 +175,13 @@ Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload
 
 ## browser plugin artifact types
 
-### `visual_review_screenshot`
+### Visual-review screenshots
 
-Rendered as a single after screenshot (`:image_diff` renderer). Payload written by `submit_visual_artifact`:
+The preferred generic type is `visual_review_screenshot`, but callers may use
+descriptive types such as `visual_review_desktop_bulk_progress`. They are
+rendered as single after screenshots (`:image_diff` renderer). Visual-review
+iteration association uses trusted same-Run provenance and image metadata,
+not an exact original type. Payload written by `submit_visual_artifact`:
 
 ```json
 {
@@ -189,13 +199,34 @@ Rendered as a single after screenshot (`:image_diff` renderer). Payload written 
     "width": 1440,
     "height": 900,
     "device_scale_factor": 1
+  },
+  "subject": "[data-testid=credential-list]",
+  "subject_visible_fraction": 1.0,
+  "subject_rect": {
+    "x": 120,
+    "y": 180,
+    "width": 960,
+    "height": 420
+  },
+  "scroll_position": {
+    "x": 0,
+    "y": 640
   }
 }
 ```
 
+When a subject is supplied, capture is rejected unless at least half of its
+area is inside the viewport by default. Callers may configure that fraction;
+subjects taller than the viewport instead require their top edge to be visible.
+
 ### `visual_diff_comparison`
 
 Rendered as a paired before/after visual comparison (`:before_after_visual_diff` renderer). Payload written by the deferred `visual_diff` workflow after it captures merge-base baseline screenshots and pairs them with the PR screenshots from a prior visual-review workflow:
+
+Each pair is displayed in one responsive overlay: PR/head is on the left and
+merge-base is on the right. Operators can drag the divider with a pointer or
+touch, move it with the keyboard, or tap the frame to open a larger preview
+that cycles between the labeled images with buttons, arrow keys, or a swipe.
 
 ```json
 {

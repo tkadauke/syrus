@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import type { ChatPendingActionInline } from "./api/chats"
+import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
+import type { MarkdownLinkHandler } from "./lib/Markdown"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -23,11 +24,27 @@ export type ToolCardContext = {
   // Tool call arguments. Only populated where the caller already has them
   // (the expanded chat card); collapsed-summary dispatch does not carry it.
   input?: Record<string, unknown>
+  // Chat surfaces provide their Markdown link interceptor so card prose can
+  // open workspace files in the same preview used by assistant messages.
+  onLinkClick?: MarkdownLinkHandler
   // Raw tool result text, before any JSON parsing.
   resultBody: string
   resultError: boolean
+  // Whether the provider has finished producing this result. This preserves
+  // the otherwise ambiguous distinction between an in-flight call and a
+  // completed call whose result body is empty.
+  resultSettled?: boolean
   // Best-effort JSON.parse of resultBody; null when it isn't JSON.
   parsedResult: unknown
+  // Latest normalized results from earlier context-providing tools in this
+  // transcript. Kept deliberately small by the stream builder; cards must
+  // continue to work when it is absent (catalog/admin/older transcripts).
+  priorResults?: Readonly<Record<string, unknown>>
+  // Owning chat when rendered in a chat surface. Admin transcripts and
+  // catalog fixtures do not necessarily have one.
+  chatSessionId?: number | string
+  // Earlier settled calls, normalized and redacted like the current call.
+  priorCalls?: ToolCardPriorCall[]
   // Current state of the ChatPendingAction this tool call created, read
   // fresh off the owning tool_use message on every payload fetch (that's
   // where ChatPendingAction::anchor_to_tool_call! anchors it, not the
@@ -38,10 +55,27 @@ export type ToolCardContext = {
   // (catalog fixtures, the admin transcript viewer); a card should fall
   // back to parsedResult's own state then.
   livePendingAction?: ChatPendingActionInline | null
+  // Optional chat-owned presentation data. Live chat rendering supplies this
+  // separately from the redacted tool payload so cards can resolve opaque
+  // media references without changing the MCP response contract.
+  presentation?: {
+    chatId?: number | string
+    chatMedia?: ChatMediaPayload
+    previewPanels?: ChatPreviewPanel[]
+  }
 }
+
+export type ToolCardPriorCall = { toolName: string; input: Record<string, unknown>; parsedResult: unknown }
 
 export type ToolCardRenderer = {
   toolName: string
+  // Most cards need a completed result before their expanded body is useful.
+  // Opt in when the card can also present an in-flight call from its input.
+  renderWhilePending?: boolean
+  // Optional human-readable replacement for the generic JSON-derived input
+  // detail shown beside the tool label. Return an empty string when the
+  // card's linked body already presents every relevant input.
+  argumentSummary?: (input?: Record<string, unknown>) => string
   // One-line summary shown in the collapsed row. Return null/undefined
   // (or omit this) to keep the generic count/text summary.
   collapsedSummary?: (context: ToolCardContext) => string | null | undefined
@@ -51,6 +85,8 @@ export type ToolCardRenderer = {
   // regardless of which body renders (see MessageCards.tsx ToolGroup),
   // and the row itself stays collapsed by default .
   renderExpanded: (context: ToolCardContext) => ReactNode | null
+  // Optional body for a call that has not produced a result yet.
+  renderPending?: (context: ToolCardContext) => ReactNode | null
 }
 
 // Which provider's raw result shape a fixture simulates. Both providers
@@ -84,6 +120,7 @@ export type ToolCardExample = {
   // `job` key"). Omit when the label already says it all.
   description?: string
   input?: Record<string, unknown>
+  priorCalls?: ToolCardPriorCall[]
   // Provide exactly one of resultBody/parsedResult. resultBody is the raw
   // result text a real tool_result would carry (already JSON-encoded where
   // relevant); parsedResult is a convenience for authors who'd rather write
@@ -93,8 +130,14 @@ export type ToolCardExample = {
   // fixtures, since those can't round-trip through a parsed value.
   resultBody?: string
   parsedResult?: unknown
+  priorResults?: Readonly<Record<string, unknown>>
   resultError?: boolean
+  resultSettled?: boolean
   sourceType?: ToolCardExampleSourceType
+  // Live pending-action state is distinct from the frozen tool result. Cards
+  // that surface confirmation/execution outcomes need fixtures for this path,
+  // just like real chat messages receive it on every payload refresh.
+  livePendingAction?: ChatPendingActionInline | null
 }
 
 type ToolCardModule = { default?: ToolCardRenderer; examples?: ToolCardExample[] }
@@ -132,9 +175,13 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
   return {
     toolName,
     input: example.input,
+    priorCalls: example.priorCalls,
     resultBody,
     resultError: example.resultError ?? false,
-    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody)
+    resultSettled: example.resultSettled ?? true,
+    parsedResult: example.parsedResult !== undefined ? example.parsedResult : bestEffortJsonParse(resultBody),
+    priorResults: example.priorResults,
+    livePendingAction: example.livePendingAction
   }
 }
 
@@ -185,6 +232,10 @@ export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | 
   return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
 }
 
+export function pluginToolCardArgumentSummary(toolName: string, input: Record<string, unknown>): string | null {
+  return pluginToolCardRendererFor(toolName)?.argumentSummary?.(input) ?? null
+}
+
 export function pluginToolCardRendererKeys() {
   return registeredToolCardRenderers.map((renderer) => renderer.toolName).sort()
 }
@@ -224,4 +275,16 @@ export function pluginToolCardCollapsedSummary(context: ToolCardContext): string
 
 export function pluginToolCardExpandedBody(context: ToolCardContext): ReactNode | null {
   return renderToolCard(pluginToolCardRendererFor(context.toolName), context)
+}
+
+export function pluginToolCardPendingBody(context: ToolCardContext): ReactNode | null {
+  const renderer = pluginToolCardRendererFor(context.toolName)
+  if (!renderer?.renderPending) return null
+
+  try {
+    return renderer.renderPending(context) ?? null
+  } catch (error) {
+    logCardError("renderPending", context.toolName, error)
+    return null
+  }
 }

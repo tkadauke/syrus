@@ -1,0 +1,380 @@
+import { fireEvent, render, screen, within } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MarkdownPreview, TextPreview, truncateMarkdown, truncateTextLines } from "./toolCardMarkdown"
+import { setSlugReferenceRegistryForTests } from "../../lib/slugReferenceRegistry"
+
+beforeEach(() => {
+  setSlugReferenceRegistryForTests([
+    {
+      prefix: "JOB",
+      type: "job",
+      displayLabel: "Job",
+      copyable: true,
+      linkable: true,
+      previewAvailable: false,
+      linkifiesGeneratedText: true,
+      hrefTemplate: "/jobs/:id",
+      mobileInteractionHints: {},
+      pluginPreviewComponent: null
+    }
+  ])
+  Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+})
+
+afterEach(() => {
+  setSlugReferenceRegistryForTests(null)
+  vi.restoreAllMocks()
+})
+
+describe("MarkdownPreview", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders short light markdown without an expansion button", () => {
+    render(<MarkdownPreview text="A **short** note." />)
+
+    expect(screen.getByText("short").tagName).toBe("STRONG")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when a short source wraps beyond the visual line clamp", () => {
+    const clientHeight = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+
+    render(
+      <MarkdownPreview
+        maxChars={420}
+        maxLines={3}
+        text={"A wrapped paragraph that is short in source characters but occupies many narrow mobile lines. ".repeat(3)}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog")).toHaveTextContent("occupies many narrow mobile lines")
+
+    clientHeight.mockRestore()
+    scrollHeight.mockRestore()
+  })
+
+  it("opens and closes a modal containing the complete long markdown", () => {
+    const text = `${"Introductory prose. ".repeat(70)}\n\n## Complete ending\nThe final details are here.`
+    render(<MarkdownPreview modalLabel="Full report" text={text} title="Report" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full report" })
+    expect(within(dialog).getByRole("heading", { name: "Complete ending" })).toBeInTheDocument()
+    expect(within(dialog).getByText("The final details are here.")).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog", { name: "Full report" })).not.toBeInTheDocument()
+  })
+
+  it("offers the complete text when line clamping causes visual overflow", () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(48)
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96)
+    const text = `**Result:** ${"responsive workflow details ".repeat(8)}`
+
+    render(<MarkdownPreview maxLines={3} modalLabel="Full result" text={text} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Full result" })).toHaveTextContent("responsive workflow details")
+  })
+
+  it("renders an empty state for empty or whitespace-only text", () => {
+    render(<MarkdownPreview text={"  \n\t "} />)
+
+    expect(screen.getByText("No text provided.")).toBeInTheDocument()
+  })
+
+  it("can render an explicit empty state", () => {
+    render(<MarkdownPreview emptyLabel="No description provided." text=" " />)
+    expect(screen.getByText("No description provided.")).toBeInTheDocument()
+  })
+
+  it("honors a character limit, linkifies URLs, and copies from the modal", () => {
+    const text = `See https://example.test/details ${"more ".repeat(50)}`
+    render(<MarkdownPreview linkifyUrls maxChars={40} text={text} title="Details" />)
+
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Details to clipboard" })).toBeInTheDocument()
+  })
+
+  it("can render an empty state for blank text", () => {
+    render(<MarkdownPreview emptyState="No comment supplied." text="  " />)
+
+    expect(screen.getByText("No comment supplied.")).toBeInTheDocument()
+  })
+
+  it("honors a character limit and copies the complete text from the modal", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    const text = "Complete comment text that is longer than the compact preview."
+    render(<MarkdownPreview maxChars={18} modalLabel="Full comment" text={text} title="Comment" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Full comment" })).getByRole("button", { name: "Copy Comment to clipboard" }))
+
+    expect(writeText).toHaveBeenCalledWith(text)
+  })
+
+  it("passes URL, slug, and link-click behavior to both preview renderers", () => {
+    const onLinkClick = vi.fn()
+    const text = `See DOC-20 and https://example.test/path ${"long ".repeat(40)}`
+    render(<MarkdownPreview linkifyUrls maxChars={60} onLinkClick={onLinkClick} text={text} />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("DOC-20")
+    fireEvent.click(within(screen.getByTestId("markdown-preview-content")).getByRole("link", { name: "https://example.test/path" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const link = within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/path" })
+    fireEvent.click(link)
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
+    expect(onLinkClick).toHaveBeenCalledWith((link as HTMLAnchorElement).href, expect.anything())
+  })
+
+  it("supports an explicit empty state", () => {
+    render(<MarkdownPreview emptyState={<span>No description.</span>} text=" " />)
+    expect(screen.getByText("No description.")).toBeInTheDocument()
+  })
+
+  it("linkifies URLs and slugs in previews and offers modal copy for character-limited content", () => {
+    const text = `See JOB-42 and https://example.test/details. ${"More details. ".repeat(30)}`
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={60} text={text} title="Description" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
+    expect(screen.getByRole("link", { name: "https://example.test/details" })).toHaveAttribute("href", "https://example.test/details")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Description to clipboard" })).toBeInTheDocument()
+  })
+
+  it("renders a caller-provided empty state", () => {
+    render(<MarkdownPreview emptyState={<span>Nothing here</span>} text=" " />)
+    expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and passes link behavior through both views", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifyUrls maxChars={45} onLinkClick={onLinkClick} text={`See https://example.test and JOB-42. ${"more ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByRole("link", { name: "https://example.test" }))
+    expect(onLinkClick).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveTextContent("JOB-42")
+    expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["mobile", 320],
+    ["desktop", 960]
+  ])("does not visually clamp untruncated text at %s width", (_viewport, width) => {
+    const text = "Responsive paragraph content. ".repeat(35)
+    render(
+      <div style={{ width }}>
+        <MarkdownPreview maxChars={2_400} maxLines={6} text={text} />
+      </div>
+    )
+
+    const preview = screen.getByTestId("markdown-preview-content")
+    expect(preview).toHaveTextContent(text.trim())
+    expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
+    expect(preview.style.overflow).toBe("")
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("wraps long unbroken strings without horizontal overflow", () => {
+    render(<MarkdownPreview maxLines={2} text={"x".repeat(500)} />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText("x".repeat(500)).closest(".chat-prose")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+  })
+
+  it("does not cut through an inline markdown construct", () => {
+    const text = `${"Words ".repeat(150)}[linked label](https://example.test/path) trailing text`
+
+    expect(truncateMarkdown(text, 6).preview).not.toMatch(/\[[^\]]*$/)
+  })
+
+  it("honors a character limit and links URLs and Syrus references", () => {
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={80} text={`See JOB-42 and https://example.test/path for details. ${"More text. ".repeat(20)}`} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "https://example.test/path" })).toHaveAttribute("href", "https://example.test/path")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("preserves disabled slug linking in the expanded modal", () => {
+    const text = `See JOB-42 for details. ${"Additional prose. ".repeat(30)}`
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs={false} maxChars={40} text={text} />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("link", { name: /JOB-42/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).queryByRole("link", { name: /JOB-42/ })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/See JOB-42 for details/)).toBeInTheDocument()
+  })
+
+  it("shows a caller-supplied empty state and copies complete modal text", () => {
+    const text = "Long content. ".repeat(100)
+    const { rerender } = render(<MarkdownPreview emptyState={<span>No prose supplied.</span>} text="  " />)
+    expect(screen.getByText("No prose supplied.")).toBeInTheDocument()
+
+    rerender(<MarkdownPreview maxChars={40} text={text} title="Question" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    fireEvent.click(screen.getByRole("button", { name: "Copy Question to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(text)
+  })
+})
+
+describe("TextPreview", () => {
+  it("opens complete text when the inline text is a filtered subset", () => {
+    render(<TextPreview modalLabel="Complete output" modalText={"first\nmatching\nlast"} text="matching" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("matching")
+    expect(screen.queryByText("first")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Complete output" })).toHaveTextContent("first\nmatching\nlast", { normalizeWhitespace: false })
+  })
+  it("truncates from the head by default and normalizes CRLF", () => {
+    expect(truncateTextLines("one\r\ntwo\r\nthree", { maxLines: 2 })).toEqual({
+      preview: "one\ntwo…",
+      totalLines: 3,
+      truncated: true
+    })
+  })
+
+  it("keeps the final lines in tail mode and reports earlier lines", () => {
+    expect(truncateTextLines("one\ntwo\nthree\nfour", { mode: "tail", maxLines: 2 }).preview).toBe("… 2 earlier lines\nthree\nfour")
+  })
+
+  it("keeps both ends and reports the exact omitted line count", () => {
+    expect(truncateTextLines("one\ntwo\nthree\nfour\nfive", { mode: "headTail", maxLines: 4 }).preview).toBe("one\ntwo\n… 1 line omitted\nfour\nfive")
+  })
+
+  it("caps a single huge line by characters in every mode", () => {
+    const text = "0123456789"
+
+    expect(truncateTextLines(text, { mode: "head", maxLines: 3, maxChars: 4 }).preview).toBe("0123…")
+    expect(truncateTextLines(text, { mode: "tail", maxLines: 3, maxChars: 4 }).preview).toBe("… earlier text\n6789")
+    expect(truncateTextLines(text, { mode: "headTail", maxLines: 3, maxChars: 4 }).preview).toBe("01\n… text omitted\n89")
+  })
+
+  it("uses a non-numeric tail marker when character clipping drops selected multiline content", () => {
+    const result = truncateTextLines("aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc", { mode: "tail", maxLines: 2, maxChars: 5 })
+
+    expect(result.preview).toBe("… earlier text\nccccc")
+    expect(result.preview).not.toContain("1 earlier line")
+  })
+
+  it("uses a non-numeric head-tail marker when character clipping trims either retained end", () => {
+    const result = truncateTextLines("aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc", { mode: "headTail", maxLines: 2, maxChars: 8 })
+
+    expect(result.preview).toBe("aaaa\n… text omitted\ncccc")
+    expect(result.preview).not.toContain("line omitted")
+  })
+
+  it("renders short text with whitespace preserved and no expansion button", () => {
+    render(<TextPreview text={"first line\n  indented line"} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("whitespace-pre-wrap", "font-mono")
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("first line\n  indented line", { normalizeWhitespace: false })
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("opens and closes a modal containing the complete long text", () => {
+    const text = Array.from({ length: 10 }, (_, index) => `log line ${index + 1}`).join("\n")
+    render(<TextPreview maxLines={3} modalLabel="Full command output" text={text} title="Command output" />)
+
+    expect(screen.getByTestId("text-preview-content")).not.toHaveTextContent("log line 10")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full command output" })
+    expect(dialog.querySelector("pre")).toHaveTextContent(text, { normalizeWhitespace: false })
+    expect(within(dialog).getByRole("button", { name: /Copy .*clipboard/i })).toBeInTheDocument()
+    expect(dialog).toHaveClass("h-[100dvh]", "w-full", "sm:max-w-3xl")
+    expect(dialog.parentElement).toHaveClass("h-[100dvh]", "w-[100dvw]", "p-0", "sm:p-4")
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog", { name: "Full command output" })).not.toBeInTheDocument()
+  })
+
+  it("renders nothing for empty or whitespace-only text", () => {
+    const { container } = render(<TextPreview text={"  \n\t "} />)
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("truncates and safely wraps a very long single line", () => {
+    const text = "x".repeat(500)
+    render(<TextPreview maxLines={2} text={text} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText(text)).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+  })
+
+  it("renders the tail marker above the final lines", () => {
+    render(<TextPreview maxLines={2} text={"one\ntwo\nthree\nfour"} truncate="tail" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("… 2 earlier lines\nthree\nfour", { normalizeWhitespace: false })
+  })
+
+  it("can preserve long lines for horizontal scrolling", () => {
+    render(<TextPreview text="one very long log line" wrap={false} />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveClass("overflow-x-auto", "whitespace-pre")
+    expect(screen.getByTestId("text-preview-content")).not.toHaveClass("break-words")
+  })
+
+  it("opens complete text when the inline text is a filtered subset", () => {
+    render(<TextPreview modalText={"first\nmatching\nlast"} modalLabel="Complete output" text="matching" />)
+
+    expect(screen.getByTestId("text-preview-content")).toHaveTextContent("matching")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getByRole("dialog", { name: "Complete output" })).toHaveTextContent("first\nmatching\nlast", { normalizeWhitespace: false })
+  })
+})
+
+describe("MarkdownPreview link handling", () => {
+  it("linkifies slugs and URLs and forwards link clicks", () => {
+    const onLinkClick = vi.fn()
+    render(
+      <MemoryRouter>
+        <MarkdownPreview linkifySlugs linkifyUrls onLinkClick={onLinkClick} text="See JOB-42 at https://example.test/jobs/42." />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    const url = screen.getByRole("link", { name: "https://example.test/jobs/42" })
+    fireEvent.click(url)
+    expect(onLinkClick).toHaveBeenCalledWith("https://example.test/jobs/42", expect.anything())
+  })
+
+  it("truncates by maxChars and provides a modal copy control", () => {
+    render(<MarkdownPreview maxChars={12} text="A sufficiently long markdown note." />)
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("A sufficient…")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Show more" })
+    expect(within(dialog).getByText("A sufficiently long markdown note.")).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: /Copy .*clipboard/i })).toBeInTheDocument()
+  })
+})

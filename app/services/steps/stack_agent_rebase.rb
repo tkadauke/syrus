@@ -46,10 +46,15 @@ module Steps
         end
 
         base = entry.fetch("base_branch")
-        git.run("merge-base", "--is-ancestor", base, branch, chdir: workspace.path.to_s)
+        git.run("merge-base", "--is-ancestor", base_ref_for(entry), branch, chdir: workspace.path.to_s)
       rescue GitRunner::GitError => e
         raise StepFailed, "stack_agent_rebase: #{branch} was not rebased onto #{base}: #{e.message}"
       end
+    end
+
+    def base_ref_for(entry)
+      base = entry.fetch("base_branch")
+      pending_entries.any? { |pending| pending.fetch("branch_name") == base } ? base : "refs/remotes/origin/#{base}"
     end
 
     def fetch_pending_branches
@@ -71,7 +76,32 @@ module Steps
         branch = entry.fetch("branch_name")
         git.run("branch", "-f", "--", branch, "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
       end
+      materialize_base_branches(git)
       git.run("switch", "--", pending_entries.first.fetch("branch_name"), chdir: workspace.path.to_s) if pending_entries.any?
+    end
+
+    # The clone backing a workflow workspace checks out exactly one branch, so
+    # the Job's branch is the only local ref; everything else arrives under
+    # refs/remotes/origin/. Stack-internal bases survive that by accident --
+    # each one is also some entry's branch_name, so the loop above resets it --
+    # but the root entry's base is the repository default branch, which is
+    # nobody's branch_name. A bare `main` then resolved to nothing: the agent
+    # rebased correctly against origin/main, and the ancestry check in
+    # verify_rebases_complete! died with `fatal: Not a valid object name main`,
+    # so a finished rebase was discarded as corrupt git state and re-triggered
+    # on every base move. It only bit when the root entry itself was pending,
+    # i.e. when the deterministic pass conflicted on the first branch. Give
+    # every listed base a local ref so the agent's instructions and the
+    # verification both name something that exists. Nothing pushes these refs
+    # -- stack_force_push only pushes the recorded pending branches.
+    def materialize_base_branches(git)
+      pending_branches = pending_entries.map { |entry| entry.fetch("branch_name") }
+
+      pending_entries.map { |entry| entry["base_branch"].to_s }.uniq.each do |base|
+        next if base.blank? || pending_branches.include?(base)
+
+        git.run("branch", "-f", "--", base, "refs/remotes/origin/#{base}", chdir: workspace.path.to_s)
+      end
     end
 
     def fetch_remote_branch_once(git, push_url, branch, fetched_branches)

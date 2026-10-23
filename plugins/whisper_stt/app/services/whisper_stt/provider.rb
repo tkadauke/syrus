@@ -31,7 +31,8 @@ module WhisperStt
         audio: request.audio,
         content_type: request.content_type,
         language: request.language,
-        prompt: request.prompt
+        prompt: request.prompt,
+        correlation_id: request.correlation_id
       )
       text = response.fetch("text", "").to_s.strip
       raise ChatSpeechToText::Providers::TranscriptionError, "whisper.cpp returned an empty transcript" if text.blank?
@@ -50,7 +51,11 @@ module WhisperStt
       )
       result
     rescue Client::TimeoutError => e
-      raise transcription_error(e.message, started_at)
+      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::TranscriptionTimeout)
+    rescue Client::Unavailable => e
+      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::TranscriptionUnavailable)
+    rescue Client::InvalidInput => e
+      raise transcription_error(e.message, started_at, ChatSpeechToText::Providers::InvalidAudio)
     rescue Client::Error => e
       raise transcription_error(e.message.presence || "whisper.cpp transcription failed", started_at)
     rescue ChatSpeechToText::Providers::TranscriptionError => e
@@ -127,8 +132,8 @@ module WhisperStt
       end
     end
 
-    def transcription_error(message, started_at)
-      ChatSpeechToText::Providers::TranscriptionError.new(message).tap do |error|
+    def transcription_error(message, started_at, error_class = ChatSpeechToText::Providers::TranscriptionError)
+      error_class.new(message).tap do |error|
         ChatSpeechToText::Telemetry.log(
           "error",
           mode: "backend_batch",

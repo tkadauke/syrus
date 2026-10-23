@@ -75,6 +75,13 @@ the credential mode captured at creation time (`app` or `pat`).
 Each `Step` dispatches to a `Steps::` handler and owns one `Run`. `Run`
 carries per-attempt state — prompt, agent metadata, diff, PR copy.
 
+Distributed grader Steps are the exception to that shared-workspace model.
+They run from a recorded `WorkflowSourceSnapshot` in a detached immutable
+checkout, and may reuse a worker-local prepared dependency layer keyed by the
+repository's prepare plan and worker capabilities. Treat the snapshot as the
+grader's source of truth; do not assume a grader reads the live mutable
+workflow checkout.
+
 `Job#kind` is registered through `Job::Kind`: built-ins include `issue`
 (labeled work item), `cron` (scheduled fire), `direct` (operator prompt),
 `main_grader` and `deploy` (infrastructure), and `external_pr` (an ingested

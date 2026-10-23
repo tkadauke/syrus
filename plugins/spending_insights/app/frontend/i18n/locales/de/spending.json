@@ -54,5 +54,14 @@
   "entity_user": "Benutzer",
   "entity_repository": "Repository",
   "scope_range": "{{scope}} / {{start}} bis {{end}}",
-  "scope_all_users": "Alle Benutzer"
+  "scope_all_users": "Alle Benutzer",
+  "tool_total_cost": "Gesamtkosten",
+  "tool_input_tokens": "Eingabe-Tokens",
+  "tool_output_tokens": "Ausgabe-Tokens",
+  "tool_daily_spend": "Tägliche Ausgaben",
+  "tool_day_cost": "{{date}}: {{cost}}",
+  "tool_top_runs": "Top-Läufe",
+  "tool_repository": "Repository #{{id}}",
+  "tool_no_spend": "Keine Ausgaben in diesem Zeitraum.",
+  "tool_invalid_window": "Zeitraum muss 7d, 30d oder 90d sein."
 }

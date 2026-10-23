@@ -38,8 +38,7 @@ module WorkUnits
 
         if require_clean_base_health? && !clean_base_health_known?
           return block("base_repair_active", active_base_repair_details) if active_base_repair?
-
-          return block("base_not_known_healthy", base_not_known_healthy_details)
+          return block("base_not_known_healthy", base_not_known_healthy_details) if introduced_failing_check_names.blank?
         end
 
         if launch_gate_step? && (duplicate = active_duplicate_for_base)
@@ -100,6 +99,14 @@ module WorkUnits
           "current_base_sha" => current_base_sha,
           "base_superseded" => base_superseded_for?(job, base_sha)
         }.compact
+      end
+
+      def introduced_failing_check_names
+        @introduced_failing_check_names ||= CiRepair::FailingCheckComparison.call(
+          job: job,
+          base_sha: base_sha,
+          stacked_parent_fallback: true
+        )
       end
 
       def current_base_sha_for(candidate_job)

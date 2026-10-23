@@ -174,6 +174,22 @@ events:
         hostname: worker-a
 ```
 
+Use `reroute_host_rejected_run` to exercise distributed grader admission from a
+pressured worker through a hostname-targeted queue. The action creates fresh
+worker health and queue evidence for the rejecting and target workers; setting
+the same `worker_storage_key` for both specifically covers shared-RWX fleets:
+
+```yaml
+do:
+  reroute_host_rejected_run:
+    job: feature
+    step: grader
+    name: lint
+    rejecting_hostname: worker-a
+    target_hostname: worker-b
+    worker_storage_key: shared-rwx
+```
+
 Manual workflows can use stable per-step keys for graph edges:
 
 ```yaml

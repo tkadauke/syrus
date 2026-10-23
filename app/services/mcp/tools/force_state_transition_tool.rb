@@ -5,7 +5,14 @@ module Mcp::Tools
     extend AdminPendingActionToolSupport
 
     tool_name "force_state_transition"
-    description "Request one allowed Job AASM event. Requires operator confirmation."
+    description <<~DESC
+      Request one event from the enumerated allowlist for a Job in any state.
+      Eligibility is exact per event: the Job's AASM may_<event>? guard must be
+      true in its current state, both when requested and when confirmed. The call
+      creates only a pending action; confirmation mutates the existing Job and
+      creates no Job, Workflow, WorkUnit, admission-control request, or worker
+      queue entry. Use the rejection's current state to choose a valid event.
+    DESC
 
     input_schema(
       properties: {

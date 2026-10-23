@@ -19,9 +19,7 @@ const options: ProviderRoutingOptions = {
       { value: "implement", label: "Implement" },
       { value: "rebase", label: "Rebase" }
     ],
-    chat_roles: [
-      { value: "chat:supervisor", label: "Supervisor" }
-    ]
+    chat_roles: [{ value: "chat:supervisor", label: "Supervisor" }]
   },
   conditions: {
     workflow_trigger_kinds: [
@@ -114,7 +112,7 @@ describe("ProviderRoutingRulesEditor", () => {
   it("renders ordered first-match rules with read-only inherited rows", () => {
     renderPanel({ inheritedContext, rules })
 
-    expect(screen.getByText("Rules are evaluated from top to bottom; the first matching rule wins.")).toBeInTheDocument()
+    expect(screen.getByText("Disabled rules are skipped; the first enabled matching rule wins.")).toBeInTheDocument()
     expect(screen.getByText("CI fast path")).toBeInTheDocument()
     expect(screen.getByText("Step: Implement")).toBeInTheDocument()
     expect(screen.getByText("Workflow: Initial")).toBeInTheDocument()
@@ -161,11 +159,15 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "Default lane" } })
     fireEvent.keyDown(within(dialog).getByLabelText(/Rule name/), { key: "Enter" })
 
-    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({
-      action: expect.objectContaining({ name: "Default lane" }),
-      task_key: "default",
-      trigger: { type: "default" }
-    })))
+    await waitFor(() =>
+      expect(onCreateRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: expect.objectContaining({ name: "Default lane" }),
+          task_key: "default",
+          trigger: { type: "default" }
+        })
+      )
+    )
     expect(onParentSubmit).not.toHaveBeenCalled()
     expect(screen.queryByRole("dialog", { name: "New routing rule" })).not.toBeInTheDocument()
   })
@@ -197,25 +199,69 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.change(within(editDialog).getByLabelText(/Trigger/), { target: { value: "step:rebase" } })
     fireEvent.click(within(editDialog).getByRole("button", { name: "Save rule" }))
 
-    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(rules[0], expect.objectContaining({
-      action: expect.objectContaining({ name: "Rebase lane", strategy: "fallback_order" }),
-      task_key: "rebase",
-      trigger: { type: "step", kind: "rebase" }
-    })))
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rules[0],
+        expect.objectContaining({
+          action: expect.objectContaining({ name: "Rebase lane", strategy: "fallback_order" }),
+          task_key: "rebase",
+          trigger: { type: "step", kind: "rebase" }
+        })
+      )
+    )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Duplicate" })[0])
     const duplicateDialog = screen.getByRole("dialog", { name: "New routing rule" })
     expect(within(duplicateDialog).getByLabelText(/Rule name/)).toHaveValue("CI fast path copy")
     fireEvent.click(within(duplicateDialog).getByRole("button", { name: "Create rule" }))
-    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({
-      action: expect.objectContaining({ name: "CI fast path copy" })
-    })))
+    await waitFor(() =>
+      expect(onCreateRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: expect.objectContaining({ name: "CI fast path copy" })
+        })
+      )
+    )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
     expect(onDeleteRule).toHaveBeenCalledWith(rules[0])
 
     fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
     expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+  })
+
+  it("toggles disabled rules in place and edits hold actions without provider candidates", async () => {
+    const onToggleRule = vi.fn()
+    const onUpdateRule = vi.fn()
+    const holdRule: ProviderRoutingRule = {
+      ...rules[0],
+      enabled: false,
+      action: { type: "hold", name: "Maintenance window", reason: "Deploy freeze", resumption: { mode: "manual" } },
+      candidates: []
+    }
+    renderPanel({ onToggleRule, onUpdateRule, rules: [holdRule, rules[1]] })
+
+    expect(screen.getByText("Disabled")).toBeInTheDocument()
+    expect(screen.getByText("Deploy freeze · Manual release")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable Maintenance window" }))
+    expect(onToggleRule).toHaveBeenCalledWith(holdRule, true)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(dialog).getByLabelText("Action type")).toHaveValue("hold")
+    expect(within(dialog).queryByText("Provider candidates")).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText(/Hold reason/), { target: { value: "Await approval" } })
+    fireEvent.change(within(dialog).getByLabelText("Resumption policy"), { target: { value: "when_conditions_clear" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        holdRule,
+        expect.objectContaining({
+          action: expect.objectContaining({ type: "hold", reason: "Await approval", resumption: { mode: "when_conditions_clear" } }),
+          candidates: []
+        })
+      )
+    )
   })
 
   it("closes the edit draft after deleting the edited rule", async () => {
@@ -269,6 +315,31 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(reorderBody.provider_routing_rule_ids).toEqual([12, 11])
   })
 
+  it("rolls an optimistic reorder back when persistence fails", async () => {
+    let rejectReorder: ((reason?: unknown) => void) | undefined
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: RequestInfo | URL) => {
+        if (String(path).endsWith("/reorder")) {
+          return new Promise<Response>((_resolve, reject) => {
+            rejectReorder = reject
+          })
+        }
+        return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }))
+      })
+    )
+    renderEditor({ rules })
+
+    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    expect(ruleRowNames()).toEqual(["General fallback", "CI fast path"])
+
+    await waitFor(() => expect(rejectReorder).toBeTypeOf("function"))
+    rejectReorder!(new Error("network unavailable"))
+    await waitFor(() => {
+      expect(ruleRowNames()).toEqual(["CI fast path", "General fallback"])
+    })
+  })
+
   it("preserves legacy task-key triggers when editing existing rules", async () => {
     const onUpdateRule = vi.fn()
     renderPanel({ onUpdateRule, rules: legacyRules })
@@ -281,21 +352,20 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Still CI failure" } })
     fireEvent.click(within(editDialog).getByRole("button", { name: "Save rule" }))
 
-    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(legacyRules[0], expect.objectContaining({
-      action: expect.objectContaining({ name: "Still CI failure" }),
-      task_key: "ci_failure",
-      trigger: { type: "legacy_task", task_key: "ci_failure" }
-    })))
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        legacyRules[0],
+        expect.objectContaining({
+          action: expect.objectContaining({ name: "Still CI failure" }),
+          task_key: "ci_failure",
+          trigger: { type: "legacy_task", task_key: "ci_failure" }
+        })
+      )
+    )
   })
 })
 
-function renderEditor({
-  inheritedContext,
-  rules
-}: {
-  inheritedContext?: ProviderRoutingInheritedContext[]
-  rules: ProviderRoutingRule[]
-}) {
+function renderEditor({ inheritedContext, rules }: { inheritedContext?: ProviderRoutingInheritedContext[]; rules: ProviderRoutingRule[] }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -312,11 +382,19 @@ function renderEditor({
   )
 }
 
+function ruleRowNames() {
+  return screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => (row.textContent?.includes("CI fast path") ? "CI fast path" : "General fallback"))
+}
+
 function renderPanel({
   inheritedContext,
   onCreateRule = vi.fn(),
   onDeleteRule = vi.fn(),
   onReorderRules = vi.fn(),
+  onToggleRule = vi.fn(),
   onUpdateRule = vi.fn(),
   saveError,
   rules
@@ -325,6 +403,7 @@ function renderPanel({
   onCreateRule?: (input: ProviderRoutingRuleInput) => unknown
   onDeleteRule?: (rule: ProviderRoutingRule) => unknown
   onReorderRules?: (ids: number[]) => unknown
+  onToggleRule?: (rule: ProviderRoutingRule, enabled: boolean) => unknown
   onUpdateRule?: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => unknown
   saveError?: unknown
   rules: ProviderRoutingRule[]
@@ -336,6 +415,7 @@ function renderPanel({
       onCreateRule={onCreateRule}
       onDeleteRule={onDeleteRule}
       onReorderRules={onReorderRules}
+      onToggleRule={onToggleRule}
       onUpdateRule={onUpdateRule}
       options={options}
       rules={rules}

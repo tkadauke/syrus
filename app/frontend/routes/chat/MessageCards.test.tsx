@@ -139,7 +139,11 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   )
 }
 
-function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload(), extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}) {
+function renderChatMessageItem(
+  item: Extract<ChatRenderItem, { type: "message" }>,
+  payload = makePayload(),
+  extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -158,7 +162,10 @@ function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }
   )
 }
 
-function systemMessageItem(system: ChatSystemMessage, overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}): Extract<ChatRenderItem, { type: "message" }> {
+function systemMessageItem(
+  system: ChatSystemMessage,
+  overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}
+): Extract<ChatRenderItem, { type: "message" }> {
   return {
     type: "message",
     id: 7,
@@ -180,17 +187,35 @@ beforeEach(() => {
 
 describe("shared message presentation", () => {
   it("marks interactive and read-only render modes while keeping the same layout", () => {
-    const { rerender } = render(<SharedMessageRenderer><span>Interactive body</span></SharedMessageRenderer>)
+    const { rerender } = render(
+      <SharedMessageRenderer>
+        <span>Interactive body</span>
+      </SharedMessageRenderer>
+    )
 
     const interactive = screen.getByText("Interactive body").closest("article")
     expect(interactive).toHaveAttribute("data-message-mode", "interactive")
     expect(interactive).toHaveClass("min-w-0", "pt-6", "text-sm")
 
-    rerender(<SharedMessageRenderer as="li" readOnly><span>Transcript body</span></SharedMessageRenderer>)
+    rerender(
+      <SharedMessageRenderer as="li" readOnly>
+        <span>Transcript body</span>
+      </SharedMessageRenderer>
+    )
 
     const readOnly = screen.getByText("Transcript body").closest("li")
     expect(readOnly).toHaveAttribute("data-message-mode", "read-only")
     expect(readOnly).toHaveClass("min-w-0", "pt-6", "text-sm")
+
+    render(
+      <SharedMessageRenderer compact testId="compact-tool-message">
+        compact
+      </SharedMessageRenderer>
+    )
+
+    const compact = screen.getByTestId("compact-tool-message")
+    expect(compact).toHaveClass("pt-1")
+    expect(compact).not.toHaveClass("pt-6")
   })
 })
 
@@ -254,14 +279,16 @@ describe("user message markdown heuristic", () => {
   })
 
   it("keeps inbound bridge markdown bubbles on the cyan bridge colors", () => {
-    renderChatMessageItem(userMessage("```ts\nconst answer = 42\n```", {
-      cross_chat_bridge: {
-        thread_id: 7,
-        direction: "inbound",
-        counterpart_chat_session_id: 42,
-        counterpart_chat_title: "Debugging session"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("```ts\nconst answer = 42\n```", {
+        cross_chat_bridge: {
+          thread_id: 7,
+          direction: "inbound",
+          counterpart_chat_session_id: 42,
+          counterpart_chat_title: "Debugging session"
+        }
+      })
+    )
 
     const bubble = screen.getByText("const answer = 42").closest(".chat-prose")
     expect(bubble).toHaveClass("bg-cyan-50", "text-cyan-950", "dark:bg-cyan-950/50", "dark:text-cyan-100")
@@ -373,14 +400,16 @@ describe("sender attribution", () => {
 
 describe("cross-chat bridge rendering", () => {
   it("renders a badge linking to the origin chat on an inbound bridge message", () => {
-    renderChatMessageItem(userMessage("check on JOB-1", {
-      cross_chat_bridge: {
-        thread_id: 7,
-        direction: "inbound",
-        counterpart_chat_session_id: 42,
-        counterpart_chat_title: "Debugging session"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("check on JOB-1", {
+        cross_chat_bridge: {
+          thread_id: 7,
+          direction: "inbound",
+          counterpart_chat_session_id: 42,
+          counterpart_chat_title: "Debugging session"
+        }
+      })
+    )
 
     const chip = screen.getByTestId("cross-chat-bridge-chip")
     expect(within(chip).getByText("via Chat #42: Debugging session")).toBeInTheDocument()
@@ -391,14 +420,17 @@ describe("cross-chat bridge rendering", () => {
     const payload = makePayload()
     payload.chat.conversation_kind = "direct"
 
-    const className = humanMessageBubbleClass(userMessage("check on JOB-1", {
-      cross_chat_bridge: {
-        thread_id: 7,
-        direction: "inbound",
-        counterpart_chat_session_id: 42,
-        counterpart_chat_title: "Debugging session"
-      }
-    }), payload)
+    const className = humanMessageBubbleClass(
+      userMessage("check on JOB-1", {
+        cross_chat_bridge: {
+          thread_id: 7,
+          direction: "inbound",
+          counterpart_chat_session_id: 42,
+          counterpart_chat_title: "Debugging session"
+        }
+      }),
+      payload
+    )
 
     expect(className).toContain("bg-cyan-50")
     expect(className).toContain("dark:bg-cyan-950/50")
@@ -407,14 +439,16 @@ describe("cross-chat bridge rendering", () => {
   })
 
   it("falls back to the new-chat label when the origin chat has no title", () => {
-    renderChatMessageItem(userMessage("check on JOB-1", {
-      cross_chat_bridge: {
-        thread_id: 7,
-        direction: "inbound",
-        counterpart_chat_session_id: 42,
-        counterpart_chat_title: null
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("check on JOB-1", {
+        cross_chat_bridge: {
+          thread_id: 7,
+          direction: "inbound",
+          counterpart_chat_session_id: 42,
+          counterpart_chat_title: null
+        }
+      })
+    )
 
     expect(screen.getByText("via Chat #42: New chat")).toBeInTheDocument()
   })
@@ -468,17 +502,19 @@ describe("cross-chat bridge rendering", () => {
 
 describe("shell command rendering", () => {
   it("renders a completed `!` command distinctly from a normal chat bubble, with ANSI output resolved to colored text", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 501,
-        command: "git status",
-        output: "[32mnothing to commit, working tree clean[0m",
-        outcome: "succeeded",
-        exit_status: 0,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:01Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 501,
+          command: "git status",
+          output: "[32mnothing to commit, working tree clean[0m",
+          outcome: "succeeded",
+          exit_status: 0,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:01Z"
+        }
+      })
+    )
 
     const card = screen.getByTestId("shell-command-card")
     expect(within(card).getByText("git status")).toBeInTheDocument()
@@ -490,17 +526,19 @@ describe("shell command rendering", () => {
   })
 
   it("shows a failed command's exit status and a distinct outcome badge", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 502,
-        command: "bin/rspec",
-        output: "1 example, 1 failure",
-        outcome: "failed",
-        exit_status: 1,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:05Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 502,
+          command: "bin/rspec",
+          output: "1 example, 1 failure",
+          outcome: "failed",
+          exit_status: 1,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:05Z"
+        }
+      })
+    )
 
     const card = screen.getByTestId("shell-command-card")
     expect(within(card).getByText("exit 1")).toBeInTheDocument()
@@ -508,17 +546,19 @@ describe("shell command rendering", () => {
   })
 
   it("shows a placeholder when a command produced no output", () => {
-    renderChatMessageItem(userMessage("", {
-      chat_shell_command: {
-        id: 503,
-        command: "true",
-        output: "",
-        outcome: "succeeded",
-        exit_status: 0,
-        started_at: "2026-09-07T10:00:00Z",
-        finished_at: "2026-09-07T10:00:00Z"
-      }
-    }))
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 503,
+          command: "true",
+          output: "",
+          outcome: "succeeded",
+          exit_status: 0,
+          started_at: "2026-09-07T10:00:00Z",
+          finished_at: "2026-09-07T10:00:00Z"
+        }
+      })
+    )
 
     expect(within(screen.getByTestId("shell-command-card")).getByText("(no output)")).toBeInTheDocument()
   })
@@ -533,11 +573,10 @@ describe("shell command rendering", () => {
 describe("system message retry", () => {
   it("shows a Retry now button under a non-prominent error system message and resends the given text", () => {
     const onRetry = vi.fn()
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: "does syrus have that feature?", onRetry }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: "does syrus have that feature?",
+      onRetry
+    })
 
     const button = screen.getByRole("button", { name: "Retry now" })
     fireEvent.click(button)
@@ -547,11 +586,10 @@ describe("system message retry", () => {
 
   it("shows a Retry now button under a prominent error system message", () => {
     const onRetry = vi.fn()
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Agent error", body: "Agent turn failed.", prominent: true }),
-      makePayload(),
-      { retryText: "please retry this", onRetry }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Agent error", body: "Agent turn failed.", prominent: true }), makePayload(), {
+      retryText: "please retry this",
+      onRetry
+    })
 
     fireEvent.click(screen.getByRole("button", { name: "Retry now" }))
 
@@ -559,41 +597,39 @@ describe("system message retry", () => {
   })
 
   it("does not render Retry now for non-error tones even when retry text is available", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "warning", label: "MCP unavailable", body: "MCP unavailable: syrus-chat-sidecar down." }),
-      makePayload(),
-      { retryText: "hello", onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "warning", label: "MCP unavailable", body: "MCP unavailable: syrus-chat-sidecar down." }), makePayload(), {
+      retryText: "hello",
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("does not render Retry now when there is no retry text to resend", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: null, onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: null,
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("does not render Retry now in a read-only stream even with retry text available", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { readOnly: true, retryText: "hello", onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      readOnly: true,
+      retryText: "hello",
+      onRetry: vi.fn()
+    })
 
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
   })
 
   it("disables the button and labels it Retrying… while a retry is in flight", () => {
-    renderChatMessageItem(
-      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
-      makePayload(),
-      { retryText: "hello", retrying: true, onRetry: vi.fn() }
-    )
+    renderChatMessageItem(systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }), makePayload(), {
+      retryText: "hello",
+      retrying: true,
+      onRetry: vi.fn()
+    })
 
     const button = screen.getByRole("button", { name: "Retrying…" })
     expect(button).toBeDisabled()
@@ -603,7 +639,12 @@ describe("system message retry", () => {
 describe("chat workspace source links", () => {
   it("resolves same-origin and absolute workspace file links for the current chat and repo only", () => {
     const payload = makePayload()
-    expect(resolveWorkspaceFileLink(`${window.location.origin}/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/services/system_alerts.rb:62`, payload)).toEqual({
+    expect(
+      resolveWorkspaceFileLink(
+        `${window.location.origin}/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/services/system_alerts.rb:62`,
+        payload
+      )
+    ).toEqual({
       path: "app/services/system_alerts.rb",
       line: 62
     })
@@ -673,6 +714,78 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("routes tool-card markdown workspace links through the chat source preview", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "app/models/job.rb", content: "class Job\nend\n", binary: false, too_large: false })
+    const result = { thread_id: 7, state: "open", hop_count: 1, max_hops: 6, hops_remaining: 5, target_chat_session_id: 42, message_id: 99 }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Send chat message",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "send_chat_message",
+          raw_name: "mcp__syrus-chat-sidecar__send_chat_message",
+          detail: "",
+          display_label: "Send chat message",
+          progress_label: "Sending",
+          raw_payload: { text: "Open [the workspace file](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/app/models/job.rb)" },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_settled: true,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Send chat message",
+      collapsed_by_default: true
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expandToolGroup("Send chat message")
+    fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "app/models/job.rb")
+  })
+
+  it("gives grouped tool summaries a full-width row on narrow screens", () => {
+    const calls = [
+      [1, "memory_id: 21", "Unpublished memory #21", false],
+      [2, "memory_id: 999", "Memory unpublish failed: memory not found or not owned: 999", true],
+      [3, "memory_id: 22", "Unpublishing memory...", false]
+    ].map(([messageId, detail, resultSummary, resultError]) => ({
+      message_id: messageId as number,
+      tool_name: "unpublish_memory",
+      raw_name: "unpublish_memory",
+      detail: detail as string,
+      display_label: "Unpublish memory",
+      progress_label: "Unpublishing memory",
+      raw_payload: {},
+      result_body: "{}",
+      result_error: resultError as boolean,
+      result_kind: "record" as const,
+      result_summary: resultSummary as string
+    }))
+    const item: ChatToolGroupItem = { type: "tool_group", tool: "Unpublish memory", summary_label: "Unpublish memory (3)", calls }
+
+    const { container } = render(<ToolGroup item={item} />)
+    const summary = container.querySelector("summary")
+    const detail = screen.getByText(/Unpublished memory #21/)
+    const count = screen.getByText("3")
+
+    expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(detail).toHaveClass("basis-full", "sm:basis-0", "sm:flex-1")
+    expect(count.parentElement).toHaveClass("sm:order-last")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -709,6 +822,32 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
+  it("wraps collapsed tool metadata on narrow screens without hiding the call count", () => {
+    const detail = "a very long argument detail that must not make a narrow tool row grow vertically"
+    const calls: ChatToolGroupItem["calls"] = [1, 2].map((messageId) => ({
+      message_id: messageId,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail,
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: { file_path: detail },
+      result_body: "result",
+      result_error: false,
+      result_kind: "text",
+      result_summary: "A long result summary"
+    }))
+
+    render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls }} />)
+
+    const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "basis-full", "break-words", "sm:basis-0")
+    expect(metadata).not.toHaveClass("truncate")
+    expect(metadata).not.toHaveAttribute("title")
+    const count = screen.getByText("2")
+    expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
+  })
+
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -743,6 +882,54 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Bash")
 
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
+  it("renders a registered card's proposal inputs while its tool call is still pending", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose design doc",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "propose_design_doc",
+          raw_name: "mcp__syrus-chat-sidecar__propose_design_doc",
+          detail: "Unavailable proposal",
+          display_label: "Propose design doc",
+          progress_label: "Proposing design doc",
+          raw_payload: {
+            title: "Pending placement proposal",
+            markdown: "# Pending content\n\nThe proposed body is still in flight.",
+            visibility: "private",
+            repository_ids: [41],
+            collaborator_user_ids: [7, 8],
+            change_summary: "Adds **placement** guidance."
+          },
+          result_body: "",
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Propose design doc",
+      outcome_label: "Running",
+      collapsed_by_default: false,
+      prominent: true
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.queryByText("Pending placement proposal")).not.toBeInTheDocument()
+
+    expandToolGroup("Propose design doc")
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("Waiting for the tool result.")).toBeInTheDocument()
+    expect(screen.getByText("Pending placement proposal")).toBeInTheDocument()
+    expect(screen.getByText("private")).toBeInTheDocument()
+    expect(screen.getByText("7, 8")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Repository 41" })).toHaveAttribute("href", "/repositories/41")
+    expect(screen.getByText("placement").tagName).toBe("STRONG")
+    expect(screen.getByText("Pending content")).toBeInTheDocument()
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
@@ -921,7 +1108,15 @@ describe("tool result rendering", () => {
           raw_payload: {},
           result_body: JSON.stringify({
             snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
-            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }],
+            chat_images: [
+              {
+                id: "chat_image:3",
+                kind: "chat_image",
+                filename: "desktop.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+              }
+            ],
             whiteboard_element_count: 7
           }),
           result_error: false,
@@ -987,8 +1182,20 @@ describe("tool result rendering", () => {
           result_body: JSON.stringify({
             snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
             chat_images: [
-              { id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" },
-              { id: "chat_image:4", kind: "chat_image", filename: "mobile.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/4/file" }
+              {
+                id: "chat_image:3",
+                kind: "chat_image",
+                filename: "desktop.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/3/file"
+              },
+              {
+                id: "chat_image:4",
+                kind: "chat_image",
+                filename: "mobile.png",
+                content_type: "image/png",
+                file_path: "/api/v1/app/chats/12/media/chat_images/4/file"
+              }
             ],
             whiteboard_element_count: 7
           }),
@@ -1114,6 +1321,41 @@ describe("tool result rendering", () => {
     expect(screen.getAllByText("Working tree clean")).toHaveLength(1)
     expect(screen.getAllByText("Working tree clean.")).toHaveLength(1)
     expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
+  it("renders a git status card's concrete error when a failed call has no result body", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Git status",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "git_status",
+          raw_name: "mcp__syrus-chat-sidecar__git_status",
+          detail: "No arguments",
+          display_label: "Git status",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: "",
+          result_json: { error: "Local Mode daemon is not connected" },
+          result_error: true,
+          result_kind: "error",
+          result_summary: "Git status unavailable: Local Mode daemon is not connected",
+          result_settled: false
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
+    expect(summary).toHaveClass("basis-full", "break-words", "sm:basis-0")
+
+    expandToolGroup("Git status")
+
+    expect(screen.getAllByText("Git status unavailable: Local Mode daemon is not connected")).toHaveLength(2)
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
@@ -1246,7 +1488,16 @@ describe("tool result rendering", () => {
           display_label: "Read job",
           progress_label: "Reading",
           raw_payload: { job_id: 4048 },
-          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, repository_slug: "tkadauke/syrus", branch_name: "syrus/direct-148" } }),
+          result_body: JSON.stringify({
+            job: {
+              id: 4048,
+              issue_title: "Typed renderers",
+              state: "running",
+              pr_number: 12,
+              repository_slug: "tkadauke/syrus",
+              branch_name: "syrus/direct-148"
+            }
+          }),
           result_error: false,
           result_kind: "record",
           result_summary: "1 Job"
@@ -1277,7 +1528,12 @@ describe("tool result rendering", () => {
 
   it("renders read_job expanded cards from Codex MCP result envelopes while preserving raw details", async () => {
     const envelope = {
-      content: [{ type: "text", text: JSON.stringify({ job: { id: 4795, issue_title: "Normalize Codex envelopes", state: "running", branch_name: "syrus/direct-4795" } }) }],
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ job: { id: 4795, issue_title: "Normalize Codex envelopes", state: "running", branch_name: "syrus/direct-4795" } })
+        }
+      ],
       structured_content: null
     }
     const item: ChatToolGroupItem = {
@@ -1317,12 +1573,123 @@ describe("tool result rendering", () => {
     })
   })
 
+  it("renders read_artifact image content alongside structured workflow metadata", () => {
+    const envelope = {
+      content: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }],
+      structured_content: { workflow_id: 28622, job_id: 7705 }
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read artifact",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_artifact",
+          raw_name: "mcp__syrus-chat-sidecar__read_artifact",
+          detail: "visual_review_screenshot",
+          display_label: "Read artifact",
+          progress_label: "Reading",
+          raw_payload: { workflow_id: 28622, type: "visual_review_screenshot" },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Artifact: visual_review_screenshot"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Read artifact")
+
+    expect(screen.getByRole("img", { name: "visual_review_screenshot" })).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=")
+    expect(screen.getAllByText("WF-28622").some((label) => label.closest("a")?.getAttribute("href") === "/jobs/7705?tab=workflows#workflow-28622")).toBe(true)
+  })
+
+  it("renders registered pending-card input before a tool result exists", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Update pinned context",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "update_pinned_context",
+          raw_name: "mcp__syrus-chat-sidecar__update_pinned_context",
+          detail: "",
+          display_label: "Update pinned context",
+          progress_label: "Updating",
+          raw_payload: { content: "Keep **JOB-42** in view." },
+          result_body: "",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Update pinned context")
+
+    expect(screen.getByText("pending")).toBeInTheDocument()
+    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByText("Keep", { exact: false })).toBeInTheDocument()
+  })
+
+  it("supplies live chat context so propose_job renders attached media thumbnails", () => {
+    const result = { slug: "job-image-card", title: "Image card", body: "Use the screenshot.", kind: "job", state: "proposed" }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Propose job",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "propose_job",
+          raw_name: "mcp__syrus-chat-sidecar__propose_job",
+          detail: "Image card",
+          display_label: "Propose job",
+          progress_label: "Proposing",
+          raw_payload: { title: "Image card", media: ["chat_image:77", "snapshot:42"] },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(
+      <ToolGroup
+        chatMedia={{
+          snapshots: [{ id: 42, name: "Checkout sketch", snapshot_kind: "manual", element_count: 6, created_at: "2026-10-18T12:00:00Z" }],
+          chat_images: [],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }}
+        item={item}
+        payload={makePayload()}
+      />
+    )
+    expandToolGroup("Propose job")
+
+    expect(screen.getByRole("img", { name: "chat_image:77" })).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file")
+    expect(screen.getAllByText("Checkout sketch").length).toBeGreaterThan(0)
+  })
+
   it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
     const envelope = {
-      content: [{ type: "text", text: JSON.stringify({
-        epic: { id: 349, display_number: "EPIC-349", title: "Chat tool cards", state: "running", repository: "tkadauke/syrus" },
-        child_jobs: [{ id: 4795, issue_title: "Normalize Codex envelopes", state: "running" }]
-      }) }],
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            epic: { id: 349, display_number: "EPIC-349", title: "Chat tool cards", state: "running", repository: "tkadauke/syrus" },
+            child_jobs: [{ id: 4795, issue_title: "Normalize Codex envelopes", state: "running" }]
+          })
+        }
+      ],
       structured_content: null
     }
     const item: ChatToolGroupItem = {
@@ -1371,7 +1738,7 @@ describe("tool result rendering", () => {
           display_label: "Set bookmark",
           progress_label: "Making changes",
           raw_payload: {},
-          result_body: "{\"label\":",
+          result_body: '{"label":',
           result_error: false,
           result_kind: "text",
           result_summary: ""
@@ -1382,11 +1749,11 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.queryByText("{\"label\":")).not.toBeInTheDocument()
+    expect(screen.queryByText('{"label":')).not.toBeInTheDocument()
 
     expandToolGroup("Unknown tool")
 
-    expect(screen.getByText("{\"label\":")).toBeInTheDocument()
+    expect(screen.getByText("Unexpected tool response.")).toBeInTheDocument()
   })
 
   it("redacts raw details, fallback output, summaries, and copied payloads for unknown tool cards", async () => {
@@ -1477,6 +1844,62 @@ describe("tool result rendering", () => {
     openRawDetails()
 
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
+  })
+
+  it("lets standalone structured tool error summaries shrink and wrap on mobile", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 12,
+      role: "tool_use",
+      text: "Local Mode daemon is not connected",
+      bookmarkable: false,
+      tool: {
+        name: "git_status",
+        raw_name: "mcp__syrus-chat-sidecar__git_status",
+        display_label: "Git status",
+        argument_summary: "",
+        raw_payload: {},
+        result_kind: "error",
+        result_summary: "Git status unavailable: Local Mode daemon is not connected",
+        payload: { error: "Local Mode daemon is not connected" },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    })
+
+    const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
+    expect(summary).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
+    expect(summary).not.toHaveClass("shrink-0")
+  })
+
+  it("gives long registered-card summaries a full-width second row on mobile", () => {
+    const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Admin maintenance tasks",
+      calls: [
+        {
+          message_id: 47,
+          tool_name: "admin_maintenance_tasks",
+          raw_name: "mcp__syrus-chat-sidecar__admin_maintenance_tasks",
+          detail: "No arguments",
+          display_label: "Admin maintenance tasks",
+          progress_label: "Reading maintenance tasks",
+          raw_payload: { action: "read", task_id: 47 },
+          result_body: JSON.stringify({ task: { id: 47, title, state: "running" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "",
+          result_settled: true
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const resultSummary = screen.getByText(`${title} (running)`)
+    expect(resultSummary).toHaveClass("order-2", "basis-full", "pl-5", "sm:order-none", "sm:basis-0", "sm:pl-0")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
@@ -1669,7 +2092,7 @@ describe("pin control", () => {
 
   it("shows an unpin toggle and unpins on click when the message is already pinned", async () => {
     const pin: ChatMessagePin = { id: 1, chat_message_id: 5, text: "Discuss the aqueduct.", role: "assistant", created_at: "2026-08-10T10:00:00Z" }
-    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [ pin ] })
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [pin] })
     vi.mocked(deleteChatMessagePin).mockResolvedValue({ pins: [] } as unknown as ChatPayload & { pins: ChatMessagePin[] })
     renderMessage("Discuss the aqueduct.", makePayload(), { pinnable: true })
 

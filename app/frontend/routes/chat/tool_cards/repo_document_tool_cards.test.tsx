@@ -5,6 +5,7 @@ import createRepoDocumentToolCard from "./create_repo_document"
 import deleteRepoDocumentToolCard from "./delete_repo_document"
 import listRepoDocumentsToolCard from "./list_repo_documents"
 import readRepoDocumentToolCard from "./read_repo_document"
+import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -42,6 +43,26 @@ describe("repository document tool cards", () => {
     expect(readRepoDocumentToolCard.toolName).toBe("read_repo_document")
     expect(createRepoDocumentToolCard.toolName).toBe("create_repo_document")
     expect(deleteRepoDocumentToolCard.toolName).toBe("delete_repo_document")
+  })
+
+  it("renders provider-specific MCP envelopes through the shared normalizers", () => {
+    const payload = { pending_action_id: 501, state: "pending", message: "Create **API Guide**?" }
+    const codexEnvelope = { content: [{ type: "text", text: JSON.stringify(payload) }], structured_content: null }
+    const claudeEnvelope = { structured_content: payload, content: [{ type: "text", text: "ignored fallback" }] }
+
+    for (const [rawName, envelope] of [
+      ["mcp__syrus-chat-sidecar__create_repo_document", codexEnvelope],
+      ["syrus-chat-deferred-sidecar.create_repo_document", claudeEnvelope]
+    ] as const) {
+      const toolName = normalizedToolName(rawName)
+      const cardContext = context(toolName, {
+        input: { repository_id: 7, title: "API Guide", body: "# Guide" },
+        parsedResult: normalizedToolCardParsedResult(envelope)
+      })
+
+      expect(toolName).toBe("create_repo_document")
+      expect(createRepoDocumentToolCard.collapsedSummary?.(cardContext)).toBe("Create API Guide · Create API Guide?")
+    }
   })
 
   it("renders an empty document list", () => {
@@ -83,39 +104,114 @@ describe("repository document tool cards", () => {
     const parsedResult = {
       pending_action_id: 501,
       state: "pending",
-      message: "Create document \"API Guide\" in repository 7?"
+      message: 'Create document "API Guide" in repository 7?'
     }
-    const input = { repository_id: 7, title: "API Guide", body: "Line one\nLine two" }
+    const input = {
+      repository_id: 7,
+      repository_slug: "tkadauke/syrus",
+      title: "API Guide",
+      body: "# Line one\n\nSee **JOB-42** and https://example.test/docs."
+    }
 
     expect(createRepoDocumentToolCard.collapsedSummary?.(context("create_repo_document", { input, parsedResult }))).toBe(
-      "Create API Guide · Create document \"API Guide\" in repository 7?"
+      'Create API Guide · Create document "API Guide" in repository 7?'
     )
     render(<>{createRepoDocumentToolCard.renderExpanded(context("create_repo_document", { input, parsedResult }))}</>)
 
     expect(screen.getByText("Create document")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
     expect(screen.getByText("API Guide")).toBeInTheDocument()
-    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getByText("text/markdown")).toBeInTheDocument()
+    expect(screen.getByText(/B$/)).toBeInTheDocument()
     expect(screen.getByText("Body preview")).toBeInTheDocument()
+    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://example.test/docs" })).toHaveAttribute("href", "https://example.test/docs")
+  })
+
+  it("renders plain validation failures instead of falling back to the generic card", () => {
+    const failed = context("create_repo_document", {
+      input: { repository_id: 7, title: "", body: "Notes" },
+      resultBody: "title is required",
+      resultError: true
+    })
+
+    expect(createRepoDocumentToolCard.collapsedSummary?.(failed)).toBe("Create repository document failed: title is required")
+    render(<>{createRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Create repository document failed")).toBeInTheDocument()
+    expect(screen.getByText("title is required")).toBeInTheDocument()
+  })
+
+  it("renders Markdown pending copy and a blank-body empty state", () => {
+    const parsedResult = {
+      pending_confirmation_id: 503,
+      state: "pending",
+      message: "Create **Notes**?",
+      reason: "Review [policy](https://example.test/policy)."
+    }
+    const input = { repository_id: 7, title: "Notes", body: "" }
+
+    render(<>{createRepoDocumentToolCard.renderExpanded(context("create_repo_document", { input, parsedResult }))}</>)
+
+    expect(screen.getByText("Notes", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "policy" })).toHaveAttribute("href", "https://example.test/policy")
+    expect(screen.getByText("No document body provided.")).toBeInTheDocument()
+  })
+
+  it("links a completed document from the live serialized pending-action result", () => {
+    const parsedResult = { pending_action_id: 504, state: "pending", message: "Create Runbook?" }
+    const livePendingAction = {
+      id: 504,
+      action: "create_repo_document",
+      state: "confirmed" as const,
+      label: "Create document Runbook",
+      detail: "title: Runbook",
+      execution_status: "applied",
+      document: {
+        id: 22,
+        title: "Runbook",
+        repository_id: 7,
+        repository_slug: "tkadauke/syrus",
+        content_type: "text/markdown",
+        size_bytes: 2048,
+        url: "/api/v1/app/repository_documents/22/file"
+      },
+      resource_title: "Runbook",
+      resource_url: "/api/v1/app/repository_documents/22/file",
+      app_confirm_path: "/confirm",
+      app_reject_path: "/reject"
+    }
+
+    render(
+      <>
+        {createRepoDocumentToolCard.renderExpanded(
+          context("create_repo_document", { input: { repository_id: 7, body: "# Runbook" }, parsedResult, livePendingAction })
+        )}
+      </>
+    )
+
+    expect(screen.getByRole("link", { name: "Runbook" })).toHaveAttribute("href", "/api/v1/app/repository_documents/22/file")
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
   })
 
   it("renders a delete document pending outcome with confirmation/error state", () => {
     const parsedResult = {
       pending_action_id: 502,
       state: "failed",
-      message: "Delete document \"Old notes\"?",
+      message: 'Delete document "Old notes"?',
       reason: "Document disappeared before confirmation."
     }
     const input = { document_id: 99 }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { input, parsedResult }))).toBe(
-      "Delete document 99 · Delete document \"Old notes\"?"
+      'Delete Old notes · Delete document "Old notes"?'
     )
     render(<>{deleteRepoDocumentToolCard.renderExpanded(context("delete_repo_document", { input, parsedResult }))}</>)
 
     expect(screen.getByText("Delete document")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
-    expect(screen.getByText("99")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Old notes" })).toHaveAttribute("href", "/api/v1/app/repository_documents/99/file")
     expect(screen.getByText("Document disappeared before confirmation.")).toBeInTheDocument()
   })
 
@@ -123,13 +219,29 @@ describe("repository document tool cards", () => {
     const parsedResult = {
       pending_action_id: 502,
       state: "failed",
-      message: "Delete document \"Old notes\"?",
+      message: 'Delete document "Old notes"?',
       reason: "Document disappeared before confirmation."
     }
 
     expect(deleteRepoDocumentToolCard.collapsedSummary?.(context("delete_repo_document", { parsedResult, resultError: true }))).toBe(
-      "Delete document \"Old notes\"?"
+      'Delete repository document failed: Delete document "Old notes"?'
     )
+  })
+
+  it("renders document-not-found failures with recovery context", () => {
+    const failed = context("delete_repo_document", {
+      input: { document_id: 404 },
+      parsedResult: { error: "Document not found" },
+      resultBody: JSON.stringify({ error: "Document not found" }),
+      resultError: true
+    })
+
+    render(<>{deleteRepoDocumentToolCard.renderExpanded(failed)}</>)
+
+    expect(screen.getByText("Delete repository document failed")).toBeInTheDocument()
+    expect(screen.getByText("Document not found")).toBeInTheDocument()
+    expect(screen.getByText("Delete document 404")).toBeInTheDocument()
+    expect(screen.getByText(/Check that the document still exists/)).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {

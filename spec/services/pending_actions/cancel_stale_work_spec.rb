@@ -68,6 +68,35 @@ RSpec.describe PendingActions::CancelStaleWork do
     expect(run.reload).to be_cancelled
   end
 
+  it "retires a zero-run handoff intent before reconciliation and delayed admission can revive it" do
+    job = build_job(user: admin, repository: admin_repository)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "coding_handoff",
+      job: job,
+      idempotency_key: "stale-zero-run-handoff"
+    )
+    unit = workflow.work_unit
+    intent = unit.work_intent
+    step = workflow.steps.order(:position).first
+    workflow_count = job.workflows.count
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id)
+
+    action.confirm!(user: admin)
+    WorkflowPhaseAdmissionJob.perform_now(workflow.id, step.id)
+
+    expect(action.reload).to be_confirmed
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.runs).to be_empty
+    expect(unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON
+    )
+    expect(intent.reload).to be_cancelled
+    expect(unit.work_unit_locks.active).to be_empty
+    expect(job.reload.workflows.count).to eq(workflow_count)
+    expect(job).not_to be_active_runtime_work
+  end
+
   it "does not reconcile when the payload opts out" do
     job = build_job(user: admin, repository: admin_repository)
     active_workflow_for(job)

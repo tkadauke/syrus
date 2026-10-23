@@ -25,6 +25,26 @@ The existing `/inference` multipart endpoint remains available through the
 gateway. It receives audio as the `file` field with `response_format=json`;
 Syrus forwards optional `language` and `prompt` fields.
 
+Batch uploads smaller than 256 bytes are rejected by Rails as
+`audio_too_small` (422) and never reach the daemon. The Rails client uses a
+2-second connect timeout, 10-second write timeout, and 90-second read timeout;
+the gateway uses a 90-second whole-upstream-request timeout. The gateway HTTP
+server has a 10-second header timeout, while streaming sessions have a
+120-second idle timeout. Upstream timeouts return `speech_to_text_timeout`
+(504), and connection or availability failures return
+`speech_to_text_backend_unavailable` (503). The composer retries those two
+statuses once, never retries a 4xx response, and preserves existing and partial
+composer text if finalization fails.
+The gateway independently parses the multipart upload before proxying it. It
+rejects a missing, empty, undersized, oversized, unsupported, or
+signature-invalid audio part with a 4xx response, so malformed uploads cannot
+surface as whisper.cpp availability failures.
+
+Rails forwards its request ID as `X-Request-ID`. Gateway logs label the client
+request as `ingress` and the whisper.cpp call as `upstream`, using the same ID;
+neither log includes audio, prompts, or transcript text. Thus two lines for one
+batch operation describe its two layers rather than duplicate client uploads.
+
 ## Requirements
 
 - **Plugin Runtime**, which Whisper speech-to-text depends on, to run or

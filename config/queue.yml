@@ -17,7 +17,8 @@ default: &default
     # broadcast work. JOB_CONCURRENCY caps the simultaneous agent
     # invocations per pod (a global cap lives in
     # AppSetting.max_concurrent_agent_runs). This worker ALSO consumes its
-    # own storage-affinity `resume-<worker-storage-key>` queue — "Retry from
+    # hostname-specific `worker-<hostname>` dispatch queue and its own
+    # storage-affinity `resume-<worker-storage-key>` queue — "Retry from
     # failed step" and post-crash re-enqueues are routed there so they land on
     # a worker that can see the Job's local workspace (see
     # Run#resume_worker_queue). Listed first so operator-initiated resumes are
@@ -27,7 +28,7 @@ default: &default
     # is one literal queue name, so a space-joined string silently claims zero
     # jobs (SolidQueue::Worker#initialize: `Array(options[:queues])`).
     - queues:
-<% ([WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
+<% ([WorkerStorageIdentity.dispatch_queue_name, WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
         - "<%= queue_name %>"
 <% end %>
       threads: <%= ENV.fetch("JOB_CONCURRENCY", 3) %>
@@ -115,7 +116,7 @@ development:
     # Multi-queue workers MUST be a YAML array (Solid Queue 1.4 doesn't split
     # a space-joined string — see the note in the default section above).
     - queues:
-<% ([WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
+<% ([WorkerStorageIdentity.dispatch_queue_name, WorkerStorageIdentity.queue_name] + run_queues).each do |queue_name| %>
         - "<%= queue_name %>"
 <% end %>
       threads: <%= ENV.fetch("DEV_RUN_CONCURRENCY", 1) %>

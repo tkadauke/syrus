@@ -102,7 +102,7 @@ team grants qualify; global admins bypass repository membership requirements.
 
 The `Triaging` smart folder surfaces user-facing Jobs currently sitting in the `triaging` AASM state (across any of the current user's repositories) so classifier delays or stuck intake are visible without a manual filter. Like `Invalid` and `Awaiting Epic`, it only appears in the sidebar when at least one matching Job exists.
 
-The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, accept classifier-uncertain triage decisions, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.
+The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, accept classifier-uncertain triage decisions, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. While an action runs, the toolbar shows completed and total Job counts plus a cancel control; it hides the other actions until the current operation finishes or cancellation takes effect. Cancellation stops before the next Job rather than interrupting the request already in flight. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.
 
 Queued Job cards can carry a start-blocked badge when Syrus has deferred the first Run because dependencies are unfinished, a dependency failed or was cancelled, the Job/Epic is not ready for execution, main is broken, an urgent Job is active, provider availability is below the user's per-agent threshold, or workflow admission budgeting delayed the start. The Queued smart folder also shows a blocked sub-count; selecting that count filters to only queued Jobs with a persisted start-blocked reason.
 
@@ -193,9 +193,12 @@ before user-scoped defaults. Triggers describe actual invocation surfaces
 kinds); workflow trigger kind is a condition on an existing workflow context.
 The resolver records `agent_provider_routing_decision` with a
 `routing_resolution` explanation showing the matched scope, rule, condition
-results, and final candidate action when it chooses the initial Workflow
+results, and final route-or-hold action. Disabled rules remain ordered but are
+skipped during matching. For a route action, it records the initial Workflow
 provider/model/effort candidate; provider availability can then skip
-unavailable candidates before the first Run starts.
+unavailable candidates before the first Run starts. A hold action leaves the
+Workflow queued without creating a Run and is reported as a non-failure held
+decision rather than provider exhaustion.
 If an unstarted workflow automatically moves from one candidate to another, it
 also records `provider_failover_decision`. Dashboard rows, Job detail,
 repository Job rows, and Workflow cards show the original unavailable provider

@@ -9,6 +9,7 @@ module ChatSpeechToText
       audio/ogg
     ].freeze
     MAX_BYTES = 10.megabytes
+    MIN_BYTES = 256
     MAX_DURATION_SECONDS = 120
   end
 end

@@ -43,6 +43,18 @@ module Admin
     }.freeze
 
     STATIC_CAPABILITIES = {
+      override_job_planned_execution: {
+        sources: {
+          user_api: [
+            { source: "user_api", name: "POST /api/v1/app/jobs/:job_id/override_planned_execution" }
+          ]
+        },
+        decisions: {
+          admin_api: { status: "not_exposed", reason: "The admin API exposure is supplied by its registered PendingAction." },
+          cli: { status: "not_exposed", reason: "No CLI command is registered for placement overrides." },
+          mcp: { status: "not_exposed", reason: "The MCP exposure is supplied by its registered tool." }
+        }
+      },
       personal_api_token: {
         sources: {
           user_api: [
@@ -80,6 +92,7 @@ module Admin
       adopt_current_pr_head
       approve_job
       archive_epic
+      base_refresh_retry_job
       cancel_job
       cancel_stale_work
       check_job_mergeability
@@ -100,7 +113,9 @@ module Admin
       local_tool_call
       manual_agentic_run
       mark_ci_repair_noop
+      mutate_provider_routing_rules
       override_landing_blocker_once
+      override_job_planned_execution
       pause_landing_queue
       poll_job_feedback
       rebase_job

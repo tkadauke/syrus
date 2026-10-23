@@ -43,6 +43,7 @@ RSpec.describe WorkDefinitions do
       initial
       retry
       checkpoint_resume
+      base_refresh_retry
       pr_comment
       chat_feedback
       ci_failure
@@ -105,6 +106,7 @@ RSpec.describe WorkDefinitions do
       external_pr_merge
       retry
       checkpoint_resume
+      base_refresh_retry
       manual_visual_review
       manual_post_implementation_review
       visual_diff
@@ -154,6 +156,7 @@ RSpec.describe WorkDefinitions do
       ci_failure
       retry
       checkpoint_resume
+      base_refresh_retry
       manual
       resume
       coding_handoff
@@ -224,6 +227,7 @@ RSpec.describe WorkDefinitions do
       initial
       retry
       checkpoint_resume
+      base_refresh_retry
       coding_handoff
       local_mode_handoff
       main_branch_repair
@@ -274,12 +278,14 @@ RSpec.describe WorkDefinitions do
       "ci_failure",
       "retry",
       "checkpoint_resume",
+      "base_refresh_retry",
       "manual",
       "manual_agentic_run"
     )
     expect(described_class.retry_workflow_attempt_kinds).to contain_exactly(
       "retry",
-      "checkpoint_resume"
+      "checkpoint_resume",
+      "base_refresh_retry"
     )
     expect(described_class.recoverable_cancelled_workflow_kinds).to contain_exactly(
       "initial",
@@ -288,6 +294,7 @@ RSpec.describe WorkDefinitions do
       "ci_failure",
       "retry",
       "checkpoint_resume",
+      "base_refresh_retry",
       "replay",
       "manual",
       "resume",

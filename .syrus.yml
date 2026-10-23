@@ -116,7 +116,11 @@ visual_review:
     - "plugins/**/app/views/**/*"
   seed_notes: |
     Log in as demo@syrus.local / password. Dashboard, Job/Epic detail,
-    and chat are seeded. Live-updating panels (Job/Workflow progress,
+    and chat are seeded; chat is available for browsing the message stream.
+    For tool-card changes, prefer the Tool Card Catalog at
+    /admin/tool_cards, where cards can be reviewed in isolation.
+    The seeded Codex API key is intentionally non-functional, so sending a
+    new message fails by design. Live-updating panels (Job/Workflow progress,
     streaming transcripts) render as a static snapshot in preview because
     no background worker runs there by design — do not flag static
     progress as a defect. The "Inspect preview dashboard states" Job's

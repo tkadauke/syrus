@@ -52,6 +52,7 @@ RSpec.describe Whiteboard::MediaSource do
 
     expect(entries.map { |entry| entry[:kind] }).to eq([ "snapshot" ])
     expect(entries.first[:name]).to eq("One")
+    expect(entries.first[:whiteboard_url]).to eq("/chats/#{chat.id}")
     expect(described_class.chat_media_context(chat_session: chat)).to eq(whiteboard_element_count: 2)
   end
 end

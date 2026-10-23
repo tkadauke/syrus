@@ -441,6 +441,21 @@ module WorkDefinitions
     def workflow_template = Workflows::CheckpointResume
   end
 
+  class BaseRefreshRetry < Base
+    include ActiveRepairWork
+    include RetryWorkflowAttempt
+    include OpensReviewPullRequest
+    include RecordsGraderTargetSelectionInputs
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
+
+    self.kind = "base_refresh_retry"
+    self.workflow_trigger_kind = "base_refresh_retry"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class ManualVisualReview < Base
     include ResumesFailedSteps
     include CancelPreemptable

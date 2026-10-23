@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import retryJobCard from "./retry_job"
+import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"
@@ -11,7 +12,7 @@ import adminCleanupWorkspaceCard from "./admin_cleanup_workspace"
 import adminClearGithubCacheCard from "./admin_clear_github_cache"
 import adminPausePollingCard from "./admin_pause_polling"
 import adminUnpausePollingCard from "./admin_unpause_polling"
-import adminPauseRunsCard from "./admin_pause_runs"
+import adminPauseRunsCard, { examples as adminPauseRunsExamples } from "./admin_pause_runs"
 import adminUnpauseRunsCard from "./admin_unpause_runs"
 import adminPauseUserSchedulingCard from "./admin_pause_user_scheduling"
 import adminUnpauseUserSchedulingCard from "./admin_unpause_user_scheduling"
@@ -19,18 +20,18 @@ import adminReapStaleRunsCard from "./admin_reap_stale_runs"
 import adminRefreshInstallationsCard from "./admin_refresh_installations"
 import rerunCiRepairCard from "./rerun_ci_repair"
 import markCiRepairNoopCard from "./mark_ci_repair_noop"
-import overrideLandingBlockerOnceCard from "./override_landing_blocker_once"
+import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceExamples } from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
 import cancelStaleWorkCard from "./cancel_stale_work"
 import reenqueueWorkCard from "./reenqueue_work"
 import repairQueueAffinityCard from "./repair_queue_affinity"
 import wakeLandingQueueCard from "./wake_landing_queue"
 import wakeProviderAdmissionCard from "./wake_provider_admission"
-import clearProviderCircuitCard from "./clear_provider_circuit"
+import clearProviderCircuitCard, { examples as clearProviderCircuitExamples } from "./clear_provider_circuit"
 import repairProviderCircuitEvidenceCard from "./repair_provider_circuit_evidence"
-import adminKillProcessCard from "./admin_kill_process"
+import adminKillProcessCard, { examples as adminKillProcessExamples } from "./admin_kill_process"
 import adminRetryStepCard from "./admin_retry_step"
-import adoptCurrentPrHeadCard from "./adopt_current_pr_head"
+import adoptCurrentPrHeadCard, { examples as adoptCurrentPrHeadExamples } from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_workflow_output"
 import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
@@ -46,6 +47,7 @@ import reconcileJobStateCard from "./reconcile_job_state"
 // excludes *.test.tsx from its card glob, so it is never discovered.
 const CARDS: Array<[string, ToolCardRenderer]> = [
   ["retry_job", retryJobCard],
+  ["base_refresh_retry_job", baseRefreshRetryJobCard],
   ["run_visual_review", runVisualReviewCard],
   ["delegate_issue", delegateIssueCard],
   ["check_job_mergeability", checkJobMergeabilityCard],
@@ -77,7 +79,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["adopt_current_pr_head", adoptCurrentPrHeadCard],
   ["replace_pr_branch_with_workflow_output", replacePrBranchWithWorkflowOutputCard],
   ["retry_from_current_pr_branch", retryFromCurrentPrBranchCard],
-  ["reconcile_job_state", reconcileJobStateCard],
+  ["reconcile_job_state", reconcileJobStateCard]
 ]
 
 function context(toolName: string, parsedResult: unknown): ToolCardContext {
@@ -86,8 +88,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(33)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(33)
+    expect(CARDS).toHaveLength(34)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(34)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
@@ -104,6 +106,15 @@ describe("pending action tool card family", () => {
     expect(card.renderExpanded(context(name, "not json"))).toBeNull()
   })
 
+  it("registers every visual-review state for the landing blocker override card", () => {
+    expect(overrideLandingBlockerOnceExamples.map((example) => example.id)).toEqual([
+      "pending_override",
+      "applied_override",
+      "validation_error",
+      "missing_input"
+    ])
+  })
+
   it("wires a standard-shape tool through to the shared card", () => {
     const parsedResult = {
       pending_confirmation_id: 501,
@@ -114,7 +125,7 @@ describe("pending action tool card family", () => {
 
     expect(retryJobCard.collapsedSummary?.(context("retry_job", parsedResult))).toBe("Rebase JOB-322 onto main?")
     render(<>{retryJobCard.renderExpanded(context("retry_job", parsedResult))}</>)
-    expect(screen.getByText("#501")).toBeInTheDocument()
+    expect(screen.getByText("Pending action #501")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
   })
 
@@ -130,8 +141,29 @@ describe("pending action tool card family", () => {
 
     expect(adminKillProcessCard.collapsedSummary?.(context("admin_kill_process", parsedResult))).toBe("Kill 3 processes? · 3 actions")
     render(<>{adminKillProcessCard.renderExpanded(context("admin_kill_process", parsedResult))}</>)
-    expect(screen.getByText("Group #88")).toBeInTheDocument()
+    expect(screen.getByText("Pending action group #88")).toBeInTheDocument()
     expect(screen.getByText("3 actions")).toBeInTheDocument()
+  })
+
+  it("publishes catalog examples for linked targets, long Markdown, and tool errors", () => {
+    expect(adminKillProcessExamples.map((example) => example.id)).toEqual(["bulk_process_targets"])
+    expect(clearProviderCircuitExamples.map((example) => example.id)).toEqual(["long_markdown_evidence"])
+    expect(adminPauseRunsExamples.map((example) => example.id)).toEqual(["provider_error"])
+
+    const processContext = toolCardContextForExample("admin_kill_process", adminKillProcessExamples[0])
+    render(<>{adminKillProcessCard.renderExpanded(processContext)}</>)
+    expect(screen.getByRole("link", { name: "41" })).toHaveAttribute("href", "/admin/processes/41")
+    expect(screen.getByRole("link", { name: "43" })).toHaveAttribute("href", "/admin/processes/43")
+
+    const circuitContext = toolCardContextForExample("clear_provider_circuit", clearProviderCircuitExamples[0])
+    render(<>{clearProviderCircuitCard.renderExpanded(circuitContext)}</>)
+    expect(screen.getByRole("link", { name: "7" })).toHaveAttribute("href", "/admin/users/7")
+    expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
+
+    const errorContext = toolCardContextForExample("admin_pause_runs", adminPauseRunsExamples[0])
+    render(<>{adminPauseRunsCard.renderExpanded(errorContext)}</>)
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText(/Run control is temporarily unavailable/)).toBeInTheDocument()
   })
 
   it("wires a dry-run-evidence tool through to the shared card", () => {
@@ -146,12 +178,47 @@ describe("pending action tool card family", () => {
       }
     }
 
-    expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe(
-      "Dry run: adopt_current_pr_head for JOB-4222"
-    )
+    expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe("Dry run: adopt_current_pr_head for JOB-4222")
     render(<>{adoptCurrentPrHeadCard.renderExpanded(context("adopt_current_pr_head", parsedResult))}</>)
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: /JOB-4222/ })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: /JOB-4222/ })[0]).toHaveAttribute("href", "/jobs/4222")
     expect(screen.getByText("1 changed file")).toBeInTheDocument()
+  })
+
+  it("registers reviewable adopt-current-PR-head catalog states", () => {
+    expect(adoptCurrentPrHeadExamples.map((example) => example.id)).toEqual(["dry_run_evidence", "pending_input_fallback", "structured_error", "empty_result"])
+  })
+
+  it.each([
+    ["dry_run_evidence", "Dry run"],
+    ["pending_input_fallback", "pending"],
+    ["structured_error", "invalid_base"]
+  ])("renders the %s adopt-current-PR-head catalog fixture", (id, expected) => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === id)
+    if (!example) throw new Error(`missing fixture: ${id}`)
+
+    const card = adoptCurrentPrHeadCard.renderExpanded(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))
+    expect(card).not.toBeNull()
+    render(<>{card}</>)
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
+  it("keeps the completed empty-result fixture on the generic fallback path", () => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === "empty_result")
+    if (!example) throw new Error("missing empty fixture")
+
+    expect(adoptCurrentPrHeadCard.renderExpanded(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))).toBeNull()
+  })
+
+  it("keeps the long pending catalog summary to one bounded line", () => {
+    const example = adoptCurrentPrHeadExamples.find((candidate) => candidate.id === "pending_input_fallback")
+    if (!example) throw new Error("missing pending fixture")
+
+    const summary = adoptCurrentPrHeadCard.collapsedSummary?.(toolCardContextForExample(adoptCurrentPrHeadCard.toolName, example))
+    expect(summary).toHaveLength(160)
+    expect(summary).not.toContain("\n")
+    expect(summary).toMatch(/…$/)
   })
 
   it("wires the destructive dry-run tool through to the shared card", () => {

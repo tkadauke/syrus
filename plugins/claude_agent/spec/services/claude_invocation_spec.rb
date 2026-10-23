@@ -662,6 +662,37 @@ RSpec.describe ClaudeInvocation do
 
     let(:null_sink) { ->(_chunk, **) { } }
 
+    it "allows image-sized JSON events and continues processing later events" do
+      process_runner_options = nil
+      large_event = {
+        type: "user",
+        message: { content: [ { type: "tool_result", content: "a" * 2.megabytes } ] }
+      }.to_json
+      runner_result = ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+        operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+      )
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        process_runner_options = kwargs
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run) do
+          kwargs[:on_output_line].call(large_event)
+          kwargs[:on_output_line].call(successful_result_line)
+          runner_result
+        end
+        fake
+      end
+
+      result = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink).run
+
+      expect(process_runner_options).to include(
+        max_output_line_bytes: AgentInvocation::MAX_EVENT_BYTES,
+        on_output_line_too_long: an_instance_of(Proc)
+      )
+      expect(result).to be_success
+      expect(result.turns).to eq(3)
+    end
+
     it "treats a silent timeout after a successful provider result as cleanup overhead" do
       invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink)
       stub_process_runner(silent_timeout_result, emit_line: successful_result_line)

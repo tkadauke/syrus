@@ -64,12 +64,14 @@ class RetryWorkflowEnqueuer
 
   def self.call(...) = new(...).call
 
-  def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false)
+  def initialize(job:, agent_provider: nil, artifacts: nil, provider_validation: :configured, automatic: false,
+                 resume_checkpoint: true)
     @job = job
     @agent_provider = agent_provider.to_s.presence
     @artifacts = retry_artifacts(artifacts)
     @provider_validation = ProviderValidation.for(provider_validation).new(job)
     @automatic = automatic
+    @resume_checkpoint = resume_checkpoint
   end
 
   def call
@@ -193,8 +195,10 @@ class RetryWorkflowEnqueuer
   end
 
   def instantiate_retry_workflow
-    checkpoint_resume = RunCheckpointResume.call(job: job, agent_provider: agent_provider, artifacts: artifacts)
-    return checkpoint_resume.workflow if checkpoint_resume.success?
+    if @resume_checkpoint
+      checkpoint_resume = RunCheckpointResume.call(job: job, agent_provider: agent_provider, artifacts: artifacts)
+      return checkpoint_resume.workflow if checkpoint_resume.success?
+    end
 
     WorkUnits::Launcher.instantiate(kind: retry_kind, job: job, artifacts: artifacts, agent_provider: agent_provider)
   end

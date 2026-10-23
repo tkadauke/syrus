@@ -7,10 +7,15 @@ module Mcp::Tools
     tool_name "open_in_coding_mode"
 
     description <<~DESC
-      Take over an existing implemented or approved Syrus Job in this Coding
-      Mode chat. This links the Job to the chat, checks out the Job branch, and
-      moves the Job into coding state. Use only when the operator explicitly
-      asks to take over that Job.
+      Immediately take over an existing Syrus Job in state
+      #{Mcp::ControlToolContracts.states(JobCodingMode::Takeover::CLAIMABLE_JOB_STATES)}
+      (or resume the same chat-linked `coding` Job). This requires a Coding Mode
+      chat, a recorded pushed branch, repository credentials, no conflicting
+      checkout, and no incompatible active workflow ownership. It creates no
+      Job, Workflow, WorkUnit, or pending action and enters neither admission
+      control nor the worker queue: it links the Job to this chat, checks out its
+      recorded branch locally, and moves it to `coding`. Taking over an approved
+      Job first removes approval. Use only when the operator explicitly asks.
     DESC
 
     input_schema(

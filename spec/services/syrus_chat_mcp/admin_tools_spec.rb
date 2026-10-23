@@ -400,6 +400,10 @@ RSpec.describe "Mcp::Tools admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
+      if name == "wake_provider_admission"
+        expect(payload.fetch(:observed_preview)).to include(provider: "codex", workflow_count: 0, auto_retry_count: 0)
+        expect(action.payload.fetch("observed_preview")).to include("provider" => "codex", "workflow_count" => 0, "auto_retry_count" => 0)
+      end
       expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue repair_provider_circuit_evidence clear_provider_circuit wake_provider_admission])
     end
   end
@@ -874,6 +878,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(LandingQueueRecheck).to have_received(:call).with(job)
     expect(action.reload.before_snapshot).to include("jobs")
     expect(action.after_snapshot).to include("jobs")
+    expect(action.payload["refreshed_state"]).to eq(result.refreshed_state.deep_stringify_keys)
   end
 
   it "confirms override_landing_blocker_once only for the observed blocker" do
@@ -1136,7 +1141,14 @@ RSpec.describe "Mcp::Tools admin tools" do
       group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
       expect(response.dig(:result, :isError)).to be_falsey
-      expect(body).to include(state: "pending", member_count: 2)
+      expect(body).to include(
+        state: "pending",
+        member_count: 2,
+        observed: contain_exactly(
+          include(evidence_id: classification_one.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_one.classified_at.iso8601),
+          include(evidence_id: classification_two.id, status: "provider_usage_limit", source: "run_failure_classification", observed_at: classification_two.classified_at.iso8601)
+        )
+      )
       expect(group.reason).to eq("Both classifications share the same misclassification root cause.")
       expect(group.chat_pending_actions.map { |a| a.payload["evidence_id"] }).to contain_exactly(classification_one.id, classification_two.id)
     end
@@ -1318,6 +1330,97 @@ RSpec.describe "Mcp::Tools admin tools" do
     repair_plan = payload.fetch(:items).first.fetch(:repair_plan)
     expect(repair_plan).to include(target_type: "Run", target_id: run.id)
     expect(repair_plan.fetch(:action)).to match(/\Amark_worker_died/)
+    expect(payload.fetch(:pagination)).to include(
+      page: 1,
+      per: 50,
+      total_pages: 1,
+      has_next_page: false,
+      has_previous_page: false
+    )
+    expect(payload.dig(:pagination, :total_items)).to be >= 1
+  end
+
+  it "paginates stuck Jobs with bounded inputs and stable ordering" do
+    items = 205.times.map do |index|
+      {
+        "kind" => "kind_#{index % 3}",
+        "job_id" => index + 1,
+        "workflow_id" => nil,
+        "run_id" => nil,
+        "detail" => "item #{index + 1}"
+      }
+    end.reverse
+    snapshot = Admin::StuckItemsCache::Snapshot.new(items: items, captured_at: Time.current)
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
+    expect(Admin::StuckItems).not_to receive(:all)
+
+    first = payload_for(call_tool(admin_session, "admin_stuck_jobs", { per: 1_000 }))
+    second = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 2, per: 100 }))
+
+    expect(first.fetch(:items).size).to eq(100)
+    expect(first.fetch(:pagination)).to include(
+      page: 1,
+      per: 100,
+      total_items: 205,
+      total_pages: 3,
+      has_next_page: true,
+      has_previous_page: false
+    )
+    expect(second.fetch(:pagination)).to include(page: 2, has_next_page: true, has_previous_page: true)
+    expect(first.fetch(:items).map { |item| item.fetch(:job_id) } & second.fetch(:items).map { |item| item.fetch(:job_id) }).to be_empty
+    expect(first.fetch(:items).map { |item| [ item.fetch(:kind), item.fetch(:job_id) ] }).to eq(
+      first.fetch(:items).map { |item| [ item.fetch(:kind), item.fetch(:job_id) ] }.sort
+    )
+  end
+
+  it "returns bounded metadata for empty and out-of-range stuck Job pages" do
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(items: [], captured_at: Time.current)
+    )
+
+    empty = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 999, per: 0 }))
+
+    expect(empty.fetch(:items)).to be_empty
+    expect(empty.fetch(:pagination)).to eq(
+      page: 1,
+      per: 1,
+      total_items: 0,
+      total_pages: 1,
+      has_next_page: false,
+      has_previous_page: false
+    )
+
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(
+        items: 2.times.map { |index| { "kind" => "stuck", "job_id" => index + 1 } },
+        captured_at: Time.current
+      )
+    )
+    out_of_range = payload_for(call_tool(admin_session, "admin_stuck_jobs", { page: 999, per: 1 }))
+    expect(out_of_range.fetch(:items).map { |item| item.fetch(:job_id) }).to eq([ 2 ])
+    expect(out_of_range.fetch(:pagination)).to include(page: 2, total_pages: 2, has_previous_page: true)
+  end
+
+  it "keeps a large stuck set response below the subprocess output-line limit" do
+    large_detail = "x" * 2_000
+    items = 1_000.times.map do |index|
+      { "kind" => "large_set", "job_id" => index + 1, "detail" => large_detail }
+    end
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(
+      Admin::StuckItemsCache::Snapshot.new(items: items, captured_at: Time.current)
+    )
+
+    response = call_tool(admin_session, "admin_stuck_jobs", { per: 100 })
+
+    expect(response.to_json.bytesize).to be < ProcessRunner::MAX_OUTPUT_LINE_BYTES
+    expect(payload_for(response).fetch(:pagination)).to include(total_items: 1_000, total_pages: 10)
+  end
+
+  it "advertises bounded stuck Job pagination inputs" do
+    schema = Mcp::Tools::AdminStuckJobsTool.input_schema.instance_variable_get(:@schema)
+
+    expect(schema.dig(:properties, :page)).to include(type: "integer")
+    expect(schema.dig(:properties, :per)).to include(type: "integer")
   end
 
   it "returns the GitHub App installation diagnostic for admins" do
@@ -1639,6 +1742,30 @@ RSpec.describe "Mcp::Tools admin tools" do
         io_pressure_some: { avg: 8.0, max: 8.0 }
       )
     end
+  end
+
+  it "redacts secrets from nested worker health metrics" do
+    secret = "ghp_recognizableWorkerHealthSecret123456"
+    InstanceVersion.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: 10.seconds.ago
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "syrus-worker-secret",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
+      raw_metrics: { "probe_command" => "authorization=#{secret}", "nested" => { "output" => secret } }
+    )
+
+    response = call_tool(admin_session, "read_worker_health", { hostname: "syrus-worker-secret", sample_limit_per_host: 1 })
+    serialized = JSON.generate(payload_for(response))
+
+    expect(serialized).to include(CommandRedactor::REDACTED)
+    expect(serialized).not_to include(secret)
   end
 
   def solid_queue_job(class_name:, queue_name:)

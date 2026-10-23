@@ -54,5 +54,14 @@
   "entity_user": "Usor",
   "entity_repository": "Repositorium",
   "scope_range": "{{scope}} / {{start}} ad {{end}}",
-  "scope_all_users": "Omnes utentes"
+  "scope_all_users": "Omnes utentes",
+  "tool_total_cost": "Sumptus totus",
+  "tool_input_tokens": "Signa ingressus",
+  "tool_output_tokens": "Signa exitus",
+  "tool_daily_spend": "Sumptus cotidiani",
+  "tool_day_cost": "{{date}}: {{cost}}",
+  "tool_top_runs": "Summi cursus",
+  "tool_repository": "Repositorium #{{id}}",
+  "tool_no_spend": "Nulli sumptus in hoc spatio.",
+  "tool_invalid_window": "Spatium unum ex 7d, 30d, 90d esse debet."
 }

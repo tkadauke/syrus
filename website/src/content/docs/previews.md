@@ -101,6 +101,26 @@ The visual reviewer should inspect the running app and screenshots, not run
 builds or full test suites. Deterministic build and test checks belong in
 graders.
 
+When a matching merge-base capture is available, the Job review presents the
+before and after screenshots in a single responsive comparison. Drag the
+divider (or use its keyboard controls) to reveal either version, and tap the
+comparison to open a larger preview with labeled before/after navigation.
+
+When the reviewed UI is below the fold, screenshot submission can identify a
+subject by CSS selector or by its exact browser snapshot ref. Syrus waits for
+that element to become visible and centers it before capturing. By default, at
+least half of the subject must intersect the viewport; taller subjects must
+have their top edge visible. Saved evidence records the subject rectangle,
+visible fraction, and scroll position so reviewers can verify what the
+screenshot was meant to show.
+
+If every screenshot shows an authentication, missing-credentials, or error
+wall, Syrus surfaces a blocked-evidence warning on the review instead of
+treating those captures as proof that the changed screen works. The same soft
+warning appears when a reviewer skips because the preview environment cannot
+reach the intended screen. The review does not hard-fail the workflow, but the
+operator can see that the visual evidence was inconclusive.
+
 Nested `visual_review` blocks are scoped to their project. Their
 `when_files_changed` patterns are resolved relative to the nested
 `.syrus.yml`, and their seed notes are shown when that project preview is one

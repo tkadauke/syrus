@@ -689,7 +689,7 @@ describe("ReviewableDiff", () => {
       expect(annotationCells[1]).toHaveTextContent("*")
       expect(annotationCells[2]).toBe(panelCell)
       expect(panel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
-      expect(panel).not.toHaveClass("sticky", "left-0")
+      expect(panel).toHaveClass("sticky", "left-0", "z-[1]")
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")
@@ -726,7 +726,7 @@ describe("ReviewableDiff", () => {
       expect(threadCells).toHaveLength(3)
       expect(threadCells[1]).toHaveTextContent("*")
       expect(threadPanel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
-      expect(threadPanel).not.toHaveClass("sticky", "left-0")
+      expect(threadPanel).toHaveClass("sticky", "left-0", "z-[1]")
 
       const composerRow = screen.getByTestId("diff-review-composer")
       const composerCells = Array.from(composerRow.querySelectorAll("td"))
@@ -735,7 +735,7 @@ describe("ReviewableDiff", () => {
       expect(composerCells).toHaveLength(3)
       expect(composerCells[1]).toHaveTextContent("*")
       expect(composerPanel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
-      expect(composerPanel).not.toHaveClass("sticky", "left-0")
+      expect(composerPanel).toHaveClass("sticky", "left-0", "z-[1]")
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")
@@ -1093,7 +1093,7 @@ describe("ReviewableDiff", () => {
       expect(cells).toHaveLength(3)
       expect(cells[1]).toHaveTextContent("*")
       expect(panel).toHaveClass("w-[min(44rem,calc(100vw-5rem))]", "md:w-[min(44rem,100cqw,calc(100vw-3rem))]")
-      expect(panel).not.toHaveClass("sticky", "left-0")
+      expect(panel).toHaveClass("sticky", "left-0", "z-[1]")
       expect(panel).not.toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]", "max-md:w-auto", "max-md:max-w-none")
       expect(within(composer).getByLabelText("Comment")).not.toHaveClass("max-md:flex-1")
       expect(cells[0]).not.toHaveClass("max-md:hidden")

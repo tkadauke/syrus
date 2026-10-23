@@ -16,6 +16,15 @@ memory reservations, or measured memory reached the host budget. An idle worker
 always admits one Run unless its health sample reports critical memory, disk,
 or CPU pressure.
 
+An immutable-source distributed grader rejected for critical local pressure or
+a full host resource guard can move immediately to another live,
+capability-compatible worker with healthy headroom. The banner diagnostics
+identify the rejecting worker, alternatives considered, and the selected
+routing decision. Reroutes use a hostname-specific queue, so they remain
+worker-specific even when multiple workers share storage. If all eligible
+workers are pressured, Syrus schedules a
+bounded backoff rather than repeatedly bouncing the grader between workers.
+
 Fresh installs leave soft admission control disabled, so Docker Compose needs
 no CPU, memory-reservation, or staggering tuning by default. The guidance below
 applies when an admin has enabled admission control for a shared instance.
@@ -103,6 +112,9 @@ Check:
 4. The user's GitHub token can read check runs.
 5. The Job has not already hit the rolling CI failure cap: three
    `ci_failure` Workflows per 24 hours.
+6. If the base is not known healthy, at least one named check fails only on
+   the PR. Syrus waits when every failure is inherited from the base or it has
+   no base failure evidence to compare.
 
 If the token lacks Checks read access, PR-comment handling may still
 work while CI-failure handling logs a permission warning.

@@ -51,6 +51,46 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  it "stores mixed child priorities and defaults omitted priorities to medium" do
+    response = call_tool(
+      epic: {
+        slug: "prioritized-epic",
+        title: "Prioritized Epic",
+        description: "Schedule children intentionally.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        { slug: "urgent-child", title: "Urgent child", description: "Do this first.", priority: "urgent" },
+        { slug: "default-child", title: "Default child", description: "Do this normally." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    children = response_payload(response).fetch(:child_jobs).index_by { |child| child.fetch(:slug) }
+    expect(children.fetch("urgent-child")).to include(priority: "urgent")
+    expect(children.fetch("default-child")).to include(priority: "medium")
+    expect(chat_session.proposals.find_by!(slug: "urgent-child")).to have_attributes(priority: "urgent")
+    expect(chat_session.proposals.find_by!(slug: "default-child")).to have_attributes(priority: "medium")
+  end
+
+  it "rejects an invalid child priority before creating the bundle" do
+    response = call_tool(
+      epic: {
+        slug: "invalid-priority-epic",
+        title: "Invalid priority Epic",
+        description: "This should be rejected.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        { slug: "invalid-child", title: "Invalid child", description: "Do not create this.", priority: "critical" }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_truthy
+    expect(response.dig(:result, :content, 0, :text)).to include('"urgent", "high", "medium", "low"')
+    expect(chat_session.proposals.find_by(slug: "invalid-priority-epic")).to be_nil
+  end
+
   it "tells agents to declare where work runs and that the text is never read" do
     schema = described_class.input_schema_value.to_h
     child_schema = schema.fetch(:properties).fetch(:jobs).fetch(:items)
@@ -294,7 +334,27 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     ui = chat_session.proposals.find_by!(slug: "ui")
 
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to include(slug: "m3-proposals", state: "proposed", kind: "epic")
+    payload = response_payload(response)
+    expect(payload).to include(
+      slug: "m3-proposals",
+      title: "M3 proposals",
+      description: "Make proposal review atomic.",
+      state: "proposed",
+      kind: "epic",
+      depends_on_job_ids: [ prerequisite_job.id ]
+    )
+    expect(payload.fetch(:child_jobs)).to include(
+      include(
+        id: schema.id,
+        slug: "schema",
+        title: "Add proposal schema",
+        description: "Persist the grouped proposal shape.",
+        target_repo: repository.slug,
+        planned_execution: include(capabilities: { os: [ "linux" ] }),
+        media: [],
+        materialized: nil
+      )
+    )
     expect(proposal).to have_attributes(kind: "epic", repository: repository, title: "M3 proposals")
     expect(proposal.depends_on_job_ids).to eq([ prerequisite_job.id ])
     expect(proposal.child_proposals).to contain_exactly(schema, ui)
@@ -1427,6 +1487,10 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       snapshot_kind: "manual",
       element_count: 0
     )
+    image = Document.new(kind: "file", attachable: user, user: user, content_type: "image/png", filename: "layout.png")
+    image.file.attach(io: StringIO.new("pixels"), filename: "layout.png", content_type: "image/png")
+    image.save!
+    ChatAttachment.create!(chat_session: chat_session, attachable: image, suppress_header_broadcast: true)
 
     response = call_tool(
       epic: { slug: "media-epic", title: "Media Epic", description: "Attach media to jobs.", target_repo: repository.slug },
@@ -1436,7 +1500,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           target_repo: repository.slug,
           title: "Job with media",
           description: "Attach the whiteboard.",
-          media: [ "snapshot:#{snapshot.id}" ]
+          media: [ "snapshot:#{snapshot.id}", "chat_image:#{image.id}" ]
         },
         {
           slug: "no-media-job",
@@ -1451,8 +1515,17 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(response[:result][:isError]).to be_falsey
     media_job = chat_session.proposals.find_by!(slug: "media-job")
     no_media_job = chat_session.proposals.find_by!(slug: "no-media-job")
-    expect(media_job.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
+    expect(media_job.media_ids).to eq([ "snapshot:#{snapshot.id}", "chat_image:#{image.id}" ])
     expect(no_media_job.media_ids).to eq([])
+    expect(response_payload(response).fetch(:child_jobs).first.fetch(:media_previews)).to include(
+      include(id: "snapshot:#{snapshot.id}", kind: "snapshot", name: "Board snapshot"),
+      include(
+        id: "chat_image:#{image.id}",
+        kind: "chat_image",
+        filename: "layout.png",
+        file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{image.id}/file"
+      )
+    )
   end
 
   describe "tool schema descriptions" do

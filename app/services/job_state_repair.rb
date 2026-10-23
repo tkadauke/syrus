@@ -136,21 +136,22 @@ class JobStateRepair
   end
 
   class ForceTransition
-    ALLOWED_EVENTS = %w[
-      retry_after_failure
-      queue_reopened_retry
-      mark_implemented
-      mark_failed
-      mark_no_change_needed
-      force_fail
-      approve
-      unapprove
-      start_landing
-      defer_landing
-      fail_landing
-      close
-      reopen
-    ].freeze
+    EXPECTED_STATES = {
+      "retry_after_failure" => %w[queued],
+      "queue_reopened_retry" => %w[queued],
+      "mark_implemented" => %w[implemented closed],
+      "mark_failed" => %w[failed],
+      "mark_no_change_needed" => %w[no_change_needed],
+      "force_fail" => %w[failed],
+      "approve" => %w[approved],
+      "unapprove" => %w[implemented],
+      "start_landing" => %w[landing],
+      "defer_landing" => %w[approved],
+      "fail_landing" => %w[implemented],
+      "close" => %w[closed],
+      "reopen" => %w[triaging]
+    }.freeze
+    ALLOWED_EVENTS = EXPECTED_STATES.keys.freeze
 
     def initialize(job:, event:, reason:)
       @job = job
@@ -161,16 +162,28 @@ class JobStateRepair
     def call
       raise ArgumentError, "event is not allowed: #{event}" unless ALLOWED_EVENTS.include?(event)
 
-      job.with_lock do
+      ApplicationRecord.transaction do
+        job.lock!
         job.reload
         guard = "may_#{event}?"
         raise ArgumentError, "#{job.slug} cannot apply #{event} from #{job.state}" unless job.public_send(guard)
 
         from_state = job.state
+        job.cancel_active_execution!(reason: Workflow::SUPERSEDED_BY_STATE_REPAIR_REASON) if terminal_event?
+        job.reload
+        raise ArgumentError, "#{job.slug} cannot apply #{event} from #{job.state} after runtime cleanup" unless job.public_send(guard)
+
         StateTransition.with_source("reconciler") do
-          job.public_send("#{event}!")
+          applied = job.public_send("#{event}!")
+          raise ArgumentError, "#{job.slug} did not apply #{event} from #{job.state}" unless applied
+
           job.save!
         end
+        job.reload
+        unless EXPECTED_STATES.fetch(event).include?(job.state)
+          raise ArgumentError, "#{job.slug} applied #{event} but reached unexpected state #{job.state}"
+        end
+
         audit!(from_state)
         Result.new(job: job, message: "Applied #{event} to #{job.slug}: #{from_state} -> #{job.state}.")
       end
@@ -179,6 +192,10 @@ class JobStateRepair
     private
 
     attr_reader :job, :event, :reason
+
+    def terminal_event?
+      event.in?(%w[mark_implemented mark_failed mark_no_change_needed force_fail close])
+    end
 
     def audit!(from_state)
       run = job.runs.reorder(created_at: :desc, id: :desc).first

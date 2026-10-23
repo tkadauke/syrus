@@ -4,15 +4,17 @@
 // argument detail, and a trimmed result summary/body — shortening the long
 // per-workflow workspace paths that show up in tool output. Pure functions
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
-import { isPlainObject } from "../../toolCardParsing"
+import { isPlainObject, normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
-import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import { pluginToolCardArgumentSummary, pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+import type { ChatToolContextCall } from "../../api/chats"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
 export { isPlainObject } from "../../toolCardParsing"
+export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
-const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
+const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", '"', "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
 const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar"]
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
@@ -40,15 +42,16 @@ export type ToolResultPresentation = {
   metadata?: ChatToolSummaryMetadata
 }
 
-export type TypedToolResult =
-  | { type: "success_row"; label: string }
+export type TypedToolResult = { type: "success_row"; label: string }
 
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableJsonValue)
   if (!isPlainObject(value)) return value
 
   return Object.fromEntries(
-    Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])])
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, stableJsonValue(value[key])])
   )
 }
 
@@ -116,6 +119,9 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 
 function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   if (Object.keys(input).length === 0) return NO_ARGUMENTS_SENTINEL
+
+  const cardSummary = pluginToolCardArgumentSummary(name, input)
+  if (cardSummary != null) return cardSummary
 
   const runtimeSummary = runtimeToolArgumentSummary(name, input)
   if (runtimeSummary) return shortenWorkspacePaths(runtimeSummary)
@@ -196,7 +202,12 @@ function commandArgumentSummary(value: unknown) {
 
   if (isPlainObject(value)) {
     const shell = stringValue(value.command) || stringValue(value.cmd) || stringValue(value.program)
-    const args = Array.isArray(value.args) ? value.args.map((part) => stringValue(part)).filter(Boolean).join(" ") : ""
+    const args = Array.isArray(value.args)
+      ? value.args
+          .map((part) => stringValue(part))
+          .filter(Boolean)
+          .join(" ")
+      : ""
     return [shell, args].filter(Boolean).join(" ")
   }
 
@@ -237,18 +248,9 @@ function runtimeCaptureArtifactArgumentSummary(input: Record<string, unknown>) {
 }
 
 function defaultToolArgumentSummary(input: Record<string, unknown>) {
-  const preferred = [
-    input.query,
-    input.prompt,
-    input.title,
-    input.label,
-    input.name,
-    input.path,
-    input.file_path,
-    input.repository,
-    input.slug,
-    input.id
-  ].find((value) => stringValue(value).trim().length > 0)
+  const preferred = [input.query, input.prompt, input.title, input.label, input.name, input.path, input.file_path, input.repository, input.slug, input.id].find(
+    (value) => stringValue(value).trim().length > 0
+  )
 
   if (preferred != null) return firstLine(stringValue(preferred))
 
@@ -347,19 +349,37 @@ export function typedToolResult(name: string, body: string, error = false): Type
   return null
 }
 
-export function normalizedToolCardParsedResult(parsed: unknown): unknown {
-  if (!isPlainObject(parsed)) return parsed
+// MCP clients and agent providers preserve image content at different depths:
+// some hand us the content array directly, while others retain the MCP
+// response, structured-content, or provider result envelope. Keep that
+// provider-specific traversal here so individual cards consume one shape.
+export function normalizedToolCardContentBlocks(parsed: unknown): Record<string, unknown>[] {
+  const blocks: Record<string, unknown>[] = []
+  const visited = new Set<object>()
 
-  if (parsed.structured_content != null) return parsed.structured_content
+  const collect = (value: unknown) => {
+    if (Array.isArray(value)) {
+      if (visited.has(value)) return
+      visited.add(value)
+      value.forEach((item) => {
+        if (isPlainObject(item) && typeof item.type === "string") blocks.push(item)
+        else collect(item)
+      })
+      return
+    }
+    if (!isPlainObject(value) || visited.has(value)) return
+    visited.add(value)
 
-  const content = parsed.content
-  if (!Array.isArray(content)) return parsed
+    if (typeof value.type === "string" && ("data" in value || "text" in value || "source" in value || "image_url" in value || "dataUrl" in value))
+      blocks.push(value)
 
-  const firstContent = content[0]
-  if (!isPlainObject(firstContent) || typeof firstContent.text !== "string") return parsed
+    for (const key of ["structured_content", "content", "result", "output", "payload"]) {
+      if (value[key] != null) collect(value[key])
+    }
+  }
 
-  const inner = parseJsonText(firstContent.text)
-  return inner == null ? parsed : inner
+  collect(parsed)
+  return blocks
 }
 
 // `parseBody` defaults to `body` but callers that already have the tool
@@ -370,10 +390,22 @@ export function normalizedToolCardParsedResult(parsed: unknown): unknown {
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown): ToolResultPresentation {
+export function toolResultPresentation(
+  name: string,
+  body: string,
+  error = false,
+  parseBody: string = body,
+  input: Record<string, unknown> = {},
+  parsedResult?: unknown,
+  contextCallsOrPriorResults: ChatToolContextCall[] | Readonly<Record<string, unknown>> = [],
+  priorResults?: Readonly<Record<string, unknown>>,
+  resultSettled = true
+): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
   const cardParsed = normalizedToolCardParsedResult(parsed)
+  const contextCalls = Array.isArray(contextCallsOrPriorResults) ? contextCallsOrPriorResults : []
+  const resolvedPriorResults = Array.isArray(contextCallsOrPriorResults) ? priorResults : contextCallsOrPriorResults
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -385,7 +417,14 @@ export function toolResultPresentation(name: string, body: string, error = false
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    parsedResult: redactToolCardValue(cardParsed)
+    resultSettled,
+    parsedResult: redactToolCardValue(cardParsed),
+    priorCalls: contextCalls.map((call) => ({
+      toolName: normalizedToolName(call.tool_name),
+      input: (isPlainObject(call.input) ? redactToolCardValue(call.input) : {}) as Record<string, unknown>,
+      parsedResult: redactToolCardValue(normalizedToolCardParsedResult(call.result))
+    })),
+    priorResults: redactToolCardValue(resolvedPriorResults ?? {}) as Readonly<Record<string, unknown>>
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 
@@ -500,26 +539,6 @@ function countSummary(count: number, noun: string) {
   return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
 }
 
-export function parseJsonText(value: string): unknown {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  let current: unknown = trimmed
-  for (let index = 0; index < 3; index += 1) {
-    if (typeof current !== "string") return current
-    const candidate = current.trim()
-    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith("\"")) return index === 0 ? null : current
-
-    try {
-      current = JSON.parse(candidate)
-    } catch {
-      return index === 0 ? null : current
-    }
-  }
-
-  return current
-}
-
 export function fullResultBody(content: unknown): string {
   return toolResultPreview(fullResultBodyUnbounded(content))
 }
@@ -542,12 +561,15 @@ export function parsedToolResult(content: unknown, unboundedBody: string): unkno
 export function fullResultBodyUnbounded(content: unknown): string {
   if (typeof content === "string") return shortenWorkspacePaths(content)
   if (Array.isArray(content)) {
-    return content.map((item) => {
-      const record = contentRecord(item)
-      if (record?.type === "text") return shortenWorkspacePaths(stringValue(record.text))
-      if (record?.type === "tool_reference") return `-> ${stringValue(record.tool_name)}`
-      return ""
-    }).filter(Boolean).join("\n")
+    return content
+      .map((item) => {
+        const record = contentRecord(item)
+        if (record?.type === "text") return shortenWorkspacePaths(stringValue(record.text))
+        if (record?.type === "tool_reference") return `-> ${stringValue(record.tool_name)}`
+        return ""
+      })
+      .filter(Boolean)
+      .join("\n")
   }
   if (content == null) return "(empty)"
   if (isPlainObject(content)) return shortenWorkspacePaths(JSON.stringify(stableJsonValue(content), null, 2))
@@ -558,7 +580,7 @@ export function fullResultBodyUnbounded(content: unknown): string {
 export function toolResultPreview(body: string): string {
   const normalized = shortenWorkspacePaths(body)
   const lines = normalized.split(/\r?\n/)
-  const lineCapped = lines.map((line) => line.length > TOOL_RESULT_PREVIEW_LINE_CHARS ? line.slice(0, TOOL_RESULT_PREVIEW_LINE_CHARS) : line)
+  const lineCapped = lines.map((line) => (line.length > TOOL_RESULT_PREVIEW_LINE_CHARS ? line.slice(0, TOOL_RESULT_PREVIEW_LINE_CHARS) : line))
   let preview = lineCapped.join("\n")
   let truncated = false
 
@@ -583,7 +605,9 @@ export function toolResultPreview(body: string): string {
   const omitted = [
     omittedLines > 0 ? `${omittedLines} line${omittedLines === 1 ? "" : "s"}` : null,
     omittedBytes > 0 ? `${omittedBytes} character${omittedBytes === 1 ? "" : "s"}` : null
-  ].filter(Boolean).join(", ")
+  ]
+    .filter(Boolean)
+    .join(", ")
 
   return `${preview}\n\n[Tool result preview truncated${omitted ? `; ${omitted} omitted` : ""}. Full content remains in the chat transcript.]`
 }

@@ -64,8 +64,10 @@ RSpec.describe Mcp::Tools::SpawnChatsTool do
     expect(spawned.map { |chat| chat.messages.first.content["text"] }).to eq([ "Find bugs", "Review API" ])
 
     notice = chat_session.messages.where(role: "system").order(:id).last.content.fetch("text")
-    expect(notice).to include("CHAT-#{spawned.first.id} (#{spawned.first.chat_provider}): Bug hunt")
-    expect(notice).to include("CHAT-#{spawned.second.id} (#{spawned.second.chat_provider}): Review API")
+    threads = ChatBridgeThread.order(:id).last(2)
+    expect(notice).to include("CHAT-#{spawned.first.id} (#{spawned.first.chat_provider}), thread_id: #{threads.first.id}: Bug hunt")
+    expect(notice).to include("CHAT-#{spawned.second.id} (#{spawned.second.chat_provider}), thread_id: #{threads.second.id}: Review API")
+    expect(notice).to include("send_chat_message(thread_id: ...)")
   end
 
   it "continues after one member fails and reports both outcomes" do
@@ -84,7 +86,7 @@ RSpec.describe Mcp::Tools::SpawnChatsTool do
 
     notice = chat_session.messages.where(role: "system").order(:id).last.content.fetch("text")
     expect(notice).to include("Failed: Will fail — RuntimeError: creation exploded")
-    expect(notice).to match(/CHAT-\d+ \(.+\): Will succeed/)
+    expect(notice).to match(/CHAT-\d+ \(.+\), thread_id: \d+: Will succeed/)
   end
 
   it "creates nothing when rejected" do

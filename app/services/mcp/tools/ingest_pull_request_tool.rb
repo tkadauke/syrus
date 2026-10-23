@@ -38,7 +38,7 @@ module Mcp::Tools
 
         existing = Job.find_by_tracked_pr(repository: repository, pr_number: pr_number)
         if existing
-          return Mcp::Tools.success(pr_number: pr_number, already_ingested: true, job: job_payload(existing))
+          return Mcp::Tools.success(pr_number: pr_number, pr_url: pr_url(repository, pr_number), already_ingested: true, job: job_payload(existing))
         end
 
         client = GithubClient.for(repository: repository, user: context.user)
@@ -53,6 +53,7 @@ module Mcp::Tools
 
         Mcp::Tools.success(
           pr_number: pr_number,
+          pr_url: pr_url(repository, pr_number),
           already_ingested: false,
           classification: resolved_classification,
           job: job_payload(job)
@@ -71,6 +72,10 @@ module Mcp::Tools
         return nil unless job
 
         { id: job.id, slug: job.slug, state: job.state, kind: job.kind, epic_id: job.epic_id }
+      end
+
+      def pr_url(repository, pr_number)
+        "https://github.com/#{repository.slug}/pull/#{pr_number}"
       end
     end
   end

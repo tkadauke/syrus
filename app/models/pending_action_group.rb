@@ -30,6 +30,10 @@ class PendingActionGroup < ApplicationRecord
   end
 
   def confirm_all!(user: nil)
+    PendingActionGroups::Confirmation.for(self).confirm_all!(user: user)
+  end
+
+  def confirm_independently!(user: nil)
     raise ActiveRecord::RecordNotFound, "pending action group belongs to another user" if user && self.user != user
 
     should_confirm = with_lock do
@@ -44,6 +48,30 @@ class PendingActionGroup < ApplicationRecord
     update!(state: "confirmed", confirmed_at: Time.current)
     notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
     PendingActionGroups::ConfirmResult.new(group: self, member_results: member_results)
+  end
+
+  def start_group_confirmation!(user: nil)
+    raise ActiveRecord::RecordNotFound, "pending action group belongs to another user" if user && self.user != user
+
+    with_lock do
+      return false unless pending?
+
+      update!(state: "confirming")
+      true
+    end
+  end
+
+  def finish_group_confirmation!
+    finished = with_lock do
+      next false unless confirming?
+
+      update!(state: "confirmed", confirmed_at: Time.current)
+      true
+    end
+    return false unless finished
+
+    notify_chat_of_outcome(confirmed_notice, outcome: "confirmed")
+    true
   end
 
   def reject_all!(user: nil)
@@ -82,6 +110,12 @@ class PendingActionGroup < ApplicationRecord
     "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
   end
 
+  def confirmation_notice
+    return "Queued #{chat_pending_actions.count} pending actions for dependency-aware execution." if confirming?
+
+    confirmed_notice
+  end
+
   def rejected_notice
     "Rejected #{chat_pending_actions.count} pending actions."
   end
@@ -93,13 +127,13 @@ class PendingActionGroup < ApplicationRecord
       if member.confirmed?
         payload = member.payload.to_h
         label = payload["spawned_chat_title"].presence || payload["prompt"].to_s.truncate(60)
-        "CHAT-#{payload['spawned_chat_id']} (#{payload['spawned_chat_provider']}): #{label}"
+        "CHAT-#{payload['spawned_chat_id']} (#{payload['spawned_chat_provider']}), thread_id: #{payload['bridge_thread_id']}: #{label}"
       else
         label = member.payload.to_h["title"].presence || member.payload.to_h["prompt"].to_s.truncate(60)
         "Failed: #{label} — #{member.execution_error}"
       end
     end
-    ([ "Spawn chats confirmation result:" ] + lines).join("\n")
+    ([ "Spawn chats confirmation result:", "Message a spawned chat with send_chat_message(thread_id: ...)." ] + lines).join("\n")
   end
 
   def confirm_member(member, user:)

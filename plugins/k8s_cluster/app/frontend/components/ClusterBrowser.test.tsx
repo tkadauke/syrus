@@ -280,7 +280,10 @@ function dataTransfer() {
 }
 
 function encodeFilterTree(tree: Record<string, unknown>) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 const DESCRIBE_ENVELOPES: Record<string, { key: ResourceKey; envelope: string; kind: string }> = {
@@ -403,6 +406,14 @@ describe("ClusterBrowser", () => {
     expect(screen.getByText("Browsing Staging")).toBeInTheDocument()
     expect(await screen.findByText("1")).toBeInTheDocument()
     expect(screen.getByText("1/1 ready")).toBeInTheDocument()
+  })
+
+  it("opens the Nodes tab from a linked node URL", async () => {
+    setupFetchMock()
+    renderBrowser("/k8s_clusters/1?tab=nodes&node=node-1")
+
+    expect(await screen.findByText("node-1")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cluster view" })).toHaveTextContent("Nodes")
   })
 
   it("uses a toolbar dropdown (button+listbox), not a native select, to switch tabs", async () => {
@@ -549,10 +560,7 @@ describe("ClusterBrowser", () => {
           available: true,
           generated_at: GENERATED_AT,
           truncated: false,
-          pods: [
-            DEFAULT_PODS.pods[0],
-            { ...MULTI_CONTAINER_POD, name: "api-1", status: "Pending", restart_count: 2 }
-          ]
+          pods: [DEFAULT_PODS.pods[0], { ...MULTI_CONTAINER_POD, name: "api-1", status: "Pending", restart_count: 2 }]
         }
       })
       renderBrowser(`/k8s_clusters/1?q=${q}`)
@@ -1090,6 +1098,16 @@ describe("ClusterBrowser", () => {
   })
 
   describe("Logs tab", () => {
+    it("opens the requested namespace and pod from a linked logs URL", async () => {
+      setupFetchMock()
+      renderBrowser("/k8s_clusters/1?tab=logs&namespace=default&pod=web-1")
+
+      expect(await screen.findByText("line one", { exact: false })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Cluster view" })).toHaveTextContent("Logs")
+      expect(screen.getByRole("button", { name: "Namespace" })).toHaveTextContent("default")
+      expect(screen.getByRole("button", { name: "Pod" })).toHaveTextContent("default/web-1")
+    })
+
     it("prompts for a pod before showing any log output", async () => {
       setupFetchMock()
       renderBrowser()

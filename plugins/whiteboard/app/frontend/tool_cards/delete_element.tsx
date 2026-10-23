@@ -1,34 +1,97 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
+import { CompactActionCard } from "@app/routes/chat/compactActionCard"
+import { displayValue } from "@app/routes/chat/toolCardUi"
 import { ElementActionCard, ElementFailureCard, elementActionSummary, elementFailureSummary, parseElementResult, t } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for delete_element (the pending-action tool-card work).
 const ACTION_KEY = "tool_action_deleted_element"
+
+function resultRecord(value: unknown): Record<string, unknown> {
+  if (!isPlainObject(value)) return {}
+  return isPlainObject(value.result) ? value.result : value
+}
+
+function elementContext(context: ToolCardContext) {
+  const input = isPlainObject(context.input) ? context.input : {}
+  const result = resultRecord(context.parsedResult)
+  const element = isPlainObject(result.element) ? result.element : {}
+  const deletedId = parseElementResult(context.parsedResult)?.id ?? displayValue(input.id)
+  const drawContext = [...(context.priorCalls ?? [])].reverse().find((call) => {
+    if (!call.toolName.startsWith("draw_")) return false
+    return parseElementResult(call.parsedResult)?.id === deletedId
+  })?.input
+  const type = displayValue(result.type) ?? displayValue(element.type) ?? displayValue(input.type) ?? displayValue(drawContext?.type)
+  const label = displayValue(result.label) ?? displayValue(element.label) ?? displayValue(input.label) ?? displayValue(drawContext?.label)
+
+  return { ...input, ...(type ? { type } : {}), ...(label ? { label } : {}) }
+}
 
 function collapsedSummary(context: ToolCardContext) {
   const action = t(ACTION_KEY)
-  const failureSummary = elementFailureSummary(context, action)
-  if (failureSummary) return failureSummary
+  const failure = elementFailureSummary(context, action)
+  if (failure) return failure
 
   const result = parseElementResult(context.parsedResult)
-  if (!result) return null
-
-  return elementActionSummary(action, result, isPlainObject(context.input) ? context.input : undefined)
+  if (!result) return context.parsedResult == null ? t("tool_pending_summary", { action }) : t("tool_missing_result_summary", { action })
+  return elementActionSummary(action, result, elementContext(context))
 }
 
 function renderExpanded(context: ToolCardContext) {
   const action = t(ACTION_KEY)
-  if (context.resultError) return <ElementFailureCard action={action} context={context} />
+  if (elementFailureSummary(context, action)) return <ElementFailureCard action={action} context={context} />
 
   const result = parseElementResult(context.parsedResult)
-  if (!result) return null
-
-  return <ElementActionCard action={action} input={isPlainObject(context.input) ? context.input : undefined} result={result} />
+  if (!result)
+    return (
+      <CompactActionCard
+        action={action}
+        rows={[{ label: t("tool_status"), value: t(context.parsedResult == null ? "tool_pending" : "tool_missing_result") }]}
+        tone="info"
+      />
+    )
+  return <ElementActionCard action={action} input={elementContext(context)} result={result} />
 }
 
-const deleteElementToolCard: ToolCardRenderer = {
-  toolName: "delete_element",
-  collapsedSummary,
-  renderExpanded
-}
+const deleteElementToolCard: ToolCardRenderer = { toolName: "delete_element", collapsedSummary, renderExpanded }
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "deleted_labeled_shape",
+    label: "Deleted labeled shape",
+    input: { id: "shape-demo" },
+    parsedResult: { id: "shape-demo", version: 8 },
+    priorCalls: [
+      {
+        toolName: "draw_shape",
+        input: { type: "diamond", label: "Decision" },
+        parsedResult: { id: "shape-demo", label_id: "text-demo-label", version: 7 }
+      }
+    ],
+    sourceType: "generic"
+  },
+  {
+    id: "element_not_found",
+    label: "Element not found",
+    input: { id: "missing-element" },
+    parsedResult: { error_class: "Whiteboard::Canvas::ElementNotFound", message: "Element not found: missing-element", retryable: false },
+    resultError: true,
+    sourceType: "generic"
+  },
+  {
+    id: "wrapped_result",
+    label: "Wrapped result",
+    input: { id: "text-demo" },
+    parsedResult: { result: { id: "text-demo", version: 9 } },
+    priorCalls: [
+      {
+        toolName: "draw_text",
+        input: { type: "text", label: "Release notes" },
+        parsedResult: { result: { id: "text-demo", version: 8 } }
+      }
+    ],
+    sourceType: "generic"
+  },
+  { id: "pending", label: "Pending result", input: { id: "pending-element" }, resultBody: "", sourceType: "generic" }
+]
 
 export default deleteElementToolCard

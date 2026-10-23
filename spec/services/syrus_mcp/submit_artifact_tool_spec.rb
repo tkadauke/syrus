@@ -21,7 +21,7 @@ RSpec.describe SyrusMcp::SubmitArtifactTool do
   end
 
   it "appends a typed artifact entry to the workflow" do
-    call
+    response = call
 
     entries = run.workflow.reload.artifact("typed_artifacts")
     expect(entries.size).to eq(1)
@@ -31,6 +31,12 @@ RSpec.describe SyrusMcp::SubmitArtifactTool do
       "payload" => { "tables" => 3 }
     )
     expect(entries.first["created_at"]).to be_present
+    expect(JSON.parse(response.content.first[:text])).to include(
+      "message" => "Saved.",
+      "workflow_id" => run.workflow_id,
+      "run_id" => run.id,
+      "job_id" => run.job_id
+    )
   end
 
   it "replaces an existing entry when called again with the same type" do

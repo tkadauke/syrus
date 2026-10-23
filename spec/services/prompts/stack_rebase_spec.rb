@@ -12,7 +12,7 @@ RSpec.describe Prompts::StackRebase do
 
     expect(out).to include("stack rebase")
     expect(out).to include("acme/widgets")
-    expect(out).to include("1. JOB-12: `syrus/issue-12-1` onto `main` (PR #34)")
+    expect(out).to include("1. JOB-12: `syrus/issue-12-1` onto `origin/main` (PR #34)")
     expect(out).to include("2. JOB-13: `syrus/issue-13-1` onto `syrus/issue-12-1` (no PR number)")
   end
 

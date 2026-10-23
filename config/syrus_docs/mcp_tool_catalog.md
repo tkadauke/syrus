@@ -21,6 +21,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `delegate_issue` | chat | deferred | write | no | - | - | - | - |
 | `delete_repo_document` | chat | deferred | write | no | - | - | - | - |
 | `dispatch_ref_movement_action` | chat | deferred | write | no | - | - | - | - |
+| `explain_provider_routing` | chat | deferred | read | no | - | - | - | - |
 | `explain_stuck_job` | chat | deferred | read | no | - | - | - | - |
 | `get_job_diff` | chat | deferred | read | no | - | - | - | - |
 | `ingest_pull_request` | chat | deferred | write | no | - | - | - | - |
@@ -37,11 +38,14 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `list_tags` | chat | deferred | read | no | - | - | - | - |
 | `list_wakeups` | chat | deferred | read | no | - | - | - | - |
 | `move_epic_to_backlog` | chat | deferred | write | no | - | - | - | - |
+| `mutate_provider_routing_rules` | chat | deferred | write | no | - | - | - | - |
+| `override_job_planned_execution` | chat | deferred | write | no | - | - | - | - |
 | `pause_landing_queue` | chat | deferred | write | no | - | - | - | - |
 | `poll_job_feedback` | chat | deferred | write | no | - | - | - | - |
 | `read_artifact` | chat | deferred | read | no | - | - | - | - |
 | `read_chat_messages` | chat | deferred | read | no | - | - | - | - |
 | `read_pr` | chat | deferred | read | no | - | - | - | - |
+| `read_provider_routing_rules` | chat | deferred | read | no | - | - | - | - |
 | `read_queue` | chat | deferred | read | yes | - | - | - | - |
 | `read_ref_movement_status` | chat | deferred | read | no | - | - | - | - |
 | `read_repo_document` | chat | deferred | read | no | - | - | - | - |
@@ -96,6 +100,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `approve_job` | chat | essential | write | no | - | - | - | - |
 | `ask_user_question` | chat | essential | write | no | - | - | - | - |
 | `attach_repository` | chat | essential | write | no | - | - | - | - |
+| `base_refresh_retry_job` | chat | essential | write | no | - | - | - | - |
 | `cancel_coding_checkout` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `cancel_job` | chat | essential | write | no | - | - | - | - |
 | `cancel_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
@@ -170,6 +175,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `unpin_chat` | chat | essential | write | no | - | - | - | - |
 | `wake_landing_queue` | chat | essential | write | yes | - | - | - | - |
 | `wake_provider_admission` | chat | essential | write | yes | - | - | - | - |
+| `withdraw_pending_action` | chat | essential | write | no | - | - | - | - |
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |

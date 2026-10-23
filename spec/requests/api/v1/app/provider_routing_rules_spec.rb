@@ -166,6 +166,26 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(second.reload.position).to eq(1)
   end
 
+  it "serializes and updates enabled route-or-hold rules while reordering every rule" do
+    enabled = create_rule(scope_type: "user", scope_id: user.id, task_key: "default")
+    disabled = create_rule(scope_type: "user", scope_id: user.id, task_key: "initial")
+
+    patch "/api/v1/app/credentials/provider_routing_rules/#{disabled.id}",
+      params: { provider_routing_rule: { enabled: false, trigger: { type: "default" }, action: { type: "hold", reason: "Paused by policy" } } }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    serialized = parse_body.fetch("provider_routing_rules").find { |rule| rule.fetch("id") == disabled.id }
+    expect(serialized).to include("enabled" => false, "action" => { "type" => "hold", "reason" => "Paused by policy" }, "candidates" => [])
+
+    patch "/api/v1/app/credentials/provider_routing_rules/reorder", params: { provider_routing_rule_ids: [ disabled.id ] }, as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ enabled.id, disabled.id ])
+
+    patch "/api/v1/app/credentials/provider_routing_rules/reorder", params: { provider_routing_rule_ids: [ disabled.id, enabled.id ] }, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ disabled.id, enabled.id ])
+  end
+
   it "applies ordered user rules, repository overrides, and job overrides to the job detail routing resolution" do
     post "/api/v1/app/credentials/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "My Claude default", candidates: [ { provider: "claude" } ] } } },
@@ -280,6 +300,10 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     )
     expect(options.fetch("agent_providers")).to include(include("value" => "codex"))
     expect(options.fetch("effort_levels")).to include(include("value" => "high"))
+    expect(options.fetch("action_types")).to contain_exactly(
+      include("value" => "route"),
+      include("value" => "hold")
+    )
   end
 
   it "does not allow non-admin repository members to mutate repository rules" do

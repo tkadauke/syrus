@@ -23,7 +23,16 @@ function buildHistory(overrides: Partial<RepositoryHealthHistory> = {}): Reposit
     current_health_pending: false,
     current_ci_failed_checks: [],
     current_grader_failed_names: [],
-    main_branch_repair: { enabled: false, failed_open_jobs_count: 0, max_open_failed_jobs: 3, blocked_reason: null, can_request: false, can_spawn: false, blocking_job: null, failed_jobs: [] },
+    main_branch_repair: {
+      enabled: false,
+      failed_open_jobs_count: 0,
+      max_open_failed_jobs: 3,
+      blocked_reason: null,
+      can_request: false,
+      can_spawn: false,
+      blocking_job: null,
+      failed_jobs: []
+    },
     records: [],
     ...overrides
   }
@@ -69,8 +78,7 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       { key: "health", label: "Health", path: "/repositories/1/health", badge: "!" }
     ],
     counts: { running: 0, queued: 0, failed_7d: 0 },
-    retry_failed_jobs: {
-      count: 0,
+    provider_retry_status: {
       agent_provider: "claude",
       agent_provider_label: "Claude",
       provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
@@ -79,7 +87,16 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
     can_release_triage_jobs: false,
     needs_triage_count: 0,
     needs_triage_jobs: [],
-    credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
+    credential_status: {
+      mode: "app",
+      label: "GitHub App",
+      installation_account: null,
+      github_app_registered: true,
+      install_url: null,
+      register_path: null,
+      previous_installation_removed: false,
+      missing_github_ids: false
+    },
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     preview: null,
@@ -90,7 +107,6 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       edit_repository_path: "/repositories/1/edit",
       app_poll_repository_path: "/api/v1/app/repositories/1/poll",
       app_archive_repository_path: "/api/v1/app/repositories/1/archive",
-      app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/1/retry_failed_jobs",
       app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/1/release_needs_triage",
       app_resume_landing_repository_path: "/api/v1/app/repositories/1/resume_landing",
       app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/1/run_main_branch_graders",

@@ -77,15 +77,18 @@ branch stay in place, ready to re-approve.
 ## Emergency Land
 
 Emergency land is separate from the normal landing queue. When enabled with the
-`emergency_land` feature flag, a repository admin can confirm an incident-only
-Coding Mode action that skips Syrus graders, adversarial review, and visual
-review, then merges the Job's pull request directly through GitHub. Syrus still
-uses a PR and GitHub's merge API, so repository branch protection and GitHub
-mergeability checks remain in force.
+`emergency_land` feature flag, a repository admin can explicitly confirm an
+incident-only submission of the active clean, committed Coding Mode checkout,
+or an eligible existing Job branch. Syrus captures and verifies the exact pushed
+commit, creates audit Job metadata when needed, skips graders, reviews,
+admission control, and normal workflow worker dispatch, then opens and merges a normal GitHub PR.
+GitHub branch protection and mergeability checks remain in force.
+The confirmation remains in progress until the merge succeeds; capture or
+landing failures are recorded as failed confirmations instead of appearing applied.
 
 Every successful emergency land is auditable: the Job closes with
 `closure_reason: "emergency_landed"` and records the confirming operator,
-permission tier, and timestamp. Admins can find past uses through Job filters or
+permission tier, timestamp, source SHA, and skipped controls. Admins can find past uses through Job filters or
 the admin Jobs API with `closure_reason=emergency_landed`.
 
 ## What Can Block Landing

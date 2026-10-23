@@ -25,6 +25,7 @@ module WorkUnits
       step = target_step
       return result("no_step") unless step&.queued?
       return result("run_exists") if step.runs.any?
+      return result("blocked", reason: StepDispatcher::PROVIDER_ROUTING_HOLD_REASON) unless ProviderRouting::HoldReevaluator.call(workflow: workflow, step: step)
       revive_cancelled_tail_after!(step)
 
       prior_block_reason = WorkUnits::StartBlock.for(workflow).reason

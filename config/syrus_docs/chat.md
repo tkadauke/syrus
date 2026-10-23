@@ -134,6 +134,15 @@ visible. Confirming or rejecting the group emits one group outcome chat
 message and one follow-up turn, rather than one per successful member.
 Rejecting discards every still-pending member without applying any.
 
+The chat agent can call `withdraw_pending_action` with an action ID and an
+optional concise reason when it recognizes that it proposed an action in
+error. The tool is scoped to the current chat and its owner, acts immediately
+without creating a second confirmation, rejects pending actions, and cancels
+queued or otherwise cancellable actions. Repeating the call for an already
+rejected or cancelled action returns an unchanged, idempotent result. Grouped
+members must be rejected together from their group confirmation card so a
+single withdrawal cannot leave a partially active group.
+
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
 `admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.
@@ -152,6 +161,20 @@ at all), but a `job_ids` array now goes through the same grouped
 pending-confirmation path as the other six tools, since batching several
 approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
+
+`retry_job` accepts an explicit retry mode for both single and grouped calls.
+Use `auto` (the default) for the existing smart retry without changing the
+base, `failed_step` to rerun the failed step or grader loop against the same
+immutable source snapshot, `implementation` to begin a fresh implementation
+attempt from the Job's current effective base, and `refresh_base` to restore a
+published mutation checkpoint onto the current effective base. Base refresh
+requires an audit `reason`. Syrus preflights every selected Job before showing
+one confirmation, includes checkpoint and base details in that confirmation,
+and durably sequences grouped base refreshes upstream-first. A dependent
+refresh remains waiting until every selected upstream refresh workflow
+succeeds; an upstream failure fails that dependent without launching it.
+Members still report outcomes independently, and a later failure does not
+roll back an earlier successful refresh.
 
 `approve_job` uses the same approval-blocking runtime-work policy as the Job
 detail approve button, dashboard bulk approval, and app lifecycle endpoint. A
@@ -185,6 +208,17 @@ combined with `job_ids`. The remaining strong-tier-adjacent tools --
 `adopt_current_pr_head`, `manual_agentic_run`, `override_landing_blocker_once`,
 `force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
 intentionally do not wire into this infrastructure and stay single-confirm.
+
+`wake_provider_admission` prepares a single confirmed repair action after
+provider evidence has recovered. Its pending-action payload and immediate MCP
+result both include an `observed_preview` snapshot with `provider`,
+`workflow_ids`, `workflow_count`, `auto_retry_attempt_ids`, and
+`auto_retry_count`; confirmation still re-enters the normal provider,
+admission, and retry guards rather than promising that every previewed record
+will start. The chat card shows the requested provider, linked user scope (or
+all users), Markdown audit reason, pending-action state, and the previewed
+workflow and delayed-auto-retry counts. Confirmed and rejected actions use the
+live pending-action state instead of the original pending result snapshot.
 
 ## Deleting a chat
 
@@ -252,6 +286,13 @@ accessible chat scope, but only the chat owner may change this shared pin
 state. They are idempotent: pinning an already-pinned chat or
 unpinning an already-unpinned chat succeeds and returns the current `pinned`
 state.
+
+`remove_pinned_context` returns the current chat's `chat_id`, the cleared
+`pinned_context` value, and the previous text as `removed_pinned_context`.
+The chat card links back to that chat and renders the removed text as a
+bounded Markdown preview with a full-content dialog. Pending, empty,
+malformed, and tool-error responses use explicit card states; raw details
+remain available through the standard redacted tool-result disclosure.
 
 Job-navigation MCP tools use the same compact-card posture. `search_jobs`
 searches across all repositories visible to the current chat user by Job title
@@ -545,6 +586,15 @@ create a new CodingHandoff Job rather than update that existing Job, so the
 chat MCP tool refuses existing Job branches and points the agent back to
 `open_in_coding_mode` plus `complete_implement_step`.
 
+An explicit `submit_coding_changes(branch:)` value names the branch the worker
+must find in that repository's chat checkout; request time does not assert that
+it is currently checked out. After confirmation, worker-side capture rejects a
+missing checkout, a different active branch, a dirty tree, or no committed
+changes before creating a Job. Normally the request remains a pending action
+for operator confirmation. An active Chat Goal with `auto_submit_jobs` instead
+auto-enqueues confirmation immediately, so the tool returns `confirming` and
+capture may enter the chat worker queue without a separate operator click.
+
 Repository skill commands, one per skill resolved for the chat's attached
 repository (`/skill-name key=value ...`), are appended to the palette
 dynamically — they are not part of the fixed command list above and vary per
@@ -678,8 +728,10 @@ image), or `preview_panel_version:ID` (a preview panel mockup's published
 source files, see `preview_panels.md`; `show_preview`'s response includes
 `version_id`). `list_chat_media` lists the refs currently available in the
 session and includes chat-scoped image file paths for inline thumbnail preview
-in the operator transcript; the refs remain the stable values to pass back to
-proposal and feedback tools. The `ChatMediaRef` format is shared across
+in the operator transcript. Its transcript card links image sources and saved
+snapshots, opens every media kind in the shared full preview, and displays
+scalar context supplied by registered media sources. The refs remain the
+stable values to pass back to proposal and feedback tools. The `ChatMediaRef` format is shared across
 proposal and feedback validation so a malformed or out-of-session ref is
 rejected consistently.
 
@@ -712,6 +764,13 @@ until an operator releases the Job from backlog. The route is editable only on
 the standalone direct Job proposal card; grouped Epic proposal children keep
 their existing materialization behavior and cannot be routed to backlog by this
 v1 control.
+
+The Jobs workspace's Proposed section adds selection checkboxes to these
+pending Job and Epic proposals, including a select-all control. Once anything
+is selected, operators can backlog, implement, or reject the selection. A
+selection containing an Epic cannot use Backlog, because backlog routing is a
+direct Job capability; Implement starts a newly materialized Epic just like
+the Epic proposal card's Implement action.
 
 `propose_job` also accepts `investigation` for a read-only "go look into X and
 tell me what you find" request (a QA walkthrough, an audit, answering a
@@ -758,6 +817,12 @@ through `Job::ProviderSetting::Base`, preserving the existing
 advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
+
+`propose_job` accepts `priority`, and `propose_epic_with_jobs` accepts a
+`jobs[].priority` for each child. Valid values are `urgent`, `high`, `medium`,
+and `low`; omission defaults to `medium`. The proposal card displays the
+selected priority, and confirmation copies it onto the Job before the initial
+state transition, so admission and the first queued Run use that priority.
 
 `propose_job` requires `planned_execution.capabilities`, and
 `propose_epic_with_jobs` requires `jobs[].planned_execution.capabilities` on
@@ -840,14 +905,18 @@ with optional titles, configured chat providers, and accessible repository
 slugs. Syrus validates the entire request first and shows one grouped
 confirmation; rejecting it creates nothing. Confirmation creates each chat
 independently, starts its first agent turn through the normal message path,
-and posts every resulting `CHAT-<id>` back into the originating chat. A
+pre-opens a zero-hop bridge thread from the originating chat with a coordination
+budget of `ChatBridgeThread::DEFAULT_MAX_HOPS` (100), and posts every resulting
+`CHAT-<id>` and bridge `thread_id` back into the originating chat. The agent can
+then use `send_chat_message(thread_id: ...)` from the confirmation-triggered
+turn without repeating the spawned chat's initial prompt. A
 failure in one member is reported alongside the successfully created chats
 instead of rolling the batch back.
 
 `ChatBridgeThread` tracks a bounded exchange between two of the same
 operator's chat sessions: `origin_chat_session`, `target_chat_session`,
 `opened_by_user`, an open/closed `state`, and `hop_count`/`max_hops`
-(default `ChatBridgeThread::DEFAULT_MAX_HOPS`, 6). A model validation
+(default `ChatBridgeThread::DEFAULT_MAX_HOPS`, 100). A model validation
 rejects a `target_chat_session` owned by a different user, since this
 feature is same-operator-only for now, any repository. `register_hop!`
 increments `hop_count` and auto-closes the thread once it reaches

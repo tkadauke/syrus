@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,6 +87,36 @@ func request(t *testing.T, s *Service, method, path string, body []byte) (int, m
 	var payload map[string]any
 	_ = json.Unmarshal(w.Body.Bytes(), &payload)
 	return w.Code, payload
+}
+
+func inferenceRequest(t *testing.T, audio []byte, contentType string) (*http.Request, []byte) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", `form-data; name="file"; filename="dictation"`)
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(audio); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	payload := body.Bytes()
+	r := httptest.NewRequest("POST", "/inference", bytes.NewReader(payload))
+	r.ContentLength = int64(len(payload))
+	r.Header.Set("Content-Type", writer.FormDataContentType())
+	return r, payload
+}
+
+func validWebM(size int) []byte {
+	value := make([]byte, size)
+	copy(value, []byte{0x1a, 0x45, 0xdf, 0xa3})
+	return value
 }
 
 func TestStreamingProtocolOrdersChunksAndFinalizes(t *testing.T) {
@@ -181,11 +213,13 @@ func TestDisconnectAndServiceShutdownCloseSessions(t *testing.T) {
 }
 
 func TestHealthAndBatchProxy(t *testing.T) {
+	var upstreamRequestID string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.WriteHeader(200)
 			return
 		}
+		upstreamRequestID = r.Header.Get("X-Request-ID")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"text":"ok"}`))
 	}))
@@ -196,9 +230,81 @@ func TestHealthAndBatchProxy(t *testing.T) {
 	if status != 200 || payload["capabilities"].(map[string]any)["streaming"] != true {
 		t.Fatalf("health=%d %v", status, payload)
 	}
-	status, payload = request(t, s, "POST", "/inference", []byte("multipart"))
+	r, _ := inferenceRequest(t, validWebM(512), "audio/webm")
+	r.Header.Set("X-Request-ID", "request-123")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	status = w.Code
+	_ = json.Unmarshal(w.Body.Bytes(), &payload)
 	if status != 200 || payload["text"] != "ok" {
 		t.Fatalf("proxy=%d %v", status, payload)
+	}
+	if upstreamRequestID != "request-123" || w.Header().Get("X-Request-ID") != "request-123" {
+		t.Fatalf("request correlation upstream=%q response=%q", upstreamRequestID, w.Header().Get("X-Request-ID"))
+	}
+}
+
+func TestBatchProxyMapsUpstreamFailures(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		upstreamStatus int
+		wantStatus     int
+	}{
+		{"timeout", http.StatusGatewayTimeout, http.StatusGatewayTimeout},
+		{"unavailable", http.StatusBadGateway, http.StatusServiceUnavailable},
+		{"invalid input", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.upstreamStatus)
+			}))
+			defer upstream.Close()
+			s := NewService(Config{Upstream: upstream.URL})
+			defer s.Close()
+
+			r, _ := inferenceRequest(t, validWebM(512), "audio/webm")
+			w := httptest.NewRecorder()
+			s.ServeHTTP(w, r)
+			status := w.Code
+			if status != test.wantStatus {
+				t.Fatalf("status=%d want=%d", status, test.wantStatus)
+			}
+		})
+	}
+}
+
+func TestBatchProxyRejectsInvalidAudioBeforeUpstream(t *testing.T) {
+	upstreamCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalls++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+	s := NewService(Config{Upstream: upstream.URL})
+	defer s.Close()
+
+	tests := []struct {
+		name, contentType string
+		audio             []byte
+		want              int
+	}{
+		{"empty", "audio/webm", nil, http.StatusUnprocessableEntity},
+		{"tiny", "audio/webm", validWebM(32), http.StatusUnprocessableEntity},
+		{"truncated", "audio/webm", bytes.Repeat([]byte("x"), 512), http.StatusUnprocessableEntity},
+		{"unsupported", "text/plain", bytes.Repeat([]byte("x"), 512), http.StatusUnsupportedMediaType},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r, _ := inferenceRequest(t, test.audio, test.contentType)
+			w := httptest.NewRecorder()
+			s.ServeHTTP(w, r)
+			if w.Code != test.want {
+				t.Fatalf("status=%d want=%d body=%s", w.Code, test.want, w.Body.String())
+			}
+		})
+	}
+	if upstreamCalls != 0 {
+		t.Fatalf("invalid audio reached upstream %d times", upstreamCalls)
 	}
 }
 

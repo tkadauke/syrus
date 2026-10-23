@@ -179,6 +179,13 @@ they're exempt from the `ci_failure` cap, since a repair job must keep
 absorbing CI feedback until main is actually fixed. See `main_branch_repair`
 below for what happens to PRs deferred this way once main recovers.
 
+The workflow start gate applies the same introduced-failure rule as the
+poller: when the base is not known healthy, repair may still start if the PR
+has a failing check absent from the base's recorded failures. It remains
+blocked when every failure is inherited or there is no base failure evidence.
+For stacked Jobs, the gate consults the parent PR's recorded failing names
+before falling back to the repository's newest main-branch health record.
+
 ## retry
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.
@@ -286,6 +293,19 @@ documentation for details.
 **Step chain:** `auto_rebase → agent_rebase → force_push`
 
 Rebases the PR branch onto the base branch. Skips `commit_agent_changes` (rebase rewrites history). Uses `--force-with-lease` to prevent clobbering concurrent pushes. Closed-preempted Jobs remain in the rebase poll scope while their external PR is open.
+
+## base_refresh_retry
+
+Restores a selected failed Workflow's latest published mutation checkpoint into
+a new Workflow, pins the current effective base ref and SHA, and rebases the
+checkpoint onto it. Clean rebases skip agent repair; conflicts use the existing
+bounded agentic rebase machinery. The refreshed source is published immutably,
+then setup, graders, and the normal PR-publication tail run without a redundant
+initial implementation pass. Missing checkpoints and concurrent mutation work
+fail safely. The operator-confirmed `retry_job` chat tool starts this mode with
+`mode: refresh_base` and an audit reason; the older dedicated
+`base_refresh_retry_job` entry point remains compatible. Ordinary
+same-snapshot retries are unchanged.
 
 ## stack_rebase
 

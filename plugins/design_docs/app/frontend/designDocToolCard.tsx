@@ -1,6 +1,12 @@
 import { isPlainObject } from "@app/pluginToolCards"
+import type { ReactNode } from "react"
 import i18n from "i18next"
-import { Badge, displayValue, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
+
+const ERROR_MESSAGE_CLASS = [
+  "whitespace-pre-wrap break-words rounded-[var(--radius-panel)] border border-danger/30",
+  "bg-danger/10 px-2 py-1 text-danger-text [overflow-wrap:anywhere]"
+].join(" ")
 
 // Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
 // / read_design_doc, propose_design_doc, suggest_design_doc_change,
@@ -39,15 +45,42 @@ export function parseDesignDocSummary(value: unknown): DesignDocSummary | null {
   }
 }
 
-export function DesignDocHeader({ doc }: { doc: DesignDocSummary }) {
+export function DesignDocHeader({ doc, href }: { doc: DesignDocSummary; href?: string }) {
   const match = doc.docRef.match(/(\d+)\s*$/)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {match ? <EntityReference id={match[1]} kind="design_doc" /> : <EntityReference kind="design_doc" slug={doc.docRef} />}
+      {match ? <EntityReference href={href} id={match[1]} kind="design_doc" /> : <EntityReference href={href} kind="design_doc" slug={doc.docRef} />}
       {doc.state ? <StatePill state={doc.state} /> : null}
       {doc.visibility ? <Badge>{doc.visibility}</Badge> : null}
     </div>
+  )
+}
+
+export function DesignDocErrorCard({ children, message, title }: { children?: ReactNode; message: string; title: string }) {
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-text-primary">{title}</span>
+        <StatePill state="failed" />
+      </div>
+      <div className={ERROR_MESSAGE_CLASS} role="alert">
+        {message}
+      </div>
+      {children}
+    </CardShell>
+  )
+}
+
+export function DesignDocPendingCard({ title }: { title: string }) {
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-text-primary">{title}</span>
+        <StatePill state="pending" />
+      </div>
+      <EmptyState>{t("tool_pending")}</EmptyState>
+    </CardShell>
   )
 }
 

@@ -40,6 +40,7 @@ module App
         title: proposal_title(proposal),
         state: proposal.state,
         anchor_message_id: anchor_message_id(proposal),
+        dependency_ids: proposal.dependency_edges.map(&:depends_on_id),
         active_children_count: proposal.epic? ? proposal.active_child_proposals.count : nil,
         created_at: proposal.created_at&.iso8601
       }
@@ -74,7 +75,7 @@ module App
         records: messages,
         associations: [
           :chat_session,
-          :pending_action,
+          { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
       ).call
@@ -253,6 +254,10 @@ module App
       base[:reason] = action.reason if action.reason.present?
       base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      if presenter.respond_to?(:tool_card_outcome) && (outcome = presenter.tool_card_outcome).present?
+        base[:outcome] = outcome
+      end
 
       case action.action.presence || action.action_type
       when *ChatPendingAction::JOB_RESOURCE_ACTIONS
@@ -268,8 +273,8 @@ module App
           base
         end
       when "create_repo_document", "delete_repo_document"
-        if (document = cached_document(payload["document_id"]))
-          base.merge(resource_title: document.title)
+        if (document = pending_action_document(action, payload))
+          base.merge(repository_document_resource(document))
         else
           base
         end
@@ -337,6 +342,7 @@ module App
         route_label: proposal.route_to_backlog? ? "Backlog" : "Start normally",
         investigation: proposal.investigation?,
         provider_setting: proposal.try(:provider_setting) || Job::ProviderSetting::Base::DEFAULT_VALUE,
+        priority: proposal.priority,
         planned_execution: proposal.planned_execution_json,
         goal_provenance: App::GoalProvenancePayload.for(proposal),
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
@@ -526,6 +532,7 @@ module App
         dependency_requirements: ProposalJobDependencyRequirements.for_proposal(proposal),
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         provider_setting: proposal.try(:provider_setting) || Job::ProviderSetting::Base::DEFAULT_VALUE,
+        priority: proposal.priority,
         planned_execution: proposal.planned_execution_json,
         goal_provenance: App::GoalProvenancePayload.for(proposal),
         media_ids: proposal.media_ids || [],
@@ -635,6 +642,31 @@ module App
       return if id <= 0
 
       @documents_by_id[id] ||= Document.find_by(id: id)
+    end
+
+    def pending_action_document(action, payload)
+      return action.result if action.action == "create_repo_document" && action.result.is_a?(Document)
+
+      cached_document(payload["document_id"])
+    end
+
+    def repository_document_resource(document)
+      repository = document.repository
+      url = document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : document.google_docs_url
+
+      {
+        resource_title: document.title,
+        resource_url: url,
+        document: {
+          id: document.id,
+          title: document.title,
+          repository_id: repository&.id,
+          repository_slug: repository&.slug,
+          content_type: document.content_type,
+          size_bytes: document.byte_size,
+          url: url
+        }
+      }
     end
 
     def cached_repository_epic(repository, id)

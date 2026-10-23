@@ -64,4 +64,28 @@ RSpec.describe ProviderAvailabilityWakeup do
       described_class.call(provider: "codex", user: user)
     }.not_to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
   end
+
+  it "forces an event wake for a routing hold past its scheduled timer dedupe" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    rule = ProviderRoutingRule.create!(
+      scope_type: "repository", scope_id: repository.id, task_key: "initial", candidates: [],
+      conditions: { usage: { provider: "codex", remaining_percent_less_than: 10 } },
+      action: { type: "hold", resumption: { mode: "when_conditions_clear" } }
+    )
+    ProviderRoutingHold.create!(
+      workflow: workflow,
+      provider_routing_rule: rule,
+      resumption_mode: "when_conditions_clear",
+      reason: "Low usage",
+      condition_evidence: { "matched" => true },
+      matched_scope: { "source_scope" => "repository" },
+      next_reevaluation_at: 5.minutes.from_now
+    )
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: 5.minutes)
+
+    expect {
+      described_class.call(provider: "codex", user: user)
+    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+  end
 end

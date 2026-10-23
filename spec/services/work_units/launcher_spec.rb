@@ -275,12 +275,50 @@ RSpec.describe WorkUnits::Launcher do
 
     it "rejects a cross-kind conflict sharing the same job lock (pr_comment vs. chat_feedback)" do
       described_class.instantiate(kind: "chat_feedback", job: job)
+      workflow_count = Workflow.count
+      step_count = Step.count
 
       expect {
         described_class.instantiate(kind: "pr_comment", job: job)
       }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}/)
 
+      expect(Workflow.count).to eq(workflow_count)
+      expect(Step.count).to eq(step_count)
       expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(0)
+    end
+
+    it "checks locks before asking the workflow template to insert records" do
+      described_class.instantiate(kind: "chat_feedback", job: job)
+      allow(Workflows::PrFeedback).to receive(:instantiate).and_call_original
+
+      expect {
+        described_class.instantiate(kind: "pr_comment", job: job)
+      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}/)
+
+      expect(Workflows::PrFeedback).not_to have_received(:instantiate)
+    end
+
+    it "still materializes definitions that wait behind an active lock" do
+      owner = described_class.instantiate(kind: "pr_comment", job: job)
+
+      waiting = described_class.instantiate(kind: "chat_feedback", job: job)
+
+      expect(owner.work_unit.work_unit_locks.pluck(:lock_key)).to include("job:#{job.id}")
+      expect(waiting).to be_persisted
+      expect(waiting.steps).to be_present
+      expect(waiting.work_unit.work_unit_locks).to be_empty
+    end
+
+    it "still materializes definitions that do not enforce lock conflicts" do
+      owner = described_class.instantiate(kind: "initial", job: job)
+      allow_any_instance_of(WorkDefinitions::PrComment).to receive(:lock_conflicts_enforced?).and_return(false)
+
+      non_enforcing = described_class.instantiate(kind: "pr_comment", job: job)
+
+      expect(owner.work_unit.work_unit_locks.pluck(:lock_key)).to include("job:#{job.id}")
+      expect(non_enforcing).to be_persisted
+      expect(non_enforcing.steps).to be_present
+      expect(non_enforcing.work_unit.work_unit_locks).to be_empty
     end
 
     it "treats MySQL duplicate active_dedup_key errors as lock conflicts" do
@@ -372,6 +410,25 @@ RSpec.describe WorkUnits::Launcher do
     expect(second).not_to eq(first)
     expect(second.work_unit.work_intent).to eq(first.work_unit.work_intent)
     expect(second.work_unit).not_to eq(first.work_unit)
+  end
+
+  it "only reuses a succeeded workflow when completion-aware deduplication is requested" do
+    key = "manual-visual-review:#{job.id}"
+    first = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: key)
+    first.update_columns(state: "succeeded", finished_at: Time.current)
+    first.work_unit.mark_terminal!("succeeded")
+
+    completed = described_class.instantiate(
+      kind: "manual_visual_review",
+      job: job,
+      idempotency_key: key,
+      completion_aware: true
+    )
+    retry_workflow = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: key)
+
+    expect(completed).to eq(first)
+    expect(retry_workflow).not_to eq(first)
+    expect(first.work_unit.work_intent.work_units.count).to eq(2)
   end
 
   it "passes artifacts and agent provider through to the workflow template" do

@@ -1,37 +1,130 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { ElementActionCard, ElementFailureCard, elementActionSummary, elementFailureSummary, parseElementResult, t } from "../whiteboardToolCard"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
+import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
+import { displayValue } from "@app/routes/chat/toolCardUi"
+import { toolCardPayloadSizeLabel } from "@app/toolCardSecurity"
+import { ElementFailureCard, elementActionSummary, elementFailureSummary, makeElementCard, parseElementResult, t } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for draw_image (the pending-action tool-card work). The tool
-// result also carries a file_id (see draw_image_tool.rb), but parseElementResult
-// only needs `id`/`version` -- the raw JSON "Raw details" disclosure still
-// carries the file_id for anyone who needs it.
-const ACTION_KEY = "tool_action_drew_image"
+const fallbackCard = makeElementCard("draw_image", "tool_action_drew_image")
 
-function collapsedSummary(context: ToolCardContext) {
-  const action = t(ACTION_KEY)
-  const failureSummary = elementFailureSummary(context, action)
-  if (failureSummary) return failureSummary
-
-  const result = parseElementResult(context.parsedResult)
-  if (!result) return null
-
-  return elementActionSummary(action, result, isPlainObject(context.input) ? context.input : undefined)
+function safeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  if (/^data:image\/[a-z0-9.+-]+(?:;[a-z0-9.+-]+=[^;,]*)*(?:;base64)?,/i.test(value)) return value
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:" ? value : null
+  } catch {
+    return null
+  }
 }
 
-function renderExpanded(context: ToolCardContext) {
-  const action = t(ACTION_KEY)
+function imageSizeLabel(url: string): string | null {
+  return url.startsWith("data:") ? `≈${toolCardPayloadSizeLabel(url)}` : null
+}
+
+function DrawImageCard({ context }: { context: ToolCardContext }) {
+  const action = t("tool_action_drew_image")
   if (context.resultError) return <ElementFailureCard action={action} context={context} />
-
   const result = parseElementResult(context.parsedResult)
-  if (!result) return null
+  if (!result) return fallbackCard.renderExpanded(context)
 
-  return <ElementActionCard action={action} input={isPlainObject(context.input) ? context.input : undefined} result={result} />
+  const input = isPlainObject(context.input) ? context.input : {}
+  const src = safeImageUrl(input.data_url)
+  const mimeType = displayValue(input.mime_type)
+  const inputFileId = displayValue(input.file_id)
+  const x = displayValue(input.x),
+    y = displayValue(input.y),
+    width = displayValue(input.width),
+    height = displayValue(input.height)
+  const size = src ? imageSizeLabel(src) : null
+  const title = result.fileId ?? inputFileId ?? t("tool_image")
+  const details = [
+    [t("tool_field_mime_type"), mimeType],
+    [t("tool_field_approx_size"), size],
+    [t("tool_field_file_id"), inputFileId],
+    ["X", x],
+    ["Y", y],
+    [t("tool_field_width"), width],
+    [t("tool_field_height"), height]
+  ].filter((detail): detail is string[] => Boolean(detail[1]))
+  const rows: CompactActionRow[] = details.length
+    ? [
+        {
+          label: t("tool_details"),
+          value: (
+            <>
+              {details.map(([label, value]) => (
+                <span key={label}>
+                  <span className="text-text-subtle">{label}:</span> <span className="font-mono">{value}</span>
+                </span>
+              ))}
+            </>
+          )
+        }
+      ]
+    : []
+  if (result.fileId) rows.push({ label: t("tool_field_file_id"), value: <span className="font-mono">{result.fileId}</span> })
+
+  return (
+    <CompactActionCard
+      action={action}
+      badges={result.version != null ? [`v${result.version}`] : []}
+      entity={<span className="break-all font-mono font-semibold text-text-primary">{result.id}</span>}
+      media={
+        src
+          ? {
+              modalLabel: t("tool_image"),
+              item: {
+                title,
+                src,
+                alt: t("tool_image"),
+                badge: mimeType,
+                subtitle: size,
+                actions: [{ label: t("tool_download"), href: src, download: true }],
+                meta: [
+                  { label: t("tool_field_id"), value: result.id, copyValue: result.id },
+                  { label: t("tool_field_version"), value: result.version == null ? null : String(result.version) },
+                  { label: t("tool_field_file_id"), value: result.fileId ?? inputFileId, copyValue: result.fileId ?? inputFileId },
+                  { label: t("tool_field_mime_type"), value: mimeType },
+                  { label: t("tool_field_approx_size"), value: size },
+                  { label: t("tool_field_dimensions"), value: width && height ? `${width} × ${height}` : (width ?? height) },
+                  { label: t("tool_field_position"), value: x && y ? `${x}, ${y}` : (x ?? y) }
+                ]
+              }
+            }
+          : undefined
+      }
+      rows={rows}
+      tone="success"
+    />
+  )
 }
 
-const drawImageToolCard: ToolCardRenderer = {
+const drawImageCard: ToolCardRenderer = {
   toolName: "draw_image",
-  collapsedSummary,
-  renderExpanded
+  collapsedSummary(context) {
+    const action = t("tool_action_drew_image")
+    const failure = elementFailureSummary(context, action)
+    if (failure) return failure
+    const result = parseElementResult(context.parsedResult)
+    return result
+      ? elementActionSummary(action, result, isPlainObject(context.input) ? context.input : undefined)
+      : (fallbackCard.collapsedSummary?.(context) ?? action)
+  },
+  renderExpanded(context) {
+    return <DrawImageCard context={context} />
+  }
 }
 
-export default drawImageToolCard
+export const examples: ToolCardExample[] = [
+  {
+    id: "image_preview",
+    label: "Image preview",
+    input: { data_url: "data:image/png;base64,iVBORw0KGgo=", mime_type: "image/png", file_id: "source-image", x: 20, y: 30, width: 320, height: 180 },
+    parsedResult: { result: { id: "image-element", file_id: "canvas-image", version: 2 } }
+  },
+  { id: "pending", label: "Pending result", input: { data_url: "https://example.com/image.png", mime_type: "image/png" }, resultBody: "" },
+  { id: "failure", label: "Failed image", input: { file_id: "source-image" }, parsedResult: { message: "Image could not be drawn" }, resultError: true }
+]
+
+export default drawImageCard

@@ -1,253 +1,303 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
-import { JobRefLink, Table, TBody, Td, THead } from "../adminToolCard"
+import { redactToolCardText, redactToolCardValue } from "@app/toolCardSecurity"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
+import { MarkdownPreview, TextPreview } from "../toolCardMarkdown"
+import { Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for inspect_provider_circuit (the tool-card work).
-// Renders the circuit decision (provider/model/scope, state, evidence age),
-// the failed Runs and availability evidence backing that decision, and the
-// consumers currently blocked on it (queued Workflows, delayed auto-retries)
-// -- the recovery-action state an operator needs before manually clearing
-// or waking the circuit.
-type Decision = {
-  provider: string
-  open: boolean
-  reason: string | null
-  retryAfter: string | null
-  failureCount: number | null
-  jobCount: number | null
-  model: string | null
-  usageLimit: boolean
+type Obj = Record<string, unknown>
+type Item = { key: string; value: Obj }
+type Card = { decision: Obj; provider: string; runs: Item[]; evidence: Item[]; workflows: Item[]; retries: Item[] }
+
+const text = (value: unknown) => {
+  const displayed = displayValue(value)
+  return displayed ? redactToolCardText(displayed) : null
 }
+const json = (value: unknown) => (value == null ? null : JSON.stringify(redactToolCardValue(value), null, 2))
+const list = (value: unknown, prefix: string): Item[] =>
+  Array.isArray(value)
+    ? value
+        .filter(isPlainObject)
+        .map((item, index) => ({ key: `${displayValue(item.id) ?? displayValue(item[`${prefix}_id`]) ?? prefix}-${index}`, value: item }))
+    : []
 
-type RunRow = {
-  key: string
-  id: string
-  jobId: string | null
-  stepKind: string | null
-  agentOutcome: string | null
-  finishedAt: string | null
-  classification: string | null
-  usageLimitCandidate: boolean
-  retryableCandidate: boolean
-}
-
-type EvidenceRow = { key: string; status: string | null; source: string | null; observedAt: string | null; model: string | null; httpStatus: number | null }
-
-type QueuedWorkflowRow = { key: string; workflowId: string | null; jobId: string | null; startBlockedReason: string | null }
-
-type DelayedRetryRow = { key: string; jobId: string | null; retryKind: string | null; scheduledAt: string | null }
-
-type ProviderCircuitCard = {
-  decision: Decision
-  runs: RunRow[]
-  evidence: EvidenceRow[]
-  queuedWorkflows: QueuedWorkflowRow[]
-  delayedRetries: DelayedRetryRow[]
-}
-
-function parseDecision(value: unknown): Decision | null {
-  if (!isPlainObject(value)) return null
-  const provider = displayValue(value.provider)
+function parse(context: ToolCardContext): Card | null {
+  if (!isPlainObject(context.parsedResult) || !Array.isArray(context.parsedResult.runs)) return null
+  const result = context.parsedResult
+  const decision = isPlainObject(result.decision) ? result.decision : result
+  const provider = displayValue(decision.provider)
   if (!provider) return null
-
-  return {
-    provider,
-    open: value.open === true,
-    reason: displayValue(value.reason),
-    retryAfter: displayValue(value.retry_after),
-    failureCount: numberValue(value.failure_count),
-    jobCount: numberValue(value.job_count),
-    model: displayValue(value.model),
-    usageLimit: value.usage_limit === true
-  }
-}
-
-function parseRunRow(value: unknown, index: number): RunRow | null {
-  if (!isPlainObject(value)) return null
-  const id = displayValue(value.id)
-  if (!id) return null
-
-  const classification = isPlainObject(value.classification) ? displayValue(value.classification.classification) : null
-
-  return {
-    key: `${id}-${index}`,
-    id,
-    jobId: displayValue(value.job_id),
-    stepKind: displayValue(value.step_kind),
-    agentOutcome: displayValue(value.agent_outcome),
-    finishedAt: displayValue(value.finished_at),
-    classification,
-    usageLimitCandidate: value.circuit_usage_limit_candidate === true,
-    retryableCandidate: value.circuit_retryable_candidate === true
-  }
-}
-
-function parseEvidenceRow(value: unknown, index: number): EvidenceRow | null {
-  if (!isPlainObject(value)) return null
-
-  return {
-    key: `${index}`,
-    status: displayValue(value.status),
-    source: displayValue(value.source),
-    observedAt: displayValue(value.observed_at),
-    model: displayValue(value.model),
-    httpStatus: numberValue(value.http_status)
-  }
-}
-
-function parseQueuedWorkflow(value: unknown, index: number): QueuedWorkflowRow | null {
-  if (!isPlainObject(value)) return null
-
-  return {
-    key: `${displayValue(value.workflow_id) ?? index}`,
-    workflowId: displayValue(value.workflow_id),
-    jobId: displayValue(value.job_id),
-    startBlockedReason: displayValue(value.start_blocked_reason)
-  }
-}
-
-function parseDelayedRetry(value: unknown, index: number): DelayedRetryRow | null {
-  if (!isPlainObject(value)) return null
-
-  return {
-    key: `${displayValue(value.auto_retry_attempt_id) ?? index}`,
-    jobId: displayValue(value.job_id),
-    retryKind: displayValue(value.retry_kind),
-    scheduledAt: displayValue(value.scheduled_at)
-  }
-}
-
-function parseProviderCircuit(context: ToolCardContext): ProviderCircuitCard | null {
-  const parsed = context.parsedResult
-  if (!isPlainObject(parsed)) return null
-
-  const decision = parseDecision(isPlainObject(parsed.decision) ? parsed.decision : parsed)
-  if (!decision || !Array.isArray(parsed.runs)) return null
-
-  const consumers = isPlainObject(parsed.consumers) ? parsed.consumers : {}
-
+  const consumers = isPlainObject(result.consumers) ? result.consumers : {}
   return {
     decision,
-    runs: parsed.runs.flatMap((run, index) => { const row = parseRunRow(run, index); return row ? [row] : [] }),
-    evidence: Array.isArray(parsed.evidence_records) ? parsed.evidence_records.flatMap((record, index) => { const row = parseEvidenceRow(record, index); return row ? [row] : [] }) : [],
-    queuedWorkflows: Array.isArray(consumers.queued_workflows_without_runs) ? consumers.queued_workflows_without_runs.flatMap((workflow, index) => { const row = parseQueuedWorkflow(workflow, index); return row ? [row] : [] }) : [],
-    delayedRetries: Array.isArray(consumers.delayed_auto_retries) ? consumers.delayed_auto_retries.flatMap((retry, index) => { const row = parseDelayedRetry(retry, index); return row ? [row] : [] }) : []
+    provider,
+    runs: list(result.runs, "run"),
+    evidence: list(result.evidence_records, "evidence"),
+    workflows: list(consumers.queued_workflows_without_runs, "workflow"),
+    retries: list(consumers.delayed_auto_retries, "auto_retry_attempt")
   }
+}
+
+function Preview({ markdown = false, title, value }: { markdown?: boolean; title: string; value: unknown }) {
+  const safe = typeof value === "string" ? text(value) : json(value)
+  if (!safe) return <>—</>
+  return markdown ? <MarkdownPreview maxLines={3} text={safe} title={title} /> : <TextPreview maxLines={3} text={safe} title={title} />
+}
+
+function Ref({
+  id,
+  kind,
+  jobId,
+  workflowId,
+  label,
+  slug
+}: {
+  id: unknown
+  kind: "artifact" | "chat" | "job" | "run" | "workflow"
+  jobId?: unknown
+  workflowId?: unknown
+  label?: string
+  slug?: string
+}) {
+  const value = displayValue(id)
+  return value ? (
+    <EntityReference id={value} jobId={displayValue(jobId)} kind={kind} label={label} slug={slug} workflowId={displayValue(workflowId)} wrap="nowrap" />
+  ) : (
+    <>—</>
+  )
+}
+
+function Classification({ value }: { value: unknown }) {
+  if (!isPlainObject(value)) return <>—</>
+  const id = displayValue(value.id)
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="flex flex-wrap items-center gap-1">
+        <Ref id={id} kind="artifact" label={id ? `Classification ${id}` : undefined} slug={id ?? undefined} />
+        {displayValue(value.classification) ? <StatePill state={displayValue(value.classification)!} /> : null}
+        {value.retryable === true ? <Badge>retryable</Badge> : value.retryable === false ? <Badge>not retryable</Badge> : null}
+        {numberValue(value.confidence) != null ? <Badge>{numberValue(value.confidence)} confidence</Badge> : null}
+      </div>
+      <Preview markdown title="Reason" value={value.reason} />
+      <Preview markdown title="Diagnostic summary" value={value.diagnostic_summary} />
+      <Preview title="Classifier inputs" value={value.classifier_inputs} />
+      <div className="font-mono text-text-muted">{displayValue(value.classified_at) ?? "—"}</div>
+      {value.repair != null ? <Preview title="Repair" value={value.repair} /> : null}
+    </div>
+  )
 }
 
 function collapsedSummary(context: ToolCardContext) {
-  const card = parseProviderCircuit(context)
+  const card = parse(context)
   if (!card) return null
-
-  if (!card.decision.open) return `${card.decision.provider}: closed`
-  const blocked = card.queuedWorkflows.length + card.delayedRetries.length
-  return `${card.decision.provider}: open${card.decision.reason ? ` (${card.decision.reason})` : ""}${blocked > 0 ? `, ${blocked} blocked` : ""}`
+  if (card.decision.open !== true) return `${card.provider}: closed`
+  const blocked = card.workflows.length + card.retries.length
+  const reason = text(card.decision.reason)
+  return `${card.provider}: open${reason ? ` (${reason})` : ""}${blocked ? `, ${blocked} blocked` : ""}`
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const card = parseProviderCircuit(context)
+  const card = parse(context)
   if (!card) return null
-
+  const d = card.decision
+  const inputProvider = displayValue(context.input?.provider)
+  const inputUserId = displayValue(context.input?.user_id)
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{card.decision.provider}</span>
-        <StatePill state={card.decision.open ? "open" : "closed"} tone={card.decision.open ? "failure" : "success"} />
-        {card.decision.model ? <Badge>{card.decision.model}</Badge> : null}
-        {card.decision.usageLimit ? <Badge>usage limit</Badge> : null}
+        <span className="font-mono font-semibold text-text-primary">{card.provider}</span>
+        <StatePill state={d.open === true ? "open" : "closed"} tone={d.open === true ? "failure" : "success"} />
+        {displayValue(d.model) ? <Badge>{displayValue(d.model)}</Badge> : null}
+        {d.usage_limit === true ? <Badge>usage limit</Badge> : null}
       </div>
-      {card.decision.reason ? <div className="text-gray-700 dark:text-gray-300">{card.decision.reason}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Failure count" value={String(card.decision.failureCount ?? "—")} />
-        <Row label="Job count" value={String(card.decision.jobCount ?? "—")} />
-        {card.decision.retryAfter ? <Row label="Retry after" value={card.decision.retryAfter} /> : null}
+        <Row label="Input provider" value={inputProvider ?? "—"} />
+        <Row label="Input user ID" value={inputUserId ?? "—"} />
+        <Row label="Failure count" value={String(numberValue(d.failure_count) ?? "—")} />
+        <Row label="Job count" value={String(numberValue(d.job_count) ?? "—")} />
+        <Row label="Retry after" value={displayValue(d.retry_after) ?? "—"} />
       </dl>
+      {d.reason ? <Preview markdown title="Decision reason" value={d.reason} /> : null}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Preview title="Signature" value={d.signature} />
+        <Preview title="Decision evidence" value={d.evidence} />
+      </div>
+
       <div>
         <SectionLabel>Failed Runs ({card.runs.length})</SectionLabel>
         {card.runs.length === 0 ? (
           <EmptyState>No failed Runs in the evidence window.</EmptyState>
         ) : (
-          <Table>
-            <THead columns={["Run", "Job", "Step", "Outcome", "Classification", "Finished", "Candidate"]} />
+          <Table responsive>
+            <THead
+              columns={["Run", "Job", "Workflow / step", "Provider / model", "Outcome / retry", "Diagnostic", "Classification", "Finished", "Candidates"]}
+            />
             <TBody>
-              {card.runs.map((run) => (
-                <tr key={run.key}>
-                  <Td mono>RUN-{run.id}</Td>
-                  <Td><JobRefLink jobId={run.jobId} /></Td>
-                  <Td>{run.stepKind || "—"}</Td>
-                  <Td>{run.agentOutcome || "—"}</Td>
-                  <Td>{run.classification || "—"}</Td>
-                  <Td mono>{run.finishedAt || "—"}</Td>
-                  <Td>
-                    {run.usageLimitCandidate ? <Badge>usage limit</Badge> : null}
-                    {run.retryableCandidate ? <Badge>retryable</Badge> : null}
-                    {!run.usageLimitCandidate && !run.retryableCandidate ? "—" : null}
-                  </Td>
-                </tr>
-              ))}
+              {card.runs.map(({ key, value: r }) => {
+                const diagnostic = isPlainObject(r.diagnostic) ? r.diagnostic : null
+                const jobId = displayValue(r.job_id)
+                const workflowId = displayValue(r.workflow_id)
+                return (
+                  <tr key={key}>
+                    <Td>
+                      <Ref id={r.id} jobId={jobId} kind="run" workflowId={workflowId} />
+                    </Td>
+                    <Td>
+                      <Ref id={jobId} kind="job" />
+                      <div>{displayValue(r.job_slug) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <Ref id={workflowId} jobId={jobId} kind="workflow" />
+                      <div>
+                        {displayValue(r.step_kind) ?? "—"} {displayValue(r.step_id) ? `(STEP-${displayValue(r.step_id)})` : ""}
+                      </div>
+                      <div>{displayValue(r.trigger_kind) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <div>{displayValue(r.agent_provider) ?? "—"}</div>
+                      <div>{displayValue(r.extracted_model) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <div>{displayValue(r.agent_outcome) ?? "—"}</div>
+                      <div className="font-mono">{displayValue(r.retry_after) ?? "—"}</div>
+                    </Td>
+                    <Td wrap>
+                      <Ref
+                        id={diagnostic?.id}
+                        kind="artifact"
+                        label={displayValue(diagnostic?.id) ? `Diagnostic ${displayValue(diagnostic?.id)}` : undefined}
+                        slug={displayValue(diagnostic?.id) ?? undefined}
+                      />
+                      <div>{text(diagnostic?.error_class) ?? "—"}</div>
+                      <Preview title="Error message" value={diagnostic?.error_message} />
+                    </Td>
+                    <Td wrap>
+                      <Classification value={r.classification} />
+                    </Td>
+                    <Td mono>{displayValue(r.finished_at) ?? "—"}</Td>
+                    <Td>
+                      <div className="flex flex-col items-start gap-1">
+                        {r.circuit_usage_limit_candidate === true ? <Badge>usage limit</Badge> : null}
+                        {r.circuit_retryable_candidate === true ? <Badge>retryable</Badge> : null}
+                        {r.circuit_usage_limit_candidate !== true && r.circuit_retryable_candidate !== true ? "—" : null}
+                      </div>
+                    </Td>
+                  </tr>
+                )
+              })}
             </TBody>
           </Table>
         )}
       </div>
-      {card.evidence.length > 0 ? (
-        <Disclosure label={`Availability evidence (${card.evidence.length})`}>
-          <Table>
-            <THead columns={["Status", "Source", "Observed", "Model", "HTTP"]} />
+
+      <Disclosure label={`Availability evidence (${card.evidence.length})`}>
+        {card.evidence.length === 0 ? (
+          <EmptyState>No availability evidence in the evidence window.</EmptyState>
+        ) : (
+          <Table responsive>
+            <THead columns={["Evidence", "Status / source", "Scope", "References", "Observed", "HTTP", "Details", "Repair"]} />
             <TBody>
-              {card.evidence.map((record) => (
-                <tr key={record.key}>
-                  <Td>{record.status ? <StatePill state={record.status} /> : "—"}</Td>
-                  <Td>{record.source || "—"}</Td>
-                  <Td mono>{record.observedAt || "—"}</Td>
-                  <Td>{record.model || "—"}</Td>
-                  <Td mono>{record.httpStatus ?? "—"}</Td>
-                </tr>
-              ))}
+              {card.evidence.map(({ key, value: e }) => {
+                const id = displayValue(e.id)
+                return (
+                  <tr key={key}>
+                    <Td>
+                      <Ref id={id} kind="artifact" label={id ? `Evidence ${id}` : undefined} slug={id ?? undefined} />
+                    </Td>
+                    <Td>
+                      <div>{displayValue(e.status) ? <StatePill state={displayValue(e.status)!} /> : "—"}</div>
+                      <div>{displayValue(e.source) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <div>{displayValue(e.provider) ?? "—"}</div>
+                      <div>{displayValue(e.account_id) ?? "—"}</div>
+                      <div>{displayValue(e.model) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <Ref id={e.run_id} kind="run" />
+                      <div>
+                        <Ref id={e.chat_session_id} kind="chat" />
+                      </div>
+                      <div>{displayValue(e.chat_message_id) ? `Message ${displayValue(e.chat_message_id)}` : "—"}</div>
+                    </Td>
+                    <Td mono>{displayValue(e.observed_at) ?? "—"}</Td>
+                    <Td mono>{numberValue(e.http_status) ?? "—"}</Td>
+                    <Td wrap>
+                      <Preview title="Details" value={e.details} />
+                    </Td>
+                    <Td wrap>
+                      <Preview title="Repair" value={e.repair} />
+                    </Td>
+                  </tr>
+                )
+              })}
             </TBody>
           </Table>
-        </Disclosure>
-      ) : null}
-      {card.queuedWorkflows.length > 0 || card.delayedRetries.length > 0 ? (
-        <div>
-          <SectionLabel>Blocked consumers</SectionLabel>
-          {card.queuedWorkflows.length > 0 ? (
-            <div className="mt-1">
-              <div className="text-2xs text-gray-500 dark:text-gray-400">Queued workflows without Runs ({card.queuedWorkflows.length})</div>
-              <ul className="mt-1 space-y-1">
-                {card.queuedWorkflows.map((workflow) => (
-                  <li className="flex flex-wrap items-center gap-2" key={workflow.key}>
-                    <span className="font-mono text-gray-700 dark:text-gray-300">{workflow.workflowId ? `WF-${workflow.workflowId}` : "—"}</span>
-                    <JobRefLink jobId={workflow.jobId} />
-                    {workflow.startBlockedReason ? <Badge>{workflow.startBlockedReason.replace(/_/g, " ")}</Badge> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {card.delayedRetries.length > 0 ? (
-            <div className="mt-2">
-              <div className="text-2xs text-gray-500 dark:text-gray-400">Delayed auto-retries ({card.delayedRetries.length})</div>
-              <ul className="mt-1 space-y-1">
-                {card.delayedRetries.map((retry) => (
-                  <li className="flex flex-wrap items-center gap-2" key={retry.key}>
-                    <JobRefLink jobId={retry.jobId} />
-                    {retry.retryKind ? <Badge>{retry.retryKind}</Badge> : null}
-                    <span className="font-mono text-gray-500 dark:text-gray-400">{retry.scheduledAt || "—"}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+        )}
+      </Disclosure>
+
+      <div>
+        <SectionLabel>Blocked consumers</SectionLabel>
+        {card.workflows.length === 0 && card.retries.length === 0 ? <EmptyState>No blocked consumers.</EmptyState> : null}
+        {card.workflows.length ? (
+          <Table responsive>
+            <THead columns={["Workflow", "Job", "Trigger", "Blocked reason", "Details", "Next check"]} />
+            <TBody>
+              {card.workflows.map(({ key, value: w }) => {
+                const jobId = displayValue(w.job_id)
+                return (
+                  <tr key={key}>
+                    <Td>
+                      <Ref id={w.workflow_id} jobId={jobId} kind="workflow" />
+                    </Td>
+                    <Td>
+                      <Ref id={jobId} kind="job" />
+                      <div>{displayValue(w.job_slug) ?? "—"}</div>
+                    </Td>
+                    <Td>{displayValue(w.trigger_kind) ?? "—"}</Td>
+                    <Td>{displayValue(w.start_blocked_reason) ?? "—"}</Td>
+                    <Td wrap>
+                      <Preview title="Start block details" value={w.start_blocked_details} />
+                    </Td>
+                    <Td mono>{displayValue(w.next_check_at) ?? "—"}</Td>
+                  </tr>
+                )
+              })}
+            </TBody>
+          </Table>
+        ) : null}
+        {card.retries.length ? (
+          <Table responsive>
+            <THead columns={["Retry", "Job", "Workflow", "Run", "Kind", "Scheduled", "Classification"]} />
+            <TBody>
+              {card.retries.map(({ key, value: r }) => {
+                const jobId = displayValue(r.job_id)
+                const workflowId = displayValue(r.workflow_id)
+                return (
+                  <tr key={key}>
+                    <Td mono>{displayValue(r.auto_retry_attempt_id) ?? "—"}</Td>
+                    <Td>
+                      <Ref id={jobId} kind="job" />
+                      <div>{displayValue(r.job_slug) ?? "—"}</div>
+                    </Td>
+                    <Td>
+                      <Ref id={workflowId} jobId={jobId} kind="workflow" />
+                    </Td>
+                    <Td>
+                      <Ref id={r.run_id} jobId={jobId} kind="run" workflowId={workflowId} />
+                    </Td>
+                    <Td>{displayValue(r.retry_kind) ?? "—"}</Td>
+                    <Td mono>{displayValue(r.scheduled_at) ?? "—"}</Td>
+                    <Td>{displayValue(r.failure_classification) ?? "—"}</Td>
+                  </tr>
+                )
+              })}
+            </TBody>
+          </Table>
+        ) : null}
+      </div>
     </CardShell>
   )
 }
 
-const inspectProviderCircuitToolCard: ToolCardRenderer = {
-  toolName: "inspect_provider_circuit",
-  collapsedSummary,
-  renderExpanded
-}
-
+const inspectProviderCircuitToolCard: ToolCardRenderer = { toolName: "inspect_provider_circuit", collapsedSummary, renderExpanded }
 export default inspectProviderCircuitToolCard
