@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { fetchWhiteboardSnapshot } from "@app/api/chats"
+import { fetchWhiteboardSnapshot, type ChatWhiteboardScene } from "@app/api/chats"
 import { asExcalidrawElements, normalizeWhiteboardScene } from "@app/routes/chat/whiteboardScene"
 import { MediaPreviewShell, type MediaPreviewItem } from "@app/routes/chat/mediaPreviewShell"
 import i18n from "i18next"
@@ -36,13 +36,43 @@ export function WhiteboardSnapshotPreview({ chatId, snapshotId, item }: { chatId
   )
 }
 
+export function WhiteboardScenePreview({ scene, item }: { scene: Partial<ChatWhiteboardScene>; item: MediaPreviewItem }) {
+  const [preview, setPreview] = useState<PreviewState>({ status: "loading", src: null })
+
+  useEffect(() => {
+    let cancelled = false
+
+    void renderScene(scene)
+      .then((src) => {
+        if (!cancelled) setPreview({ status: "ready", src })
+      })
+      .catch(() => {
+        if (!cancelled) setPreview({ status: "error", src: null })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [scene])
+
+  const fallbackLabel = preview.status === "loading" ? translate("tool_scene_loading") : translate("tool_scene_preview_error")
+
+  return (
+    <MediaPreviewShell item={{ ...item, src: preview.src, fallbackLabel }} modalLabel={translate("tool_scene_preview")} thumbnailClassName="w-full sm:w-72" />
+  )
+}
+
 function translate(key: string) {
   return i18n.t(`whiteboard:${key}`)
 }
 
 async function renderSnapshot(chatId: string, snapshotId: string) {
   const snapshot = await fetchWhiteboardSnapshot(chatId, snapshotId)
-  const scene = normalizeWhiteboardScene(snapshot.scene_json)
+  return renderScene(snapshot.scene_json)
+}
+
+async function renderScene(input: Partial<ChatWhiteboardScene> | null | undefined) {
+  const scene = normalizeWhiteboardScene(input)
   const { exportToSvg } = await import("@excalidraw/excalidraw")
   const svg = await exportToSvg({
     elements: asExcalidrawElements(scene.elements),
