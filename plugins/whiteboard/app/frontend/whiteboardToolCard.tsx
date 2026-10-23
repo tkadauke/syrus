@@ -213,7 +213,7 @@ export function SaveCanvasCard({ result, requestedName }: { result: SaveCanvasRe
         <WhiteboardSnapshotPreview
           chatId={result.chatId}
           item={{
-            title: result.name ?? `Snapshot #${result.snapshotId}`,
+            title: result.name ?? t("tool_snapshot_title", { id: result.snapshotId }),
             subtitle: result.elementCount != null ? t("tool_elements_summary", { count: result.elementCount }) : null,
             badge: t("tool_snapshot"),
             actions: [
