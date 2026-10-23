@@ -230,6 +230,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     result = payload(response).fetch(:scheduled_task)
     expect(result).to include(
       id: task.id,
+      repository_id: task.repository_id,
       label: "Nightly audit",
       kind: "cron",
       state: "scheduled",

@@ -34,6 +34,7 @@ module ScheduledTasks
       def scheduled_task_payload(task)
         {
           id: task.id,
+          repository_id: task.repository_id,
           repository_slug: task.repository&.slug,
           label: task.name,
           kind: task.kind,
