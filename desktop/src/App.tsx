@@ -5,15 +5,12 @@ import { RepoPicker } from "./RepoPicker"
 import syrusIconUrl from "../assets/syrusIcon.png"
 import { groupJobsByEpic, epicFullyImplemented } from "./inboxUtils"
 import { applyTheme, writeCachedTheme } from "./theme"
+import { t } from "./i18n"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
 type JobDetailTab = "summary" | "test-plan" | "feedback"
-type PopoverNavigationState =
-  | { view: "inbox" }
-  | { view: "job-detail"; jobId: number }
-  | { view: "feedback"; jobId: number }
-  | { view: "notifications" }
+type PopoverNavigationState = { view: "inbox" } | { view: "job-detail"; jobId: number } | { view: "feedback"; jobId: number } | { view: "notifications" }
 type CheckoutStatusByRepo = Record<string, SyrusCheckoutAvailability>
 type ToastState = {
   kind: "success" | "error"
@@ -41,15 +38,16 @@ const appApiUrl = (baseUrl: string, path: string) => `${normalizeInstanceUrl(bas
 // A 401 means the stored token went stale — opening the signed-in Syrus
 // window is what re-mints it, so the UI leads there instead of to Retry.
 const UNAUTHORIZED_MARKER = "Syrus rejected the saved sign-in"
-const isUnauthorizedError = (error: unknown) =>
-  error instanceof Error && error.message.includes(UNAUTHORIZED_MARKER)
+const isUnauthorizedError = (error: unknown) => error instanceof Error && error.message.includes(UNAUTHORIZED_MARKER)
 
 const jobTitle = (job: SyrusJobItem) => job.title || job.issue_title || `JOB-${job.id}`
 
 type ApiErrorPayload = {
-  error?: {
-    message?: string
-  } | string
+  error?:
+    | {
+        message?: string
+      }
+    | string
 }
 
 const responseErrorMessage = async (response: Response, fallback: string) => {
@@ -108,7 +106,7 @@ const compareInboxJobs = (a: SyrusJobItem, b: SyrusJobItem) => {
   return b.id - a.id
 }
 
-const unreadBadgeLabel = (count: number) => count > 9 ? "9+" : String(count)
+const unreadBadgeLabel = (count: number) => (count > 9 ? "9+" : String(count))
 
 const relativeTimestamp = (value: string) => {
   const timestamp = Date.parse(value)
@@ -144,10 +142,8 @@ function BlockMarkdown({ text }: { text: string }) {
 
 const notificationKindIconClass = (kind: string) => {
   if (kind.includes("failed")) return "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300"
-  if (kind.includes("merged") || kind.includes("completed"))
-    return "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300"
-  if (kind.includes("implemented") || kind.includes("addressed"))
-    return "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"
+  if (kind.includes("merged") || kind.includes("completed")) return "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300"
+  if (kind.includes("implemented") || kind.includes("addressed")) return "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"
   return "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
 }
 
@@ -358,7 +354,13 @@ function ComposeIcon() {
 function BellIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <path d="M6.75 10.75a5.25 5.25 0 0 1 10.5 0v3.5l1.5 2.25h-13.5l1.5-2.25v-3.5ZM10 19.25h4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M6.75 10.75a5.25 5.25 0 0 1 10.5 0v3.5l1.5 2.25h-13.5l1.5-2.25v-3.5ZM10 19.25h4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }
@@ -368,7 +370,12 @@ function WarningIcon({ className = "h-4 w-4" }: { className?: string }) {
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
       <path d="M12 8v5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
       <path d="M12 17h.01" stroke="currentColor" strokeLinecap="round" strokeWidth="2.5" />
-      <path d="M10.4 4.4 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.7 4.4a1.9 1.9 0 0 0-3.3 0Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+      <path
+        d="M10.4 4.4 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.7 4.4a1.9 1.9 0 0 0-3.3 0Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
     </svg>
   )
 }
@@ -414,7 +421,16 @@ function CopyIcon({ className = "" }: { className?: string }) {
 
 function CloseIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M6 6l12 12" />
       <path d="M18 6 6 18" />
     </svg>
@@ -438,7 +454,16 @@ function DisclosureIcon({ collapsed }: { collapsed: boolean }) {
 
 function CheckoutIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M12 3v12" />
       <path d="m8 11 4 4 4-4" />
       <path d="M5 21h14" />
@@ -491,13 +516,11 @@ function StatusPill({ state, className = "" }: { state: string; className?: stri
     "inline-flex items-center whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-medium capitalize leading-4 ring-1",
     statusTone(state),
     className
-  ].filter(Boolean).join(" ")
+  ]
+    .filter(Boolean)
+    .join(" ")
 
-  return (
-    <span className={classes}>
-      {statusLabel(state)}
-    </span>
-  )
+  return <span className={classes}>{statusLabel(state)}</span>
 }
 
 export function InboxView({ instanceUrl }: { instanceUrl: string }) {
@@ -563,10 +586,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     refetchOnMount: "always",
     staleTime: 15_000
   })
-  const unreadCount = notificationsQuery.data?.unread_count ??
-    unreadCountQuery.data ??
-    bootstrapQuery.data?.unread_notifications_count ??
-    0
+  const unreadCount = notificationsQuery.data?.unread_count ?? unreadCountQuery.data ?? bootstrapQuery.data?.unread_notifications_count ?? 0
 
   const clearToastTimer = () => {
     if (toastTimerRef.current) {
@@ -603,10 +623,13 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       return
     }
 
-    toastTimerRef.current = window.setTimeout(() => {
-      toastTimerRef.current = null
-      setToast(null)
-    }, toast.durationMs ?? (toast.kind === "success" ? 2800 : 5000))
+    toastTimerRef.current = window.setTimeout(
+      () => {
+        toastTimerRef.current = null
+        setToast(null)
+      },
+      toast.durationMs ?? (toast.kind === "success" ? 2800 : 5000)
+    )
 
     return clearToastTimer
   }, [toast])
@@ -749,9 +772,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   const openChat = (originChat: SyrusJobOriginChat) => {
-    void window.syrusDesktop.openInSyrus(
-      `/app-shell/chats/${originChat.chat_session_id}#message-${originChat.message_id}`
-    )
+    void window.syrusDesktop.openInSyrus(`/app-shell/chats/${originChat.chat_session_id}#message-${originChat.message_id}`)
   }
 
   const openRepository = (repositoryId?: number) => {
@@ -772,9 +793,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       return {
         ...current,
         unread_count: payload.unread_count,
-        notifications: current.notifications.map((notification) =>
-          notification.id === payload.notification.id ? payload.notification : notification
-        )
+        notifications: current.notifications.map((notification) => (notification.id === payload.notification.id ? payload.notification : notification))
       }
     })
     queryClient.setQueryData(["notification-unread-count", instanceUrl], payload.unread_count)
@@ -845,11 +864,14 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       await refreshLocalStatus()
       showToast({ kind: "success", message: `Checked out EPIC-${epicId}` }, 4000)
     } catch (checkoutError) {
-      showToast({
-        kind: "error",
-        message: checkoutError instanceof Error ? checkoutError.message : "Epic checkout failed.",
-        copyCommand: command
-      }, 7000)
+      showToast(
+        {
+          kind: "error",
+          message: checkoutError instanceof Error ? checkoutError.message : "Epic checkout failed.",
+          copyCommand: command
+        },
+        7000
+      )
     } finally {
       setIsCheckingOut(false)
     }
@@ -861,14 +883,17 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     try {
       const result = await window.syrusDesktop.installSyrusCli()
       if (result.installed) {
-        showToast({
-          kind: "success",
-          message: result.onPath
-            ? "Syrus CLI installed — Checkout is ready."
-            : window.syrusDesktop.platform === "win32"
-              ? "Syrus CLI installed — open a NEW terminal to use `syrus`."
-              : 'Syrus CLI installed. For terminals, add: export PATH="$HOME/.local/bin:$PATH"'
-        }, 7000)
+        showToast(
+          {
+            kind: "success",
+            message: result.onPath
+              ? "Syrus CLI installed — Checkout is ready."
+              : window.syrusDesktop.platform === "win32"
+                ? "Syrus CLI installed — open a NEW terminal to use `syrus`."
+                : 'Syrus CLI installed. For terminals, add: export PATH="$HOME/.local/bin:$PATH"'
+          },
+          7000
+        )
         void cliStatusQuery.refetch()
       } else {
         showToast({ kind: "error", message: result.error ?? "Could not install the Syrus CLI." }, 7000)
@@ -893,11 +918,14 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       showToast({ kind: "success", message: `Checked out ${result.branchName}` }, 4000)
       setNavigation({ view: "job-detail", jobId: job.id })
     } catch (checkoutError) {
-      showToast({
-        kind: "error",
-        message: checkoutError instanceof Error ? checkoutError.message : "Local checkout failed.",
-        copyCommand: command
-      }, 7000)
+      showToast(
+        {
+          kind: "error",
+          message: checkoutError instanceof Error ? checkoutError.message : "Local checkout failed.",
+          copyCommand: command
+        },
+        7000
+      )
     } finally {
       setIsCheckingOut(false)
     }
@@ -910,7 +938,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     try {
       await window.syrusDesktop.approveJob(job.id)
       queryClient.setQueryData<SyrusJobItem[]>(["inbox-jobs", instanceUrl], (currentJobs = []) =>
-        currentJobs.map((currentJob) => currentJob.id === job.id ? { ...currentJob, state: "approved", summary_state: "approved" } : currentJob)
+        currentJobs.map((currentJob) => (currentJob.id === job.id ? { ...currentJob, state: "approved", summary_state: "approved" } : currentJob))
       )
       showToast({ kind: "success", message: `JOB-${job.id} approved` })
       void inboxQuery.refetch()
@@ -1025,12 +1053,15 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   const handleComposeSuccess = (result: SyrusCreateJobResponse, repoSlug: string) => {
     setIsComposeOpen(false)
-    showToast({
-      kind: "success",
-      message: `Job queued in ${repoSlug}`,
-      actionLabel: "Open in Syrus",
-      actionUrl: `${normalizeInstanceUrl(instanceUrl)}${result.redirect_to}`
-    }, 7000)
+    showToast(
+      {
+        kind: "success",
+        message: `Job queued in ${repoSlug}`,
+        actionLabel: "Open in Syrus",
+        actionUrl: `${normalizeInstanceUrl(instanceUrl)}${result.redirect_to}`
+      },
+      7000
+    )
     void inboxQuery.refetch()
   }
 
@@ -1041,9 +1072,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const cliBundleMissing = cliStatusQuery.data?.bundledAvailable === false
   const checkedOutJobId = localStatus && localStatus.job_id > 0 ? localStatus.job_id : null
   const checkedOutJob = checkedOutJobId ? jobs.find((job) => job.id === checkedOutJobId) : undefined
-  const checkedOutJobVisible = Boolean(
-    checkedOutJob && !collapsedRepositorySlugs.has(checkedOutJob.repository_slug)
-  )
+  const checkedOutJobVisible = Boolean(checkedOutJob && !collapsedRepositorySlugs.has(checkedOutJob.repository_slug))
 
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
@@ -1053,22 +1082,19 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           aria-label="Checking out branch…"
           className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80"
         >
-          <svg
-            aria-hidden="true"
-            className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
+          <svg aria-hidden="true" className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
-            <path
-              fill="currentColor"
-              className="opacity-75"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
+            <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
         </div>
       )}
-      <header className={navigation.view === "feedback" ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900" : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"}>
+      <header
+        className={
+          navigation.view === "feedback"
+            ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+            : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+        }
+      >
         {navigation.view === "feedback" ? (
           <>
             <button
@@ -1080,7 +1106,9 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
             >
               <BackIcon />
             </button>
-            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">Feedback</div>
+            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">
+              {t("renderer.feedback")}
+            </div>
             <button
               type="button"
               className="feedback-submit-button"
@@ -1088,23 +1116,19 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
               ref={feedbackSubmitButtonRef}
               onClick={() => void submitFeedback()}
             >
-              {feedbackSubmitting ? "Sending…" : "Submit"}
+              {feedbackSubmitting ? t("renderer.sending") : t("renderer.submit")}
             </button>
           </>
         ) : navigation.view === "notifications" ? (
           <>
             <div className="flex w-24 items-center">
-              <button
-                type="button"
-                className="icon-button"
-                title="Back"
-                aria-label="Back"
-                onClick={() => setNavigation({ view: "inbox" })}
-              >
+              <button type="button" className="icon-button" title="Back" aria-label="Back" onClick={() => setNavigation({ view: "inbox" })}>
                 <BackIcon />
               </button>
             </div>
-            <div className="min-w-0 flex-1 truncate text-center text-sm font-semibold leading-5 text-slate-950 dark:text-slate-100">Notifications</div>
+            <div className="min-w-0 flex-1 truncate text-center text-sm font-semibold leading-5 text-slate-950 dark:text-slate-100">
+              {t("renderer.notifications")}
+            </div>
             <div className="flex min-w-24 justify-end">
               <button
                 type="button"
@@ -1120,13 +1144,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           <>
             <div className="flex min-w-0 items-center gap-2">
               {navigation.view === "job-detail" ? (
-                <button
-                  type="button"
-                  className="icon-button"
-                  title="Back"
-                  aria-label="Back"
-                  onClick={() => setNavigation({ view: "inbox" })}
-                >
+                <button type="button" className="icon-button" title="Back" aria-label="Back" onClick={() => setNavigation({ view: "inbox" })}>
                   <BackIcon />
                 </button>
               ) : null}
@@ -1180,12 +1198,12 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       </header>
 
       {cliMissing ? (
-        <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" data-testid="cli-missing-banner">
+        <div
+          className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+          data-testid="cli-missing-banner"
+        >
           {cliBundleMissing ? (
-            <span>
-              This app build is missing its bundled Syrus CLI — reinstall the app from the latest release, or
-              install the CLI from a repo clone.
-            </span>
+            <span>This app build is missing its bundled Syrus CLI — reinstall the app from the latest release, or install the CLI from a repo clone.</span>
           ) : (
             <>
               <span>Install the Syrus CLI to enable local branch checkout.</span>
@@ -1272,13 +1290,9 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
             onRetryLoad={() => void notificationsQuery.refetch()}
           />
         ) : isComposeOpen ? (
-          <ComposePanel
-            panelRef={composeRef}
-            onCancel={() => setIsComposeOpen(false)}
-            onSuccess={handleComposeSuccess}
-          />
+          <ComposePanel panelRef={composeRef} onCancel={() => setIsComposeOpen(false)} onSuccess={handleComposeSuccess} />
         ) : inboxQuery.isLoading ? (
-          <StatusPanel title="Loading inbox" />
+          <StatusPanel title={t("renderer.loading_inbox")} />
         ) : inboxQuery.isError ? (
           isUnauthorizedError(inboxQuery.error) ? (
             <StatusPanel
@@ -1292,18 +1306,16 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           ) : (
             <StatusPanel
               title="Could not load inbox"
-              detail={inboxQuery.error instanceof Error ? inboxQuery.error.message : "Try again in a moment."}
-              actionLabel="Retry"
+              detail={inboxQuery.error instanceof Error ? inboxQuery.error.message : t("renderer.try_later")}
+              actionLabel={t("common.retry")}
               onAction={() => void inboxQuery.refetch()}
             />
           )
         ) : jobs.length === 0 ? (
-          <StatusPanel title="Nothing in your inbox" detail="Implemented and failed jobs will appear here." />
+          <StatusPanel title={t("renderer.empty_inbox")} detail={t("renderer.empty_inbox_detail")} />
         ) : (
           <>
-            {localStatus && checkedOutJobId && !checkedOutJobVisible ? (
-              <LocalCheckoutStatusLine status={localStatus} />
-            ) : null}
+            {localStatus && checkedOutJobId && !checkedOutJobVisible ? <LocalCheckoutStatusLine status={localStatus} /> : null}
             <ul className="job-list">
               {groupJobsByRepository(jobs).map((group) => {
                 const isCollapsed = collapsedRepositorySlugs.has(group.repositorySlug)
@@ -1387,25 +1399,27 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                                 )}
                               </div>
                             </li>,
-                            ...(!epicCollapsed ? entry.jobs.map((job) => (
-                              <JobRow
-                                key={`${job.state}-${job.id}`}
-                                job={job}
-                                checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
-                                localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
-                                cliAvailable={cliStatusQuery.data?.available ?? false}
-                                retrying={retryingJobID === job.id}
-                                indented
-                                onOpenDetail={() => openJobDetail(job)}
-                                onOpenJob={() => openJob(job)}
-                                onOpenPullRequest={() => openPullRequest(job)}
-                                onCheckout={() => void checkoutJob(job)}
-                                onApprove={() => void approveJob(job)}
-                                onRetry={() => void retryJob(job)}
-                                approving={pendingApprovals.has(job.id)}
-                                optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
-                              />
-                            )) : [])
+                            ...(!epicCollapsed
+                              ? entry.jobs.map((job) => (
+                                  <JobRow
+                                    key={`${job.state}-${job.id}`}
+                                    job={job}
+                                    checkoutStatus={checkoutStatusByRepo[job.repository_slug]}
+                                    localStatus={localStatus?.job_id === job.id ? localStatus : undefined}
+                                    cliAvailable={cliStatusQuery.data?.available ?? false}
+                                    retrying={retryingJobID === job.id}
+                                    indented
+                                    onOpenDetail={() => openJobDetail(job)}
+                                    onOpenJob={() => openJob(job)}
+                                    onOpenPullRequest={() => openPullRequest(job)}
+                                    onCheckout={() => void checkoutJob(job)}
+                                    onApprove={() => void approveJob(job)}
+                                    onRetry={() => void retryJob(job)}
+                                    approving={pendingApprovals.has(job.id)}
+                                    optimisticState={pendingApprovals.has(job.id) ? "approved" : undefined}
+                                  />
+                                ))
+                              : [])
                           ]
                         })}
                       </ul>
@@ -1483,22 +1497,15 @@ export function CliInstallSection() {
             <span className="form-success">Installed — kept current automatically with app updates.</span>
           ) : bundleMissing ? (
             <span className="status-line">
-              Not installed — this app build carries no bundled CLI, so reinstalling from here can't work.
-              Reinstall the app from the latest release, or install the CLI from a repo clone.
+              Not installed — this app build carries no bundled CLI, so reinstalling from here can't work. Reinstall the app from the latest release, or install
+              the CLI from a repo clone.
             </span>
           ) : (
-            <span className="status-line">
-              Not installed — it normally installs itself when the app starts, so something went wrong.
-            </span>
+            <span className="status-line">Not installed — it normally installs itself when the app starts, so something went wrong.</span>
           )}
         </div>
         {status === "missing" ? (
-          <button
-            className="primary-button"
-            disabled={installing || bundleMissing}
-            onClick={() => void install()}
-            type="button"
-          >
+          <button className="primary-button" disabled={installing || bundleMissing} onClick={() => void install()} type="button">
             {installing ? "Installing…" : "Reinstall CLI"}
           </button>
         ) : (
@@ -1517,15 +1524,18 @@ export function CliInstallSection() {
       {result?.installed ? (
         <p className="status-line">
           Installed to {result.target}
-          {result.signedIn ? " — already signed in via this app's credentials" : ""}.
-          {result.skillInstalled ? " Claude Code skill added." : null}
+          {result.signedIn ? " — already signed in via this app's credentials" : ""}.{result.skillInstalled ? " Claude Code skill added." : null}
           {result.skillError ? ` Claude Code skill failed: ${result.skillError}` : null}
           {!result.onPath ? (
             window.syrusDesktop?.platform === "win32" ? (
-              <> Open a NEW terminal to use <code>syrus</code>.</>
+              <>
+                {" "}
+                Open a NEW terminal to use <code>syrus</code>.
+              </>
             ) : (
               <>
-                {" "}Add it to your PATH: <code>export PATH="$HOME/.local/bin:$PATH"</code>
+                {" "}
+                Add it to your PATH: <code>export PATH="$HOME/.local/bin:$PATH"</code>
               </>
             )
           ) : null}
@@ -1585,32 +1595,28 @@ function NotificationsView({
   onRetryLoad: () => void
 }) {
   if (isLoading) {
-    return <StatusPanel title="Loading notifications" />
+    return <StatusPanel title={t("renderer.loading_notifications")} />
   }
 
   if (isError) {
     return (
       <StatusPanel
         title="Could not load notifications"
-        detail={error instanceof Error ? error.message : "Try again in a moment."}
-        actionLabel="Retry"
+        detail={error instanceof Error ? error.message : t("renderer.try_later")}
+        actionLabel={t("common.retry")}
         onAction={onRetryLoad}
       />
     )
   }
 
   if (notifications.length === 0) {
-    return <StatusPanel title="No notifications" />
+    return <StatusPanel title={t("renderer.no_notifications")} />
   }
 
   return (
     <ul className="notification-list">
       {notifications.map((notification) => (
-        <NotificationRow
-          key={notification.id}
-          notification={notification}
-          onOpen={() => onOpenNotification(notification)}
-        />
+        <NotificationRow key={notification.id} notification={notification} onOpen={() => onOpenNotification(notification)} />
       ))}
     </ul>
   )
@@ -1621,11 +1627,7 @@ function NotificationRow({ notification, onOpen }: { notification: SyrusNotifica
 
   return (
     <li>
-      <button
-        type="button"
-        className={["notification-row", read ? "" : "notification-row--unread"].filter(Boolean).join(" ")}
-        onClick={onOpen}
-      >
+      <button type="button" className={["notification-row", read ? "" : "notification-row--unread"].filter(Boolean).join(" ")} onClick={onOpen}>
         <span className={`notification-kind ${notificationKindIconClass(notification.kind)}`} aria-hidden="true">
           <span className="notification-kind__dot" />
         </span>
@@ -1730,22 +1732,22 @@ function JobDetailView({
   }, [job, detail])
 
   if (!job && isLoading) {
-    return <StatusPanel title="Loading job" />
+    return <StatusPanel title={t("renderer.loading_job")} />
   }
 
   if (!job && isError) {
     return (
       <StatusPanel
         title="Could not load job"
-        detail={error instanceof Error ? error.message : "Try again in a moment."}
-        actionLabel="Retry"
+        detail={error instanceof Error ? error.message : t("renderer.try_later")}
+        actionLabel={t("common.retry")}
         onAction={onRetryLoad}
       />
     )
   }
 
   if (!job) {
-    return <StatusPanel title="Job unavailable" />
+    return <StatusPanel title={t("renderer.job_unavailable")} />
   }
 
   const command = `syrus checkout JOB-${job.id}`
@@ -1838,7 +1840,9 @@ function JobDetailView({
                   {testPlan.steps.map((step, index) => (
                     <li className="test-plan__step" key={`${index}-${step}`}>
                       <span className="test-plan__checkbox" aria-hidden="true" />
-                      <span><InlineMarkdown text={step} /></span>
+                      <span>
+                        <InlineMarkdown text={step} />
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -1911,7 +1915,11 @@ function FeedbackView({
           }
         }}
       />
-      {error ? <p className="feedback-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="feedback-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </form>
   )
 }
@@ -1971,7 +1979,7 @@ function JobActionButtons({
       ) : null}
       <button type="button" className="detail-action-button" onClick={onOpenJob}>
         <ExternalIcon />
-        <span>Open in Syrus</span>
+        <span>{t("renderer.open_syrus")}</span>
       </button>
       {onOpenChat ? (
         <button type="button" className="detail-action-button" onClick={onOpenChat}>
@@ -1981,11 +1989,11 @@ function JobActionButtons({
       ) : null}
       <button type="button" className="detail-action-button" disabled={!job.pr_url} onClick={onOpenPullRequest}>
         <GitPullRequestIcon />
-        <span>{job.pr_url ? "Open PR" : "No PR"}</span>
+        <span>{job.pr_url ? t("renderer.open_pr") : t("renderer.no_pr")}</span>
       </button>
       <button type="button" className="detail-action-button" disabled={!checkoutEnabled} title={checkoutTitle} onClick={onCheckout}>
         <TerminalIcon />
-        <span>Checkout locally</span>
+        <span>{t("renderer.checkout")}</span>
       </button>
     </div>
   )
@@ -2063,18 +2071,13 @@ function AdminControlToggle({
   return (
     <button
       type="button"
-      className={[
-        "admin-toggle",
-        isPaused ? "admin-toggle--paused" : "admin-toggle--running"
-      ].join(" ")}
+      className={["admin-toggle", isPaused ? "admin-toggle--paused" : "admin-toggle--running"].join(" ")}
       disabled={disabled || isUnknown}
       onClick={onToggle}
       title={isUnknown ? `${label} status loading` : isPaused ? `Resume ${label.toLowerCase()}` : `Pause ${label.toLowerCase()}`}
     >
       <span>{label}</span>
-      <span className="admin-toggle__state">
-        {isPending ? "Saving" : isUnknown ? "Loading" : isPaused ? "Paused" : "Running"}
-      </span>
+      <span className="admin-toggle__state">{isPending ? "Saving" : isUnknown ? "Loading" : isPaused ? "Paused" : "Running"}</span>
     </button>
   )
 }
@@ -2101,11 +2104,19 @@ function StatusPanel({
         {detail ? <p className="mt-2 text-sm leading-5 text-slate-500 dark:text-slate-400">{detail}</p> : null}
         {actionLabel && onAction ? (
           <div className="mt-4 flex items-center justify-center gap-2">
-            <button type="button" className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800" onClick={onAction}>
+            <button
+              type="button"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              onClick={onAction}
+            >
               {actionLabel}
             </button>
             {secondaryActionLabel && onSecondaryAction ? (
-              <button type="button" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" onClick={onSecondaryAction}>
+              <button
+                type="button"
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                onClick={onSecondaryAction}
+              >
                 {secondaryActionLabel}
               </button>
             ) : null}
@@ -2122,7 +2133,9 @@ const localStatusWarningTitle = (status: SyrusLocalStatus) =>
 function LocalCheckoutStatusLine({ status }: { status: SyrusLocalStatus }) {
   return (
     <div className="local-checkout-status">
-      <span>Checked out: JOB-{status.job_id} ({status.branch})</span>
+      <span>
+        Checked out: JOB-{status.job_id} ({status.branch})
+      </span>
       {status.behind > 0 ? (
         <span className="local-checkout-status__warning" title={localStatusWarningTitle(status)}>
           <WarningIcon className="h-3.5 w-3.5" />
@@ -2257,7 +2270,9 @@ function JobRow({
     "job-row__copy-icon",
     copyState === "success" ? "job-row__copy-icon--success" : "",
     copyState === "error" ? "job-row__copy-icon--error" : ""
-  ].filter(Boolean).join(" ")
+  ]
+    .filter(Boolean)
+    .join(" ")
 
   return (
     <li
@@ -2272,12 +2287,7 @@ function JobRow({
     >
       <div className="job-row__content">
         <span className="job-title-tooltip" data-tooltip={jobTitle(job)}>
-          <button
-            type="button"
-            className="job-row__title"
-            title={jobTitle(job)}
-            onClick={onOpenDetail}
-          >
+          <button type="button" className="job-row__title" title={jobTitle(job)} onClick={onOpenDetail}>
             {jobTitle(job)}
           </button>
         </span>
@@ -2310,14 +2320,7 @@ function JobRow({
 
       <div className="job-row__actions" ref={menuRef}>
         {isFailed ? (
-          <button
-            type="button"
-            className="row-primary-action"
-            title="Retry job"
-            aria-label={`Retry JOB-${job.id}`}
-            disabled={retrying}
-            onClick={onRetry}
-          >
+          <button type="button" className="row-primary-action" title="Retry job" aria-label={`Retry JOB-${job.id}`} disabled={retrying} onClick={onRetry}>
             {retrying ? "Retrying" : "Retry"}
           </button>
         ) : null}
@@ -2458,7 +2461,7 @@ function ComposePanel({
     <section className="compose-panel" aria-label="Compose direct job" ref={panelRef}>
       <form className="compose-form" onSubmit={submitJob}>
         <label className="compose-field">
-          <span>Prompt</span>
+          <span>{t("renderer.prompt")}</span>
           <textarea
             className="compose-prompt"
             disabled={isSubmitting}
@@ -2472,7 +2475,7 @@ function ComposePanel({
         </label>
 
         <label className="compose-field">
-          <span>Repository</span>
+          <span>{t("renderer.repository")}</span>
           <RepoPicker value={repoSlug} onChange={setRepoSlug} disabled={isSubmitting} />
         </label>
 
@@ -2484,7 +2487,7 @@ function ComposePanel({
             Cancel
           </button>
           <button type="submit" className="primary-button" disabled={isSubmitting || repositoriesQuery.isLoading}>
-            {isSubmitting ? "Submitting..." : "Submit"}
+            {isSubmitting ? t("renderer.sending") : t("renderer.submit")}
           </button>
         </div>
       </form>
@@ -2507,11 +2510,14 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
   return (
     <main className="flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <header className="border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-        <HeaderBrand title="New job" instanceUrl={instanceUrl} />
+        <HeaderBrand title={t("renderer.new_job")} instanceUrl={instanceUrl} />
       </header>
 
       {toast ? (
-        <div className="mx-3 mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" role="status">
+        <div
+          className="mx-3 mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+          role="status"
+        >
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0 overflow-wrap-anywhere">{toast.message}</span>
             {toast.actionLabel && toast.actionUrl ? (
@@ -2759,17 +2765,14 @@ export function App() {
       <main className="shell">
         <section className="panel panel--status" aria-label="Loading Syrus Desktop">
           <p className="eyebrow">Syrus</p>
-          <h1>Loading</h1>
+          <h1>{t("renderer.loading")}</h1>
         </section>
       </main>
     )
   }
 
   if (authState === "setup") {
-    const tabClass = (tab: PreferencesTab) => [
-      "preferences-tab",
-      preferencesTab === tab ? "preferences-tab--active" : ""
-    ].join(" ")
+    const tabClass = (tab: PreferencesTab) => ["preferences-tab", preferencesTab === tab ? "preferences-tab--active" : ""].join(" ")
 
     return (
       <main className="shell">
@@ -2805,20 +2808,13 @@ export function App() {
           </div>
 
           {preferencesTab === "account" ? (
-            <form
-              className="settings-form"
-              id="preferences-account-panel"
-              role="tabpanel"
-              aria-labelledby="preferences-account-tab"
-              onSubmit={saveCredentials}
-            >
+            <form className="settings-form" id="preferences-account-panel" role="tabpanel" aria-labelledby="preferences-account-tab" onSubmit={saveCredentials}>
               {/* Most users never touch this: signing in inside the Syrus
                   window mints the token automatically. This manual form is
                   the fallback for non-admin accounts on shared instances
                   and scripted setups. */}
               <p className="status-line" style={{ margin: 0 }}>
-                Signing in inside the Syrus window connects this{" "}
-                {window.syrusDesktop?.platform === "win32" ? "tray" : "menu-bar"} app automatically. Use this
+                Signing in inside the Syrus window connects this {window.syrusDesktop?.platform === "win32" ? "tray" : "menu-bar"} app automatically. Use this
                 form only if that didn&apos;t happen — for example with a non-admin account.
               </p>
 
@@ -2876,17 +2872,9 @@ export function App() {
 
                 <div className="shortcut-row">
                   <div className="shortcut-details">
-                    <span className={globalHotkey ? "shortcut-pill" : "shortcut-pill shortcut-pill--empty"}>
-                      {displayHotkey(globalHotkey)}
-                    </span>
+                    <span className={globalHotkey ? "shortcut-pill" : "shortcut-pill shortcut-pill--empty"}>{displayHotkey(globalHotkey)}</span>
                     {isRecordingHotkey ? (
-                      <div
-                        ref={hotkeyRecorderRef}
-                        className="shortcut-recorder"
-                        aria-label="Keyboard shortcut recorder"
-                        tabIndex={0}
-                        onKeyDown={recordHotkey}
-                      >
+                      <div ref={hotkeyRecorderRef} className="shortcut-recorder" aria-label="Keyboard shortcut recorder" tabIndex={0} onKeyDown={recordHotkey}>
                         <span>Press a shortcut</span>
                         <strong>{hotkeyDraft ? displayHotkey(hotkeyDraft) : "Waiting for keys"}</strong>
                       </div>
@@ -2972,11 +2960,7 @@ export function App() {
                         <input
                           type="text"
                           value={draft.localPath}
-                          placeholder={
-                            window.syrusDesktop?.platform === "win32"
-                              ? "C:\\absolute\\path\\to\\repo"
-                              : "/absolute/path/to/repo"
-                          }
+                          placeholder={window.syrusDesktop?.platform === "win32" ? "C:\\absolute\\path\\to\\repo" : "/absolute/path/to/repo"}
                           aria-label="Repository local path"
                           onChange={(event) => updateRepoPathDraft(draft.id, "localPath", event.target.value)}
                         />
@@ -3006,9 +2990,7 @@ export function App() {
           )}
         </section>
 
-        {appVersion ? (
-          <p className="pb-4 text-center text-xs text-slate-400 dark:text-slate-500">Syrus v{appVersion}</p>
-        ) : null}
+        {appVersion ? <p className="pb-4 text-center text-xs text-slate-400 dark:text-slate-500">Syrus v{appVersion}</p> : null}
       </main>
     )
   }

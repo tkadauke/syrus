@@ -10,15 +10,22 @@ import { promisify } from "node:util"
 import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
 import { AppUserCableClient } from "./appUserCable.js"
 import { dispatchNativeNotification } from "./nativeNotifications.js"
-import {
-  deleteCredentialsFile,
-  parseCredentials,
-  readCredentialsFile,
-  validateCredentialsShape,
-  writeCredentialsFile
-} from "./credentialsStore.js"
+import { appLocale, t } from "./i18n.js"
+import { deleteCredentialsFile, parseCredentials, readCredentialsFile, validateCredentialsShape, writeCredentialsFile } from "./credentialsStore.js"
 import type { Credentials } from "./credentialsStore.js"
-import { clearBackendConfig, currentChannel, currentStackIdentity, defaultGlobalHotkey, getBackendMode, getOnboardingResumeLocal, getServerUrl, localStateDir, migrateBackendConfig, saveBackendConfig, store } from "./settings.js"
+import {
+  clearBackendConfig,
+  currentChannel,
+  currentStackIdentity,
+  defaultGlobalHotkey,
+  getBackendMode,
+  getOnboardingResumeLocal,
+  getServerUrl,
+  localStateDir,
+  migrateBackendConfig,
+  saveBackendConfig,
+  store
+} from "./settings.js"
 import type { DesktopSettings, DesktopSettingsInput } from "./settings.js"
 import * as appUpdates from "./appUpdates.js"
 import * as backendLifecycle from "./installer/backendLifecycle.js"
@@ -326,17 +333,12 @@ const normalizeUnreadCount = (value: unknown) => {
   return Math.max(0, Math.floor(value))
 }
 
-const trayBadgeLabel = (count: number) => count > 9 ? "9+" : String(count)
+const trayBadgeLabel = (count: number) => (count > 9 ? "9+" : String(count))
 
 // The mac menu bar wants the monochrome template glyph; the Windows
 // taskbar wants the full-color brand icon (a black template glyph is
 // invisible on Win11's dark taskbar).
-const trayIconPath = () =>
-  path.join(
-    app.getAppPath(),
-    "assets",
-    process.platform === "win32" ? "syrusIcon.png" : "syrusMenubarTemplate.png"
-  )
+const trayIconPath = () => path.join(app.getAppPath(), "assets", process.platform === "win32" ? "syrusIcon.png" : "syrusMenubarTemplate.png")
 
 const createPlainTrayIcon = () => {
   const size = process.platform === "win32" ? 16 : 18
@@ -653,14 +655,9 @@ const fetchInboxJobs = async () => {
     throw new Error("Connect Syrus before loading inbox jobs.")
   }
 
-  const lists = await Promise.all([
-    fetchJobList(credentials, "implemented"),
-    fetchJobList(credentials, "failed")
-  ])
+  const lists = await Promise.all([fetchJobList(credentials, "implemented"), fetchJobList(credentials, "failed")])
 
-  return lists
-    .flatMap((list) => list.jobs)
-    .sort(compareInboxJobs)
+  return lists.flatMap((list) => list.jobs).sort(compareInboxJobs)
 }
 
 const fetchJobDetail = async (jobID: number) => {
@@ -871,12 +868,7 @@ const localBinSyrus = () => {
   const name = cliBinaryName()
   if (process.platform === "win32") {
     const appDir = currentChannel() === "test" ? "Syrus Test" : "Syrus"
-    return path.join(
-      process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"),
-      appDir,
-      "bin",
-      `${name}.exe`
-    )
+    return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), appDir, "bin", `${name}.exe`)
   }
   return path.join(os.homedir(), ".local", "bin", name)
 }
@@ -955,9 +947,7 @@ const bundledCliPath = () => {
   // so ONE level up reaches desktop/, where stage-cli.mjs stages
   // resources/cli. Two levels up would point at <repo>/resources/cli and
   // report the bundled CLI missing on every dev run.
-  const bundledDir = app.isPackaged
-    ? path.join(process.resourcesPath, "cli")
-    : path.join(__dirname, "..", "resources", "cli")
+  const bundledDir = app.isPackaged ? path.join(process.resourcesPath, "cli") : path.join(__dirname, "..", "resources", "cli")
   const suffix = process.platform === "win32" ? ".exe" : ""
   return path.join(bundledDir, `syrus-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${suffix}`)
 }
@@ -1139,10 +1129,7 @@ type ShellNoticeState = {
 // The legacy dialog-era keys still count as a dismissal: an install that
 // already answered "Not now" (or the even older CLI-offer dialog with the
 // skill checkbox) must not be re-nagged by the sidebar notice.
-const skillOfferDismissed = () =>
-  store.get("skillOfferDismissed", false) ||
-  store.get("skillInstallOffered", false) ||
-  store.get("cliInstallOffered", false)
+const skillOfferDismissed = () => store.get("skillOfferDismissed", false) || store.get("skillInstallOffered", false) || store.get("cliInstallOffered", false)
 
 // The backend update currently in flight — set by offerBackendUpdateIfPinned's
 // progress feed, cleared (null) when updateBackend finishes either way.
@@ -1241,9 +1228,7 @@ const shellSenderAllowed = (event: Electron.IpcMainInvokeEvent, channel: string)
   }
 
   if (instanceOrigin === null || senderOrigin !== instanceOrigin) {
-    console.warn(
-      `[shell-ipc] refused ${channel}: sender origin ${senderOrigin ?? "<unparseable>"} is not the configured instance origin`
-    )
+    console.warn(`[shell-ipc] refused ${channel}: sender origin ${senderOrigin ?? "<unparseable>"} is not the configured instance origin`)
     return false
   }
 
@@ -1391,11 +1376,7 @@ const localStatusCandidatePaths = () => {
 const parseLocalStatus = (output: string): LocalStatus | null => {
   const payload = JSON.parse(output) as Partial<LocalStatus>
 
-  if (
-    typeof payload.job_id !== "number" ||
-    typeof payload.branch !== "string" ||
-    typeof payload.behind !== "number"
-  ) {
+  if (typeof payload.job_id !== "number" || typeof payload.branch !== "string" || typeof payload.behind !== "number") {
     return null
   }
 
@@ -1489,9 +1470,7 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
       ? `Syrus will stop ${control === "polling" ? "polling repositories" : "starting new Runs"} until an admin resumes it.`
       : `Syrus will resume ${control === "polling" ? "repository polling" : "starting new Runs"}.`
   }
-  const confirmation = parentWindow
-    ? await dialog.showMessageBox(parentWindow, confirmationOptions)
-    : await dialog.showMessageBox(confirmationOptions)
+  const confirmation = parentWindow ? await dialog.showMessageBox(parentWindow, confirmationOptions) : await dialog.showMessageBox(confirmationOptions)
 
   if (confirmation.response !== 0) {
     return { cancelled: true, controls: await fetchAdminControls() }
@@ -2117,7 +2096,8 @@ const offerSetupAfterDataLoss = async () => {
     defaultId: 0,
     cancelId: 1,
     message: "Your local Syrus data is gone.",
-    detail: "Docker is running, but the Syrus data volume no longer exists (it may have been deleted along with your containers). Syrus can't start again until it's set up fresh."
+    detail:
+      "Docker is running, but the Syrus data volume no longer exists (it may have been deleted along with your containers). Syrus can't start again until it's set up fresh."
   })
 
   if (choice.response === 0) {
@@ -2282,8 +2262,7 @@ const confirmAndResetTestSetup = async () => {
     void dialog.showMessageBox({
       type: "info",
       message: "Finishing backend update…",
-      detail:
-        "Syrus is updating the test backend right now. Try Reset Test Setup again once that finishes — usually a minute or two."
+      detail: "Syrus is updating the test backend right now. Try Reset Test Setup again once that finishes — usually a minute or two."
     })
     return
   }
@@ -2341,8 +2320,7 @@ const reportBackendActionFailure = async (label: string) => {
   await dialog.showMessageBox({
     type: "warning",
     message: `Couldn't ${label}.`,
-    detail:
-      "Another backend operation may still be in progress, or Docker isn't ready. Check Backend → Open Install Log for details."
+    detail: "Another backend operation may still be in progress, or Docker isn't ready. Check Backend → Open Install Log for details."
   })
 }
 
@@ -2453,19 +2431,19 @@ const trayContextMenu = () =>
   Menu.buildFromTemplate([
     ...updateMenuItems(),
     {
-      label: "Open Syrus",
+      label: t("shell.open"),
       click: () => {
         void openSyrus()
       }
     },
     {
-      label: "Preferences",
+      label: t("shell.preferences"),
       click: () => {
         void showPreferencesWindow()
       }
     },
     { type: "separator" },
-    { role: "quit", label: "Quit" }
+    { role: "quit", label: t("common.quit") }
   ])
 
 const showTrayContextMenu = () => {
@@ -2548,9 +2526,7 @@ const saveGlobalHotkey = (globalHotkey: string) => {
       registerGlobalHotkey(previousHotkey)
     }
 
-    throw error instanceof Error
-      ? error
-      : new Error("That keyboard shortcut could not be registered. It may already be in use.")
+    throw error instanceof Error ? error : new Error("That keyboard shortcut could not be registered. It may already be in use.")
   }
 }
 
@@ -2561,20 +2537,20 @@ const createMenu = () => {
       submenu: [
         ...updateMenuItems(),
         {
-          label: "Check for Updates…",
+          label: t("shell.check_updates"),
           click: () => {
             void checkForUpdatesInteractively()
           }
         },
         {
-          label: "Run Setup Again…",
+          label: t("shell.setup_again"),
           click: () => {
             void runSetupAgain()
           }
         },
         { type: "separator" },
         {
-          label: "Sign Out",
+          label: t("shell.sign_out"),
           click: async () => {
             await deleteCredentials()
             await showSetupWindow()
@@ -2587,7 +2563,7 @@ const createMenu = () => {
         ...(currentChannel() === "test"
           ? [
               {
-                label: "Reset Test Setup…",
+                label: t("shell.reset_test"),
                 click: () => {
                   void confirmAndResetTestSetup()
                 }
@@ -2595,7 +2571,7 @@ const createMenu = () => {
             ]
           : []),
         {
-          label: "Uninstall Syrus…",
+          label: t("shell.uninstall"),
           click: () => {
             void confirmAndUninstall()
           }
@@ -2605,23 +2581,15 @@ const createMenu = () => {
       ]
     },
     {
-      label: "File",
+      label: t("shell.file"),
       submenu: [{ role: "close" }]
     },
     {
-      label: "Edit",
-      submenu: [
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" }
-      ]
+      label: t("shell.edit"),
+      submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }]
     },
     {
-      label: "View",
+      label: t("shell.view"),
       submenu: [
         { role: "reload" },
         { role: "toggleDevTools" },
@@ -2639,35 +2607,35 @@ const createMenu = () => {
   // remote mode has nothing to start or stop.
   if (getBackendMode() === "local") {
     template.push({
-      label: "Backend",
+      label: t("shell.backend"),
       submenu: [
         {
-          label: "Start Syrus",
+          label: t("shell.start"),
           click: () => {
             void runBackendAction("start Syrus", backendLifecycle.startBackend)
           }
         },
         {
-          label: "Stop Syrus…",
+          label: t("shell.stop"),
           click: () => {
             void confirmStopBackend()
           }
         },
         {
-          label: "Restart Syrus",
+          label: t("shell.restart"),
           click: () => {
             void runBackendAction("restart Syrus", backendLifecycle.restartBackend)
           }
         },
         { type: "separator" },
         {
-          label: "Open Install Log",
+          label: t("shell.install_log"),
           click: () => {
             void shell.openPath(path.join(localStateDir(), "install.log"))
           }
         },
         {
-          label: "Open Data Folder",
+          label: t("shell.data_folder"),
           click: () => {
             void shell.openPath(localStateDir())
           }
@@ -2689,11 +2657,9 @@ ipcMain.handle("choose-local-projects-root", async () => {
   const browserWindow = preferencesWindow ?? mainWindow
   const options: OpenDialogOptions = {
     properties: ["openDirectory"],
-    title: "Choose local projects root"
+    title: t("shell.projects_root")
   }
-  const result = browserWindow
-    ? await dialog.showOpenDialog(browserWindow, options)
-    : await dialog.showOpenDialog(options)
+  const result = browserWindow ? await dialog.showOpenDialog(browserWindow, options) : await dialog.showOpenDialog(options)
 
   return result.canceled ? null : result.filePaths[0]
 })
@@ -2710,9 +2676,7 @@ ipcMain.handle("install-syrus-cli", async (_event, options?: CliInstallOptions) 
   // off on the test channel so Preferences' "Add Claude Code skill" button can
   // never rewrite the shared ~/.claude/skills/syrus with a test build's
   // unreleased content. Mirrors the ensureCliCurrent / shell-bridge gates.
-  performCliInstall(
-    currentChannel() === "test" && options?.withSkill ? { ...options, withSkill: false } : options
-  )
+  performCliInstall(currentChannel() === "test" && options?.withSkill ? { ...options, withSkill: false } : options)
 )
 ipcMain.handle("checkout-availability", async (_event, repoSlug: string) => checkoutAvailability(repoSlug))
 ipcMain.handle("checkout-job", async (_event, request: CheckoutRequest) => checkoutJob(request))
@@ -2864,9 +2828,7 @@ ipcMain.handle("fetch-repositories", async () => fetchRepositories())
 ipcMain.handle("get-last-used-repo", async () => getLastUsedRepo())
 ipcMain.handle("set-last-used-repo", async (_event, repoSlug: string) => setLastUsedRepo(repoSlug))
 ipcMain.handle("fetch-admin-controls", async () => fetchAdminControls())
-ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) =>
-  toggleAdminControl(event.sender, control, pause)
-)
+ipcMain.handle("toggle-admin-control", async (event, control: AdminControl, pause: boolean) => toggleAdminControl(event.sender, control, pause))
 ipcMain.handle("create-direct-job", async (_event, request: CreateJobRequest) => createDirectJob(request))
 // "Generate a token" in Preferences: API tokens live on the instance's own
 // account-settings page (generate/rotate/revoke), so open that in the
@@ -2897,13 +2859,9 @@ ipcMain.handle("onboarding:get-state", async () => ensureOnboardingDriver().getS
 ipcMain.handle("onboarding:choose-mode", async (_event, mode: "local" | "remote") => {
   ensureOnboardingDriver().chooseMode(mode)
 })
-ipcMain.handle("onboarding:connect-remote", async (_event, request: { url: string }) =>
-  ensureOnboardingDriver().connectRemote(request)
-)
+ipcMain.handle("onboarding:connect-remote", async (_event, request: { url: string }) => ensureOnboardingDriver().connectRemote(request))
 // Advisory: powers the connect form's live "Syrus found here" check.
-ipcMain.handle("onboarding:probe-instance", async (_event, request: { url: string }) =>
-  ensureOnboardingDriver().probeInstance(request)
-)
+ipcMain.handle("onboarding:probe-instance", async (_event, request: { url: string }) => ensureOnboardingDriver().probeInstance(request))
 // One-click WSL 2 install (Windows; elevates via UAC).
 ipcMain.handle("onboarding:install-wsl", async () => ensureOnboardingDriver().installWsl())
 ipcMain.handle("onboarding:start-install", async (_event, port?: number) => {
@@ -2918,12 +2876,8 @@ ipcMain.handle("onboarding:retry", async () => ensureOnboardingDriver().precheck
 ipcMain.handle("onboarding:back", async () => {
   await ensureOnboardingDriver().backToWelcome()
 })
-ipcMain.handle("onboarding:locate-env", async (event) =>
-  ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender))
-)
-ipcMain.handle("onboarding:wipe-data", async (event) =>
-  ensureOnboardingDriver().wipeData(BrowserWindow.fromWebContents(event.sender))
-)
+ipcMain.handle("onboarding:locate-env", async (event) => ensureOnboardingDriver().locateEnv(BrowserWindow.fromWebContents(event.sender)))
+ipcMain.handle("onboarding:wipe-data", async (event) => ensureOnboardingDriver().wipeData(BrowserWindow.fromWebContents(event.sender)))
 ipcMain.handle("onboarding:open-orbstack-download", async () => {
   ensureOnboardingDriver().openOrbStackDownload()
 })
@@ -2994,11 +2948,7 @@ app.on("second-instance", (_event, _argv, _cwd, additionalData) => {
   // macOS-only for now, matching selfInstall.ts.
   // darwin + win32: both platforms can launch the incoming copy directly
   // (open -n / spawn of the exe path); see selfInstall.launchInstalledCopy.
-  if (
-    (process.platform === "darwin" || process.platform === "win32") &&
-    !takeoverPromptOpen &&
-    decideOnSecondInstance(own, incoming) === "offer"
-  ) {
+  if ((process.platform === "darwin" || process.platform === "win32") && !takeoverPromptOpen && decideOnSecondInstance(own, incoming) === "offer") {
     takeoverPromptOpen = true
     const prompt = takeoverPrompt(own, incoming as InstanceIdentity)
     void dialog
@@ -3082,7 +3032,8 @@ app.whenReady().then(async () => {
         const prompt = replacePrompt({
           existingVersion: await installedBundleVersion(target.path),
           newVersion: app.getVersion(),
-          targetPath: target.path
+          targetPath: target.path,
+          locale: appLocale()
         })
         // The dock is hidden and no window exists yet: without stealing
         // focus, macOS can leave this parentless dialog behind Finder while
@@ -3108,7 +3059,8 @@ app.whenReady().then(async () => {
             const failure = launchFailedPrompt({
               targetPath: target.path,
               justInstalled: false,
-              reason: error instanceof Error ? error.message : String(error)
+              reason: error instanceof Error ? error.message : String(error),
+              locale: appLocale()
             })
             app.focus({ steal: true })
             await dialog
@@ -3140,8 +3092,8 @@ app.whenReady().then(async () => {
       console.warn("self-install failed", error)
       const reason = error instanceof Error ? error.message : String(error)
       const failure = installedTo
-        ? launchFailedPrompt({ targetPath: installedTo, justInstalled: true, reason })
-        : installFailedPrompt({ bundleName: path.basename(bundlePath), targetPath: target?.path ?? null, reason })
+        ? launchFailedPrompt({ targetPath: installedTo, justInstalled: true, reason, locale: appLocale() })
+        : installFailedPrompt({ bundleName: path.basename(bundlePath), targetPath: target?.path ?? null, reason, locale: appLocale() })
       app.focus({ steal: true })
       await dialog
         .showMessageBox({
