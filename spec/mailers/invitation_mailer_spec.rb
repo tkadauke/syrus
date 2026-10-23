@@ -17,7 +17,7 @@ RSpec.describe InvitationMailer, type: :mailer do
       expires_at: Time.zone.local(2026, 6, 16, 12, 0, 0)
     )
 
-    mail = described_class.invite(invitation)
+    mail = described_class.with(locale: invitation.locale).invite(invitation)
 
     expect(mail.subject).to eq("You're invited to Syrus")
     expect(mail.to).to eq([ "guest@example.com" ])
@@ -31,5 +31,19 @@ RSpec.describe InvitationMailer, type: :mailer do
     expect(mail.html_part.body.encoded).to include("Ada Lovelace invited you to join Syrus.")
     expect(mail.html_part.body.encoded).to include("http://example.com/users/new?token=#{invitation.token}")
     expect(mail.html_part.body.encoded).to include("This invitation expires on")
+  end
+
+  it "renders delayed delivery in the invitation's persisted locale" do
+    inviter = Factories.user(locale: "de")
+    invitation = Invitation.create!(invited_by: inviter, email_address: "guest@example.com")
+
+    described_class.with(locale: invitation.locale).invite(invitation).deliver_later
+    inviter.update!(locale: "la")
+    perform_enqueued_jobs
+
+    mail = ActionMailer::Base.deliveries.last
+    expect(invitation.reload.locale).to eq("de")
+    expect(mail.subject).to eq("Du wurdest zu Syrus eingeladen")
+    expect(mail.html_part.body.encoded).to include('<html lang="de">')
   end
 end
