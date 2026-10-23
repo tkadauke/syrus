@@ -93,5 +93,13 @@
   "tool_save_snapshot": "Canvas-Snapshot speichern",
   "tool_save_snapshot_named": "Canvas-Snapshot \"{{name}}\" speichern",
   "tool_save_snapshot_recovery": "Prüfen Sie, ob die Zeichenfläche gültige Elemente enthält, und versuchen Sie es erneut.",
+  "tool_mode": "Modus",
+  "tool_mode_merge": "Zusammenführen",
+  "tool_mode_replace": "Ersetzen",
+  "tool_auto_saved_snapshot": "Sicherung vor dem Laden",
+  "tool_auto_saved_snapshot_title": "Sicherung vor dem Laden Nr. {{id}}",
+  "tool_load_snapshot": "Canvas-Snapshot laden",
+  "tool_load_snapshot_attempt": "{{snapshot}} im Modus {{mode}} laden",
+  "tool_load_snapshot_recovery": "Prüfen Sie, ob die Snapshot-ID zu diesem Chat gehört und der ausgewählte Modus gültig ist.",
   "tool_loaded_canvas_summary": "{{snapshot}} geladen{{mode}}"
 }
