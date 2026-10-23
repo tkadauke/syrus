@@ -242,5 +242,8 @@
   "tool_tables_count_other": "{{count}} tabulae in {{database}}",
   "tool_no_tables_in_database": "Nullae tabulae in {{database}}.",
   "tool_table": "Tabula",
-  "tool_table_list": "Index tabularum"
+  "tool_table_list": "Index tabularum",
+  "tool_system_schema": "Schema systematis",
+  "tool_result_database": "Database responsi",
+  "tool_filter_tables": "Tabulas filtra"
 }
