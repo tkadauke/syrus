@@ -75,7 +75,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "single_replacement",
     label: "Single replacement",
-    input: { panel_id: "42", path: "index.html", old_string: "<h1>Draft</h1>", new_string: "<h1>Ready</h1>", replace_all: false },
+    input: { panel_id: "42", path: "index.html", old_string: "Draft heading", new_string: "Ready heading", replace_all: false },
     parsedResult: { panel_id: "42", path: "index.html", replacements: 1 }
   },
   {
