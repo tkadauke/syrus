@@ -201,6 +201,8 @@ describe("AdminToolCards", () => {
     // to whatever width the surrounding container happens to have.
     expect(frame().style.width).toBe("1280px")
     expect(frame().style.maxWidth).toBe("")
+    expect(frame()).toHaveClass("box-border", "max-w-none")
+    expect(frame().parentElement).toHaveClass("min-w-0", "max-w-full", "overflow-x-auto")
 
     fireEvent.click(screen.getByRole("tab", { name: "Wide desktop (1600px)" }))
     expect(frame().style.width).toBe("1600px")

@@ -74,14 +74,14 @@ export const CatalogViewportFrame = forwardRef<HTMLDivElement, {
   className?: string
   width: number
 }>(({ ariaLabel, children, className = "", width }, ref) => (
-  <div className="overflow-x-auto">
+  <div className="min-w-0 max-w-full overflow-x-auto">
     {/* Explicit `width`, not `max-width`: a block element with only
         `max-width` never grows past its parent's actual available width, so
         a preset wider than the ambient page content can silently collapse
         instead of applying the chosen width and scrolling. */}
     <div
       aria-label={ariaLabel}
-      className={`mx-auto rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3 ${className}`}
+      className={`box-border max-w-none rounded-[var(--radius-control)] border border-dashed border-border bg-surface p-3 ${className}`}
       ref={ref}
       style={{ width: `${width}px` }}
     >

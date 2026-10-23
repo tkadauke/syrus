@@ -1,20 +1,67 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard, t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { CardShell, displayValue, EntityReference, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
-// Plugin-owned tool card for delete_scheduled_task (the pending-action tool-card work).
-// Payload: { scheduled_task_id, label, deleted: true }.
+type DeletedScheduledTask = {
+  id: string
+  label: string
+  repositoryId: string | null
+  repositorySlug: string | null
+  schedule: string | null
+  scheduleTimezone: string | null
+}
+
+function parseDeletedScheduledTask(parsed: unknown): DeletedScheduledTask | null {
+  if (!isPlainObject(parsed)) return null
+  const value = isPlainObject(parsed.scheduled_task) ? parsed.scheduled_task : parsed
+  const id = displayValue(value.scheduled_task_id) || displayValue(value.id)
+  const label = displayValue(value.label)
+  if (!id || !label) return null
+
+  const fireAt = displayValue(value.fire_at)
+  return {
+    id,
+    label,
+    repositoryId: displayValue(value.repository_id),
+    repositorySlug: displayValue(value.repository_slug),
+    schedule:
+      displayValue(value.schedule_explanation) ||
+      displayValue(value.schedule_input) ||
+      displayValue(value.cron_expression) ||
+      (fireAt ? t("tool_once_at", { time: fireAt }) : null),
+    scheduleTimezone: displayValue(value.schedule_timezone)
+  }
+}
+
 function collapsedSummary(context: ToolCardContext) {
-  const outcome = parseScheduledTaskOutcome(context.parsedResult)
-  if (!outcome) return null
-
-  return t("tool_deleted_summary", { label: outcome.label, id: outcome.id })
+  const outcome = parseDeletedScheduledTask(context.parsedResult)
+  return outcome ? t("tool_deleted_summary", { label: outcome.label, id: outcome.id }) : null
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const outcome = parseScheduledTaskOutcome(context.parsedResult)
+  const outcome = parseDeletedScheduledTask(context.parsedResult)
   if (!outcome) return null
+  const schedule = outcome.schedule && outcome.scheduleTimezone ? `${outcome.schedule} (${outcome.scheduleTimezone})` : outcome.schedule
 
-  return <ScheduledTaskOutcomeCard detail={t("tool_deleted_detail")} outcome={outcome} pill={t("tool_deleted")} tone="failure" />
+  return (
+    <CardShell>
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <StatePill state={t("tool_deleted")} tone="failure" />
+        <EntityReference id={`TASK-${outcome.id}`} kind="artifact" wrap="nowrap" />
+      </div>
+      <div className="min-w-0 max-w-full break-words text-sm font-medium text-gray-900 [overflow-wrap:anywhere] dark:text-gray-100">{outcome.label}</div>
+      <dl className="grid min-w-0 max-w-full grid-cols-1 gap-1 sm:grid-cols-2">
+        {outcome.repositorySlug ? (
+          <div className="min-w-0 max-w-full overflow-hidden">
+            <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
+            <EntityReference className="max-w-full" kind="repository" repositoryId={outcome.repositoryId} repositorySlug={outcome.repositorySlug} />
+          </div>
+        ) : null}
+        {schedule ? <Row label={t("tool_col_cadence")} value={schedule} /> : null}
+      </dl>
+      <div className="min-w-0 max-w-full break-words text-gray-600 [overflow-wrap:anywhere] dark:text-gray-300">{t("tool_deleted_detail")}</div>
+    </CardShell>
+  )
 }
 
 const deleteScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
@@ -24,3 +71,35 @@ const deleteScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
 })
 
 export default deleteScheduledTaskToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "deleted_task_details",
+    label: "Deleted scheduled task",
+    input: { scheduled_task_id: 12 },
+    parsedResult: {
+      scheduled_task_id: 12,
+      label: "Nightly main-branch health check",
+      repository_id: 7,
+      repository_slug: "acme/widgets",
+      schedule_explanation: "Every day at 02:00 UTC",
+      schedule_timezone: "UTC",
+      deleted: true
+    }
+  },
+  {
+    id: "deleted_one_shot_task",
+    label: "Deleted one-shot task",
+    input: { scheduled_task_id: 13 },
+    parsedResult: {
+      scheduled_task_id: 13,
+      label: "Release reminder",
+      repository_id: 7,
+      repository_slug: "acme/widgets",
+      schedule_timezone: "UTC",
+      fire_at: "2026-11-01T16:30:00Z",
+      deleted: true
+    }
+  },
+  { id: "task_not_found", label: "Task not found", input: { scheduled_task_id: 404 }, resultBody: "scheduled task not found: 404", resultError: true }
+]
