@@ -73,7 +73,7 @@
   "tool_scope_repository": "Repositorium",
   "tool_scope_repository_id": "Repositorium #{{id}}",
   "tool_author": "Auctor",
-  "tool_user_id": "ID usoris domini",
+  "tool_user_id": "ID usoris",
   "tool_source_type": "Genus fontis",
   "tool_source_id": "ID fontis",
   "tool_confidence": "Fiducia",

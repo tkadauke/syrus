@@ -73,7 +73,7 @@
   "tool_scope_repository": "repository",
   "tool_scope_repository_id": "repository #{{id}}",
   "tool_author": "Author",
-  "tool_user_id": "Owner user ID",
+  "tool_user_id": "User ID",
   "tool_source_type": "Source type",
   "tool_source_id": "Source ID",
   "tool_confidence": "Confidence",

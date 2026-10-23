@@ -56,7 +56,7 @@ describe("unpublish_memory tool card", () => {
     expect(screen.getByRole("link", { name: /repository #3/i })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /JOB-44/ })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("link", { name: "https://example.com/runbook" })).toHaveAttribute("href", "https://example.com/runbook")
-    expect(screen.getByText("Owner user ID")).toBeInTheDocument()
+    expect(screen.getByText("User ID")).toBeInTheDocument()
     expect(screen.getByText("7")).toBeInTheDocument()
     expect(screen.getByText("Source type")).toBeInTheDocument()
     expect(screen.getByText("job")).toBeInTheDocument()

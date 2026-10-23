@@ -95,5 +95,5 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: memory not found or not owned: 999",
     resultError: true
   },
-  { id: "pending", label: "Pending unpublish", input: { memory_id: "21" } }
+  { id: "pending", label: "Pending unpublish", input: { memory_id: "21" }, resultBody: "" }
 ]
