@@ -84,6 +84,10 @@
   "tool_resumed_summary": "Resumed '{{label}}' (#{{id}})",
   "tool_resumed_detail": "This task is scheduled again and will fire on its next due tick.",
   "tool_resumed": "resumed",
+  "tool_resume_error_title": "Resume scheduled task",
+  "tool_next_fire_relative": "Next fire (relative)",
+  "tool_next_fire_local": "Next fire (local)",
+  "tool_next_fire_utc": "Next fire (UTC)",
   "tool_deleted_summary": "Deleted task #{{id}}",
   "tool_deleted_detail": "The task was removed and will never fire again.",
   "tool_deleted": "deleted"

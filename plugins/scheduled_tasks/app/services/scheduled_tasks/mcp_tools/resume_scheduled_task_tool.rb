@@ -28,10 +28,15 @@ module ScheduledTasks
 
           task.resume!
 
+          task.reload
           Mcp::Tools.success(
             scheduled_task_id: task.id,
             label: task.name,
-            enabled: true
+            enabled: true,
+            state: task.state,
+            next_fire_at: task.next_fire_at&.iso8601,
+            repository_id: task.repository_id,
+            repository_slug: task.repository&.slug
           )
         rescue ActiveRecord::RecordInvalid => e
           Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
