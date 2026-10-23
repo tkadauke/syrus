@@ -91,6 +91,16 @@ describe("AdminToolCards", () => {
     expect(within(region).queryAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toHaveLength(0)
   })
 
+  it("preserves prior calls used by a plugin card's catalog example", () => {
+    renderRoute("/admin/tool_cards?tool_name=mysql_db_browser_list_databases")
+
+    const region = screen.getByRole("region", { name: "Mysql db browser list databases" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Production reporting (#7)" })).toHaveAttribute("href", "/db_browser?connection_id=7")
+    expect(within(region).queryByRole("link", { name: "Connection #7" })).not.toBeInTheDocument()
+  })
+
   it("renders a core mcp_tool card with multiple examples, including a malformed-payload fallback", () => {
     renderRoute("/admin/tool_cards?tool_name=list_jobs")
 
