@@ -53,6 +53,7 @@
   "tool_prompt_empty": "No prompt was provided.",
   "tool_paused_summary": "Paused '{{label}}' (#{{id}})",
   "tool_paused_detail": "This task will not fire again until it is resumed.",
+  "tool_previous_next_fire": "Previously due",
   "tool_paused": "paused",
   "tool_resumed_summary": "Resumed '{{label}}' (#{{id}})",
   "tool_resumed_detail": "This task is scheduled again and will fire on its next due tick.",

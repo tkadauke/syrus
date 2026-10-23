@@ -53,6 +53,7 @@
   "tool_prompt_empty": "Nullum promptum datum est.",
   "tool_paused_summary": "'{{label}}' pausatum (#{{id}})",
   "tool_paused_detail": "Hoc opus iterum non currit donec resumatur.",
+  "tool_previous_next_fire": "Antea faciendum",
   "tool_paused": "pausatum",
   "tool_resumed_summary": "'{{label}}' resumptum (#{{id}})",
   "tool_resumed_detail": "Hoc opus iterum ordinatum est et proximo tempore debito curret.",
