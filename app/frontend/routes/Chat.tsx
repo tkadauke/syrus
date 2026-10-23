@@ -179,6 +179,7 @@ import {
   defaultWorkspaceTab,
   linkedWorkspaceTab,
   mobileChatTabLabel,
+  requestedWorkspaceTab,
   storeWorkspacePreference,
   storedWorkspaceCollapsed,
   storedWorkspaceTab,
@@ -1310,7 +1311,7 @@ function ChatWorkspace({
     !isDesktop && !showMobileChatColumn
       ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties)
       : undefined
-  const requestedWorkspaceTab = new URLSearchParams(location.search).get("workspace") === "media" ? "media" : null
+  const requestedTab = requestedWorkspaceTab(payload, location.search)
 
   useLayoutEffect(() => {
     const linkedTab = linkedWorkspaceTab(payload, window.location.hash)
@@ -1343,13 +1344,13 @@ function ChatWorkspace({
   }, [activeMobileTab, activeTab, availableTabs, payload])
 
   useEffect(() => {
-    if (requestedWorkspaceTab === null || !availableTabs.includes(requestedWorkspaceTab)) return
+    if (requestedTab === null || !availableTabs.includes(requestedTab)) return
 
     setPanelCollapsed(false)
-    setActiveTab(requestedWorkspaceTab)
-    setActiveMobileTab(requestedWorkspaceTab)
+    setActiveTab(requestedTab)
+    setActiveMobileTab(requestedTab)
     setActiveFindSurface("workspace")
-  }, [availableTabs, payload.chat.id, requestedWorkspaceTab])
+  }, [availableTabs, payload.chat.id, requestedTab])
 
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")

@@ -116,6 +116,10 @@ export type ToolCardExample = {
   // `job` key"). Omit when the label already says it all.
   description?: string
   input?: Record<string, unknown>
+  // Optional owning chat context for cards whose links target chat-local
+  // workspace surfaces. Catalog examples use synthetic IDs, like the other
+  // entity identifiers in their payloads.
+  chatSessionId?: number | string
   priorCalls?: ToolCardPriorCall[]
   // Provide exactly one of resultBody/parsedResult. resultBody is the raw
   // result text a real tool_result would carry (already JSON-encoded where
@@ -170,6 +174,7 @@ export function toolCardContextForExample(toolName: string, example: ToolCardExa
   const resultBody = resolveExampleResultBody(example)
   return {
     toolName,
+    chatSessionId: example.chatSessionId,
     input: example.input,
     priorCalls: example.priorCalls,
     resultBody,

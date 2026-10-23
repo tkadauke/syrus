@@ -150,6 +150,12 @@ describe("pluginToolCards", () => {
       expect(context.resultSettled).toBe(true)
     })
 
+    it("preserves optional chat context for catalog links", () => {
+      const context = toolCardContextForExample("write_preview_file", { id: "linked", label: "Linked", chatSessionId: 8 })
+
+      expect(context.chatSessionId).toBe(8)
+    })
+
     it("preserves an example's explicit in-flight result state", () => {
       const context = toolCardContextForExample("pin_chat", { id: "pending", label: "Pending", resultSettled: false })
 
