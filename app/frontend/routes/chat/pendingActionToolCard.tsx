@@ -304,12 +304,24 @@ function DetailSection({ label, children }: { label: string; children: ReactNode
   )
 }
 
-function ContextRows({ omitBlocker = false, omitJob = false, value }: { omitBlocker?: boolean; omitJob?: boolean; value: TargetContext }) {
+function ContextRows({
+  omitBlocker = false,
+  omitJob = false,
+  omitRun = false,
+  value
+}: {
+  omitBlocker?: boolean
+  omitJob?: boolean
+  omitRun?: boolean
+  value: TargetContext
+}) {
   return (
     <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
       {!omitJob && value.jobId ? <Row label="Job" value={<EntityReference id={value.jobId} kind="job" />} /> : null}
       {value.workflowId ? <Row label="Workflow" value={<EntityReference id={value.workflowId} jobId={value.jobId} kind="workflow" />} /> : null}
-      {value.runId ? <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} /> : null}
+      {!omitRun && value.runId ? (
+        <Row label="Run" value={<EntityReference href={`/admin/runs/${value.runId}/transcript`} id={value.runId} kind="run" />} />
+      ) : null}
       {value.prNumber ? <Row label="Pull request" value={<EntityReference id={value.prNumber} kind="pull_request" prUrl={value.prUrl} />} /> : null}
       {value.branch ? (
         <Row
@@ -501,6 +513,7 @@ export function PendingActionResultCard({
   omitBlocker = false,
   omitJob = false,
   observedSummary = false,
+  omitRun = false,
   omitReason = false,
   omitResource = false,
   result
@@ -514,6 +527,7 @@ export function PendingActionResultCard({
   omitBlocker?: boolean
   omitJob?: boolean
   observedSummary?: boolean
+  omitRun?: boolean
   omitReason?: boolean
   omitResource?: boolean
   result: PendingActionResult
@@ -528,7 +542,7 @@ export function PendingActionResultCard({
         </div>
         <InputDetails fields={inputFields} input={input} />
         <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Error details" text={result.message} />
-        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result.evidence ?? result} />
+        <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result.evidence ?? result} />
         {details}
         {result.evidence ? <EvidenceShaRows evidence={result.evidence} /> : null}
         {!details && !omitReason && result.inputReason ? (
@@ -557,7 +571,7 @@ export function PendingActionResultCard({
       </div>
       <InputDetails fields={inputFields} input={input} />
       {observedSummary ? <ObservedSummary value={result.observed} /> : null}
-      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} value={result} />
+      <ContextRows omitBlocker={omitBlocker} omitJob={omitJob} omitRun={omitRun} value={result} />
       {details}
       {!omitResource && result.resourceTitle && result.resourceUrl ? (
         <Row label="Resource" value={<EntityReference href={result.resourceUrl} id={result.resourceTitle} kind="artifact" label={result.resourceTitle} />} />
