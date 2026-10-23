@@ -4,7 +4,7 @@ import { t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for delete_scheduled_task (the pending-action tool-card work).
 // Payload: { scheduled_task_id, label, repository_slug, schedule_explanation,
-// schedule_timezone, deleted: true }.
+// schedule_timezone, fire_at, deleted: true }.
 type DeletedScheduledTask = {
   id: string
   label: string
@@ -29,7 +29,11 @@ function parseDeletedScheduledTask(parsed: unknown): DeletedScheduledTask | null
     label,
     repositoryId: displayValue(value.repository_id),
     repositorySlug: displayValue(value.repository_slug),
-    schedule: displayValue(value.schedule_explanation) || displayValue(value.schedule_input) || displayValue(value.cron_expression),
+    schedule:
+      displayValue(value.schedule_explanation) ||
+      displayValue(value.schedule_input) ||
+      displayValue(value.cron_expression) ||
+      (displayValue(value.fire_at) ? t("tool_once_at", { time: displayValue(value.fire_at) }) : null),
     scheduleTimezone: displayValue(value.schedule_timezone)
   }
 }
@@ -88,6 +92,20 @@ export const examples: ToolCardExample[] = [
       repository_slug: "acme/widgets",
       schedule_explanation: "Every day at 02:00 UTC",
       schedule_timezone: "UTC",
+      deleted: true
+    }
+  },
+  {
+    id: "deleted_one_shot_task",
+    label: "Deleted one-shot task",
+    input: { scheduled_task_id: 13 },
+    parsedResult: {
+      scheduled_task_id: 13,
+      label: "Release reminder",
+      repository_id: 7,
+      repository_slug: "acme/widgets",
+      schedule_timezone: "UTC",
+      fire_at: "2026-11-01T16:30:00Z",
       deleted: true
     }
   },
