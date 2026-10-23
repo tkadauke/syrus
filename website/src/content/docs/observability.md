@@ -67,6 +67,11 @@ job evaluates the same alert pipeline every minute, so delivery does not depend
 on an operator having the app open. Delivery is deduplicated by dismissal key so
 one incident does not flood the outbound sink.
 
+Because these addresses are not tied to Syrus user records, system-alert email
+uses the application's default locale for its fixed subject and labels. The
+alert title, message, action steps, and action-link text remain the verbatim
+operational payload rather than being interpreted as translation keys.
+
 The optional Alertmanager Investigations plugin closes the loop in the other
 direction: it polls Alertmanager for active, unsilenced, uninhibited alerts and
 files a read-only Syrus investigation only when the alert's runbook annotation

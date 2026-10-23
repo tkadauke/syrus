@@ -155,7 +155,7 @@ class SystemAlertDelivery
 
   def deliver_to_sinks(payload)
     deliver_webhook(payload) if webhook_url.present?
-    SystemAlertMailer.alarm(payload, to: email_to).deliver_now if email_to.any?
+    SystemAlertMailer.with(locale: I18n.default_locale).alarm(payload, to: email_to).deliver_now if email_to.any?
   end
 
   def deliver_webhook(payload)
