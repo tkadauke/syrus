@@ -722,20 +722,22 @@ describe("tool result rendering", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Search jobs",
-      calls: [{
-        message_id: 1,
-        tool_name: "search_jobs",
-        raw_name: "mcp__syrus-chat-sidecar__search_jobs",
-        detail: "tool cards",
-        display_label: "Search jobs",
-        progress_label: "Searching jobs",
-        raw_payload: { query: "tool cards", state: "running", limit: 2 },
-        result_body: JSON.stringify({ total: 37, results }),
-        result_json: { total: 37, results },
-        result_error: false,
-        result_kind: "record",
-        result_summary: "37 matching Jobs"
-      }]
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "search_jobs",
+          raw_name: "mcp__syrus-chat-sidecar__search_jobs",
+          detail: "tool cards",
+          display_label: "Search jobs",
+          progress_label: "Searching jobs",
+          raw_payload: { query: "tool cards", state: "running", limit: 2 },
+          result_body: JSON.stringify({ total: 37, results }),
+          result_json: { total: 37, results },
+          result_error: false,
+          result_kind: "record",
+          result_summary: "37 matching Jobs"
+        }
+      ]
     }
 
     render(<ToolGroup item={item} />)
