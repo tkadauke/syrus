@@ -15,7 +15,7 @@ export default function PluginsPage() {
     <>
       <Nav locale="en" />
       <main id="main">
-        <PluginDirectory plugins={pluginDirectoryEntries()} />
+        <PluginDirectory plugins={pluginDirectoryEntries()} locale="en" />
       </main>
       <Footer locale="en" />
     </>

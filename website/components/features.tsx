@@ -2,8 +2,9 @@ import { SectionHeader } from "./section";
 import { RevealGroup, RevealItem } from "./reveal";
 import { FeatureIcon } from "./icons";
 import { features } from "../lib/site";
+import { localizedHref, type Locale } from "../lib/locales";
 
-export function Features() {
+export function Features({ locale }: { locale: Locale }) {
   return (
     <section id="features" className="relative py-24 sm:py-32">
       <div className="wrap">
@@ -38,7 +39,7 @@ export function Features() {
                 {"href" in f ? (
                   <a
                     className="group card relative block h-full overflow-hidden p-7 transition-all duration-300 hover:-translate-y-1 hover:border-clay/30 focus:outline-none focus:ring-2 focus:ring-clay/70 focus:ring-offset-2 focus:ring-offset-ink"
-                    href={f.href}
+                    href={localizedHref(f.href, locale)}
                   >
                     {content}
                   </a>

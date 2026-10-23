@@ -28,12 +28,12 @@ export default function Home() {
     <>
       <Nav locale="en" />
       <main id="main">
-        <Hero desktopSrc={desktopSrc} mobileSrc={mobileSrc} />
+        <Hero desktopSrc={desktopSrc} mobileSrc={mobileSrc} locale="en" />
         <ProductMedia />
         <TeamWorkflow />
-        <Features />
+        <Features locale="en" />
         <EntryPoints />
-        <Demo />
+        <Demo locale="en" />
       </main>
       <Footer locale="en" />
     </>

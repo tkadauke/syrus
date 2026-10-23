@@ -6,6 +6,7 @@ import { DownloadCTA } from "./download-cta";
 import { ScreenshotFrame } from "./screenshot-frame";
 import { ArrowRight } from "./icons";
 import { hero, site } from "../lib/site";
+import { localizedHref, type Locale } from "../lib/locales";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -18,9 +19,11 @@ const chips = [
 export function Hero({
   desktopSrc = null,
   mobileSrc = null,
+  locale,
 }: {
   desktopSrc?: string | null;
   mobileSrc?: string | null;
+  locale: Locale;
 }) {
   // Reduced-motion is handled globally by <MotionProvider> — no branching here
   // (a divergent hydration tree left SSR opacity:0 stuck for those users).
@@ -98,9 +101,9 @@ export function Hero({
             variants={item}
             className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row sm:items-start"
           >
-            <DownloadCTA size="lg" />
+            <DownloadCTA locale={locale} size="lg" />
             <ButtonLink
-              href="/#walkthrough-demo"
+              href={localizedHref("/#walkthrough-demo", locale)}
               variant="secondary"
               size="lg"
               className="w-full sm:w-auto"
@@ -124,7 +127,7 @@ export function Hero({
 
           <motion.a
             variants={item}
-            href="/docs/dogfooding"
+            href={localizedHref("/docs/dogfooding", locale)}
             className="group mx-auto mt-8 grid max-w-2xl gap-4 rounded-2xl border border-clay/35 bg-[color-mix(in_oklab,var(--color-ink-soft)_78%,transparent)] p-4 text-left shadow-[0_24px_70px_-48px_var(--accent-shadow)] transition-all duration-200 hover:-translate-y-0.5 hover:border-clay/60 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center sm:p-5"
           >
             <span className="text-center text-5xl font-semibold tracking-[-0.02em] clay-text sm:text-left">
