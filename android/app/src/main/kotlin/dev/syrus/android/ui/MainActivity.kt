@@ -11,6 +11,8 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.syrus.android.R
+import dev.syrus.android.data.AndroidUserMessages
 import dev.syrus.android.data.SyrusApiClient
 import dev.syrus.android.model.SyrusHomeState
 import java.util.concurrent.Executors
@@ -40,19 +42,19 @@ class MainActivity : Activity() {
         val spacing = (16 * density).toInt()
 
         instanceUrlInput = EditText(this).apply {
-            hint = "Syrus instance URL"
+            hint = getString(R.string.instance_url_hint)
             setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
             imeOptions = EditorInfo.IME_ACTION_NEXT
         }
         apiTokenInput = EditText(this).apply {
-            hint = "API token"
+            hint = getString(R.string.api_token_hint)
             setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             imeOptions = EditorInfo.IME_ACTION_DONE
         }
         statusText = TextView(this).apply {
-            text = "Connect to load your Syrus Jobs."
+            text = getString(R.string.connect_prompt)
             textSize = 16f
         }
         progress = ProgressBar(this).apply {
@@ -63,7 +65,7 @@ class MainActivity : Activity() {
         }
 
         val connectButton = Button(this).apply {
-            text = "Connect"
+            text = getString(R.string.connect)
             setOnClickListener { connect() }
         }
 
@@ -84,7 +86,7 @@ class MainActivity : Activity() {
 
     private fun titleView(): TextView {
         return TextView(this).apply {
-            text = "Syrus"
+            text = getString(R.string.app_name)
             textSize = 28f
             setTextColor(0xFF2E2A27.toInt())
         }
@@ -100,24 +102,24 @@ class MainActivity : Activity() {
         val instanceUrl = instanceUrlInput.text.toString().trim()
         val apiToken = apiTokenInput.text.toString().trim()
         if (instanceUrl.isBlank() || apiToken.isBlank()) {
-            statusText.text = "Instance URL and API token are required."
+            statusText.text = getString(R.string.credentials_required)
             return
         }
 
         progress.visibility = View.VISIBLE
-        statusText.text = "Loading Syrus..."
+        statusText.text = getString(R.string.loading)
         jobList.removeAllViews()
 
         executor.execute {
             runCatching {
-                SyrusApiClient(instanceUrl, apiToken).loadHomeState()
+                SyrusApiClient(instanceUrl, apiToken, AndroidUserMessages(applicationContext)).loadHomeState()
             }.onSuccess { state ->
                 saveCredentials(instanceUrl, apiToken)
                 runOnUiThread { renderHomeState(state) }
             }.onFailure { error ->
                 runOnUiThread {
                     progress.visibility = View.GONE
-                    statusText.text = error.message ?: "Could not connect to Syrus."
+                    statusText.text = error.message ?: getString(R.string.connection_failed)
                 }
             }
         }
@@ -133,11 +135,16 @@ class MainActivity : Activity() {
 
     private fun renderHomeState(state: SyrusHomeState) {
         progress.visibility = View.GONE
-        statusText.text = "Signed in as ${state.profile.email}"
+        statusText.text = resources.getQuantityString(
+            R.plurals.signed_in_job_count,
+            state.jobs.size,
+            state.profile.email,
+            state.jobs.size,
+        )
         jobList.removeAllViews()
 
         if (state.jobs.isEmpty()) {
-            jobList.addView(TextView(this).apply { text = "No Jobs visible for this token yet." })
+            jobList.addView(TextView(this).apply { text = getString(R.string.no_jobs) })
             return
         }
 
@@ -145,7 +152,14 @@ class MainActivity : Activity() {
             jobList.addView(
                 TextView(this).apply {
                     val progressLine = job.currentStep.takeIf { it.isNotBlank() } ?: job.state
-                    text = "#${job.id}  ${job.summaryState}\n${job.title}\n${job.repositorySlug}\n$progressLine"
+                    text = getString(
+                        R.string.job_card,
+                        job.id,
+                        job.summaryState,
+                        job.title,
+                        job.repositorySlug,
+                        progressLine,
+                    )
                     textSize = 15f
                     setPadding(0, 18, 0, 18)
                 },
