@@ -941,7 +941,7 @@ export const ToolGroup = memo(function ToolGroup({
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="flex min-w-0 cursor-pointer flex-wrap items-baseline gap-x-2 gap-y-1 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100"
+        className="flex min-w-0 cursor-pointer flex-nowrap items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
@@ -952,11 +952,9 @@ export const ToolGroup = memo(function ToolGroup({
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="order-2 min-w-0 flex-1 basis-full break-words pl-5 font-mono text-gray-600 [overflow-wrap:anywhere] sm:order-none sm:basis-0 sm:flex-1 sm:pl-0 dark:text-gray-400">
-          {details}
-        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? (
-          <Pill className="order-1 ml-auto shrink-0 text-xs sm:order-last" tone="neutral">
+          <Pill className="ml-auto shrink-0 text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : null}
