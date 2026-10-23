@@ -75,7 +75,7 @@ describe("explain_stuck_job tool card", () => {
 
     expect(screen.getByRole("link", { name: /JOB-5/ })).toHaveAttribute("href", "/jobs/5")
     expect(screen.getByText("Fix the thing")).toBeInTheDocument()
-    expect(screen.getByText("syrus/fix-the-thing")).toHaveClass("break-all", "sm:truncate")
+    expect(screen.getByText("syrus/fix-the-thing")).toHaveClass("break-all", "min-w-0")
     expect(screen.getAllByRole("link", { name: "PR #17" })[0]).toHaveAttribute("href", "https://github.com/acme/widget/pull/17")
     expect(screen.getByText("stale heartbeat")).toBeInTheDocument()
     expect(screen.getByText("worker missing")).toBeInTheDocument()
