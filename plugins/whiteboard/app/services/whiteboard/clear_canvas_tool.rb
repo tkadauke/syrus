@@ -21,8 +21,14 @@ module Whiteboard
         end
 
         result = Canvas.mutate(chat_session, tool_name, {}) do |elements|
+          element_count = elements.length
           elements.clear
-          { cleared: true, snapshot_id: snapshot&.id }
+          {
+            cleared: true,
+            snapshot_id: snapshot&.id,
+            element_count: element_count,
+            chat_session_id: chat_session.id
+          }
         end
 
         Mcp::Tools.success(result)

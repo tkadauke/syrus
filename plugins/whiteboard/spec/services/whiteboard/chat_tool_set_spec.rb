@@ -357,7 +357,13 @@ RSpec.describe Whiteboard::ChatToolSet do
 
     snapshot = Whiteboard::Snapshot.first
     expect(response.error?).to be_falsey
-    expect(payload(response)).to include(cleared: true, snapshot_id: snapshot.id)
+    expect(payload(response)).to include(
+      cleared: true,
+      snapshot_id: snapshot.id,
+      element_count: 2,
+      chat_session_id: chat_session.id,
+      version: 3
+    )
     expect(snapshot).to have_attributes(
       chat_session: chat_session,
       snapshot_kind: "auto_clear",
@@ -376,7 +382,13 @@ RSpec.describe Whiteboard::ChatToolSet do
     }.not_to change(Whiteboard::Snapshot, :count)
 
     expect(response.error?).to be_falsey
-    expect(payload(response)).to include(cleared: true, snapshot_id: nil)
+    expect(payload(response)).to include(
+      cleared: true,
+      snapshot_id: nil,
+      element_count: 0,
+      chat_session_id: chat_session.id,
+      version: 1
+    )
     expect(Whiteboard::Board.for(chat_session.reload).elements).to be_empty
   end
 

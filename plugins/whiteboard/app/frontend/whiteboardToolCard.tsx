@@ -299,12 +299,22 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
 
 // clear_canvas auto-snapshots the prior scene (when non-empty) before
 // clearing it.
-export type ClearCanvasResult = { snapshotId: string | null }
+export type ClearCanvasResult = {
+  snapshotId: string | null
+  elementCount: number | null
+  chatId: string | null
+  version: number | null
+}
 
 export function parseClearCanvasResult(value: unknown): ClearCanvasResult | null {
   if (!isPlainObject(value) || value.cleared !== true) return null
 
-  return { snapshotId: displayValue(value.snapshot_id) }
+  return {
+    snapshotId: displayValue(value.snapshot_id),
+    elementCount: numberValue(value.element_count),
+    chatId: displayValue(value.chat_session_id),
+    version: numberValue(value.version)
+  }
 }
 
 export function ClearCanvasCard({ result }: { result: ClearCanvasResult }) {
@@ -312,11 +322,45 @@ export function ClearCanvasCard({ result }: { result: ClearCanvasResult }) {
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t("tool_cleared_canvas")}</Badge>
+        {result.snapshotId ? (
+          <EntityReference
+            href={result.chatId ? `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` : null}
+            id={result.snapshotId}
+            kind="whiteboard_snapshot"
+          />
+        ) : null}
+        {result.version != null ? <Badge>v{result.version}</Badge> : null}
       </div>
-      {result.snapshotId ? (
-        <Row label={t("tool_auto_saved_as")} value={`#${result.snapshotId}`} />
+      {result.snapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
+          item={{
+            title: t("tool_snapshot_title", { id: result.snapshotId }),
+            subtitle: result.elementCount != null ? t("tool_elements_summary", { count: result.elementCount }) : null,
+            badge: t("tool_auto_saved_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` },
+              { label: t("tool_view_in_media"), href: `/chats/${result.chatId}?workspace=media` },
+              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+            ],
+            meta: [
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_elements_cleared"), value: result.elementCount != null ? String(result.elementCount) : null },
+              { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
+            ]
+          }}
+          snapshotId={result.snapshotId}
+        />
+      ) : result.snapshotId ? (
+        <>
+          <Row label={t("tool_auto_saved_as")} value={`#${result.snapshotId}`} />
+          {result.elementCount != null ? <Row label={t("tool_elements_cleared")} value={String(result.elementCount)} /> : null}
+        </>
       ) : (
-        <div className="text-gray-600 dark:text-gray-300">{t("tool_canvas_already_empty")}</div>
+        <>
+          <div className="text-gray-600 dark:text-gray-300">{t("tool_canvas_already_empty")}</div>
+          {result.elementCount != null ? <Row label={t("tool_elements_cleared")} value={String(result.elementCount)} /> : null}
+        </>
       )}
     </CardShell>
   )
