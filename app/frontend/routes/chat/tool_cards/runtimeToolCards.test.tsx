@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
@@ -630,18 +630,81 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("[redacted]")).toBeInTheDocument()
   })
 
-  it("clearly confirms acquired Runtime control", () => {
+  it("renders acquired Runtime control with request, linked owner, relative times, and Markdown reason", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:10Z"))
     const parsedResult = lease()
+    const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
+      parsedResult
+    })
 
-    expect(runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", { parsedResult }))).toBe("Runtime control acquired: input #42")
+    expect(runtimeAcquireControlToolCard.collapsedSummary?.(toolContext)).toBe("Runtime control acquired: input #42")
 
-    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult }))}</>)
+    try {
+      render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
+      expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
+      expect(screen.getByText("Control #42")).toBeInTheDocument()
+      expect(screen.getByText("7")).toBeInTheDocument()
+      expect(screen.getAllByText("input").length).toBeGreaterThan(0)
+      expect(screen.getByText("30 seconds")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+      expect(screen.getByText("click the preview")).toBeInTheDocument()
+      expect(screen.getByText("10 seconds ago")).toHaveAttribute("datetime", "2026-09-10T12:00:00Z")
+      expect(screen.getByText("in 20 seconds")).toHaveAttribute("datetime", "2026-09-10T12:00:30Z")
+      expect(screen.queryByText("2026-09-10T12:00:00Z")).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([
+    ["structured content", { structured_content: lease(), content: [] }],
+    ["text content", { structured_content: null, content: [{ type: "text", text: JSON.stringify(lease()) }] }]
+  ])("renders acquire control through the real provider envelope with %s", (_label, wrapped) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime acquire control",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "runtime_acquire_control",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
+          display_label: "Runtime acquire control",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Runtime acquire control")
     expect(screen.getByText("Agent owns Runtime control.")).toBeInTheDocument()
-    expect(screen.getByText("Control #42")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /CHAT-8/ })).toHaveAttribute("href", "/chats/8")
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+  })
+
+  it("keeps acquire control payload secrets redacted", () => {
+    const parsedResult = redactToolCardValue(lease({ api_token: "result-secret" }))
+    const input = redactToolCardValue({ session_id: 7, mode: "input", duration_seconds: 30, api_token: "input-secret" }) as Record<string, unknown>
+
+    render(<>{runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { input, parsedResult }))}</>)
+    expect(screen.queryByText("result-secret")).not.toBeInTheDocument()
+    expect(screen.queryByText("input-secret")).not.toBeInTheDocument()
+    expect(screen.getByText(/"api_token": "\[redacted\]"/)).toBeInTheDocument()
   })
 
   it("distinguishes denied Runtime control from confirmed ownership", () => {
     const toolContext = context("runtime_acquire_control", {
+      input: { session_id: 7, mode: "input", duration_seconds: 30 },
       resultBody: "runtime session 7 already has an active input lease",
       resultError: true,
       parsedResult: null
@@ -651,6 +714,7 @@ describe("Runtime tool cards", () => {
 
     render(<>{runtimeAcquireControlToolCard.renderExpanded(toolContext)}</>)
     expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
