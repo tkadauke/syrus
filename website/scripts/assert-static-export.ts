@@ -27,3 +27,13 @@ for (const file of generatedHtml) {
 assert.equal(fs.existsSync(path.join(output, "en")), false, "canonical English must remain unprefixed");
 assert.equal(fs.existsSync(path.join(output, "de")), false, "unpublished German pages must not be exported");
 assert.equal(fs.existsSync(path.join(output, "la")), false, "unpublished Latin pages must not be exported");
+
+const homeHtml = fs.readFileSync(path.join(output, "index.html"), "utf8");
+assert.match(homeHtml, /<link rel="canonical" href="https:\/\/syrus-ai\.dev\/"/);
+assert.match(homeHtml, /<link rel="alternate" hrefLang="en" href="https:\/\/syrus-ai\.dev\/"/);
+assert.match(homeHtml, /<link rel="alternate" hrefLang="x-default" href="https:\/\/syrus-ai\.dev\/"/);
+assert.doesNotMatch(homeHtml, /hrefLang="la"/);
+
+const sitemapXml = fs.readFileSync(path.join(output, "sitemap.xml"), "utf8");
+assert.match(sitemapXml, /<xhtml:link rel="alternate" hreflang="x-default" href="https:\/\/syrus-ai\.dev\/" \/>/);
+assert.doesNotMatch(sitemapXml, /hreflang="la"/);

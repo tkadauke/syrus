@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { localizedMetadata } from "@/lib/metadata";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { ButtonLink } from "@/components/button";
@@ -12,12 +13,10 @@ import {
   type Platform,
 } from "@/lib/release";
 
-export const metadata: Metadata = {
-  title: "Download",
-  description:
-    "Download the Syrus desktop app for macOS (Apple Silicon & Intel).",
-  alternates: { canonical: "/download" },
-};
+export const metadata: Metadata = localizedMetadata({
+  locale: "en", pathname: "/download", title: "Download",
+  description: "Download the Syrus desktop app for macOS (Apple Silicon & Intel).",
+});
 
 function PlatformIcon({ id }: { id: Platform }) {
   return id === "mac" ? (
