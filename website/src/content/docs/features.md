@@ -769,7 +769,10 @@ canvas after Syrus automatically snapshots it, the transcript card renders the
 saved scene as a thumbnail that opens a full-size preview, shows the canvas
 version and available snapshot details, and links to the chat's Whiteboard and
 Media tabs. Clearing an already-empty canvas is identified without showing a
-snapshot. Every image in the gallery — including Runtime Session
+snapshot. Loading a canvas produces the same expandable, linked preview for the
+restored snapshot and, in replace mode, a second preview of the automatic
+pre-load backup; the card also shows the mode and resulting canvas version.
+Every image in the gallery — including Runtime Session
 screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
