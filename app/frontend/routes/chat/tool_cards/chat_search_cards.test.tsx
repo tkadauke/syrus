@@ -269,6 +269,69 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByRole("link", { name: "notes.pdf · application/pdf" })).toHaveAttribute("href", "https://example.test/notes.pdf")
   })
 
+  it("keeps canonical assistant blocks and structured tool events in the transcript", () => {
+    const parsedResult = {
+      chat_title: "Canonical transcript",
+      page: 1,
+      messages: [
+        {
+          id: 10,
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "private chain of thought" },
+            { type: "text", text: "First paragraph." },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "cGl4ZWxz" } },
+            { type: "text", text: "Second paragraph." }
+          ],
+          created_at: "2026-09-01T12:00:00Z"
+        },
+        {
+          id: 11,
+          role: "tool_use",
+          content: { type: "tool_use", id: "toolu_1", name: "read_file", input: { path: "README.md", line: 4 } },
+          created_at: "2026-09-01T12:01:00Z"
+        },
+        {
+          id: 12,
+          role: "tool_result",
+          content: {
+            type: "tool_result",
+            tool_use_id: "toolu_1",
+            is_error: false,
+            content: [
+              { type: "text", text: "Loaded file." },
+              { type: "resource", uri: "file:///private/path" }
+            ]
+          },
+          created_at: "2026-09-01T12:02:00Z"
+        }
+      ]
+    }
+
+    const cardContext = context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult })
+    expect(readChatMessagesToolCard.collapsedSummary?.(cardContext)).toBe("Canonical transcript - 3 messages")
+    render(<>{readChatMessagesToolCard.renderExpanded(cardContext)}</>)
+
+    const assistantRow = screen.getByRole("link", { name: "message 10" }).closest("li")
+    expect(assistantRow).toHaveTextContent("First paragraph.")
+    expect(assistantRow).toHaveTextContent("[Thinking block omitted]")
+    expect(screen.queryByText("private chain of thought")).not.toBeInTheDocument()
+    expect(screen.queryByText("cGl4ZWxz")).not.toBeInTheDocument()
+    expect(assistantRow).toHaveTextContent("[image block]")
+    expect(within(assistantRow!).getByRole("img", { name: "Attachment 1" })).toHaveAttribute("src", "data:image/png;base64,cGl4ZWxz")
+    fireEvent.click(within(assistantRow!).getByRole("button", { name: "Show more" }))
+    const assistantDialog = screen.getByRole("dialog", { name: "Message 10" })
+    expect(assistantDialog).toHaveTextContent("Second paragraph.")
+    expect(assistantDialog).not.toHaveTextContent("private chain of thought")
+    fireEvent.click(within(assistantDialog).getByRole("button", { name: "Close" }))
+
+    const toolUseRow = screen.getByRole("link", { name: "message 11" }).closest("li")
+    expect(toolUseRow).toHaveTextContent("Tool call: read_file")
+    expect(toolUseRow).toHaveTextContent("README.md")
+    const toolResultRow = screen.getByRole("link", { name: "message 12" }).closest("li")
+    expect(toolResultRow).toHaveTextContent("Tool result Loaded file. [resource block]")
+  })
+
   it("renders read errors and provider-normalized envelopes", () => {
     render(
       <>{readChatMessagesToolCard.renderExpanded(context("read_chat_messages", { resultError: true, resultBody: "not_authorized: chat is inaccessible" }))}</>
