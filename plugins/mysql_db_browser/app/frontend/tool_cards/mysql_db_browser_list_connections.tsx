@@ -1,7 +1,7 @@
 import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { EmptyState } from "@app/routes/chat/toolCardUi"
-import { AccessPill, parseConnection, TableShell, type MysqlConnectionRow } from "../mysqlToolCard"
+import { CardShell, CopyableValue, EmptyState, InternalLink, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { AccessPill, MysqlErrorNotice, parseConnection, parseMysqlError, type MysqlConnectionRow } from "../mysqlToolCard"
 
 // Plugin-owned tool card for mysql_db_browser_list_connections (the tool-card work).
 // The payload is already safe metadata only (see
@@ -30,32 +30,53 @@ function t(key: string, options?: Record<string, unknown>) {
 
 function renderExpanded(context: ToolCardContext) {
   const rows = connectionRows(context)
-  if (!rows) return null
-  if (rows.length === 0) return <EmptyState>{t("tool_no_connections")}</EmptyState>
+  if (!rows) {
+    const parsed = context.parsedResult
+    const error = isPlainObject(parsed) ? parseMysqlError(parsed.error ?? parsed) : null
+    return error && (error.message || error.className) ? <MysqlErrorNotice error={error} /> : null
+  }
+  if (rows.length === 0) {
+    return (
+      <EmptyState>
+        {t("tool_no_connections_agentic")} <InternalLink href="/db_browser">{t("tool_manage_connections")}</InternalLink>
+      </EmptyState>
+    )
+  }
 
   return (
-    <TableShell>
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_label")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_default_database")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_agentic_access")}</th>
-            <th className="px-2 py-1 font-semibold" scope="col">{t("tool_writes")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="px-2 py-1 text-gray-800 dark:text-gray-200">{row.label ?? t("tool_connection_id", { id: row.id })}</td>
-              <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{row.defaultDatabase ?? "—"}</td>
-              <td className="whitespace-nowrap px-2 py-1"><AccessPill enabled={row.agenticAccessEnabled} label={row.agenticAccessEnabled ? t("agentic_enabled") : t("agentic_disabled")} /></td>
-              <td className="whitespace-nowrap px-2 py-1"><AccessPill enabled={row.allowWrites} label={row.allowWrites ? t("allow_writes_enabled") : t("allow_writes_disabled")} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableShell>
+    <CardShell>
+      <div className="flex justify-end">
+        <InternalLink href="/db_browser">{t("tool_manage_connections")}</InternalLink>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div className="min-w-0 space-y-2 rounded border border-gray-200 p-2 dark:border-gray-700" key={row.id}>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <InternalLink className="min-w-0 break-words font-sans" href={`/db_browser?connection_id=${encodeURIComponent(row.id)}`}>
+                {row.label ?? t("tool_connection_id", { id: row.id })}
+              </InternalLink>
+              {row.allowWrites ? <StatePill state={t("tool_write_access_warning")} tone="warning" /> : null}
+            </div>
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+              <Row label={t("tool_connection_id_label")} value={<CopyableValue value={row.id} />} />
+              <Row label={t("tool_default_database")} value={row.defaultDatabase ?? "—"} />
+              <Row
+                label={t("tool_agentic_access")}
+                value={<AccessPill enabled={row.agenticAccessEnabled} label={row.agenticAccessEnabled ? t("agentic_enabled") : t("agentic_disabled")} />}
+              />
+              <Row
+                label={t("tool_writes")}
+                value={
+                  <StatePill state={row.allowWrites ? t("allow_writes_enabled") : t("allow_writes_disabled")} tone={row.allowWrites ? "warning" : "neutral"} />
+                }
+              />
+              <Row label={t("tool_created_at")} value={row.createdAt ?? "—"} />
+              <Row label={t("tool_updated_at")} value={row.updatedAt ?? "—"} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </CardShell>
   )
 }
 
