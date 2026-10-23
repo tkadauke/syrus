@@ -47,7 +47,16 @@ const TABLE_COLUMN_WEIGHTS: Record<TableColumnKind, number> = {
   prose: 2.4
 }
 
-export function Markdown({ className, text, linkifySlugs = true, linkifyUrls = false, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone }: MarkdownProps) {
+export function Markdown({
+  className,
+  text,
+  linkifySlugs = true,
+  linkifyUrls = false,
+  onLinkClick,
+  slugHrefFallbacks,
+  slugHrefOverrides,
+  slugTone
+}: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
 
   return (
@@ -745,7 +754,16 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
   const decoded = decodeHtmlEntities(text)
   if (options.linkifyUrls) return linkifyPlainUrls(decoded, shouldLinkifySlugs, key, options)
   if (shouldLinkifySlugs && containsSlug(decoded)) {
-    return <Fragment key={key}>{linkifySlugs(decoded, { hrefFallbacks: options.slugHrefFallbacks, hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}</Fragment>
+    return (
+      <Fragment key={key}>
+        {linkifySlugs(decoded, {
+          hrefFallbacks: options.slugHrefFallbacks,
+          hrefOverrides: options.slugHrefOverrides,
+          onLinkClick: options.onLinkClick,
+          tone: options.slugTone
+        })}
+      </Fragment>
+    )
   }
   return decoded
 }
@@ -770,7 +788,14 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
   if (cursor < text.length) nodes.push(renderNonUrlText(text.slice(cursor), shouldLinkifySlugs, `text-${partKey++}`, options))
   if (nodes.length === 0)
     return shouldLinkifySlugs && containsSlug(text) ? (
-      <Fragment key={key}>{linkifySlugs(text, { hrefFallbacks: options.slugHrefFallbacks, hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}</Fragment>
+      <Fragment key={key}>
+        {linkifySlugs(text, {
+          hrefFallbacks: options.slugHrefFallbacks,
+          hrefOverrides: options.slugHrefOverrides,
+          onLinkClick: options.onLinkClick,
+          tone: options.slugTone
+        })}
+      </Fragment>
     ) : (
       text
     )
@@ -779,7 +804,16 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
 
 function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string, options: RenderInlineOptions) {
   if (shouldLinkifySlugs && containsSlug(text)) {
-    return <Fragment key={key}>{linkifySlugs(text, { hrefFallbacks: options.slugHrefFallbacks, hrefOverrides: options.slugHrefOverrides, onLinkClick: options.onLinkClick, tone: options.slugTone })}</Fragment>
+    return (
+      <Fragment key={key}>
+        {linkifySlugs(text, {
+          hrefFallbacks: options.slugHrefFallbacks,
+          hrefOverrides: options.slugHrefOverrides,
+          onLinkClick: options.onLinkClick,
+          tone: options.slugTone
+        })}
+      </Fragment>
+    )
   }
   return <Fragment key={key}>{text}</Fragment>
 }
