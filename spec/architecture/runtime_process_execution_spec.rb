@@ -1,5 +1,4 @@
 require "rails_helper"
-require "ripper"
 
 RSpec.describe "runtime process execution boundary" do
   it "keeps production Rails process launches behind ProcessRunner" do
@@ -36,9 +35,11 @@ RSpec.describe "runtime process execution boundary" do
       system "worker"
       `worker`
       %x(worker)
+      ::Open3.capture3("git", "status")
+      Runtime::Process.spawn("worker")
     RUBY
 
-    expect(direct_launch_lines_for(source)).to eq((1..13).to_a)
+    expect(direct_launch_lines_for(source)).to eq((1..15).to_a)
   end
 
   it "ignores process syntax in generated source text and non-call identifiers" do
@@ -60,21 +61,30 @@ RSpec.describe "runtime process execution boundary" do
   end
 
   def direct_launch_lines_for(source)
-    tokens = Ripper.lex(source).reject do |(_position, event, _token, _state)|
-      %i[on_sp on_nl on_ignored_nl on_comment].include?(event)
-    end
+    root = RubyVM::AbstractSyntaxTree.parse(source)
 
-    tokens.each_with_index.filter_map do |entry, index|
-      position, event, token, state = entry
-      previous = tokens[index - 1]
-      following = tokens[index + 1, 3]&.map { |entry| entry[2] }
-      direct_constant_call = event == :on_const && %w[Open3 Process IO Kernel].include?(token) &&
-        %w[. ::].include?(following&.first) && direct_process_method?(token, following[1])
-      bare_system_call = event == :on_ident && token == "system" &&
-        state.to_s.include?("CMDARG") && !%w[: =].include?(following&.first) && previous&.dig(2) != "def"
-
-      position.first if direct_constant_call || bare_system_call || event == :on_backtick
+    each_ast_node(root).filter_map do |node|
+      node.first_lineno if direct_launch_node?(node)
     end.uniq
+  end
+
+  def each_ast_node(node, &block)
+    return enum_for(__method__, node) unless block
+
+    yield node
+    node.children.each do |child|
+      each_ast_node(child, &block) if child.is_a?(RubyVM::AbstractSyntaxTree::Node)
+    end
+  end
+
+  def direct_launch_node?(node)
+    return true if %i[XSTR DXSTR].include?(node.type)
+    return node.children.first == :system if node.type == :FCALL
+    return false unless node.type == :CALL
+
+    receiver, method_name = node.children
+    constant = receiver.children.last.to_s if %i[CONST COLON2 COLON3].include?(receiver.type)
+    constant && direct_process_method?(constant, method_name.to_s)
   end
 
   def direct_process_method?(constant, method_name)
