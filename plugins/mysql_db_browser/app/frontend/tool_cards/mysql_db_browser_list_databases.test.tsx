@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
 import listDatabasesToolCard, { examples } from "./mysql_db_browser_list_databases"
 
@@ -25,6 +25,14 @@ describe("mysql_db_browser_list_databases tool card", () => {
 
   it("registers populated, empty, and error states for catalog review", () => {
     expect(examples.map((example) => example.id)).toEqual(["databases_with_system_schemas", "no_visible_databases", "database_list_error"])
+  })
+
+  it("resolves the connection label from the populated catalog example's prior calls", () => {
+    const exampleContext = toolCardContextForExample(listDatabasesToolCard.toolName, examples[0]!)
+
+    render(<>{listDatabasesToolCard.renderExpanded(exampleContext)}</>)
+
+    expect(screen.getByRole("link", { name: "Production reporting (#7)" })).toHaveAttribute("href", "/db_browser?connection_id=7")
   })
 
   it("summarizes the collapsed row with a database count", () => {
