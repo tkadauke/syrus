@@ -109,7 +109,11 @@ deferred tool tier loads — no feature flag or role gate beyond that):
   current scene, so loading the same snapshot twice never collides ids;
   **replace** auto-snapshots the current scene first (`kind:
   "auto_before_load"`, when non-empty) and then swaps the whole
-  `elements`/`appState`/`files`.
+  `elements`/`appState`/`files`. Successful transcript cards link to the
+  Whiteboard and Media tabs, render both the loaded snapshot and any pre-load
+  backup as expandable thumbnails, and show the selected mode and resulting
+  canvas version. Missing snapshots and invalid modes render as structured
+  errors with the attempted snapshot id and mode.
 
 Tools do **not** persist a separate structured `tool_use` row in the chat —
 the agent's own stream-json `log_sink` already emits an abbreviated

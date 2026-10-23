@@ -60,5 +60,13 @@
   "tool_save_snapshot": "Imaginem tabulae serva",
   "tool_save_snapshot_named": "Imaginem tabulae \"{{name}}\" serva",
   "tool_save_snapshot_recovery": "Confirma tabulam elementa valida continere, deinde iterum serva.",
+  "tool_mode": "Modus",
+  "tool_mode_merge": "Coniunge",
+  "tool_mode_replace": "Substitue",
+  "tool_auto_saved_snapshot": "Copia ante onerationem",
+  "tool_auto_saved_snapshot_title": "Copia ante onerationem #{{id}}",
+  "tool_load_snapshot": "Imaginem tabulae onera",
+  "tool_load_snapshot_attempt": "{{snapshot}} modo {{mode}} onera",
+  "tool_load_snapshot_recovery": "Confirma ID imaginis ad hunc colloquium pertinere et modum electum validum esse.",
   "tool_loaded_canvas_summary": "{{snapshot}} oneratum{{mode}}"
 }

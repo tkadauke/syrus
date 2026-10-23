@@ -422,6 +422,7 @@ RSpec.describe Whiteboard::ChatToolSet do
     expect(payload(response)).to include(
       loaded: true,
       snapshot_id: snapshot.id,
+      chat_session_id: chat_session.id,
       mode: "merge",
       elements_added: 3,
       auto_saved_snapshot_id: nil
@@ -491,6 +492,7 @@ RSpec.describe Whiteboard::ChatToolSet do
     expect(payload(response)).to include(
       loaded: true,
       snapshot_id: snapshot.id,
+      chat_session_id: chat_session.id,
       mode: "replace",
       elements_added: 1,
       auto_saved_snapshot_id: auto_saved_snapshot.id
