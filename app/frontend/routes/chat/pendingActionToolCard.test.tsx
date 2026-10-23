@@ -649,6 +649,18 @@ describe("pending action tool card: dry-run evidence shape", () => {
     expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
     expect(screen.getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/44")
     expect(screen.getByRole("link", { name: "syrus/direct-322" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/syrus%2Fdirect-322")
+    expect(screen.getByRole("link", { name: "abc123abc123abc123abc123" })).toHaveAttribute(
+      "href",
+      "https://github.com/tkadauke/syrus/commit/abc123abc123abc123abc123"
+    )
+    expect(screen.getByRole("link", { name: "def456def456def456def456" })).toHaveAttribute(
+      "href",
+      "https://github.com/tkadauke/syrus/commit/def456def456def456def456"
+    )
+    expect(screen.getByRole("link", { name: "111222111222111222111222" })).toHaveAttribute(
+      "href",
+      "https://github.com/tkadauke/syrus/commit/111222111222111222111222"
+    )
   })
 
   it("renders the changed files behind a disclosure", () => {
