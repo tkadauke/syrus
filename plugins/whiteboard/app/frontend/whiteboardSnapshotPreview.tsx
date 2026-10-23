@@ -46,6 +46,32 @@ export function WhiteboardSnapshotPreview({
   )
 }
 
+export function WhiteboardScenePreview({ scene, item }: { scene: Partial<ChatWhiteboardScene>; item: MediaPreviewItem }) {
+  const [preview, setPreview] = useState<PreviewState>({ status: "loading", src: null })
+
+  useEffect(() => {
+    let cancelled = false
+
+    void renderScene(scene)
+      .then((src) => {
+        if (!cancelled) setPreview({ status: "ready", src })
+      })
+      .catch(() => {
+        if (!cancelled) setPreview({ status: "error", src: null })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [scene])
+
+  const fallbackLabel = preview.status === "loading" ? translate("tool_scene_loading") : translate("tool_scene_preview_error")
+
+  return (
+    <MediaPreviewShell item={{ ...item, src: preview.src, fallbackLabel }} modalLabel={translate("tool_scene_preview")} thumbnailClassName="w-full sm:w-72" />
+  )
+}
+
 function translate(key: string) {
   return i18n.t(`whiteboard:${key}`)
 }
@@ -60,6 +86,18 @@ async function renderSnapshotPreviewSource(chatId: string | undefined, snapshotI
     : asExcalidrawElements(scene.elements)
   const svg = await excalidraw.exportToSvg({
     elements,
+    appState: { ...scene.appState, exportBackground: true },
+    files: scene.files
+  })
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`
+}
+
+async function renderScene(input: Partial<ChatWhiteboardScene> | null | undefined) {
+  const scene = normalizeWhiteboardScene(input)
+  const excalidraw = await import("./whiteboardSceneRenderer")
+  const svg = await excalidraw.exportToSvg({
+    elements: excalidraw.convertToExcalidrawElements(scene.elements as Parameters<typeof excalidraw.convertToExcalidrawElements>[0]),
     appState: { ...scene.appState, exportBackground: true },
     files: scene.files
   })
