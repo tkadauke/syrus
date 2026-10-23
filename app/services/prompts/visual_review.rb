@@ -336,6 +336,8 @@ module Prompts
            irrelevant (a mobile-nav-only bug
            report, a component hidden below a desktop breakpoint, an admin-only desktop tool) — but if
            you skip a viewport, state why in your critique so it is an auditable judgment call, not a silent omission.
+           Use a descriptive `type` such as `visual_review_desktop_navigation` when useful; Syrus associates
+           screenshots with this review from trusted run and image provenance, not from an exact type name.
            Every `submit_visual_artifact` call must pass `subject`: either an exact `browser_snapshot` ref
            for the element under review or a CSS selector, preferably a stable `data-testid`. The tool uses
            it to scroll the subject into view and verify that it is visible before capture. A screenshot

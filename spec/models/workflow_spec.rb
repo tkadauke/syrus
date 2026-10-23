@@ -1189,6 +1189,43 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("pr_body")).to eq("Adds a tiny greet helper.")
     end
 
+    it "round-trips growth-bound values through external storage" do
+      iterations = [ [ { "grader" => "rspec", "output" => "x" * 20_000 } ] ]
+
+      wf.set_artifact!("iterations", iterations)
+
+      expect(described_class.find(wf.id).artifact("iterations")).to eq(iterations)
+      expect(wf.workflow_artifact_values.find_by!(key: "iterations").value).to eq(iterations)
+      expect(wf.reload.attributes_before_type_cast.fetch("artifacts").to_s).not_to include("iterations")
+    end
+
+    it "falls back to inline storage for a row not yet backfilled" do
+      iterations = [ [ { "grader" => "rspec", "output" => "legacy" } ] ]
+      wf.update_column(:artifacts, { "iterations" => iterations, "head_sha" => "abc123" })
+
+      reloaded = described_class.find(wf.id)
+
+      expect(reloaded.artifact("iterations")).to eq(iterations)
+      expect(reloaded.artifact("head_sha")).to eq("abc123")
+    end
+
+    it "updates only the external value row for a growth-bound artifact" do
+      wf.set_artifact!("head_sha", "abc123")
+      wf.set_artifact!("iterations", [ [ { "output" => "first" } ] ])
+      sql = []
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        sql << payload[:sql] unless payload[:name] == "SCHEMA"
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        wf.set_artifact!("iterations", [ [ { "output" => "second" } ] ])
+      end
+
+      expect(sql.grep(/UPDATE [`\"]workflow_artifact_values[`\"]/i)).to be_present
+      expect(sql.grep(/UPDATE [`\"]workflows[`\"]/i)).to be_empty
+      expect(wf.reload.artifact("head_sha")).to eq("abc123")
+    end
+
     it "is nil-safe for unset keys" do
       expect(wf.artifact("never_set")).to be_nil
     end

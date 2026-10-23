@@ -6,7 +6,7 @@ import { linkifySlugs } from "../../lib/linkifySlugs"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { Button, buttonClasses } from "../../components/Button"
@@ -127,6 +127,8 @@ function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueue
 }
 
 
+const BULK_TOOLBAR_CLASS = "flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+
 function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[] }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()
@@ -134,16 +136,49 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
   const [notice, setNotice] = useState<string | null>(null)
   const [ownerUserId, setOwnerUserId] = useState("")
   const [priority, setPriority] = useState("medium")
+  const [progress, setProgress] = useState<{ action: DashboardBulkJobAction; completed: number; total: number } | null>(null)
+  const [cancellationRequested, setCancellationRequested] = useState(false)
+  const cancelRequestedRef = useRef(false)
   const action = useMutation({
-    mutationFn: (bulkAction: DashboardBulkJobAction) => bulkDashboardJobs({
-      job_ids: selectedIds,
-      bulk_action: bulkAction,
-      owner_user_id: bulkAction === "assign_owner" && ownerUserId ? Number(ownerUserId) : undefined,
-      priority: bulkAction === "set_priority" ? priority : undefined
-    }),
-    onSuccess: (payload) => {
-      setNotice(payload.message)
+    mutationFn: async ({ bulkAction, jobIds }: { bulkAction: DashboardBulkJobAction; jobIds: number[] }) => {
+      let lastMessage = ""
+      let processed = 0
+      let succeeded = 0
+      let failed = 0
+
+      for (const jobId of jobIds) {
+        if (cancelRequestedRef.current) break
+
+        try {
+          const payload = await bulkDashboardJobs({
+            job_ids: [jobId],
+            bulk_action: bulkAction,
+            owner_user_id: bulkAction === "assign_owner" && ownerUserId ? Number(ownerUserId) : undefined,
+            priority: bulkAction === "set_priority" ? priority : undefined
+          })
+          lastMessage = payload.message
+          succeeded += payload.affected_job_ids?.length ?? 1
+          failed += payload.skipped_job_ids?.length ?? 0
+        } catch (_error) {
+          failed += 1
+        }
+
+        processed += 1
+        setProgress({ action: bulkAction, completed: succeeded, total: jobIds.length })
+      }
+
+      return { canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: jobIds.length }
+    },
+    onSuccess: (result) => {
+      if (result.canceled) setNotice(t("bulk_action_canceled", { completed: result.processed, total: result.total }))
+      else if (result.failed > 0) setNotice(t("bulk_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
+      else setNotice(result.lastMessage)
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      setProgress(null)
+      setCancellationRequested(false)
+      cancelRequestedRef.current = false
     }
   })
   const disabled = selectedIds.length === 0 || action.isPending
@@ -175,7 +210,25 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
     setNotice(null)
     if (bulkAction === "close" && !await confirm({ message: t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }), destructive: true })) return
     if (bulkAction === "move_to_backlog" && !await confirm({ message: t("move_to_backlog_confirm", { count: selectedIds.length }), destructive: false })) return
-    action.mutate(bulkAction)
+    const jobIds = [ ...selectedIds ]
+    cancelRequestedRef.current = false
+    setCancellationRequested(false)
+    setProgress({ action: bulkAction, completed: 0, total: jobIds.length })
+    action.mutate({ bulkAction, jobIds })
+  }
+
+  if (progress) {
+    return (
+      <div className={BULK_TOOLBAR_CLASS} role="status">
+        <div className="inline-flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+          <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-200" />
+          <span>{t(`bulk_progress.${progress.action}`, { completed: progress.completed, total: progress.total })}</span>
+        </div>
+        <button className={bulkButtonClass(cancellationRequested)} disabled={cancellationRequested} onClick={() => { cancelRequestedRef.current = true; setCancellationRequested(true) }} type="button">
+          {t(cancellationRequested ? "canceling" : "cancel")}
+        </button>
+      </div>
+    )
   }
 
   if (selectedIds.length === 0) {
@@ -183,7 +236,7 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+    <div className={BULK_TOOLBAR_CLASS}>
       <div>
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

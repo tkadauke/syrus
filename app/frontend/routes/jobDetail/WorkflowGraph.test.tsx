@@ -97,24 +97,29 @@ describe("WorkflowsTab", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1") {
-        return Promise.resolve(new Response(JSON.stringify({
-          job_id: 42,
-          workflow_id: 10,
-          run_id: 51,
-          diff_review_version_id: 100,
-          base_ref: "base-sha",
-          head_ref: "head-sha",
-          artifact: "agent_diff",
-          agent_diff: [
-            "diff --git a/app/models/job.rb b/app/models/job.rb",
-            "--- a/app/models/job.rb",
-            "+++ b/app/models/job.rb",
-            "@@ -1 +1 @@",
-            "-old",
-            "+new"
-          ].join("\n"),
-          agent_diff_bytes: 120
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              job_id: 42,
+              workflow_id: 10,
+              run_id: 51,
+              diff_review_version_id: 100,
+              base_ref: "base-sha",
+              head_ref: "head-sha",
+              artifact: "agent_diff",
+              agent_diff: [
+                "diff --git a/app/models/job.rb b/app/models/job.rb",
+                "--- a/app/models/job.rb",
+                "+++ b/app/models/job.rb",
+                "@@ -1 +1 @@",
+                "-old",
+                "+new"
+              ].join("\n"),
+              agent_diff_bytes: 120
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -125,7 +130,11 @@ describe("WorkflowsTab", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
-          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })} prefix="" />
+          <WorkflowsTab
+            command={command()}
+            payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })}
+            prefix=""
+          />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -144,24 +153,29 @@ describe("WorkflowsTab", () => {
   it("makes run artifact diffs the mobile flex child with their own vertical scroll region", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1") {
-        return Promise.resolve(new Response(JSON.stringify({
-          job_id: 42,
-          workflow_id: 10,
-          run_id: 51,
-          diff_review_version_id: 100,
-          base_ref: "base-sha",
-          head_ref: "head-sha",
-          artifact: "agent_diff",
-          agent_diff: [
-            "diff --git a/app/models/job.rb b/app/models/job.rb",
-            "--- a/app/models/job.rb",
-            "+++ b/app/models/job.rb",
-            "@@ -1 +1 @@",
-            "-old",
-            "+new"
-          ].join("\n"),
-          agent_diff_bytes: 120
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              job_id: 42,
+              workflow_id: 10,
+              run_id: 51,
+              diff_review_version_id: 100,
+              base_ref: "base-sha",
+              head_ref: "head-sha",
+              artifact: "agent_diff",
+              agent_diff: [
+                "diff --git a/app/models/job.rb b/app/models/job.rb",
+                "--- a/app/models/job.rb",
+                "+++ b/app/models/job.rb",
+                "@@ -1 +1 @@",
+                "-old",
+                "+new"
+              ].join("\n"),
+              agent_diff_bytes: 120
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -170,7 +184,11 @@ describe("WorkflowsTab", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
-          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })} prefix="" />
+          <WorkflowsTab
+            command={command()}
+            payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })}
+            prefix=""
+          />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -189,12 +207,29 @@ describe("WorkflowsTab", () => {
     workflow.steps[0].runs[0].job_log_count = 101
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const page = new URL(String(input), "http://example.test").searchParams.get("page") || "1"
-      return Promise.resolve(new Response(JSON.stringify({
-        job_id: 42, workflow_id: 10, run_id: 51, diff_review_version_id: null, base_ref: null, head_ref: null,
-        artifact: "transcript", logs_count: 101, logs_page: Number(page), logs_per_page: 100, logs_total_pages: 2,
-        logs_has_older: page === "1",
-        logs: page === "1" ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Newest output", created_at: null }] : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Oldest output", created_at: null }]
-      }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            job_id: 42,
+            workflow_id: 10,
+            run_id: 51,
+            diff_review_version_id: null,
+            base_ref: null,
+            head_ref: null,
+            artifact: "transcript",
+            logs_count: 101,
+            logs_page: Number(page),
+            logs_per_page: 100,
+            logs_total_pages: 2,
+            logs_has_older: page === "1",
+            logs:
+              page === "1"
+                ? [{ id: 101, sequence: 101, kind: "assistant_text", chunk: "Newest output", created_at: null }]
+                : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Oldest output", created_at: null }]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
     })
 
     render(
@@ -257,11 +292,16 @@ describe("WorkflowsTab", () => {
   it("keeps grade log surfaces as the mobile flex child with an internal scroll region", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/jobs/42/runs/51/grade_log") {
-        return Promise.resolve(new Response(JSON.stringify({
-          name: "migration-lint",
-          run_id: 51,
-          contents: "\u001b[31mfailed\u001b[0m\nline 2"
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              name: "migration-lint",
+              run_id: 51,
+              contents: "\u001b[31mfailed\u001b[0m\nline 2"
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -272,7 +312,11 @@ describe("WorkflowsTab", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
-          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+          <WorkflowsTab
+            command={command()}
+            payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })}
+            prefix=""
+          />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -293,11 +337,16 @@ describe("WorkflowsTab", () => {
   it("shows a bounded failed-test summary inline on a failed grader run, alongside the Grade log button", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/jobs/42/runs/51/grade_log") {
-        return Promise.resolve(new Response(JSON.stringify({
-          name: "rspec",
-          run_id: 51,
-          contents: "raw rspec output"
-        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              name: "rspec",
+              run_id: 51,
+              contents: "raw rspec output"
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -320,7 +369,11 @@ describe("WorkflowsTab", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
-          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+          <WorkflowsTab
+            command={command()}
+            payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflow] })}
+            prefix=""
+          />
         </MemoryRouter>
       </QueryClientProvider>
     )
@@ -442,37 +495,39 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [{
-              id: 12,
-              slug: "WF-12",
-              path: "/jobs/1?tab=workflows#workflow-12",
-              trigger_kind: "retry",
-              agent_provider: "codex",
-              provider_failover: {
-                mode: "automatic",
-                automatic: true,
-                original_provider: "claude",
-                original_provider_label: "Claude Code",
-                selected_provider: "codex",
-                selected_provider_label: "Codex",
-                reason: "provider_unavailable",
-                decided_at: "2026-08-01T12:01:00Z"
-              },
-              state: "running",
-              failure_count: 0,
-              artifacts: {},
-              cleaned_up_at: null,
-              retry_available: false,
-              started_at: null,
-              finished_at: null,
-              created_at: "2026-08-01T12:01:00Z",
-              updated_at: null,
-              app_retry_step_path: "/workflows/12/retry",
-              app_push_commits_path: "/workflows/12/push_commits",
-              app_force_push_branch_path: "/workflows/12/force_push_branch",
-              app_discard_branch_output_path: "/workflows/12/discard_branch_output",
-              steps: []
-            }]
+            workflows: [
+              {
+                id: 12,
+                slug: "WF-12",
+                path: "/jobs/1?tab=workflows#workflow-12",
+                trigger_kind: "retry",
+                agent_provider: "codex",
+                provider_failover: {
+                  mode: "automatic",
+                  automatic: true,
+                  original_provider: "claude",
+                  original_provider_label: "Claude Code",
+                  selected_provider: "codex",
+                  selected_provider_label: "Codex",
+                  reason: "provider_unavailable",
+                  decided_at: "2026-08-01T12:01:00Z"
+                },
+                state: "running",
+                failure_count: 0,
+                artifacts: {},
+                cleaned_up_at: null,
+                retry_available: false,
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-01T12:01:00Z",
+                updated_at: null,
+                app_retry_step_path: "/workflows/12/retry",
+                app_push_commits_path: "/workflows/12/push_commits",
+                app_force_push_branch_path: "/workflows/12/force_push_branch",
+                app_discard_branch_output_path: "/workflows/12/discard_branch_output",
+                steps: []
+              }
+            ]
           })}
           prefix=""
         />
@@ -488,37 +543,39 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [{
-              id: 13,
-              slug: "WF-13",
-              path: "/jobs/1?tab=workflows#workflow-13",
-              trigger_kind: "retry",
-              agent_provider: "codex",
-              provider_failover: {
-                mode: "operator",
-                automatic: false,
-                original_provider: "claude",
-                original_provider_label: "Claude Code",
-                selected_provider: "codex",
-                selected_provider_label: "Codex",
-                reason: "operator_selected_provider",
-                decided_at: "2026-08-01T12:01:00Z"
-              },
-              state: "running",
-              failure_count: 0,
-              artifacts: {},
-              cleaned_up_at: null,
-              retry_available: false,
-              started_at: null,
-              finished_at: null,
-              created_at: "2026-08-01T12:01:00Z",
-              updated_at: null,
-              app_retry_step_path: "/workflows/13/retry",
-              app_push_commits_path: "/workflows/13/push_commits",
-              app_force_push_branch_path: "/workflows/13/force_push_branch",
-              app_discard_branch_output_path: "/workflows/13/discard_branch_output",
-              steps: []
-            }]
+            workflows: [
+              {
+                id: 13,
+                slug: "WF-13",
+                path: "/jobs/1?tab=workflows#workflow-13",
+                trigger_kind: "retry",
+                agent_provider: "codex",
+                provider_failover: {
+                  mode: "operator",
+                  automatic: false,
+                  original_provider: "claude",
+                  original_provider_label: "Claude Code",
+                  selected_provider: "codex",
+                  selected_provider_label: "Codex",
+                  reason: "operator_selected_provider",
+                  decided_at: "2026-08-01T12:01:00Z"
+                },
+                state: "running",
+                failure_count: 0,
+                artifacts: {},
+                cleaned_up_at: null,
+                retry_available: false,
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-01T12:01:00Z",
+                updated_at: null,
+                app_retry_step_path: "/workflows/13/retry",
+                app_push_commits_path: "/workflows/13/push_commits",
+                app_force_push_branch_path: "/workflows/13/force_push_branch",
+                app_discard_branch_output_path: "/workflows/13/discard_branch_output",
+                steps: []
+              }
+            ]
           })}
           prefix=""
         />
@@ -534,37 +591,39 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            work_units: [{
-              id: 88,
-              kind: "retry",
-              label: "Retry",
-              state: "blocked",
-              work_intent_id: 77,
-              workflow_id: null,
-              workflow_slug: null,
-              workflow_trigger_kind: null,
-              workflow_state: null,
-              workflow_attached_job_id: null,
-              member_role: "primary",
-              scope_type: "job",
-              scope_id: 123,
-              blocked_reason: "auto_retry_backoff",
-              blocked_label: "Auto-retry backoff",
-              blocked_until: "2026-08-23T12:00:00Z",
-              blocked_details: { auto_retry_attempt_id: 5, reason: "auto_retry_backoff" },
-              parent_work_unit_id: 77,
-              parent_work_unit_kind: "auto_merge",
-              parent_work_unit_label: "Auto-merge",
-              preemption_reason: "terminal_parent_work_unit",
-              preempted_by_work_unit_id: 79,
-              preempted_by_work_unit_kind: "merge_train",
-              preempted_by_work_unit_label: "Epic merge-train",
-              workflow: null,
-              current_step: null,
-              created_at: null,
-              started_at: null,
-              finished_at: null
-            }]
+            work_units: [
+              {
+                id: 88,
+                kind: "retry",
+                label: "Retry",
+                state: "blocked",
+                work_intent_id: 77,
+                workflow_id: null,
+                workflow_slug: null,
+                workflow_trigger_kind: null,
+                workflow_state: null,
+                workflow_attached_job_id: null,
+                member_role: "primary",
+                scope_type: "job",
+                scope_id: 123,
+                blocked_reason: "auto_retry_backoff",
+                blocked_label: "Auto-retry backoff",
+                blocked_until: "2026-08-23T12:00:00Z",
+                blocked_details: { auto_retry_attempt_id: 5, reason: "auto_retry_backoff" },
+                parent_work_unit_id: 77,
+                parent_work_unit_kind: "auto_merge",
+                parent_work_unit_label: "Auto-merge",
+                preemption_reason: "terminal_parent_work_unit",
+                preempted_by_work_unit_id: 79,
+                preempted_by_work_unit_kind: "merge_train",
+                preempted_by_work_unit_label: "Epic merge-train",
+                workflow: null,
+                current_step: null,
+                created_at: null,
+                started_at: null,
+                finished_at: null
+              }
+            ]
           })}
           prefix=""
         />
@@ -603,38 +662,40 @@ describe("WorkflowsTab", () => {
               satisfied_at: null,
               cancelled_at: null
             },
-            work_units: [{
-              id: 92,
-              kind: "merge_train",
-              label: "Merge train",
-              state: "running",
-              work_intent_id: 91,
-              workflow_id: 20071,
-              workflow_slug: "WF-171",
-              workflow_trigger_kind: "merge_train",
-              workflow_state: "running",
-              workflow_attached_job_id: 3564,
-              workflow_attached_job_slug: "JOB-464",
-              member_role: "member",
-              scope_type: "epic",
-              scope_id: 260,
-              blocked_reason: null,
-              blocked_label: null,
-              blocked_until: null,
-              blocked_details: null,
-              parent_work_unit_id: null,
-              parent_work_unit_kind: null,
-              parent_work_unit_label: null,
-              preemption_reason: null,
-              preempted_by_work_unit_id: null,
-              preempted_by_work_unit_kind: null,
-              preempted_by_work_unit_label: null,
-              workflow: null,
-              current_step: null,
-              created_at: null,
-              started_at: null,
-              finished_at: null
-            }]
+            work_units: [
+              {
+                id: 92,
+                kind: "merge_train",
+                label: "Merge train",
+                state: "running",
+                work_intent_id: 91,
+                workflow_id: 20071,
+                workflow_slug: "WF-171",
+                workflow_trigger_kind: "merge_train",
+                workflow_state: "running",
+                workflow_attached_job_id: 3564,
+                workflow_attached_job_slug: "JOB-464",
+                member_role: "member",
+                scope_type: "epic",
+                scope_id: 260,
+                blocked_reason: null,
+                blocked_label: null,
+                blocked_until: null,
+                blocked_details: null,
+                parent_work_unit_id: null,
+                parent_work_unit_kind: null,
+                parent_work_unit_label: null,
+                preemption_reason: null,
+                preempted_by_work_unit_id: null,
+                preempted_by_work_unit_kind: null,
+                preempted_by_work_unit_label: null,
+                workflow: null,
+                current_step: null,
+                created_at: null,
+                started_at: null,
+                finished_at: null
+              }
+            ]
           })}
           prefix=""
         />
@@ -651,51 +712,53 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            work_units: [{
-              id: 38,
-              kind: "initial",
-              label: "Initial implementation",
-              state: "blocked",
-              work_intent_id: 38,
-              workflow_id: 20071,
-              workflow_slug: "WF-171",
-              workflow_trigger_kind: "initial",
-              workflow_state: "queued",
-              workflow_attached_job_id: 3593,
-              member_role: "primary",
-              scope_type: "job",
-              scope_id: 3593,
-              blocked_reason: "admission_control",
-              blocked_label: "Admission control",
-              blocked_until: "2026-08-23T19:41:05Z",
-              blocked_details: {
-                action: "delay_until",
-                reason: "predicted_budget_pressure_high",
-                job_priority: "medium",
-                trigger_kind: "initial",
-                active_run_count: 4,
-                healthy_worker_count: 4,
-                repository_active_workflow_count: 5,
-                candidate_high_cost: true,
-                fallback_reasons: ["insufficient_command_and_host_profile_samples"],
-                pressure: {
-                  host: { cpu_pressure: 18.2, io_pressure: 76, memory_used_percent: 23.2 },
-                  active: { workflow_count: 5, high_cost_count: 5 }
-                }
-              },
-              parent_work_unit_id: null,
-              parent_work_unit_kind: null,
-              parent_work_unit_label: null,
-              preemption_reason: null,
-              preempted_by_work_unit_id: null,
-              preempted_by_work_unit_kind: null,
-              preempted_by_work_unit_label: null,
-              workflow: null,
-              current_step: null,
-              created_at: null,
-              started_at: null,
-              finished_at: null
-            }]
+            work_units: [
+              {
+                id: 38,
+                kind: "initial",
+                label: "Initial implementation",
+                state: "blocked",
+                work_intent_id: 38,
+                workflow_id: 20071,
+                workflow_slug: "WF-171",
+                workflow_trigger_kind: "initial",
+                workflow_state: "queued",
+                workflow_attached_job_id: 3593,
+                member_role: "primary",
+                scope_type: "job",
+                scope_id: 3593,
+                blocked_reason: "admission_control",
+                blocked_label: "Admission control",
+                blocked_until: "2026-08-23T19:41:05Z",
+                blocked_details: {
+                  action: "delay_until",
+                  reason: "predicted_budget_pressure_high",
+                  job_priority: "medium",
+                  trigger_kind: "initial",
+                  active_run_count: 4,
+                  healthy_worker_count: 4,
+                  repository_active_workflow_count: 5,
+                  candidate_high_cost: true,
+                  fallback_reasons: ["insufficient_command_and_host_profile_samples"],
+                  pressure: {
+                    host: { cpu_pressure: 18.2, io_pressure: 76, memory_used_percent: 23.2 },
+                    active: { workflow_count: 5, high_cost_count: 5 }
+                  }
+                },
+                parent_work_unit_id: null,
+                parent_work_unit_kind: null,
+                parent_work_unit_label: null,
+                preemption_reason: null,
+                preempted_by_work_unit_id: null,
+                preempted_by_work_unit_kind: null,
+                preempted_by_work_unit_label: null,
+                workflow: null,
+                current_step: null,
+                created_at: null,
+                started_at: null,
+                finished_at: null
+              }
+            ]
           })}
           prefix=""
         />
@@ -731,42 +794,44 @@ describe("WorkflowsTab", () => {
               satisfied_at: null,
               cancelled_at: null
             },
-            work_units: [{
-              id: 38,
-              kind: "initial",
-              label: "Initial implementation",
-              state: "blocked",
-              work_intent_id: 38,
-              workflow_id: 20071,
-              workflow_slug: "WF-171",
-              workflow_trigger_kind: "initial",
-              workflow_state: "queued",
-              workflow_attached_job_id: 3593,
-              member_role: "primary",
-              scope_type: "job",
-              scope_id: 3593,
-              blocked_reason: "stack_dependencies_not_ready",
-              blocked_label: "Stack dependencies not ready",
-              blocked_until: null,
-              blocked_details: {
-                kind: "stack_parent_not_ready",
-                message: "selected stack parent is missing an open PR branch or captured head SHA",
-                dependencies: [{ slug: "JOB-492", state: "running", job_id: 3592 }],
-                start_blocked_reason: "stack_dependencies_not_ready"
-              },
-              parent_work_unit_id: null,
-              parent_work_unit_kind: null,
-              parent_work_unit_label: null,
-              preemption_reason: null,
-              preempted_by_work_unit_id: null,
-              preempted_by_work_unit_kind: null,
-              preempted_by_work_unit_label: null,
-              workflow: null,
-              current_step: null,
-              created_at: null,
-              started_at: null,
-              finished_at: null
-            }]
+            work_units: [
+              {
+                id: 38,
+                kind: "initial",
+                label: "Initial implementation",
+                state: "blocked",
+                work_intent_id: 38,
+                workflow_id: 20071,
+                workflow_slug: "WF-171",
+                workflow_trigger_kind: "initial",
+                workflow_state: "queued",
+                workflow_attached_job_id: 3593,
+                member_role: "primary",
+                scope_type: "job",
+                scope_id: 3593,
+                blocked_reason: "stack_dependencies_not_ready",
+                blocked_label: "Stack dependencies not ready",
+                blocked_until: null,
+                blocked_details: {
+                  kind: "stack_parent_not_ready",
+                  message: "selected stack parent is missing an open PR branch or captured head SHA",
+                  dependencies: [{ slug: "JOB-492", state: "running", job_id: 3592 }],
+                  start_blocked_reason: "stack_dependencies_not_ready"
+                },
+                parent_work_unit_id: null,
+                parent_work_unit_kind: null,
+                parent_work_unit_label: null,
+                preemption_reason: null,
+                preempted_by_work_unit_id: null,
+                preempted_by_work_unit_kind: null,
+                preempted_by_work_unit_label: null,
+                workflow: null,
+                current_step: null,
+                created_at: null,
+                started_at: null,
+                finished_at: null
+              }
+            ]
           })}
           prefix=""
         />
@@ -787,50 +852,54 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [{
-              id: 10,
-              slug: "WF-10",
-              path: "/jobs/1?tab=workflows#workflow-10",
-              trigger_kind: "initial",
-              agent_provider: "claude",
-              state: "succeeded",
-              failure_count: 0,
-              artifacts: null,
-              cleaned_up_at: null,
-              retry_available: false,
-              started_at: null,
-              finished_at: null,
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:00:00Z",
-              app_retry_step_path: "/retry",
-              app_push_commits_path: "/push",
-              app_force_push_branch_path: "/force",
-              app_discard_branch_output_path: "/discard",
-              steps_total: 1,
-              steps_displayed: 1,
-              steps_truncated: false,
-              steps: [{
-                id: 20,
-                kind: "prepare",
-                display_name: "Prepare workspace",
-                display_status: "succeeded",
-                position: 1,
-                iteration: null,
-                loop_id: null,
+            workflows: [
+              {
+                id: 10,
+                slug: "WF-10",
+                path: "/jobs/1?tab=workflows#workflow-10",
+                trigger_kind: "initial",
+                agent_provider: "claude",
                 state: "succeeded",
+                failure_count: 0,
+                artifacts: null,
+                cleaned_up_at: null,
+                retry_available: false,
                 started_at: null,
                 finished_at: null,
                 created_at: "2026-08-25T12:00:00Z",
                 updated_at: "2026-08-25T12:00:00Z",
-                details: null,
-                warnings: [],
-                latest: true,
-                runs_total: 5,
-                runs_displayed: 0,
-                runs_truncated: true,
-                runs: []
-              }]
-            }]
+                app_retry_step_path: "/retry",
+                app_push_commits_path: "/push",
+                app_force_push_branch_path: "/force",
+                app_discard_branch_output_path: "/discard",
+                steps_total: 1,
+                steps_displayed: 1,
+                steps_truncated: false,
+                steps: [
+                  {
+                    id: 20,
+                    kind: "prepare",
+                    display_name: "Prepare workspace",
+                    display_status: "succeeded",
+                    position: 1,
+                    iteration: null,
+                    loop_id: null,
+                    state: "succeeded",
+                    started_at: null,
+                    finished_at: null,
+                    created_at: "2026-08-25T12:00:00Z",
+                    updated_at: "2026-08-25T12:00:00Z",
+                    details: null,
+                    warnings: [],
+                    latest: true,
+                    runs_total: 5,
+                    runs_displayed: 0,
+                    runs_truncated: true,
+                    runs: []
+                  }
+                ]
+              }
+            ]
           })}
           prefix=""
         />
@@ -874,6 +943,10 @@ describe("WorkflowsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review" }))
 
     expect(screen.getByText("Third visual pass")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Desktop bulk progress" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/10/visual_artifact?type=visual_review_desktop_bulk_progress_run_53_1"
+    )
     expect(screen.queryByText("First visual pass")).not.toBeInTheDocument()
     expect(screen.queryByText("Second visual pass")).not.toBeInTheDocument()
   })
@@ -884,52 +957,56 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [{
-              id: 10,
-              slug: "WF-10",
-              path: "/jobs/1?tab=workflows#workflow-10",
-              trigger_kind: "initial",
-              agent_provider: "codex",
-              state: "failed",
-              failure_count: 1,
-              artifacts: null,
-              cleaned_up_at: null,
-              retry_available: true,
-              started_at: null,
-              finished_at: null,
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:00:00Z",
-              app_retry_step_path: "/retry",
-              app_push_commits_path: "/push",
-              app_force_push_branch_path: "/force",
-              app_discard_branch_output_path: "/discard",
-              steps_total: 1,
-              steps_displayed: 1,
-              steps_truncated: false,
-              steps: [{
-                id: 24,
-                kind: "test_plan",
-                display_name: "Test plan",
-                display_status: "cancelled",
-                position: 6,
-                iteration: 1,
-                loop_id: null,
-                state: "cancelled",
+            workflows: [
+              {
+                id: 10,
+                slug: "WF-10",
+                path: "/jobs/1?tab=workflows#workflow-10",
+                trigger_kind: "initial",
+                agent_provider: "codex",
+                state: "failed",
+                failure_count: 1,
+                artifacts: null,
+                cleaned_up_at: null,
+                retry_available: true,
                 started_at: null,
-                finished_at: "2026-08-25T12:01:00Z",
+                finished_at: null,
                 created_at: "2026-08-25T12:00:00Z",
-                updated_at: "2026-08-25T12:01:00Z",
-                details: {
-                  cancelled_reason: "cancel_terminal_workflow_active_descendants",
-                  cancelled_workflow_state: "failed",
-                  cancelled_source_step_id: 23,
-                  cancelled_source_step_kind: "grader"
-                },
-                warnings: [],
-                latest: true,
-                runs: []
-              }]
-            }]
+                updated_at: "2026-08-25T12:00:00Z",
+                app_retry_step_path: "/retry",
+                app_push_commits_path: "/push",
+                app_force_push_branch_path: "/force",
+                app_discard_branch_output_path: "/discard",
+                steps_total: 1,
+                steps_displayed: 1,
+                steps_truncated: false,
+                steps: [
+                  {
+                    id: 24,
+                    kind: "test_plan",
+                    display_name: "Test plan",
+                    display_status: "cancelled",
+                    position: 6,
+                    iteration: 1,
+                    loop_id: null,
+                    state: "cancelled",
+                    started_at: null,
+                    finished_at: "2026-08-25T12:01:00Z",
+                    created_at: "2026-08-25T12:00:00Z",
+                    updated_at: "2026-08-25T12:01:00Z",
+                    details: {
+                      cancelled_reason: "cancel_terminal_workflow_active_descendants",
+                      cancelled_workflow_state: "failed",
+                      cancelled_source_step_id: 23,
+                      cancelled_source_step_kind: "grader"
+                    },
+                    warnings: [],
+                    latest: true,
+                    runs: []
+                  }
+                ]
+              }
+            ]
           })}
           prefix=""
         />
@@ -953,30 +1030,32 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 24,
-              kind: "coverage_analyze",
-              display_name: "Analyze coverage",
-              display_status: "succeeded",
-              position: 6,
-              iteration: 1,
-              loop_id: null,
-              state: "succeeded",
-              started_at: "2026-08-25T12:00:00Z",
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: {
-                cancelled_by: "terminal_workflow_cleanup",
-                cancelled_reason: "cancel_terminal_workflow_active_descendants",
-                cancelled_workflow_state: "failed",
-                cancelled_source_step_id: 23,
-                cancelled_source_step_kind: "grader"
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 24,
+                kind: "coverage_analyze",
+                display_name: "Analyze coverage",
+                display_status: "succeeded",
+                position: 6,
+                iteration: 1,
+                loop_id: null,
+                state: "succeeded",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  cancelled_by: "terminal_workflow_cleanup",
+                  cancelled_reason: "cancel_terminal_workflow_active_descendants",
+                  cancelled_workflow_state: "failed",
+                  cancelled_source_step_id: 23,
+                  cancelled_source_step_kind: "grader"
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -997,24 +1076,26 @@ describe("WorkflowsTab", () => {
           command={command()}
           payload={payload({
             job: { id: 42, pr_number: 123, pr_url: "https://github.com/acme/widgets/pull/123" } as JobDetailPayload["job"],
-            workflows: [workflowWithStepDetails({
-              id: 40,
-              kind: "pr_open",
-              display_name: "Open PR",
-              display_status: "succeeded",
-              position: 8,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: "2026-08-25T12:00:00Z",
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: null,
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 40,
+                kind: "pr_open",
+                display_name: "Open PR",
+                display_status: "succeeded",
+                position: 8,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1034,24 +1115,26 @@ describe("WorkflowsTab", () => {
           command={command()}
           payload={payload({
             job: { id: 42, pr_number: null, pr_url: null } as JobDetailPayload["job"],
-            workflows: [workflowWithStepDetails({
-              id: 40,
-              kind: "pr_open",
-              display_name: "Open PR",
-              display_status: "failed",
-              position: 8,
-              iteration: null,
-              loop_id: null,
-              state: "failed",
-              started_at: "2026-08-25T12:00:00Z",
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: null,
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 40,
+                kind: "pr_open",
+                display_name: "Open PR",
+                display_status: "failed",
+                position: 8,
+                iteration: null,
+                loop_id: null,
+                state: "failed",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1070,37 +1153,41 @@ describe("WorkflowsTab", () => {
           command={command()}
           payload={payload({
             job: { id: 42 } as JobDetailPayload["job"],
-            pr_links: [{
-              id: 1,
-              role: "promotion",
-              source_repository_slug: "acme/widgets",
-              source_ref: "release/2026-09",
-              target_repository_slug: "acme/widgets",
-              target_ref: "main",
-              pr_number: 456,
-              pr_url: "https://github.com/acme/widgets/pull/456",
-              pr_state: "open",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:00:00Z"
-            }],
-            workflows: [workflowWithStepDetails({
-              id: 41,
-              kind: "promotion_publish",
-              display_name: "Publish promotion",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: "2026-08-25T12:00:00Z",
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: null,
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            pr_links: [
+              {
+                id: 1,
+                role: "promotion",
+                source_repository_slug: "acme/widgets",
+                source_ref: "release/2026-09",
+                target_repository_slug: "acme/widgets",
+                target_ref: "main",
+                pr_number: 456,
+                pr_url: "https://github.com/acme/widgets/pull/456",
+                pr_state: "open",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:00Z"
+              }
+            ],
+            workflows: [
+              workflowWithStepDetails({
+                id: 41,
+                kind: "promotion_publish",
+                display_name: "Publish promotion",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: "2026-08-25T12:00:00Z",
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: null,
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1119,26 +1206,28 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 30,
-              kind: "unspecified_future_step",
-              display_name: "Mystery step",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: {
-                some_future_planner_output: [ { name: "unclaimed", reason: "no semantic renderer yet" } ]
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "unspecified_future_step",
+                display_name: "Mystery step",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  some_future_planner_output: [{ name: "unclaimed", reason: "no semantic renderer yet" }]
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1162,29 +1251,37 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 30,
-              kind: "grader_fanout",
-              display_name: "Plan graders",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: {
-                grader_target_selections: [
-                  { name: "rspec", target_label: "//:grade/rspec", required: true, affected: true, reason: "own source scope matched a changed file" },
-                  { name: "plugins-rails-eslint", target_label: "//plugins/rails:grade/eslint", required: false, affected: false, reason: "no matching files changed" }
-                ]
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_fanout",
+                display_name: "Plan graders",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  grader_target_selections: [
+                    { name: "rspec", target_label: "//:grade/rspec", required: true, affected: true, reason: "own source scope matched a changed file" },
+                    {
+                      name: "plugins-rails-eslint",
+                      target_label: "//plugins/rails:grade/eslint",
+                      required: false,
+                      affected: false,
+                      reason: "no matching files changed"
+                    }
+                  ]
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1210,35 +1307,37 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 30,
-              kind: "grader_fanout",
-              display_name: "Plan graders",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: {
-                grader_target_selections: [
-                  {
-                    name: "plugins-rails-rspec-focused",
-                    display_name: "rails plugin: RSpec (focused)",
-                    target_label: "//plugins/rails:grade/rspec-focused",
-                    required: true,
-                    affected: false,
-                    reason: "no matching files changed"
-                  }
-                ]
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_fanout",
+                display_name: "Plan graders",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  grader_target_selections: [
+                    {
+                      name: "plugins-rails-rspec-focused",
+                      display_name: "rails plugin: RSpec (focused)",
+                      target_label: "//plugins/rails:grade/rspec-focused",
+                      required: true,
+                      affected: false,
+                      reason: "no matching files changed"
+                    }
+                  ]
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1258,24 +1357,26 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 30,
-              kind: "grader_collect",
-              display_name: "Aggregate graders",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: { transient_only_required_grader_failure: true },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader_collect",
+                display_name: "Aggregate graders",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: { transient_only_required_grader_failure: true },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1295,30 +1396,32 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 30,
-              kind: "grader",
-              display_name: "plugins/rails: RSpec Focused",
-              display_status: "succeeded",
-              position: 1,
-              iteration: null,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:01:00Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:01:00Z",
-              details: {
-                name: "plugins-rails-rspec-focused",
-                target_label: "//plugins/rails:grade/rspec-focused",
-                description: "Runs the focused RSpec suite for plugins/rails.",
-                command: "bin/rspec --tag focus",
-                required: true
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 30,
+                kind: "grader",
+                display_name: "plugins/rails: RSpec Focused",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:01:00Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:01:00Z",
+                details: {
+                  name: "plugins-rails-rspec-focused",
+                  target_label: "//plugins/rails:grade/rspec-focused",
+                  description: "Runs the focused RSpec suite for plugins/rails.",
+                  command: "bin/rspec --tag focus",
+                  required: true
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1341,34 +1444,38 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 31,
-              kind: "format",
-              display_name: "Format",
-              display_status: "succeeded",
-              position: 2,
-              iteration: 1,
-              loop_id: null,
-              state: "succeeded",
-              started_at: null,
-              finished_at: "2026-08-25T12:02:00Z",
-              created_at: "2026-08-25T12:01:00Z",
-              updated_at: "2026-08-25T12:02:00Z",
-              details: {
-                format_failures: [{
-                  command: "rubocop -A",
-                  workdir: "/workspace",
-                  exit_status: 1,
-                  timed_out: false,
-                  duration_s: 4.2,
-                  output_tail: "offense detected",
-                  soft: true
-                }]
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+            workflows: [
+              workflowWithStepDetails({
+                id: 31,
+                kind: "format",
+                display_name: "Format",
+                display_status: "succeeded",
+                position: 2,
+                iteration: 1,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: "2026-08-25T12:02:00Z",
+                created_at: "2026-08-25T12:01:00Z",
+                updated_at: "2026-08-25T12:02:00Z",
+                details: {
+                  format_failures: [
+                    {
+                      command: "rubocop -A",
+                      workdir: "/workspace",
+                      exit_status: 1,
+                      timed_out: false,
+                      duration_s: 4.2,
+                      output_tail: "offense detected",
+                      soft: true
+                    }
+                  ]
+                },
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1390,43 +1497,45 @@ describe("WorkflowsTab", () => {
         <WorkflowsTab
           command={command()}
           payload={payload({
-            workflows: [workflowWithStepDetails({
-              id: 32,
-              kind: "prepare",
-              display_name: "Prepare",
-              display_status: "failed",
-              position: 0,
-              iteration: null,
-              loop_id: null,
-              state: "failed",
-              started_at: null,
-              finished_at: "2026-08-25T12:00:30Z",
-              created_at: "2026-08-25T12:00:00Z",
-              updated_at: "2026-08-25T12:00:30Z",
-              details: {
-                prepare_failure: {
-                  command: "bundle install",
-                  workdir: "/workspace",
-                  exit_status: 1,
-                  timed_out: false,
-                  duration_s: 12.3,
-                  output_tail: "Bundler error",
-                  soft: false
+            workflows: [
+              workflowWithStepDetails({
+                id: 32,
+                kind: "prepare",
+                display_name: "Prepare",
+                display_status: "failed",
+                position: 0,
+                iteration: null,
+                loop_id: null,
+                state: "failed",
+                started_at: null,
+                finished_at: "2026-08-25T12:00:30Z",
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:30Z",
+                details: {
+                  prepare_failure: {
+                    command: "bundle install",
+                    workdir: "/workspace",
+                    exit_status: 1,
+                    timed_out: false,
+                    duration_s: 12.3,
+                    output_tail: "Bundler error",
+                    soft: false
+                  },
+                  mise_install_failure: {
+                    command: "mise install",
+                    workdir: "/workspace",
+                    exit_status: 2,
+                    timed_out: false,
+                    duration_s: 3.1,
+                    output_tail: "mise error output",
+                    soft: true
+                  }
                 },
-                mise_install_failure: {
-                  command: "mise install",
-                  workdir: "/workspace",
-                  exit_status: 2,
-                  timed_out: false,
-                  duration_s: 3.1,
-                  output_tail: "mise error output",
-                  soft: true
-                }
-              },
-              warnings: [],
-              latest: true,
-              runs: []
-            })]
+                warnings: [],
+                latest: true,
+                runs: []
+              })
+            ]
           })}
           prefix=""
         />
@@ -1501,66 +1610,70 @@ describe("WorkflowsTab", () => {
           <WorkflowsTab
             command={command()}
             payload={payload({
-              workflows: [workflowWithStepDetails({
-                id: 40,
-                kind: "prepare",
-                display_name: "Prepare workspace",
-                display_status: "succeeded",
-                position: 1,
-                iteration: null,
-                loop_id: null,
-                state: "succeeded",
-                started_at: null,
-                finished_at: null,
-                created_at: "2026-08-25T12:00:00Z",
-                updated_at: "2026-08-25T12:00:00Z",
-                agentic: false,
-                details: null,
-                warnings: [],
-                latest: true,
-                runs: [{
-                  id: 90,
+              workflows: [
+                workflowWithStepDetails({
+                  id: 40,
+                  kind: "prepare",
+                  display_name: "Prepare workspace",
+                  display_status: "succeeded",
+                  position: 1,
+                  iteration: null,
+                  loop_id: null,
                   state: "succeeded",
-                  trigger_kind: "initial",
-                  agent_provider: "claude",
-                  agent_outcome: "success",
-                  agent_turns: 0,
-                  agent_pr_title: null,
-                  agent_summary: null,
-                  parent_session_id: null,
-                  skill_source: null,
-                  skill_resolved_path: null,
-                  skill_resolved_class: null,
-                  head_sha: null,
-                  iteration: 1,
                   started_at: null,
-                  last_heartbeat_at: null,
                   finished_at: null,
                   created_at: "2026-08-25T12:00:00Z",
                   updated_at: "2026-08-25T12:00:00Z",
-                  cost_usd: null,
-                  input_tokens: 0,
-                  output_tokens: 0,
-                  agent_diff_present: false,
-                  agent_diff_bytes: 0,
-                  step_agent_diff_present: false,
-                  step_agent_diff_bytes: 0,
-                  step_diff_matches_diff: false,
-                  job_log_count: 20,
-                  rate_limited: false,
-                  run_diagnostic: null,
-                  health_snapshots: [],
-                  agent_session: null,
-                  can_stop: false,
-                  can_diagnose: false,
-                  can_resume: false,
-                  app_artifacts_path: "/api/v1/app/jobs/1/runs/90/artifacts",
-                  app_stop_path: "/stop",
-                  app_diagnose_path: "/diagnose",
-                  app_resume_path: "/resume",
-                  app_grade_log_path: null
-                }]
-              })]
+                  agentic: false,
+                  details: null,
+                  warnings: [],
+                  latest: true,
+                  runs: [
+                    {
+                      id: 90,
+                      state: "succeeded",
+                      trigger_kind: "initial",
+                      agent_provider: "claude",
+                      agent_outcome: "success",
+                      agent_turns: 0,
+                      agent_pr_title: null,
+                      agent_summary: null,
+                      parent_session_id: null,
+                      skill_source: null,
+                      skill_resolved_path: null,
+                      skill_resolved_class: null,
+                      head_sha: null,
+                      iteration: 1,
+                      started_at: null,
+                      last_heartbeat_at: null,
+                      finished_at: null,
+                      created_at: "2026-08-25T12:00:00Z",
+                      updated_at: "2026-08-25T12:00:00Z",
+                      cost_usd: null,
+                      input_tokens: 0,
+                      output_tokens: 0,
+                      agent_diff_present: false,
+                      agent_diff_bytes: 0,
+                      step_agent_diff_present: false,
+                      step_agent_diff_bytes: 0,
+                      step_diff_matches_diff: false,
+                      job_log_count: 20,
+                      rate_limited: false,
+                      run_diagnostic: null,
+                      health_snapshots: [],
+                      agent_session: null,
+                      can_stop: false,
+                      can_diagnose: false,
+                      can_resume: false,
+                      app_artifacts_path: "/api/v1/app/jobs/1/runs/90/artifacts",
+                      app_stop_path: "/stop",
+                      app_diagnose_path: "/diagnose",
+                      app_resume_path: "/resume",
+                      app_grade_log_path: null
+                    }
+                  ]
+                })
+              ]
             })}
             prefix=""
           />
@@ -1590,66 +1703,70 @@ describe("WorkflowsTab", () => {
           <WorkflowsTab
             command={command()}
             payload={payload({
-              workflows: [workflowWithStepDetails({
-                id: 41,
-                kind: "prepare",
-                display_name: "Prepare workspace",
-                display_status: "failed",
-                position: 1,
-                iteration: null,
-                loop_id: null,
-                state: "failed",
-                started_at: null,
-                finished_at: null,
-                created_at: "2026-08-25T12:00:00Z",
-                updated_at: "2026-08-25T12:00:00Z",
-                agentic: false,
-                details: null,
-                warnings: [],
-                latest: true,
-                runs: [{
-                  id: 91,
+              workflows: [
+                workflowWithStepDetails({
+                  id: 41,
+                  kind: "prepare",
+                  display_name: "Prepare workspace",
+                  display_status: "failed",
+                  position: 1,
+                  iteration: null,
+                  loop_id: null,
                   state: "failed",
-                  trigger_kind: "initial",
-                  agent_provider: "claude",
-                  agent_outcome: null,
-                  agent_turns: 0,
-                  agent_pr_title: null,
-                  agent_summary: null,
-                  parent_session_id: null,
-                  skill_source: null,
-                  skill_resolved_path: null,
-                  skill_resolved_class: null,
-                  head_sha: null,
-                  iteration: 1,
-                  started_at: "2026-08-25T12:00:00Z",
-                  last_heartbeat_at: null,
-                  finished_at: "2026-08-25T12:00:05Z",
+                  started_at: null,
+                  finished_at: null,
                   created_at: "2026-08-25T12:00:00Z",
-                  updated_at: "2026-08-25T12:00:05Z",
-                  cost_usd: 0,
-                  input_tokens: 0,
-                  output_tokens: 0,
-                  agent_diff_present: false,
-                  agent_diff_bytes: 0,
-                  step_agent_diff_present: false,
-                  step_agent_diff_bytes: 0,
-                  step_diff_matches_diff: false,
-                  job_log_count: 5,
-                  rate_limited: false,
-                  run_diagnostic: null,
-                  health_snapshots: [],
-                  agent_session: null,
-                  can_stop: false,
-                  can_diagnose: false,
-                  can_resume: false,
-                  app_artifacts_path: "/api/v1/app/jobs/1/runs/91/artifacts",
-                  app_stop_path: "/stop",
-                  app_diagnose_path: "/diagnose",
-                  app_resume_path: "/resume",
-                  app_grade_log_path: null
-                }]
-              })]
+                  updated_at: "2026-08-25T12:00:00Z",
+                  agentic: false,
+                  details: null,
+                  warnings: [],
+                  latest: true,
+                  runs: [
+                    {
+                      id: 91,
+                      state: "failed",
+                      trigger_kind: "initial",
+                      agent_provider: "claude",
+                      agent_outcome: null,
+                      agent_turns: 0,
+                      agent_pr_title: null,
+                      agent_summary: null,
+                      parent_session_id: null,
+                      skill_source: null,
+                      skill_resolved_path: null,
+                      skill_resolved_class: null,
+                      head_sha: null,
+                      iteration: 1,
+                      started_at: "2026-08-25T12:00:00Z",
+                      last_heartbeat_at: null,
+                      finished_at: "2026-08-25T12:00:05Z",
+                      created_at: "2026-08-25T12:00:00Z",
+                      updated_at: "2026-08-25T12:00:05Z",
+                      cost_usd: 0,
+                      input_tokens: 0,
+                      output_tokens: 0,
+                      agent_diff_present: false,
+                      agent_diff_bytes: 0,
+                      step_agent_diff_present: false,
+                      step_agent_diff_bytes: 0,
+                      step_diff_matches_diff: false,
+                      job_log_count: 5,
+                      rate_limited: false,
+                      run_diagnostic: null,
+                      health_snapshots: [],
+                      agent_session: null,
+                      can_stop: false,
+                      can_diagnose: false,
+                      can_resume: false,
+                      app_artifacts_path: "/api/v1/app/jobs/1/runs/91/artifacts",
+                      app_stop_path: "/stop",
+                      app_diagnose_path: "/diagnose",
+                      app_resume_path: "/resume",
+                      app_grade_log_path: null
+                    }
+                  ]
+                })
+              ]
             })}
             prefix=""
           />
@@ -1671,66 +1788,70 @@ describe("WorkflowsTab", () => {
           <WorkflowsTab
             command={command()}
             payload={payload({
-              workflows: [workflowWithStepDetails({
-                id: 5604,
-                kind: "implement",
-                display_name: "Implement",
-                display_status: "running",
-                position: 1,
-                iteration: null,
-                loop_id: null,
-                state: "running",
-                started_at: "2026-08-25T12:00:00Z",
-                finished_at: null,
-                created_at: "2026-08-25T12:00:00Z",
-                updated_at: "2026-08-25T12:00:00Z",
-                agentic: true,
-                details: null,
-                warnings: [],
-                latest: true,
-                runs: [{
+              workflows: [
+                workflowWithStepDetails({
                   id: 5604,
+                  kind: "implement",
+                  display_name: "Implement",
+                  display_status: "running",
+                  position: 1,
+                  iteration: null,
+                  loop_id: null,
                   state: "running",
-                  trigger_kind: "initial",
-                  agent_provider: "codex",
-                  agent_outcome: null,
-                  agent_turns: 0,
-                  agent_pr_title: null,
-                  agent_summary: null,
-                  parent_session_id: null,
-                  skill_source: null,
-                  skill_resolved_path: null,
-                  skill_resolved_class: null,
-                  head_sha: null,
-                  iteration: 1,
                   started_at: "2026-08-25T12:00:00Z",
-                  last_heartbeat_at: null,
                   finished_at: null,
                   created_at: "2026-08-25T12:00:00Z",
                   updated_at: "2026-08-25T12:00:00Z",
-                  cost_usd: 0,
-                  input_tokens: 0,
-                  output_tokens: 0,
-                  agent_diff_present: false,
-                  agent_diff_bytes: 0,
-                  step_agent_diff_present: false,
-                  step_agent_diff_bytes: 0,
-                  step_diff_matches_diff: false,
-                  job_log_count: 1,
-                  rate_limited: false,
-                  run_diagnostic: null,
-                  health_snapshots: [],
-                  agent_session: null,
-                  can_stop: true,
-                  can_diagnose: true,
-                  can_resume: false,
-                  app_artifacts_path: "/api/v1/app/jobs/1/runs/5604/artifacts",
-                  app_stop_path: "/stop",
-                  app_diagnose_path: "/diagnose",
-                  app_resume_path: "/resume",
-                  app_grade_log_path: null
-                }]
-              })]
+                  agentic: true,
+                  details: null,
+                  warnings: [],
+                  latest: true,
+                  runs: [
+                    {
+                      id: 5604,
+                      state: "running",
+                      trigger_kind: "initial",
+                      agent_provider: "codex",
+                      agent_outcome: null,
+                      agent_turns: 0,
+                      agent_pr_title: null,
+                      agent_summary: null,
+                      parent_session_id: null,
+                      skill_source: null,
+                      skill_resolved_path: null,
+                      skill_resolved_class: null,
+                      head_sha: null,
+                      iteration: 1,
+                      started_at: "2026-08-25T12:00:00Z",
+                      last_heartbeat_at: null,
+                      finished_at: null,
+                      created_at: "2026-08-25T12:00:00Z",
+                      updated_at: "2026-08-25T12:00:00Z",
+                      cost_usd: 0,
+                      input_tokens: 0,
+                      output_tokens: 0,
+                      agent_diff_present: false,
+                      agent_diff_bytes: 0,
+                      step_agent_diff_present: false,
+                      step_agent_diff_bytes: 0,
+                      step_diff_matches_diff: false,
+                      job_log_count: 1,
+                      rate_limited: false,
+                      run_diagnostic: null,
+                      health_snapshots: [],
+                      agent_session: null,
+                      can_stop: true,
+                      can_diagnose: true,
+                      can_resume: false,
+                      app_artifacts_path: "/api/v1/app/jobs/1/runs/5604/artifacts",
+                      app_stop_path: "/stop",
+                      app_diagnose_path: "/diagnose",
+                      app_resume_path: "/resume",
+                      app_grade_log_path: null
+                    }
+                  ]
+                })
+              ]
             })}
             prefix=""
           />
@@ -1757,65 +1878,69 @@ describe("WorkflowsTab", () => {
           <WorkflowsTab
             command={command()}
             payload={payload({
-              workflows: [workflowWithStepDetails({
-                id: 42,
-                kind: "implement",
-                display_name: "Implement",
-                display_status: "succeeded",
-                position: 1,
-                iteration: null,
-                loop_id: null,
-                state: "succeeded",
-                started_at: "2026-08-25T12:00:00Z",
-                finished_at: "2026-08-25T12:00:05Z",
-                created_at: "2026-08-25T12:00:00Z",
-                updated_at: "2026-08-25T12:00:05Z",
-                details: null,
-                warnings: [],
-                latest: true,
-                runs: [{
-                  id: 92,
+              workflows: [
+                workflowWithStepDetails({
+                  id: 42,
+                  kind: "implement",
+                  display_name: "Implement",
+                  display_status: "succeeded",
+                  position: 1,
+                  iteration: null,
+                  loop_id: null,
                   state: "succeeded",
-                  trigger_kind: "initial",
-                  agent_provider: "codex",
-                  agent_outcome: "success",
-                  agent_turns: 3,
-                  agent_pr_title: null,
-                  agent_summary: null,
-                  parent_session_id: null,
-                  skill_source: null,
-                  skill_resolved_path: null,
-                  skill_resolved_class: null,
-                  head_sha: null,
-                  iteration: 1,
                   started_at: "2026-08-25T12:00:00Z",
-                  last_heartbeat_at: null,
                   finished_at: "2026-08-25T12:00:05Z",
                   created_at: "2026-08-25T12:00:00Z",
                   updated_at: "2026-08-25T12:00:05Z",
-                  cost_usd: 0.05,
-                  input_tokens: 0,
-                  output_tokens: 0,
-                  agent_diff_present: false,
-                  agent_diff_bytes: 0,
-                  step_agent_diff_present: false,
-                  step_agent_diff_bytes: 0,
-                  step_diff_matches_diff: false,
-                  job_log_count: 0,
-                  rate_limited: false,
-                  run_diagnostic: null,
-                  health_snapshots: [],
-                  agent_session: null,
-                  can_stop: false,
-                  can_diagnose: false,
-                  can_resume: false,
-                  app_artifacts_path: "/api/v1/app/jobs/1/runs/92/artifacts",
-                  app_stop_path: "/stop",
-                  app_diagnose_path: "/diagnose",
-                  app_resume_path: "/resume",
-                  app_grade_log_path: null
-                }]
-              })]
+                  details: null,
+                  warnings: [],
+                  latest: true,
+                  runs: [
+                    {
+                      id: 92,
+                      state: "succeeded",
+                      trigger_kind: "initial",
+                      agent_provider: "codex",
+                      agent_outcome: "success",
+                      agent_turns: 3,
+                      agent_pr_title: null,
+                      agent_summary: null,
+                      parent_session_id: null,
+                      skill_source: null,
+                      skill_resolved_path: null,
+                      skill_resolved_class: null,
+                      head_sha: null,
+                      iteration: 1,
+                      started_at: "2026-08-25T12:00:00Z",
+                      last_heartbeat_at: null,
+                      finished_at: "2026-08-25T12:00:05Z",
+                      created_at: "2026-08-25T12:00:00Z",
+                      updated_at: "2026-08-25T12:00:05Z",
+                      cost_usd: 0.05,
+                      input_tokens: 0,
+                      output_tokens: 0,
+                      agent_diff_present: false,
+                      agent_diff_bytes: 0,
+                      step_agent_diff_present: false,
+                      step_agent_diff_bytes: 0,
+                      step_diff_matches_diff: false,
+                      job_log_count: 0,
+                      rate_limited: false,
+                      run_diagnostic: null,
+                      health_snapshots: [],
+                      agent_session: null,
+                      can_stop: false,
+                      can_diagnose: false,
+                      can_resume: false,
+                      app_artifacts_path: "/api/v1/app/jobs/1/runs/92/artifacts",
+                      app_stop_path: "/stop",
+                      app_diagnose_path: "/diagnose",
+                      app_resume_path: "/resume",
+                      app_grade_log_path: null
+                    }
+                  ]
+                })
+              ]
             })}
             prefix=""
           />
@@ -1913,65 +2038,69 @@ function workflowWithDiffRun() {
     steps_total: 1,
     steps_displayed: 1,
     steps_truncated: false,
-    steps: [{
-      id: 20,
-      kind: "implement",
-      display_name: "Implement",
-      display_status: "succeeded",
-      position: 1,
-      iteration: null,
-      loop_id: null,
-      state: "succeeded",
-      started_at: null,
-      finished_at: null,
-      created_at: "2026-08-25T12:00:00Z",
-      updated_at: "2026-08-25T12:00:00Z",
-      details: null,
-      warnings: [],
-      latest: true,
-      runs: [{
-        id: 51,
+    steps: [
+      {
+        id: 20,
+        kind: "implement",
+        display_name: "Implement",
+        display_status: "succeeded",
+        position: 1,
+        iteration: null,
+        loop_id: null,
         state: "succeeded",
-        trigger_kind: "initial",
-        agent_provider: "codex",
-        agent_outcome: "success",
-        agent_turns: 1,
-        agent_pr_title: null,
-        agent_summary: null,
-        parent_session_id: null,
-        skill_source: null,
-        skill_resolved_path: null,
-        skill_resolved_class: null,
-        head_sha: "head-sha",
-        iteration: 1,
         started_at: null,
-        last_heartbeat_at: null,
         finished_at: null,
         created_at: "2026-08-25T12:00:00Z",
         updated_at: "2026-08-25T12:00:00Z",
-        cost_usd: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        agent_diff_present: true,
-        agent_diff_bytes: 120,
-        step_agent_diff_present: false,
-        step_agent_diff_bytes: 0,
-        step_diff_matches_diff: false,
-        job_log_count: 0,
-        rate_limited: false,
-        run_diagnostic: null,
-        health_snapshots: [],
-        agent_session: null,
-        can_stop: false,
-        can_diagnose: false,
-        can_resume: false,
-        app_artifacts_path: "/api/v1/app/jobs/42/runs/51/artifacts",
-        app_stop_path: "/stop",
-        app_diagnose_path: "/diagnose",
-        app_resume_path: "/resume",
-        app_grade_log_path: null
-      }]
-    }]
+        details: null,
+        warnings: [],
+        latest: true,
+        runs: [
+          {
+            id: 51,
+            state: "succeeded",
+            trigger_kind: "initial",
+            agent_provider: "codex",
+            agent_outcome: "success",
+            agent_turns: 1,
+            agent_pr_title: null,
+            agent_summary: null,
+            parent_session_id: null,
+            skill_source: null,
+            skill_resolved_path: null,
+            skill_resolved_class: null,
+            head_sha: "head-sha",
+            iteration: 1,
+            started_at: null,
+            last_heartbeat_at: null,
+            finished_at: null,
+            created_at: "2026-08-25T12:00:00Z",
+            updated_at: "2026-08-25T12:00:00Z",
+            cost_usd: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            agent_diff_present: true,
+            agent_diff_bytes: 120,
+            step_agent_diff_present: false,
+            step_agent_diff_bytes: 0,
+            step_diff_matches_diff: false,
+            job_log_count: 0,
+            rate_limited: false,
+            run_diagnostic: null,
+            health_snapshots: [],
+            agent_session: null,
+            can_stop: false,
+            can_diagnose: false,
+            can_resume: false,
+            app_artifacts_path: "/api/v1/app/jobs/42/runs/51/artifacts",
+            app_stop_path: "/stop",
+            app_diagnose_path: "/diagnose",
+            app_resume_path: "/resume",
+            app_grade_log_path: null
+          }
+        ]
+      }
+    ]
   } as JobDetailPayload["workflows"][number]
 }
 
@@ -2049,7 +2178,27 @@ function workflowWithVisualReviews() {
       visual_review_iterations: [
         { iteration: 1, critique: "First visual pass", verdict: "needs_work", artifacts: [] },
         { iteration: 2, critique: "Second visual pass", verdict: "needs_work", artifacts: [] },
-        { iteration: 3, step_id: 33, run_id: 53, critique: "Third visual pass", verdict: "approved", artifacts: [] }
+        {
+          iteration: 3,
+          step_id: 33,
+          run_id: 53,
+          critique: "Third visual pass",
+          verdict: "approved",
+          artifacts: [
+            {
+              type: "visual_review_desktop_bulk_progress_run_53_1",
+              title: "Desktop bulk progress",
+              image_url: "/api/v1/app/workflows/10/visual_artifact?type=visual_review_desktop_bulk_progress_run_53_1",
+              content_type: "image/png",
+              byte_size: 2048,
+              page: { path: "/jobs" },
+              viewport: { width: 1280, height: 800 },
+              source: "current_browser",
+              captured_at: "2026-10-22T12:00:00Z",
+              created_at: "2026-10-22T12:00:01Z"
+            }
+          ]
+        }
       ]
     },
     cleaned_up_at: null,
@@ -2065,11 +2214,7 @@ function workflowWithVisualReviews() {
     steps_total: 3,
     steps_displayed: 3,
     steps_truncated: false,
-    steps: [
-      visualStep(31, 1, 1),
-      visualStep(32, 2, 2),
-      visualStep(33, 3, 3)
-    ]
+    steps: [visualStep(31, 1, 1), visualStep(32, 2, 2), visualStep(33, 3, 3)]
   } as JobDetailPayload["workflows"][number]
 }
 
@@ -2106,30 +2251,34 @@ function distributedGradeWorkflow() {
     rate_limited: false,
     run_diagnostic: null,
     health_snapshots: [],
-    command_spans: hostname ? [{
-      id: id + 100,
-      run_id: id,
-      job_id: 42,
-      workflow_id: 10,
-      step_id: id,
-      spawned_process_id: null,
-      sequence: 1,
-      name: "grader",
-      command_excerpt: "bin/grader",
-      started_at: "2026-08-25T12:00:00Z",
-      finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
-      duration_ms: null,
-      duration_s: null,
-      exit_status: state === "failed" ? 1 : 0,
-      outcome: state,
-      hostname,
-      metadata: null,
-      sample_count: 0,
-      samples_missing: true,
-      retention_limited: false,
-      summary: {},
-      pressure: { level: "unknown", reasons: [] }
-    }] : [],
+    command_spans: hostname
+      ? [
+          {
+            id: id + 100,
+            run_id: id,
+            job_id: 42,
+            workflow_id: 10,
+            step_id: id,
+            spawned_process_id: null,
+            sequence: 1,
+            name: "grader",
+            command_excerpt: "bin/grader",
+            started_at: "2026-08-25T12:00:00Z",
+            finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
+            duration_ms: null,
+            duration_s: null,
+            exit_status: state === "failed" ? 1 : 0,
+            outcome: state,
+            hostname,
+            metadata: null,
+            sample_count: 0,
+            samples_missing: true,
+            retention_limited: false,
+            summary: {},
+            pressure: { level: "unknown", reasons: [] }
+          }
+        ]
+      : [],
     agent_session: null,
     can_stop: false,
     can_diagnose: false,

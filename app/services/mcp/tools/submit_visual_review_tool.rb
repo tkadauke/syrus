@@ -88,8 +88,10 @@ module Mcp::Tools
 
           payload = entry["payload"]
           next unless payload.is_a?(Hash)
-          next unless payload["run_id"].to_i == run.id
-          next unless entry["original_type"] == "visual_review_screenshot" || payload["original_type"] == "visual_review_screenshot"
+          next unless entry["run_id"].to_i == run.id
+          next unless entry["renderer_type"] == "image_diff"
+          next unless payload["content_type"].to_s.start_with?("image/")
+          next if payload["image_url"].blank?
 
           {
             "type" => entry["type"],
@@ -112,7 +114,7 @@ module Mcp::Tools
       def response_message(verdict, artifact_evidence)
         return "Saved." if verdict == "skipped" || artifact_evidence.any?
 
-        "Saved. Warning: no visual_review_screenshot artifacts were submitted for this run. " \
+        "Saved. Warning: no image artifacts were submitted for this visual-review run. " \
           "Capture visual evidence first with submit_visual_artifact(capture_current_browser: true, ...), " \
           "or omit image inputs so submit_visual_artifact captures the current browser."
       end

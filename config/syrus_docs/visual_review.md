@@ -124,6 +124,13 @@ path, title, viewport, source, and capture time. An unexpected redirect to a
 login page is a blocker unless the auth screen is the changed surface being
 reviewed.
 
+Screenshot artifact types may be descriptive (for example,
+`visual_review_mobile_bulk_progress`). When `submit_visual_review` records the
+iteration, it associates image artifacts through the submitting Run's trusted
+provenance, image metadata, and image renderer identity. The association does
+not depend on an exact caller-chosen type; artifacts from other Runs and
+non-image typed artifacts remain excluded.
+
 ## Verdicts
 
 The reviewer agent must call `submit_visual_review` with one of three
@@ -141,7 +148,9 @@ verdicts:
 If the agent does not call `submit_visual_review`, the step fails with
 "agent didn't call submit_visual_review".
 
-Findings accumulate in `workflow.artifacts["visual_review_iterations"]`. The
+Findings accumulate through `workflow.artifacts["visual_review_iterations"]`.
+The growth-bound value is stored separately in `workflow_artifact_values`, and the
+Workflow artifact API merges it with legacy inline values. The
 reviewer itself sees every prior iteration via `prior_findings` in
 `Prompts::VisualReview`; the `needs_work` iterations are separately rendered
 by `Prompts::ReviewFeedback` and appended to the next `implement`/`respond`

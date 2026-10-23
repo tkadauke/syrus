@@ -206,6 +206,16 @@ describe("shared message presentation", () => {
     const readOnly = screen.getByText("Transcript body").closest("li")
     expect(readOnly).toHaveAttribute("data-message-mode", "read-only")
     expect(readOnly).toHaveClass("min-w-0", "pt-6", "text-sm")
+
+    render(
+      <SharedMessageRenderer compact testId="compact-tool-message">
+        compact
+      </SharedMessageRenderer>
+    )
+
+    const compact = screen.getByTestId("compact-tool-message")
+    expect(compact).toHaveClass("pt-1")
+    expect(compact).not.toHaveClass("pt-6")
   })
 })
 
