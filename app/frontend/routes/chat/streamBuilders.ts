@@ -39,7 +39,7 @@ import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
 const TOOL_CARD_CONTEXT_CALL_LIMIT = 50
-const CONTEXTUAL_TOOL_RESULT_NAMES = new Set(["list_tags"])
+const CONTEXTUAL_TOOL_RESULT_NAMES = new Set(["list_repo_documents", "list_tags"])
 
 type OpenCall = {
   call: ChatToolGroupCall

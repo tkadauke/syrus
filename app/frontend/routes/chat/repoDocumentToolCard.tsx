@@ -1,8 +1,10 @@
 import type { ReactNode } from "react"
 import type { ToolCardContext } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
+import { Badge, CardShell, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill } from "./toolCardUi"
 import { parsePendingActionResult, pendingActionCollapsedSummary, type PendingActionResult } from "./pendingActionToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell } from "./mediaPreviewShell"
+import { normalizedToolCardContentBlocks } from "./toolRendering"
 
 const CONTENT_PREVIEW_LINES = 12
 const CONTENT_PREVIEW_CHARS = 1_200
@@ -138,49 +140,146 @@ export function RepoDocumentListCard({ rows }: { rows: DocumentRow[] }) {
   )
 }
 
-function previewText(text: string) {
-  const clipped = text.length > CONTENT_PREVIEW_CHARS ? `${text.slice(0, CONTENT_PREVIEW_CHARS)}...` : text
-  return truncateLines(clipped, CONTENT_PREVIEW_LINES)
+type DocumentRead = {
+  row: DocumentRow
+  text: string | null
+  image: { src: string; mimeType: string } | null
+  truncated: boolean
 }
 
 export function repoDocumentReadSummary(context: ToolCardContext) {
-  const documentId = displayValue(context.input?.id)
+  const documentId = readDocumentRow(context).id
   if (context.resultError) return documentId ? `Document ${documentId} read failed` : "Document read failed"
-  if (context.resultBody.trim()) return documentId ? `Document ${documentId} read` : "Document read"
-  return null
+  if (context.resultSettled === false) return documentId ? `Reading document ${documentId}` : "Reading document"
+  const result = parseRepoDocumentRead(context)
+  if (result?.image) return documentId ? `Document ${documentId} image` : "Document image"
+  return documentId ? `Document ${documentId} read` : "Document read"
 }
 
 export function RepoDocumentReadCard({ context }: { context: ToolCardContext }) {
-  const documentId = displayValue(context.input?.id)
-  const body = context.resultBody
-  if (!body.trim()) return null
-  const lines = body === "" ? 0 : body.split("\n").length
-  const bytes = new TextEncoder().encode(body).length
-  const { preview, truncated, totalLines } = previewText(body)
+  const result = parseRepoDocumentRead(context)
+  if (!result) return null
+  const { row, text, image, truncated } = result
+  const lines = text == null || text === "" ? 0 : text.split(/\r?\n/).length
+  const measuredBytes = text == null ? null : new TextEncoder().encode(text).length
+  const href = documentHref(row)
+  const label = row.title || (row.id ? `Document ${row.id}` : "Repository document")
 
   return (
     <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
-        {context.resultError ? <StatePill state="failed" /> : <StatePill state="read" tone="success" />}
-        {documentId ? <Badge>document {documentId}</Badge> : null}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <StatePill
+          state={context.resultSettled === false ? "pending" : image ? "image" : text?.trim() ? "read" : "empty"}
+          tone={context.resultSettled === false ? "info" : text?.trim() || image ? "success" : "neutral"}
+        />
+        {href ? (
+          <EntityReference className="min-w-0" href={href} id={row.id} kind="artifact" label={label} slug={label} />
+        ) : (
+          <span className="min-w-0 break-words font-semibold">{label}</span>
+        )}
+        {truncated ? <Badge>server truncated</Badge> : null}
       </div>
-      <dl className="grid gap-1 sm:grid-cols-3">
-        {documentId ? <Row label="Ref" value={documentId} /> : null}
-        <Row label="Lines" value={String(lines)} />
-        <Row label="Bytes" value={formatBytes(bytes)} />
+      <dl className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {row.ref ? <Row label="Ref" value={row.ref} /> : null}
+        {row.contentType ? <Row label="Content type" value={row.contentType} /> : null}
+        {row.sizeBytes != null || measuredBytes != null ? <Row label="Size" value={formatBytes(row.sizeBytes ?? measuredBytes!)} /> : null}
+        {text != null ? <Row label="Lines" value={String(lines)} /> : null}
       </dl>
-      <Disclosure label="Content preview">
-        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
-        {truncated || body.length > CONTENT_PREVIEW_CHARS ? (
-          <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing a concise preview of {totalLines} lines.</div>
-        ) : null}
-      </Disclosure>
+      {image ? (
+        <MediaPreviewShell
+          item={{
+            title: label,
+            src: image.src,
+            alt: label,
+            badge: image.mimeType.split("/").pop()?.toUpperCase(),
+            actions: [
+              { label: "Open", href: image.src },
+              { label: "Download", href: image.src, download: true }
+            ],
+            meta: [
+              { label: "Content type", value: row.contentType || image.mimeType },
+              { label: "Size", value: row.sizeBytes == null ? null : formatBytes(row.sizeBytes) }
+            ]
+          }}
+          modalLabel={`${label} preview`}
+          thumbnailClassName="w-full max-w-72"
+        />
+      ) : context.resultSettled === false ? (
+        <EmptyState>Waiting for the document result.</EmptyState>
+      ) : (
+        <MarkdownPreview
+          className={plainTextDocument(row.contentType) ? "font-mono" : undefined}
+          emptyState={<EmptyState>This document is blank.</EmptyState>}
+          linkifySlugs
+          linkifyUrls
+          maxChars={CONTENT_PREVIEW_CHARS}
+          maxLines={CONTENT_PREVIEW_LINES}
+          modalLabel={`${label} content`}
+          text={text || ""}
+          title="Content preview"
+        />
+      )}
     </CardShell>
   )
 }
 
 export function renderRepoDocumentRead(context: ToolCardContext): ReactNode | null {
-  return context.resultBody.trim() ? <RepoDocumentReadCard context={context} /> : null
+  return parseRepoDocumentRead(context) ? <RepoDocumentReadCard context={context} /> : null
+}
+
+function readDocumentRow(context: ToolCardContext): DocumentRow {
+  const id = displayValue(context.input?.id) || displayValue(context.input?.document_id)
+  const inputRow = parseDocument({ ...context.input, id, title: displayValue(context.input?.title) || (id ? `Document ${id}` : "Repository document") })
+  const priorRows = parseRepoDocumentList({ ...context, parsedResult: context.priorResults?.list_repo_documents }) || []
+  const prior = priorRows.find((row) => row.id === id || row.ref === id)
+  return (
+    prior ||
+    inputRow || {
+      id,
+      ref: id,
+      title: id ? `Document ${id}` : "Repository document",
+      kind: null,
+      status: null,
+      repositoryId: null,
+      repository: null,
+      contentType: null,
+      sizeBytes: null,
+      url: null
+    }
+  )
+}
+
+function parseRepoDocumentRead(context: ToolCardContext): DocumentRead | null {
+  const row = readDocumentRow(context)
+  const blocks = normalizedToolCardContentBlocks(context.parsedResult)
+  const imageBlock = blocks.find((block) => ["image", "input_image", "output_image"].includes(displayValue(block.type) || ""))
+  const source = imageBlock && isPlainObject(imageBlock.source) ? imageBlock.source : null
+  const imageData = imageBlock
+    ? displayValue(imageBlock.data) || displayValue(imageBlock.dataUrl) || displayValue(imageBlock.image_url) || displayValue(source?.data)
+    : null
+  const mimeType = imageBlock
+    ? displayValue(imageBlock.mimeType) ||
+      displayValue(imageBlock.mime_type) ||
+      displayValue(imageBlock.media_type) ||
+      displayValue(source?.media_type) ||
+      row.contentType ||
+      "image/png"
+    : null
+  const image = imageData && mimeType ? { src: imageData.startsWith("data:") ? imageData : `data:${mimeType};base64,${imageData}`, mimeType } : null
+  const blockText = blocks
+    .filter((block) => ["text", "output_text"].includes(displayValue(block.type) || ""))
+    .map((block) => displayValue(block.text) || displayValue(block.output))
+    .filter((value): value is string => value != null)
+    .join("\n")
+  const text = blockText || context.resultBody
+  const truncated = /\[Document truncated after \d+ bytes; omitted \d+ bytes\.\]/.test(text)
+
+  if (!image && !text && context.resultSettled == null && context.parsedResult != null) return null
+  return { row, text: image ? null : text, image, truncated }
+}
+
+function plainTextDocument(contentType: string | null) {
+  return contentType === "text/plain"
 }
 
 export function parseRepoDocumentAction(context: ToolCardContext, action: "create" | "delete"): DocumentAction | null {
