@@ -6,6 +6,15 @@ RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
+    app/frontend/routes/chat/MessageCards.tsx
+    app/frontend/routes/chat/jobsTableCard.tsx
+    app/frontend/routes/chat/localModeJobOutcomeCard.tsx
+    app/frontend/routes/chat/mediaPreviewShell.tsx
+    app/frontend/routes/chat/systemMessages.ts
+    app/frontend/routes/chat/toolCardDiff.tsx
+    app/frontend/routes/chat/toolCardUi.tsx
+    app/frontend/routes/chat/toolErrorCard.tsx
+    app/frontend/routes/chat/toolFailureSummaryCard.tsx
     app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
     app/frontend/routes/chat/tool_cards/admin_github_app_installation_diagnostic.tsx
     app/frontend/routes/chat/tool_cards/admin_kill_process.tsx
