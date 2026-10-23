@@ -18,7 +18,7 @@ RSpec.describe "desktop screen capture" do
     expect(capture).to include("request.frame !== trusted.webContents.mainFrame")
     expect(capture).to include("matchesOrigin(request.securityOrigin, trusted.origin)")
     expect(capture).to include("dialog.showMessageBox")
-    expect(capture).to include('message: "Syrus wants to record your entire screen."')
+    expect(capture).to include('message: t("screen.message")')
     # useSystemPicker OFF: a walkthrough always captures the whole screen so the
     # annotation overlay records; the native picker let users pick a window and
     # silently dropped every mark.
