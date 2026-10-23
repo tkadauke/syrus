@@ -1189,6 +1189,8 @@
     "outcome_orphaned": "orphaned"
   },
   "mcp_tool_usage": {
+    "clear_filters": "Clear filters",
+    "search": "Search",
     "heading": "MCP tool usage",
     "aria": "MCP tool usage",
     "loading": "Loading MCP tool usage...",

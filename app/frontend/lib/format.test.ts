@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest"
-import { formatBytes, formatCurrency } from "./format"
+import { afterEach, describe, expect, it } from "vitest"
+import i18n from "../i18n"
+import { formatBytes, formatCurrency, formatNumber, pluralCategory } from "./format"
+
+afterEach(async () => {
+  await i18n.changeLanguage("en")
+})
 
 describe("formatBytes", () => {
   it("formats B / KB / MB", () => {
@@ -22,5 +27,26 @@ describe("formatCurrency", () => {
 
   it("accepts an explicit precision", () => {
     expect(formatCurrency(1.23456, 2)).toBe("$1.23")
+  })
+
+  it("uses the active locale", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(formatCurrency(1234.5, 2)).toMatch(/1\.234,50/)
+  })
+})
+
+describe("locale-aware number and plural helpers", () => {
+  it("formats numbers with the active locale", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(formatNumber(1234.5)).toBe("1.234,5")
+  })
+
+  it("selects the locale's plural category", async () => {
+    await i18n.changeLanguage("de")
+
+    expect(pluralCategory(1)).toBe("one")
+    expect(pluralCategory(2)).toBe("other")
   })
 })

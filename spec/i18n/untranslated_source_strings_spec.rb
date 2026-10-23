@@ -3,6 +3,141 @@ require "set"
 require "tempfile"
 
 RSpec.describe "Untranslated source strings", type: :unit do
+  CHAT_I18N_DEBT_FILES = %w[
+    app/frontend/routes/chat/Compose.tsx
+    app/frontend/routes/chat/JobEpicPickerPopup.tsx
+    app/frontend/routes/chat/MessageCards.tsx
+    app/frontend/routes/chat/ProposalCards.tsx
+    app/frontend/routes/chat/ScheduleMessageModal.tsx
+    app/frontend/routes/chat/WorkspacePanels.tsx
+    app/frontend/routes/chat/adminToolCard.tsx
+    app/frontend/routes/chat/chatHelperToolCard.tsx
+    app/frontend/routes/chat/chatPinToolCard.tsx
+    app/frontend/routes/chat/chatSearchToolCard.tsx
+    app/frontend/routes/chat/issueTagArtifactToolCard.tsx
+    app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
+    app/frontend/routes/chat/jobsTableCard.tsx
+    app/frontend/routes/chat/localModeJobOutcomeCard.tsx
+    app/frontend/routes/chat/mediaPreviewShell.tsx
+    app/frontend/routes/chat/pendingActionToolCard.tsx
+    app/frontend/routes/chat/pinnedContextToolCard.tsx
+    app/frontend/routes/chat/proposalDisplay.ts
+    app/frontend/routes/chat/proposalToolCard.tsx
+    app/frontend/routes/chat/refMovementToolCard.tsx
+    app/frontend/routes/chat/repoDocumentToolCard.tsx
+    app/frontend/routes/chat/runtimeToolCard.tsx
+    app/frontend/routes/chat/streamBuilders.ts
+    app/frontend/routes/chat/streamChrome.tsx
+    app/frontend/routes/chat/systemMessages.ts
+    app/frontend/routes/chat/toolCardDiff.tsx
+    app/frontend/routes/chat/toolCardUi.tsx
+    app/frontend/routes/chat/toolErrorCard.tsx
+    app/frontend/routes/chat/toolFailureSummaryCard.tsx
+    app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
+    app/frontend/routes/chat/tool_cards/add_job_tag.tsx
+    app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
+    app/frontend/routes/chat/tool_cards/admin_github_app_installation_diagnostic.tsx
+    app/frontend/routes/chat/tool_cards/admin_kill_process.tsx
+    app/frontend/routes/chat/tool_cards/admin_list_processes.tsx
+    app/frontend/routes/chat/tool_cards/admin_list_runs.tsx
+    app/frontend/routes/chat/tool_cards/admin_list_users.tsx
+    app/frontend/routes/chat/tool_cards/admin_maintenance_tasks.tsx
+    app/frontend/routes/chat/tool_cards/admin_mcp_tool_usage.tsx
+    app/frontend/routes/chat/tool_cards/admin_overview.tsx
+    app/frontend/routes/chat/tool_cards/admin_pause_runs.tsx
+    app/frontend/routes/chat/tool_cards/admin_pause_user_scheduling.tsx
+    app/frontend/routes/chat/tool_cards/admin_queue_detail.tsx
+    app/frontend/routes/chat/tool_cards/admin_read_operational_logs.tsx
+    app/frontend/routes/chat/tool_cards/admin_retry_step.tsx
+    app/frontend/routes/chat/tool_cards/admin_stuck_jobs.tsx
+    app/frontend/routes/chat/tool_cards/admin_unpause_user_scheduling.tsx
+    app/frontend/routes/chat/tool_cards/admin_version.tsx
+    app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
+    app/frontend/routes/chat/tool_cards/ask_user_question.tsx
+    app/frontend/routes/chat/tool_cards/attach_repository.tsx
+    app/frontend/routes/chat/tool_cards/cancel_coding_checkout.tsx
+    app/frontend/routes/chat/tool_cards/cancel_local_mode.tsx
+    app/frontend/routes/chat/tool_cards/cancel_wakeup.tsx
+    app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
+    app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
+    app/frontend/routes/chat/tool_cards/create_coding_job.tsx
+    app/frontend/routes/chat/tool_cards/create_repo_document.tsx
+    app/frontend/routes/chat/tool_cards/create_tag.tsx
+    app/frontend/routes/chat/tool_cards/daemon_ping.tsx
+    app/frontend/routes/chat/tool_cards/delegate_issue.tsx
+    app/frontend/routes/chat/tool_cards/delete_repo_document.tsx
+    app/frontend/routes/chat/tool_cards/detach_repository.tsx
+    app/frontend/routes/chat/tool_cards/dispatch_ref_movement_action.tsx
+    app/frontend/routes/chat/tool_cards/emergency_land.tsx
+    app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
+    app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx
+    app/frontend/routes/chat/tool_cards/force_rebase.tsx
+    app/frontend/routes/chat/tool_cards/force_state_transition.tsx
+    app/frontend/routes/chat/tool_cards/get_job_diff.tsx
+    app/frontend/routes/chat/tool_cards/git_diff.tsx
+    app/frontend/routes/chat/tool_cards/git_status.tsx
+    app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx
+    app/frontend/routes/chat/tool_cards/inspect_provider_circuit.tsx
+    app/frontend/routes/chat/tool_cards/list_artifacts.tsx
+    app/frontend/routes/chat/tool_cards/list_chat_media.tsx
+    app/frontend/routes/chat/tool_cards/list_chats.tsx
+    app/frontend/routes/chat/tool_cards/list_delivery_tracks.tsx
+    app/frontend/routes/chat/tool_cards/list_epics.tsx
+    app/frontend/routes/chat/tool_cards/list_files.tsx
+    app/frontend/routes/chat/tool_cards/list_job_workflows.tsx
+    app/frontend/routes/chat/tool_cards/list_jobs.tsx
+    app/frontend/routes/chat/tool_cards/list_open_issues.tsx
+    app/frontend/routes/chat/tool_cards/list_open_prs.tsx
+    app/frontend/routes/chat/tool_cards/list_proposals.tsx
+    app/frontend/routes/chat/tool_cards/list_ref_movement_actions.tsx
+    app/frontend/routes/chat/tool_cards/list_repositories.tsx
+    app/frontend/routes/chat/tool_cards/list_tags.tsx
+    app/frontend/routes/chat/tool_cards/list_wakeups.tsx
+    app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_blocked.tsx
+    app/frontend/routes/chat/tool_cards/mark_goal_completed.tsx
+    app/frontend/routes/chat/tool_cards/open_in_coding_mode.tsx
+    app/frontend/routes/chat/tool_cards/open_in_local_mode.tsx
+    app/frontend/routes/chat/tool_cards/override_landing_blocker_once.tsx
+    app/frontend/routes/chat/tool_cards/pause_landing_queue.tsx
+    app/frontend/routes/chat/tool_cards/propose_epic.tsx
+    app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.tsx
+    app/frontend/routes/chat/tool_cards/propose_job.tsx
+    app/frontend/routes/chat/tool_cards/read_artifact.tsx
+    app/frontend/routes/chat/tool_cards/read_epic.tsx
+    app/frontend/routes/chat/tool_cards/read_file.tsx
+    app/frontend/routes/chat/tool_cards/read_job.tsx
+    app/frontend/routes/chat/tool_cards/read_pr.tsx
+    app/frontend/routes/chat/tool_cards/read_ref_movement_status.tsx
+    app/frontend/routes/chat/tool_cards/read_run_transcript.tsx
+    app/frontend/routes/chat/tool_cards/read_worker_health.tsx
+    app/frontend/routes/chat/tool_cards/read_workflow.tsx
+    app/frontend/routes/chat/tool_cards/reconcile_job_state.tsx
+    app/frontend/routes/chat/tool_cards/reenqueue_work.tsx
+    app/frontend/routes/chat/tool_cards/refresh_pr_checks.tsx
+    app/frontend/routes/chat/tool_cards/remove_job_tag.tsx
+    app/frontend/routes/chat/tool_cards/remove_pinned_context.tsx
+    app/frontend/routes/chat/tool_cards/rename_chat.tsx
+    app/frontend/routes/chat/tool_cards/reopen_job.tsx
+    app/frontend/routes/chat/tool_cards/repair_provider_circuit_evidence.tsx
+    app/frontend/routes/chat/tool_cards/repo_info.tsx
+    app/frontend/routes/chat/tool_cards/resolve_delivery_policy.tsx
+    app/frontend/routes/chat/tool_cards/run_command.tsx
+    app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
+    app/frontend/routes/chat/tool_cards/search_syrus_docs.tsx
+    app/frontend/routes/chat/tool_cards/select_job_delivery_track.tsx
+    app/frontend/routes/chat/tool_cards/send_chat_message.tsx
+    app/frontend/routes/chat/tool_cards/set_bookmark.tsx
+    app/frontend/routes/chat/tool_cards/spawn_chats.tsx
+    app/frontend/routes/chat/tool_cards/submit_artifact.tsx
+    app/frontend/routes/chat/tool_cards/submit_chat_feedback.tsx
+    app/frontend/routes/chat/tool_cards/submit_coding_changes.tsx
+    app/frontend/routes/chat/tool_cards/suggest_next_step.tsx
+    app/frontend/routes/chat/tool_cards/update_pinned_context.tsx
+    app/frontend/routes/chat/tool_cards/wake_provider_admission.tsx
+    app/frontend/routes/chat/tool_cards/write_file.tsx
+  ].freeze
+
   # Run with:
   #   BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rspec spec/i18n
   #
@@ -40,7 +175,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
   # allowed back into the audit.
   def internal_diagnostic_path_patterns
     [
-      %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/WorkflowGraph\.tsx$},
       %r{desktop/src/App\.tsx$},
       %r{plugins/admin_mysql/app/frontend/adminMysqlToolCard\.tsx$},
@@ -143,8 +277,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
       .reject { |path| excluded_path_patterns.any? { |pattern| path.match?(pattern) } }
   end
 
-  def allowed_literal?(path, kind, text)
+  def allowed_literal?(path, kind, text, allow_chat_debt: true)
     relative_path = path.delete_prefix("#{Rails.root}/")
+    return true if allow_chat_debt && CHAT_I18N_DEBT_FILES.include?(relative_path)
     return true if product_and_provider_names.include?(text)
     return true if text.match?(code_like_text)
     return true if internal_diagnostic_path_patterns.any? { |pattern| path.match?(pattern) }
@@ -156,25 +291,51 @@ RSpec.describe "Untranslated source strings", type: :unit do
   end
 
   def normalized(text)
-    text.gsub(/\{[^}]*\}/, "").gsub(/\s+/, " ").strip
+    text.gsub(/\$?\{[^}]*\}/, "").gsub(/\s+/, " ").strip
   end
 
-  def findings_for(path)
+  def core_chat_path?(path)
+    path.delete_prefix("#{Rails.root}/").start_with?("app/frontend/routes/chat/")
+  end
+
+  def add_finding(findings, path, line_number, kind, raw_text, allow_chat_debt: true)
+    text = normalized(raw_text)
+    return if text.length < 3 || allowed_literal?(path, kind, text, allow_chat_debt: allow_chat_debt)
+
+    label = { "jsx_text" => "JSX text", "jsx_attr" => "JSX attribute", "jsx_expression" => "JSX expression" }.fetch(kind, kind.tr("_", " "))
+    findings << "#{path.delete_prefix("#{Rails.root}/")}:#{line_number} #{label}: #{text.inspect}"
+  end
+
+  def findings_for(path, allow_chat_debt: true)
     File.readlines(path).flat_map.with_index(1) do |line, line_number|
       findings = []
 
       line.scan(/>([^<>\n]*[A-Za-z][^<>\n]*)</) do |match|
-        text = normalized(match.first)
-        next if text.length < 3 || allowed_literal?(path, "jsx_text", text)
-
-        findings << "#{path.delete_prefix("#{Rails.root}/")}:#{line_number} JSX text: #{text.inspect}"
+        add_finding(findings, path, line_number, "jsx_text", match.first, allow_chat_debt: allow_chat_debt)
       end
 
       line.scan(/(?:aria-label|title|placeholder)="([^"]*[A-Za-z][^"]*)"/) do |match|
-        text = normalized(match.first)
-        next if text.length < 3 || allowed_literal?(path, "jsx_attr", text)
+        add_finding(findings, path, line_number, "jsx_attr", match.first, allow_chat_debt: allow_chat_debt)
+      end
 
-        findings << "#{path.delete_prefix("#{Rails.root}/")}:#{line_number} JSX attribute: #{text.inspect}"
+      if core_chat_path?(path) || path.include?("/tmp/i18n-audit")
+        unless line.match?(/\bclassName=/)
+          line.scan(/(?:aria-label|title|placeholder)=\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/) do |match|
+            add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
+          end
+
+          line.scan(/\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/) do |match|
+            add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
+          end
+
+          line.scan(/\?\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*:\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
+            match.each { |text| add_finding(findings, path, line_number, "ternary", text, allow_chat_debt: allow_chat_debt) }
+          end
+        end
+
+        line.scan(/\b(?:label|title|message|description|placeholder|empty(?:State|_state|Text|_text|Label|_label))\s*[:=]\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
+          add_finding(findings, path, line_number, "user_visible_property", match.first, allow_chat_debt: allow_chat_debt)
+        end
       end
 
       findings
@@ -197,6 +358,36 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
       expect(findings_for(file.path)).to include(a_string_including('JSX text: "Owner:"'))
     end
+  end
+
+  it "detects expression, template, ternary, and common property copy" do
+    Tempfile.create([ "i18n-audit", ".tsx" ], Rails.root.join("tmp")) do |file|
+      file.write(<<~TSX)
+        <span>{"Visible expression"}</span>
+        <button title={`Template ${name}`}>x</button>
+        const status = ready ? "Ready now" : "Still waiting"
+        const option = { label: "Choose repository", emptyState: "Nothing here" }
+      TSX
+      file.flush
+
+      findings = findings_for(file.path)
+      expect(findings).to include(a_string_including('JSX expression: "Visible expression"'))
+      expect(findings).to include(a_string_including('JSX expression: "Template"'))
+      expect(findings).to include(a_string_including('ternary: "Ready now"'))
+      expect(findings).to include(a_string_including('ternary: "Still waiting"'))
+      expect(findings).to include(a_string_including('user visible property: "Choose repository"'))
+      expect(findings).to include(a_string_including('user visible property: "Nothing here"'))
+    end
+  end
+
+  it "keeps the core chat debt manifest explicit and valid" do
+    expect(CHAT_I18N_DEBT_FILES).to eq(CHAT_I18N_DEBT_FILES.sort.uniq)
+    expect(CHAT_I18N_DEBT_FILES).to all(start_with("app/frontend/routes/chat/"))
+    expect(CHAT_I18N_DEBT_FILES).to all(satisfy { |path| Rails.root.join(path).file? })
+    expect(CHAT_I18N_DEBT_FILES).to all(satisfy { |path| findings_for(Rails.root.join(path).to_s, allow_chat_debt: false).any? })
+
+    chat_wide_exemptions = internal_diagnostic_path_patterns.grep(/app\/frontend\/routes\/chat/)
+    expect(chat_wide_exemptions).to be_empty
   end
 
   it "keeps legacy path-level debt exemptions retired" do

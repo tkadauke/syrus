@@ -107,6 +107,21 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end
   end
 
+  def static_core_key_references
+    Dir.glob(Rails.root.join("app/frontend/**/*.{ts,tsx}")).sort.flat_map do |path|
+      source = File.read(path)
+      references = source.scan(/\bi18n\.t\(["']([a-z_]+):([^"']+)["']\s*[,)]/).map { |namespace, key| [ path, namespace, key ] }
+      namespaces = source.scan(/\buseT\(["']([a-z_]+)["']\)/).flatten.uniq
+      if namespaces.one?
+        references.concat(source.scan(/(?<![.\w])t\(["']([^"']+)["']\s*[,)]/).flatten.map do |key|
+          explicit_namespace, explicit_key = key.split(":", 2)
+          explicit_key ? [ path, explicit_namespace, explicit_key ] : [ path, namespaces.first, key ]
+        end)
+      end
+      references
+    end.uniq
+  end
+
   it "keeps core frontend JSON locale key trees identical" do
     root = Rails.root.join("app/frontend/i18n/locales")
 
@@ -132,6 +147,35 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end
 
     expect(failures).to be_empty, "Missing or blank referenced frontend locale keys:\n#{failures.join("\n")}"
+  end
+
+  it "resolves statically referenced core locale keys" do
+    english = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).fetch("en")
+    failures = static_core_key_references.filter_map do |path, namespace, key|
+      next unless english.key?(namespace)
+      tree = english.fetch(namespace)
+      next if dig_key(tree, key).present?
+      next if dig_key(tree, "#{key}_one").present? && dig_key(tree, "#{key}_other").present?
+
+      "#{path.delete_prefix("#{Rails.root}/")}: #{namespace}.#{key}"
+    end
+
+    expect(failures).to be_empty, "Missing statically referenced core locale keys:\n#{failures.join("\n")}"
+  end
+
+  it "keeps pluralized core locale keys in one/other pairs" do
+    english = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).fetch("en")
+    failures = english.flat_map do |namespace, tree|
+      keys = flatten_json(tree).keys
+      plural_bases = keys.filter_map { |key| key.delete_suffix("_one") if key.end_with?("_one") }
+
+      plural_bases.sort.filter_map do |base|
+        missing = %w[one other].reject { |suffix| keys.include?("#{base}_#{suffix}") }
+        "#{namespace}.#{base} missing #{missing.join(' and ')}" if missing.any?
+      end
+    end
+
+    expect(failures).to be_empty, "Incomplete core plural key pairs:\n#{failures.join("\n")}"
   end
 
   it "keeps plugin frontend JSON locale key trees identical" do
