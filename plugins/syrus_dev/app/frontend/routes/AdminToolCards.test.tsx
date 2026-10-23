@@ -91,6 +91,15 @@ describe("AdminToolCards", () => {
     expect(within(region).queryAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toHaveLength(0)
   })
 
+  it("preserves chat context for catalog links into preview-panel workspaces", () => {
+    renderRoute("/admin/tool_cards?tool_name=write_preview_file")
+
+    const region = screen.getByRole("region", { name: "Write preview file" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Panel #42" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A42")
+  })
+
   it("renders a core mcp_tool card with multiple examples, including a malformed-payload fallback", () => {
     renderRoute("/admin/tool_cards?tool_name=list_jobs")
 
