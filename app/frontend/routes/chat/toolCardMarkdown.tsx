@@ -32,6 +32,7 @@ export type MarkdownPreviewProps = {
   linkifyUrls?: boolean
   maxChars?: number
   maxLines?: number
+  modalContentClassName?: string
   onLinkClick?: MarkdownLinkHandler
   title?: string
   modalLabel?: string
@@ -74,6 +75,7 @@ export function MarkdownPreview({
   linkifyUrls = false,
   maxChars,
   maxLines = DEFAULT_MAX_LINES,
+  modalContentClassName,
   modalLabel,
   onLinkClick,
   slugHrefFallbacks,
@@ -171,7 +173,7 @@ export function MarkdownPreview({
         </header>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
           <Markdown
-            className="min-w-0 break-words [overflow-wrap:anywhere] text-text-primary"
+            className={["min-w-0 break-words [overflow-wrap:anywhere] text-text-primary", modalContentClassName].filter(Boolean).join(" ")}
             linkifySlugs={linkifySlugs}
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
