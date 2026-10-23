@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { PluginDirectoryEntry } from "../lib/plugins";
+import { localizedHref, type Locale } from "../lib/locales";
 
-export function PluginDirectory({ plugins }: { plugins: PluginDirectoryEntry[] }) {
+export function PluginDirectory({ plugins, locale }: { plugins: PluginDirectoryEntry[]; locale: Locale }) {
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLowerCase();
   const visiblePlugins = useMemo(() => {
@@ -49,7 +50,7 @@ export function PluginDirectory({ plugins }: { plugins: PluginDirectoryEntry[] }
         {visiblePlugins.map((plugin) => (
           <a
             key={plugin.slug}
-            href={plugin.href}
+            href={localizedHref(plugin.href, locale)}
             className="card group block p-5 transition-colors hover:border-clay/40"
           >
             <div className="flex items-start gap-4">
