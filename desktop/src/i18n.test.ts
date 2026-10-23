@@ -44,7 +44,11 @@ describe("desktop i18n messages", () => {
       "screen.message",
       "notification.job_failed",
       "renderer.loading_inbox",
-      "renderer.checkout"
+      "renderer.checkout",
+      "renderer.approve_landing",
+      "renderer.preference_sections",
+      "renderer.local_checkout_settings",
+      "renderer.mark_all_read"
     ] as const
 
     for (const locale of localizedLocales) {
