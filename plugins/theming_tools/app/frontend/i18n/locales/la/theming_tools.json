@@ -22,6 +22,12 @@
   "custom": "proprium",
   "theme_id": "ID thematis",
   "position": "Positio",
+  "install_mode": "Modus institutionis",
+  "install_existing_theme": "Thema exsistens",
+  "install_new_theme": "Thema novum",
+  "source_theme": "Thema fontis",
+  "input_name": "Nomen inputum",
+  "open_theme_settings": "Configurationem thematis aperire",
   "open_preview": "Praevisionem aperire",
   "contrast_warnings": "Monita discrepantiae",
   "contrast_ratio": "{{ratio}}:1",
@@ -32,8 +38,13 @@
   "empty_error": "Instrumentum thematis sine nuntio erroris defecit.",
   "unexpected_payload": "{{action}} structuram thematis inopinatam rettulit.",
   "no_custom_themes": "Nulla themata propria adhuc sunt.",
+  "built_ins_excluded": "Themata innata ex hoc indice excluduntur.",
   "theme": "Thema",
   "status": "Status",
   "palette": "Colorum copia",
-  "fallback_active_theme": "Thema subsidiarium activum"
+  "fallback_active_theme": "Thema subsidiarium activum",
+  "no_fallback_theme": "Thema activum mutari non debuit.",
+  "delete_theme": "Thema dele",
+  "delete_theme_ref": "THEME-{{id}} dele",
+  "delete_recovery": "Elige unum ex propriis thematibus; themata innata deleri non possunt."
 }

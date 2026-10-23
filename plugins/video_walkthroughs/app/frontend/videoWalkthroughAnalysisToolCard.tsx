@@ -53,6 +53,8 @@ type SegmentCard = {
   observations: string[]
   issues: WalkthroughIssue[]
   timestamps: string[]
+  media: MediaReference[]
+  empty: boolean
   error: string | null
 }
 
@@ -388,16 +390,23 @@ function parseSegment(context: ToolCardContext): SegmentCard | null {
   const error = context.resultError ? textBlocks(context).join("\n").trim() || "Segment analysis failed." : null
   if (!payload && !error) return null
   const analysis = payload ? payload.analysis : null
+  const normalizedAnalysis = normalizeAnalysis(analysis)
+  const observations = analysisObservations(analysis)
+  const issues = analysisIssues(analysis)
+  const timestamps = analysisTimestamps(analysis)
+  const media = [...mediaReferences(context), ...structuredMediaReferences(payload, analysis)]
 
   return {
     walkthroughId: displayValue(payload?.walkthrough_id) || displayValue(context.input?.walkthrough_id),
-    range: displayValue(payload?.range) || inputRange(context),
+    range: readableRange(displayValue(payload?.range) || inputRange(context)),
     focus: displayValue(payload?.focus) || displayValue(context.input?.focus),
     note: displayValue(payload?.note),
-    analysis: normalizeAnalysis(analysis),
-    observations: analysisObservations(analysis),
-    issues: analysisIssues(analysis),
-    timestamps: analysisTimestamps(analysis),
+    analysis: normalizedAnalysis,
+    observations,
+    issues,
+    timestamps,
+    media,
+    empty: !error && !normalizedAnalysis && observations.length === 0 && issues.length === 0 && timestamps.length === 0 && media.length === 0,
     error
   }
 }
@@ -405,17 +414,32 @@ function parseSegment(context: ToolCardContext): SegmentCard | null {
 function inputRange(context: ToolCardContext): string | null {
   const start = displayValue(context.input?.start)
   const end = displayValue(context.input?.end)
-  return start && end ? `${start}-${end}` : null
+  return start && end ? `${readableTimestamp(start)}–${readableTimestamp(end)}` : null
+}
+
+function readableRange(range: string | null): string | null {
+  if (!range) return null
+  const parts = range.split(/\s*(?:–|—|-)\s*/)
+  return parts.length === 2 ? `${readableTimestamp(parts[0])}–${readableTimestamp(parts[1])}` : range
+}
+
+function readableTimestamp(value: string): string {
+  if (/^\d+$/.test(value)) {
+    const seconds = Number(value)
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+  }
+  const match = value.match(/^(\d+):(\d{1,2})$/)
+  return match ? `${Number(match[1])}:${match[2].padStart(2, "0")}` : value
 }
 
 function normalizeAnalysis(analysis: unknown): Record<string, unknown> | string | null {
-  if (isPlainObject(analysis)) return analysis
+  if (isPlainObject(analysis)) return Object.keys(analysis).length > 0 ? analysis : null
   return displayValue(analysis)
 }
 
 function analysisObservations(analysis: unknown): string[] {
   if (isPlainObject(analysis)) {
-    const candidates = [analysis.observations, analysis.key_findings, analysis.findings, analysis.summary, analysis.details]
+    const candidates = [analysis.observations, analysis.key_findings, analysis.details]
     return candidates.flatMap(stringList)
   }
   return stringList(analysis)
@@ -446,11 +470,87 @@ function stringList(value: unknown): string[] {
   return single ? [single] : []
 }
 
+function structuredMediaReferences(payload: Record<string, unknown> | null, analysis: unknown): MediaReference[] {
+  const candidates = [payload?.frames, payload?.media, isPlainObject(analysis) ? analysis.frames : null, isPlainObject(analysis) ? analysis.media : null]
+  return candidates.flatMap((value) => {
+    if (!Array.isArray(value)) return []
+    return value.filter(isPlainObject).flatMap((item, index) => {
+      const rawSource = displayValue(item.src) || displayValue(item.url) || displayValue(item.data)
+      if (!rawSource) return []
+      const mimeType = displayValue(item.mime_type) || displayValue(item.mimeType) || "image/jpeg"
+      return [
+        {
+          label: displayValue(item.label) || displayValue(item.title) || `Walkthrough frame ${index + 1}`,
+          timestamp: displayValue(item.timestamp),
+          mimeType,
+          src: rawSource.startsWith("data:") || /^https?:\/\//.test(rawSource) ? rawSource : `data:${mimeType};base64,${rawSource}`
+        }
+      ]
+    })
+  })
+}
+
+function analysisMarkdown(analysis: Record<string, unknown> | string): string {
+  if (typeof analysis === "string") return analysis
+
+  const sections: string[] = []
+  const findings = displayValue(analysis.findings) || displayValue(analysis.summary)
+  if (findings) sections.push(findings)
+
+  appendMarkdownList(sections, "Exact text", analysis.exact_text)
+  appendMarkdownList(sections, "Steps", analysis.steps, true)
+  appendTranscript(sections, analysis.transcript)
+
+  const represented = new Set([
+    "findings",
+    "summary",
+    "exact_text",
+    "steps",
+    "transcript",
+    "observations",
+    "key_findings",
+    "details",
+    "issues",
+    "relevant_timestamps",
+    "timestamps"
+  ])
+  for (const [key, value] of Object.entries(analysis)) {
+    if (represented.has(key) || value == null) continue
+    const rendered = typeof value === "string" ? value : JSON.stringify(value, null, 2)
+    sections.push(`**${humanizeKey(key)}**\n\n${rendered}`)
+  }
+  return sections.join("\n\n")
+}
+
+function appendMarkdownList(sections: string[], heading: string, value: unknown, ordered = false) {
+  const items = stringList(value)
+  if (items.length === 0) return
+  sections.push(`**${heading}**\n\n${items.map((item, index) => `${ordered ? `${index + 1}.` : "-"} ${item}`).join("\n")}`)
+}
+
+function appendTranscript(sections: string[], value: unknown) {
+  if (!Array.isArray(value)) return
+  const lines = value
+    .filter(isPlainObject)
+    .map((entry) => {
+      const timestamp = displayValue(entry.timestamp)
+      const text = displayValue(entry.text)
+      return text ? `${timestamp ? `- **${readableTimestamp(timestamp)}** ` : "- "}${text}` : null
+    })
+    .filter((line): line is string => Boolean(line))
+  if (lines.length > 0) sections.push(`**Transcript**\n\n${lines.join("\n")}`)
+}
+
+function humanizeKey(key: string) {
+  return key.replace(/_/g, " ").replace(/^./, (character) => character.toUpperCase())
+}
+
 export function segmentSummary(context: ToolCardContext) {
   const card = parseSegment(context)
   if (!card) return null
   if (card.error) return "Segment analysis failed"
   const subject = card.range ? `Segment ${card.range}` : "Segment analysis"
+  if (card.empty) return `${subject}: no findings`
   const findings =
     card.issues.length > 0
       ? `${card.issues.length} issue${card.issues.length === 1 ? "" : "s"}`
@@ -464,31 +564,48 @@ export function renderSegment(context: ToolCardContext) {
 }
 
 function SegmentBody({ card }: { card: SegmentCard }) {
+  const { t } = useT("chat")
+  const prose = card.analysis ? analysisMarkdown(card.analysis) : ""
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>Walkthrough segment</Badge>
-        <StatePill state={card.error ? "failed" : "analyzed"} tone={card.error ? "failure" : "success"} />
+        <StatePill state={card.error ? "failed" : card.empty ? "no findings" : "analyzed"} tone={card.error ? "failure" : card.empty ? "neutral" : "success"} />
       </div>
       {card.error ? <RecoveryPanel message={card.error} /> : null}
       <dl className="grid gap-1 sm:grid-cols-3">
-        {card.walkthroughId ? <Row label="Walkthrough ID" value={card.walkthroughId} /> : null}
+        {card.walkthroughId ? (
+          <div className="min-w-0">
+            <SectionLabel>{t("walkthrough_analysis.walkthrough_label")}</SectionLabel>
+            <EntityReference id={card.walkthroughId} kind="walkthrough" wrap="break" />
+          </div>
+        ) : null}
         {card.range ? <Row label="Range" value={card.range} /> : null}
         {card.focus ? <Row label="Focus" value={card.focus} /> : null}
       </dl>
       {card.note ? (
-        <div className="rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1 text-xs text-warning-text">{card.note}</div>
+        <div className="rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1">
+          <MarkdownPreview className="text-warning-text" linkifySlugs linkifyUrls maxChars={700} maxLines={4} text={card.note} />
+        </div>
       ) : null}
       {card.issues.length > 0 ? <IssuesList issues={card.issues} /> : null}
-      {card.observations.length > 0 ? <CompactList label="Observations" items={card.observations} /> : null}
-      {card.timestamps.length > 0 ? <CompactList label="Relevant timestamps" items={card.timestamps} /> : null}
-      {!card.error && card.analysis ? (
-        <Disclosure label="Analysis payload">
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
-            {typeof card.analysis === "string" ? card.analysis : JSON.stringify(card.analysis, null, 2)}
-          </pre>
-        </Disclosure>
+      {card.observations.length > 0 ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={1_000}
+          maxLines={6}
+          modalLabel="Complete observations"
+          text={card.observations.map((item) => `- ${item}`).join("\n")}
+          title="Observations"
+        />
       ) : null}
+      {card.timestamps.length > 0 ? <CompactList label="Relevant timestamps" items={card.timestamps} /> : null}
+      {!card.error && prose ? (
+        <MarkdownPreview linkifySlugs linkifyUrls maxChars={1_400} maxLines={8} modalLabel="Complete segment analysis" text={prose} title="Analysis" />
+      ) : null}
+      {card.empty ? <EmptyState>No segment analysis was returned.</EmptyState> : null}
+      {card.media.length > 0 ? <MediaList media={card.media} /> : null}
     </CardShell>
   )
 }
@@ -600,32 +717,49 @@ export const segmentExamples: ToolCardExample[] = [
     label: "Segment analysis with findings",
     input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
     parsedResult: {
-      walkthrough_id: 42,
-      range: "1:10–1:30",
-      focus: "the exact error text",
-      analysis: {
-        observations: ["The toast reads Save failed (E_TIMEOUT).", "The spinner remains active after the toast disappears."],
-        relevant_timestamps: ["1:12", "1:18"],
-        issues: [
-          {
-            title: "Save timeout is visible",
-            severity: "high",
-            timestamp: "1:12",
-            description: "The exact toast text is visible in the zoomed segment.",
-            evidence: "Save failed (E_TIMEOUT)"
-          }
-        ]
+      structured_content: {
+        walkthrough_id: 42,
+        range: "1:10–1:30",
+        focus: "the exact error text",
+        note: "The requested range was shortened; see https://example.test/help.",
+        analysis: {
+          findings: "The save request ends with **E_TIMEOUT**.",
+          exact_text: ["Save failed (E_TIMEOUT)"],
+          steps: ["Open settings", "Select **Save**"],
+          transcript: [{ timestamp: "0:02", text: "It still spins." }]
+        },
+        frames: [{ label: "Timeout toast", timestamp: "1:12", data: "jpeg", mime_type: "image/jpeg" }]
       }
     }
   },
   {
-    id: "segment_failure",
-    label: "Segment analysis failure",
+    id: "segment_quota_failure",
+    label: "Segment quota failure",
     input: { walkthrough_id: 42, start: "01:10", end: "08:30", focus: "everything" },
     resultError: true,
     resultBody: JSON.stringify({
       content: [{ type: "text", text: "Gemini's quota is busy right now (free-tier per-minute limits). Try the segment again in a minute." }],
       isError: true
     })
+  },
+  {
+    id: "segment_key_failure",
+    label: "Segment API key failure",
+    input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
+    resultError: true,
+    parsedResult: { content: [{ type: "text", text: "Gemini rejected the API key: invalid key" }], isError: true }
+  },
+  {
+    id: "segment_pruned_failure",
+    label: "Segment pruned-video failure",
+    input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
+    resultError: true,
+    parsedResult: { content: [{ type: "text", text: "Could not read the stored video — it may have been pruned." }], isError: true }
+  },
+  {
+    id: "segment_empty",
+    label: "Empty segment analysis",
+    input: { walkthrough_id: 42, start: "01:10", end: "01:30", focus: "the exact error text" },
+    parsedResult: { walkthrough_id: 42, range: "1:10–1:30", focus: "the exact error text", analysis: {} }
   }
 ]

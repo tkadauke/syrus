@@ -22,6 +22,12 @@
   "custom": "custom",
   "theme_id": "Theme ID",
   "position": "Position",
+  "install_mode": "Install mode",
+  "install_existing_theme": "Existing theme",
+  "install_new_theme": "New theme",
+  "source_theme": "Source theme",
+  "input_name": "Input name",
+  "open_theme_settings": "Open theme settings",
   "open_preview": "Open preview",
   "contrast_warnings": "Contrast warnings",
   "contrast_ratio": "{{ratio}}:1",
@@ -32,8 +38,13 @@
   "empty_error": "The theme tool failed without an error message.",
   "unexpected_payload": "{{action}} returned an unexpected theme payload.",
   "no_custom_themes": "No custom themes yet.",
+  "built_ins_excluded": "Built-in themes are excluded from this list.",
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",
-  "fallback_active_theme": "Fallback active theme"
+  "fallback_active_theme": "Fallback active theme",
+  "no_fallback_theme": "The active theme did not need to change.",
+  "delete_theme": "Delete theme",
+  "delete_theme_ref": "Delete THEME-{{id}}",
+  "delete_recovery": "Choose one of your own custom themes; built-in themes cannot be deleted."
 }

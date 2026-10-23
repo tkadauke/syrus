@@ -37,8 +37,7 @@ RSpec.describe "frontend table conventions" do
     "plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx" => "artifact renderer for migration before/after diffs",
     "plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx" => "compact chat tool-card result summary",
     "plugins/test_insights/app/frontend/testRunResultsToolCard.tsx" => "compact chat tool-card result summary",
-    "plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx" => "compact chat tool-card result summary",
-    "plugins/theming_tools/app/frontend/themeToolCard.tsx" => "compact chat tool-card result summary"
+    "plugins/test_insights/app/frontend/tool_cards/compare_test_runtime.tsx" => "compact chat tool-card result summary"
   }.freeze
 
   # Direct DataTable users should normally opt into the shared column

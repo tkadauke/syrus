@@ -40,5 +40,13 @@
   "tool_close_preview": "Vorschau schließen",
   "tool_edit_preview_file": "Vorschaudatei bearbeiten",
   "tool_write_preview_file": "Vorschaudatei schreiben",
-  "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}"
+  "tool_closed": "Geschlossen",
+  "tool_failed_summary": "{{operation}} fehlgeschlagen: {{error}}",
+  "tool_edit_file": "Vorschaudatei bearbeiten",
+  "tool_edited_file": "Datei bearbeitet",
+  "tool_edited_summary": "{{path}} bearbeitet (Panel #{{id}})",
+  "tool_replace_all": "Alle ersetzen",
+  "tool_yes": "Ja",
+  "tool_no": "Nein",
+  "tool_changes": "Änderungen"
 }
