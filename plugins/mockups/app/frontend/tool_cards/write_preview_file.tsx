@@ -28,12 +28,22 @@ function renderExpanded(context: ToolCardContext) {
   const op = parsePreviewFileOp(context.parsedResult, context.input)
   if (!op) return null
   const previewTitle = previewPanelText("tool_written_content_path", { path: op.path })
+  const panelHref =
+    context.chatSessionId == null
+      ? null
+      : `/chats/${encodeURIComponent(String(context.chatSessionId))}?workspace=${encodeURIComponent(`preview:${op.panelId}`)}`
 
   return (
     <CardShell>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge>{previewPanelText("tool_wrote_file")}</Badge>
-        <EntityReference kind="preview_panel" label={previewPanelText("tool_panel_number", { id: op.panelId })} slug={op.panelId} wrap="nowrap" />
+        <EntityReference
+          href={panelHref}
+          kind="preview_panel"
+          label={previewPanelText("tool_panel_number", { id: op.panelId })}
+          slug={op.panelId}
+          wrap="nowrap"
+        />
       </div>
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         <Row label={previewPanelText("tool_path")} value={op.path} />
@@ -76,6 +86,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "markdown_file",
     label: "Markdown file",
+    chatSessionId: 8,
     input: { panel_id: "42", path: "notes.md", content: `# Notes\n\nSee JOB-42 and https://example.test/details.\n\n${"More prose. ".repeat(100)}` },
     parsedResult: { panel_id: "42", path: "notes.md", mockup_slug: "MOCKUP-42" }
   },
@@ -97,7 +108,8 @@ export const examples: ToolCardExample[] = [
     id: "panel_not_found",
     label: "Panel not found",
     input: { panel_id: "404", path: "index.html", content: "<h1>Hello</h1>" },
-    parsedResult: { error: "Preview panel 404 was not found" }
+    parsedResult: { error: "Preview panel 404 was not found" },
+    resultError: true
   },
   {
     id: "path_required",

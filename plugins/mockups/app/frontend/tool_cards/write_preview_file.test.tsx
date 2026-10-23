@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
-import writePreviewFileToolCard from "./write_preview_file"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
+import writePreviewFileToolCard, { examples } from "./write_preview_file"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -25,10 +25,10 @@ describe("write_preview_file tool card", () => {
 
   it("renders input and result details with a responsive layout and mockup link", () => {
     const parsedResult = { panel_id: "7", path: "index.html", size: 12, mockup_slug: "MOCKUP-7" }
-    render(<>{writePreviewFileToolCard.renderExpanded(context({ input: { content: "hello\nworld" }, parsedResult }))}</>)
+    render(<>{writePreviewFileToolCard.renderExpanded(context({ chatSessionId: 8, input: { content: "hello\nworld" }, parsedResult }))}</>)
 
     expect(screen.getByText("Wrote file")).toBeInTheDocument()
-    expect(screen.getByText("Panel #7")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Panel #7" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A7")
     expect(screen.getAllByText("index.html")).toHaveLength(2)
     expect(screen.getByText("12 bytes")).toBeInTheDocument()
     expect(screen.getByText("2")).toBeInTheDocument()
@@ -88,6 +88,17 @@ describe("write_preview_file tool card", () => {
     expect(writePreviewFileToolCard.collapsedSummary?.(context({ parsedResult: { error: "path is required" } }))).toBe(
       "Write preview file failed: path is required"
     )
+  })
+
+  it("marks the structured panel error catalog example as failed", () => {
+    expect(examples.find((example) => example.id === "panel_not_found")?.resultError).toBe(true)
+  })
+
+  it("keeps the panel reference linked in the catalog example", () => {
+    const example = examples.find((candidate) => candidate.id === "markdown_file")!
+    render(<>{writePreviewFileToolCard.renderExpanded(toolCardContextForExample(writePreviewFileToolCard.toolName, example))}</>)
+
+    expect(screen.getByRole("link", { name: "Panel #42" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A42")
   })
 
   it.each([
