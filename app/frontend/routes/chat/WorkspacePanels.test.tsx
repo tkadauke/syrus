@@ -191,7 +191,9 @@ function renderWorkspacePanel(
     contextFindOpenerRef?: { current: (() => boolean) | null }
   } = {}
 ) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // Queries that supply their own retry predicate should still exercise every
+  // attempt, but production backoff delays do not add signal to component tests.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } })
   if (options.activeTab !== "pinned") {
     client.setQueryData(chatPinsQueryKey(payload.chat.id, ""), { pins: [] })
   }
@@ -365,9 +367,10 @@ describe("ChatWorkspacePanel coding files", () => {
 
     renderWorkspacePanel(makeCodingPayload())
 
-    expect(await screen.findByText("Could not load file tree.", {}, { timeout: 8000 })).toBeInTheDocument()
+    expect(await screen.findByText("Could not load file tree.")).toBeInTheDocument()
+    expect(fetchCodingFileTree).toHaveBeenCalledTimes(4)
     expect(screen.queryByText("Checkout isn't ready yet — fetching…")).not.toBeInTheDocument()
-  }, 10000)
+  })
 
   it("renders file content with highlighted spans and line numbers", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["app/example.ts"] })
