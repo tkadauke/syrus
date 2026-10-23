@@ -5,11 +5,14 @@ module Syrus
     Manifest = Data.define(
       :name,
       :display_name,
+      :display_name_i18n_key,
       :version,
       :provides,
       :metadata,
       :description,
+      :description_i18n_key,
       :long_description,
+      :long_description_i18n_key,
       :homepage,
       :icon_url,
       :enabled,
@@ -30,7 +33,7 @@ module Syrus
       :hosts,
       :events
     ) do
-      def initialize(display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, **) = super
+      def initialize(display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, **) = super
 
       # Extension points this plugin hosts for others, qualified with its own
       # name: `hosts: [:parser]` on "test_insights" offers
