@@ -11,11 +11,12 @@ RSpec.describe "website sitemap" do
 
   it "builds normalized, deduplicated URLs from static, plugin, and docs pages" do
     program = <<~JAVASCRIPT
-      import { sitemapUrls } from #{sitemap_library.to_json};
-      console.log(JSON.stringify(sitemapUrls(
+      import { sitemapEntries } from #{sitemap_library.to_json};
+      console.log(JSON.stringify(sitemapEntries(
         [{ href: "/plugins/terminal" }, { href: "/plugins/terminal/" }],
         [{ href: "/docs/android" }, { href: "/docs/deployment/macos-workers" }],
-      )));
+        [{ href: "/blog/launch" }],
+      ).map(({ url }) => url)));
     JAVASCRIPT
 
     stdout, stderr, status = Open3.capture3(
@@ -35,12 +36,14 @@ RSpec.describe "website sitemap" do
       "https://syrus-ai.dev/plugins/terminal/",
       "https://syrus-ai.dev/docs/android/",
       "https://syrus-ai.dev/docs/deployment/macos-workers/",
+      "https://syrus-ai.dev/blog/",
+      "https://syrus-ai.dev/blog/launch/",
     )
     expect(JSON.parse(stdout).count("https://syrus-ai.dev/plugins/terminal/")).to eq(1)
   end
 
   it "generates the build-time route from the same page sources as static params" do
-    expect(sitemap_route).to include("sitemapUrls(allPlugins(), allDocs())")
+    expect(sitemap_route).to include("sitemapEntries(allPlugins(), allDocs(), allPosts())")
     expect(File).not_to exist(File.join(repo_root, "website/public/sitemap.xml"))
   end
 end

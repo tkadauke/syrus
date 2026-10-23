@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { localizedMetadata, siteJsonLd } from "./metadata.ts";
+import { LocalePublication } from "./locales.ts";
 
 test("builds canonical and x-default metadata for an English-only page", () => {
   const metadata = localizedMetadata({ locale: "en", pathname: "/docs", title: "Docs", description: "English docs" });
@@ -13,12 +14,14 @@ test("builds canonical and x-default metadata for an English-only page", () => {
 });
 
 test("localizes copy and advertises only real English and German equivalents", () => {
+  const publication = new LocalePublication(["en", "de"]);
   const metadata = localizedMetadata({
     locale: "de",
     pathname: "/control-plane",
     title: { en: "Control Plane", de: "Steuerung" },
     description: { en: "Durable work", de: "Beständige Arbeit" },
     availableLocales: ["en", "de"],
+    publication,
   });
 
   assert.equal(metadata.title, "Steuerung");
@@ -29,6 +32,18 @@ test("localizes copy and advertises only real English and German equivalents", (
     "x-default": "/control-plane/",
   });
   assert.equal(Object.hasOwn(metadata.alternates?.languages ?? {}, "la"), false);
+});
+
+test("rejects metadata for an unpublished locale and filters unpublished alternates", () => {
+  assert.throws(
+    () => localizedMetadata({ locale: "de", pathname: "/", title: "Deutsch", description: "Deutsch" }),
+    /unpublished locale: de/,
+  );
+  const metadata = localizedMetadata({
+    locale: "en", pathname: "/", title: "English", description: "English",
+    availableLocales: ["en", "de", "la"],
+  });
+  assert.deepEqual(metadata.alternates?.languages, { en: "/", "x-default": "/" });
 });
 
 test("localizes structured-data descriptions", () => {
