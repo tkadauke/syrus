@@ -50,7 +50,7 @@ export function DownloadButton({ locale }: { locale: Locale }) {
 }
 
 /** Full hero/section CTA: OS-aware primary button + "other options" link. */
-export function DownloadCTA({ size = "lg" }: { size?: "md" | "lg" }) {
+export function DownloadCTA({ locale, size = "lg" }: { locale: Locale; size?: "md" | "lg" }) {
   const os = useDetectedOS();
   const { href, label, Icon } = target(os);
   const specific = os === "mac";
@@ -58,7 +58,7 @@ export function DownloadCTA({ size = "lg" }: { size?: "md" | "lg" }) {
   return (
     <div className="flex flex-col items-stretch gap-1.5 sm:items-start">
       <ButtonLink
-        href={href}
+        href={localizedHref(href, locale)}
         variant="primary"
         size={size}
         className="w-full justify-center sm:w-auto"
@@ -70,7 +70,7 @@ export function DownloadCTA({ size = "lg" }: { size?: "md" | "lg" }) {
       <div className="h-[1.15rem] text-center sm:text-left">
         {specific ? (
           <a
-            href="/download"
+            href={localizedHref("/download", locale)}
             className="text-[0.8rem] text-cream-faint underline underline-offset-2 transition-colors hover:text-cream"
           >
             Other download options

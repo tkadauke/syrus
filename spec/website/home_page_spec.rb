@@ -36,7 +36,7 @@ RSpec.describe "website home page" do
 
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
-    expect(hero).to include('href="/#how"')
+    expect(hero).to include('localizedHref("/#how", locale)')
     expect(hero).to include("See how it works")
 
     expect(read_website("components/footer.tsx")).to include('href: "/download"')

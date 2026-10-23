@@ -3,6 +3,7 @@ import { DownloadCTA } from "./download-cta"
 import { ArrowRight, CheckIcon } from "./icons"
 import { Reveal } from "./reveal"
 import { infraPoints, site } from "../lib/site"
+import { localizedHref, type Locale } from "../lib/locales"
 
 const onboardingLinks = [
   {
@@ -25,7 +26,7 @@ const onboardingLinks = [
   }
 ] as const
 
-export function Demo() {
+export function Demo({ locale }: { locale: Locale }) {
   return (
     <section id="demo" className="relative overflow-hidden py-24 sm:py-32">
       {/* warm glow behind the band */}
@@ -51,8 +52,8 @@ export function Demo() {
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-start">
-                <DownloadCTA size="lg" />
-                <ButtonLink href="/#how" variant="secondary" size="lg">
+                <DownloadCTA locale={locale} size="lg" />
+                <ButtonLink href={localizedHref("/#how", locale)} variant="secondary" size="lg">
                   See how it works
                   <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </ButtonLink>
@@ -83,7 +84,7 @@ export function Demo() {
                   {onboardingLinks.map((link) => (
                     <a
                       key={link.label}
-                      href={link.href}
+                      href={link.external ? link.href : localizedHref(link.href, locale)}
                       {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-clay/40 hover:bg-white/[0.05]"
                     >
