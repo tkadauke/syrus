@@ -122,6 +122,22 @@ RSpec.describe "Frontend locale keys", type: :unit do
     end.uniq
   end
 
+  def plural_pair_failures(namespaces)
+    namespaces.flat_map do |namespace, tree|
+      keys = flatten_json(tree).keys
+      plural_bases = keys.filter_map do |key|
+        key.delete_suffix("_one") if key.end_with?("_one")
+      end | keys.filter_map do |key|
+        key.delete_suffix("_other") if key.end_with?("_other")
+      end
+
+      plural_bases.sort.filter_map do |base|
+        missing = %w[one other].reject { |suffix| keys.include?("#{base}_#{suffix}") }
+        "#{namespace}.#{base} missing #{missing.join(' and ')}" if missing.any?
+      end
+    end
+  end
+
   it "keeps core frontend JSON locale key trees identical" do
     root = Rails.root.join("app/frontend/i18n/locales")
 
@@ -165,17 +181,14 @@ RSpec.describe "Frontend locale keys", type: :unit do
 
   it "keeps pluralized core locale keys in one/other pairs" do
     english = locale_namespaces(Rails.root.join("app/frontend/i18n/locales")).fetch("en")
-    failures = english.flat_map do |namespace, tree|
-      keys = flatten_json(tree).keys
-      plural_bases = keys.filter_map { |key| key.delete_suffix("_one") if key.end_with?("_one") }
-
-      plural_bases.sort.filter_map do |base|
-        missing = %w[one other].reject { |suffix| keys.include?("#{base}_#{suffix}") }
-        "#{namespace}.#{base} missing #{missing.join(' and ')}" if missing.any?
-      end
-    end
+    failures = plural_pair_failures(english)
 
     expect(failures).to be_empty, "Incomplete core plural key pairs:\n#{failures.join("\n")}"
+  end
+
+  it "detects either missing half of a plural pair" do
+    expect(plural_pair_failures("chat" => { "items_one" => "one" })).to eq([ "chat.items missing other" ])
+    expect(plural_pair_failures("chat" => { "items_other" => "many" })).to eq([ "chat.items missing one" ])
   end
 
   it "keeps plugin frontend JSON locale key trees identical" do
