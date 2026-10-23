@@ -32,7 +32,7 @@ class SyrusApiClientTest {
 
     @Test
     fun loadHomeStateUsesExistingAppApiContract() {
-        val state = SyrusApiClient(serverUrl(), "syrus_token").loadHomeState(limit = 10)
+        val state = SyrusApiClient(serverUrl(), "syrus_token", testMessages).loadHomeState(limit = 10)
 
         assertEquals("operator@example.test", state.profile.email)
         assertEquals("oken", state.profile.tokenSuffix)
@@ -57,10 +57,22 @@ class SyrusApiClientTest {
             TestResponse(401, """{"error":{"message":"Provide a valid API token."}}""")
         }
 
-        val result = runCatching { SyrusApiClient(serverUrl(), "bad").loadBootstrap() }
+        val result = runCatching { SyrusApiClient(serverUrl(), "bad", testMessages).loadBootstrap() }
 
         assertTrue(result.isFailure)
         assertEquals("Provide a valid API token.", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun localFallbackMessagesComeFromInjectedFormatter() {
+        server.handler = { request ->
+            requests += request
+            TestResponse(503, "{}")
+        }
+
+        val result = runCatching { SyrusApiClient(serverUrl(), "token", testMessages).loadBootstrap() }
+
+        assertEquals("Syrus API request failed with HTTP 503.", result.exceptionOrNull()?.message)
     }
 
     private fun route(request: RequestRecord): TestResponse {
@@ -79,6 +91,16 @@ class SyrusApiClientTest {
 
     private fun serverUrl(): String {
         return "http://127.0.0.1:${server.port}"
+    }
+
+    private val testMessages = object : UserMessages {
+        override fun bootstrapMissingUser() = "Bootstrap response did not include whoami."
+        override fun tokenUserMissing() = "API token did not resolve to a signed-in Syrus user."
+        override fun untitledJob() = "Untitled job"
+        override fun unknownState() = "unknown"
+        override fun apiHttpError(statusCode: Int) = "Syrus API request failed with HTTP $statusCode."
+        override fun instanceUrlRequired() = "Syrus instance URL is required."
+        override fun apiTokenRequired() = "Syrus API token is required."
     }
 
     private data class RequestRecord(
