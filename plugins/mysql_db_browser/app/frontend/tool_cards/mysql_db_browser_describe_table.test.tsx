@@ -127,8 +127,11 @@ describe("mysql_db_browser_describe_table tool card", () => {
     expect(screen.getByText("Primary identifier")).toBeInTheDocument()
     expect(screen.getByText(/PRIMARY/)).toBeInTheDocument()
     expect(screen.getByText(/fk_jobs_repository/)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "jobs" })).toHaveAttribute("href", "/db_browser")
-    expect(screen.getByRole("link", { name: "repositories" })).toHaveAttribute("href", "/db_browser")
+    expect(screen.getByRole("link", { name: "jobs" })).toHaveAttribute("href", "/db_browser?connection_id=7&database=syrus_production&table=jobs&tab=structure")
+    expect(screen.getByRole("link", { name: "repositories" })).toHaveAttribute(
+      "href",
+      "/db_browser?connection_id=7&database=syrus_production&table=repositories&tab=structure"
+    )
     expect(screen.getByText(".repository_id")).toBeInTheDocument()
     expect(screen.getByText(".id")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /copy repositories to clipboard/i })).toBeInTheDocument()
