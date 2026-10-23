@@ -3,6 +3,8 @@ import { DataTable } from "../../components/ui"
 import { Table, TBody, Td, THead } from "./adminToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { EmptyState, EntityReference, StatePill } from "./toolCardUi"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
 // Shared dense-table rendering for the list_jobs and search_jobs tool cards
 // (the Tier 1 tool-card work) — both tools return arrays of similarly-shaped Job
@@ -92,7 +94,7 @@ export function resultErrorMessage(context: ToolCardContext): string | null {
   if (!context.resultError) return null
   if (typeof context.parsedResult === "string") return context.parsedResult
   if (isPlainObject(context.parsedResult)) return displayValue(context.parsedResult.error) || displayValue(context.parsedResult.message) || context.resultBody
-  return context.resultBody || "The Jobs request failed."
+  return context.resultBody || i18n.t("chat:shared.jobs_request_failed")
 }
 
 function githubUrl(slug: string, suffix = "") {
@@ -110,13 +112,14 @@ function detail(label: string, value: string | null) {
 }
 
 export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage: string }) {
+  const { t } = useT("chat")
   if (rows.length === 0) {
     return <EmptyState>{emptyMessage}</EmptyState>
   }
 
   return (
     <Table responsive>
-      <THead columns={["Job", "Title", "State", "Repository", "Source", "Execution", "Lifecycle"]} />
+      <THead columns={[t("shared.job"), t("shared.title"), t("shared.state"), t("shared.repository"), t("shared.source"), t("shared.execution"), t("shared.lifecycle")]} />
       <TBody>
         {rows.map((row) => (
           <DataTable.Row key={row.key}>
@@ -134,8 +137,8 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
               {row.repositorySlug ? <EntityReference href={githubUrl(row.repositorySlug)} kind="repository" repositorySlug={row.repositorySlug} /> : "—"}
             </Td>
             <Td wrap>
-              {detail("Kind", row.kind)}
-              {detail("Issue", row.issueNumber ? `#${row.issueNumber}` : null)}
+              {detail(t("shared.kind"), row.kind)}
+              {detail(t("shared.issue"), row.issueNumber ? `#${row.issueNumber}` : null)}
               {row.prNumber ? (
                 <div>
                   <EntityReference
@@ -147,7 +150,7 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
               ) : null}
               {row.branchName && row.repositorySlug ? (
                 <div>
-                  <span className="text-text-subtle">Branch: </span>
+                  <span className="text-text-subtle">{t("shared.branch")}: </span>
                   <EntityReference
                     href={githubUrl(row.repositorySlug, `/tree/${encodeURIComponent(row.branchName)}`)}
                     kind="repository"
@@ -156,18 +159,18 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
                   />
                 </div>
               ) : (
-                detail("Branch", row.branchName)
+                detail(t("shared.branch"), row.branchName)
               )}
             </Td>
             <Td wrap>
-              {detail("Priority", row.priority)}
-              {detail("Agent", row.agentProvider)}
-              {detail("Setting", row.jobProviderSetting)}
-              {detail("Goal", row.goalId ? `#${row.goalId}` : null)}
+              {detail(t("shared.priority"), row.priority)}
+              {detail(t("shared.agent"), row.agentProvider)}
+              {detail(t("shared.setting"), row.jobProviderSetting)}
+              {detail(t("shared.goal"), row.goalId ? `#${row.goalId}` : null)}
             </Td>
             <Td wrap>
-              {detail("Created", row.createdAt)}
-              {detail("Updated", row.updatedAt)}
+              {detail(t("shared.created"), row.createdAt)}
+              {detail(t("shared.updated"), row.updatedAt)}
             </Td>
           </DataTable.Row>
         ))}

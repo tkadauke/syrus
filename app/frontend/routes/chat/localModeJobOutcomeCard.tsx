@@ -1,6 +1,8 @@
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { MarkdownPreview } from "./toolCardMarkdown"
 import { CardShell, displayValue, EmptyState, EntityReference, Row, StatePill } from "./toolCardUi"
+import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 
 // Shared presentation for the Local Mode job-lifecycle tool family
 // (open_in_local_mode, open_in_coding_mode, cancel_local_mode,
@@ -105,7 +107,7 @@ export function localModeJobOutcomeModel(context: ToolCardContext): LocalModeJob
   return {
     result,
     requestedJobId,
-    error: context.resultError ? displayValue(context.resultBody) || "The job operation failed." : null
+    error: context.resultError ? displayValue(context.resultBody) || i18n.t("chat:shared.job_operation_failed") : null
   }
 }
 
@@ -118,9 +120,10 @@ export function createCodingJobRequest(context: ToolCardContext): CreateCodingJo
 }
 
 export function LocalModeJobOutcomeEmptyCard({ jobId }: { jobId: string | null }) {
+  const { t } = useT("chat")
   return (
     <EmptyState>
-      No job outcome returned
+      {t("shared.no_job_outcome")}
       {jobId ? (
         <>
           {" "}
@@ -133,6 +136,7 @@ export function LocalModeJobOutcomeEmptyCard({ jobId }: { jobId: string | null }
 }
 
 function LocalModeJobOutcomeDetails({ result, showRepository = true }: { result: LocalModeJobOutcome; showRepository?: boolean }) {
+  const { t } = useT("chat")
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -149,11 +153,11 @@ function LocalModeJobOutcomeDetails({ result, showRepository = true }: { result:
       </div>
       {result.branchName || result.checkoutBranch ? (
         <dl className="grid gap-1 sm:grid-cols-2">
-          {result.branchName ? <Row copyable label="Branch" value={result.branchName} wrap /> : null}
-          {result.checkoutBranch ? <Row copyable label="Checkout branch" value={result.checkoutBranch} wrap /> : null}
+          {result.branchName ? <Row copyable label={t("shared.branch")} value={result.branchName} wrap /> : null}
+          {result.checkoutBranch ? <Row copyable label={t("shared.checkout_branch")} value={result.checkoutBranch} wrap /> : null}
         </dl>
       ) : null}
-      {result.message ? <MarkdownPreview text={result.message} title="Outcome" /> : null}
+      {result.message ? <MarkdownPreview text={result.message} title={t("shared.outcome")} /> : null}
     </>
   )
 }
@@ -167,6 +171,7 @@ export function LocalModeJobOutcomeCard({ result }: { result: LocalModeJobOutcom
 }
 
 export function CreateCodingJobOutcomeCard({ context }: { context: ToolCardContext }) {
+  const { t } = useT("chat")
   const model = localModeJobOutcomeModel(context)
   const request = createCodingJobRequest(context)
   const repositorySlug = model.result?.repositorySlug
@@ -177,19 +182,19 @@ export function CreateCodingJobOutcomeCard({ context }: { context: ToolCardConte
       {request.repositoryId || repositorySlug ? (
         <div className="grid min-w-0 gap-1 sm:grid-cols-2">
           <div className="min-w-0">
-            <div className="text-xs font-medium text-text-muted">Repository</div>
+            <div className="text-xs font-medium text-text-muted">{t("shared.repository")}</div>
             <EntityReference
               href={!request.repositoryId && repositorySlug ? `https://github.com/${repositorySlug}` : null}
               kind="repository"
-              label={repositorySlug || (request.repositoryId ? `Repository ${request.repositoryId}` : null)}
+              label={repositorySlug || (request.repositoryId ? t("shared.repository_with_id", { id: request.repositoryId }) : null)}
               repositoryId={request.repositoryId}
               repositorySlug={repositorySlug}
             />
           </div>
-          {request.repositoryId ? <Row label="Repository ID" value={request.repositoryId} /> : null}
+          {request.repositoryId ? <Row label={t("shared.repository_id")} value={request.repositoryId} /> : null}
         </div>
       ) : null}
-      {request.body ? <MarkdownPreview text={request.body} title="Description" /> : null}
+      {request.body ? <MarkdownPreview text={request.body} title={t("shared.description")} /> : null}
       {model.error ? <EmptyState>{model.error}</EmptyState> : null}
       {model.result ? <LocalModeJobOutcomeDetails result={model.result} showRepository={false} /> : null}
       {!model.error && !model.result ? <LocalModeJobOutcomeEmptyCard jobId={null} /> : null}
