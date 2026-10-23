@@ -15,7 +15,7 @@ function RequestDetails({ context }: { context: ToolCardContext }) {
   const reason = displayValue(context.input?.reason)
   const instructions = displayValue(context.input?.instructions)
   const provider = displayValue(context.input?.agent_provider)
-  const inputAvailable = context.input != null
+  const inputAvailable = Object.keys(context.input ?? {}).length > 0
 
   return (
     <div className="min-w-0 max-w-full space-y-2 overflow-hidden">
@@ -125,6 +125,7 @@ export const examples: ToolCardExample[] = [
     id: "missing_input",
     label: "Missing CI repair input",
     description: "Exercises explicit unavailable labels for every request field.",
+    input: {},
     parsedResult: {
       pending_action_id: 602,
       state: "pending",
