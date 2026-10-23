@@ -20,6 +20,7 @@ export type ScheduledTaskCard = {
   label: string
   state: string
   kind: string | null
+  repositoryId: string | null
   repositorySlug: string | null
   cadence: string | null
   scheduleTimezone: string | null
@@ -53,6 +54,7 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
     label,
     state,
     kind: displayValue(value.kind),
+    repositoryId: displayValue(value.repository_id),
     repositorySlug: displayValue(value.repository_slug),
     cadence,
     scheduleTimezone: displayValue(value.schedule_timezone),
@@ -138,7 +140,7 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
         {task.repositorySlug ? (
           <div className="min-w-0">
             <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
-            <EntityReference kind="repository" repositorySlug={task.repositorySlug} />
+            <EntityReference kind="repository" repositoryId={task.repositoryId} repositorySlug={task.repositorySlug} />
           </div>
         ) : null}
         {nextFire ? <Row label={t("tool_col_next_fire")} value={nextFire} /> : null}

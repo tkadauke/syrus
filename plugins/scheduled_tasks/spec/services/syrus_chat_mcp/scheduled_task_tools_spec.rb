@@ -165,7 +165,15 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     response = call_tool("resume_scheduled_task", scheduled_task_id: task.id)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(payload(response)).to eq(scheduled_task_id: task.id, label: "Daily review", enabled: true)
+    expect(payload(response)).to include(
+      scheduled_task_id: task.id,
+      label: "Daily review",
+      enabled: true,
+      state: "scheduled",
+      repository_id: repository.id,
+      repository_slug: repository.slug,
+      next_fire_at: be_present
+    )
     expect(task.reload).to have_attributes(state: "scheduled", consecutive_failure_count: 0)
   end
 

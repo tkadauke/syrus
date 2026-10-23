@@ -49,6 +49,10 @@
   "tool_resumed_summary": "'{{label}}' resumptum (#{{id}})",
   "tool_resumed_detail": "Hoc opus iterum ordinatum est et proximo tempore debito curret.",
   "tool_resumed": "resumptum",
+  "tool_resume_error_title": "Opus ordinatum resumere",
+  "tool_next_fire_relative": "Proximus cursus (relative)",
+  "tool_next_fire_local": "Proximus cursus (localiter)",
+  "tool_next_fire_utc": "Proximus cursus (UTC)",
   "tool_deleted_summary": "'{{label}}' deletum (#{{id}})",
   "tool_deleted_detail": "Opus remotum est et numquam iterum curret.",
   "tool_deleted": "deletum"
