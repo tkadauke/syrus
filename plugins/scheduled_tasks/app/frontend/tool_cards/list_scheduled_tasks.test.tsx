@@ -27,6 +27,8 @@ const cronTask = {
   pr_pileup_policy: "skip",
   enabled: true,
   last_fired_at: "2026-09-05T03:00:00Z",
+  last_successful_fire_at: "2026-09-04T03:00:00Z",
+  prompt: "Check **main** and https://example.test/runbook before filing JOB-42. ".repeat(20),
   consecutive_failure_count: 0,
   next_fire_at: "2026-09-06T03:00:00Z",
   created_at: "2026-08-01T00:00:00Z"
@@ -67,23 +69,67 @@ describe("list_scheduled_tasks tool card", () => {
     expect(listScheduledTasksToolCard.collapsedSummary?.(context({ parsedResult: { tasks: [cronTask] } }))).toBe("1 scheduled task")
   })
 
-  it("renders a row per task with state, kind, cadence, and next fire", () => {
+  it("renders every task field with linked labels and repositories", () => {
     render(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [cronTask, oneShotTask] } }))}</>)
 
-    expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Copy TASK-12 to clipboard" }))
+    expect(screen.getAllByRole("link", { name: "Nightly main-branch health check" })[0]).toHaveAttribute("href", "/scheduled_tasks/12")
+    fireEvent.click(screen.getAllByRole("button", { name: "Copy TASK-12 to clipboard" })[0])
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("TASK-12")
-    expect(screen.getByText("scheduled")).toBeInTheDocument()
-    expect(screen.getByText("cron")).toBeInTheDocument()
-    expect(screen.getByText("Runs daily at 3:00 AM UTC")).toBeInTheDocument()
-    expect(screen.getByText("2026-09-06T03:00:00Z")).toBeInTheDocument()
+    expect(screen.getAllByText("scheduled").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("cron").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Runs daily at 3:00 AM UTC (UTC)").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("2026-09-06T03:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
+    expect(screen.getAllByText("2026-09-05T03:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2026-09-04T03:00:00Z/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2026-08-01T00:00:00Z/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText("skip").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("enabled").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Prompt").length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
 
-    expect(screen.getByText("One-off dependency sweep")).toBeInTheDocument()
-    expect(screen.getByText("fired")).toBeInTheDocument()
-    expect(screen.getByText("one shot")).toBeInTheDocument()
+    expect(screen.getAllByText("One-off dependency sweep").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("fired").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("one shot").length).toBeGreaterThan(0)
     // one_shot tasks fall back to fire_at for both cadence and next fire.
-    expect(screen.getByText("Once at 2026-09-01T12:00:00Z")).toBeInTheDocument()
-    expect(screen.getByText("2026-09-01T12:00:00Z")).toBeInTheDocument()
+    expect(screen.getAllByText("Once at 2026-09-01T12:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("2026-09-01T12:00:00Z").length).toBeGreaterThan(0)
+  })
+
+  it("uses stacked mobile rows and a fixed wrapping desktop table", () => {
+    const { container } = render(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: { tasks: [cronTask] } }))}</>)
+    expect(container.querySelector("ul.sm\\:hidden")).toBeInTheDocument()
+    expect(container.querySelector("div.sm\\:block table.table-fixed")).toBeInTheDocument()
+    expect(container.querySelector(".overflow-x-auto")).not.toBeInTheDocument()
+    expect(container.querySelector("td.break-words")).toBeInTheDocument()
+  })
+
+  it("shows all redacted input filters and accepts provider envelopes", () => {
+    const parsedResult = { structured_content: { tasks: [cronTask] } }
+    render(
+      <>{listScheduledTasksToolCard.renderExpanded(context({ input: { state: "scheduled", enabled: true, api_token: "super-secret-value" }, parsedResult }))}</>
+    )
+
+    expect(screen.getByText("state")).toBeInTheDocument()
+    expect(screen.getAllByText("scheduled").length).toBeGreaterThan(0)
+    expect(screen.getByText("api token")).toBeInTheDocument()
+    expect(screen.getByText("[redacted]")).toBeInTheDocument()
+  })
+
+  it.each([{ result: { tasks: [cronTask] } }, { data: { tasks: [cronTask] } }, { content: [{ type: "text", text: JSON.stringify({ tasks: [cronTask] }) }] }])(
+    "parses differently shaped result envelopes",
+    (parsedResult) => {
+      expect(listScheduledTasksToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("1 scheduled task")
+    }
+  )
+
+  it("renders structured and plain errors through the shared error card", () => {
+    const { rerender } = render(
+      <>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: { error: { message: "No access" } }, resultError: true }))}</>
+    )
+    expect(screen.getByText("No access")).toBeInTheDocument()
+    rerender(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult: null, resultBody: "Provider failed", resultError: true }))}</>)
+    expect(screen.getByText("Provider failed")).toBeInTheDocument()
   })
 
   it("flags a task with consecutive failures", () => {
@@ -91,8 +137,8 @@ describe("list_scheduled_tasks tool card", () => {
 
     render(<>{listScheduledTasksToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("auto paused")).toBeInTheDocument()
-    expect(screen.getByText("3 consecutive failures")).toBeInTheDocument()
+    expect(screen.getAllByText("auto paused").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("3 consecutive failures").length).toBeGreaterThan(0)
   })
 
   it("renders a friendly empty state for no tasks", () => {

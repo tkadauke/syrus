@@ -29,6 +29,7 @@ export type ScheduledTaskCard = {
   nextFireAt: string | null
   lastFiredAt: string | null
   lastSuccessfulFireAt: string | null
+  createdAt: string | null
   consecutiveFailureCount: number
 }
 
@@ -62,6 +63,7 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
     nextFireAt: displayValue(value.next_fire_at),
     lastFiredAt: displayValue(value.last_fired_at),
     lastSuccessfulFireAt: displayValue(value.last_successful_fire_at),
+    createdAt: displayValue(value.created_at),
     consecutiveFailureCount: numberValue(value.consecutive_failure_count) ?? 0
   }
 }
