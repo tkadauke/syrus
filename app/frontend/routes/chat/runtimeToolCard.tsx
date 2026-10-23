@@ -492,8 +492,14 @@ function parseArtifactCard(context: ToolCardContext): RuntimeCard | null {
 
 function errorMessage(context: ToolCardContext): string | null {
   if (!context.resultError) return null
-  if (isPlainObject(context.parsedResult))
-    return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? displayValue(context.resultBody)
+  if (isPlainObject(context.parsedResult)) {
+    return (
+      displayValue(context.parsedResult.error) ??
+      displayValue(context.parsedResult.message) ??
+      contentText(context.parsedResult.content) ??
+      displayValue(context.resultBody)
+    )
+  }
   return displayValue(context.resultBody)
 }
 
