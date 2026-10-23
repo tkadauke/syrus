@@ -1255,7 +1255,7 @@ module Api
           active_units_by_job_id ||= WorkUnits::Ownership.active_units_by_job_id(job_ids)
           latest_active_ids = active_units_by_job_id.transform_values { |unit| unit.workflow&.id }.compact
           selected_ids = latest_ids.merge(latest_active_ids).values
-          selected_ids.empty? ? {} : Workflow.where(id: selected_ids).index_by(&:job_id)
+          selected_ids.empty? ? {} : Workflow.where(id: selected_ids).preload(:workflow_artifact_values).index_by(&:job_id)
         end
 
         def current_steps_by_workflow_id(workflow_ids)
