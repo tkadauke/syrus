@@ -344,6 +344,8 @@ export type LoadCanvasResult = {
   autoSavedSnapshotId: string | null
   snapshotId: string | null
   mode: string | null
+  chatId: string | null
+  version: number | null
 }
 
 export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
@@ -353,37 +355,63 @@ export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
     elementsAdded: numberValue(value.elements_added),
     autoSavedSnapshotId: displayValue(value.auto_saved_snapshot_id),
     snapshotId: displayValue(value.snapshot_id),
-    mode: displayValue(value.mode)
+    mode: displayValue(value.mode),
+    chatId: displayValue(value.chat_session_id),
+    version: numberValue(value.version)
   }
 }
 
 export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
-  const actions: MediaPreviewAction[] = result.snapshotId ? [{ label: "Copy ID", copyValue: result.snapshotId }] : []
-  if (result.autoSavedSnapshotId) actions.push({ label: "Copy auto-save", copyValue: result.autoSavedSnapshotId })
+  const whiteboardHref = result.chatId ? `/chats/${result.chatId}?workspace=plugin%3Awhiteboard.canvas` : null
+  const mediaHref = result.chatId ? `/chats/${result.chatId}?workspace=media` : null
+  const modeLabel = result.mode ? t(`tool_mode_${result.mode}`) : null
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t("tool_loaded_snapshot")}</Badge>
-        {result.snapshotId ? <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">#{result.snapshotId}</span> : null}
-        {result.mode ? <Badge>{result.mode}</Badge> : null}
+        {result.snapshotId ? <EntityReference href={whiteboardHref} id={result.snapshotId} kind="whiteboard_snapshot" /> : null}
+        {modeLabel ? <Badge>{modeLabel}</Badge> : null}
+        {result.version != null ? <Badge>v{result.version}</Badge> : null}
       </div>
-      {result.snapshotId ? (
-        <MediaPreviewShell
+      {result.snapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
           item={{
-            title: `Snapshot #${result.snapshotId}`,
-            subtitle: result.mode,
-            badge: "snapshot",
-            fallbackLabel: "Whiteboard snapshot",
-            actions,
+            title: t("tool_snapshot_title", { id: result.snapshotId }),
+            subtitle: modeLabel,
+            badge: t("tool_loaded_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: whiteboardHref },
+              { label: t("tool_view_in_media"), href: mediaHref },
+              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+            ],
             meta: [
-              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
-              { label: "Mode", value: result.mode },
-              { label: "Elements added", value: result.elementsAdded != null ? String(result.elementsAdded) : null },
-              { label: "Auto-saved as", value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_mode"), value: modeLabel },
+              { label: t("tool_elements_added"), value: result.elementsAdded != null ? String(result.elementsAdded) : null },
+              { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
             ]
           }}
-          modalLabel="Whiteboard snapshot"
+          snapshotId={result.snapshotId}
+        />
+      ) : result.snapshotId ? (
+        <Row label={t("tool_snapshot_id")} value={result.snapshotId} />
+      ) : null}
+      {result.autoSavedSnapshotId && result.chatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={result.chatId}
+          item={{
+            title: t("tool_auto_saved_snapshot_title", { id: result.autoSavedSnapshotId }),
+            badge: t("tool_auto_saved_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: whiteboardHref },
+              { label: t("tool_view_in_media"), href: mediaHref },
+              { label: t("tool_copy_id"), copyValue: result.autoSavedSnapshotId }
+            ],
+            meta: [{ label: t("tool_snapshot_id"), value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }]
+          }}
+          snapshotId={result.autoSavedSnapshotId}
         />
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
