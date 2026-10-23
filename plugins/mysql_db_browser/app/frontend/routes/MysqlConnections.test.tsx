@@ -810,6 +810,15 @@ describe("MysqlConnections", () => {
   })
 
   describe("schema browsing", () => {
+    it("opens a linked connection without requiring a table selection", async () => {
+      setupFetchMock()
+      renderConnections("/db_browser?connection_id=1")
+
+      expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+      expect(await screen.findByText("app_staging")).toBeInTheDocument()
+      expect(screen.queryByText("app_staging.accounts")).not.toBeInTheDocument()
+    })
+
     it("opens a linked connection and selects the referenced table structure", async () => {
       const { calls } = setupFetchMock()
       renderConnections("/db_browser?connection_id=1&database=app_staging&table=accounts&tab=structure")

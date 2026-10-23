@@ -54,6 +54,7 @@ const EMPTY_FORM: MysqlConnectionInput = {
 
 type BrowseTarget = { connectionId: number; label: string }
 type BrowseSelection = { database: string; table: string; tab: "content" | "structure" | "builder" }
+type BrowseDeepLink = { connectionId: number; selection: BrowseSelection | null }
 type FormTarget = "create" | MysqlConnectionRow
 type ParsedConnectionUrl = Pick<MysqlConnectionInput, "default_database" | "host" | "label" | "password" | "port" | "username">
 
@@ -168,18 +169,19 @@ export function MysqlConnections() {
   )
 }
 
-function browseSelectionFromSearch(search: string): { connectionId: number; selection: BrowseSelection } | null {
+function browseSelectionFromSearch(search: string): BrowseDeepLink | null {
   const params = new URLSearchParams(search)
   const connectionId = Number(params.get("connection_id"))
   const database = params.get("database")
   const table = params.get("table")
   const tab = params.get("tab")
 
-  if (!Number.isInteger(connectionId) || connectionId < 1 || !database || !table) return null
+  if (!Number.isInteger(connectionId) || connectionId < 1) return null
 
   return {
     connectionId,
-    selection: { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" }
+    selection:
+      database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
   }
 }
 
