@@ -5,12 +5,32 @@ export const defaultLocale: Locale = "en";
 // Supporting a locale must not publish it before its content is complete.
 export const publishedLocales = ["en"] as const satisfies readonly Locale[];
 
+export class LocalePublication {
+  readonly locales: readonly Locale[];
+  readonly #localeSet: ReadonlySet<Locale>;
+
+  constructor(published: readonly Locale[]) {
+    this.locales = [...published];
+    this.#localeSet = new Set(published);
+  }
+
+  includes(locale: Locale): boolean {
+    return this.#localeSet.has(locale);
+  }
+
+  publishedVariants(candidates: readonly Locale[]): Locale[] {
+    return candidates.filter((locale) => this.includes(locale));
+  }
+}
+
+export const localePublication = new LocalePublication(publishedLocales);
+
 export function isLocale(value: string): value is Locale {
   return locales.some((locale) => locale === value);
 }
 
 export function isPublishedLocale(value: Locale): boolean {
-  return publishedLocales.some((locale) => locale === value);
+  return localePublication.includes(value);
 }
 
 export function localizedHref(href: string, locale: Locale): string {

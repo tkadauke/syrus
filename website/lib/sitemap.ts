@@ -1,4 +1,4 @@
-import { defaultLocale, localizedPath, publishedLocales, type Locale } from "./locales.ts";
+import { defaultLocale, localePublication, localizedPath, type Locale, type LocalePublication } from "./locales.ts";
 import { languageAlternates, siteOrigin } from "./metadata.ts";
 
 export type SitemapSource = { href: string; locales?: readonly Locale[] }
@@ -10,18 +10,19 @@ export function sitemapEntries(
   plugins: SitemapSource[],
   docs: SitemapSource[],
   posts: SitemapSource[] = [],
+  publication: LocalePublication = localePublication,
 ): SitemapEntry[] {
   const sources = [
-    ...STATIC_PATHS.map((href) => ({ href, locales: publishedLocales })),
+    ...STATIC_PATHS.map((href) => ({ href, locales: publication.locales })),
     ...plugins,
     ...docs,
     ...posts,
   ];
   const variants = new Map<string, Set<Locale>>();
   for (const { href, locales = [defaultLocale] } of sources) {
-    const normalizedHref = href === "/" ? href : `/${href.replace(/^\/+|\/+$/g, "")}`;
+    const normalizedHref = localizedPath(href, defaultLocale);
     const existing = variants.get(normalizedHref) ?? new Set<Locale>();
-    locales.forEach((locale) => existing.add(locale));
+    publication.publishedVariants(locales).forEach((locale) => existing.add(locale));
     variants.set(normalizedHref, existing);
   }
 
@@ -29,7 +30,7 @@ export function sitemapEntries(
     .flatMap(([href, localeSet]) => {
       const locales = [...localeSet];
       const languages = Object.fromEntries(
-        Object.entries(languageAlternates(href, locales)).map(([locale, path]) => [locale, `${siteOrigin}${path}`]),
+        Object.entries(languageAlternates(href, locales, publication)).map(([locale, path]) => [locale, `${siteOrigin}${path}`]),
       );
       return locales.map((locale) => ({ url: `${siteOrigin}${localizedPath(href, locale)}`, alternates: { languages } }));
     })
