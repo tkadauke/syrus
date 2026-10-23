@@ -6,7 +6,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
     app/frontend/routes/chat/Compose.tsx
     app/frontend/routes/chat/JobEpicPickerPopup.tsx
-    app/frontend/routes/chat/MessageCards.tsx
     app/frontend/routes/chat/ProposalCards.tsx
     app/frontend/routes/chat/ScheduleMessageModal.tsx
     app/frontend/routes/chat/WorkspacePanels.tsx
@@ -16,9 +15,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/chatSearchToolCard.tsx
     app/frontend/routes/chat/issueTagArtifactToolCard.tsx
     app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
-    app/frontend/routes/chat/jobsTableCard.tsx
-    app/frontend/routes/chat/localModeJobOutcomeCard.tsx
-    app/frontend/routes/chat/mediaPreviewShell.tsx
     app/frontend/routes/chat/pendingActionToolCard.tsx
     app/frontend/routes/chat/pinnedContextToolCard.tsx
     app/frontend/routes/chat/proposalDisplay.ts
@@ -28,11 +24,6 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/runtimeToolCard.tsx
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
-    app/frontend/routes/chat/systemMessages.ts
-    app/frontend/routes/chat/toolCardDiff.tsx
-    app/frontend/routes/chat/toolCardUi.tsx
-    app/frontend/routes/chat/toolErrorCard.tsx
-    app/frontend/routes/chat/toolFailureSummaryCard.tsx
     app/frontend/routes/chat/tool_cards/add_epic_dependency.tsx
     app/frontend/routes/chat/tool_cards/add_job_tag.tsx
     app/frontend/routes/chat/tool_cards/admin_cleanup_workspace.tsx
