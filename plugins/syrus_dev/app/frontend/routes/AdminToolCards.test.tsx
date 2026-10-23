@@ -100,6 +100,16 @@ describe("AdminToolCards", () => {
     expect(within(region).getByRole("link", { name: "Panel #42" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A42")
   })
 
+  it("preserves prior calls used by a plugin card's catalog example", () => {
+    renderRoute("/admin/tool_cards?tool_name=mysql_db_browser_list_databases")
+
+    const region = screen.getByRole("region", { name: "Mysql db browser list databases" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Production reporting (#7)" })).toHaveAttribute("href", "/db_browser?connection_id=7")
+    expect(within(region).queryByRole("link", { name: "Connection #7" })).not.toBeInTheDocument()
+  })
+
   it("renders a core mcp_tool card with multiple examples, including a malformed-payload fallback", () => {
     renderRoute("/admin/tool_cards?tool_name=list_jobs")
 
@@ -142,6 +152,8 @@ describe("AdminToolCards", () => {
 
     expandToolGroup(region)
     expect(within(region).getByText("pending")).toBeInTheDocument()
+  })
+
   it("renders add_job_dependency examples and links across desktop and phone previews", () => {
     renderRoute("/admin/tool_cards?tool_name=add_job_dependency")
 
