@@ -512,6 +512,7 @@ export function PendingActionResultCard({
   linkifyReasonUrls = true,
   omitBlocker = false,
   omitJob = false,
+  omitInstructions = false,
   observedSummary = false,
   omitRun = false,
   omitReason = false,
@@ -526,6 +527,7 @@ export function PendingActionResultCard({
   linkifyReasonUrls?: boolean
   omitBlocker?: boolean
   omitJob?: boolean
+  omitInstructions?: boolean
   observedSummary?: boolean
   omitRun?: boolean
   omitReason?: boolean
@@ -579,15 +581,31 @@ export function PendingActionResultCard({
       {result.executionStatus ? <Row label="Execution status" value={<StatePill state={result.executionStatus} />} /> : null}
       {result.executionStep ? <Row label="Execution step" value={<span className="break-all font-mono">{result.executionStep}</span>} /> : null}
       {result.message ? (
-        <MarkdownPreview linkifySlugs linkifyUrls={linkifyMessageUrls} maxChars={600} maxLines={4} modalLabel="Pending action message" text={linkedPendingProse(result.message)} />
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls={linkifyMessageUrls}
+          maxChars={600}
+          maxLines={4}
+          modalLabel="Pending action message"
+          text={linkedPendingProse(result.message)}
+        />
       ) : null}
       {!omitReason && result.reason && result.reason !== displayValue(input?.reason) ? (
         <div>
           <SectionLabel>Reason</SectionLabel>
-          <MarkdownPreview linkifySlugs linkifyUrls={linkifyReasonUrls} maxChars={600} maxLines={4} modalLabel="Pending action reason" text={linkedPendingProse(result.reason)} />
+          <MarkdownPreview
+            linkifySlugs
+            linkifyUrls={linkifyReasonUrls}
+            maxChars={600}
+            maxLines={4}
+            modalLabel="Pending action reason"
+            text={linkedPendingProse(result.reason)}
+          />
         </div>
       ) : null}
-      {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
+      {!omitInstructions && result.instructions ? (
+        <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" />
+      ) : null}
       {result.detail ? <MarkdownPreview maxLines={4} modalLabel={detailTitle} text={result.detail} title={detailTitle} /> : null}
       {result.executionError ? (
         <MarkdownPreview className="text-danger-text" maxLines={4} modalLabel="Execution error" text={result.executionError} title="Execution error" />
