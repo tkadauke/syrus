@@ -49,7 +49,7 @@
   "tool_resumed_summary": "'{{label}}' fortgesetzt (#{{id}})",
   "tool_resumed_detail": "Dieser Task ist wieder geplant und läuft beim nächsten fälligen Tick.",
   "tool_resumed": "fortgesetzt",
-  "tool_deleted_summary": "'{{label}}' gelöscht (#{{id}})",
+  "tool_deleted_summary": "Task #{{id}} gelöscht",
   "tool_deleted_detail": "Der Task wurde entfernt und wird nie wieder laufen.",
   "tool_deleted": "gelöscht"
 }

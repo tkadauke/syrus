@@ -42,7 +42,7 @@ function collapsedSummary(context: ToolCardContext) {
   const outcome = parseDeletedScheduledTask(context.parsedResult)
   if (!outcome) return null
 
-  return t("tool_deleted_summary", { label: outcome.label, id: outcome.id })
+  return t("tool_deleted_summary", { id: outcome.id })
 }
 
 function renderExpanded(context: ToolCardContext) {
@@ -57,7 +57,7 @@ function renderExpanded(context: ToolCardContext) {
         <StatePill state={t("tool_deleted")} tone="failure" />
         <EntityReference id={`TASK-${outcome.id}`} kind="artifact" wrap="nowrap" />
       </div>
-      <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{outcome.label}</div>
+      <div className="min-w-0 break-words text-sm font-medium text-text-primary">{outcome.label}</div>
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         {outcome.repositorySlug ? (
           <div className="min-w-0">
@@ -67,7 +67,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : null}
         {schedule ? <Row label={t("tool_col_cadence")} value={schedule} /> : null}
       </dl>
-      <div className="break-words text-gray-600 dark:text-gray-300">{t("tool_deleted_detail")}</div>
+      <div className="min-w-0 break-words text-text-secondary">{t("tool_deleted_detail")}</div>
     </CardShell>
   )
 }
