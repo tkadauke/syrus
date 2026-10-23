@@ -19,6 +19,9 @@ import {
   type MysqlSection
 } from "../mysqlToolCard"
 
+const COLUMN_CELL_CLASS =
+  "grid min-w-0 grid-cols-[minmax(6rem,0.4fr)_minmax(0,1fr)] gap-2 px-2 py-1 font-mono text-gray-600 dark:text-gray-300 sm:table-cell sm:min-w-32"
+
 // Plugin-owned tool card for mysql_db_browser_describe_table (the tool-card work).
 // Each of the four sections (info/columns/indexes/foreign_keys) can
 // independently be `{available: false, error}` on a partial GRANT failure
@@ -68,6 +71,18 @@ function collapsedSummary(context: ToolCardContext) {
 
 function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`mysql_db_browser:${key}`, options)
+}
+
+function tableHref(card: DescribeTableCard, table: string | null): string | null {
+  if (!card.connectionId || !table) return null
+
+  const params = new URLSearchParams({
+    connection_id: card.connectionId,
+    database: card.requestedDatabase ?? card.database,
+    table,
+    tab: "structure"
+  })
+  return `/db_browser?${params.toString()}`
 }
 
 function InfoSection({ section }: { section: MysqlInfoSection }) {
@@ -168,7 +183,7 @@ function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) 
 
 function ColumnCell({ label, value }: { label: string; value: string | number | null }) {
   return (
-    <td className="grid min-w-0 grid-cols-[minmax(6rem,0.4fr)_minmax(0,1fr)] gap-2 px-2 py-1 font-mono text-gray-600 dark:text-gray-300 sm:table-cell sm:min-w-32">
+    <td className={COLUMN_CELL_CLASS}>
       <span className="break-words text-2xs font-semibold text-text-muted sm:hidden">{label}</span>
       <span className="min-w-0 break-words">{value ?? "—"}</span>
     </td>
@@ -199,7 +214,7 @@ function IndexesSection({ section }: { section: MysqlSection<MysqlIndexRow> }) {
   )
 }
 
-function ForeignKeysSection({ section }: { section: MysqlSection<MysqlForeignKeyRow> }) {
+function ForeignKeysSection({ card, section }: { card: DescribeTableCard; section: MysqlSection<MysqlForeignKeyRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
   if (section.rows.length === 0)
     return (
@@ -218,10 +233,10 @@ function ForeignKeysSection({ section }: { section: MysqlSection<MysqlForeignKey
               {fk.constraintName ?? "—"} <span className="text-text-muted">[{fk.direction ?? "?"}]</span>
             </div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 font-mono">
-              {fk.fromTable ? <CopyableValue href="/db_browser" value={fk.fromTable} /> : "?"}
+              {fk.fromTable ? <CopyableValue href={tableHref(card, fk.fromTable)} value={fk.fromTable} /> : "?"}
               <span>.{fk.fromColumn ?? "?"}</span>
               <span aria-hidden>→</span>
-              {fk.toTable ? <CopyableValue href="/db_browser" value={fk.toTable} /> : "?"}
+              {fk.toTable ? <CopyableValue href={tableHref(card, fk.toTable)} value={fk.toTable} /> : "?"}
               <span>.{fk.toColumn ?? "?"}</span>
             </div>
           </li>
@@ -260,7 +275,7 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <div>
         <SectionLabel>{t("tool_foreign_keys")}</SectionLabel>
-        <ForeignKeysSection section={card.foreignKeys} />
+        <ForeignKeysSection card={card} section={card.foreignKeys} />
       </div>
     </CardShell>
   )

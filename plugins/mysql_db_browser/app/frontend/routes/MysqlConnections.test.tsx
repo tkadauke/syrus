@@ -810,6 +810,16 @@ describe("MysqlConnections", () => {
   })
 
   describe("schema browsing", () => {
+    it("opens a linked connection and selects the referenced table structure", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections("/db_browser?connection_id=1&database=app_staging&table=accounts&tab=structure")
+
+      expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+      expect(await screen.findByText("app_staging.accounts")).toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: "Structure" })).toHaveAttribute("aria-selected", "true")
+      expect(calls.some((call) => call.url.includes("/schema/app_staging/tables/accounts"))).toBe(true)
+    })
+
     it("lists databases (including system schemas) and shows the table's Content grid by default", async () => {
       setupFetchMock()
       renderConnections()
