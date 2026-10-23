@@ -101,6 +101,8 @@ export type MysqlTableRow = {
   approxRowCount: number | null
   dataLengthBytes: number | null
   indexLengthBytes: number | null
+  createdAt: string | null
+  updatedAt: string | null
   comment: string | null
 }
 
@@ -116,6 +118,8 @@ export function parseTableSummary(value: unknown): MysqlTableRow | null {
     approxRowCount: numberValue(value.approximate_row_count),
     dataLengthBytes: numberValue(value.data_length_bytes),
     indexLengthBytes: numberValue(value.index_length_bytes),
+    createdAt: displayValue(value.created_at),
+    updatedAt: displayValue(value.updated_at),
     comment: displayValue(value.comment)
   }
 }
