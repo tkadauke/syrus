@@ -198,11 +198,11 @@ describe("MarkdownPreview", () => {
   it("supports a character limit and a copy control in the modal", () => {
     render(<MarkdownPreview maxChars={12} text="A deliberately long prompt with more details." title="Prompt" />)
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Prompt" })).toBeInTheDocument()
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Prompt to clipboard" })).toBeInTheDocument()
   })
 
   it("linkifies plain URLs in the compact preview", () => {
-    render(<MarkdownPreview text="See https://example.test/report for details." />)
+    render(<MarkdownPreview linkifyUrls text="See https://example.test/report for details." />)
     expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
   })
 
