@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
-import listConnectionsToolCard from "./mysql_db_browser_list_connections"
+import listConnectionsToolCard, { examples } from "./mysql_db_browser_list_connections"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -27,6 +27,15 @@ const connection = {
 describe("mysql_db_browser_list_connections tool card", () => {
   it("registers under the exact MCP tool name", () => {
     expect(listConnectionsToolCard.toolName).toBe("mysql_db_browser_list_connections")
+  })
+
+  it("registers populated, empty, and error states for catalog review", () => {
+    expect(examples.map((example) => example.id)).toEqual(["connections_with_access_modes", "no_agentic_connections", "connection_list_error"])
+    expect(examples[0]?.parsedResult).toMatchObject({
+      mysql_connections: [{ allow_writes: false }, { allow_writes: true }]
+    })
+    expect(examples[1]?.parsedResult).toEqual({ mysql_connections: [] })
+    expect(examples[2]?.parsedResult).toMatchObject({ error: { class: "MysqlDbBrowser::AccessDenied" } })
   })
 
   it("summarizes the collapsed row with a connection count", () => {
