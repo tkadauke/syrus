@@ -169,7 +169,7 @@ export const ChatMessage = memo(function ChatMessage({
     return (
       <SharedMessageRenderer animateClass={entranceClass} readOnly={readOnly}>
         <SystemMessage
-          item={item.system || { tone: "neutral", label: "System", body: item.text }}
+          item={item.system || { tone: "neutral", label: t("system.system"), body: item.text }}
           prefix={prefix}
           retryText={!readOnly ? retryText : null}
           retrying={retrying}
@@ -503,7 +503,7 @@ export function ImageLightbox({
       >
         <div
           className={`absolute right-2 top-2 z-10 flex items-center gap-2 opacity-100 transition-opacity duration-150 ${controlsVisibilityClass}`}
-          aria-label="Image preview controls"
+          aria-label={t("image_preview_controls")}
         >
           {extraAction ? (
             <button
@@ -562,7 +562,7 @@ export function ImageLightbox({
         </div>
         {showNavigation && imageCount > 1 ? (
           <div
-            aria-label="Image carousel position"
+            aria-label={t("image_carousel_position")}
             className="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full bg-gray-950/35 px-2 py-1 md:hidden"
           >
             {Array.from({ length: imageCount }).map((_, index) => (
@@ -687,6 +687,7 @@ function MessageActions({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
 }) {
+  const { t } = useT("chat")
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
 
@@ -712,7 +713,7 @@ function MessageActions({
         onClick={handleCopy}
         type="button"
       >
-        {copied ? "Copied!" : "Copy"}
+        {copied ? t("shared.copied") : t("copy")}
       </button>
       {item.pinnable ? <PinControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       {item.bookmarkable ? (
@@ -914,6 +915,7 @@ export const ToolGroup = memo(function ToolGroup({
   payload?: ChatPayload
   chatMedia?: ChatMediaPayload
 }) {
+  const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
@@ -936,7 +938,7 @@ export const ToolGroup = memo(function ToolGroup({
     .join(", ")
   const summary = item.summary_label || item.tool
   const outcome =
-    item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
+    item.outcome_label || (item.calls.some((call) => call.result_error) ? t("system.failed") : item.calls.some((call) => !toolCallSettled(call)) ? t("running") : t("system.done"))
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
@@ -1134,6 +1136,7 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
 }
 
 function RawToolDetails({ payload }: { payload: unknown }) {
+  const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const redactedPayload = redactToolCardValue(payload)
   const rawText = JSON.stringify(redactedPayload, null, 2)
@@ -1142,14 +1145,14 @@ function RawToolDetails({ payload }: { payload: unknown }) {
   return (
     <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">
-        Raw details <span className="font-mono text-2xs">({sizeLabel}, redacted)</span>
+        {t("raw_details")} <span className="font-mono text-2xs">({sizeLabel}, {t("redacted")})</span>
       </summary>
       {open ? (
         <div className="mt-1 space-y-2">
           <Text as="div" variant="caption" tone="muted">
-            Secret-like values are redacted before display and copy.
+            {t("redaction_notice")}
           </Text>
-          <CodeSurface code={rawText} copyLabel="Copy" lang="json" />
+          <CodeSurface code={rawText} copyLabel={t("copy")} lang="json" />
         </div>
       ) : null}
     </details>

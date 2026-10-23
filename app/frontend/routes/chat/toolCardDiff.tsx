@@ -78,11 +78,12 @@ export function diffStats(diff: string): DiffStats {
 }
 
 export function DiffStatBadges({ stats }: { stats: DiffStats }) {
+  const { t } = useT("chat")
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-2xs">
       {stats.fileCount > 0 ? (
         <Pill tone="neutral">
-          {stats.fileCount} file{stats.fileCount === 1 ? "" : "s"}
+          {t("shared.file_count", { count: stats.fileCount })}
         </Pill>
       ) : null}
       <Pill tone="success">+{stats.additions}</Pill>
@@ -110,16 +111,16 @@ export function RawDiffPreview({ diff }: { diff: string }) {
 
   return (
     <div className="min-w-0 max-w-full space-y-1 overflow-hidden">
-      <CodeSurface code={diff} copyLabel="Copy diff" maxHeightClassName="max-h-72" mode="multiline">
+      <CodeSurface code={diff} copyLabel={t("shared.copy_diff")} maxHeightClassName="max-h-72" mode="multiline">
         <div className="max-w-full overflow-x-auto">{renderedLines(lines)}</div>
       </CodeSurface>
       {truncated ? (
         <div className="flex flex-wrap items-center gap-2 text-2xs text-text-muted">
           <span>{t("tool_card_diff_preview_truncated", { shown: PREVIEW_LINE_LIMIT, total: allLines.length })}</span>
-          <Button onClick={() => setOpen(true)} size="sm" variant="secondary">Show full diff</Button>
+          <Button onClick={() => setOpen(true)} size="sm" variant="secondary">{t("shared.show_full_diff")}</Button>
         </div>
       ) : null}
-      <Modal className="flex h-[min(90dvh,60rem)] w-[min(96vw,80rem)] min-w-0 flex-col overflow-hidden bg-surface p-4" label="Full diff" onClose={() => setOpen(false)} open={open}>
+      <Modal className="flex h-[min(90dvh,60rem)] w-[min(96vw,80rem)] min-w-0 flex-col overflow-hidden bg-surface p-4" label={t("shared.full_diff")} onClose={() => setOpen(false)} open={open}>
         {open ? <div className="min-h-0 max-w-full flex-1 overflow-auto font-mono text-xs">{renderedLines(allLines)}</div> : null}
       </Modal>
     </div>
