@@ -13,6 +13,8 @@ describe("Electron i18n", () => {
 
     expect(appLocale()).toBe("de")
     expect(t("shell.open")).toBe("Syrus oeffnen")
+    expect(t("dialog.update_backend")).toBe("Syrus-Backend aktualisieren?")
+    expect(t("screen.share")).toBe("Bildschirm teilen")
   })
 
   it("falls back to English for an unsupported app locale", async () => {
