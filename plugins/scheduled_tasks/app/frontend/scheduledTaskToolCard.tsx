@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import i18n from "i18next"
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject } from "@app/toolCardParsing"
 import { ErrorCard } from "@app/routes/chat/chatHelperToolCard"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
