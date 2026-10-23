@@ -100,7 +100,12 @@ deferred tool tier loads — no feature flag or role gate beyond that):
   a snapshot.
 - **`clear_canvas`** — auto-snapshots the current scene (`kind:
   "auto_clear"`) before clearing, when non-empty, so a clear is always
-  recoverable via `load_canvas`.
+  recoverable via `load_canvas`. Results include `cleared`, the auto-snapshot
+  id, the number of elements cleared, the chat id, and the new canvas version.
+  If the canvas was already empty, no snapshot is created: `snapshot_id` is
+  `null` and `element_count` is `0`. The transcript card links the snapshot to
+  the Whiteboard, renders a thumbnail that opens a full-size preview, and also
+  links to the Media tab.
 - **`load_canvas`** — restores a saved snapshot, in one of two modes:
   **merge** (default) deep-copies the snapshot's elements with **freshly
   generated ids** (`remap_snapshot_elements`, which also remaps every

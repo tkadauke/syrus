@@ -746,7 +746,11 @@ action that merges the snapshot back onto the current canvas after preserving
 existing work. When an agent saves the current canvas, its transcript card
 renders the saved scene as a thumbnail that opens a full-size preview, shows
 the canvas version and snapshot details, and links to the chat's Whiteboard
-and Media tabs. Every image in the gallery — including Runtime Session
+and Media tabs. Clearing a non-empty canvas similarly creates an automatic
+snapshot and shows its linked thumbnail, cleared element count, and canvas
+version in the transcript, so the operator can inspect what was removed. If
+the canvas was already empty, the clear card says so without creating a
+snapshot. Every image in the gallery — including Runtime Session
 screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
