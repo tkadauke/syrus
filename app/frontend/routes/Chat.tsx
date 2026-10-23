@@ -394,7 +394,7 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
       {items.map((item) =>
         item.type === "tool_group" ? (
           <SharedMessageRenderer compact key={renderItemKey(item)} readOnly>
-            <ToolGroup chatSessionId={payload.chat.id} item={item} />
+            <ToolGroup chatSessionId={payload.chat.id} item={item} payload={placeholderPayload} />
           </SharedMessageRenderer>
         ) : (
           <ChatMessage

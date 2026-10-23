@@ -41,12 +41,12 @@ export type MemoryPayload = {
   sourceId: string | null
   author: string | null
   confidence: number | null
+  visibility: string | null
   expiresAt: string | null
   lastVerifiedAt: string | null
   createdAt: string | null
   updatedAt: string | null
   deletedAt: string | null
-  visibility: string | null
   deletedByUserId: string | null
 }
 
@@ -68,12 +68,12 @@ export function parseMemory(value: unknown): MemoryPayload | null {
     sourceId: displayValue(value.source_id),
     author: displayValue(value.author),
     confidence: numberValue(value.confidence),
+    visibility: displayValue(value.visibility),
     expiresAt: displayValue(value.expires_at),
     lastVerifiedAt: displayValue(value.last_verified_at),
     createdAt: displayValue(value.created_at),
     updatedAt: displayValue(value.updated_at),
     deletedAt: displayValue(value.deleted_at),
-    visibility: displayValue(value.visibility),
     deletedByUserId: displayValue(value.deleted_by_user_id)
   }
 }
@@ -160,7 +160,7 @@ export function ContentPreview({
   )
 }
 
-export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPayload; shell?: boolean }) {
+export function MemoryDetailBody({ memory, onLinkClick, shell = true }: { memory: MemoryPayload; onLinkClick?: MarkdownLinkHandler; shell?: boolean }) {
   const content = (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -192,11 +192,12 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
+        {memory.deletedAt ? <Row label={t("tool_deleted_at")} value={memory.deletedAt} /> : null}
         {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>
-        <ContentPreview content={memory.content} />
+        <ContentPreview content={memory.content} onLinkClick={onLinkClick} />
       </div>
     </>
   )
