@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import createRepoDocumentToolCard from "./create_repo_document"
@@ -137,15 +137,69 @@ describe("repository document tool cards", () => {
   })
 
   it("renders a document detail/read card with a concise content preview", () => {
-    const resultBody = "Overview\nKeep this short.\nUse read_repo_document for full text."
+    const resultBody = "# Overview\nKeep this **short**.\nUse read_repo_document for full text."
 
     expect(readRepoDocumentToolCard.collapsedSummary?.(context("read_repo_document", { input: { id: 12 }, resultBody }))).toBe("Document 12 read")
-    render(<>{readRepoDocumentToolCard.renderExpanded(context("read_repo_document", { input: { id: 12 }, resultBody }))}</>)
+    render(
+      <>
+        {readRepoDocumentToolCard.renderExpanded(
+          context("read_repo_document", { input: { id: 12, title: "API Guide", content_type: "text/markdown" }, resultBody })
+        )}
+      </>
+    )
 
-    expect(screen.getByText("document 12")).toBeInTheDocument()
+    expect(screen.getByText("API Guide")).toBeInTheDocument()
     expect(screen.getByText("3")).toBeInTheDocument()
     expect(screen.getByText("Content preview")).toBeInTheDocument()
-    expect(screen.getByText(/Keep this short/)).toBeInTheDocument()
+    expect(screen.getByText("short", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("uses prior list metadata to link the document and show a truncation badge", () => {
+    const resultBody = `${"Long notes. ".repeat(140)}\n\n[Document truncated after 65536 bytes; omitted 2048 bytes.]`
+    const cardContext = context("read_repo_document", {
+      input: { id: 12 },
+      resultBody,
+      priorResults: { list_repo_documents: { documents: documentRows } }
+    })
+
+    render(<>{readRepoDocumentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "API Guide" })).toHaveAttribute("href", "/api/v1/app/repository_documents/12/file")
+    expect(screen.getByText("text/markdown")).toBeInTheDocument()
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
+    expect(screen.getByText("server truncated")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("renders image content blocks from differently shaped provider envelopes", () => {
+    const image = { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
+    const envelopes = [{ content: [image] }, { output: { payload: { content: [{ ...image, mime_type: "image/png", mimeType: undefined }] } } }]
+
+    for (const [index, parsedResult] of envelopes.entries()) {
+      const { unmount } = render(
+        <>{readRepoDocumentToolCard.renderExpanded(context("read_repo_document", { input: { id: 20 + index, title: `Screenshot ${index}` }, parsedResult }))}</>
+      )
+      const thumbnail = screen.getByRole("button", { name: `Open Screenshot ${index}` })
+      expect(thumbnail).toBeInTheDocument()
+      fireEvent.click(thumbnail)
+      expect(screen.getByRole("dialog", { name: `Screenshot ${index} preview` })).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it("renders failed, pending, and settled blank reads distinctly", () => {
+    const failed = context("read_repo_document", { input: { id: 404 }, resultBody: "document not found", resultError: true })
+    expect(readRepoDocumentToolCard.collapsedSummary?.(failed)).toBe("Read repository document failed: document not found")
+    const { unmount } = render(<>{readRepoDocumentToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("Read repository document failed")).toBeInTheDocument()
+    unmount()
+
+    render(<>{readRepoDocumentToolCard.renderPending?.(context("read_repo_document", { input: { id: 12, title: "Notes" }, resultSettled: false }))}</>)
+    expect(screen.getByText("Waiting for the document result.")).toBeInTheDocument()
+    unmount()
+
+    render(<>{readRepoDocumentToolCard.renderExpanded(context("read_repo_document", { input: { id: 12, title: "Notes" }, resultSettled: true }))}</>)
+    expect(screen.getByText("This document is blank.")).toBeInTheDocument()
   })
 
   it("renders a create document pending outcome with the affected document", () => {
