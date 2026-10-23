@@ -730,7 +730,7 @@ describe("tool result rendering", () => {
     const count = screen.getByText("3")
 
     expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
-    expect(detail).toHaveClass("basis-full", "sm:basis-0", "sm:flex-1")
+    expect(detail).toHaveClass("flex-1", "basis-full", "sm:basis-0")
     expect(count.parentElement).toHaveClass("sm:order-last")
   })
 
