@@ -14,6 +14,8 @@ describe("Electron i18n", () => {
     expect(appLocale()).toBe("de")
     expect(t("shell.open")).toBe("Syrus oeffnen")
     expect(t("dialog.update_backend")).toBe("Syrus-Backend aktualisieren?")
+    expect(t("dialog.update_backend_detail_pinned", { image: "next", current: "old" })).toContain("next")
+    expect(t("dialog.uninstall_data", { app: "Syrus Test" })).toContain("Syrus Test")
     expect(t("screen.share")).toBe("Bildschirm teilen")
   })
 
