@@ -23,10 +23,7 @@ export const DEFAULT_CATALOG_VIEWPORT: ViewportPresetId = "desktop"
 
 export function viewportPresetFromSearch(search: string): ViewportPreset {
   const value = new URLSearchParams(search).get("viewport")
-  return (
-    CATALOG_VIEWPORT_PRESETS.find((preset) => preset.id === value) ??
-    CATALOG_VIEWPORT_PRESETS.find((preset) => preset.id === DEFAULT_CATALOG_VIEWPORT)!
-  )
+  return CATALOG_VIEWPORT_PRESETS.find((preset) => preset.id === value) ?? CATALOG_VIEWPORT_PRESETS.find((preset) => preset.id === DEFAULT_CATALOG_VIEWPORT)!
 }
 
 export function viewportLink(pathname: string, search: string, presetId: ViewportPresetId) {
@@ -68,12 +65,15 @@ export function CatalogViewportSwitcher({
   )
 }
 
-export const CatalogViewportFrame = forwardRef<HTMLDivElement, {
-  ariaLabel: string
-  children: ReactNode
-  className?: string
-  width: number
-}>(({ ariaLabel, children, className = "", width }, ref) => (
+export const CatalogViewportFrame = forwardRef<
+  HTMLDivElement,
+  {
+    ariaLabel: string
+    children: ReactNode
+    className?: string
+    width: number
+  }
+>(({ ariaLabel, children, className = "", width }, ref) => (
   <div className="min-w-0 max-w-full overflow-x-auto">
     {/* Explicit `width`, not `max-width`: a block element with only
         `max-width` never grows past its parent's actual available width, so
