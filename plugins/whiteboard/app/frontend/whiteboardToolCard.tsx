@@ -3,7 +3,10 @@ import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/med
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
-import { WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
+import { WhiteboardScenePreview, WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
+import type { ChatWhiteboardScene } from "@app/api/chats"
+
+export { WhiteboardScenePreview }
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
 // Most drawing/move/delete tools return only `{ id, version }` --
@@ -151,6 +154,43 @@ export function SceneCountsCard({ counts, action }: { counts: SceneCounts; actio
       </dl>
     </CardShell>
   )
+}
+
+export type ReadSceneResult = SceneCounts & { scene: ChatWhiteboardScene; typeCounts: { type: string; count: number }[]; texts: string[] }
+
+export function parseReadSceneResult(value: unknown): ReadSceneResult | null {
+  let payload = value
+  if (isPlainObject(payload) && isPlainObject(payload.structured_content)) payload = payload.structured_content
+  if (isPlainObject(payload) && isPlainObject(payload.result)) {
+    payload = isPlainObject(payload.result.structured_content) ? payload.result.structured_content : payload.result
+  }
+  if (!isPlainObject(payload) || !Array.isArray(payload.elements)) return null
+
+  const files = isPlainObject(payload.files) ? payload.files : {}
+  const typeCounts = new Map<string, number>()
+  const texts: string[] = []
+  payload.elements.forEach((element) => {
+    if (!isPlainObject(element)) return
+    const type = displayValue(element.type) ?? t("tool_unknown_type")
+    typeCounts.set(type, (typeCounts.get(type) ?? 0) + 1)
+    if (type === "text") {
+      const text = displayValue(element.text) ?? displayValue(element.originalText)
+      if (text) texts.push(text)
+    }
+  })
+
+  return {
+    elementCount: payload.elements.length,
+    fileCount: Object.keys(files).length,
+    version: numberValue(payload.version),
+    typeCounts: [...typeCounts].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
+    texts,
+    scene: {
+      elements: payload.elements as ChatWhiteboardScene["elements"],
+      appState: (isPlainObject(payload.appState) ? payload.appState : {}) as ChatWhiteboardScene["appState"],
+      files: files as ChatWhiteboardScene["files"]
+    }
+  }
 }
 
 // save_canvas either records a snapshot or reports the canvas was empty.

@@ -5,7 +5,7 @@ import { parseSaveCanvasResult, SaveCanvasCard, t } from "../whiteboardToolCard"
 
 // Plugin-owned tool card for save_canvas (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
-  if (context.resultError) return toolFailureCollapsedSummary(context, failureConfig)
+  if (context.resultError) return toolFailureCollapsedSummary(context, failureConfig())
   const result = parseSaveCanvasResult(context.parsedResult)
   if (!result) return null
 
@@ -14,20 +14,22 @@ function collapsedSummary(context: ToolCardContext) {
 }
 
 function renderExpanded(context: ToolCardContext) {
-  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig} context={context} />
+  if (context.resultError) return <ToolFailureSummaryCard config={failureConfig()} context={context} />
   const result = parseSaveCanvasResult(context.parsedResult)
   const requestedName = isPlainObject(context.input) ? displayValue(context.input.name) : null
   return result ? <SaveCanvasCard requestedName={requestedName} result={result} /> : null
 }
 
-const failureConfig = {
-  title: t("tool_save_snapshot"),
-  attempted: (context: ToolCardContext) => {
-    const name = isPlainObject(context.input) ? displayValue(context.input.name) : null
-    return name ? t("tool_save_snapshot_named", { name }) : t("tool_save_snapshot")
-  },
-  retrySafety: "safe" as const,
-  recovery: t("tool_save_snapshot_recovery")
+function failureConfig() {
+  return {
+    title: t("tool_save_snapshot"),
+    attempted: (context: ToolCardContext) => {
+      const name = isPlainObject(context.input) ? displayValue(context.input.name) : null
+      return name ? t("tool_save_snapshot_named", { name }) : t("tool_save_snapshot")
+    },
+    retrySafety: "safe" as const,
+    recovery: t("tool_save_snapshot_recovery")
+  }
 }
 
 export const examples: ToolCardExample[] = [
