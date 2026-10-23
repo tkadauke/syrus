@@ -21,6 +21,9 @@ runtime work so operators can check live progress from the mobile home screen.
   HTTPS.
 - Runtime package: `dev.syrus.android`. The default launcher activity is
   `MainActivity`.
+- User-visible app copy is available in English, German, and Latin. Android
+  selects the matching resources from the device or app locale and falls back
+  to English for any unsupported locale.
 
 ## Local Development
 
