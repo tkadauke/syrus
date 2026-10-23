@@ -1,6 +1,10 @@
 la:
   hello: "Salve munde"
 
+  time:
+    formats:
+      long: "%Y-%m-%d %H:%M"
+
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
@@ -22,6 +26,7 @@ la:
 
   system_alert_mailer:
     alarm:
+      subject: "[Syrus monitum] %{title}"
       severity: "Gravitas:"
       dismissal_key: "Clavis dimissionis:"
       action_steps: "Gradus agendi"

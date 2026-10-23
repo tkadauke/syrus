@@ -278,7 +278,7 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
   end
 
   it "sends password reset instructions without exposing account existence" do
-    Factories.user(email_address: "operator@example.com")
+    Factories.user(email_address: "operator@example.com", locale: "de")
 
     expect {
       post "/api/v1/app/auth/passwords", params: {
@@ -288,6 +288,9 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to match(/Password reset instructions/)
+
+    I18n.with_locale(:la) { perform_enqueued_jobs }
+    expect(ActionMailer::Base.deliveries.last.subject).to eq("Passwort zurücksetzen")
   end
 
   it "updates a password with a valid reset token" do
