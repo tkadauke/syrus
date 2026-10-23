@@ -3,10 +3,11 @@ import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionR
 import { MarkdownPreview } from "../toolCardMarkdown"
 import { Badge, displayValue, EntityReference, Row } from "../toolCardUi"
 
-function optionLabel(value: unknown) {
+function optionLabel(value: unknown, defaultValue: boolean, inputAvailable: boolean) {
   if (value === true) return "Enabled"
   if (value === false) return "Disabled"
-  return "Not provided"
+  if (!inputAvailable) return "Not provided"
+  return defaultValue ? "Enabled" : "Disabled"
 }
 
 function RequestDetails({ context }: { context: ToolCardContext }) {
@@ -14,14 +15,15 @@ function RequestDetails({ context }: { context: ToolCardContext }) {
   const reason = displayValue(context.input?.reason)
   const instructions = displayValue(context.input?.instructions)
   const provider = displayValue(context.input?.agent_provider)
+  const inputAvailable = context.input != null
 
   return (
     <div className="space-y-2">
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
         <Row label="Job" value={jobId ? <EntityReference id={jobId} kind="job" /> : "Not provided"} />
         <Row label="Agent provider" value={provider ? <Badge>{provider}</Badge> : "Not provided"} />
-        <Row label="Clear handled SHA" value={<Badge>{optionLabel(context.input?.clear_handled_sha)}</Badge>} />
-        <Row label="Override repeated SHA" value={<Badge>{optionLabel(context.input?.override_repeated_sha)}</Badge>} />
+        <Row label="Clear handled SHA" value={<Badge>{optionLabel(context.input?.clear_handled_sha, true, inputAvailable)}</Badge>} />
+        <Row label="Override repeated SHA" value={<Badge>{optionLabel(context.input?.override_repeated_sha, false, inputAvailable)}</Badge>} />
       </dl>
       {reason ? (
         <MarkdownPreview linkifyUrls maxLines={4} modalLabel="CI repair reason" text={reason} title="Reason" />
@@ -85,6 +87,20 @@ export const examples: ToolCardExample[] = [
       pending_action_id: 601,
       state: "pending",
       message: "Rerun CI repair for JOB-4201 at abc1234? Failing checks: RSpec (https://github.com/acme/widgets/actions/runs/123456789)."
+    }
+  },
+  {
+    id: "required_only",
+    label: "CI repair with default options",
+    description: "Shows the effective boolean defaults when the optional rerun arguments are omitted.",
+    input: {
+      job_id: 4201,
+      reason: "Retry the failing checks after **manual review**."
+    },
+    parsedResult: {
+      pending_action_id: 603,
+      state: "pending",
+      message: "Rerun CI repair for JOB-4201 at abc1234? Failing checks: RSpec."
     }
   },
   {

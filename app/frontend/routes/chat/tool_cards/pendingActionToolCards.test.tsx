@@ -234,6 +234,18 @@ describe("pending action tool card family", () => {
     expect(screen.getByRole("link", { name: "https://ci.example.test/help/repairs" })).toBeInTheDocument()
   })
 
+  it("renders effective CI repair defaults for a required-only invocation", () => {
+    const example = rerunCiRepairExamples.find((candidate) => candidate.id === "required_only")
+    if (!example) throw new Error("missing required-only fixture")
+
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, example))}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4201" })).toHaveAttribute("href", "/jobs/4201")
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Disabled")).toBeInTheDocument()
+    expect(screen.getAllByText("Not provided")).toHaveLength(2)
+  })
+
   it("labels every unavailable CI repair request field when input is missing", () => {
     const example = rerunCiRepairExamples.find((candidate) => candidate.id === "missing_input")
     if (!example) throw new Error("missing input fixture")
@@ -247,7 +259,7 @@ describe("pending action tool card family", () => {
   })
 
   it("registers every visual-review state for the CI repair rerun card", () => {
-    expect(rerunCiRepairExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
+    expect(rerunCiRepairExamples.map((example) => example.id)).toEqual(["pending_repair", "required_only", "validation_error", "missing_input"])
   })
 
   it("wires a standard-shape tool through to the shared card", () => {
