@@ -86,19 +86,100 @@ function failureConfig() {
   }
 }
 
+function catalogElement(id: string, type: string, x: number, y: number, width: number, height: number) {
+  return {
+    id,
+    type,
+    x,
+    y,
+    width,
+    height,
+    angle: 0,
+    strokeWidth: 2,
+    strokeStyle: "solid",
+    fillStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    seed: id.length * 100,
+    version: 1,
+    versionNonce: id.length * 1000,
+    index: null,
+    isDeleted: false,
+    groupIds: [],
+    frameId: null,
+    boundElements: null,
+    roundness: null,
+    updated: 1,
+    link: null,
+    locked: false
+  }
+}
+
+const catalogRectangle = {
+  ...catalogElement("box", "rectangle", 20, 20, 180, 100),
+  backgroundColor: "#dbeafe",
+  strokeColor: "#1d4ed8",
+  boundElements: []
+}
+const catalogText = {
+  ...catalogElement("label", "text", 48, 56, 124, 25),
+  strokeColor: "#1e293b",
+  backgroundColor: "transparent",
+  text: "Launch plan",
+  originalText: "Launch plan",
+  fontSize: 20,
+  fontFamily: 1,
+  textAlign: "left",
+  verticalAlign: "top",
+  baseline: 20,
+  lineHeight: 1.25,
+  containerId: null,
+  autoResize: true
+}
+const catalogArrow = {
+  ...catalogElement("arrow", "arrow", 210, 70, 100, 0),
+  strokeColor: "#475569",
+  backgroundColor: "transparent",
+  fillStyle: "hachure",
+  points: [
+    [0, 0],
+    [100, 0]
+  ],
+  lastCommittedPoint: null,
+  startBinding: null,
+  endBinding: null,
+  startArrowhead: null,
+  endArrowhead: "arrow",
+  elbowed: false
+}
+const catalogImage = {
+  ...catalogElement("image", "image", 330, 20, 120, 100),
+  strokeColor: "transparent",
+  backgroundColor: "transparent",
+  fileId: "image1",
+  status: "saved",
+  scale: [1, 1],
+  crop: null
+}
+
 export const examples: ToolCardExample[] = [
   {
     id: "populated_scene",
     label: "Populated scene",
     parsedResult: {
       version: 4,
-      elements: [
-        { id: "box", type: "rectangle" },
-        { id: "label", type: "text", text: "Launch plan" },
-        { id: "arrow", type: "arrow" }
-      ],
-      appState: {},
-      files: { image1: { id: "image1" } }
+      elements: [catalogRectangle, catalogText, catalogArrow, catalogImage],
+      appState: { viewBackgroundColor: "#ffffff" },
+      files: {
+        image1: {
+          id: "image1",
+          dataURL:
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='100'%3E%3Crect width='120' height='100' fill='%23dcfce7'/%3E%3C/svg%3E",
+          mimeType: "image/svg+xml",
+          created: 1,
+          lastRetrieved: 1
+        }
+      }
     },
     sourceType: "generic"
   },

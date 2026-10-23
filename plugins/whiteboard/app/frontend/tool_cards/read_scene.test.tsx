@@ -117,4 +117,23 @@ describe("read_scene tool card", () => {
     expect(examples.map((example) => example.id)).toEqual(["populated_scene", "empty_scene", "error"])
     expect(examples.every((example) => example.sourceType === "generic")).toBe(true)
   })
+
+  it("uses complete Excalidraw elements and file data in the populated catalog example", () => {
+    const populated = examples.find((example) => example.id === "populated_scene")?.parsedResult as {
+      elements: Record<string, unknown>[]
+      files: Record<string, Record<string, unknown>>
+    }
+    const requiredBaseFields = ["id", "type", "x", "y", "width", "height", "strokeColor", "backgroundColor", "opacity", "seed", "version", "versionNonce"]
+    populated.elements.forEach((element) => requiredBaseFields.forEach((field) => expect(element).toHaveProperty(field)))
+    expect(populated.elements.find((element) => element.type === "arrow")).toMatchObject({
+      points: [
+        [0, 0],
+        [100, 0]
+      ],
+      endArrowhead: "arrow"
+    })
+    expect(populated.elements.find((element) => element.type === "image")).toMatchObject({ fileId: "image1", status: "saved" })
+    expect(populated.files.image1).toMatchObject({ id: "image1", mimeType: "image/svg+xml" })
+    expect(populated.files.image1.dataURL).toMatch(/^data:image\/svg\+xml,/)
+  })
 })
