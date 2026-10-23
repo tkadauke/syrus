@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
+import { localizedMetadata } from "@/lib/metadata";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { DocsPage } from "@/components/docs-page";
 import { findDoc } from "@/lib/docs";
 
-export const metadata: Metadata = {
-  title: "Docs",
+export const metadata: Metadata = localizedMetadata({
+  locale: "en", pathname: "/docs", title: "Docs",
   description: "Syrus product docs, setup paths, operations, and troubleshooting.",
-};
+});
 
 export default function DocsIndexPage() {
   const doc = findDoc([]);

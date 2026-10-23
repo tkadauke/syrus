@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { findPlugin, pluginStaticParams } from "@/lib/plugins";
+import { localizedMetadata } from "@/lib/metadata";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -18,11 +19,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const plugin = findPlugin(slug);
   if (!plugin) return {};
 
-  return {
-    title: `${plugin.displayName} plugin`,
+  return localizedMetadata({
+    locale: "en", pathname: plugin.href, title: `${plugin.displayName} plugin`,
     description: plugin.description || plugin.summary,
-    alternates: { canonical: plugin.href },
-  };
+  });
 }
 
 export default async function PluginPage({ params }: PageProps) {

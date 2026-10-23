@@ -4,6 +4,7 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { DocsPage } from "@/components/docs-page";
 import { docsStaticParams, findDoc } from "@/lib/docs";
+import { localizedMetadata } from "@/lib/metadata";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -19,11 +20,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const doc = findDoc(slug);
   if (!doc) return {};
 
-  return {
-    title: doc.title,
-    description: doc.description,
-    alternates: { canonical: doc.href },
-  };
+  return localizedMetadata({ locale: "en", pathname: doc.href, title: doc.title, description: doc.description });
 }
 
 export default async function DocPage({ params }: PageProps) {
