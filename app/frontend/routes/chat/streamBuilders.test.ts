@@ -181,6 +181,19 @@ describe("renderChatMessages tool grouping", () => {
     expect(addCall?.result_summary).toBe("Added area:ui · JOB-7")
   })
 
+  it("provides normalized repository-document context to a later read card", () => {
+    const documents = [{ id: 12, title: "API Guide", kind: "file", status: "attached", content_type: "text/markdown", size_bytes: 2048 }]
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_list", toolName: "mcp__syrus__list_repo_documents" }),
+      toolResult(2, { toolUseId: "tu_list", content: JSON.stringify({ structured_content: { documents } }) }),
+      toolUse(3, { toolUseId: "tu_read", toolName: "syrus-chat-sidecar.read_repo_document", input: { id: 12 } }),
+      toolResult(4, { toolUseId: "tu_read", content: [{ type: "text", text: "# API Guide" }] })
+    ])
+
+    const readCall = items.flatMap((item) => (item.type === "tool_group" ? item.calls : [])).find((call) => call.tool_name === "read_repo_document")
+    expect(readCall?.prior_results).toEqual({ list_repo_documents: { documents } })
+  })
+
   it("hides operator-cancelled dangling tool calls and keeps the terminal system message", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_bash_1", toolName: "bash", input: { command: "sleep 10" } }),
