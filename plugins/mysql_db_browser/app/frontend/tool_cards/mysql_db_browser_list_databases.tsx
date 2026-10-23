@@ -9,11 +9,20 @@ type DatabasesErrorCard = { available: false; connectionId: string | null; conne
 
 function connectionLabel(context: ToolCardContext, connectionId: string | null) {
   if (!connectionId) return null
-  const prior = context.priorResults?.mysql_db_browser_list_connections
-  if (!isPlainObject(prior) || !Array.isArray(prior.mysql_connections)) return null
-  for (const value of prior.mysql_connections) {
-    const connection = parseConnection(value)
-    if (connection?.id === connectionId) return connection.label
+
+  const results = [
+    context.priorResults?.mysql_db_browser_list_connections,
+    ...[...(context.priorCalls ?? [])]
+      .reverse()
+      .filter((call) => call.toolName === "mysql_db_browser_list_connections")
+      .map((call) => call.parsedResult)
+  ]
+  for (const result of results) {
+    if (!isPlainObject(result) || !Array.isArray(result.mysql_connections)) continue
+    for (const value of result.mysql_connections) {
+      const connection = parseConnection(value)
+      if (connection?.id === connectionId) return connection.label
+    }
   }
   return null
 }
