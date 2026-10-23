@@ -25,6 +25,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 
 describe("clear_canvas tool card", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(fetchWhiteboardSnapshot).mockResolvedValue({
       id: 3,
       name: null,
@@ -66,6 +67,16 @@ describe("clear_canvas tool card", () => {
     render(<>{clearCanvasToolCard.renderExpanded(context({ parsedResult: { cleared: true, snapshot_id: 3, version: 4 }, chatSessionId: 21 }))}</>)
     expect(screen.getByRole("link", { name: "SNAPSHOT-3" })).toHaveAttribute("href", "/chats/21?workspace=plugin%3Awhiteboard.canvas")
     await waitFor(() => expect(fetchWhiteboardSnapshot).toHaveBeenCalledWith("21", "3"))
+  })
+
+  it("renders the catalog example from its embedded preview scene without an API request", async () => {
+    const catalogExample = examples.find((example) => example.id === "cleared_canvas")
+    render(<>{clearCanvasToolCard.renderExpanded(context({ parsedResult: catalogExample?.parsedResult }))}</>)
+
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "Auto-saved canvas snapshot" })).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"))
+    )
+    expect(fetchWhiteboardSnapshot).not.toHaveBeenCalled()
   })
 
   it("summarizes and renders an already-empty canvas with its version", () => {

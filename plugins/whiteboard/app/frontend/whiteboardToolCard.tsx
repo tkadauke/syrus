@@ -1,3 +1,4 @@
+import type { ChatWhiteboardScene } from "@app/api/chats"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
@@ -5,6 +6,7 @@ import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/med
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
+import { normalizeWhiteboardScene } from "@app/routes/chat/whiteboardScene"
 import { WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
@@ -399,6 +401,7 @@ export type ClearCanvasResult = {
   elementCount: number | null
   chatId: string | null
   version: number | null
+  previewScene: ChatWhiteboardScene | null
 }
 
 export function parseClearCanvasResult(value: unknown): ClearCanvasResult | null {
@@ -409,7 +412,8 @@ export function parseClearCanvasResult(value: unknown): ClearCanvasResult | null
     snapshotId: displayValue(value.snapshot_id),
     elementCount: numberValue(value.element_count),
     chatId: displayValue(value.chat_session_id),
-    version: numberValue(value.version)
+    version: numberValue(value.version),
+    previewScene: isPlainObject(value.preview_scene) ? normalizeWhiteboardScene(value.preview_scene) : null
   }
 }
 
@@ -447,6 +451,7 @@ export function ClearCanvasCard({ result, chatId }: { result: ClearCanvasResult;
               { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
             ]
           }}
+          scene={result.previewScene}
           snapshotId={result.snapshotId}
         />
       ) : result.snapshotId ? (
