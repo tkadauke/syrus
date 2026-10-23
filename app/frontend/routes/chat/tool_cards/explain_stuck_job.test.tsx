@@ -17,6 +17,7 @@ const FULL_PAYLOAD = {
     issue_title: "Fix the thing",
     branch_name: "syrus/fix-the-thing",
     pr_number: 17,
+    pr_url: "https://github.com/acme/widget/pull/17",
     closure_reason: "waiting",
     landing_failure_reason: "checks failed"
   },
@@ -38,7 +39,6 @@ const FULL_PAYLOAD = {
     action: "inspect_logs",
     reason: LONG_REASON,
     run_id: 9,
-    workflow_id: 3,
     pr_number: 17,
     work_unit_id: 31,
     next_check_at: "2026-10-23T12:00:00Z"
@@ -76,7 +76,7 @@ describe("explain_stuck_job tool card", () => {
     expect(screen.getByRole("link", { name: /JOB-5/ })).toHaveAttribute("href", "/jobs/5")
     expect(screen.getByText("Fix the thing")).toBeInTheDocument()
     expect(screen.getByText("syrus/fix-the-thing")).toHaveClass("break-all", "sm:truncate")
-    expect(screen.getAllByRole("link", { name: "PR #17" })[0]).toHaveAttribute("href", "/jobs/5")
+    expect(screen.getAllByRole("link", { name: "PR #17" })[0]).toHaveAttribute("href", "https://github.com/acme/widget/pull/17")
     expect(screen.getByText("stale heartbeat")).toBeInTheDocument()
     expect(screen.getByText("worker missing")).toBeInTheDocument()
     expect(screen.getByText("Intent 22")).toHaveAttribute("href", "/admin/work_units?job_id=5")
@@ -87,6 +87,22 @@ describe("explain_stuck_job tool card", () => {
     expect(screen.getByText("running Run").tagName).toBe("STRONG")
     expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0)
     expect(screen.getByText(/GitHub: dirty/)).toBeInTheDocument()
+  })
+
+  it("resolves a run-only recommended action through the Runs payload", () => {
+    render(<>{explainStuckJobToolCard.renderExpanded(context({ parsedResult: FULL_PAYLOAD }))}</>)
+
+    const runLinks = screen.getAllByRole("link", { name: /RUN-9/ })
+    expect(runLinks.length).toBeGreaterThan(1)
+    expect(runLinks[0]).toHaveAttribute("href", "/jobs/5?tab=workflows#workflow-3")
+  })
+
+  it("falls back to an unlinked PR reference when no safe PR URL is available", () => {
+    const parsedResult = { job: { id: 5, state: "running", pr_number: 17 }, stuck: false }
+    render(<>{explainStuckJobToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    expect(screen.getByText("PR #17")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "PR #17" })).not.toBeInTheDocument()
   })
 
   it("opens the complete markdown reason from Show more", () => {

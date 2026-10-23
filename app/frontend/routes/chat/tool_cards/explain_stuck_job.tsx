@@ -35,6 +35,7 @@ type Card = {
   stuck: boolean
   branch: string | null
   prNumber: string | null
+  prUrl: string | null
   closureReason: string | null
   landingFailure: string | null
   action: Action | null
@@ -191,6 +192,7 @@ function parse(context: ToolCardContext): Card | null {
     stuck: parsed.stuck === true,
     branch: displayValue(parsed.job.branch_name),
     prNumber: displayValue(parsed.job.pr_number),
+    prUrl: displayValue(parsed.job.pr_url),
     closureReason: displayValue(parsed.job.closure_reason),
     landingFailure: displayValue(parsed.job.landing_failure_reason),
     action: action(parsed.recommended_action),
@@ -276,6 +278,7 @@ function renderExpanded(context: ToolCardContext) {
     !card.dependencies.length &&
     !card.workUnits.length &&
     !card.landing
+  const actionWorkflowId = card.action?.workflowId ?? card.runs.find((run) => run.id === card.action?.runId)?.workflowId ?? null
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
@@ -290,7 +293,7 @@ function renderExpanded(context: ToolCardContext) {
           {card.prNumber ? (
             <div>
               <SectionLabel>Pull request</SectionLabel>
-              <EntityReference href={`/jobs/${card.jobId}`} id={card.prNumber} kind="pull_request" />
+              <EntityReference id={card.prNumber} kind="pull_request" prUrl={card.prUrl} />
             </div>
           ) : null}
           {card.closureReason ? <Row label="Closure reason" value={card.closureReason} /> : null}
@@ -303,8 +306,8 @@ function renderExpanded(context: ToolCardContext) {
           {card.action.reason ? <MarkdownPreview maxLines={3} text={card.action.reason} title="Reason" /> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {card.action.workflowId ? <EntityReference id={card.action.workflowId} jobId={card.jobId} kind="workflow" /> : null}
-            {card.action.runId ? <EntityReference id={card.action.runId} jobId={card.jobId} kind="run" workflowId={card.action.workflowId} /> : null}
-            {card.action.prNumber ? <EntityReference href={`/jobs/${card.jobId}`} id={card.action.prNumber} kind="pull_request" /> : null}
+            {card.action.runId ? <EntityReference id={card.action.runId} jobId={card.jobId} kind="run" workflowId={actionWorkflowId} /> : null}
+            {card.action.prNumber ? <EntityReference id={card.action.prNumber} kind="pull_request" prUrl={card.prUrl} /> : null}
             {card.action.workUnitId ? <InternalLink href={`/admin/work_units?job_id=${card.jobId}`}>WorkUnit {card.action.workUnitId}</InternalLink> : null}
             {card.action.nextCheckAt ? <span className="break-words text-xs text-text-muted">Next check: {card.action.nextCheckAt}</span> : null}
           </div>
@@ -389,7 +392,15 @@ export const examples: ToolCardExample[] = [
     label: "Stale Run with repair guidance",
     input: { job_id: 5 },
     parsedResult: {
-      job: { id: 5, slug: "JOB-5", state: "running", title: "Recover stalled work", branch_name: "syrus/recover-stalled-work", pr_number: 42 },
+      job: {
+        id: 5,
+        slug: "JOB-5",
+        state: "running",
+        title: "Recover stalled work",
+        branch_name: "syrus/recover-stalled-work",
+        pr_number: 42,
+        pr_url: "https://github.com/acme/widget/pull/42"
+      },
       stuck: true,
       issues: [
         {
@@ -415,7 +426,6 @@ export const examples: ToolCardExample[] = [
         action: "inspect_logs",
         reason: "Inspect the **complete Run log** before retrying. ".repeat(35),
         run_id: 9,
-        workflow_id: 3,
         pr_number: 42,
         work_unit_id: 15,
         next_check_at: "2026-10-23T12:30:00Z"
