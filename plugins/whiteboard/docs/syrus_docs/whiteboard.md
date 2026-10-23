@@ -145,13 +145,15 @@ version double-logged this and was simplified.
   or the board was edited after the latest manual snapshot was taken).
   `chat_media_context` reports the live element count so an agent deciding
   whether to `save_canvas` can tell an empty board from one worth saving.
-- **Tool cards** — a successful `save_canvas` result lazily fetches the saved
-  scene and exports it to SVG for an inline thumbnail and full-size preview.
-  The card shows the snapshot reference, canvas version, name, and element
-  count, and links directly to the chat's Whiteboard and Media tabs. Loading
-  and rendering failures retain the snapshot metadata and show a localized
-  fallback. Tool inputs and results continue through the shared chat tool-card
-  redaction path before rendering.
+- **Tool cards** — successful `save_canvas` results and the automatic snapshot
+  created before `clear_canvas` lazily fetch the saved scene and export it to
+  SVG for an inline thumbnail and full-size preview. The cards show the
+  snapshot reference, canvas version, and available snapshot details, and link
+  directly to the chat's Whiteboard and Media tabs. An empty-canvas clear is
+  identified without presenting a snapshot. Loading and rendering failures
+  retain the snapshot metadata and show a localized fallback. Tool inputs and
+  results continue through the shared chat tool-card redaction path before
+  rendering.
 - **System prompt section** (`Whiteboard::PromptSection`) — injects the
   whiteboard's usage guidance into the chat agent's system prompt: use it
   only when the operator explicitly asks for a canvas/diagram/sketch, prefer
