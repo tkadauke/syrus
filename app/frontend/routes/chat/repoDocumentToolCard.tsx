@@ -214,6 +214,7 @@ export function RepoDocumentReadCard({ context }: { context: ToolCardContext }) 
           linkifyUrls
           maxChars={CONTENT_PREVIEW_CHARS}
           maxLines={CONTENT_PREVIEW_LINES}
+          modalContentClassName={plainTextDocument(row.contentType) ? "font-mono whitespace-pre-wrap" : undefined}
           modalLabel={`${label} content`}
           text={text || ""}
           title="Content preview"
