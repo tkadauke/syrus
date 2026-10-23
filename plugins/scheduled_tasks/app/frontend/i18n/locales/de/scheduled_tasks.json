@@ -45,6 +45,7 @@
   "tool_prompt_empty": "Es wurde kein Prompt angegeben.",
   "tool_paused_summary": "'{{label}}' pausiert (#{{id}})",
   "tool_paused_detail": "Dieser Task läuft erst wieder, wenn er fortgesetzt wird.",
+  "tool_previous_next_fire": "Zuvor fällig",
   "tool_paused": "pausiert",
   "tool_resumed_summary": "'{{label}}' fortgesetzt (#{{id}})",
   "tool_resumed_detail": "Dieser Task ist wieder geplant und läuft beim nächsten fälligen Tick.",
