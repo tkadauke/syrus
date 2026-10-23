@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Logo } from "./logo";
-import { ButtonLink } from "./button";
 import { DownloadButton } from "./download-cta";
 import { site } from "../lib/site";
+import { localizedHref, type Locale } from "../lib/locales";
 
 const links = [
   { href: "/#how", label: "How it works" },
@@ -16,7 +16,7 @@ const links = [
   { href: "/blog", label: "Blog" },
 ];
 
-export function Nav() {
+export function Nav({ locale }: { locale: Locale }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function Nav() {
         }`}
       >
         <nav className="wrap flex h-16 items-center justify-between">
-          <a href="/" aria-label="Syrus home">
+          <a href={localizedHref("/", locale)} aria-label="Syrus home">
             <Logo />
           </a>
 
@@ -44,7 +44,7 @@ export function Nav() {
             {links.map((l) => (
               <a
                 key={l.href}
-                href={l.href}
+                href={localizedHref(l.href, locale)}
                 className="rounded-full px-3.5 py-2 text-sm text-cream-dim transition-colors hover:text-cream"
               >
                 {l.label}
@@ -61,7 +61,7 @@ export function Nav() {
             >
               GitHub
             </a>
-            <DownloadButton />
+            <DownloadButton locale={locale} />
           </div>
         </nav>
       </div>

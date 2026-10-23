@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Nav } from "../../../components/nav";
-import { Footer } from "../../../components/footer";
-import { PluginDirectory } from "../../../components/plugin-directory";
-import { pluginDirectoryEntries } from "../../../lib/plugins";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { PluginDirectory } from "@/components/plugin-directory";
+import { pluginDirectoryEntries } from "@/lib/plugins";
 
 export const metadata: Metadata = {
   title: "Plugins",
@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 export default function PluginsPage() {
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
         <PluginDirectory plugins={pluginDirectoryEntries()} />
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

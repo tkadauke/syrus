@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Nav } from "../../../components/nav";
-import { Footer } from "../../../components/footer";
-import { ButtonLink } from "../../../components/button";
-import { AppleIcon, DownloadIcon } from "../../../components/icons";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { ButtonLink } from "@/components/button";
+import { AppleIcon, DownloadIcon } from "@/components/icons";
 import {
   downloads,
   humanSize,
@@ -10,7 +10,7 @@ import {
   allReleasesUrl,
   type DownloadArtifact,
   type Platform,
-} from "../../../lib/release";
+} from "@/lib/release";
 
 export const metadata: Metadata = {
   title: "Download",
@@ -60,7 +60,7 @@ function Card({ art }: { art: DownloadArtifact }) {
 export default function DownloadPage() {
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main" className="wrap max-w-2xl pt-32 pb-24">
         <a
           href="/"
@@ -95,7 +95,7 @@ export default function DownloadPage() {
           </a>
         </p>
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

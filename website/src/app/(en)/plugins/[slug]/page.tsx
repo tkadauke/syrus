@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Nav } from "../../../../components/nav";
-import { Footer } from "../../../../components/footer";
-import { findPlugin, pluginStaticParams } from "../../../../lib/plugins";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { findPlugin, pluginStaticParams } from "@/lib/plugins";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -32,7 +32,7 @@ export default async function PluginPage({ params }: PageProps) {
 
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
         <article className="wrap pt-28 pb-20">
           <a
@@ -85,7 +85,7 @@ export default async function PluginPage({ params }: PageProps) {
           />
         </article>
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

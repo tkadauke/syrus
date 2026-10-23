@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ButtonLink } from "./button";
 import { AppleIcon, DownloadIcon } from "./icons";
 import { downloadFor } from "../lib/release";
+import { localizedHref, type Locale } from "../lib/locales";
 
 export type OS = "mac" | "mobile" | "other";
 
@@ -37,11 +38,11 @@ function target(os: OS | null) {
 }
 
 /** Compact OS-aware download button (used in the nav) — OS icon + "Download". */
-export function DownloadButton() {
+export function DownloadButton({ locale }: { locale: Locale }) {
   const os = useDetectedOS();
   const { href, label, Icon } = target(os);
   return (
-    <ButtonLink href={href} variant="primary" size="md" aria-label={label}>
+    <ButtonLink href={localizedHref(href, locale)} variant="primary" size="md" aria-label={label}>
       <Icon className="size-[18px]" />
       <span className="hidden sm:inline">Download</span>
     </ButtonLink>
