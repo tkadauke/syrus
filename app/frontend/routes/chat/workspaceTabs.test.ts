@@ -251,7 +251,16 @@ describe("linkedWorkspaceTab", () => {
   it("opens the media workspace for a linked walkthrough entry", () => {
     const payload = makePayload({
       video_walkthroughs: [
-        { id: 42, title: "Checkout flow", state: "analyzed", duration_seconds: 12, byte_size: 100, error_message: null, has_video: true, created_at: "2026-01-01T00:00:00Z" }
+        {
+          id: 42,
+          title: "Checkout flow",
+          state: "analyzed",
+          duration_seconds: 12,
+          byte_size: 100,
+          error_message: null,
+          has_video: true,
+          created_at: "2026-01-01T00:00:00Z"
+        }
       ]
     })
 
