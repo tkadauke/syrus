@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Syrus</string>
+    <string name="instance_url_hint">Syrus instance URL</string>
+    <string name="api_token_hint">API token</string>
+    <string name="connect">Connect</string>
+    <string name="connect_prompt">Connect to load your Syrus Jobs.</string>
+    <string name="credentials_required">Instance URL and API token are required.</string>
+    <string name="loading">Loading Syrus…</string>
+    <string name="connection_failed">Could not connect to Syrus.</string>
+    <plurals name="signed_in_job_count">
+        <item quantity="one">Signed in as %1$s · %2$d Job</item>
+        <item quantity="other">Signed in as %1$s · %2$d Jobs</item>
+    </plurals>
+    <string name="no_jobs">No Jobs visible for this token yet.</string>
+    <string name="job_card">#%1$d  %2$s\n%3$s\n%4$s\n%5$s</string>
+    <string name="bootstrap_missing_user">Bootstrap response did not include whoami.</string>
+    <string name="token_user_missing">API token did not resolve to a signed-in Syrus user.</string>
+    <string name="untitled_job">Untitled job</string>
+    <string name="unknown_state">unknown</string>
+    <string name="api_http_error">Syrus API request failed with HTTP %1$d.</string>
+    <string name="instance_url_required">Syrus instance URL is required.</string>
+    <string name="api_token_required">Syrus API token is required.</string>
 </resources>
