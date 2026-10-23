@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { ArrowRight, CheckIcon } from "../../../components/icons";
-import { ButtonLink } from "../../../components/button";
-import { Footer } from "../../../components/footer";
-import { Nav } from "../../../components/nav";
-import { Reveal, RevealGroup, RevealItem } from "../../../components/reveal";
-import { SectionHeader } from "../../../components/section";
-import { ScreenshotFrame } from "../../../components/screenshot-frame";
+import { ArrowRight, CheckIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/button";
+import { Footer } from "@/components/footer";
+import { Nav } from "@/components/nav";
+import { Reveal, RevealGroup, RevealItem } from "@/components/reveal";
+import { SectionHeader } from "@/components/section";
+import { ScreenshotFrame } from "@/components/screenshot-frame";
 
 export const metadata: Metadata = {
   title: "Control Plane",
@@ -182,7 +182,7 @@ function MiniPipeline() {
 export default function ControlPlanePage() {
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
         <section className="grain relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
           <div aria-hidden className="absolute inset-0 -z-0">
@@ -420,7 +420,7 @@ export default function ControlPlanePage() {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

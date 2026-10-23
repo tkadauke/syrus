@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Nav } from "../../../components/nav";
-import { Footer } from "../../../components/footer";
-import { DocsPage } from "../../../components/docs-page";
-import { findDoc } from "../../../lib/docs";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { DocsPage } from "@/components/docs-page";
+import { findDoc } from "@/lib/docs";
 
 export const metadata: Metadata = {
   title: "Docs",
@@ -15,11 +15,11 @@ export default function DocsIndexPage() {
 
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
-        <DocsPage doc={doc} />
+        <DocsPage doc={doc} locale="en" />
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

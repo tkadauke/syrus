@@ -1,13 +1,14 @@
 import { allDocs, type DocPage } from "../lib/docs";
+import { localizedHref, type Locale } from "../lib/locales";
 
-export function DocsPage({ doc }: { doc: DocPage }) {
+export function DocsPage({ doc, locale }: { doc: DocPage; locale: Locale }) {
   const docs = allDocs();
 
   return (
     <div className="wrap grid gap-10 pt-28 pb-20 lg:grid-cols-[17rem_minmax(0,1fr)]">
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <a
-          href="/docs"
+          href={localizedHref("/docs", locale)}
           className="font-mono text-[0.72rem] uppercase tracking-[0.16em] text-cream-faint transition-colors hover:text-cream"
         >
           Syrus Docs
@@ -16,7 +17,7 @@ export function DocsPage({ doc }: { doc: DocPage }) {
           {docs.map((item) => (
             <a
               key={item.href}
-              href={item.href}
+              href={localizedHref(item.href, locale)}
               aria-current={item.href === doc.href ? "page" : undefined}
               className={`rounded-lg px-3 py-2 text-sm transition-colors ${
                 item.href === doc.href
