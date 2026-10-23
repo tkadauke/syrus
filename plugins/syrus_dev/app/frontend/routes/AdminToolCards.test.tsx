@@ -84,7 +84,8 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("plugin · agent_insights")).toBeInTheDocument()
     expandToolGroup(region)
 
-    expect(within(region).getByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toBeInTheDocument()
+    fireEvent.click(within(region).getByRole("tab", { name: "One pending, one accepted insight" }))
+    expect(within(region).getAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick").length).toBeGreaterThan(0)
 
     fireEvent.click(within(region).getByRole("tab", { name: "No pending insights" }))
     expect(within(region).getByText("No insights match this query.")).toBeInTheDocument()
