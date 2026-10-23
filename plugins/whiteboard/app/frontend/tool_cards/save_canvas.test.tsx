@@ -85,6 +85,15 @@ describe("save_canvas tool card", () => {
     expect(screen.getByText("SNAPSHOT-9")).toBeInTheDocument()
   })
 
+  it("uses the localized fallback title for an unnamed snapshot", async () => {
+    const parsedResult = { saved: true, snapshot_id: 9, name: null, element_count: 4, chat_session_id: 12, version: 2 }
+
+    render(<>{saveCanvasToolCard.renderExpanded(context({ parsedResult }))}</>)
+
+    await waitFor(() => expect(screen.getByRole("img", { name: "Snapshot #9" })).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Open Snapshot #9" })).toBeInTheDocument()
+  })
+
   it("shows a localized structured card for tool errors", () => {
     const errorContext = context({ resultError: true, resultBody: "database unavailable", input: { name: "Plan" } })
     expect(saveCanvasToolCard.collapsedSummary?.(errorContext)).toContain("failed")

@@ -48,6 +48,7 @@
   "tool_replaced_scene_summary": "Szene ersetzt: {{summary}}",
   "tool_replaced_scene": "Szene ersetzt",
   "tool_snapshot": "Snapshot",
+  "tool_snapshot_title": "Snapshot Nr. {{id}}",
   "tool_snapshot_id": "Snapshot-ID",
   "tool_version": "Version",
   "tool_copy_id": "ID kopieren",
