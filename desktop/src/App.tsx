@@ -478,8 +478,8 @@ function HeaderBrand({ title, instanceUrl }: { title: string; instanceUrl: strin
     <button
       type="button"
       className="header-brand"
-      title={`Open ${normalizedUrl}`}
-      aria-label={`Open ${title} in Syrus`}
+      title={t("renderer.open_url", { url: normalizedUrl })}
+      aria-label={t("renderer.open_in_syrus", { title })}
       onClick={() => void window.syrusDesktop.openInSyrus()}
     >
       <img alt="" className="header-brand__logo" src={syrusIconUrl} />
@@ -805,7 +805,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     try {
       updateNotificationsCache(await window.syrusDesktop.markAllNotificationsRead())
     } catch (error) {
-      showErrorToast(error instanceof Error ? error.message : "Could not mark notifications read.")
+      showErrorToast(error instanceof Error ? error.message : t("renderer.mark_notifications_failed"))
     } finally {
       setIsMarkingAllNotificationsRead(false)
     }
@@ -815,7 +815,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     try {
       updateNotificationReadCache(await window.syrusDesktop.markNotificationRead(notification.id))
     } catch (error) {
-      showErrorToast(error instanceof Error ? error.message : "Could not mark notification read.")
+      showErrorToast(error instanceof Error ? error.message : t("renderer.mark_notification_failed"))
     }
 
     if (notification.job_id) {
@@ -862,12 +862,12 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         extraArgs: ["--complete"]
       })
       await refreshLocalStatus()
-      showToast({ kind: "success", message: `Checked out EPIC-${epicId}` }, 4000)
+      showToast({ kind: "success", message: t("renderer.checked_out_ref", { ref: `EPIC-${epicId}` }) }, 4000)
     } catch (checkoutError) {
       showToast(
         {
           kind: "error",
-          message: checkoutError instanceof Error ? checkoutError.message : "Epic checkout failed.",
+          message: checkoutError instanceof Error ? checkoutError.message : t("renderer.epic_checkout_failed"),
           copyCommand: command
         },
         7000
@@ -887,16 +887,16 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           {
             kind: "success",
             message: result.onPath
-              ? "Syrus CLI installed — Checkout is ready."
+              ? t("renderer.cli_ready")
               : window.syrusDesktop.platform === "win32"
-                ? "Syrus CLI installed — open a NEW terminal to use `syrus`."
-                : 'Syrus CLI installed. For terminals, add: export PATH="$HOME/.local/bin:$PATH"'
+                ? t("renderer.cli_new_terminal")
+                : t("renderer.cli_add_path")
           },
           7000
         )
         void cliStatusQuery.refetch()
       } else {
-        showToast({ kind: "error", message: result.error ?? "Could not install the Syrus CLI." }, 7000)
+        showToast({ kind: "error", message: result.error ?? t("renderer.cli_install_failed") }, 7000)
       }
     } finally {
       setInstallingCliFromBanner(false)
@@ -915,13 +915,13 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         branchName: job.branch_name
       })
       await refreshLocalStatus()
-      showToast({ kind: "success", message: `Checked out ${result.branchName}` }, 4000)
+      showToast({ kind: "success", message: t("renderer.checked_out_ref", { ref: result.branchName }) }, 4000)
       setNavigation({ view: "job-detail", jobId: job.id })
     } catch (checkoutError) {
       showToast(
         {
           kind: "error",
-          message: checkoutError instanceof Error ? checkoutError.message : "Local checkout failed.",
+          message: checkoutError instanceof Error ? checkoutError.message : t("renderer.local_checkout_failed"),
           copyCommand: command
         },
         7000
@@ -940,12 +940,12 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       queryClient.setQueryData<SyrusJobItem[]>(["inbox-jobs", instanceUrl], (currentJobs = []) =>
         currentJobs.map((currentJob) => (currentJob.id === job.id ? { ...currentJob, state: "approved", summary_state: "approved" } : currentJob))
       )
-      showToast({ kind: "success", message: `JOB-${job.id} approved` })
+      showToast({ kind: "success", message: t("renderer.job_approved", { ref: `JOB-${job.id}` }) })
       void inboxQuery.refetch()
     } catch (approvalError) {
       showToast({
         kind: "error",
-        message: approvalError instanceof Error ? approvalError.message : `Could not approve JOB-${job.id}.`
+        message: approvalError instanceof Error ? approvalError.message : t("renderer.approve_failed", { ref: `JOB-${job.id}` })
       })
     } finally {
       setPendingApprovals((current) => {
@@ -962,14 +962,14 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
     try {
       await window.syrusDesktop.retryJob(job.id)
-      showToast({ kind: "success", message: `JOB-${job.id} queued for retry` })
+      showToast({ kind: "success", message: t("renderer.queued_retry", { ref: `JOB-${job.id}` }) })
       window.setTimeout(() => {
         void inboxQuery.refetch()
       }, 900)
     } catch (retryError) {
       showToast({
         kind: "error",
-        message: retryError instanceof Error ? retryError.message : `Could not retry JOB-${job.id}.`
+        message: retryError instanceof Error ? retryError.message : t("renderer.retry_failed", { ref: `JOB-${job.id}` })
       })
     } finally {
       setRetryingJobID(null)
@@ -992,7 +992,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
     try {
       await submitJobFeedback(jobId, body)
-      showToast({ kind: "success", message: "Feedback submitted" }, 1800)
+      showToast({ kind: "success", message: t("renderer.feedback_submitted") }, 1800)
       setFeedbackBody("")
       void detailQuery.refetch()
       void inboxQuery.refetch()
@@ -1000,7 +1000,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         setNavigation({ view: "job-detail", jobId })
       }, 800)
     } catch (submitError) {
-      setFeedbackError(submitError instanceof Error ? submitError.message : "Could not submit feedback.")
+      setFeedbackError(submitError instanceof Error ? submitError.message : t("renderer.feedback_failed"))
     } finally {
       setFeedbackSubmitting(false)
     }
@@ -1056,8 +1056,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     showToast(
       {
         kind: "success",
-        message: `Job queued in ${repoSlug}`,
-        actionLabel: "Open in Syrus",
+        message: t("renderer.job_queued", { repository: repoSlug }),
+        actionLabel: t("renderer.open_syrus"),
         actionUrl: `${normalizeInstanceUrl(instanceUrl)}${result.redirect_to}`
       },
       7000
@@ -1079,7 +1079,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       {isCheckingOut && (
         <div
           role="status"
-          aria-label="Checking out branch…"
+          aria-label={t("renderer.checking_out")}
           className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80"
         >
           <svg aria-hidden="true" className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500" viewBox="0 0 24 24" fill="none">
@@ -1142,7 +1142,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                 disabled={isMarkingAllNotificationsRead || unreadCount <= 0 || (notificationsQuery.data?.notifications.length ?? 0) === 0}
                 onClick={() => void markAllNotificationsRead()}
               >
-                Mark all read
+                {t("renderer.mark_all_read")}
               </button>
             </div>
           </>
@@ -1168,8 +1168,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                   <button
                     type="button"
                     className="icon-button"
-                    title={isComposeOpen ? "Close compose" : "Compose job"}
-                    aria-label={isComposeOpen ? "Close job compose" : "Compose job"}
+                    title={t(isComposeOpen ? "renderer.close_compose" : "renderer.compose_job")}
+                    aria-label={t(isComposeOpen ? "renderer.close_compose" : "renderer.compose_job")}
                     aria-pressed={isComposeOpen}
                     ref={composeButtonRef}
                     onClick={() => setIsComposeOpen((open) => !open)}
@@ -1191,8 +1191,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
               <button
                 type="button"
                 className="icon-button"
-                title={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
-                aria-label={navigation.view === "job-detail" ? "Refresh job" : "Refresh inbox"}
+                title={t(navigation.view === "job-detail" ? "renderer.refresh_job" : "renderer.refresh_inbox")}
+                aria-label={t(navigation.view === "job-detail" ? "renderer.refresh_job" : "renderer.refresh_inbox")}
                 disabled={navigation.view === "job-detail" ? detailQuery.isFetching : inboxQuery.isFetching}
                 onClick={() => {
                   if (navigation.view === "job-detail") {
@@ -1215,17 +1215,17 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           data-testid="cli-missing-banner"
         >
           {cliBundleMissing ? (
-            <span>This app build is missing its bundled Syrus CLI — reinstall the app from the latest release, or install the CLI from a repo clone.</span>
+            <span>{t("renderer.cli_bundle_missing")}</span>
           ) : (
             <>
-              <span>Install the Syrus CLI to enable local branch checkout.</span>
+              <span>{t("renderer.cli_install_required")}</span>
               <button
                 type="button"
                 className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200 dark:hover:bg-amber-950"
                 disabled={installingCliFromBanner}
                 onClick={() => void installCliFromBanner()}
               >
-                {installingCliFromBanner ? "Installing…" : "Install"}
+                {t(installingCliFromBanner ? "renderer.installing" : "renderer.install")}
               </button>
             </>
           )}
@@ -1246,7 +1246,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
             <span className="min-w-0 overflow-wrap-anywhere">{toast.message}</span>
             {toast.copyCommand ? (
               <button type="button" className="toast-action" onClick={copyToastCommand}>
-                Copy command
+                {t("renderer.copy_command")}
               </button>
             ) : null}
             {toast.actionLabel && toast.actionUrl ? (
@@ -1254,7 +1254,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                 {toast.actionLabel}
               </button>
             ) : null}
-            <button type="button" className="toast-close-button" aria-label="Dismiss" onClick={clearToast}>
+            <button type="button" className="toast-close-button" aria-label={t("renderer.dismiss")} onClick={clearToast}>
               <CloseIcon />
             </button>
           </div>
@@ -1308,16 +1308,16 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         ) : inboxQuery.isError ? (
           isUnauthorizedError(inboxQuery.error) ? (
             <StatusPanel
-              title="Sign-in needs a refresh"
-              detail="This app refreshes its token from the Syrus window. Open Syrus, sign in if asked, then retry."
-              actionLabel="Open Syrus"
+              title={t("renderer.signin_refresh")}
+              detail={t("renderer.signin_refresh_detail")}
+              actionLabel={t("shell.open")}
               onAction={() => void window.syrusDesktop.openSyrusWindow()}
-              secondaryActionLabel="Retry"
+              secondaryActionLabel={t("common.retry")}
               onSecondaryAction={() => void inboxQuery.refetch()}
             />
           ) : (
             <StatusPanel
-              title="Could not load inbox"
+              title={t("renderer.inbox_load_failed")}
               detail={inboxQuery.error instanceof Error ? inboxQuery.error.message : t("renderer.try_later")}
               actionLabel={t("common.retry")}
               onAction={() => void inboxQuery.refetch()}
@@ -1504,50 +1504,47 @@ export function CliInstallSection() {
         <div className="shortcut-details">
           <span className="shortcut-pill">syrus CLI</span>
           {status === "checking" ? (
-            <span className="status-line">Checking…</span>
+            <span className="status-line">{t("renderer.checking")}</span>
           ) : status === "installed" ? (
-            <span className="form-success">Installed — kept current automatically with app updates.</span>
+            <span className="form-success">{t("renderer.cli_installed_current")}</span>
           ) : bundleMissing ? (
-            <span className="status-line">
-              Not installed — this app build carries no bundled CLI, so reinstalling from here can't work. Reinstall the app from the latest release, or install
-              the CLI from a repo clone.
-            </span>
+            <span className="status-line">{t("renderer.cli_bundle_missing")}</span>
           ) : (
-            <span className="status-line">Not installed — it normally installs itself when the app starts, so something went wrong.</span>
+            <span className="status-line">{t("renderer.cli_not_installed")}</span>
           )}
         </div>
         {status === "missing" ? (
           <button className="primary-button" disabled={installing || bundleMissing} onClick={() => void install()} type="button">
-            {installing ? "Installing…" : "Reinstall CLI"}
+            {t(installing ? "renderer.installing" : "renderer.reinstall_cli")}
           </button>
         ) : (
           <button
             className="secondary-button"
             disabled={installing || status === "checking"}
             onClick={() => void install({ withSkill: true })}
-            title="Writes .claude/skills/syrus under your home directory so Claude Code sessions on this machine can drive Syrus through the CLI."
+            title={t("renderer.skill_install_title")}
             type="button"
           >
-            {installing ? "Installing…" : "Add Claude Code skill"}
+            {t(installing ? "renderer.installing" : "renderer.add_skill")}
           </button>
         )}
       </div>
       {result?.error ? <p className="form-error">{result.error}</p> : null}
       {result?.installed ? (
         <p className="status-line">
-          Installed to {result.target}
-          {result.signedIn ? " — already signed in via this app's credentials" : ""}.{result.skillInstalled ? " Claude Code skill added." : null}
-          {result.skillError ? ` Claude Code skill failed: ${result.skillError}` : null}
+          {t("renderer.installed_to", { target: result.target })}
+          {result.signedIn ? ` ${t("renderer.already_signed_in")}` : ""}.{result.skillInstalled ? ` ${t("renderer.skill_added")}` : null}
+          {result.skillError ? ` ${t("renderer.skill_failed", { error: result.skillError })}` : null}
           {!result.onPath ? (
             window.syrusDesktop?.platform === "win32" ? (
               <>
                 {" "}
-                Open a NEW terminal to use <code>syrus</code>.
+                {t("renderer.open_new_terminal")} <code>syrus</code>.
               </>
             ) : (
               <>
                 {" "}
-                Add it to your PATH: <code>export PATH="$HOME/.local/bin:$PATH"</code>
+                {t("renderer.add_to_path")} <code>export PATH="$HOME/.local/bin:$PATH"</code>
               </>
             )
           ) : null}
@@ -1568,7 +1565,7 @@ export function TrayActionsBar() {
           onClick={() => void window.syrusDesktop.openSyrusWindow()}
           type="button"
         >
-          Open Syrus
+          {t("shell.open")}
         </button>
         <div className="flex items-center gap-1">
           <button
@@ -1576,14 +1573,14 @@ export function TrayActionsBar() {
             onClick={() => void window.syrusDesktop.showPreferences()}
             type="button"
           >
-            Preferences
+            {t("shell.preferences")}
           </button>
           <button
             className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             onClick={() => void window.syrusDesktop.quitApp()}
             type="button"
           >
-            Quit
+            {t("common.quit")}
           </button>
         </div>
       </div>
@@ -1750,7 +1747,7 @@ function JobDetailView({
   if (!job && isError) {
     return (
       <StatusPanel
-        title="Could not load job"
+        title={t("renderer.could_not_load_job")}
         detail={error instanceof Error ? error.message : t("renderer.try_later")}
         actionLabel={t("common.retry")}
         onAction={onRetryLoad}
@@ -1800,7 +1797,7 @@ function JobDetailView({
           aria-selected={activeTab === "summary"}
           onClick={() => setActiveTab("summary")}
         >
-          Summary
+          {t("renderer.summary")}
         </button>
         <button
           type="button"
@@ -1809,7 +1806,7 @@ function JobDetailView({
           aria-selected={activeTab === "test-plan"}
           onClick={() => setActiveTab("test-plan")}
         >
-          Test Plan
+          {t("renderer.test_plan")}
         </button>
         <button
           type="button"
@@ -1818,7 +1815,7 @@ function JobDetailView({
           aria-selected={activeTab === "feedback"}
           onClick={() => setActiveTab("feedback")}
         >
-          Feedback
+          {t("renderer.feedback")}
         </button>
       </div>
 
@@ -1830,7 +1827,7 @@ function JobDetailView({
           summary ? (
             <BlockMarkdown text={summary.text} />
           ) : (
-            <p className="job-detail__placeholder">{isLoading ? "Loading summary…" : "No summary available yet."}</p>
+            <p className="job-detail__placeholder">{t(isLoading ? "renderer.loading_summary" : "renderer.no_summary")}</p>
           )
         ) : null}
 
@@ -1841,8 +1838,8 @@ function JobDetailView({
               <button
                 type="button"
                 className="icon-button"
-                title={copyState === "success" ? "Copied" : copyState === "error" ? "Could not copy command" : "Copy checkout command"}
-                aria-label="Copy checkout command"
+                title={t(copyState === "success" ? "renderer.copied" : copyState === "error" ? "renderer.copy_failed" : "renderer.copy_checkout")}
+                aria-label={t("renderer.copy_checkout")}
                 onClick={() => void copyCommand()}
               >
                 <CopyIcon className="h-4 w-4" />
@@ -1864,7 +1861,7 @@ function JobDetailView({
                 {testPlan.notes ? <p className="test-plan__notes">{testPlan.notes}</p> : null}
               </div>
             ) : (
-              <p className="job-detail__placeholder">{isLoading ? "Loading test plan..." : "Test plan not yet available"}</p>
+              <p className="job-detail__placeholder">{t(isLoading ? "renderer.loading_test_plan" : "renderer.no_test_plan")}</p>
             )}
           </div>
         ) : null}
@@ -1880,7 +1877,7 @@ function JobDetailView({
               ))}
             </ol>
           ) : (
-            <p className="job-detail__placeholder">No feedback submitted yet.</p>
+            <p className="job-detail__placeholder">{t("renderer.no_feedback")}</p>
           )
         ) : null}
       </section>
@@ -1917,11 +1914,11 @@ function FeedbackView({
   onBodyChange: (value: string) => void
 }) {
   return (
-    <form className="feedback-form" aria-label="Job feedback">
+    <form className="feedback-form" aria-label={t("renderer.job_feedback")}>
       <textarea
         className="feedback-textarea"
         value={body}
-        placeholder="What should be changed?"
+        placeholder={t("renderer.feedback_placeholder")}
         onChange={(event) => onBodyChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Tab" && !event.shiftKey) {
@@ -1970,10 +1967,10 @@ function JobActionButtons({
   const isImplemented = job.state === "implemented"
   const checkoutEnabled = cliAvailable && Boolean(checkoutStatus?.localPath)
   const checkoutTitle = !cliAvailable
-    ? "Install the Syrus CLI to enable local branch checkout"
+    ? t("renderer.cli_install_required")
     : checkoutStatus?.localPath
-      ? `Checkout in ${checkoutStatus.localPath}`
-      : "Configure local projects root in Preferences"
+      ? t("renderer.checkout_in", { path: checkoutStatus.localPath })
+      : t("renderer.configure_projects_root")
 
   return (
     <div className="detail-actions">
@@ -1984,12 +1981,12 @@ function JobActionButtons({
       ) : null}
       {isImplemented ? (
         <button type="button" className="detail-action-button" disabled={approving} onClick={onApprove}>
-          {approving ? t("renderer.approving") : t("renderer.approve")}
+          {approving ? t("renderer.approving") : t("renderer.approve_landing")}
         </button>
       ) : null}
       {isImplemented || isFailed ? (
         <button type="button" className="detail-action-button" onClick={onFeedback}>
-          Give feedback
+          {t("renderer.give_feedback")}
         </button>
       ) : null}
       <button type="button" className="detail-action-button" onClick={onOpenJob}>
@@ -1999,7 +1996,7 @@ function JobActionButtons({
       {onOpenChat ? (
         <button type="button" className="detail-action-button" onClick={onOpenChat}>
           <ChatIcon />
-          <span>View in chat</span>
+          <span>{t("renderer.view_chat")}</span>
         </button>
       ) : null}
       <button type="button" className="detail-action-button" disabled={!job.pr_url} onClick={onOpenPullRequest}>
@@ -2036,7 +2033,7 @@ function AdminControlsFooter({
         onRefresh()
       }
     } catch (error) {
-      onError(error instanceof Error ? error.message : "Could not update admin controls.")
+      onError(error instanceof Error ? error.message : t("renderer.admin_update_failed"))
     } finally {
       setPendingControl(null)
     }
@@ -2045,19 +2042,19 @@ function AdminControlsFooter({
   return (
     <footer className="border-t border-slate-200 bg-white/95 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/95">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase leading-4 text-slate-400 dark:text-slate-500">Admin</p>
+        <p className="text-[11px] font-semibold uppercase leading-4 text-slate-400 dark:text-slate-500">{t("renderer.admin")}</p>
         <div className="flex min-w-0 items-center gap-2">
           <AdminControlToggle
             disabled={disabled || pendingControl !== null}
             isPending={pendingControl === "polling"}
-            label="Polling"
+            label={t("renderer.polling")}
             paused={controls?.polling_paused}
             onToggle={() => void toggle("polling", controls?.polling_paused !== true)}
           />
           <AdminControlToggle
             disabled={disabled || pendingControl !== null}
             isPending={pendingControl === "runs"}
-            label="Runs"
+            label={t("renderer.runs")}
             paused={controls?.runs_paused}
             onToggle={() => void toggle("runs", controls?.runs_paused !== true)}
           />
@@ -2089,10 +2086,12 @@ function AdminControlToggle({
       className={["admin-toggle", isPaused ? "admin-toggle--paused" : "admin-toggle--running"].join(" ")}
       disabled={disabled || isUnknown}
       onClick={onToggle}
-      title={isUnknown ? `${label} status loading` : isPaused ? `Resume ${label.toLowerCase()}` : `Pause ${label.toLowerCase()}`}
+      title={isUnknown ? t("renderer.status_loading", { label }) : t(isPaused ? "renderer.resume_label" : "renderer.pause_label", { label })}
     >
       <span>{label}</span>
-      <span className="admin-toggle__state">{isPending ? "Saving" : isUnknown ? "Loading" : isPaused ? "Paused" : "Running"}</span>
+      <span className="admin-toggle__state">
+        {t(isPending ? "renderer.saving" : isUnknown ? "renderer.loading" : isPaused ? "renderer.paused" : "renderer.running")}
+      </span>
     </button>
   )
 }
@@ -2149,12 +2148,12 @@ function LocalCheckoutStatusLine({ status }: { status: SyrusLocalStatus }) {
   return (
     <div className="local-checkout-status">
       <span>
-        Checked out: JOB-{status.job_id} ({status.branch})
+        {t("renderer.checked_out")}: JOB-{status.job_id} ({status.branch})
       </span>
       {status.behind > 0 ? (
         <span className="local-checkout-status__warning" title={localStatusWarningTitle(status)}>
           <WarningIcon className="h-3.5 w-3.5" />
-          <span>{status.behind} behind</span>
+          <span>{t("renderer.behind", { count: status.behind })}</span>
         </span>
       ) : null}
     </div>
@@ -2164,7 +2163,7 @@ function LocalCheckoutStatusLine({ status }: { status: SyrusLocalStatus }) {
 function LocalCheckoutBadge({ status }: { status: SyrusLocalStatus }) {
   return (
     <>
-      <span className="local-checkout-badge">local</span>
+      <span className="local-checkout-badge">{t("renderer.local")}</span>
       {status.behind > 0 ? (
         <span className="local-checkout-warning" title={localStatusWarningTitle(status)} aria-label={localStatusWarningTitle(status)}>
           <WarningIcon className="h-3.5 w-3.5" />
@@ -2215,10 +2214,10 @@ function JobRow({
   const isImplemented = job.state === "implemented"
   const checkoutEnabled = cliAvailable && Boolean(checkoutStatus?.localPath)
   const checkoutTitle = !cliAvailable
-    ? "Install the Syrus CLI to enable local branch checkout"
+    ? t("renderer.cli_install_required")
     : checkoutStatus?.localPath
-      ? `Checkout in ${checkoutStatus.localPath}`
-      : "Configure local projects root in Preferences"
+      ? t("renderer.checkout_in", { path: checkoutStatus.localPath })
+      : t("renderer.configure_projects_root")
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -2335,7 +2334,14 @@ function JobRow({
 
       <div className="job-row__actions" ref={menuRef}>
         {isFailed ? (
-          <button type="button" className="row-primary-action" title="Retry job" aria-label={`Retry JOB-${job.id}`} disabled={retrying} onClick={onRetry}>
+          <button
+            type="button"
+            className="row-primary-action"
+            title={t("renderer.retry_job")}
+            aria-label={t("renderer.retry_ref", { ref: `JOB-${job.id}` })}
+            disabled={retrying}
+            onClick={onRetry}
+          >
             {retrying ? t("common.retry") : t("common.retry")}
           </button>
         ) : null}
@@ -2343,8 +2349,8 @@ function JobRow({
           type="button"
           className="icon-button"
           ref={menuButtonRef}
-          title="Job actions"
-          aria-label={`Open actions for JOB-${job.id}`}
+          title={t("renderer.job_actions")}
+          aria-label={t("renderer.open_actions", { ref: `JOB-${job.id}` })}
           aria-expanded={isMenuOpen}
           aria-haspopup="menu"
           onClick={() => {
@@ -2362,7 +2368,7 @@ function JobRow({
             {isImplemented ? (
               <MenuAction
                 disabled={approving}
-                label={approving ? t("renderer.approving") : t("renderer.approve")}
+                label={approving ? t("renderer.approving") : t("renderer.approve_landing")}
                 icon={<CheckIcon />}
                 onSelect={() => runAction(onApprove)}
               />
@@ -2370,7 +2376,7 @@ function JobRow({
             <MenuAction label={t("renderer.open_syrus")} icon={<ExternalIcon />} onSelect={() => runAction(onOpenJob)} />
             <MenuAction
               disabled={!job.pr_url}
-              label={job.pr_url ? "Open pull request" : "No pull request yet"}
+              label={t(job.pr_url ? "renderer.open_pull_request" : "renderer.no_pull_request")}
               icon={<GitPullRequestIcon />}
               onSelect={() => runAction(onOpenPullRequest)}
             />
@@ -2447,12 +2453,12 @@ function ComposePanel({
 
     const trimmedPrompt = prompt.trim()
     if (!selectedRepository) {
-      setError("Choose a repository.")
+      setError(t("renderer.choose_repository"))
       return
     }
 
     if (trimmedPrompt === "") {
-      setError("Prompt can't be blank.")
+      setError(t("renderer.prompt_blank"))
       return
     }
 
@@ -2466,14 +2472,14 @@ function ComposePanel({
       setRepoSlug("")
       onSuccess(result, selectedRepository.slug)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Could not create job.")
+      setError(submitError instanceof Error ? submitError.message : t("renderer.create_failed"))
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <section className="compose-panel" aria-label="Compose direct job" ref={panelRef}>
+    <section className="compose-panel" aria-label={t("renderer.compose_direct_job")} ref={panelRef}>
       <form className="compose-form" onSubmit={submitJob}>
         <label className="compose-field">
           <span>{t("renderer.prompt")}</span>
@@ -2481,7 +2487,7 @@ function ComposePanel({
             className="compose-prompt"
             disabled={isSubmitting}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Describe the job..."
+            placeholder={t("renderer.describe_job")}
             ref={promptRef}
             required
             rows={5}
@@ -2494,12 +2500,12 @@ function ComposePanel({
           <RepoPicker value={repoSlug} onChange={setRepoSlug} disabled={isSubmitting} />
         </label>
 
-        {repositoriesQuery.isError ? <p className="form-error">Could not load repositories.</p> : null}
+        {repositoriesQuery.isError ? <p className="form-error">{t("repo_picker.error")}</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
 
         <div className="form-actions form-actions--end">
           <button type="button" className="secondary-button" disabled={isSubmitting} onClick={resetAndCancel}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button type="submit" className="primary-button" disabled={isSubmitting || repositoriesQuery.isLoading}>
             {isSubmitting ? t("renderer.sending") : t("renderer.submit")}
@@ -2516,8 +2522,8 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
   const handleSuccess = (result: SyrusCreateJobResponse, repoSlug: string) => {
     setToast({
       kind: "success",
-      message: `Job queued in ${repoSlug}`,
-      actionLabel: "Open in Syrus",
+      message: t("renderer.job_queued", { repository: repoSlug }),
+      actionLabel: t("renderer.open_syrus"),
       actionUrl: `${normalizeInstanceUrl(instanceUrl)}${result.redirect_to}`
     })
   }
@@ -2675,7 +2681,7 @@ export function App() {
       setToken(credentials.token)
       setAuthState(isPreferencesView ? "setup" : "authenticated")
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save credentials.")
+      setError(saveError instanceof Error ? saveError.message : t("renderer.credentials_save_failed"))
     } finally {
       setIsSaving(false)
     }
@@ -2728,7 +2734,7 @@ export function App() {
       )
       setSettingsSaved(true)
     } catch (settingsSaveError) {
-      setSettingsError(settingsSaveError instanceof Error ? settingsSaveError.message : "Could not save local checkout settings.")
+      setSettingsError(settingsSaveError instanceof Error ? settingsSaveError.message : t("renderer.local_settings_save_failed"))
     } finally {
       setIsSavingSettings(false)
     }
@@ -2767,9 +2773,9 @@ export function App() {
       setGlobalHotkey(result.globalHotkey)
       setHotkeyDraft(result.globalHotkey)
       setIsRecordingHotkey(false)
-      setHotkeyStatus(result.globalHotkey === "" ? "Keyboard shortcut cleared." : "Keyboard shortcut saved.")
+      setHotkeyStatus(t(result.globalHotkey === "" ? "renderer.shortcut_cleared" : "renderer.shortcut_saved"))
     } catch (saveError) {
-      setHotkeyError(saveError instanceof Error ? saveError.message : "Could not save keyboard shortcut.")
+      setHotkeyError(saveError instanceof Error ? saveError.message : t("renderer.shortcut_save_failed"))
     } finally {
       setIsSavingHotkey(false)
     }
@@ -2778,7 +2784,7 @@ export function App() {
   if (authState === "loading") {
     return (
       <main className="shell">
-        <section className="panel panel--status" aria-label="Loading Syrus Desktop">
+        <section className="panel panel--status" aria-label={t("renderer.loading_desktop")}>
           <p className="eyebrow">Syrus</p>
           <h1>{t("renderer.loading")}</h1>
         </section>
@@ -2791,13 +2797,13 @@ export function App() {
 
     return (
       <main className="shell">
-        <section className="panel" aria-label="Syrus settings">
+        <section className="panel" aria-label={t("renderer.settings")}>
           <div>
             <p className="eyebrow">Syrus</p>
-            <h1>Connect Syrus</h1>
+            <h1>{t("renderer.connect_syrus")}</h1>
           </div>
 
-          <div className="preferences-tabs" role="tablist" aria-label="Preferences sections">
+          <div className="preferences-tabs" role="tablist" aria-label={t("renderer.preference_sections")}>
             <button
               type="button"
               className={tabClass("account")}
@@ -2807,7 +2813,7 @@ export function App() {
               id="preferences-account-tab"
               onClick={() => setPreferencesTab("account")}
             >
-              Account
+              {t("renderer.account")}
             </button>
             <button
               type="button"
@@ -2818,7 +2824,7 @@ export function App() {
               id="preferences-projects-tab"
               onClick={() => setPreferencesTab("projects")}
             >
-              Projects
+              {t("renderer.projects")}
             </button>
           </div>
 
@@ -2829,12 +2835,11 @@ export function App() {
                   the fallback for non-admin accounts on shared instances
                   and scripted setups. */}
               <p className="status-line" style={{ margin: 0 }}>
-                Signing in inside the Syrus window connects this {window.syrusDesktop?.platform === "win32" ? "tray" : "menu-bar"} app automatically. Use this
-                form only if that didn&apos;t happen — for example with a non-admin account.
+                {t("renderer.signin_hint", { surface: t(window.syrusDesktop?.platform === "win32" ? "renderer.tray" : "renderer.menu_bar") })}
               </p>
 
               <label>
-                <span>Syrus instance URL</span>
+                <span>{t("renderer.instance_url")}</span>
                 <input
                   autoFocus
                   required
@@ -2846,7 +2851,7 @@ export function App() {
               </label>
 
               <label>
-                <span>API token</span>
+                <span>{t("renderer.api_token")}</span>
                 <div className="relative">
                   <input
                     required
@@ -2859,7 +2864,7 @@ export function App() {
                   <button
                     type="button"
                     className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                    aria-label={tokenVisible ? "Hide API token" : "Show API token"}
+                    aria-label={t(tokenVisible ? "renderer.hide_token" : "renderer.show_token")}
                     aria-pressed={tokenVisible}
                     onClick={() => setTokenVisible((visible) => !visible)}
                   >
@@ -2873,25 +2878,31 @@ export function App() {
               <div className="form-actions">
                 {/* Opens the instance's own account-settings page (generate/rotate/revoke) in the app window. */}
                 <button type="button" className="link-button" onClick={() => window.syrusDesktop.openTokenDocs()}>
-                  Get a token from Syrus
+                  {t("renderer.get_token")}
                 </button>
                 <button type="submit" className="primary-button" disabled={isSaving}>
                   {isSaving ? t("common.save") : t("common.save")}
                 </button>
               </div>
 
-              <section className="settings-section" aria-label="Keyboard shortcut settings">
+              <section className="settings-section" aria-label={t("renderer.shortcut_settings")}>
                 <div>
-                  <h2>Keyboard shortcut</h2>
+                  <h2>{t("renderer.keyboard_shortcut")}</h2>
                 </div>
 
                 <div className="shortcut-row">
                   <div className="shortcut-details">
                     <span className={globalHotkey ? "shortcut-pill" : "shortcut-pill shortcut-pill--empty"}>{displayHotkey(globalHotkey)}</span>
                     {isRecordingHotkey ? (
-                      <div ref={hotkeyRecorderRef} className="shortcut-recorder" aria-label="Keyboard shortcut recorder" tabIndex={0} onKeyDown={recordHotkey}>
-                        <span>Press a shortcut</span>
-                        <strong>{hotkeyDraft ? displayHotkey(hotkeyDraft) : "Waiting for keys"}</strong>
+                      <div
+                        ref={hotkeyRecorderRef}
+                        className="shortcut-recorder"
+                        aria-label={t("renderer.shortcut_recorder")}
+                        tabIndex={0}
+                        onKeyDown={recordHotkey}
+                      >
+                        <span>{t("renderer.press_shortcut")}</span>
+                        <strong>{hotkeyDraft ? displayHotkey(hotkeyDraft) : t("renderer.waiting_keys")}</strong>
                       </div>
                     ) : null}
                   </div>
@@ -2902,16 +2913,16 @@ export function App() {
                         {isSavingHotkey ? t("common.save") : t("common.save")}
                       </button>
                       <button type="button" className="secondary-button" disabled={isSavingHotkey} onClick={cancelHotkeyRecording}>
-                        Cancel
+                        {t("common.cancel")}
                       </button>
                     </div>
                   ) : (
                     <div className="shortcut-actions">
                       <button type="button" className="secondary-button" onClick={beginHotkeyRecording}>
-                        Edit
+                        {t("renderer.edit")}
                       </button>
                       <button type="button" className="secondary-button" disabled={isSavingHotkey || globalHotkey === ""} onClick={() => saveHotkey("")}>
-                        Clear
+                        {t("renderer.clear")}
                       </button>
                     </div>
                   )}
@@ -2928,16 +2939,16 @@ export function App() {
                 id="preferences-projects-panel"
                 role="tabpanel"
                 aria-labelledby="preferences-projects-tab"
-                aria-label="Local checkout settings"
+                aria-label={t("renderer.local_checkout_settings")}
               >
                 <div>
-                  <h2>Local checkout</h2>
+                  <h2>{t("renderer.local_checkout")}</h2>
                 </div>
 
                 <CliInstallSection />
 
                 <label>
-                  <span>Local projects root</span>
+                  <span>{t("renderer.local_projects_root")}</span>
                   <div className="input-with-button">
                     <input
                       type="text"
@@ -2949,15 +2960,15 @@ export function App() {
                       }}
                     />
                     <button type="button" className="secondary-button" onClick={chooseLocalProjectsRoot}>
-                      Choose
+                      {t("renderer.choose")}
                     </button>
                   </div>
                 </label>
 
                 <div className="repo-paths-header">
-                  <span>Per-repo overrides</span>
+                  <span>{t("renderer.repo_overrides")}</span>
                   <button type="button" className="secondary-button" onClick={addRepoPathDraft}>
-                    Add row
+                    {t("renderer.add_row")}
                   </button>
                 </div>
 
@@ -2969,23 +2980,23 @@ export function App() {
                           type="text"
                           value={draft.repoSlug}
                           placeholder="owner/repo"
-                          aria-label="Repository slug"
+                          aria-label={t("renderer.repository_slug")}
                           onChange={(event) => updateRepoPathDraft(draft.id, "repoSlug", event.target.value)}
                         />
                         <input
                           type="text"
                           value={draft.localPath}
                           placeholder={window.syrusDesktop?.platform === "win32" ? "C:\\absolute\\path\\to\\repo" : "/absolute/path/to/repo"}
-                          aria-label="Repository local path"
+                          aria-label={t("renderer.repository_path")}
                           onChange={(event) => updateRepoPathDraft(draft.id, "localPath", event.target.value)}
                         />
                         <button
                           type="button"
                           className="remove-row-button"
-                          aria-label={`Remove ${draft.repoSlug || "repository override"}`}
+                          aria-label={t("renderer.remove_override", { repository: draft.repoSlug || t("renderer.repository_override") })}
                           onClick={() => removeRepoPathDraft(draft.id)}
                         >
-                          Remove
+                          {t("renderer.remove")}
                         </button>
                       </div>
                     ))}
@@ -2993,11 +3004,11 @@ export function App() {
                 ) : null}
 
                 {settingsError ? <p className="form-error">{settingsError}</p> : null}
-                {settingsSaved ? <p className="form-success">Local checkout settings saved.</p> : null}
+                {settingsSaved ? <p className="form-success">{t("renderer.local_settings_saved")}</p> : null}
 
                 <div className="form-actions form-actions--end">
                   <button type="button" className="primary-button" disabled={isSavingSettings} onClick={saveDesktopSettings}>
-                    {isSavingSettings ? "Saving..." : "Save local checkout settings"}
+                    {t(isSavingSettings ? "renderer.saving" : "renderer.save_local_settings")}
                   </button>
                 </div>
               </section>
