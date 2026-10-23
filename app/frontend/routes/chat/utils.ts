@@ -6,6 +6,7 @@
 // Chat.tsx without importing back from it.
 import type { ChatNavRecord, ChatPayload, WhiteboardSnapshot } from "../../api/chats"
 import { buttonClasses } from "../../components/Button"
+import { formatNumber } from "../../lib/format"
 import { CHAT_ENTER_SUBMIT_MIN_WIDTH } from "./constants"
 
 export function stringValue(value: unknown) {
@@ -54,10 +55,10 @@ export function errorAsError(error: unknown) {
 export { formatCurrency } from "../../lib/format"
 
 export function formatTokenCount(value: number) {
-  if (value < 1000) return new Intl.NumberFormat("en-US").format(value)
+  if (value < 1000) return formatNumber(value)
 
   const thousands = value / 1000
-  const compact = Number.isInteger(thousands) ? String(thousands) : thousands.toFixed(1).replace(/\.0$/, "")
+  const compact = formatNumber(thousands, { maximumFractionDigits: 1 })
   return `${compact}k`
 }
 

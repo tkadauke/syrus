@@ -121,7 +121,7 @@ function McpToolUsageFilters({ search }: { search: string }) {
   return (
     <AdminEventFilterBar
       buildLink={filterLink}
-      clearLabel={t("clear_filters")}
+      clearLabel={t("mcp_tool_usage.clear_filters")}
       fields={[
         { name: "window_preset", label: t("mcp_tool_usage.window_label"), options: WINDOW_PRESETS.map((preset) => ({ label: t(`mcp_tool_usage.window_${preset.value}`), value: preset.value })) },
         { name: "surface", label: t("mcp_tool_usage.surface_label"), options: SURFACES.map((value) => ({ label: t(`mcp_tool_usage.surface_${value}`), value })) },
@@ -148,7 +148,7 @@ function McpToolUsageFilters({ search }: { search: string }) {
       ]}
       filter={filter}
       search={search}
-      searchLabel={t("search")}
+      searchLabel={t("mcp_tool_usage.search")}
     />
   )
 }

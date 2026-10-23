@@ -11,6 +11,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { formatNumber } from "../lib/format"
 
 const queryKey = ["admin", "retention_settings"] as const
 
@@ -33,7 +34,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatRowCount(count: number): string {
-  return new Intl.NumberFormat("en-US").format(count)
+  return formatNumber(count)
 }
 
 export function RetentionSettings() {
