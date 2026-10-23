@@ -4,7 +4,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import createRepoDocumentToolCard from "./create_repo_document"
 import deleteRepoDocumentToolCard from "./delete_repo_document"
 import listRepoDocumentsToolCard from "./list_repo_documents"
-import readRepoDocumentToolCard from "./read_repo_document"
+import readRepoDocumentToolCard, { examples as readRepoDocumentExamples } from "./read_repo_document"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -201,6 +201,24 @@ describe("repository document tool cards", () => {
       expect(screen.getByRole("dialog", { name: `Screenshot ${index} preview` })).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it("provides a valid, linked image fixture for the tool card catalog", () => {
+    const example = readRepoDocumentExamples.find((item) => item.id === "image")
+    expect(example).toBeDefined()
+    const cardContext = context("read_repo_document", {
+      input: example?.input,
+      parsedResult: example?.parsedResult,
+      resultSettled: true
+    })
+
+    render(<>{readRepoDocumentToolCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "Architecture sketch" })).toHaveAttribute("href", "/api/v1/app/repository_documents/13/file")
+    const thumbnail = screen.getByRole("img", { name: "Architecture sketch" })
+    expect(thumbnail).toHaveAttribute("src", expect.stringMatching(/^data:image\/svg\+xml;base64,PHN2Zy/))
+    fireEvent.click(screen.getByRole("button", { name: "Open Architecture sketch" }))
+    expect(screen.getByRole("dialog", { name: "Architecture sketch preview" })).toBeInTheDocument()
   })
 
   it("renders failed, pending, and settled blank reads distinctly", () => {
