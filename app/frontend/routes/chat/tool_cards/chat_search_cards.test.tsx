@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listChatsToolCard from "./list_chats"
@@ -203,14 +203,19 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByRole("link", { name: "Codex envelope" })).toHaveAttribute("href", "/chats/9#message-3")
   })
 
-  it("renders transcript excerpts with metadata, safe truncation, anchors, and pagination state", () => {
+  it("renders transcript messages as expandable markdown without destroying structure", () => {
     const parsedResult = {
       chat_title: "Current chat",
       page: 1,
       has_more: true,
       next_page: 2,
       messages: [
-        { id: 7, role: "user", content: { text: `${"Long message ".repeat(80)}end` }, created_at: "2026-09-01T12:00:00Z" },
+        {
+          id: 7,
+          role: "user",
+          content: { text: `## Heading\n\nSee JOB-42 and https://example.test.\n\n\`\`\`ruby\n${"puts :ok\n".repeat(80)}\`\`\`` },
+          created_at: "2026-09-01T12:00:00Z"
+        },
         { id: 8, role: "assistant", content: { text: "Short reply" }, created_at: "2026-09-01T12:01:00Z" }
       ]
     }
@@ -223,8 +228,63 @@ describe("chat search/history tool cards", () => {
     expect(screen.getByRole("link", { name: "Current chat" })).toHaveAttribute("href", "/chats/42")
     expect(screen.getByText("more messages available")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "message 7" })).toHaveAttribute("href", "/chats/42#message-7")
-    expect(screen.getByText(/Long message/).textContent?.endsWith("...")).toBe(true)
+    expect(screen.getByRole("link", { name: "https://example.test" })).toHaveAttribute("href", "https://example.test")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Message 7" })
+    expect(within(dialog).getByRole("heading", { name: "Heading" })).toBeInTheDocument()
+    expect(dialog).toHaveTextContent("JOB-42")
+    expect(dialog).toHaveTextContent("puts :ok")
     expect(screen.getByText("Next page: 2")).toBeInTheDocument()
+  })
+
+  it("renders admin deletion metadata, attachment-only messages, and image previews", () => {
+    const parsedResult = {
+      chat_title: "Deleted chat",
+      page: 1,
+      chat_session_deleted_at: "2026-09-03T12:00:00Z",
+      chat_session_deleted_by: { name: "Ada Admin" },
+      messages: [
+        {
+          id: 8,
+          role: "user",
+          content: {
+            text: "",
+            media: [{ filename: "diagram.png", content_type: "image/png", data: "cGl4ZWxz" }],
+            attachments: [{ name: "notes.pdf", mime_type: "application/pdf", url: "https://example.test/notes.pdf" }]
+          },
+          created_at: "2026-09-01T12:00:00Z",
+          deleted_at: "2026-09-02T12:00:00Z",
+          deleted_by: { email: "ada@example.test" }
+        }
+      ]
+    }
+
+    render(<>{readChatMessagesToolCard.renderExpanded(context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult }))}</>)
+
+    expect(screen.getByText(/Chat by Ada Admin/)).toBeInTheDocument()
+    expect(screen.getByText(/Message by ada@example.test/)).toBeInTheDocument()
+    expect(screen.getAllByText("deleted")).toHaveLength(2)
+    expect(screen.getByRole("button", { name: "Open diagram.png" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "diagram.png" })).toHaveAttribute("src", "data:image/png;base64,cGl4ZWxz")
+    expect(screen.getByRole("link", { name: "notes.pdf · application/pdf" })).toHaveAttribute("href", "https://example.test/notes.pdf")
+  })
+
+  it("renders read errors and provider-normalized envelopes", () => {
+    render(
+      <>{readChatMessagesToolCard.renderExpanded(context("read_chat_messages", { resultError: true, resultBody: "not_authorized: chat is inaccessible" }))}</>
+    )
+    expect(screen.getByText("Could not read chat messages")).toBeInTheDocument()
+    expect(screen.getByText("not_authorized: chat is inaccessible")).toBeInTheDocument()
+
+    const payload = { chat_title: "Envelope transcript", page: 1, messages: [{ id: 3, role: "assistant", content: "Plain payload", created_at: null }] }
+    const parsedResult = normalizedToolCardParsedResult({ content: [{ type: "text", text: JSON.stringify(payload) }] })
+    const toolName = normalizedToolName("mcp__custom-provider__read_chat_messages")
+    const rendered = readChatMessagesToolCard.renderExpanded(context(toolName, { input: { chat_session_id: 9 }, parsedResult }))
+    render(<>{rendered}</>)
+    const card = screen.getByText("Envelope transcript").closest("div")?.parentElement
+    expect(card).not.toBeNull()
+    expect(screen.getByRole("link", { name: "message 3" })).toHaveAttribute("href", "/chats/9#message-3")
+    expect(within(screen.getByRole("list")).getByText("Plain payload")).toBeInTheDocument()
   })
 
   it("falls back to the generic renderer for malformed payloads", () => {

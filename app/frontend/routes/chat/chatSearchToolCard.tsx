@@ -15,9 +15,14 @@ import {
 } from "./toolCardUi"
 import { ErrorCard } from "./chatHelperToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
+import { MediaPreviewShell, type MediaPreviewAction } from "./mediaPreviewShell"
 
 const SNIPPET_CHARS = 280
 const MESSAGE_CHARS = 520
+const TRANSCRIPT_LIST_CLASS = [
+  "min-w-0 max-h-80 space-y-1 overflow-x-hidden overflow-y-auto rounded border",
+  "border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950"
+].join(" ")
 
 type Pagination = {
   page: number | null
@@ -70,9 +75,19 @@ type SearchHit = {
 type MessageRow = {
   id: string
   role: string | null
-  sender: string | null
   content: string
   createdAt: string | null
+  deletedAt: string | null
+  deletedBy: string | null
+  attachments: MessageAttachment[]
+}
+
+type MessageAttachment = {
+  key: string
+  name: string
+  mimeType: string | null
+  src: string | null
+  image: boolean
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -211,18 +226,86 @@ function contentText(value: unknown): string | null {
   return displayValue(value.text) ?? displayValue(value.content) ?? displayValue(value.summary)
 }
 
+function safeAttachmentUrl(value: unknown, mimeType: string | null): string | null {
+  const url = displayValue(value)
+  if (!url) return null
+  if (/^(https?:\/\/|\/)/i.test(url)) return url
+  if (url.startsWith("data:image/") && mimeType?.startsWith("image/")) return url
+  return null
+}
+
+function parseAttachments(content: unknown): MessageAttachment[] {
+  if (!isPlainObject(content)) return []
+  const values = [content.attachments, content.media, content.images].flatMap((value) => (Array.isArray(value) ? value : []))
+  return values.flatMap((value, index) => {
+    if (!isPlainObject(value)) return []
+    const mimeType = displayValue(value.mime_type) ?? displayValue(value.mimeType) ?? displayValue(value.content_type)
+    const name = displayValue(value.name) ?? displayValue(value.filename) ?? `Attachment ${index + 1}`
+    const data = displayValue(value.data)
+    const encodedImage = data && mimeType?.startsWith("image/") ? `data:${mimeType};base64,${data}` : null
+    const src = encodedImage ?? safeAttachmentUrl(value.url ?? value.file_path ?? value.image_url ?? value.data_url, mimeType)
+    return [{ key: `${name}-${index}`, name, mimeType, src, image: Boolean(mimeType?.startsWith("image/")) }]
+  })
+}
+
 function parseMessage(value: unknown, index: number): MessageRow | null {
   if (!isPlainObject(value)) return null
   const id = displayValue(value.id) ?? String(index)
-  const content = compactText(contentText(value.content), MESSAGE_CHARS)
-  if (!content) return null
+  const content = contentText(value.content) ?? ""
+  const attachments = parseAttachments(value.content)
+  if (!content.trim() && attachments.length === 0) return null
   return {
     id,
     role: displayValue(value.role),
-    sender: displayValue(value.sender) ?? displayValue(value.sender_name),
     content,
-    createdAt: displayValue(value.created_at)
+    createdAt: displayValue(value.created_at),
+    deletedAt: displayValue(value.deleted_at),
+    deletedBy: deletedBy(value.deleted_by),
+    attachments
   }
+}
+
+function MessageAttachments({ attachments }: { attachments: MessageAttachment[] }) {
+  if (attachments.length === 0) return null
+  return (
+    <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+      {attachments.map((attachment) => {
+        if (!attachment.image) {
+          const label = attachment.mimeType ? `${attachment.name} · ${attachment.mimeType}` : attachment.name
+          return attachment.src ? (
+            <InternalLink href={attachment.src} key={attachment.key}>
+              {label}
+            </InternalLink>
+          ) : (
+            <Badge key={attachment.key}>📎 {label}</Badge>
+          )
+        }
+        const actions: MediaPreviewAction[] = attachment.src
+          ? [
+              { label: "Open image", href: attachment.src },
+              { label: "Download", href: attachment.src, download: true }
+            ]
+          : []
+        return (
+          <MediaPreviewShell
+            item={{
+              title: attachment.name,
+              subtitle: attachment.mimeType,
+              src: attachment.src,
+              alt: attachment.name,
+              badge: "image",
+              fallbackLabel: "Image preview unavailable",
+              actions,
+              meta: [{ label: "Content type", value: attachment.mimeType }]
+            }}
+            key={attachment.key}
+            modalLabel={attachment.name}
+            thumbnailClassName="w-40 max-w-full"
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 function PaginationNote({ pagination }: { pagination: Pagination }) {
@@ -485,6 +568,8 @@ export function parseReadChatMessages(context: ToolCardContext) {
     page: numberValue(parsed.page),
     hasMore: typeof parsed.has_more === "boolean" ? parsed.has_more : null,
     nextPage: numberValue(parsed.next_page),
+    chatDeletedAt: displayValue(parsed.chat_session_deleted_at),
+    chatDeletedBy: deletedBy(parsed.chat_session_deleted_by),
     messages: parsed.messages.flatMap((item, index) => {
       const message = parseMessage(item, index)
       return message ? [message] : []
@@ -500,20 +585,30 @@ export function readChatMessagesCollapsedSummary(context: ToolCardContext) {
 }
 
 export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) {
+  if (context.resultError)
+    return <ErrorCard title="Could not read chat messages" message={displayValue(context.resultBody) ?? "The chat messages request failed."} />
   const result = parseReadChatMessages(context)
   if (!result) return null
 
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        {result.chatId && result.chatTitle ? (
-          <ChatTitle chatId={result.chatId} title={result.chatTitle} />
+        {result.chatId ? (
+          <ChatTitle chatId={result.chatId} title={result.chatTitle || `Chat ${result.chatId}`} />
         ) : (
           <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
         )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
-        {result.hasMore ? <Badge>more messages available</Badge> : null}
+        {result.hasMore === true ? <Badge>more messages available</Badge> : result.hasMore === false ? <Badge>end of messages</Badge> : null}
       </div>
+      {result.chatDeletedAt ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-1 text-2xs text-text-muted">
+          <StatePill state="deleted" />
+          <span className="break-words">
+            Chat{result.chatDeletedBy ? ` by ${result.chatDeletedBy}` : ""} · {timestamp(result.chatDeletedAt)}
+          </span>
+        </div>
+      ) : null}
       {result.messages.length === 0 ? (
         <EmptyState>No messages on this page.</EmptyState>
       ) : (
@@ -521,17 +616,18 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
           <SectionLabel>Transcript excerpt</SectionLabel>
           <div className="mt-1">
             <FilterableList
-              itemText={(message) => [message.role, message.sender, message.createdAt, message.content].filter(Boolean).join(" ")}
+              itemText={(message) =>
+                [message.role, message.createdAt, message.content, ...message.attachments.map((attachment) => attachment.name)].filter(Boolean).join(" ")
+              }
               items={result.messages}
               placeholder="Filter messages"
             >
               {(messages) => (
-                <ol className="max-h-80 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
+                <ol className={TRANSCRIPT_LIST_CLASS}>
                   {messages.map((message) => (
-                    <li className="rounded border border-gray-100 p-2 dark:border-gray-800" key={message.id}>
+                    <li className="min-w-0 overflow-hidden rounded border border-gray-100 p-2 dark:border-gray-800" key={message.id}>
                       <Metadata>
                         {message.role ? <Badge>{message.role}</Badge> : null}
-                        {message.sender ? <span>{message.sender}</span> : null}
                         {message.createdAt ? (
                           <time dateTime={message.createdAt} title={message.createdAt}>
                             {timestamp(message.createdAt)}
@@ -543,7 +639,26 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
                           <span>message {message.id}</span>
                         )}
                       </Metadata>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-text-secondary">{message.content}</p>
+                      {message.deletedAt ? (
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-2xs text-text-muted">
+                          <StatePill state="deleted" />
+                          <span className="break-words">
+                            Message{message.deletedBy ? ` by ${message.deletedBy}` : ""} · {timestamp(message.deletedAt)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="mt-1 min-w-0">
+                        <MarkdownPreview
+                          emptyState={message.attachments.length > 0 ? null : undefined}
+                          linkifySlugs
+                          linkifyUrls
+                          maxChars={MESSAGE_CHARS}
+                          maxLines={6}
+                          modalLabel={`Message ${message.id}`}
+                          text={message.content}
+                        />
+                      </div>
+                      <MessageAttachments attachments={message.attachments} />
                     </li>
                   ))}
                 </ol>
