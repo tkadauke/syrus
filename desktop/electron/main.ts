@@ -50,6 +50,7 @@ import { computePopoverPosition } from "./windows/popoverPosition.js"
 import { createWebAppWindow, type WebAppWindowHandle } from "./windows/webAppWindow.js"
 import { createAnnotationController, type AnnotationController } from "./windows/annotationOverlay.js"
 import { createRecorderHudController, type RecorderHudController } from "./windows/recorderHud.js"
+import { appLocale, t } from "./i18n.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -2391,7 +2392,7 @@ const updateMenuItems = (): Electron.MenuItemConstructorOptions[] => {
 
   return [
     {
-      label: `Restart to update Syrus (v${version})`,
+      label: t("menu.restart_update", { version }),
       click: () => {
         if (deferRelaunchWhileBackendBusy()) {
           return
@@ -2414,7 +2415,7 @@ const checkForUpdatesInteractively = async () => {
     case "disabled":
       await dialog.showMessageBox({
         type: "info",
-        message: "Automatic updates are unavailable in this build.",
+        message: t("update.unavailable"),
         detail:
           process.platform === "win32"
             ? "Updates apply to the packaged app installed with the Syrus setup program."
@@ -2425,25 +2426,25 @@ const checkForUpdatesInteractively = async () => {
     case "downloading":
       await dialog.showMessageBox({
         type: "info",
-        message: `Syrus ${result.version} is on its way.`,
+        message: t("update.available", { version: result.version }),
         detail:
           result.outcome === "downloaded"
-            ? "The update is ready — restart Syrus from the menu to apply it."
-            : "The update is downloading in the background; you'll be offered a restart when it's ready."
+            ? t("update.ready")
+            : t("update.downloading")
       })
       break
     case "up-to-date":
       await dialog.showMessageBox({
         type: "info",
-        message: `You're up to date.`,
-        detail: `Syrus ${result.version} is the latest version.`
+        message: t("update.current"),
+        detail: t("update.latest", { version: result.version })
       })
       break
     case "error":
       await dialog.showMessageBox({
         type: "warning",
-        message: "Couldn't check for updates.",
-        detail: "Check your network connection and try again later."
+        message: t("update.error"),
+        detail: t("update.error_detail")
       })
       break
   }
@@ -2453,19 +2454,19 @@ const trayContextMenu = () =>
   Menu.buildFromTemplate([
     ...updateMenuItems(),
     {
-      label: "Open Syrus",
+      label: t("menu.open"),
       click: () => {
         void openSyrus()
       }
     },
     {
-      label: "Preferences",
+      label: t("menu.preferences"),
       click: () => {
         void showPreferencesWindow()
       }
     },
     { type: "separator" },
-    { role: "quit", label: "Quit" }
+    { role: "quit" }
   ])
 
 const showTrayContextMenu = () => {
@@ -2561,20 +2562,20 @@ const createMenu = () => {
       submenu: [
         ...updateMenuItems(),
         {
-          label: "Check for Updates…",
+          label: t("menu.check_updates"),
           click: () => {
             void checkForUpdatesInteractively()
           }
         },
         {
-          label: "Run Setup Again…",
+          label: t("menu.run_setup"),
           click: () => {
             void runSetupAgain()
           }
         },
         { type: "separator" },
         {
-          label: "Sign Out",
+          label: t("menu.sign_out"),
           click: async () => {
             await deleteCredentials()
             await showSetupWindow()
@@ -2587,7 +2588,7 @@ const createMenu = () => {
         ...(currentChannel() === "test"
           ? [
               {
-                label: "Reset Test Setup…",
+                label: t("menu.reset_test"),
                 click: () => {
                   void confirmAndResetTestSetup()
                 }
@@ -2595,7 +2596,7 @@ const createMenu = () => {
             ]
           : []),
         {
-          label: "Uninstall Syrus…",
+          label: t("menu.uninstall"),
           click: () => {
             void confirmAndUninstall()
           }
@@ -2605,11 +2606,11 @@ const createMenu = () => {
       ]
     },
     {
-      label: "File",
+      role: "fileMenu",
       submenu: [{ role: "close" }]
     },
     {
-      label: "Edit",
+      role: "editMenu",
       submenu: [
         { role: "undo" },
         { role: "redo" },
@@ -2621,7 +2622,7 @@ const createMenu = () => {
       ]
     },
     {
-      label: "View",
+      role: "viewMenu",
       submenu: [
         { role: "reload" },
         { role: "toggleDevTools" },
@@ -2639,35 +2640,35 @@ const createMenu = () => {
   // remote mode has nothing to start or stop.
   if (getBackendMode() === "local") {
     template.push({
-      label: "Backend",
+      label: t("menu.backend"),
       submenu: [
         {
-          label: "Start Syrus",
+          label: t("menu.start"),
           click: () => {
             void runBackendAction("start Syrus", backendLifecycle.startBackend)
           }
         },
         {
-          label: "Stop Syrus…",
+          label: t("menu.stop"),
           click: () => {
             void confirmStopBackend()
           }
         },
         {
-          label: "Restart Syrus",
+          label: t("menu.restart"),
           click: () => {
             void runBackendAction("restart Syrus", backendLifecycle.restartBackend)
           }
         },
         { type: "separator" },
         {
-          label: "Open Install Log",
+          label: t("menu.open_log"),
           click: () => {
             void shell.openPath(path.join(localStateDir(), "install.log"))
           }
         },
         {
-          label: "Open Data Folder",
+          label: t("menu.open_data"),
           click: () => {
             void shell.openPath(localStateDir())
           }
@@ -2689,7 +2690,7 @@ ipcMain.handle("choose-local-projects-root", async () => {
   const browserWindow = preferencesWindow ?? mainWindow
   const options: OpenDialogOptions = {
     properties: ["openDirectory"],
-    title: "Choose local projects root"
+    title: t("dialog.choose_projects")
   }
   const result = browserWindow
     ? await dialog.showOpenDialog(browserWindow, options)
@@ -3082,7 +3083,8 @@ app.whenReady().then(async () => {
         const prompt = replacePrompt({
           existingVersion: await installedBundleVersion(target.path),
           newVersion: app.getVersion(),
-          targetPath: target.path
+          targetPath: target.path,
+          locale: appLocale()
         })
         // The dock is hidden and no window exists yet: without stealing
         // focus, macOS can leave this parentless dialog behind Finder while
@@ -3108,7 +3110,8 @@ app.whenReady().then(async () => {
             const failure = launchFailedPrompt({
               targetPath: target.path,
               justInstalled: false,
-              reason: error instanceof Error ? error.message : String(error)
+              reason: error instanceof Error ? error.message : String(error),
+              locale: appLocale()
             })
             app.focus({ steal: true })
             await dialog
@@ -3140,8 +3143,8 @@ app.whenReady().then(async () => {
       console.warn("self-install failed", error)
       const reason = error instanceof Error ? error.message : String(error)
       const failure = installedTo
-        ? launchFailedPrompt({ targetPath: installedTo, justInstalled: true, reason })
-        : installFailedPrompt({ bundleName: path.basename(bundlePath), targetPath: target?.path ?? null, reason })
+        ? launchFailedPrompt({ targetPath: installedTo, justInstalled: true, reason, locale: appLocale() })
+        : installFailedPrompt({ bundleName: path.basename(bundlePath), targetPath: target?.path ?? null, reason, locale: appLocale() })
       app.focus({ steal: true })
       await dialog
         .showMessageBox({

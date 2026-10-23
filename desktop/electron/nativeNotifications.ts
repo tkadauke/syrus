@@ -1,4 +1,5 @@
 import { Notification, shell } from "electron"
+import { t } from "./i18n.js"
 
 type Credentials = {
   url: string
@@ -94,7 +95,7 @@ export const nativeNotificationTitle = (kind: string) => {
 
   const words = normalized.split(/[_\-. ]+/).filter(Boolean)
   if (words.length === 0) {
-    return "Syrus notification"
+    return t("notification.default")
   }
 
   const firstWord = words[0] === "pr" ? "PR" : words[0][0].toUpperCase() + words[0].slice(1)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { messages } from "./i18n"
+import { messages, normalizeLocale, translate } from "./i18n"
 
 const localizedLocales = ["de", "la"] as const
 
@@ -36,7 +36,12 @@ describe("desktop i18n messages", () => {
       "runtime.missing_title",
       "install_progress.title",
       "install_failed.title",
-      "backend.remote.title"
+      "backend.remote.title",
+      "menu.open",
+      "screen.title",
+      "settings.connect",
+      "install.replace.title",
+      "cli.not_installed"
     ] as const
 
     for (const locale of localizedLocales) {
@@ -50,5 +55,17 @@ describe("desktop i18n messages", () => {
     for (const locale of localizedLocales) {
       expect(messages[locale]["adopt_existing.confirm_word"]).toEqual("delete")
     }
+  })
+
+  it("normalizes regional and underscore locales with an English fallback", () => {
+    expect(normalizeLocale("de-DE")).toBe("de")
+    expect(normalizeLocale("LA_va")).toBe("la")
+    expect(normalizeLocale("fr-FR")).toBe("en")
+    expect(normalizeLocale(undefined)).toBe("en")
+  })
+
+  it("interpolates shared messages and falls back to English and then the key", () => {
+    expect(translate("de", "port_conflict.title", { port: 4567 })).toContain("4567")
+    expect(translate("de", "missing.key")).toBe("missing.key")
   })
 })

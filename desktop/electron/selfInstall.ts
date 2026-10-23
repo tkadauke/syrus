@@ -11,6 +11,7 @@ import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { promisify } from "node:util"
+import { translate, type Locale } from "./i18nCatalog.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -200,11 +201,13 @@ const describeVersion = (version: string | null | undefined): string => {
 export const replacePrompt = ({
   existingVersion,
   newVersion,
-  targetPath
+  targetPath,
+  locale = "en"
 }: {
   existingVersion: string | null
   newVersion: string
   targetPath: string
+  locale?: Locale
 }) => {
   const note = {
     newer: " (this copy appears newer)",
@@ -214,12 +217,9 @@ export const replacePrompt = ({
   }[compareVersions(newVersion, existingVersion)]
 
   return {
-    message: "Install Syrus to Applications?",
-    detail:
-      `This will replace ${describeVersion(existingVersion)} in ${path.dirname(targetPath)} ` +
-      `with ${describeVersion(newVersion)}${note}.\n\n` +
-      '"Keep Existing" opens the installed copy instead.',
-    buttons: ["Replace", "Keep Existing"] as const,
+    message: translate(locale, "install.replace.title"),
+    detail: translate(locale, "install.replace.detail", { existing: describeVersion(existingVersion), directory: path.dirname(targetPath), next: describeVersion(newVersion), note }),
+    buttons: [translate(locale, "install.replace"), translate(locale, "install.keep")] as const,
     replaceIndex: 0,
     cancelId: 1
   }
@@ -242,18 +242,17 @@ export const installDecisionForResponse = (
 export const installFailedPrompt = ({
   bundleName,
   targetPath,
-  reason
+  reason,
+  locale = "en"
 }: {
   bundleName: string
   targetPath: string | null
   reason?: string | null
+  locale?: Locale
 }) => ({
-  message: "Syrus could not be installed.",
-  detail:
-    `Copying ${bundleName}${targetPath ? ` to ${path.dirname(targetPath)}` : ""} failed. ` +
-    "Drag Syrus into your Applications folder in Finder, then launch it from there." +
-    (reason ? `\n\n(${reason})` : ""),
-  buttons: ["Quit"] as const
+  message: translate(locale, "install.failed"),
+  detail: translate(locale, "install.failed_detail", { bundle: bundleName, destination: targetPath ? ` to ${path.dirname(targetPath)}` : "", reason: reason ? `\n\n(${reason})` : "" }),
+  buttons: [translate(locale, "install.quit")] as const
 })
 
 // Dialog copy for a failed LAUNCH of an installed copy — either the one the
@@ -263,22 +262,19 @@ export const installFailedPrompt = ({
 export const launchFailedPrompt = ({
   targetPath,
   justInstalled,
-  reason
+  reason,
+  locale = "en"
 }: {
   targetPath: string
   justInstalled: boolean
   reason?: string | null
+  locale?: Locale
 }) => ({
   message: justInstalled
-    ? "Syrus was installed but could not be opened."
-    : "Syrus could not open the installed copy.",
-  detail:
-    (justInstalled
-      ? `Syrus was installed to ${path.dirname(targetPath)} but couldn't be opened automatically. `
-      : `Syrus couldn't open the installed copy at ${targetPath}. `) +
-    "Launch it from Applications manually." +
-    (reason ? `\n\n(${reason})` : ""),
-  buttons: ["Quit"] as const
+    ? translate(locale, "install.launch_new_failed")
+    : translate(locale, "install.launch_existing_failed"),
+  detail: translate(locale, justInstalled ? "install.launch_new_detail" : "install.launch_existing_detail", { directory: path.dirname(targetPath), path: targetPath, reason: reason ? `\n\n(${reason})` : "" }),
+  buttons: [translate(locale, "install.quit")] as const
 })
 
 // Copies the bundle to the chosen target with ditto (preserves the code

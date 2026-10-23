@@ -246,6 +246,14 @@ describe("replacePrompt", () => {
     expect(prompt.cancelId).toBe(1)
   })
 
+  it("localizes the prompt while preserving versions and paths", () => {
+    const prompt = replacePrompt({ existingVersion: "0.1.3", newVersion: "0.1.4", targetPath, locale: "de" })
+    expect(prompt.message).toBe("Syrus in Programme installieren?")
+    expect(prompt.detail).toContain("Syrus 0.1.3")
+    expect(prompt.detail).toContain("/Applications")
+    expect(prompt.buttons).toEqual(["Ersetzen", "Vorhandenes behalten"])
+  })
+
   it("flags a downgrade as the installed copy appearing newer", () => {
     const prompt = replacePrompt({ existingVersion: "0.2.0", newVersion: "0.1.4", targetPath })
     expect(prompt.detail).toContain("(the installed copy appears newer)")

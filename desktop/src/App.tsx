@@ -5,6 +5,7 @@ import { RepoPicker } from "./RepoPicker"
 import syrusIconUrl from "../assets/syrusIcon.png"
 import { groupJobsByEpic, epicFullyImplemented } from "./inboxUtils"
 import { applyTheme, writeCachedTheme } from "./theme"
+import { t } from "./i18n"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
@@ -864,14 +865,14 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
         showToast({
           kind: "success",
           message: result.onPath
-            ? "Syrus CLI installed — Checkout is ready."
+            ? t("cli.ready")
             : window.syrusDesktop.platform === "win32"
-              ? "Syrus CLI installed — open a NEW terminal to use `syrus`."
-              : 'Syrus CLI installed. For terminals, add: export PATH="$HOME/.local/bin:$PATH"'
+              ? t("cli.windows_terminal")
+              : t("cli.path_hint")
         }, 7000)
         void cliStatusQuery.refetch()
       } else {
-        showToast({ kind: "error", message: result.error ?? "Could not install the Syrus CLI." }, 7000)
+        showToast({ kind: "error", message: result.error ?? t("cli.failed") }, 7000)
       }
     } finally {
       setInstallingCliFromBanner(false)
@@ -1488,7 +1489,7 @@ export function CliInstallSection() {
             </span>
           ) : (
             <span className="status-line">
-              Not installed — it normally installs itself when the app starts, so something went wrong.
+              {t("cli.not_installed")}
             </span>
           )}
         </div>
@@ -1499,7 +1500,7 @@ export function CliInstallSection() {
             onClick={() => void install()}
             type="button"
           >
-            {installing ? "Installing…" : "Reinstall CLI"}
+            {installing ? t("cli.installing") : t("cli.reinstall")}
           </button>
         ) : (
           <button
@@ -1509,7 +1510,7 @@ export function CliInstallSection() {
             title="Writes .claude/skills/syrus under your home directory so Claude Code sessions on this machine can drive Syrus through the CLI."
             type="button"
           >
-            {installing ? "Installing…" : "Add Claude Code skill"}
+            {installing ? t("cli.installing") : t("cli.add_skill")}
           </button>
         )}
       </div>
@@ -1546,7 +1547,7 @@ export function TrayActionsBar() {
           onClick={() => void window.syrusDesktop.openSyrusWindow()}
           type="button"
         >
-          Open Syrus
+          {t("menu.open")}
         </button>
         <div className="flex items-center gap-1">
           <button
@@ -1554,14 +1555,14 @@ export function TrayActionsBar() {
             onClick={() => void window.syrusDesktop.showPreferences()}
             type="button"
           >
-            Preferences
+            {t("menu.preferences")}
           </button>
           <button
             className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             onClick={() => void window.syrusDesktop.quitApp()}
             type="button"
           >
-            Quit
+            {t("tray.quit")}
           </button>
         </div>
       </div>
@@ -2759,7 +2760,7 @@ export function App() {
       <main className="shell">
         <section className="panel panel--status" aria-label="Loading Syrus Desktop">
           <p className="eyebrow">Syrus</p>
-          <h1>Loading</h1>
+          <h1>{t("settings.loading")}</h1>
         </section>
       </main>
     )
@@ -2776,10 +2777,10 @@ export function App() {
         <section className="panel" aria-label="Syrus settings">
           <div>
             <p className="eyebrow">Syrus</p>
-            <h1>Connect Syrus</h1>
+            <h1>{t("settings.connect")}</h1>
           </div>
 
-          <div className="preferences-tabs" role="tablist" aria-label="Preferences sections">
+          <div className="preferences-tabs" role="tablist" aria-label={t("settings.tabs")}>
             <button
               type="button"
               className={tabClass("account")}
@@ -2789,7 +2790,7 @@ export function App() {
               id="preferences-account-tab"
               onClick={() => setPreferencesTab("account")}
             >
-              Account
+              {t("settings.account")}
             </button>
             <button
               type="button"
@@ -2800,7 +2801,7 @@ export function App() {
               id="preferences-projects-tab"
               onClick={() => setPreferencesTab("projects")}
             >
-              Projects
+              {t("settings.projects")}
             </button>
           </div>
 
@@ -2823,7 +2824,7 @@ export function App() {
               </p>
 
               <label>
-                <span>Syrus instance URL</span>
+                <span>{t("settings.instance_url")}</span>
                 <input
                   autoFocus
                   required
@@ -2835,7 +2836,7 @@ export function App() {
               </label>
 
               <label>
-                <span>API token</span>
+                <span>{t("settings.api_token")}</span>
                 <div className="relative">
                   <input
                     required
@@ -2848,7 +2849,7 @@ export function App() {
                   <button
                     type="button"
                     className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                    aria-label={tokenVisible ? "Hide API token" : "Show API token"}
+                    aria-label={tokenVisible ? t("settings.hide_token") : t("settings.show_token")}
                     aria-pressed={tokenVisible}
                     onClick={() => setTokenVisible((visible) => !visible)}
                   >
@@ -2862,16 +2863,16 @@ export function App() {
               <div className="form-actions">
                 {/* Opens the instance's own account-settings page (generate/rotate/revoke) in the app window. */}
                 <button type="button" className="link-button" onClick={() => window.syrusDesktop.openTokenDocs()}>
-                  Get a token from Syrus
+                  {t("settings.get_token")}
                 </button>
                 <button type="submit" className="primary-button" disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? t("settings.saving") : t("settings.save")}
                 </button>
               </div>
 
               <section className="settings-section" aria-label="Keyboard shortcut settings">
                 <div>
-                  <h2>Keyboard shortcut</h2>
+                  <h2>{t("settings.shortcut")}</h2>
                 </div>
 
                 <div className="shortcut-row">
@@ -2887,8 +2888,8 @@ export function App() {
                         tabIndex={0}
                         onKeyDown={recordHotkey}
                       >
-                        <span>Press a shortcut</span>
-                        <strong>{hotkeyDraft ? displayHotkey(hotkeyDraft) : "Waiting for keys"}</strong>
+                        <span>{t("settings.press_shortcut")}</span>
+                        <strong>{hotkeyDraft ? displayHotkey(hotkeyDraft) : t("settings.waiting_keys")}</strong>
                       </div>
                     ) : null}
                   </div>
@@ -2896,19 +2897,19 @@ export function App() {
                   {isRecordingHotkey ? (
                     <div className="shortcut-actions">
                       <button type="button" className="primary-button" disabled={isSavingHotkey || hotkeyDraft.trim() === ""} onClick={() => saveHotkey()}>
-                        {isSavingHotkey ? "Saving..." : "Save"}
+                        {isSavingHotkey ? t("settings.saving") : t("settings.save")}
                       </button>
                       <button type="button" className="secondary-button" disabled={isSavingHotkey} onClick={cancelHotkeyRecording}>
-                        Cancel
+                        {t("common.cancel")}
                       </button>
                     </div>
                   ) : (
                     <div className="shortcut-actions">
                       <button type="button" className="secondary-button" onClick={beginHotkeyRecording}>
-                        Edit
+                        {t("settings.edit")}
                       </button>
                       <button type="button" className="secondary-button" disabled={isSavingHotkey || globalHotkey === ""} onClick={() => saveHotkey("")}>
-                        Clear
+                        {t("settings.clear")}
                       </button>
                     </div>
                   )}
@@ -2928,13 +2929,13 @@ export function App() {
                 aria-label="Local checkout settings"
               >
                 <div>
-                  <h2>Local checkout</h2>
+                  <h2>{t("settings.local_checkout")}</h2>
                 </div>
 
                 <CliInstallSection />
 
                 <label>
-                  <span>Local projects root</span>
+                  <span>{t("settings.projects_root")}</span>
                   <div className="input-with-button">
                     <input
                       type="text"
@@ -2946,15 +2947,15 @@ export function App() {
                       }}
                     />
                     <button type="button" className="secondary-button" onClick={chooseLocalProjectsRoot}>
-                      Choose
+                      {t("settings.choose")}
                     </button>
                   </div>
                 </label>
 
                 <div className="repo-paths-header">
-                  <span>Per-repo overrides</span>
+                  <span>{t("settings.repo_overrides")}</span>
                   <button type="button" className="secondary-button" onClick={addRepoPathDraft}>
-                    Add row
+                    {t("settings.add_row")}
                   </button>
                 </div>
 
@@ -2966,7 +2967,7 @@ export function App() {
                           type="text"
                           value={draft.repoSlug}
                           placeholder="owner/repo"
-                          aria-label="Repository slug"
+                          aria-label={t("settings.repo_slug")}
                           onChange={(event) => updateRepoPathDraft(draft.id, "repoSlug", event.target.value)}
                         />
                         <input
@@ -2977,7 +2978,7 @@ export function App() {
                               ? "C:\\absolute\\path\\to\\repo"
                               : "/absolute/path/to/repo"
                           }
-                          aria-label="Repository local path"
+                          aria-label={t("settings.repo_path")}
                           onChange={(event) => updateRepoPathDraft(draft.id, "localPath", event.target.value)}
                         />
                         <button
@@ -2986,7 +2987,7 @@ export function App() {
                           aria-label={`Remove ${draft.repoSlug || "repository override"}`}
                           onClick={() => removeRepoPathDraft(draft.id)}
                         >
-                          Remove
+                          {t("settings.remove")}
                         </button>
                       </div>
                     ))}
@@ -2994,11 +2995,11 @@ export function App() {
                 ) : null}
 
                 {settingsError ? <p className="form-error">{settingsError}</p> : null}
-                {settingsSaved ? <p className="form-success">Local checkout settings saved.</p> : null}
+                {settingsSaved ? <p className="form-success">{t("settings.saved")}</p> : null}
 
                 <div className="form-actions form-actions--end">
                   <button type="button" className="primary-button" disabled={isSavingSettings} onClick={saveDesktopSettings}>
-                    {isSavingSettings ? "Saving..." : "Save local checkout settings"}
+                    {isSavingSettings ? t("settings.saving") : t("settings.save_checkout")}
                   </button>
                 </div>
               </section>

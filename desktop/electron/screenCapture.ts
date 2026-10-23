@@ -10,6 +10,7 @@ import {
 } from "electron"
 
 import { isPermissionCheckAllowed, isPermissionRequestAllowed } from "./mediaPermissionPolicy.js"
+import { t } from "./i18n.js"
 
 // Screen + microphone capture for the walkthrough recorder.
 //
@@ -114,12 +115,12 @@ export const registerScreenCaptureHandler = (trustedContext: TrustedCaptureConte
       const parent = BrowserWindow.fromWebContents(trusted.webContents)
       const confirmationOptions: MessageBoxOptions = {
         type: "question",
-        buttons: ["Share screen", "Cancel"],
+        buttons: [t("screen.share"), t("common.cancel")],
         defaultId: 1,
         cancelId: 1,
-        title: "Share your screen?",
-        message: "Syrus wants to record your entire screen.",
-        detail: "Everything visible on the selected display may appear in the walkthrough."
+        title: t("screen.title"),
+        message: t("screen.message"),
+        detail: t("screen.detail")
       }
       let confirmed = false
       try {
