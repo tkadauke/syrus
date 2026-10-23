@@ -761,7 +761,10 @@ and open in a full-size preview. The chat workspace also includes a Media tab
 that gathers image attachments into a downloadable gallery and lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
-existing work. Every image in the gallery — including Runtime Session
+existing work. When an agent saves the current canvas, its transcript card
+renders the saved scene as a thumbnail that opens a full-size preview, shows
+the canvas version and snapshot details, and links to the chat's Whiteboard
+and Media tabs. Every image in the gallery — including Runtime Session
 screenshots captured in Coding Mode — has an **Attach to message** action,
 available both on the thumbnail and in its full-size preview, that pulls the
 image into the composer through the same attachment mechanism as a pasted
