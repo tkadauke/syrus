@@ -38,8 +38,12 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     Syrus::PluginRegistry.register(
       name: "visibility-plugin",
       display_name: "Visibility",
+      display_name_i18n_key: "visibility:plugin.display_name",
       version: "1.2.3",
       description: "Adds visible things.",
+      description_i18n_key: "visibility:plugin.description",
+      long_description: "Adds a longer explanation.",
+      long_description_i18n_key: "visibility:plugin.long_description",
       homepage: "https://example.test/plugin",
       author: "Ada",
       source: "internal",
@@ -69,6 +73,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(plugin).to include(
       "name" => "visibility-plugin",
       "display_name" => "Visibility",
+      "display_name_i18n_key" => "visibility:plugin.display_name",
       "disable_blockers" => [
         {
           "kind" => "configured_input_sources",
@@ -82,6 +87,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       "disableable" => true,
       "experimental" => false,
       "description" => "Adds visible things.",
+      "description_i18n_key" => "visibility:plugin.description",
+      "long_description" => "Adds a longer explanation.",
+      "long_description_i18n_key" => "visibility:plugin.long_description",
       "homepage" => "https://example.test/plugin",
       "author" => "Ada",
       "source" => "internal",
