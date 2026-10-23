@@ -29,7 +29,24 @@ export const examples: ToolCardExample[] = [
   {
     id: "cleared_canvas",
     label: "Cleared canvas",
-    parsedResult: { cleared: true, snapshot_id: 3, element_count: 5, chat_session_id: 12, version: 4 },
+    parsedResult: {
+      cleared: true,
+      snapshot_id: 3,
+      element_count: 5,
+      chat_session_id: 12,
+      version: 4,
+      preview_scene: {
+        elements: [
+          { id: "title", type: "text", x: 120, y: 70, width: 260, height: 35, text: "Architecture plan", fontSize: 28 },
+          { id: "client", type: "rectangle", x: 80, y: 150, width: 180, height: 100, strokeColor: "#b6492e", backgroundColor: "#fdf2ee" },
+          { id: "server", type: "rectangle", x: 360, y: 150, width: 180, height: 100, strokeColor: "#334155", backgroundColor: "#f1f5f9" },
+          { id: "flow", type: "arrow", x: 260, y: 200, width: 100, height: 0, strokeColor: "#64748b", endArrowhead: "arrow" },
+          { id: "note", type: "text", x: 177, y: 300, width: 270, height: 25, text: "Auto-saved before clearing", fontSize: 20 }
+        ],
+        appState: { viewBackgroundColor: "#ffffff" },
+        files: {}
+      }
+    },
     sourceType: "generic"
   },
   { id: "already_empty", label: "Already empty", parsedResult: { cleared: true, snapshot_id: null, version: 1 }, sourceType: "generic" },
