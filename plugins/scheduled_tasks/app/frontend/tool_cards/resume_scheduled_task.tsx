@@ -1,8 +1,8 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { intlLocale } from "@app/lib/relativeTime"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { ErrorCard } from "@app/routes/chat/chatHelperToolCard"
-import { CardShell, displayValue, EntityReference, Row, StatePill } from "@app/routes/chat/toolCardUi"
+import { ErrorCard, MalformedCard } from "@app/routes/chat/chatHelperToolCard"
+import { CardShell, displayValue, EmptyState, EntityReference, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { parseScheduledTask, parseScheduledTaskOutcome, t, scheduledTaskErrorMessage, type ScheduledTaskCard } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for resume_scheduled_task (the pending-action tool-card work).
@@ -10,18 +10,21 @@ import { parseScheduledTask, parseScheduledTaskOutcome, t, scheduledTaskErrorMes
 function collapsedSummary(context: ToolCardContext) {
   if (scheduledTaskErrorMessage(context)) return t("tool_error_summary")
   const outcome = parseResumeOutcome(context.parsedResult)
-  if (!outcome) return null
+  if (!outcome) return context.resultSettled === false ? null : t("tool_resume_empty_summary")
 
   return t("tool_resumed_summary", { label: outcome.label, id: outcome.id })
 }
 
-function parseResumeOutcome(parsed: unknown): { id: string; label: string; task: ScheduledTaskCard | null } | null {
+function parseResumeOutcome(parsed: unknown): { id: string; label: string; enabled: boolean | null; task: ScheduledTaskCard | null } | null {
   if (!isPlainObject(parsed)) return null
-  const task = parseScheduledTask(parsed.scheduled_task) || parseScheduledTask({ ...parsed, id: parsed.scheduled_task_id }) || parseScheduledTask(parsed)
-  if (task) return { id: task.id, label: task.label, task }
+  const nestedTask = isPlainObject(parsed.scheduled_task)
+    ? { ...parsed.scheduled_task, enabled: parsed.scheduled_task.enabled ?? parsed.enabled }
+    : parsed.scheduled_task
+  const task = parseScheduledTask(nestedTask) || parseScheduledTask({ ...parsed, id: parsed.scheduled_task_id }) || parseScheduledTask(parsed)
+  if (task) return { id: task.id, label: task.label, enabled: task.enabled, task }
 
   const outcome = parseScheduledTaskOutcome(parsed)
-  return outcome ? { ...outcome, task: null } : null
+  return outcome ? { ...outcome, enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : null, task: null } : null
 }
 
 function exactTimes(value: string) {
@@ -58,7 +61,15 @@ function renderExpanded(context: ToolCardContext) {
     )
 
   const outcome = parseResumeOutcome(context.parsedResult)
-  if (!outcome) return null
+  if (!outcome) {
+    if (context.resultSettled === false) return null
+    return (
+      <MalformedCard title={t("tool_resume_error_title")}>
+        <EmptyState>{t("tool_resume_empty_detail")}</EmptyState>
+        <RequestedTask context={context} />
+      </MalformedCard>
+    )
+  }
   if (!outcome.task)
     return (
       <CardShell>
@@ -67,6 +78,7 @@ function renderExpanded(context: ToolCardContext) {
           <EntityReference id={outcome.id} kind="scheduled_task" wrap="nowrap" />
         </div>
         <div className="min-w-0 break-words text-sm font-medium text-text-primary">{outcome.label}</div>
+        {outcome.enabled != null ? <Row label={t("tool_enabled")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
         <div className="text-text-secondary">{t("tool_resumed_detail")}</div>
       </CardShell>
     )
@@ -81,6 +93,7 @@ function renderExpanded(context: ToolCardContext) {
       </div>
       <div className="min-w-0 break-words text-sm font-medium text-text-primary">{outcome.label}</div>
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
+        {outcome.enabled != null ? <Row label={t("tool_enabled")} value={outcome.enabled ? t("tool_yes") : t("tool_no")} /> : null}
         {outcome.task.repositorySlug ? (
           <div className="min-w-0">
             <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
@@ -123,6 +136,12 @@ export const examples: ToolCardExample[] = [
     input: { scheduled_task_id: 12 },
     resultBody: "scheduled task is already enabled",
     resultError: true
+  },
+  {
+    id: "empty_response",
+    label: "Empty response",
+    input: { scheduled_task_id: 12 },
+    resultSettled: true
   }
 ]
 
