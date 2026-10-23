@@ -103,7 +103,9 @@ export function MediaPreviewShell({
           </span>
         ) : null}
       </button>
-      {open ? <MediaPreviewModal item={item} modalLabel={modalLabel ?? t("shared.media_preview")} onClose={() => setOpen(false)} visibleMeta={visibleMeta} /> : null}
+      {open ? (
+        <MediaPreviewModal item={item} modalLabel={modalLabel ?? t("shared.media_preview")} onClose={() => setOpen(false)} visibleMeta={visibleMeta} />
+      ) : null}
     </>
   )
 }

@@ -81,11 +81,7 @@ export function DiffStatBadges({ stats }: { stats: DiffStats }) {
   const { t } = useT("chat")
   return (
     <div className="flex flex-wrap items-center gap-2 font-mono text-2xs">
-      {stats.fileCount > 0 ? (
-        <Pill tone="neutral">
-          {t("shared.file_count", { count: stats.fileCount })}
-        </Pill>
-      ) : null}
+      {stats.fileCount > 0 ? <Pill tone="neutral">{t("shared.file_count", { count: stats.fileCount })}</Pill> : null}
       <Pill tone="success">+{stats.additions}</Pill>
       <Pill tone="danger">-{stats.deletions}</Pill>
     </div>
@@ -102,12 +98,13 @@ export function RawDiffPreview({ diff }: { diff: string }) {
   const truncated = allLines.length > PREVIEW_LINE_LIMIT
   if (allLines.length === 0) return null
 
-  const renderedLines = (selectedLines: typeof allLines) => selectedLines.map((line, index) => (
-    <span className={`flex min-w-max ${diffLineClass(line.kind)}`} key={index}>
-      <span className={diffMarkerClass(line.kind)}>{line.marker}</span>
-      <span className={`px-2 py-0.5 whitespace-pre ${line.kind === "file" ? "font-semibold" : ""}`}>{line.code || " "}</span>
-    </span>
-  ))
+  const renderedLines = (selectedLines: typeof allLines) =>
+    selectedLines.map((line, index) => (
+      <span className={`flex min-w-max ${diffLineClass(line.kind)}`} key={index}>
+        <span className={diffMarkerClass(line.kind)}>{line.marker}</span>
+        <span className={`px-2 py-0.5 whitespace-pre ${line.kind === "file" ? "font-semibold" : ""}`}>{line.code || " "}</span>
+      </span>
+    ))
 
   return (
     <div className="min-w-0 max-w-full space-y-1 overflow-hidden">
@@ -117,10 +114,17 @@ export function RawDiffPreview({ diff }: { diff: string }) {
       {truncated ? (
         <div className="flex flex-wrap items-center gap-2 text-2xs text-text-muted">
           <span>{t("tool_card_diff_preview_truncated", { shown: PREVIEW_LINE_LIMIT, total: allLines.length })}</span>
-          <Button onClick={() => setOpen(true)} size="sm" variant="secondary">{t("shared.show_full_diff")}</Button>
+          <Button onClick={() => setOpen(true)} size="sm" variant="secondary">
+            {t("shared.show_full_diff")}
+          </Button>
         </div>
       ) : null}
-      <Modal className="flex h-[min(90dvh,60rem)] w-[min(96vw,80rem)] min-w-0 flex-col overflow-hidden bg-surface p-4" label={t("shared.full_diff")} onClose={() => setOpen(false)} open={open}>
+      <Modal
+        className="flex h-[min(90dvh,60rem)] w-[min(96vw,80rem)] min-w-0 flex-col overflow-hidden bg-surface p-4"
+        label={t("shared.full_diff")}
+        onClose={() => setOpen(false)}
+        open={open}
+      >
         {open ? <div className="min-h-0 max-w-full flex-1 overflow-auto font-mono text-xs">{renderedLines(allLines)}</div> : null}
       </Modal>
     </div>

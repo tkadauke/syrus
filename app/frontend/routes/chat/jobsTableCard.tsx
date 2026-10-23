@@ -119,7 +119,17 @@ export function JobsTable({ rows, emptyMessage }: { rows: JobRow[]; emptyMessage
 
   return (
     <Table responsive>
-      <THead columns={[t("shared.job"), t("shared.title"), t("shared.state"), t("shared.repository"), t("shared.source"), t("shared.execution"), t("shared.lifecycle")]} />
+      <THead
+        columns={[
+          t("shared.job"),
+          t("shared.title"),
+          t("shared.state"),
+          t("shared.repository"),
+          t("shared.source"),
+          t("shared.execution"),
+          t("shared.lifecycle")
+        ]}
+      />
       <TBody>
         {rows.map((row) => (
           <DataTable.Row key={row.key}>
