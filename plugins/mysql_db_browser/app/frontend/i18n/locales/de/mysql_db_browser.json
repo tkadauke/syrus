@@ -242,5 +242,8 @@
   "tool_tables_count_other": "{{count}} Tabellen in {{database}}",
   "tool_no_tables_in_database": "Keine Tabellen in {{database}}.",
   "tool_table": "Tabelle",
-  "tool_table_list": "Tabellenliste"
+  "tool_table_list": "Tabellenliste",
+  "tool_system_schema": "Systemschema",
+  "tool_result_database": "Ergebnisdatenbank",
+  "tool_filter_tables": "Tabellen filtern"
 }
