@@ -40,8 +40,22 @@ export const examples: ToolCardExample[] = [
   {
     id: "image",
     label: "Image document",
-    input: { id: 13, title: "Architecture sketch", content_type: "image/png", size_bytes: 8192 },
-    parsedResult: { content: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }] }
+    input: {
+      id: 13,
+      title: "Architecture sketch",
+      content_type: "image/svg+xml",
+      size_bytes: 316,
+      url: "/api/v1/app/repository_documents/13/file"
+    },
+    parsedResult: {
+      content: [
+        {
+          type: "image",
+          data: "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iMTgwIiB2aWV3Qm94PSIwIDAgMzIwIDE4MCI+PHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSIxODAiIGZpbGw9IiNmNmVkZTgiLz48cmVjdCB4PSIzNSIgeT0iMzAiIHdpZHRoPSIyNTAiIGhlaWdodD0iMTIwIiByeD0iMTIiIGZpbGw9IiNiNjQ5MmUiLz48cGF0aCBkPSJNNzAgMTIwbDU1LTU1IDQyIDQyIDMwLTMwIDUzIDUzSDcweiIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjIyNSIgY3k9IjYyIiByPSIxNSIgZmlsbD0iI2Y2ZWRlOCIvPjwvc3ZnPg==",
+          mimeType: "image/svg+xml"
+        }
+      ]
+    }
   },
   {
     id: "truncated",
