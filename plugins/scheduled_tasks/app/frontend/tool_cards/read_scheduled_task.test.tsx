@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
 import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
 import readScheduledTaskToolCard, { examples } from "./read_scheduled_task"
 
@@ -129,6 +129,18 @@ describe("read_scheduled_task tool card", () => {
 
   it("publishes reviewable detail, empty, and error catalog examples", () => {
     expect(examples.map((example) => example.id)).toEqual(["recurring_task_details", "blank_prompt", "not_found"])
+  })
+
+  it("makes the catalog detail fixture long enough to review the prompt modal and copy action", () => {
+    const example = examples.find(({ id }) => id === "recurring_task_details")!
+    const exampleContext = toolCardContextForExample("read_scheduled_task", example)
+    render(<>{readScheduledTaskToolCard.renderExpanded(exampleContext)}</>)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full task prompt" })
+    expect(dialog).toHaveTextContent("Nightly repository health review")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy Prompt to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("### Required checks"))
   })
 
   it("falls back to null for a malformed payload", () => {
