@@ -45,6 +45,8 @@
   "tool_last_fired": "Letzter Lauf",
   "tool_last_success": "Letzter Erfolg",
   "tool_created": "Erstellt",
+  "tool_created_at": "Erstellt",
+  "tool_utc_time": "UTC: {{time}}",
   "tool_pr_pileup": "PR-Stau",
   "tool_prompt": "Prompt",
   "tool_prompt_full": "Vollständiger Task-Prompt",

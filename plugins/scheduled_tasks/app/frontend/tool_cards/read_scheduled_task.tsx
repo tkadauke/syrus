@@ -1,4 +1,4 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell } from "@app/routes/chat/toolCardUi"
 import { parseScheduledTaskDetail, PromptDisclosure, scheduledTaskHeadline, ScheduledTaskSummary, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
@@ -19,7 +19,7 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <ScheduledTaskSummary task={detail.task} />
-      {detail.prompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
+      {detail.hasPrompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
     </CardShell>
   )
 }
@@ -31,3 +31,40 @@ const readScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
 })
 
 export default readScheduledTaskToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "recurring_task_details",
+    label: "Recurring task details",
+    input: { scheduled_task_id: 12 },
+    parsedResult: {
+      scheduled_task: {
+        id: 12,
+        repository_id: 7,
+        repository_slug: "tkadauke/syrus",
+        label: "Nightly main-branch health check",
+        kind: "cron",
+        state: "scheduled",
+        cron_expression: "0 3 * * *",
+        schedule_input: "Every day at 3am",
+        schedule_expression: "0 3 * * *",
+        schedule_explanation: "Runs daily at 3:00 AM UTC",
+        schedule_timezone: "UTC",
+        pr_pileup_policy: "skip",
+        enabled: true,
+        next_fire_at: "2026-09-06T03:00:00Z",
+        last_fired_at: "2026-09-05T03:00:00Z",
+        last_successful_fire_at: "2026-09-05T03:00:00Z",
+        consecutive_failure_count: 0,
+        created_at: "2026-08-01T00:00:00Z",
+        prompt: "Survey **main** for failing graders, check https://example.test/status, and update JOB-42."
+      }
+    }
+  },
+  {
+    id: "blank_prompt",
+    label: "Task with a blank prompt",
+    parsedResult: { scheduled_task: { id: 13, label: "Paused audit", state: "paused", enabled: false, prompt: " " } }
+  },
+  { id: "not_found", label: "Task not found", resultBody: "scheduled task not found: 404", resultError: true }
+]

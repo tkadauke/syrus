@@ -21,6 +21,7 @@ export type ScheduledTaskCard = {
   label: string
   state: string
   kind: string | null
+  repositoryId: string | null
   repositorySlug: string | null
   cadence: string | null
   cronExpression: string | null
@@ -59,6 +60,7 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
     label,
     state,
     kind: displayValue(value.kind),
+    repositoryId: displayValue(value.repository_id),
     repositorySlug: displayValue(value.repository_slug),
     cadence,
     cronExpression: displayValue(value.cron_expression),
@@ -79,14 +81,16 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
 
 // Parses `{ "scheduled_task": { ...payload, prompt: "..." } }`, the shape
 // read_scheduled_task and update_scheduled_task both return.
-export function parseScheduledTaskDetail(parsed: unknown): { task: ScheduledTaskCard; prompt: string | null } | null {
+export function parseScheduledTaskDetail(parsed: unknown): { task: ScheduledTaskCard; prompt: string | null; hasPrompt: boolean } | null {
   if (!isPlainObject(parsed)) return null
 
   const task = parseScheduledTask(parsed.scheduled_task)
   if (!task) return null
 
-  const prompt = isPlainObject(parsed.scheduled_task) ? displayValue(parsed.scheduled_task.prompt) : null
-  return { task, prompt }
+  const payload = parsed.scheduled_task
+  const hasPrompt = isPlainObject(payload) && Object.prototype.hasOwnProperty.call(payload, "prompt")
+  const prompt = isPlainObject(payload) && typeof payload.prompt === "string" ? payload.prompt : null
+  return { task, prompt, hasPrompt }
 }
 
 export function scheduledTaskHeadline(task: ScheduledTaskCard) {
@@ -142,30 +146,70 @@ export function ScheduledTaskSummary({ task }: { task: ScheduledTaskCard }) {
         <FailureBadge count={task.consecutiveFailureCount} />
       </div>
       <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{task.label}</div>
-      <dl className="grid gap-1 sm:grid-cols-2">
+      <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         {task.cadence ? (
           <Row label={t("tool_col_cadence")} value={task.scheduleTimezone ? `${task.cadence} (${task.scheduleTimezone})` : task.cadence} />
+        ) : null}
+        {task.scheduleInput && task.scheduleInput !== task.cadence ? <Row label={t("tool_schedule_input")} value={task.scheduleInput} /> : null}
+        {task.cronExpression && task.cronExpression !== task.cadence ? <Row label={t("tool_resolved_cron")} value={task.cronExpression} /> : null}
+        {task.scheduleExpression && ![task.cadence, task.scheduleInput, task.cronExpression].includes(task.scheduleExpression) ? (
+          <Row label={t("tool_schedule_expression")} value={task.scheduleExpression} />
         ) : null}
         {task.repositorySlug ? (
           <div className="min-w-0">
             <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_repository")}</div>
-            <EntityReference kind="repository" repositorySlug={task.repositorySlug} />
+            <EntityReference kind="repository" repositoryId={task.repositoryId} repositorySlug={task.repositorySlug} />
           </div>
         ) : null}
-        {nextFire ? <Row label={t("tool_col_next_fire")} value={nextFire} /> : null}
-        {task.lastFiredAt ? <Row label={t("tool_last_fired")} value={task.lastFiredAt} /> : null}
-        {task.lastSuccessfulFireAt ? <Row label={t("tool_last_success")} value={task.lastSuccessfulFireAt} /> : null}
+        {nextFire ? <DateTimeRow label={t("tool_col_next_fire")} value={nextFire} /> : null}
+        {task.lastFiredAt ? <DateTimeRow label={t("tool_last_fired")} value={task.lastFiredAt} /> : null}
+        {task.lastSuccessfulFireAt ? <DateTimeRow label={t("tool_last_success")} value={task.lastSuccessfulFireAt} /> : null}
         {task.prPileupPolicy ? <Row label={t("tool_pr_pileup")} value={task.prPileupPolicy} /> : null}
+        {task.createdAt ? <DateTimeRow label={t("tool_created_at")} value={task.createdAt} /> : null}
       </dl>
     </>
   )
 }
 
-// Small `<details>` disclosure for the long prompt text read/update return.
-// Deliberately a local copy of core's explain_stuck_job pattern — that one
-// is a private component, not shared API.
-export function PromptPreview({ prompt }: { prompt: string }) {
-  return <MarkdownPreview emptyLabel={t("tool_prompt_empty")} maxChars={720} modalLabel={t("tool_prompt_full")} text={prompt} title={t("tool_prompt")} />
+// Compact Markdown prompt preview shared by read/update cards.
+function DateTimeRow({ label, value }: { label: string; value: string }) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return <Row label={label} value={value} />
+
+  const local = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)
+  const utc = new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+    timeZoneName: "short",
+    year: "numeric"
+  }).format(date)
+
+  return (
+    <div className="min-w-0 py-1">
+      <dt className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-xs text-text-primary [overflow-wrap:anywhere]">
+        <time dateTime={value}>{local}</time>
+        <span className="block text-text-muted">{t("tool_utc_time", { time: utc })}</span>
+      </dd>
+    </div>
+  )
+}
+
+export function PromptPreview({ prompt }: { prompt: string | null }) {
+  return (
+    <MarkdownPreview
+      emptyLabel={t("tool_prompt_empty")}
+      linkifySlugs
+      linkifyUrls
+      maxChars={720}
+      modalLabel={t("tool_prompt_full")}
+      text={prompt}
+      title={t("tool_prompt")}
+    />
+  )
 }
 
 export const PromptDisclosure = PromptPreview

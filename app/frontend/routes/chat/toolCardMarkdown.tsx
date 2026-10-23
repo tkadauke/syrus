@@ -113,8 +113,12 @@ export function MarkdownPreview({
   }, [normalized, maxLines, truncated.truncated])
 
   if (!normalized) {
-    if (emptyState !== undefined) return <>{emptyState}</>
-    return <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>
+    return (
+      <div className="min-w-0 max-w-full overflow-hidden">
+        {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
+        {emptyState !== undefined ? <>{emptyState}</> : <p className="text-xs text-text-muted">{emptyLabel ?? t("markdown_preview.empty")}</p>}
+      </div>
+    )
   }
 
   // Source truncation and visual wrapping are deliberately coupled: a clamp
