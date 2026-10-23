@@ -1,15 +1,7 @@
-import {
-  BrowserWindow,
-  desktopCapturer,
-  dialog,
-  screen,
-  session,
-  systemPreferences,
-  type MessageBoxOptions,
-  type WebContents
-} from "electron"
+import { BrowserWindow, desktopCapturer, dialog, screen, session, systemPreferences, type MessageBoxOptions, type WebContents } from "electron"
 
 import { isPermissionCheckAllowed, isPermissionRequestAllowed } from "./mediaPermissionPolicy.js"
+import { t } from "./i18n.js"
 
 // Screen + microphone capture for the walkthrough recorder.
 //
@@ -102,11 +94,7 @@ export const registerScreenCaptureHandler = (trustedContext: TrustedCaptureConte
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       const trusted = trustedContext()
-      if (
-        !trusted.webContents ||
-        request.frame !== trusted.webContents.mainFrame ||
-        !matchesOrigin(request.securityOrigin, trusted.origin)
-      ) {
+      if (!trusted.webContents || request.frame !== trusted.webContents.mainFrame || !matchesOrigin(request.securityOrigin, trusted.origin)) {
         callback({})
         return
       }
@@ -114,18 +102,16 @@ export const registerScreenCaptureHandler = (trustedContext: TrustedCaptureConte
       const parent = BrowserWindow.fromWebContents(trusted.webContents)
       const confirmationOptions: MessageBoxOptions = {
         type: "question",
-        buttons: ["Share screen", "Cancel"],
+        buttons: [t("screen.share"), t("common.cancel")],
         defaultId: 1,
         cancelId: 1,
-        title: "Share your screen?",
-        message: "Syrus wants to record your entire screen.",
-        detail: "Everything visible on the selected display may appear in the walkthrough."
+        title: t("screen.title"),
+        message: t("screen.message"),
+        detail: t("screen.detail")
       }
       let confirmed = false
       try {
-        const confirmation = parent
-          ? await dialog.showMessageBox(parent, confirmationOptions)
-          : await dialog.showMessageBox(confirmationOptions)
+        const confirmation = parent ? await dialog.showMessageBox(parent, confirmationOptions) : await dialog.showMessageBox(confirmationOptions)
         confirmed = confirmation.response === 0
       } catch {
         confirmed = false
