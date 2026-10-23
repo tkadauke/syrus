@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "../i18n"
 
 const reloadMock = vi.hoisted(() => vi.fn())
 
@@ -78,6 +79,110 @@ const pluginFilterSchema = [
 ]
 
 describe("AdminPlugins", () => {
+  afterEach(async () => {
+    i18n.removeResourceBundle("en", "localized_plugin")
+    i18n.removeResourceBundle("de", "localized_plugin")
+    await i18n.changeLanguage("en")
+  })
+
+  it("localizes plugin metadata on cards", async () => {
+    i18n.addResourceBundle("en", "localized_plugin", {
+      plugin: {
+        display_name: "Localized name",
+        description: "Localized description",
+        long_description: "Localized long description"
+      }
+    }, true, true)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [{
+        name: "localized_plugin",
+        display_name: "Raw name",
+        display_name_i18n_key: "localized_plugin:plugin.display_name",
+        description: "Raw description",
+        description_i18n_key: "localized_plugin:plugin.description",
+        long_description: "Raw long description",
+        long_description_i18n_key: "localized_plugin:plugin.long_description",
+        disable_blockers: [],
+        disableable: true,
+        version: "1.0.0",
+        enabled: true,
+        extension_points: []
+      }]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByRole("link", { name: "Localized name" })).toBeInTheDocument()
+    expect(screen.getByText("Localized description")).toBeInTheDocument()
+    expect(screen.getByText("Localized long description")).toBeInTheDocument()
+  })
+
+  it("preserves raw metadata when only the English plugin bundle exists for a non-English locale", async () => {
+    i18n.addResourceBundle("en", "localized_plugin", {
+      plugin: {
+        display_name: "English localized name",
+        description: "English localized description",
+        long_description: "English localized long description"
+      }
+    }, true, true)
+    await i18n.changeLanguage("de")
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [{
+        name: "localized_plugin",
+        display_name: "Raw name",
+        display_name_i18n_key: "localized_plugin:plugin.display_name",
+        description: "Raw description",
+        description_i18n_key: "localized_plugin:plugin.description",
+        long_description: "Raw long description",
+        long_description_i18n_key: "localized_plugin:plugin.long_description",
+        disable_blockers: [],
+        disableable: true,
+        version: "1.0.0",
+        enabled: true,
+        extension_points: []
+      }]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByRole("link", { name: "Raw name" })).toBeInTheDocument()
+    expect(screen.getByText("Raw description")).toBeInTheDocument()
+    expect(screen.getByText("Raw long description")).toBeInTheDocument()
+    expect(screen.queryByText("English localized description")).not.toBeInTheDocument()
+  })
+
+  it("localizes plugin metadata on the detail view", async () => {
+    i18n.addResourceBundle("en", "localized_plugin", {
+      plugin: {
+        display_name: "Localized detail name",
+        description: "Localized detail description",
+        long_description: "Localized detail long description"
+      }
+    }, true, true)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugin: {
+        name: "localized_plugin",
+        display_name: "Raw name",
+        display_name_i18n_key: "localized_plugin:plugin.display_name",
+        description: "Raw description",
+        description_i18n_key: "localized_plugin:plugin.description",
+        long_description: "Raw long description",
+        long_description_i18n_key: "localized_plugin:plugin.long_description",
+        disable_blockers: [],
+        disableable: true,
+        version: "1.0.0",
+        enabled: true,
+        extension_points: []
+      }
+    }))
+
+    renderDetailRoute("/admin/plugins/localized_plugin")
+
+    expect(await screen.findByRole("heading", { name: "Localized detail name" })).toBeInTheDocument()
+    expect(screen.getByText("Localized detail description")).toBeInTheDocument()
+    expect(screen.getByText("Localized detail long description")).toBeInTheDocument()
+  })
+
   it("preserves the app-shell prefix in the plugin detail back link", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugin: {

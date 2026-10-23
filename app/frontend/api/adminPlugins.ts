@@ -18,6 +18,7 @@ export type AdminPlugin = {
   health?: { state: string; reasons: string[] }
   name: string
   display_name: string
+  display_name_i18n_key?: string | null
   version: string
   enabled: boolean
   default_enabled: boolean
@@ -26,7 +27,9 @@ export type AdminPlugin = {
   category: string | null
   category_label: string | null
   description: string | null
+  description_i18n_key?: string | null
   long_description?: string | null
+  long_description_i18n_key?: string | null
   homepage: string | null
   icon_url: string | null
   author: string | null
