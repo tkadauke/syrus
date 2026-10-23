@@ -48,5 +48,16 @@
   "tool_replaced_scene_summary": "Replaced scene: {{summary}}",
   "tool_replaced_scene": "Replaced scene",
   "tool_snapshot": "snapshot",
+  "tool_snapshot_id": "Snapshot ID",
+  "tool_version": "Version",
+  "tool_copy_id": "Copy ID",
+  "tool_open_whiteboard": "Open whiteboard",
+  "tool_view_in_media": "View in media",
+  "tool_snapshot_loading": "Rendering snapshot...",
+  "tool_snapshot_preview_error": "Snapshot preview unavailable",
+  "tool_snapshot_preview": "Whiteboard snapshot",
+  "tool_save_snapshot": "Save canvas snapshot",
+  "tool_save_snapshot_named": "Save canvas snapshot \"{{name}}\"",
+  "tool_save_snapshot_recovery": "Check that the canvas contains valid elements, then try saving again.",
   "tool_loaded_canvas_summary": "Loaded {{snapshot}}{{mode}}"
 }

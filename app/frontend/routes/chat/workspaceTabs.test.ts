@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatPayload } from "../../api/chats"
-import { availableWorkspaceTabs, mediaTabVisible, workspaceTabClass } from "./workspaceTabs"
+import { availableWorkspaceTabs, mediaTabVisible, requestedWorkspaceTab, workspaceTabClass } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   return {
@@ -83,18 +83,24 @@ describe("mediaTabVisible", () => {
   })
 
   it("is true when the chat has a video walkthrough", () => {
-    expect(mediaTabVisible(makePayload({
-      video_walkthroughs: [{
-        id: 1,
-        title: "Walkthrough",
-        state: "analyzed",
-        duration_seconds: 30,
-        byte_size: 1024,
-        error_message: null,
-        has_video: true,
-        created_at: "2026-08-01T00:00:00Z"
-      }]
-    }))).toBe(true)
+    expect(
+      mediaTabVisible(
+        makePayload({
+          video_walkthroughs: [
+            {
+              id: 1,
+              title: "Walkthrough",
+              state: "analyzed",
+              duration_seconds: 30,
+              byte_size: 1024,
+              error_message: null,
+              has_video: true,
+              created_at: "2026-08-01T00:00:00Z"
+            }
+          ]
+        })
+      )
+    ).toBe(true)
   })
 
   it("is true when the chat has whiteboard snapshots", () => {
@@ -238,5 +244,24 @@ describe("availableWorkspaceTabs", () => {
     payload.chat.mode = "coding"
     payload.chat.runtime_session_count = 1
     expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
+  })
+})
+
+describe("requestedWorkspaceTab", () => {
+  it("accepts links to available core and plugin workspaces", () => {
+    const payload = makePayload()
+    payload.chat.whiteboard_snapshot_count = 1
+    payload.workspace_tabs = [
+      { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", closable: false, order: 0 }
+    ]
+
+    expect(requestedWorkspaceTab(payload, "?workspace=media")).toBe("media")
+    expect(requestedWorkspaceTab(payload, "?workspace=plugin%3Awhiteboard.canvas")).toBe("plugin:whiteboard.canvas")
+  })
+
+  it("ignores unavailable or unknown workspaces", () => {
+    const payload = makePayload()
+    expect(requestedWorkspaceTab(payload, "?workspace=media")).toBeNull()
+    expect(requestedWorkspaceTab(payload, "?workspace=bogus")).toBeNull()
   })
 })

@@ -48,5 +48,16 @@
   "tool_replaced_scene_summary": "Scaena substituta: {{summary}}",
   "tool_replaced_scene": "Scaena substituta",
   "tool_snapshot": "snapshot",
+  "tool_snapshot_id": "ID imaginis",
+  "tool_version": "Versio",
+  "tool_copy_id": "ID exscribe",
+  "tool_open_whiteboard": "Tabulam albam aperi",
+  "tool_view_in_media": "In mediis vide",
+  "tool_snapshot_loading": "Imago pingitur...",
+  "tool_snapshot_preview_error": "Praevisio imaginis non praesto est",
+  "tool_snapshot_preview": "Imago tabulae albae",
+  "tool_save_snapshot": "Imaginem tabulae serva",
+  "tool_save_snapshot_named": "Imaginem tabulae \"{{name}}\" serva",
+  "tool_save_snapshot_recovery": "Confirma tabulam elementa valida continere, deinde iterum serva.",
   "tool_loaded_canvas_summary": "{{snapshot}} oneratum{{mode}}"
 }

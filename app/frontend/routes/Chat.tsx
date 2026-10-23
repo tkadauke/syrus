@@ -177,6 +177,7 @@ import {
   clampWorkspaceWidth,
   defaultWorkspaceTab,
   mobileChatTabLabel,
+  requestedWorkspaceTab,
   storeWorkspacePreference,
   storedWorkspaceCollapsed,
   storedWorkspaceTab,
@@ -1261,8 +1262,9 @@ function ChatWorkspace({
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => storedWorkspaceTab() || defaultWorkspaceTab(payload))
-  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>("chat")
+  const linkedWorkspace = requestedWorkspaceTab(payload)
+  const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => linkedWorkspace || storedWorkspaceTab() || defaultWorkspaceTab(payload))
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => linkedWorkspace || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
   const initialPanelStateRef = useRef<ReturnType<typeof initialWorkspacePanelState> | null>(null)
   if (initialPanelStateRef.current === null) initialPanelStateRef.current = initialWorkspacePanelState(payload)
@@ -1297,7 +1299,10 @@ function ChatWorkspace({
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
-    setActiveMobileTab("chat")
+    const requested = requestedWorkspaceTab(payload)
+    setActiveTab(requested || storedWorkspaceTab() || defaultWorkspaceTab(payload))
+    setActiveMobileTab(requested || "chat")
+    if (requested) setPanelCollapsed(false)
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
     setPendingJobsTabRequest(false)

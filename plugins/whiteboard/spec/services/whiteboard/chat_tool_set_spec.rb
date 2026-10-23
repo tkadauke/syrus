@@ -298,7 +298,13 @@ RSpec.describe Whiteboard::ChatToolSet do
     }.not_to change(Whiteboard::Snapshot, :count)
 
     expect(response.error?).to be_falsey
-    expect(payload(response)).to eq(saved: false, reason: "canvas is empty")
+    expect(payload(response)).to eq(
+      saved: false,
+      reason: "canvas is empty",
+      name: "Empty plan",
+      chat_session_id: chat_session.id,
+      version: 0
+    )
   end
 
   it "save_canvas saves a non-empty canvas as a manual snapshot" do
@@ -322,7 +328,9 @@ RSpec.describe Whiteboard::ChatToolSet do
       saved: true,
       snapshot_id: snapshot.id,
       name: "Planning board",
-      element_count: 2
+      element_count: 2,
+      chat_session_id: chat_session.id,
+      version: 7
     )
     expect(snapshot).to have_attributes(
       chat_session: chat_session,
