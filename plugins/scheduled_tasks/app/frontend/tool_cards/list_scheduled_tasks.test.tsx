@@ -21,9 +21,10 @@ const cronTask = {
   state: "scheduled",
   cron_expression: "0 3 * * *",
   schedule_input: "Every day at 3am",
+  schedule_expression: "daily at 03:00",
   schedule_explanation: "Runs daily at 3:00 AM UTC",
   schedule_timezone: "UTC",
-  fire_at: null,
+  fire_at: "2026-09-06T02:55:00Z",
   pr_pileup_policy: "skip",
   enabled: true,
   last_fired_at: "2026-09-05T03:00:00Z",
@@ -77,8 +78,13 @@ describe("list_scheduled_tasks tool card", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("TASK-12")
     expect(screen.getAllByText("scheduled").length).toBeGreaterThan(0)
     expect(screen.getAllByText("cron").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Runs daily at 3:00 AM UTC (UTC)").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Every day at 3am").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Runs daily at 3:00 AM UTC").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("0 3 * * *").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("daily at 03:00").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("UTC").length).toBeGreaterThan(0)
     expect(screen.getAllByText("2026-09-06T03:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2026-09-06T02:55:00Z/).length).toBeGreaterThan(0)
     expect(screen.getAllByRole("link", { name: "tkadauke/syrus" })[0]).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
     expect(screen.getAllByText("2026-09-05T03:00:00Z").length).toBeGreaterThan(0)
     expect(screen.getAllByText(/2026-09-04T03:00:00Z/).length).toBeGreaterThan(0)
@@ -91,9 +97,7 @@ describe("list_scheduled_tasks tool card", () => {
     expect(screen.getAllByText("One-off dependency sweep").length).toBeGreaterThan(0)
     expect(screen.getAllByText("fired").length).toBeGreaterThan(0)
     expect(screen.getAllByText("one shot").length).toBeGreaterThan(0)
-    // one_shot tasks fall back to fire_at for both cadence and next fire.
-    expect(screen.getAllByText("Once at 2026-09-01T12:00:00Z").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("2026-09-01T12:00:00Z").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2026-09-01T12:00:00Z/).length).toBeGreaterThan(0)
   })
 
   it("uses stacked mobile rows and a fixed wrapping desktop table", () => {
