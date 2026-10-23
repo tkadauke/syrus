@@ -34,11 +34,13 @@ export type PreviewTab = `preview:${number}`
 // message window is paginated, so an older image that scrolled out of the
 // loaded tail would otherwise hide the tab even though the chat has media.
 export function mediaTabVisible(payload: ChatPayload): boolean {
-  return (payload.chat.chat_image_count ?? 0) > 0 ||
+  return (
+    (payload.chat.chat_image_count ?? 0) > 0 ||
     (payload.chat.has_chat_images ?? false) ||
     (payload.video_walkthroughs?.length ?? 0) > 0 ||
     (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
     (payload.chat.typed_artifact_count ?? 0) > 0
+  )
 }
 
 // Plugin-provided tabs (see Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md)
@@ -101,7 +103,12 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
   return t("tab_chat")
 }
 
-export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
+export function mobileChatTabLabel(
+  tab: MobileChatTab,
+  t: (key: string) => string,
+  previewPanels: ChatPreviewPanel[] = [],
+  pluginTabs: ChatWorkspaceTab[] = []
+) {
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels, pluginTabs)
 }
 
@@ -116,6 +123,11 @@ export function availableWorkspaceTabs(payload: ChatPayload, hasPins = false): W
     ...payload.preview_panels.map((panel) => previewTabId(panel.id)),
     ...payload.workspace_tabs.map((tab) => pluginTabId(tab.id))
   ] as WorkspaceTab[]
+}
+
+export function requestedWorkspaceTab(payload: ChatPayload, search = window.location.search): WorkspaceTab | null {
+  const requested = new URLSearchParams(search).get("workspace") as WorkspaceTab | null
+  return requested && availableWorkspaceTabs(payload).includes(requested) ? requested : null
 }
 
 // The whiteboard used to be a hardcoded core tab, and this heuristic

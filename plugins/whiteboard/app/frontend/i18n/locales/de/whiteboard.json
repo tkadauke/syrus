@@ -81,5 +81,16 @@
   "tool_replaced_scene_summary": "Szene ersetzt: {{summary}}",
   "tool_replaced_scene": "Szene ersetzt",
   "tool_snapshot": "Snapshot",
+  "tool_snapshot_id": "Snapshot-ID",
+  "tool_version": "Version",
+  "tool_copy_id": "ID kopieren",
+  "tool_open_whiteboard": "Whiteboard öffnen",
+  "tool_view_in_media": "In Medien anzeigen",
+  "tool_snapshot_loading": "Snapshot wird gerendert...",
+  "tool_snapshot_preview_error": "Snapshot-Vorschau nicht verfügbar",
+  "tool_snapshot_preview": "Whiteboard-Snapshot",
+  "tool_save_snapshot": "Canvas-Snapshot speichern",
+  "tool_save_snapshot_named": "Canvas-Snapshot \"{{name}}\" speichern",
+  "tool_save_snapshot_recovery": "Prüfen Sie, ob die Zeichenfläche gültige Elemente enthält, und versuchen Sie es erneut.",
   "tool_loaded_canvas_summary": "{{snapshot}} geladen{{mode}}"
 }
