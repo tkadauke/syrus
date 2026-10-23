@@ -352,6 +352,7 @@ export function PendingActionResultCard({
   omitJob = false,
   omitRun = false,
   omitReason = false,
+  omitInstructions = false,
   omitResource = false,
   result
 }: {
@@ -363,6 +364,7 @@ export function PendingActionResultCard({
   omitJob?: boolean
   omitRun?: boolean
   omitReason?: boolean
+  omitInstructions?: boolean
   omitResource?: boolean
   result: PendingActionResult
 }) {
@@ -416,7 +418,9 @@ export function PendingActionResultCard({
           <MarkdownPreview linkifyUrls={linkifyReasonUrls} maxLines={4} modalLabel="Pending action reason" text={result.reason} />
         </div>
       ) : null}
-      {result.instructions ? <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" /> : null}
+      {!omitInstructions && result.instructions ? (
+        <MarkdownPreview maxLines={4} modalLabel="Instructions" text={result.instructions} title="Instructions" />
+      ) : null}
       {result.detail ? <MarkdownPreview maxLines={4} modalLabel={detailTitle} text={result.detail} title={detailTitle} /> : null}
       {result.executionError ? (
         <MarkdownPreview className="text-danger-text" maxLines={4} modalLabel="Execution error" text={result.executionError} title="Execution error" />

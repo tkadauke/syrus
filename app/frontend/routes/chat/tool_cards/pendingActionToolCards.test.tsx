@@ -19,7 +19,7 @@ import adminPauseUserSchedulingCard from "./admin_pause_user_scheduling"
 import adminUnpauseUserSchedulingCard from "./admin_unpause_user_scheduling"
 import adminReapStaleRunsCard from "./admin_reap_stale_runs"
 import adminRefreshInstallationsCard from "./admin_refresh_installations"
-import rerunCiRepairCard from "./rerun_ci_repair"
+import rerunCiRepairCard, { examples as rerunCiRepairExamples } from "./rerun_ci_repair"
 import markCiRepairNoopCard from "./mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceExamples } from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
@@ -162,6 +162,92 @@ describe("pending action tool card family", () => {
     expect(screen.getByText("Job")).toBeInTheDocument()
     expect(screen.getByText("Run")).toBeInTheDocument()
     expect(screen.getByText("Reason")).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      "text content",
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              pending_action_id: 601,
+              state: "pending",
+              message: "Failing checks: RSpec (https://github.com/acme/widgets/actions/runs/123456789)."
+            })
+          }
+        ],
+        structured_content: null
+      }
+    ],
+    [
+      "structured content",
+      {
+        content: [],
+        structured_content: {
+          pending_action_id: 601,
+          state: "pending",
+          message: "Failing checks: RSpec (https://github.com/acme/widgets/actions/runs/123456789)."
+        }
+      }
+    ]
+  ])("renders complete CI repair input and links from a normalized %s envelope", (_label, envelope) => {
+    render(
+      <>
+        {rerunCiRepairCard.renderExpanded({
+          ...context("rerun_ci_repair", normalizedToolCardParsedResult(envelope)),
+          input: {
+            job_id: 4201,
+            reason: "Checks still fail after **manual review**.",
+            clear_handled_sha: true,
+            instructions: `${"Inspect the failing check carefully. ".repeat(30)}See https://ci.example.test/builds/4201.`,
+            override_repeated_sha: false,
+            agent_provider: "codex"
+          }
+        })}
+      </>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-4201" })).toHaveAttribute("href", "/jobs/4201")
+    expect(screen.getByText("manual review", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("codex")).toBeInTheDocument()
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Disabled")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://github.com/acme/widgets/actions/runs/123456789" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/widgets/actions/runs/123456789"
+    )
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("preserves CI repair request details in an error state", () => {
+    const example = rerunCiRepairExamples.find((candidate) => candidate.id === "validation_error")
+    if (!example) throw new Error("missing validation error fixture")
+
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, example))}</>)
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4201" })).toHaveAttribute("href", "/jobs/4201")
+    expect(screen.getByText("manual review", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("claude")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://ci.example.test/help/repairs" })).toBeInTheDocument()
+  })
+
+  it("labels every unavailable CI repair request field when input is missing", () => {
+    const example = rerunCiRepairExamples.find((candidate) => candidate.id === "missing_input")
+    if (!example) throw new Error("missing input fixture")
+
+    render(<>{rerunCiRepairCard.renderExpanded(toolCardContextForExample(rerunCiRepairCard.toolName, example))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(6)
+    expect(screen.getByText("Agent provider")).toBeInTheDocument()
+    expect(screen.getByText("Clear handled SHA")).toBeInTheDocument()
+    expect(screen.getByText("Override repeated SHA")).toBeInTheDocument()
+  })
+
+  it("registers every visual-review state for the CI repair rerun card", () => {
+    expect(rerunCiRepairExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
   })
 
   it("wires a standard-shape tool through to the shared card", () => {
