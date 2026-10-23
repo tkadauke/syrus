@@ -171,6 +171,22 @@ describe("repository document tool cards", () => {
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
+  it("keeps plain-text document content monospace in the preview and expanded modal", () => {
+    const resultBody = `First line\n${"Plain text content. ".repeat(100)}`
+    render(
+      <>
+        {readRepoDocumentToolCard.renderExpanded(
+          context("read_repo_document", { input: { id: 18, title: "Plain notes", content_type: "text/plain" }, resultBody })
+        )}
+      </>
+    )
+
+    expect(screen.getByTestId("markdown-preview-content")).toHaveClass("font-mono")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Plain notes content" })
+    expect(dialog.querySelector(".chat-prose")).toHaveClass("font-mono", "whitespace-pre-wrap")
+  })
+
   it("renders image content blocks from differently shaped provider envelopes", () => {
     const image = { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
     const envelopes = [{ content: [image] }, { output: { payload: { content: [{ ...image, mime_type: "image/png", mimeType: undefined }] } } }]
