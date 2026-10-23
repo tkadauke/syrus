@@ -32,6 +32,19 @@ const readScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
 
 export default readScheduledTaskToolCard
 
+const CATALOG_PROMPT = [
+  "## Nightly repository health review",
+  "Review **main** for failing graders and inspect [the service dashboard](https://example.test/status) before making changes. Cross-check any failure against JOB-42 and distinguish a new regression from an existing base-branch failure.",
+  "### Required checks",
+  "- Read the complete failing check output and identify the first actionable error.",
+  "- Reproduce the narrowest relevant test locally when the environment supports it.",
+  "- Inspect recent commits touching the failing subsystem and verify the suspected mechanism in current source.",
+  "- If a repair is warranted, keep it focused and add a regression test that fails without the change.",
+  "- Run the smallest relevant validation target plus type-checking or linting for changed frontend files.",
+  "### Reporting",
+  "Summarize the evidence, the root cause, the exact files changed, and every validation command with its outcome. If the failure is inherited from the base branch or cannot be reproduced, say so explicitly and do not make speculative edits."
+].join("\n\n")
+
 export const examples: ToolCardExample[] = [
   {
     id: "recurring_task_details",
@@ -57,7 +70,7 @@ export const examples: ToolCardExample[] = [
         last_successful_fire_at: "2026-09-05T03:00:00Z",
         consecutive_failure_count: 0,
         created_at: "2026-08-01T00:00:00Z",
-        prompt: "Survey **main** for failing graders, check https://example.test/status, and update JOB-42."
+        prompt: CATALOG_PROMPT
       }
     }
   },
