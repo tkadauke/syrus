@@ -22,6 +22,10 @@ export type ScheduledTaskCard = {
   kind: string | null
   repositorySlug: string | null
   cadence: string | null
+  cronExpression: string | null
+  scheduleInput: string | null
+  scheduleExpression: string | null
+  scheduleExplanation: string | null
   scheduleTimezone: string | null
   prPileupPolicy: string | null
   enabled: boolean | null
@@ -56,6 +60,10 @@ export function parseScheduledTask(value: unknown): ScheduledTaskCard | null {
     kind: displayValue(value.kind),
     repositorySlug: displayValue(value.repository_slug),
     cadence,
+    cronExpression: displayValue(value.cron_expression),
+    scheduleInput: displayValue(value.schedule_input),
+    scheduleExpression: displayValue(value.schedule_expression),
+    scheduleExplanation: displayValue(value.schedule_explanation),
     scheduleTimezone: displayValue(value.schedule_timezone),
     prPileupPolicy: displayValue(value.pr_pileup_policy),
     enabled: typeof value.enabled === "boolean" ? value.enabled : null,

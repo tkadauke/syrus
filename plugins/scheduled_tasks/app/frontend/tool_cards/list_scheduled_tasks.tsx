@@ -75,6 +75,28 @@ function InputFilters({ input }: { input?: Record<string, unknown> }) {
   )
 }
 
+function ScheduleFields({ task }: { task: ListedTask }) {
+  const fields = [
+    [t("tool_schedule_input"), task.scheduleInput],
+    [t("tool_schedule_explanation"), task.scheduleExplanation],
+    [t("tool_resolved_cron"), task.cronExpression],
+    [t("tool_schedule_expression"), task.scheduleExpression],
+    [t("tool_schedule_timezone"), task.scheduleTimezone]
+  ].filter((field): field is [string, string] => Boolean(field[1]))
+
+  if (fields.length === 0) return <span>—</span>
+  return (
+    <dl className="min-w-0 space-y-1">
+      {fields.map(([label, value]) => (
+        <div className="min-w-0" key={label}>
+          <dt className="text-2xs font-medium text-text-muted">{label}</dt>
+          <dd className="whitespace-normal break-words text-text-primary">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 function MobileTask({ task }: { task: ListedTask }) {
   return (
     <li className="min-w-0 space-y-2 rounded border border-border bg-surface p-2">
@@ -83,8 +105,12 @@ function MobileTask({ task }: { task: ListedTask }) {
       <dl className="grid min-w-0 grid-cols-2 gap-2 [&_dd]:break-words">
         <Row label={t("tool_repository")} value={<RepositoryLink slug={task.repositorySlug} />} />
         <Row label={t("tool_col_kind")} value={task.kind?.replace(/_/g, " ") || "—"} />
-        <Row label={t("tool_col_cadence")} value={task.scheduleTimezone ? `${task.cadence || "—"} (${task.scheduleTimezone})` : task.cadence || "—"} />
-        <Row label={t("tool_col_next_fire")} value={task.nextFireAt || task.fireAt || "—"} />
+        <div className="col-span-2 min-w-0">
+          <div className="text-2xs font-medium uppercase tracking-wide text-text-muted">{t("tool_col_cadence")}</div>
+          <ScheduleFields task={task} />
+        </div>
+        <Row label={t("tool_col_next_fire")} value={task.nextFireAt || "—"} />
+        <Row label={t("tool_fire_at")} value={task.fireAt || "—"} />
         <Row label={t("tool_last_fired")} value={task.lastFiredAt || "—"} />
         <Row label={t("tool_last_success")} value={task.lastSuccessfulFireAt || "—"} />
         <Row label={t("tool_pr_pileup")} value={task.prPileupPolicy || "—"} />
@@ -137,10 +163,15 @@ function renderExpanded(context: ToolCardContext) {
                       <Status task={task} />
                       {task.kind ? <div className="mt-1 break-words text-text-muted">{task.kind.replace(/_/g, " ")}</div> : null}
                     </td>
-                    <td className="break-words px-2 py-2 text-text-muted">
-                      {task.scheduleTimezone ? `${task.cadence || "—"} (${task.scheduleTimezone})` : task.cadence || "—"}
+                    <td className="min-w-0 break-words px-2 py-2 text-text-muted">
+                      <ScheduleFields task={task} />
                     </td>
-                    <td className="break-all px-2 py-2 text-text-muted">{task.nextFireAt || task.fireAt || "—"}</td>
+                    <td className="break-all px-2 py-2 text-text-muted">
+                      <div>{task.nextFireAt || "—"}</div>
+                      <div className="mt-1">
+                        {t("tool_fire_at")}: {task.fireAt || "—"}
+                      </div>
+                    </td>
                     <td className="break-all px-2 py-2 text-text-muted">
                       <div>{task.lastFiredAt || "—"}</div>
                       {task.lastSuccessfulFireAt ? (
