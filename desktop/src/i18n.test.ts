@@ -36,7 +36,15 @@ describe("desktop i18n messages", () => {
       "runtime.missing_title",
       "install_progress.title",
       "install_failed.title",
-      "backend.remote.title"
+      "backend.remote.title",
+      "shell.check_updates",
+      "dialog.update_backend",
+      "dialog.stop_detail",
+      "self_install.title",
+      "screen.message",
+      "notification.job_failed",
+      "renderer.loading_inbox",
+      "renderer.checkout"
     ] as const
 
     for (const locale of localizedLocales) {
