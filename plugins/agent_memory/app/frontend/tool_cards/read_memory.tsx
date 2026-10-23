@@ -41,7 +41,7 @@ function renderExpanded(context: ToolCardContext) {
     return null
   }
 
-  return <MemoryDetailBody memory={memory} />
+  return <MemoryDetailBody memory={memory} onLinkClick={context.onLinkClick} />
 }
 
 function RequestedMemory({ id }: { id: string }) {

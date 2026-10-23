@@ -160,7 +160,7 @@ export function ContentPreview({
   )
 }
 
-export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPayload; shell?: boolean }) {
+export function MemoryDetailBody({ memory, onLinkClick, shell = true }: { memory: MemoryPayload; onLinkClick?: MarkdownLinkHandler; shell?: boolean }) {
   const content = (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -197,7 +197,7 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>
-        <ContentPreview content={memory.content} />
+        <ContentPreview content={memory.content} onLinkClick={onLinkClick} />
       </div>
     </>
   )

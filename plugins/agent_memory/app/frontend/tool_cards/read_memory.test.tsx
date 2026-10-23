@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { normalizedToolCardParsedResult, normalizedToolName } from "@app/routes/chat/toolRendering"
@@ -56,7 +56,7 @@ describe("read_memory tool card", () => {
     expect(screen.getByText("Source type")).toBeInTheDocument()
     expect(screen.getByText("job")).toBeInTheDocument()
     expect(screen.getByText("Source ID")).toBeInTheDocument()
-    expect(screen.getByText("314")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-314" })).toHaveAttribute("href", "/jobs/314")
     expect(screen.getByText("agent")).toBeInTheDocument()
     expect(screen.getByText("0.9")).toBeInTheDocument()
     expect(screen.getByText("Visibility")).toBeInTheDocument()
@@ -68,6 +68,16 @@ describe("read_memory tool card", () => {
     expect(screen.getByText("runbook").tagName).toBe("STRONG")
     expect(screen.getByText(/JOB-42/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "https://example.com/runbook" })).toHaveAttribute("href", "https://example.com/runbook")
+  })
+
+  it("routes content links through the shared chat link handler", () => {
+    const onLinkClick = vi.fn()
+    const linkedMemory = { ...memory, content: "Open [the workspace file](/workspace/app/models/job.rb)." }
+    render(<>{readMemoryToolCard.renderExpanded(context({ onLinkClick, parsedResult: { memory: linkedMemory } }))}</>)
+
+    fireEvent.click(screen.getByRole("link", { name: "the workspace file" }))
+
+    expect(onLinkClick).toHaveBeenCalledWith("/workspace/app/models/job.rb", expect.anything())
   })
 
   it("shows a deleted pill and deletion timestamp for a soft-deleted memory", () => {
