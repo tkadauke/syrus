@@ -2047,7 +2047,7 @@ function StartBlockedPanel({ payload }: { payload: JobDetailPayload }) {
       {showBreakdown ? null : <p className="mt-1">{t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: t("start_blocked_generic") })}</p>}
       {showBreakdown && breakdown ? (
         <>
-          <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
+          <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_fallback") })}</p>
           {breakdown.telemetry_absent ? (
             <p className="mt-2 rounded-[var(--radius-panel)] border border-warning-border bg-warning-surface px-2 py-1.5 text-xs font-medium" role="status">
               {telemetryMessage}

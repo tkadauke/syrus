@@ -306,6 +306,34 @@ RSpec.describe "Untranslated source strings", type: :unit do
     findings << "#{path.delete_prefix("#{Rails.root}/")}:#{line_number} #{label}: #{text.inspect}"
   end
 
+  def visible_matches(line, pattern)
+    scannable = line.dup
+    cursor = 0
+    while (assignment = scannable.match(/\bclassName\s*=/, cursor))
+      value_start = scannable.index(/[^\s]/, assignment.end(0))
+      break unless value_start
+
+      delimiter = scannable[value_start]
+      value_end = if %w[" ' `].include?(delimiter)
+        scannable.index(delimiter, value_start + 1)
+      elsif delimiter == "{"
+        depth = 0
+        (value_start...scannable.length).find do |index|
+          depth += 1 if scannable[index] == "{"
+          depth -= 1 if scannable[index] == "}"
+          depth.zero?
+        end
+      end
+      break unless value_end
+
+      range = assignment.begin(0)..value_end
+      scannable[range] = " " * scannable[range].length
+      cursor = value_end + 1
+    end
+
+    scannable.scan(pattern)
+  end
+
   def findings_for(path, allow_chat_debt: true)
     File.readlines(path).flat_map.with_index(1) do |line, line_number|
       findings = []
@@ -319,18 +347,16 @@ RSpec.describe "Untranslated source strings", type: :unit do
       end
 
       if core_chat_path?(path) || path.include?("/tmp/i18n-audit")
-        unless line.match?(/\bclassName=/)
-          line.scan(/(?:aria-label|title|placeholder)=\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/) do |match|
-            add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
-          end
+        visible_matches(line, /(?:aria-label|title|placeholder)=\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/).each do |match|
+          add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
+        end
 
-          line.scan(/\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/) do |match|
-            add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
-          end
+        visible_matches(line, /\{\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*\}/).each do |match|
+          add_finding(findings, path, line_number, "jsx_expression", match.first, allow_chat_debt: allow_chat_debt)
+        end
 
-          line.scan(/\?\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*:\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
-            match.each { |text| add_finding(findings, path, line_number, "ternary", text, allow_chat_debt: allow_chat_debt) }
-          end
+        visible_matches(line, /\?\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]\s*:\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/).each do |match|
+          match.each { |text| add_finding(findings, path, line_number, "ternary", text, allow_chat_debt: allow_chat_debt) }
         end
 
         line.scan(/\b(?:label|title|message|description|placeholder|empty(?:State|_state|Text|_text|Label|_label))\s*[:=]\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
@@ -367,6 +393,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
         <button title={`Template ${name}`}>x</button>
         const status = ready ? "Ready now" : "Still waiting"
         const option = { label: "Choose repository", emptyState: "Nothing here" }
+        <span className="text-sm">{"Expression beside class"}</span>
+        <button className="text-sm" title={`Template beside class ${name}`}>x</button>
+        <span className={active ? "font-bold" : "font-normal"}>{ready ? "Ready beside class" : "Waiting beside class"}</span>
       TSX
       file.flush
 
@@ -377,6 +406,11 @@ RSpec.describe "Untranslated source strings", type: :unit do
       expect(findings).to include(a_string_including('ternary: "Still waiting"'))
       expect(findings).to include(a_string_including('user visible property: "Choose repository"'))
       expect(findings).to include(a_string_including('user visible property: "Nothing here"'))
+      expect(findings).to include(a_string_including('JSX expression: "Expression beside class"'))
+      expect(findings).to include(a_string_including('JSX expression: "Template beside class"'))
+      expect(findings).to include(a_string_including('ternary: "Ready beside class"'))
+      expect(findings).to include(a_string_including('ternary: "Waiting beside class"'))
+      expect(findings).not_to include(a_string_including('ternary: "font-bold"'))
     end
   end
 
