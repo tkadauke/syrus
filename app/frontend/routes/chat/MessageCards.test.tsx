@@ -750,30 +750,39 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
-  it("wraps collapsed tool metadata on narrow screens without hiding the call count", () => {
-    const detail = "a very long argument detail that must not make a narrow tool row grow vertically"
-    const calls: ChatToolGroupItem["calls"] = [1, 2].map((messageId) => ({
-      message_id: messageId,
+  it("keeps an 18-call group on one ellipsized line at a 402px mobile viewport and preserves full expanded details", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
+    const detail = "a very long source path and query that must remain available after expansion"
+    const calls: ChatToolGroupItem["calls"] = Array.from({ length: 18 }, (_, index) => ({
+      message_id: index + 1,
       tool_name: "Read",
       raw_name: "Read",
       detail,
       display_label: "Read",
       progress_label: "Reading",
       raw_payload: { file_path: detail },
-      result_body: "result",
+      result_body: `complete result ${index + 1}`,
       result_error: false,
       result_kind: "text",
       result_summary: "A long result summary"
     }))
 
-    render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls }} />)
+    render(<ToolGroup item={{ type: "tool_group", tool: "Read", summary_label: "Inspected 18 sources", calls }} />)
 
-    const metadata = screen.getByText(`A long result summary · ${detail}, A long result summary · ${detail}`)
-    expect(metadata).toHaveClass("min-w-0", "flex-1", "basis-full", "break-words", "sm:basis-0")
-    expect(metadata).not.toHaveClass("truncate")
-    expect(metadata).not.toHaveAttribute("title")
-    const count = screen.getByText("2")
+    const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(metadata).not.toHaveClass("basis-full", "break-words")
+    expect(metadata.closest("summary")).toHaveClass("flex-nowrap")
+    expect(metadata.closest("summary")).not.toHaveClass("flex-wrap")
+    expect(screen.getByText("Inspected 18 sources")).toBeVisible()
+    expect(screen.getByText("Done")).toBeVisible()
+    const count = screen.getByText("18")
     expect(count.parentElement).toHaveClass("ml-auto", "shrink-0")
+
+    expandToolGroup("Inspected 18 sources")
+    expect(screen.getByText("complete result 18")).toBeInTheDocument()
+    expect(screen.getAllByText(`Read(${detail})`)).toHaveLength(18)
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
@@ -1279,7 +1288,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("basis-full", "break-words", "sm:basis-0")
+    expect(summary).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(summary).not.toHaveClass("basis-full", "break-words")
 
     expandToolGroup("Git status")
 
@@ -1800,7 +1810,9 @@ describe("tool result rendering", () => {
     expect(summary).not.toHaveClass("shrink-0")
   })
 
-  it("gives long registered-card summaries a full-width second row on mobile", () => {
+  it("keeps long registered-card summaries on the shared one-line collapsed row on mobile", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
     const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -1826,8 +1838,10 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const resultSummary = screen.getByText(`${title} (running)`)
-    expect(resultSummary).toHaveClass("order-2", "basis-full", "pl-5", "sm:order-none", "sm:basis-0", "sm:pl-0")
-    expect(resultSummary.closest("summary")).toHaveClass("flex-wrap", "sm:flex-nowrap")
+    expect(resultSummary).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(resultSummary).not.toHaveClass("order-2", "basis-full", "break-words", "pl-5")
+    expect(resultSummary.closest("summary")).toHaveClass("flex-nowrap")
+    expect(resultSummary.closest("summary")).not.toHaveClass("flex-wrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
