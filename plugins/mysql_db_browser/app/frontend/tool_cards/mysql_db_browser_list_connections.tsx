@@ -1,5 +1,5 @@
 import i18n from "i18next"
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, CopyableValue, EmptyState, InternalLink, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { AccessPill, MysqlErrorNotice, parseConnection, parseMysqlError, type MysqlConnectionRow } from "../mysqlToolCard"
 
@@ -87,3 +87,50 @@ const listConnectionsToolCard: ToolCardRenderer = {
 }
 
 export default listConnectionsToolCard
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "connections_with_access_modes",
+    label: "Connections with read-only and write access",
+    description: "Safe connection metadata with copyable IDs, timestamps, management links, and the write-access warning.",
+    parsedResult: {
+      mysql_connections: [
+        {
+          id: 7,
+          label: "Production reporting",
+          default_database: "analytics",
+          agentic_access_enabled: true,
+          allow_writes: false,
+          created_at: "2026-09-10T08:30:00Z",
+          updated_at: "2026-10-20T14:15:00Z"
+        },
+        {
+          id: 12,
+          label: "Staging maintenance",
+          default_database: "app_staging",
+          agentic_access_enabled: true,
+          allow_writes: true,
+          created_at: "2026-09-15T11:45:00Z",
+          updated_at: "2026-10-22T17:05:00Z"
+        }
+      ]
+    }
+  },
+  {
+    id: "no_agentic_connections",
+    label: "No agentic connections",
+    description: "Empty state explaining how to enable agentic access and linking to connection management.",
+    parsedResult: { mysql_connections: [] }
+  },
+  {
+    id: "connection_list_error",
+    label: "Connection listing error",
+    parsedResult: {
+      error: {
+        class: "MysqlDbBrowser::AccessDenied",
+        message: "MySQL connection metadata is unavailable.",
+        hint: "Ask an administrator to enable DB Browser access."
+      }
+    }
+  }
+]
