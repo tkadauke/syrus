@@ -1,5 +1,5 @@
-import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
-import { normalizedToolCardParsedResult } from "@app/toolCardParsing"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
+import { isPlainObject, normalizedToolCardParsedResult } from "@app/toolCardParsing"
 import { redactToolCardValue } from "@app/toolCardSecurity"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { Badge, CardShell, EmptyState, EntityReference, Row, StatePill, displayValue } from "@app/routes/chat/toolCardUi"
@@ -214,6 +214,11 @@ export const examples: ToolCardExample[] = [
           kind: "cron",
           repository_slug: "tkadauke/syrus",
           cron_expression: "0 3 * * *",
+          schedule_input: "Every day at 3am",
+          schedule_expression: "daily at 03:00",
+          schedule_explanation: "Runs daily at 3:00 AM UTC",
+          schedule_timezone: "UTC",
+          fire_at: "2026-09-17T02:55:00Z",
           next_fire_at: "2026-09-17T03:00:00Z",
           last_fired_at: "2026-09-16T03:00:00Z",
           pr_pileup_policy: "skip",
