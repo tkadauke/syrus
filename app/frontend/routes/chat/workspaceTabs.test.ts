@@ -281,3 +281,22 @@ describe("linkedWorkspaceTab", () => {
     expect(linkedWorkspaceTab(payload, "#something-else")).toBeNull()
   })
 })
+
+describe("requestedWorkspaceTab", () => {
+  it("accepts links to available core and plugin workspaces", () => {
+    const payload = makePayload()
+    payload.chat.whiteboard_snapshot_count = 1
+    payload.workspace_tabs = [
+      { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", closable: false, order: 0 }
+    ]
+
+    expect(requestedWorkspaceTab(payload, "?workspace=media")).toBe("media")
+    expect(requestedWorkspaceTab(payload, "?workspace=plugin%3Awhiteboard.canvas")).toBe("plugin:whiteboard.canvas")
+  })
+
+  it("ignores unavailable or unknown workspaces", () => {
+    const payload = makePayload()
+    expect(requestedWorkspaceTab(payload, "?workspace=media")).toBeNull()
+    expect(requestedWorkspaceTab(payload, "?workspace=bogus")).toBeNull()
+  })
+})

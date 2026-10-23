@@ -1278,7 +1278,7 @@ function ChatWorkspace({
   onSettingsOpenChange: (open: boolean) => void
 }) {
   const location = useLocation()
-  const initialLinkedTab = linkedWorkspaceTab(payload, location.hash)
+  const initialLinkedTab = requestedWorkspaceTab(payload, location.search) || linkedWorkspaceTab(payload, location.hash)
   const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => initialLinkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => initialLinkedTab || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
@@ -1314,12 +1314,12 @@ function ChatWorkspace({
   const requestedTab = requestedWorkspaceTab(payload, location.search)
 
   useLayoutEffect(() => {
-    const linkedTab = linkedWorkspaceTab(payload, window.location.hash)
+    const linkedTab = requestedWorkspaceTab(payload, window.location.search) || linkedWorkspaceTab(payload, window.location.hash)
     const nextPanelState = linkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
-    if (linkedTab) setActiveTab(linkedTab)
+    setActiveTab(linkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
     setActiveMobileTab(linkedTab || "chat")
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)

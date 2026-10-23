@@ -17,7 +17,15 @@ module Whiteboard
         chat_session = server_context.fetch(:chat_session)
         scene = Canvas.read(chat_session)
 
-        return Mcp::Tools.success(saved: false, reason: "canvas is empty") if scene.fetch("elements").empty?
+        if scene.fetch("elements").empty?
+          return Mcp::Tools.success(
+            saved: false,
+            reason: "canvas is empty",
+            name: name,
+            chat_session_id: chat_session.id,
+            version: scene.fetch("version")
+          )
+        end
 
         snapshot = Whiteboard::Snapshot.create_from_scene!(
           chat_session: chat_session,
@@ -30,7 +38,9 @@ module Whiteboard
           saved: true,
           snapshot_id: snapshot.id,
           name: snapshot.name,
-          element_count: snapshot.element_count
+          element_count: snapshot.element_count,
+          chat_session_id: chat_session.id,
+          version: scene.fetch("version")
         )
       rescue ArgumentError, ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.message)
