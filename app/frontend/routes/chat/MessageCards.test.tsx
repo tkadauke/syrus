@@ -682,6 +682,52 @@ describe("chat workspace source links", () => {
 })
 
 describe("tool result rendering", () => {
+  it("contains long tool summaries and expanded Markdown within the available width", () => {
+    const checkUrl = "https://github.com/acme/widgets/actions/runs/12345678901234567890"
+    const message = `Rerun CI repair for JOB-4201 at abc1234? Failing checks: RSpec (${checkUrl}).`
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Rerun CI repair",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "rerun_ci_repair",
+          raw_name: "rerun_ci_repair",
+          detail: "4201",
+          display_label: "Rerun CI repair",
+          progress_label: "Planning",
+          raw_payload: {
+            job_id: 4201,
+            reason: "Checks still fail.",
+            instructions: `Inspect ${checkUrl} before changing implementation code.`
+          },
+          result_body: JSON.stringify({ pending_action_id: 601, state: "pending", message }),
+          result_json: { pending_action_id: 601, state: "pending", message },
+          result_error: false,
+          result_kind: "record",
+          result_summary: message
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const group = screen.getByText("Rerun CI repair").closest("details")
+    expect(group).toHaveClass("min-w-0", "max-w-full")
+    expect(within(group as HTMLElement).getByText(message, { exact: false })).toHaveClass("min-w-0", "flex-1", "break-words", "[overflow-wrap:anywhere]")
+
+    expandToolGroup("Rerun CI repair")
+
+    const expanded = group?.querySelector(":scope > div")
+    expect(expanded).toHaveClass("min-w-0", "max-w-[calc(100%-1.25rem)]")
+    const links = within(group as HTMLElement).getAllByRole("link", { name: checkUrl })
+    expect(links).toHaveLength(2)
+    for (const link of links) {
+      expect(link.closest('[data-testid="markdown-preview-content"]')).toHaveClass("break-words", "[overflow-wrap:anywhere]")
+    }
+  })
+
   function expandToolGroup(label: string) {
     // The header summary and the per-call label can render identical text
     // (zero-arg calls omit the parenthesized detail), so resolve the click

@@ -906,7 +906,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
     item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
+    <details className="group/tool min-w-0 max-w-full" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
         className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
@@ -914,8 +914,8 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
           setOpen((value) => !value)
         }}
       >
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="min-w-0 break-words font-medium text-gray-900 [overflow-wrap:anywhere] dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
@@ -926,13 +926,13 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item }: { chat
           </Pill>
         ) : null}
       </summary>
-      <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
+      <div className="ml-5 mt-1 min-w-0 max-w-[calc(100%-1.25rem)] space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => {
           const detail = informativeDetail(call.detail)
           const resultSummary = toolCardAwareResultSummary(call)
           return (
-            <div key={call.message_id}>
-              <div className="break-words font-mono text-gray-700 dark:text-gray-300">
+            <div className="min-w-0 max-w-full" key={call.message_id}>
+              <div className="min-w-0 break-words font-mono text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
                 {call.display_label || item.tool}
                 {detail ? `(${detail})` : ""}
               </div>

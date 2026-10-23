@@ -18,7 +18,7 @@ function RequestDetails({ context }: { context: ToolCardContext }) {
   const inputAvailable = context.input != null
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 max-w-full space-y-2 overflow-hidden">
       <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
         <Row label="Job" value={jobId ? <EntityReference id={jobId} kind="job" /> : "Not provided"} />
         <Row label="Agent provider" value={provider ? <Badge>{provider}</Badge> : "Not provided"} />
