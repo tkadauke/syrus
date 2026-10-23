@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { fetchWhiteboardSnapshot } from "@app/api/chats"
+import { exportToSvg } from "@excalidraw/excalidraw"
 import saveCanvasToolCard, { examples } from "./save_canvas"
 
 vi.mock("@app/api/chats", async (importOriginal) => ({
@@ -62,6 +63,26 @@ describe("save_canvas tool card", () => {
     expect(screen.getByText("Snapshot ID")).toBeInTheDocument()
     expect(screen.getByText("Version")).toBeInTheDocument()
     expect(fetchWhiteboardSnapshot).toHaveBeenCalledWith("12", "9")
+  })
+
+  it("keeps the complete saved scene and all files in the snapshot preview", async () => {
+    const elements = Array.from({ length: 250 }, (_, id) => ({ id: String(id), type: "rectangle" }))
+    const files = Object.fromEntries(Array.from({ length: 125 }, (_, id) => [String(id), { id: String(id) }]))
+    vi.mocked(fetchWhiteboardSnapshot).mockResolvedValueOnce({
+      id: 9,
+      name: "Large diagram",
+      snapshot_kind: "manual",
+      element_count: elements.length,
+      created_at: "2026-10-23T12:00:00Z",
+      scene_json: { elements, appState: {}, files }
+    })
+
+    render(<>{saveCanvasToolCard.renderExpanded(context({ parsedResult: { saved: true, snapshot_id: 9, chat_session_id: 12 } }))}</>)
+
+    await waitFor(() => expect(exportToSvg).toHaveBeenCalled())
+    const renderInput = vi.mocked(exportToSvg).mock.calls.at(-1)?.[0]
+    expect(renderInput.elements).toHaveLength(250)
+    expect(Object.keys(renderInput.files)).toHaveLength(125)
   })
 
   it("renders the attempted name and version for an empty-canvas non-save", () => {

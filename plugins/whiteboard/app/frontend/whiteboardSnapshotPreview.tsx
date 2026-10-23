@@ -42,7 +42,7 @@ export function WhiteboardScenePreview({ scene, item }: { scene: ChatWhiteboardS
 
   useEffect(() => {
     let cancelled = false
-    void renderScene(scene)
+    void renderScene(scene, { maxElements: MAX_READ_SCENE_ELEMENTS, maxFiles: MAX_READ_SCENE_FILES })
       .then((src) => {
         if (!cancelled) setPreview({ status: "ready", src })
       })
@@ -70,16 +70,28 @@ async function renderSnapshot(chatId: string, snapshotId: string) {
   return renderScene(scene)
 }
 
-const MAX_PREVIEW_ELEMENTS = 200
-const MAX_PREVIEW_FILES = 100
+const MAX_READ_SCENE_ELEMENTS = 200
+const MAX_READ_SCENE_FILES = 100
 
-async function renderScene(scene: ChatWhiteboardScene) {
+type RenderLimits = { maxElements: number; maxFiles: number }
+
+async function renderScene(scene: ChatWhiteboardScene, limits?: RenderLimits) {
+  const elements = limits ? scene.elements.slice(0, limits.maxElements) : scene.elements
+  const files = limits ? referencedFiles(elements, scene.files, limits.maxFiles) : scene.files
   const { exportToSvg } = await import("@excalidraw/excalidraw")
   const svg = await exportToSvg({
-    elements: asExcalidrawElements(scene.elements.slice(0, MAX_PREVIEW_ELEMENTS)),
+    elements: asExcalidrawElements(elements),
     appState: { ...scene.appState, exportBackground: true },
-    files: Object.fromEntries(Object.entries(scene.files).slice(0, MAX_PREVIEW_FILES))
+    files
   })
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`
+}
+
+function referencedFiles(elements: ChatWhiteboardScene["elements"], files: ChatWhiteboardScene["files"], maxFiles: number) {
+  // Prefer the files the retained image elements actually need instead of an
+  // arbitrary object prefix. If more images are retained than the file cap,
+  // element order determines which references are included.
+  const fileIds = elements.flatMap((element) => (typeof element.fileId === "string" ? [element.fileId] : []))
+  return Object.fromEntries([...new Set(fileIds)].slice(0, maxFiles).flatMap((fileId) => (files[fileId] ? [[fileId, files[fileId]]] : [])))
 }

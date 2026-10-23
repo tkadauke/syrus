@@ -95,12 +95,14 @@ describe("read_scene tool card", () => {
     expect(screen.getByText("canvas unavailable")).toBeInTheDocument()
   })
 
-  it("bounds thumbnail rendering for large scenes", async () => {
-    const elements = Array.from({ length: 250 }, (_, id) => ({ id: String(id), type: "rectangle" }))
+  it("bounds large-scene thumbnails and keeps files referenced by retained images", async () => {
+    const elements = [{ id: "image", type: "image", fileId: "124" }, ...Array.from({ length: 249 }, (_, id) => ({ id: String(id), type: "rectangle" }))]
     const files = Object.fromEntries(Array.from({ length: 125 }, (_, id) => [String(id), { id: String(id) }]))
     render(<>{readSceneToolCard.renderExpanded(context({ parsedResult: { elements, appState: {}, files, version: 1 } }))}</>)
     await waitFor(() => expect(exportToSvg).toHaveBeenCalled())
-    expect(vi.mocked(exportToSvg).mock.calls.at(-1)?.[0].elements).toHaveLength(200)
+    const renderInput = vi.mocked(exportToSvg).mock.calls.at(-1)?.[0]
+    expect(renderInput.elements).toHaveLength(200)
+    expect(renderInput.files).toEqual({ "124": { id: "124" } })
   })
 
   it("falls back to null for a malformed payload (missing elements array)", () => {
