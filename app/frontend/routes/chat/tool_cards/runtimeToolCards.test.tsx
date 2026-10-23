@@ -718,7 +718,11 @@ describe("Runtime tool cards", () => {
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
-  it("uses the Runtime error card for failed acquire results in the real ToolGroup path", () => {
+  it("extracts failed acquire messages from a real MCP error envelope", () => {
+    const envelope = {
+      content: [{ type: "text", text: "Error: runtime session 7 already has an active input lease" }],
+      isError: true
+    }
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Runtime acquire control",
@@ -726,12 +730,13 @@ describe("Runtime tool cards", () => {
         {
           message_id: 1,
           tool_name: "runtime_acquire_control",
-          raw_name: "runtime_acquire_control",
-          detail: "No arguments",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_acquire_control",
+          detail: "Runtime #7",
           display_label: "Runtime acquire control",
           progress_label: "Thinking",
-          raw_payload: {},
-          result_body: "runtime session 7 already has an active input lease",
+          raw_payload: { session_id: 7, mode: "input", duration_seconds: 30 },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
           result_error: true,
           result_kind: "error",
           result_summary: ""
@@ -743,11 +748,13 @@ describe("Runtime tool cards", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("Runtime acquire control failed")).toBeInTheDocument()
+    expect(screen.getByText(/Runtime acquire control failed/)).toBeInTheDocument()
 
     expandToolGroup("Runtime acquire control")
 
-    expect(screen.getByText("runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("Error: runtime session 7 already has an active input lease")).toBeInTheDocument()
+    expect(screen.getByText("30 seconds")).toBeInTheDocument()
+    expect(screen.queryByText(JSON.stringify(envelope))).not.toBeInTheDocument()
     expect(screen.queryByText("Agent owns Runtime control.")).not.toBeInTheDocument()
   })
 
