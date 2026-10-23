@@ -21,8 +21,13 @@ RSpec.describe "website content coverage" do
 
   it "has current Next.js surfaces for the basic visitor questions" do
     pages = {
+<<<<<<< HEAD
       "components/pages/home-page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
       "components/pages/download-page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
+=======
+      "src/app/(en)/page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
+      "src/app/(en)/download/page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
+>>>>>>> 73fcbba26 (Add static website locale routing foundation)
       "lib/site.ts" => [
         "Show Syrus the work.",
         "Proposes epics & tickets",

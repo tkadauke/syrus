@@ -1,3 +1,4 @@
+<<<<<<<< HEAD:website/components/pages/control-plane-page.tsx
 import type { Metadata } from "next"
 import { localizedMetadata } from "@/lib/metadata"
 import { ArrowRight, CheckIcon } from "@/components/icons"
@@ -8,6 +9,16 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/reveal"
 import { SectionHeader } from "@/components/section"
 import { ScreenshotFrame } from "@/components/screenshot-frame"
 import type { Locale } from "@/lib/locales"
+========
+import type { Metadata } from "next";
+import { ArrowRight, CheckIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/button";
+import { Footer } from "@/components/footer";
+import { Nav } from "@/components/nav";
+import { Reveal, RevealGroup, RevealItem } from "@/components/reveal";
+import { SectionHeader } from "@/components/section";
+import { ScreenshotFrame } from "@/components/screenshot-frame";
+>>>>>>>> 73fcbba26 (Add static website locale routing foundation):website/src/app/(en)/control-plane/page.tsx
 
 export const metadata: Metadata = localizedMetadata({
   locale: "en",
@@ -160,7 +171,11 @@ function MiniPipeline() {
 export function ControlPlanePage({ locale }: { locale: Locale }) {
   return (
     <>
+<<<<<<<< HEAD:website/components/pages/control-plane-page.tsx
       <Nav locale={locale} />
+========
+      <Nav locale="en" />
+>>>>>>>> 73fcbba26 (Add static website locale routing foundation):website/src/app/(en)/control-plane/page.tsx
       <main id="main">
         <section className="grain relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
           <div aria-hidden className="absolute inset-0 -z-0">
@@ -339,7 +354,11 @@ export function ControlPlanePage({ locale }: { locale: Locale }) {
           </div>
         </section>
       </main>
+<<<<<<<< HEAD:website/components/pages/control-plane-page.tsx
       <Footer locale={locale} />
+========
+      <Footer locale="en" />
+>>>>>>>> 73fcbba26 (Add static website locale routing foundation):website/src/app/(en)/control-plane/page.tsx
     </>
   )
 }
