@@ -10,6 +10,7 @@ import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chat
 import { pluginToolCardArgumentSummary, pluginToolCardCollapsedSummary } from "../../pluginToolCards"
 import type { ChatToolContextCall } from "../../api/chats"
 import { redactToolCardText, redactToolCardValue } from "../../toolCardSecurity"
+import i18n from "../../i18n"
 export { isPlainObject } from "../../toolCardParsing"
 export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardParsing"
 
@@ -106,11 +107,11 @@ function humanizeToolName(name: string) {
 export function simpleToolProgressLabel(name: string) {
   const normalized = name.replace(/[^a-z0-9]/gi, "").toLowerCase()
 
-  if (["read", "readfile", "readfiletool", "grep", "glob", "ls"].includes(normalized)) return "Reading code..."
-  if (["bash", "edit", "multiedit", "write", "create"].includes(normalized)) return "Making changes..."
-  if (["websearch", "webfetch", "websearchtool", "webfetchtool"].includes(normalized)) return "Looking something up..."
+  if (["read", "readfile", "readfiletool", "grep", "glob", "ls"].includes(normalized)) return i18n.t("chat:tool_rendering.reading_code")
+  if (["bash", "edit", "multiedit", "write", "create"].includes(normalized)) return i18n.t("chat:tool_rendering.making_changes")
+  if (["websearch", "webfetch", "websearchtool", "webfetchtool"].includes(normalized)) return i18n.t("chat:tool_rendering.looking_up")
 
-  return "Thinking..."
+  return i18n.t("chat:tool_rendering.thinking")
 }
 
 export function toolDetail(name: string, input: Record<string, unknown>) {
@@ -156,7 +157,7 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
       detail = stringValue(input.query)
       break
     case "TodoWrite":
-      detail = `${Array.isArray(input.todos) ? input.todos.length : 0} item(s)`
+      detail = i18n.t("chat:tool_rendering.item_count", { count: Array.isArray(input.todos) ? input.todos.length : 0 })
       break
     case "Task":
     case "Agent":
@@ -223,28 +224,28 @@ function runtimeToolArgumentSummary(name: string, input: Record<string, unknown>
 
 function runtimeInputArgumentSummary(input: Record<string, unknown>) {
   const event = isPlainObject(input.event) ? input.event : {}
-  const type = stringValue(event.type) || "event"
+  const type = stringValue(event.type) || i18n.t("chat:tool_rendering.event")
   const target = stringValue(event.target) || stringValue(event.element) || stringValue(event.selector)
-  return target ? `${type} on ${target}` : type
+  return target ? i18n.t("chat:tool_rendering.event_on_target", { type, target }) : type
 }
 
 function runtimeSnapshotArgumentSummary(input: Record<string, unknown>) {
   const options = isPlainObject(input.options) ? input.options : {}
   const target = stringValue(options.target) || stringValue(options.element)
   const session = stringValue(input.session_id)
-  if (target && session) return `target ${target}, session ${session}`
-  if (target) return `target ${target}`
-  if (session) return `session ${session}`
-  return "Snapshot"
+  if (target && session) return i18n.t("chat:tool_rendering.target_session", { target, session })
+  if (target) return i18n.t("chat:tool_rendering.target", { target })
+  if (session) return i18n.t("chat:tool_rendering.session", { session })
+  return i18n.t("chat:tool_rendering.snapshot")
 }
 
 function runtimeCaptureArtifactArgumentSummary(input: Record<string, unknown>) {
   const artifactType = stringValue(input.artifact_type)
   const session = stringValue(input.session_id)
-  if (artifactType && session) return `${artifactType}, session ${session}`
+  if (artifactType && session) return i18n.t("chat:tool_rendering.artifact_session", { artifactType, session })
   if (artifactType) return artifactType
-  if (session) return `session ${session}`
-  return "Artifact"
+  if (session) return i18n.t("chat:tool_rendering.session", { session })
+  return i18n.t("chat:tool_rendering.artifact")
 }
 
 function defaultToolArgumentSummary(input: Record<string, unknown>) {
@@ -263,7 +264,7 @@ function defaultToolArgumentSummary(input: Record<string, unknown>) {
 function questionArgumentSummary(input: Record<string, unknown>) {
   const questions = input.questions
   if (!Array.isArray(questions) || questions.length === 0) return defaultToolArgumentSummary(input)
-  return `${questions.length} question${questions.length === 1 ? "" : "s"}`
+  return i18n.t("chat:tool_rendering.question_count", { count: questions.length })
 }
 
 export function shortenWorkspacePaths(value: string) {
@@ -536,7 +537,10 @@ function chatMediaResultCount(value: Record<string, unknown>) {
 }
 
 function countSummary(count: number, noun: string) {
-  return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
+  const knownNoun = ["path", "match", "line", "media item", "bookmark", "proposal", "Job", "Epic", "item", "file"].includes(noun)
+    ? noun.toLowerCase().replace(/ /g, "_")
+    : "item"
+  return i18n.t(`chat:tool_rendering.${knownNoun}_count`, { count })
 }
 
 export function fullResultBody(content: unknown): string {
@@ -571,7 +575,7 @@ export function fullResultBodyUnbounded(content: unknown): string {
       .filter(Boolean)
       .join("\n")
   }
-  if (content == null) return "(empty)"
+  if (content == null) return i18n.t("chat:tool_rendering.empty")
   if (isPlainObject(content)) return shortenWorkspacePaths(JSON.stringify(stableJsonValue(content), null, 2))
 
   return String(content)
@@ -603,11 +607,11 @@ export function toolResultPreview(body: string): string {
   const omittedLines = Math.max(0, lines.length - preview.split(/\r?\n/).length)
   const omittedBytes = Math.max(0, normalized.length - preview.length)
   const omitted = [
-    omittedLines > 0 ? `${omittedLines} line${omittedLines === 1 ? "" : "s"}` : null,
-    omittedBytes > 0 ? `${omittedBytes} character${omittedBytes === 1 ? "" : "s"}` : null
+    omittedLines > 0 ? i18n.t("chat:tool_rendering.line_count", { count: omittedLines }) : null,
+    omittedBytes > 0 ? i18n.t("chat:tool_rendering.character_count", { count: omittedBytes }) : null
   ]
     .filter(Boolean)
     .join(", ")
 
-  return `${preview}\n\n[Tool result preview truncated${omitted ? `; ${omitted} omitted` : ""}. Full content remains in the chat transcript.]`
+  return `${preview}\n\n${i18n.t("chat:tool_rendering.preview_truncated", { omitted: omitted ? i18n.t("chat:tool_rendering.omitted", { omitted }) : "" })}`
 }
