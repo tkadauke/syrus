@@ -1,5 +1,6 @@
 import { Logo } from "./logo"
 import { site } from "../lib/site"
+import { localizedHref, type Locale } from "../lib/locales"
 
 type FooterLink = { label: string; href: string; external?: boolean }
 
@@ -27,7 +28,7 @@ const cols: { title: string; links: FooterLink[] }[] = [
   }
 ]
 
-export function Footer() {
+export function Footer({ locale }: { locale: Locale }) {
   const shortSha = site.build.sha.slice(0, 7)
   const year = new Date().getFullYear() // evaluated at build time (static page)
 
@@ -50,7 +51,7 @@ export function Footer() {
                 {c.links.map((l) => (
                   <li key={l.label}>
                     <a
-                      href={l.href}
+                      href={l.external ? l.href : localizedHref(l.href, locale)}
                       {...(l.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       className="text-[0.9rem] text-cream-dim transition-colors hover:text-cream"
                     >

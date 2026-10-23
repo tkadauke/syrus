@@ -7,7 +7,7 @@ RSpec.describe "website home page" do
     File.read(File.expand_path("../../website/#{path}", __dir__))
   end
 
-  let(:page) { read_website("src/app/page.tsx") }
+  let(:page) { read_website("src/app/(en)/page.tsx") }
   let(:site_copy) { read_website("lib/site.ts") }
   let(:nav) { read_website("components/nav.tsx") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
@@ -32,7 +32,7 @@ RSpec.describe "website home page" do
     expect(nav).to include('href: "/#how"')
     expect(nav).to include('href: "/#features"')
     expect(nav).to include('href: "/#entry-points"')
-    expect(nav).to include('href="/#walkthrough-demo"')
+    expect(nav).to include('localizedHref("/#walkthrough-demo", locale)')
     expect(nav).to include("<DownloadButton")
 
     hero = read_website("components/hero.tsx")
@@ -48,6 +48,6 @@ RSpec.describe "website home page" do
     expect(read_website("components/features.tsx")).to include('section id="features"')
     expect(read_website("components/entry-points.tsx")).to include('section id="entry-points"')
     expect(read_website("components/demo.tsx")).to include('section id="demo"')
-    expect(read_website("src/app/download/page.tsx")).to include("Download Syrus")
+    expect(read_website("src/app/(en)/download/page.tsx")).to include("Download Syrus")
   end
 end

@@ -6,7 +6,8 @@
   "scripts": {
     "sync-plugin-icons": "node scripts/sync-plugin-icons.mjs",
     "dev": "npm run sync-plugin-icons && next dev",
-    "build": "npm run sync-plugin-icons && next build",
+    "build": "npm run sync-plugin-icons && next build && node scripts/assert-static-export.mjs",
+    "test:locales": "node --experimental-strip-types --test lib/locales.test.ts",
     "start": "next start",
     "capture-product-media": "node scripts/capture-product-media.mjs",
     "sync-release": "node scripts/sync-release.mjs",
