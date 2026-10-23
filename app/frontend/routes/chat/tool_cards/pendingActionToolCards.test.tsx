@@ -25,7 +25,7 @@ import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceE
 import forceLandingRecheckCard from "./force_landing_recheck"
 import cancelStaleWorkCard from "./cancel_stale_work"
 import reenqueueWorkCard from "./reenqueue_work"
-import repairQueueAffinityCard from "./repair_queue_affinity"
+import repairQueueAffinityCard, { examples as repairQueueAffinityExamples } from "./repair_queue_affinity"
 import wakeLandingQueueCard from "./wake_landing_queue"
 import wakeProviderAdmissionCard from "./wake_provider_admission"
 import clearProviderCircuitCard from "./clear_provider_circuit"
@@ -114,6 +114,54 @@ describe("pending action tool card family", () => {
       "validation_error",
       "missing_input"
     ])
+  })
+
+  it("registers every visual-review state for the queue affinity repair card", () => {
+    expect(repairQueueAffinityExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
+  })
+
+  it.each([
+    [
+      "text content",
+      { content: [{ type: "text", text: JSON.stringify({ pending_action_id: 504, state: "pending", message: "Repair RUN-9876?" }) }], structured_content: null }
+    ],
+    ["structured content", { content: [], structured_content: { pending_action_id: 504, state: "pending", message: "Repair RUN-9876?" } }]
+  ])("renders queue affinity request links and Markdown reason from a normalized %s envelope", (_label, envelope) => {
+    const cardContext = {
+      ...context("repair_queue_affinity", normalizedToolCardParsedResult(envelope)),
+      input: { job_id: 4222, run_id: 9876, reason: "Worker is **offline**." }
+    }
+
+    render(<>{repairQueueAffinityCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "RUN-9876" })).toHaveAttribute("href", "/admin/runs/9876/transcript")
+    expect(screen.getByText("offline", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("preserves queue affinity request details in a structured error state", () => {
+    render(
+      <>
+        {repairQueueAffinityCard.renderExpanded({
+          ...context("repair_queue_affinity", { error: "invalid_request", message: "The Run is no longer queued." }),
+          input: { job_id: 4222, run_id: 9876, reason: "Worker is **offline**." }
+        })}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "RUN-9876" })).toHaveAttribute("href", "/admin/runs/9876/transcript")
+    expect(screen.getByText("offline", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("labels every unavailable queue affinity request field when input is missing", () => {
+    render(<>{repairQueueAffinityCard.renderExpanded(context("repair_queue_affinity", { pending_action_id: 505, state: "pending" }))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(3)
+    expect(screen.getByText("Job")).toBeInTheDocument()
+    expect(screen.getByText("Run")).toBeInTheDocument()
+    expect(screen.getByText("Reason")).toBeInTheDocument()
   })
 
   it("wires a standard-shape tool through to the shared card", () => {
