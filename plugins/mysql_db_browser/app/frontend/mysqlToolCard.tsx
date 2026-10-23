@@ -123,10 +123,15 @@ export function parseTableSummary(value: unknown): MysqlTableRow | null {
 export type MysqlColumnRow = {
   name: string
   columnType: string | null
+  dataType: string | null
   nullable: boolean
   key: string | null
   default: string | null
   extra: string | null
+  characterMaxLength: number | null
+  numericPrecision: number | null
+  numericScale: number | null
+  comment: string | null
 }
 
 export function parseColumn(value: unknown): MysqlColumnRow | null {
@@ -137,10 +142,15 @@ export function parseColumn(value: unknown): MysqlColumnRow | null {
   return {
     name,
     columnType: displayValue(value.column_type),
+    dataType: displayValue(value.data_type),
     nullable: value.nullable === true,
     key: displayValue(value.key),
     default: displayValue(value.default),
-    extra: displayValue(value.extra)
+    extra: displayValue(value.extra),
+    characterMaxLength: numberValue(value.character_max_length),
+    numericPrecision: numberValue(value.numeric_precision),
+    numericScale: numberValue(value.numeric_scale),
+    comment: displayValue(value.comment)
   }
 }
 
@@ -159,6 +169,7 @@ export function parseIndex(value: unknown): MysqlIndexRow | null {
 
 export type MysqlForeignKeyRow = {
   key: string
+  constraintName: string | null
   direction: string | null
   fromTable: string | null
   fromColumn: string | null
@@ -169,8 +180,11 @@ export type MysqlForeignKeyRow = {
 export function parseForeignKey(value: unknown, index: number): MysqlForeignKeyRow | null {
   if (!isPlainObject(value)) return null
 
+  const constraintName = displayValue(value.constraint_name)
+
   return {
-    key: displayValue(value.constraint_name) ?? String(index),
+    key: constraintName ?? String(index),
+    constraintName,
     direction: displayValue(value.direction),
     fromTable: displayValue(value.from_table),
     fromColumn: displayValue(value.from_column),
@@ -188,6 +202,8 @@ export type MysqlTableInfo = {
   dataLengthBytes: number | null
   indexLengthBytes: number | null
   autoIncrement: number | null
+  createdAt: string | null
+  updatedAt: string | null
   collation: string | null
   comment: string | null
 }
@@ -207,6 +223,8 @@ export function parseInfoSection(value: unknown): MysqlInfoSection {
       dataLengthBytes: numberValue(value.data_length_bytes),
       indexLengthBytes: numberValue(value.index_length_bytes),
       autoIncrement: numberValue(value.auto_increment),
+      createdAt: displayValue(value.created_at),
+      updatedAt: displayValue(value.updated_at),
       collation: displayValue(value.collation),
       comment: displayValue(value.comment)
     }
@@ -229,7 +247,10 @@ export function parseSection<T>(value: unknown, parseRow: (row: unknown, index: 
   if (value.available !== true) return { available: false, error: parseMysqlError(value.error) }
 
   const rows = Array.isArray(value.rows)
-    ? value.rows.flatMap((row, index) => { const parsed = parseRow(row, index); return parsed ? [parsed] : [] })
+    ? value.rows.flatMap((row, index) => {
+        const parsed = parseRow(row, index)
+        return parsed ? [parsed] : []
+      })
     : []
 
   return { available: true, truncated: value.truncated === true, rows }

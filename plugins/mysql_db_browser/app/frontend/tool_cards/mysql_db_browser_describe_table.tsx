@@ -1,6 +1,7 @@
 import i18n from "i18next"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import { CardShell, displayValue, Row, SectionLabel } from "@app/routes/chat/toolCardUi"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import { CardShell, CopyableValue, displayValue, Row, SectionLabel } from "@app/routes/chat/toolCardUi"
 import { formatBytes } from "@app/lib/format"
 import {
   MysqlErrorNotice,
@@ -24,6 +25,9 @@ import {
 // (see MysqlDbBrowser::SchemaInspector#safe_section) -- render whichever
 // sections did load instead of failing the whole card.
 type DescribeTableCard = {
+  connectionId: string | null
+  requestedDatabase: string | null
+  requestedTable: string | null
   database: string
   table: string
   info: MysqlInfoSection
@@ -35,12 +39,16 @@ type DescribeTableCard = {
 function parseCard(context: ToolCardContext): DescribeTableCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
+  const input = isPlainObject(context.input) ? context.input : {}
 
   const database = displayValue(parsed.database)
   const table = displayValue(parsed.table)
   if (!database || !table) return null
 
   return {
+    connectionId: displayValue(input.mysql_connection_id),
+    requestedDatabase: displayValue(input.database),
+    requestedTable: displayValue(input.table),
     database,
     table,
     info: parseInfoSection(parsed.info),
@@ -67,44 +75,87 @@ function InfoSection({ section }: { section: MysqlInfoSection }) {
 
   return (
     <dl className="grid gap-1 sm:grid-cols-2">
-      {section.info.type ? <Row label={t("tool_type")} value={section.info.type} /> : null}
-      {section.info.engine ? <Row label={t("tool_engine")} value={section.info.engine} /> : null}
-      {section.info.approxRowCount != null ? <Row label={t("tool_rows_approx")} value={section.info.approxRowCount.toLocaleString()} /> : null}
+      <Row label={t("tool_type")} value={section.info.type ?? "—"} />
+      <Row label={t("tool_engine")} value={section.info.engine ?? "—"} />
+      <Row label={t("tool_rows_approx")} value={section.info.approxRowCount?.toLocaleString() ?? "—"} />
       <Row label={t("tool_data_size")} value={formatBytes(section.info.dataLengthBytes)} />
       <Row label={t("tool_index_size")} value={formatBytes(section.info.indexLengthBytes)} />
-      {section.info.autoIncrement != null ? <Row label={t("tool_auto_increment")} value={String(section.info.autoIncrement)} /> : null}
-      {section.info.collation ? <Row label={t("tool_collation")} value={section.info.collation} /> : null}
+      <Row label={t("tool_auto_increment")} value={section.info.autoIncrement != null ? String(section.info.autoIncrement) : "—"} />
+      <Row label={t("tool_collation")} value={section.info.collation ?? "—"} />
+      <Row label={t("tool_created_at")} value={section.info.createdAt ?? "—"} />
+      <Row label={t("tool_updated_at")} value={section.info.updatedAt ?? "—"} />
+      <div className="min-w-0 sm:col-span-2">
+        <MarkdownPreview emptyState={t("tool_no_comment")} maxLines={4} text={section.info.comment} title={t("tool_comment")} />
+      </div>
     </dl>
   )
 }
 
 function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_columns")}</div>
+  if (section.rows.length === 0)
+    return (
+      <div className="space-y-1">
+        <div className="text-gray-500 dark:text-gray-400">{t("tool_no_columns")}</div>
+        {section.truncated ? <TruncatedNotice label={t("tool_column_list")} /> : null}
+      </div>
+    )
 
   return (
     <div className="space-y-1">
       <TableShell>
-        <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+        <table className="block w-full text-left text-xs sm:table">
+          <thead className="hidden bg-gray-50 text-2xs uppercase text-gray-500 dark:bg-gray-900 dark:text-gray-400 sm:table-header-group">
             <tr>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_column")}</th>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_type")}</th>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_nullable")}</th>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_key")}</th>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_default")}</th>
-              <th className="px-2 py-1 font-semibold" scope="col">{t("tool_extra")}</th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_column")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_type")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_data_type")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_nullable")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_key")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_default")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_extra")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_character_max_length")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_numeric_precision")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_numeric_scale")}
+              </th>
+              <th className="px-2 py-1 font-semibold" scope="col">
+                {t("tool_comment")}
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
+          <tbody className="block space-y-2 bg-white p-2 dark:bg-gray-950 sm:table-row-group sm:space-y-0 sm:p-0">
             {section.rows.map((column) => (
-              <tr key={column.name}>
-                <td className="px-2 py-1 font-mono text-gray-800 dark:text-gray-200">{column.name}</td>
-                <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{column.columnType ?? "—"}</td>
-                <td className="whitespace-nowrap px-2 py-1 text-gray-600 dark:text-gray-300">{column.nullable ? "yes" : "no"}</td>
-                <td className="px-2 py-1 text-gray-600 dark:text-gray-300">{column.key ?? "—"}</td>
-                <td className="px-2 py-1 font-mono text-gray-600 dark:text-gray-300">{column.default ?? "—"}</td>
-                <td className="px-2 py-1 text-gray-600 dark:text-gray-300">{column.extra ?? "—"}</td>
+              <tr className="block rounded border border-border p-2 sm:table-row sm:rounded-none sm:border-0 sm:p-0" key={column.name}>
+                <ColumnCell label={t("tool_column")} value={column.name} />
+                <ColumnCell label={t("tool_type")} value={column.columnType} />
+                <ColumnCell label={t("tool_data_type")} value={column.dataType} />
+                <ColumnCell label={t("tool_nullable")} value={column.nullable ? t("yes") : t("no")} />
+                <ColumnCell label={t("tool_key")} value={column.key} />
+                <ColumnCell label={t("tool_default")} value={column.default} />
+                <ColumnCell label={t("tool_extra")} value={column.extra} />
+                <ColumnCell label={t("tool_character_max_length")} value={column.characterMaxLength} />
+                <ColumnCell label={t("tool_numeric_precision")} value={column.numericPrecision} />
+                <ColumnCell label={t("tool_numeric_scale")} value={column.numericScale} />
+                <ColumnCell label={t("tool_comment")} value={column.comment} />
               </tr>
             ))}
           </tbody>
@@ -115,33 +166,69 @@ function ColumnsSection({ section }: { section: MysqlSection<MysqlColumnRow> }) 
   )
 }
 
+function ColumnCell({ label, value }: { label: string; value: string | number | null }) {
+  return (
+    <td className="grid min-w-0 grid-cols-[minmax(6rem,0.4fr)_minmax(0,1fr)] gap-2 px-2 py-1 font-mono text-gray-600 dark:text-gray-300 sm:table-cell sm:min-w-32">
+      <span className="break-words text-2xs font-semibold text-text-muted sm:hidden">{label}</span>
+      <span className="min-w-0 break-words">{value ?? "—"}</span>
+    </td>
+  )
+}
+
 function IndexesSection({ section }: { section: MysqlSection<MysqlIndexRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_indexes")}</div>
+  if (section.rows.length === 0)
+    return (
+      <div className="space-y-1">
+        <div className="text-gray-500 dark:text-gray-400">{t("tool_no_indexes")}</div>
+        {section.truncated ? <TruncatedNotice label={t("tool_index_list")} /> : null}
+      </div>
+    )
 
   return (
-    <ul className="space-y-1">
-      {section.rows.map((index, i) => (
-        <li className="font-mono text-gray-700 dark:text-gray-300" key={index.name ?? i}>
-          {index.name ?? "(unnamed)"} {index.unique ? "unique" : ""} {index.type ? `[${index.type}]` : ""} ({index.columns.join(", ")})
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-1">
+      <ul className="space-y-1">
+        {section.rows.map((index, i) => (
+          <li className="break-words font-mono text-gray-700 dark:text-gray-300" key={index.name ?? i}>
+            {index.name ?? "(unnamed)"} {index.unique ? "unique" : ""} {index.type ? `[${index.type}]` : ""} ({index.columns.join(", ")})
+          </li>
+        ))}
+      </ul>
+      {section.truncated ? <TruncatedNotice label={t("tool_index_list")} /> : null}
+    </div>
   )
 }
 
 function ForeignKeysSection({ section }: { section: MysqlSection<MysqlForeignKeyRow> }) {
   if (!section.available) return section.error ? <MysqlErrorNotice error={section.error} /> : null
-  if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">{t("tool_no_foreign_keys")}</div>
+  if (section.rows.length === 0)
+    return (
+      <div className="space-y-1">
+        <div className="text-gray-500 dark:text-gray-400">{t("tool_no_foreign_keys")}</div>
+        {section.truncated ? <TruncatedNotice label={t("tool_foreign_key_list")} /> : null}
+      </div>
+    )
 
   return (
-    <ul className="space-y-1">
-      {section.rows.map((fk) => (
-        <li className="font-mono text-gray-700 dark:text-gray-300" key={fk.key}>
-          [{fk.direction ?? "?"}] {fk.fromTable}.{fk.fromColumn} → {fk.toTable}.{fk.toColumn}
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-1">
+      <ul className="space-y-2">
+        {section.rows.map((fk) => (
+          <li className="min-w-0 rounded border border-border p-2 text-xs text-gray-700 dark:text-gray-300" key={fk.key}>
+            <div className="break-words font-mono font-semibold">
+              {fk.constraintName ?? "—"} <span className="text-text-muted">[{fk.direction ?? "?"}]</span>
+            </div>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 font-mono">
+              {fk.fromTable ? <CopyableValue href="/db_browser" value={fk.fromTable} /> : "?"}
+              <span>.{fk.fromColumn ?? "?"}</span>
+              <span aria-hidden>→</span>
+              {fk.toTable ? <CopyableValue href="/db_browser" value={fk.toTable} /> : "?"}
+              <span>.{fk.toColumn ?? "?"}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {section.truncated ? <TruncatedNotice label={t("tool_foreign_key_list")} /> : null}
+    </div>
   )
 }
 
@@ -151,7 +238,14 @@ function renderExpanded(context: ToolCardContext) {
 
   return (
     <CardShell>
-      <div className="font-mono font-medium text-gray-800 dark:text-gray-100">{card.database}.{card.table}</div>
+      <div className="font-mono font-medium text-gray-800 dark:text-gray-100">
+        {card.database}.{card.table}
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+        {card.connectionId ? <Row copyable label={t("tool_connection")} value={t("tool_connection_id", { id: card.connectionId })} /> : null}
+        <Row copyable label={t("tool_database")} value={card.requestedDatabase ?? card.database} />
+        <Row copyable label={t("tool_table")} value={card.requestedTable ?? card.table} />
+      </div>
       <div>
         <SectionLabel>{t("tool_info")}</SectionLabel>
         <InfoSection section={card.info} />
