@@ -120,5 +120,5 @@ export const examples: ToolCardExample[] = [
     }
   },
   { id: "not_found", label: "Memory not found", input: { id: 404 }, resultBody: "Error: memory not found or not accessible: 404", resultError: true },
-  { id: "pending", label: "Pending read", input: { id: 55 } }
+  { id: "pending", label: "Pending read", input: { id: 55 }, resultBody: "" }
 ]
