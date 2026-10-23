@@ -42,6 +42,8 @@ describe("resume_scheduled_task tool card", () => {
     expect(screen.getByText("resumed")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Yes")).toBeInTheDocument()
     expect(screen.getByText("This task is scheduled again and will fire on its next due tick.")).toBeInTheDocument()
   })
 
@@ -49,6 +51,8 @@ describe("resume_scheduled_task tool card", () => {
     render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult: detailed }))}</>)
 
     expect(screen.getByText("scheduled")).toBeInTheDocument()
+    expect(screen.getByText("Enabled")).toBeInTheDocument()
+    expect(screen.getByText("Yes")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/8")
     expect(screen.getByText("Next fire (relative)")).toBeInTheDocument()
     expect(screen.getByText("Next fire (local)")).toBeInTheDocument()
@@ -77,21 +81,26 @@ describe("resume_scheduled_task tool card", () => {
     expect(screen.getByText("scheduled")).toBeInTheDocument()
   })
 
-  it("falls back to null for a malformed payload", () => {
+  it("renders a styled malformed state with the requested task link", () => {
     const parsedResult = { oops: true }
+    const toolContext = context({ input: { scheduled_task_id: 12 }, parsedResult, resultSettled: true })
 
-    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
-    expect(resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+    expect(resumeScheduledTaskToolCard.collapsedSummary?.(toolContext)).toBe("Scheduled task resume returned no details")
+    render(<>{resumeScheduledTaskToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("unknown")).toBeInTheDocument()
+    expect(screen.getByText("No usable resume result was returned.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
   })
 
-  it("falls back to null for a non-object payload", () => {
-    const parsedResult = "not json"
+  it.each([null, "not json"])("renders a styled empty or non-object result: %p", (parsedResult) => {
+    const toolContext = context({ input: { scheduled_task_id: 12 }, parsedResult, resultSettled: true })
 
-    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
-    expect(resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+    render(<>{resumeScheduledTaskToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("No usable resume result was returned.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toBeInTheDocument()
   })
 
-  it("publishes success and error catalog examples", () => {
-    expect(examples.map((example) => example.id)).toEqual(["resumed_with_next_fire", "already_enabled_error"])
+  it("publishes success, error, and empty catalog examples", () => {
+    expect(examples.map((example) => example.id)).toEqual(["resumed_with_next_fire", "already_enabled_error", "empty_response"])
   })
 })
