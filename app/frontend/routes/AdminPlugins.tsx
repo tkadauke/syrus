@@ -115,10 +115,10 @@ function PluginsView({ plugins, betaModeEnabled, isFiltered }: { plugins: AdminP
 }
 
 function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
-  const { t } = useT("admin")
-  const displayName = localizedPluginMetadata(t, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
-  const description = localizedPluginMetadata(t, plugin.description_i18n_key, plugin.description)
-  const longDescription = localizedPluginMetadata(t, plugin.long_description_i18n_key, plugin.long_description)
+  const { t, i18n } = useT("admin")
+  const displayName = localizedPluginMetadata(t, i18n, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
+  const description = localizedPluginMetadata(t, i18n, plugin.description_i18n_key, plugin.description)
+  const longDescription = localizedPluginMetadata(t, i18n, plugin.long_description_i18n_key, plugin.long_description)
   const navigate = useNavigate()
   const dependsOn = plugin.depends_on || []
   const dependents = plugin.dependents || []
@@ -330,10 +330,10 @@ function HomepageLink({ homepage }: { homepage: string }) {
 }
 
 function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaModeEnabled: boolean }) {
-  const { t } = useT("admin")
-  const displayName = localizedPluginMetadata(t, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
-  const description = localizedPluginMetadata(t, plugin.description_i18n_key, plugin.description)
-  const longDescription = localizedPluginMetadata(t, plugin.long_description_i18n_key, plugin.long_description)
+  const { t, i18n } = useT("admin")
+  const displayName = localizedPluginMetadata(t, i18n, plugin.display_name_i18n_key, plugin.display_name || plugin.name)
+  const description = localizedPluginMetadata(t, i18n, plugin.description_i18n_key, plugin.description)
+  const longDescription = localizedPluginMetadata(t, i18n, plugin.long_description_i18n_key, plugin.long_description)
   const visibleLinks = (plugin.links || []).filter((link) => plugin.enabled || link.enabled_only === false)
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
@@ -613,10 +613,19 @@ function extensionPointLabel(point: string, t: (key: string, opts?: Record<strin
 
 function localizedPluginMetadata(
   t: (key: string, opts?: Record<string, unknown>) => string,
+  i18n: { language: string; getResource: (language: string, namespace: string, key: string) => unknown },
   key: string | null | undefined,
   fallback: string | null | undefined
 ) {
-  return key ? t(key, { defaultValue: fallback || "" }) : fallback
+  if (!key) return fallback
+
+  const namespaceSeparator = key.indexOf(":")
+  if (namespaceSeparator < 1) return fallback
+
+  const namespace = key.slice(0, namespaceSeparator)
+  const resourceKey = key.slice(namespaceSeparator + 1)
+  const activeLocaleValue = i18n.getResource(i18n.language, namespace, resourceKey)
+  return typeof activeLocaleValue === "string" ? t(key, { lng: i18n.language, defaultValue: fallback || "" }) : fallback
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
