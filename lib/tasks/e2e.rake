@@ -1,6 +1,17 @@
 namespace :e2e do
-  def enable_e2e_chat_provider_plugins!
-    %w[claude_agent codex_agent].each do |plugin_name|
+  def enable_e2e_plugins!
+    %w[
+      build_cache
+      claude_agent
+      codex_agent
+      credential_store
+      git_history
+      k8s_cluster
+      mysql_db_browser
+      spending_insights
+      team_directory
+      worker_timeline
+    ].each do |plugin_name|
       plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
       plugin_record.update!(enabled: true) unless plugin_record.enabled?
     end
@@ -26,7 +37,7 @@ namespace :e2e do
     end
 
     Rails.application.load_seed
-    enable_e2e_chat_provider_plugins!
+    enable_e2e_plugins!
 
     settings = AppSetting.current
     settings.update!(
@@ -152,7 +163,7 @@ namespace :e2e do
     # place those specs ran at all -- so five of them failed there while passing
     # locally. Resetting here makes a local run reproduce CI.
     PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
-    enable_e2e_chat_provider_plugins!
+    enable_e2e_plugins!
 
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the

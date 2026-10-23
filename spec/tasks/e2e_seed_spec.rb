@@ -59,6 +59,26 @@ RSpec.describe "e2e:seed" do
     )
   end
 
+  it "enables the opt-in plugins exercised by their Playwright projects" do
+    plugin_names = %w[
+      build_cache
+      credential_store
+      git_history
+      k8s_cluster
+      mysql_db_browser
+      spending_insights
+      team_directory
+      worker_timeline
+    ]
+    plugin_names.each do |name|
+      PluginRecord.find_or_create_by!(name: name).update!(enabled: false, disableable: true)
+    end
+
+    Rake::Task["e2e:seed"].invoke
+
+    expect(PluginRecord.where(name: plugin_names, enabled: true).pluck(:name)).to match_array(plugin_names)
+  end
+
   # Regression: the Agent Insights fixture needs a plugin-contributed Job kind,
   # and when that kind was not registered the validation error aborted the whole
   # seed. Previews then came up with no data at all, which in turn made every
