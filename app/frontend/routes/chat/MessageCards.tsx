@@ -915,7 +915,20 @@ export const ToolGroup = memo(function ToolGroup({
   chatMedia?: ChatMediaPayload
 }) {
   const [open, setOpen] = useState(false)
+  const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
   const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
+
+  function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (!payload) return
+    const resolved = resolveWorkspaceFileLink(href, payload)
+    if (resolved) {
+      event.preventDefault()
+      setSourcePreview(resolved)
+      return
+    }
+
+    if (workspaceHrefLooksLocal(href)) event.preventDefault()
+  }
 
   const details = item.calls
     .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
@@ -960,9 +973,9 @@ export const ToolGroup = memo(function ToolGroup({
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
-                <ToolResultBody call={call} chatSessionId={chatSessionId} presentation={presentation} />
+                <ToolResultBody call={call} chatSessionId={chatSessionId} onLinkClick={handleMarkdownLink} presentation={presentation} />
               ) : expanded ? (
-                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation))
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, handleMarkdownLink))
               ) : null}
               {expanded ? (
                 <RawToolDetails
@@ -990,6 +1003,7 @@ export const ToolGroup = memo(function ToolGroup({
           )
         })}
       </div>
+      {payload && sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
   )
 })
@@ -1021,10 +1035,12 @@ function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
 function ToolResultBody({
   call,
   chatSessionId,
+  onLinkClick,
   presentation
 }: {
   call: ChatToolGroupItem["calls"][number]
   chatSessionId?: number | string
+  onLinkClick?: ToolCardContext["onLinkClick"]
   presentation?: ToolCardContext["presentation"]
 }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
@@ -1044,7 +1060,7 @@ function ToolResultBody({
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation, onLinkClick))
   if (pluginBody != null) return <>{pluginBody}</>
 
   // Registered cards may have a useful in-flight view derived entirely from
@@ -1081,7 +1097,8 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], pr
 export function toolCardContext(
   call: ChatToolGroupItem["calls"][number],
   chatSessionId?: number | string,
-  presentation?: ToolCardContext["presentation"]
+  presentation?: ToolCardContext["presentation"],
+  onLinkClick?: ToolCardContext["onLinkClick"]
 ): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
@@ -1093,6 +1110,7 @@ export function toolCardContext(
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     chatSessionId,
+    onLinkClick,
     priorCalls: (call.context_calls || []).map((priorCall) => ({
       toolName: normalizedToolName(priorCall.tool_name),
       input: (isPlainObject(priorCall.input) ? redactToolCardValue(priorCall.input) : {}) as Record<string, unknown>,

@@ -4,6 +4,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { ErrorCard } from "@app/routes/chat/chatHelperToolCard"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import type { MarkdownLinkHandler } from "@app/lib/Markdown"
 
 // Shared presentation helpers for the scheduled_tasks plugin's chat tool
 // cards (the pending-action tool-card work). Lives outside `tool_cards/` on purpose: core's
@@ -195,7 +196,7 @@ function DateTimeRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function PromptPreview({ prompt }: { prompt: string | null }) {
+export function PromptPreview({ onLinkClick, prompt }: { onLinkClick?: MarkdownLinkHandler; prompt: string | null }) {
   return (
     <MarkdownPreview
       emptyLabel={t("tool_prompt_empty")}
@@ -203,6 +204,7 @@ export function PromptPreview({ prompt }: { prompt: string | null }) {
       linkifyUrls
       maxChars={720}
       modalLabel={t("tool_prompt_full")}
+      onLinkClick={onLinkClick}
       text={prompt}
       title={t("tool_prompt")}
     />

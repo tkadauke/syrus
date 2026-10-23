@@ -714,6 +714,53 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  it("routes Markdown links from custom tool cards through the chat source preview handler", async () => {
+    vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "README.md", content: "# Tool card source", binary: false, too_large: false })
+    const result = {
+      scheduled_task: {
+        id: 12,
+        label: "Review source",
+        state: "scheduled",
+        prompt: "Review [the source](/syrus-home/.syrus/chat-workspaces/122/repositories/tkadauke/syrus/README.md)."
+      }
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read scheduled task",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_scheduled_task",
+          raw_name: "read_scheduled_task",
+          detail: "12",
+          display_label: "Read scheduled task",
+          progress_label: "Reading",
+          raw_payload: { scheduled_task_id: 12 },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "Review source"
+        }
+      ],
+      collapsed_by_default: true
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToolGroup item={item} payload={makePayload()} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expandToolGroup("Read scheduled task")
+    fireEvent.click(screen.getByRole("link", { name: "the source" }))
+
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
+    expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "README.md")
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",

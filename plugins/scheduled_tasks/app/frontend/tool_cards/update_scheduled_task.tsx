@@ -26,7 +26,7 @@ function renderExpanded(context: ToolCardContext) {
     <CardShell>
       <div className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("tool_update_title")}</div>
       <ScheduledTaskSummary task={detail.task} />
-      {detail.prompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
+      {detail.prompt ? <PromptDisclosure onLinkClick={context.onLinkClick} prompt={detail.prompt} /> : null}
     </CardShell>
   )
 }
