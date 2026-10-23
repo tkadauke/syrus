@@ -22,7 +22,7 @@ export function WhiteboardSnapshotPreview({
   useEffect(() => {
     let cancelled = false
 
-    void renderSnapshot(chatId, snapshotId, scene)
+    void renderSnapshotPreviewSource(chatId, snapshotId, scene)
       .then((src) => {
         if (!cancelled) setPreview({ status: "ready", src })
       })
@@ -50,12 +50,15 @@ function translate(key: string) {
   return i18n.t(`whiteboard:${key}`)
 }
 
-async function renderSnapshot(chatId: string, snapshotId: string, embeddedScene?: ChatWhiteboardScene | null) {
+async function renderSnapshotPreviewSource(chatId: string, snapshotId: string, embeddedScene?: ChatWhiteboardScene | null) {
   const snapshotScene = embeddedScene ?? (await fetchWhiteboardSnapshot(chatId, snapshotId)).scene_json
   const scene = normalizeWhiteboardScene(snapshotScene)
-  const { exportToSvg } = await import("@excalidraw/excalidraw")
-  const svg = await exportToSvg({
-    elements: asExcalidrawElements(scene.elements),
+  const excalidraw = await import("@excalidraw/excalidraw")
+  const elements = embeddedScene
+    ? excalidraw.convertToExcalidrawElements(scene.elements as Parameters<typeof excalidraw.convertToExcalidrawElements>[0])
+    : asExcalidrawElements(scene.elements)
+  const svg = await excalidraw.exportToSvg({
+    elements,
     appState: { ...scene.appState, exportBackground: true },
     files: scene.files
   })
