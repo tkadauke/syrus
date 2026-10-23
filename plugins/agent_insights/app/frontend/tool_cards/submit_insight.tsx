@@ -1,18 +1,16 @@
+import i18n from "i18next"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { OutcomeBody, parseOutcome } from "../agentInsightToolCard"
+import { OutcomeCard, parseOutcome } from "../agentInsightToolCard"
 
 function collapsedSummary(context: ToolCardContext) {
   const outcome = parseOutcome(context)
   if (!outcome) return null
 
-  return outcome.id ? `Saved insight #${outcome.id}` : "Saved insight"
+  return outcome.id ? i18n.t("agent_insights:tool_submit_summary_with_id", { id: outcome.id }) : i18n.t("agent_insights:tool_submit_summary")
 }
 
 function renderExpanded(context: ToolCardContext) {
-  const outcome = parseOutcome(context)
-  if (!outcome) return null
-
-  return <OutcomeBody label="Saved insight" outcome={outcome} />
+  return <OutcomeCard context={context} label={i18n.t("agent_insights:tool_submit_label")} />
 }
 
 const submitInsightToolCard: ToolCardRenderer = {
