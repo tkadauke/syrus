@@ -161,16 +161,35 @@ export const PromptDisclosure = PromptPreview
 
 // pause/resume/delete all answer with the same tiny
 // `{ scheduled_task_id, label, ... }` acknowledgement shape.
-export type ScheduledTaskOutcome = { id: string; label: string }
+export type ScheduledTaskOutcome = {
+  id: string
+  label: string
+  previousState: string | null
+  state: string | null
+  nextFireAt: string | null
+  repositoryId: string | null
+  repositorySlug: string | null
+}
 
 export function parseScheduledTaskOutcome(parsed: unknown): ScheduledTaskOutcome | null {
   if (!isPlainObject(parsed)) return null
 
-  const id = displayValue(parsed.scheduled_task_id)
-  const label = displayValue(parsed.label)
+  // Newer write tools may return the task in a named envelope. Keep accepting
+  // the original flat acknowledgement used by pause/resume/delete.
+  const payload = isPlainObject(parsed.scheduled_task) ? parsed.scheduled_task : parsed
+  const id = displayValue(payload.scheduled_task_id) || displayValue(payload.id)
+  const label = displayValue(payload.label) || displayValue(payload.name)
   if (!id || !label) return null
 
-  return { id, label }
+  return {
+    id,
+    label,
+    previousState: displayValue(payload.previous_state),
+    state: displayValue(payload.state),
+    nextFireAt: displayValue(payload.next_fire_at),
+    repositoryId: displayValue(payload.repository_id),
+    repositorySlug: displayValue(payload.repository_slug)
+  }
 }
 
 export function ScheduledTaskOutcomeCard({
