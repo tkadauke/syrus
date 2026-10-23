@@ -124,6 +124,25 @@ describe("pluginToolCards", () => {
       expect(entry?.examples.length).toBeGreaterThan(0)
     })
 
+    it("discovers the current scheduled-task list card and all catalog states", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "list_scheduled_tasks")
+
+      expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "scheduled_tasks" })
+      expect(entry?.examples.map((example) => example.id)).toEqual(["cron_and_one_shot", "no_scheduled_tasks", "scheduled_tasks_error"])
+      expect(entry?.examples[0].parsedResult).toMatchObject({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({
+            label: "Nightly dependency audit",
+            schedule_input: "Every day at 3am",
+            schedule_expression: "daily at 03:00",
+            schedule_explanation: "Runs daily at 3:00 AM UTC",
+            fire_at: "2026-09-17T02:55:00Z",
+            next_fire_at: "2026-09-17T03:00:00Z"
+          })
+        ])
+      })
+    })
+
     it("resolves resultBody directly when an example supplies it", () => {
       const example: ToolCardExample = { id: "x", label: "x", resultBody: "not json at all" }
       expect(resolveExampleResultBody(example)).toBe("not json at all")
