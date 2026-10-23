@@ -56,7 +56,7 @@ describe("read_memory tool card", () => {
     expect(screen.getByText("Source type")).toBeInTheDocument()
     expect(screen.getByText("job")).toBeInTheDocument()
     expect(screen.getByText("Source ID")).toBeInTheDocument()
-    expect(screen.getByText("314")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-314" })).toHaveAttribute("href", "/jobs/314")
     expect(screen.getByText("agent")).toBeInTheDocument()
     expect(screen.getByText("0.9")).toBeInTheDocument()
     expect(screen.getByText("Visibility")).toBeInTheDocument()
