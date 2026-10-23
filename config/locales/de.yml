@@ -1,6 +1,10 @@
 de:
   hello: "Hallo Welt"
 
+  time:
+    formats:
+      long: "%Y-%m-%d %H:%M"
+
   errors:
     messages:
       inclusion: "ist kein gültiger Wert"
@@ -22,6 +26,7 @@ de:
 
   system_alert_mailer:
     alarm:
+      subject: "[Syrus-Alarm] %{title}"
       severity: "Schweregrad:"
       dismissal_key: "Ausblendeschlüssel:"
       action_steps: "Handlungsschritte"

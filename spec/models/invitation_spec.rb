@@ -3,6 +3,16 @@ require "rails_helper"
 RSpec.describe Invitation do
   let(:admin) { Factories.user }
 
+  it "snapshots the inviter locale and validates supported locales" do
+    inviter = Factories.user(locale: "de")
+    invitation = described_class.create!(invited_by: inviter, email_address: "guest@example.com")
+
+    inviter.update!(locale: "la")
+
+    expect(invitation.reload.locale).to eq("de")
+    expect(invitation.tap { |record| record.locale = "unsupported" }).not_to be_valid
+  end
+
   it "auto-generates a token and sets a default expiry on create" do
     invitation = Invitation.create!(invited_by: admin, email_address: "guest@example.com")
     expect(invitation.token).to be_present

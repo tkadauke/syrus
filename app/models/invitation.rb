@@ -9,10 +9,12 @@ class Invitation < ApplicationRecord
 
   validates :email_address, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :expires_at, presence: true
+  validates :locale, presence: true, inclusion: { in: User::LOCALES }
 
   scope :pending, -> { where(accepted_at: nil).where("expires_at > ?", Time.current) }
 
   before_validation :set_default_expiry, on: :create
+  before_validation :set_default_locale, on: :create
 
   def accept!
     update!(accepted_at: Time.current)
@@ -34,5 +36,10 @@ class Invitation < ApplicationRecord
 
   def set_default_expiry
     self.expires_at ||= DEFAULT_TTL.from_now
+  end
+
+  def set_default_locale
+    self.locale ||= invited_by&.locale.presence || I18n.default_locale.to_s
+    self.locale = User::LOCALES.first unless User::LOCALES.include?(locale)
   end
 end
