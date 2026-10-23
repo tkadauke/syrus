@@ -58,6 +58,8 @@ export type MysqlConnectionRow = {
   defaultDatabase: string | null
   agenticAccessEnabled: boolean
   allowWrites: boolean
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 export function parseConnection(value: unknown): MysqlConnectionRow | null {
@@ -70,7 +72,9 @@ export function parseConnection(value: unknown): MysqlConnectionRow | null {
     label: displayValue(value.label),
     defaultDatabase: displayValue(value.default_database),
     agenticAccessEnabled: value.agentic_access_enabled === true,
-    allowWrites: value.allow_writes === true
+    allowWrites: value.allow_writes === true,
+    createdAt: displayValue(value.created_at),
+    updatedAt: displayValue(value.updated_at)
   }
 }
 
