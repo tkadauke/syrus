@@ -54,6 +54,24 @@ describe("delete_scheduled_task tool card", () => {
     expect(screen.getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
   })
 
+  it("renders a deleted one-shot task's fire time as its schedule", () => {
+    render(
+      <>
+        {deleteScheduledTaskToolCard.renderExpanded(
+          context({
+            parsedResult: {
+              ...deleted,
+              schedule_explanation: null,
+              fire_at: "2026-11-01T16:30:00Z"
+            }
+          })
+        )}
+      </>
+    )
+
+    expect(screen.getByText("Once at 2026-11-01T16:30:00Z (UTC)")).toBeInTheDocument()
+  })
+
   it("renders not-found and write-access failures as styled error cards", () => {
     const errors = [
       { resultBody: "scheduled task not found: 404", parsedResult: null },
@@ -83,6 +101,6 @@ describe("delete_scheduled_task tool card", () => {
   })
 
   it("publishes success and error catalog examples", () => {
-    expect(examples.map((example) => example.id)).toEqual(["deleted_task_details", "task_not_found"])
+    expect(examples.map((example) => example.id)).toEqual(["deleted_task_details", "deleted_one_shot_task", "task_not_found"])
   })
 })
