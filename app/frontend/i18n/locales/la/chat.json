@@ -686,6 +686,21 @@
     "not_provided": "Non datum",
     "outcome": "Exitus coniungibilitatis"
   },
+  "pause_landing_queue": {
+    "target": "Scopus",
+    "landing_queue": "Ordo descensus",
+    "outcome": "Exitus",
+    "summary": "Ordinem descensus siste",
+    "summary_with_outcome": "Ordinem descensus siste · {{outcome}}",
+    "states": {
+      "pending": "Pendens",
+      "pausing": "Sistitur",
+      "paused": "Sistitur",
+      "rejected": "Reiectum",
+      "cancelled": "Revocatum",
+      "failed": "Defecit"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",
     "summary_denied": "contextus invocationis negatus: {{error}}",

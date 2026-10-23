@@ -19,6 +19,7 @@ describe("parseLocalModeJobOutcome", () => {
       job_id: 4225,
       job_state: "coding",
       branch_name: "syrus/direct-325",
+      checkout_branch: "coding/chat-98",
       repository_slug: "tkadauke/syrus",
       message: "JOB-325 is now open for local implementation on branch `syrus/direct-325`."
     })
@@ -27,6 +28,7 @@ describe("parseLocalModeJobOutcome", () => {
       jobId: "4225",
       jobState: "coding",
       branchName: "syrus/direct-325",
+      checkoutBranch: "coding/chat-98",
       repositorySlug: "tkadauke/syrus",
       message: "JOB-325 is now open for local implementation on branch `syrus/direct-325`."
     })
@@ -35,6 +37,7 @@ describe("parseLocalModeJobOutcome", () => {
   it("parses the minimal cancel_local_mode shape (no branch/repository)", () => {
     const result = parseLocalModeJobOutcome({ job_id: 4225, job_state: "implemented", message: "Local mode session cancelled." })
     expect(result?.branchName).toBeNull()
+    expect(result?.checkoutBranch).toBeNull()
     expect(result?.repositorySlug).toBeNull()
   })
 
@@ -66,6 +69,7 @@ describe("LocalModeJobOutcomeCard", () => {
       job_id: 4225,
       job_state: "coding",
       branch_name: "syrus/direct-325",
+      checkout_branch: "coding/chat-98",
       repository_slug: "tkadauke/syrus",
       message: "opened on `syrus/direct-325`"
     })!
@@ -76,10 +80,12 @@ describe("LocalModeJobOutcomeCard", () => {
     expect(screen.getByText("coding")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
     expect(screen.getByTitle("syrus/direct-325")).toBeInTheDocument()
+    expect(screen.getByTitle("coding/chat-98")).toBeInTheDocument()
     expect(screen.getByText("syrus/direct-325", { selector: "code" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /JOB-4225/ })).toHaveAttribute("href", "/jobs/4225")
     expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus")
     expect(screen.getByRole("button", { name: "Copy syrus/direct-325 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy coding/chat-98 to clipboard" })).toBeInTheDocument()
     expect(screen.getByTitle("syrus/direct-325")).toHaveClass("w-0", "flex-1", "whitespace-normal", "break-all")
     expect(screen.getByTitle("syrus/direct-325")).not.toHaveClass("sm:truncate")
   })

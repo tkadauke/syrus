@@ -135,6 +135,36 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("pending")).toBeInTheDocument()
   })
 
+  it("renders live pending-action detail and state for catalog fixtures", () => {
+    renderRoute("/admin/tool_cards?tool_name=force_landing_recheck")
+
+    const region = screen.getByRole("region", { name: "Force landing recheck" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText(/observed blocker: dependencies/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Bulk confirmed with refreshed outcome" }))
+
+    expect(within(region).getByText("confirmed")).toBeInTheDocument()
+    expect(within(region).getByText("Landing recheck outcome")).toBeInTheDocument()
+    expect(within(region).getByText(/refreshed state: closed/)).toBeInTheDocument()
+  })
+
+  it("refreshes a pending-action card's collapsed summary from its live catalog state", () => {
+    renderRoute("/admin/tool_cards?tool_name=pause_landing_queue")
+
+    const region = screen.getByRole("region", { name: "Pause landing queue" })
+    expect(within(region).getByText("Pause landing queue · Pending")).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Landing queue paused" }))
+    expect(within(region).getByText("Pause landing queue · Paused")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Queue pause rejected" }))
+    expect(within(region).getByText("Pause landing queue · Rejected")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
+  })
+
   it("deep-links directly to a specific tool and example", () => {
     renderRoute("/admin/tool_cards?tool_name=Bash&tool=Bash&example=command_failed")
 

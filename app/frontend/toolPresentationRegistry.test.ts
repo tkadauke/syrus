@@ -32,6 +32,12 @@ describe("toolPresentationRegistry", () => {
       expect(entry.examples).toEqual([])
     })
 
+    it("registers visually reviewable force landing recheck states", () => {
+      const entry = toolPresentationEntryFor("force_landing_recheck")
+
+      expect(entry.examples.map((example) => example.id)).toEqual(["bulk_pending", "bulk_confirmed", "error_with_reason", "missing_input"])
+    })
+
     it("resolves a provider built-in tool with no MCP card", () => {
       const bash = toolPresentationEntryFor("Bash")
       expect(bash.ownerType).toBe("provider")
@@ -70,6 +76,10 @@ describe("toolPresentationRegistry", () => {
       const createCodingJob = toolPresentationEntryFor("create_coding_job")
       expect(createCodingJob.sourceType).toBe("local_mode_tool")
       expect(createCodingJob.renderer).not.toBeNull()
+
+      const openInCodingMode = toolPresentationEntryFor("open_in_coding_mode")
+      expect(openInCodingMode.sourceType).toBe("local_mode_tool")
+      expect(openInCodingMode.renderer).not.toBeNull()
     })
 
     it("resolves a chat surface component by its synthetic identifier", () => {

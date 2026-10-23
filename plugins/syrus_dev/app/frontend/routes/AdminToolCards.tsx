@@ -131,7 +131,8 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     result_kind: resultPresentation.kind,
     result_summary: resultPresentation.summary,
     summary_metadata: resultPresentation.metadata,
-    prior_results: context.priorResults
+    prior_results: context.priorResults,
+    pending_action: context.livePendingAction
   }
 }
 

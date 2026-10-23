@@ -112,6 +112,12 @@ describe("pluginToolCards", () => {
       expect(entry?.examples.length).toBeGreaterThan(0)
     })
 
+    it("discovers the visual-review states for the CI repair no-op card", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "mark_ci_repair_noop")
+
+      expect(entry?.examples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "validation_error"])
+    })
+
     it("discovers examples exported alongside a plugin card module, purely by directory convention", () => {
       const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "browser_click")
       expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "browser" })
@@ -150,6 +156,14 @@ describe("pluginToolCards", () => {
       expect(context.resultSettled).toBe(false)
       expect(context.resultBody).toBe("")
       expect(context.parsedResult).toBeNull()
+    })
+
+    it("preserves live pending-action state for outcome fixtures", () => {
+      const example = findExample("force_landing_recheck", "bulk_confirmed")
+      const context = toolCardContextForExample("force_landing_recheck", example)
+
+      expect(context.livePendingAction).toMatchObject({ id: 501, state: "confirmed", execution_status: "applied" })
+      expect(context.livePendingAction?.detail).toContain("refreshed state: closed")
     })
 
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {
