@@ -14,6 +14,12 @@ Configure either or both of:
 - `SYRUS_ALERT_WEBHOOK_URL` — POSTs a JSON payload for each alarm;
 - `SYRUS_ALERT_EMAIL_TO` — comma-separated mail recipients.
 
+System-alert email has no user recipient record from which to select a locale,
+so its fixed subject and labels always use the application's configured default
+locale. Alert titles, messages, action steps, and CTA text are operational
+payload text and are delivered verbatim; they are not treated as translation
+keys.
+
 Delivery is deduplicated by the alert's `dismissal_key` in
 `system_alert_notifications`, so repeated scheduler ticks or multiple operators
 seeing the same banner do not flood the sink. Only `:alarm` alerts are delivered
