@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { messages } from "./i18n"
+import { messages, normalizeLocale, translate } from "./i18n"
 
 const localizedLocales = ["de", "la"] as const
 
@@ -50,5 +50,13 @@ describe("desktop i18n messages", () => {
     for (const locale of localizedLocales) {
       expect(messages[locale]["adopt_existing.confirm_word"]).toEqual("delete")
     }
+  })
+
+  it("normalizes regional and unsupported locales without browser globals", () => {
+    expect(normalizeLocale("de-DE")).toBe("de")
+    expect(normalizeLocale("LA_va")).toBe("la")
+    expect(normalizeLocale("fr-FR")).toBe("en")
+    expect(normalizeLocale(undefined)).toBe("en")
+    expect(translate("de-AT", "shell.open")).toBe(messages.de["shell.open"])
   })
 })
