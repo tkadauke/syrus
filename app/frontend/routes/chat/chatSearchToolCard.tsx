@@ -220,10 +220,54 @@ function parseSearchHit(value: unknown, index: number): SearchHit | null {
   }
 }
 
-function contentText(value: unknown): string | null {
+function jsonMarkdown(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === "string") return value
+  try {
+    return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
+  } catch {
+    return "[Structured content unavailable]"
+  }
+}
+
+function contentBlockText(value: unknown): string | null {
   if (typeof value === "string") return value
   if (!isPlainObject(value)) return null
-  return displayValue(value.text) ?? displayValue(value.content) ?? displayValue(value.summary)
+
+  const type = displayValue(value.type)
+  if (type === "text" || type === "output_text") return displayValue(value.text) ?? displayValue(value.output)
+  if (type === "thinking" || type === "redacted_thinking") return "[Thinking block omitted]"
+  if (type === "tool_use") {
+    const name = displayValue(value.name) ?? "tool"
+    return [`Tool call: **${name}**`, jsonMarkdown(value.input)].filter(Boolean).join("\n\n")
+  }
+  if (type === "tool_result") {
+    const status = value.is_error === true ? "error" : "result"
+    return [`Tool ${status}`, contentText(value.content ?? value.result)].filter(Boolean).join("\n\n")
+  }
+
+  const label = type ? type.replace(/_/g, " ") : "structured"
+  return `[${label} block]`
+}
+
+function contentText(value: unknown): string | null {
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    const text = value.flatMap((item) => {
+      const block = contentBlockText(item)
+      return block ? [block] : []
+    })
+    return text.length > 0 ? text.join("\n\n") : null
+  }
+  if (!isPlainObject(value)) return null
+
+  const typed = contentBlockText(value)
+  if (displayValue(value.type)) return typed
+  const direct = displayValue(value.text) ?? displayValue(value.summary)
+  if (direct) return direct
+  if (value.content != null) return contentText(value.content)
+  if (value.result != null) return contentText(value.result) ?? jsonMarkdown(value.result)
+  return jsonMarkdown(value)
 }
 
 function safeAttachmentUrl(value: unknown, mimeType: string | null): string | null {
@@ -235,15 +279,24 @@ function safeAttachmentUrl(value: unknown, mimeType: string | null): string | nu
 }
 
 function parseAttachments(content: unknown): MessageAttachment[] {
-  if (!isPlainObject(content)) return []
-  const values = [content.attachments, content.media, content.images].flatMap((value) => (Array.isArray(value) ? value : []))
+  const values = Array.isArray(content)
+    ? content.filter((value) => isPlainObject(value) && ["image", "document"].includes(displayValue(value.type) ?? ""))
+    : isPlainObject(content)
+      ? [content.attachments, content.media, content.images].flatMap((value) => (Array.isArray(value) ? value : []))
+      : []
   return values.flatMap((value, index) => {
     if (!isPlainObject(value)) return []
-    const mimeType = displayValue(value.mime_type) ?? displayValue(value.mimeType) ?? displayValue(value.content_type)
+    const source = isPlainObject(value.source) ? value.source : null
+    const mimeType =
+      displayValue(value.mime_type) ??
+      displayValue(value.mimeType) ??
+      displayValue(value.content_type) ??
+      displayValue(value.media_type) ??
+      displayValue(source?.media_type)
     const name = displayValue(value.name) ?? displayValue(value.filename) ?? `Attachment ${index + 1}`
-    const data = displayValue(value.data)
+    const data = displayValue(value.data) ?? displayValue(source?.data)
     const encodedImage = data && mimeType?.startsWith("image/") ? `data:${mimeType};base64,${data}` : null
-    const src = encodedImage ?? safeAttachmentUrl(value.url ?? value.file_path ?? value.image_url ?? value.data_url, mimeType)
+    const src = encodedImage ?? safeAttachmentUrl(value.url ?? value.file_path ?? value.image_url ?? value.data_url ?? source?.url, mimeType)
     return [{ key: `${name}-${index}`, name, mimeType, src, image: Boolean(mimeType?.startsWith("image/")) }]
   })
 }
