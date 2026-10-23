@@ -484,31 +484,23 @@ describe("Runtime tool cards", () => {
     expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
   })
 
-  it("summarizes inspect health while tolerating missing fields", () => {
+  it("renders browser inspection input and snapshot output", () => {
     const parsedResult = {
-      health: "healthy",
-      detected_framework: "Vite",
-      ports: [{ port: 5173, state: "listening" }],
-      process: { state: "running" },
-      warnings: ["missing alt text"],
+      error: false,
       content: [{ type: "text", text: "Snapshot: button Open settings" }]
     }
+    const input = { session_id: 27, options: { selector: "main", include_hidden: false } }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe(
-      "Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning"
-    )
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { input, parsedResult }))).toBe("Runtime inspect complete")
 
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
-    expect(screen.getByText("healthy")).toBeInTheDocument()
-    expect(screen.getByText("Vite")).toBeInTheDocument()
-    expect(screen.getByText("5173 listening")).toBeInTheDocument()
-    expect(screen.getByText("missing alt text")).toBeInTheDocument()
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { input, parsedResult }))}</>)
+    expect(screen.getByText("27")).toBeInTheDocument()
+    expect(screen.getByText("selector")).toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    expect(screen.getByText("include_hidden")).toBeInTheDocument()
+    expect(screen.getByText("false")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
-
-    const sparse = { content: [{ type: "text", text: "Terminal scrollback is empty" }] }
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult: sparse }))).toBe("Runtime inspect: no health fields")
-    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: sparse }))}</>)
-    expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
+    expect(screen.getByText("Snapshot: button Open settings")).toBeInTheDocument()
   })
 
   it("renders Android UIAutomator inspection output without browser-only fields", () => {
@@ -518,12 +510,66 @@ describe("Runtime tool cards", () => {
       bytes: 67
     }
 
-    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: no health fields")
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: android_uiautomator, 67 bytes")
 
     render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("android_uiautomator")).toBeInTheDocument()
+    expect(screen.getByText("67")).toBeInTheDocument()
     expect(screen.getByText("Inspection details")).toBeInTheDocument()
     expect(screen.getAllByText(/<hierarchy>/).length).toBeGreaterThan(0)
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured_content", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    ["content text JSON", (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })]
+  ])("normalizes runtime_inspect %s envelopes and keeps terminal output tail-aware and redacted", (_format, envelope) => {
+    const scrollback = Array.from({ length: 45 }, (_, index) =>
+      index === 44 ? "line 45 API_TOKEN=secret-value-that-must-not-render" : `line ${index + 1}`
+    ).join("\n")
+    const payload = { kind: "terminal_scrollback", scrollback, bytes: 775 }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime inspect",
+      calls: [
+        {
+          message_id: 62,
+          tool_name: "Runtime inspect",
+          raw_name: "mcp__syrus-chat-sidecar__runtime_inspect",
+          detail: "",
+          display_label: "Runtime inspect",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 9, options: { source: "terminal" } },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime inspect: terminal_scrollback, 775 bytes")).toBeInTheDocument()
+    expandToolGroup("Runtime inspect")
+    expect(screen.getByText("9")).toBeInTheDocument()
+    expect(screen.getByText("terminal")).toBeInTheDocument()
+    const preview = screen.getByTestId("text-preview-content")
+    expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
+    expect(preview.textContent).not.toContain("\nline 1\n")
+    expect(within(preview).getByText(/line 45 API_TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.queryByText("secret-value-that-must-not-render")).not.toBeInTheDocument()
+  })
+
+  it("renders boolean runtime inspection failures distinctly", () => {
+    const parsedResult = { error: true, content: [{ type: "text", text: "browser inspection timed out" }] }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect failed")
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("browser inspection timed out", { selector: "div" })).toHaveClass("text-danger-text")
   })
 
   it("renders long Runtime logs as a collapsed preview with truncation details", () => {
