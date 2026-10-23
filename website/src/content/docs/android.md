@@ -10,6 +10,10 @@ token with `GET /api/v1/app/bootstrap`, and it loads recent Jobs with
 `GET /api/v1/app/jobs`, including active Jobs so the mobile home screen can show
 current operator-facing progress.
 
+The app follows the device or app language using standard Android resources.
+Its interface is available in English, German, and Latin, with English used as
+the fallback for other locales.
+
 ## Local development
 
 Run a local Syrus backend, then launch the Android app in an emulator. Android
