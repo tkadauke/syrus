@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe "Password resets", type: :request do
+  it "queues reset instructions with the persisted recipient locale" do
+    Factories.user(email_address: "operator@example.com", locale: "de")
+
+    expect {
+      post passwords_path, params: { email_address: "operator@example.com" }
+    }.to have_enqueued_mail(PasswordsMailer, :reset)
+
+    I18n.with_locale(:la) { perform_enqueued_jobs }
+
+    expect(ActionMailer::Base.deliveries.last.subject).to eq("Passwort zurücksetzen")
+  end
+
   it "rejects a blank password without destroying sessions or consuming the reset token" do
     user = Factories.user(password: "oldsecret")
     session = user.sessions.create!
