@@ -1457,18 +1457,17 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
     throw new Error("Connect Syrus before changing admin controls.")
   }
 
-  const label = control === "polling" ? "polling" : "new Run starts"
-  const action = pause ? "pause" : "resume"
+  const label = t(control === "polling" ? "dialog.polling" : "dialog.run_starts")
   const parentWindow = BrowserWindow.fromWebContents(sender)
   const confirmationOptions: MessageBoxOptions = {
     type: "warning",
-    buttons: [pause ? "Pause" : "Resume", "Cancel"],
+    buttons: [t(pause ? "dialog.pause" : "dialog.resume"), t("common.cancel")],
     defaultId: 1,
     cancelId: 1,
     message: t("dialog.pause_resume", { action: t(pause ? "dialog.pause" : "dialog.resume"), label }),
     detail: pause
-      ? `Syrus will stop ${control === "polling" ? "polling repositories" : "starting new Runs"} until an admin resumes it.`
-      : `Syrus will resume ${control === "polling" ? "repository polling" : "starting new Runs"}.`
+      ? t(control === "polling" ? "dialog.pause_polling_detail" : "dialog.pause_runs_detail")
+      : t(control === "polling" ? "dialog.resume_polling_detail" : "dialog.resume_runs_detail")
   }
   const confirmation = parentWindow ? await dialog.showMessageBox(parentWindow, confirmationOptions) : await dialog.showMessageBox(confirmationOptions)
 
@@ -1485,7 +1484,7 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
 
   throwIfUnauthorized(credentials, response)
   if (!response.ok) {
-    throw new Error(`Could not ${action} ${label}.`)
+    throw new Error(t("dialog.action_failed", { action: `${t(pause ? "dialog.pause" : "dialog.resume").toLowerCase()} ${label}` }))
   }
 
   const payload = (await response.json()) as AdminConsolePayload
@@ -2002,10 +2001,7 @@ const offerBackendUpdateIfPinned = async () => {
     defaultId: 0,
     cancelId: 1,
     message: t("dialog.update_backend"),
-    detail:
-      `This version of Syrus was tested with ${image}` +
-      `${current ? `, but the local backend is pinned to ${current}` : ""}. ` +
-      "Updating pulls the new image and restarts the backend — agent runs pause for a minute or two."
+    detail: t(current ? "dialog.update_backend_detail_pinned" : "dialog.update_backend_detail", { image, current })
   })
 
   if (choice.response !== 0) {
@@ -2027,7 +2023,7 @@ const offerBackendUpdateIfPinned = async () => {
     new Notification({ title: t("notification.backend_updated"), body: image }).show()
     void webAppWindow?.loadServerUrl()
   } else {
-    await reportBackendActionFailure("update the Syrus backend")
+    await reportBackendActionFailure(t("dialog.action_update_backend"))
   }
 }
 
@@ -2096,8 +2092,7 @@ const offerSetupAfterDataLoss = async () => {
     defaultId: 0,
     cancelId: 1,
     message: t("dialog.data_gone"),
-    detail:
-      "Docker is running, but the Syrus data volume no longer exists (it may have been deleted along with your containers). Syrus can't start again until it's set up fresh."
+    detail: t("dialog.data_gone_detail")
   })
 
   if (choice.response === 0) {
@@ -2122,7 +2117,7 @@ const confirmStopBackend = async () => {
   if (await backendLifecycle.stopBackend()) {
     showBackendUnavailable("stopped")
   } else {
-    await reportBackendActionFailure("stop Syrus")
+    await reportBackendActionFailure(t("dialog.action_stop"))
   }
 }
 
@@ -2160,11 +2155,8 @@ const confirmAndUninstall = async () => {
     type: "warning",
     title: t("dialog.uninstall_title", { app: appName }),
     message: t("dialog.uninstall", { app: appName }),
-    detail:
-      channel === "test"
-        ? `This removes the ${appName} app, the syrus-test command-line tool, and the ${appName} test Docker stack (project syrus-test) and its images. Your production Syrus install is left untouched.\n\n${appName} will quit when the uninstall starts.`
-        : "This removes the Syrus app, the syrus command-line tool, the Claude Code skill, and Syrus's local Docker containers and downloaded images.\n\nSyrus will quit when the uninstall starts. Docker Desktop / OrbStack itself is not removed.",
-    checkboxLabel: `Also delete my ${appName} data (jobs, chats, settings — cannot be undone)`,
+    detail: t(channel === "test" ? "dialog.uninstall_test_detail" : "dialog.uninstall_detail", { app: appName }),
+    checkboxLabel: t("dialog.uninstall_data", { app: appName }),
     checkboxChecked: false,
     buttons: [t("common.cancel"), t("dialog.uninstall_button")],
     defaultId: 0,
@@ -2369,7 +2361,7 @@ const updateMenuItems = (): Electron.MenuItemConstructorOptions[] => {
 
   return [
     {
-      label: `Restart to update Syrus (v${version})`,
+      label: t("updates.restart", { version }),
       click: () => {
         if (deferRelaunchWhileBackendBusy()) {
           return
@@ -2393,10 +2385,7 @@ const checkForUpdatesInteractively = async () => {
       await dialog.showMessageBox({
         type: "info",
         message: t("updates.unavailable"),
-        detail:
-          process.platform === "win32"
-            ? "Updates apply to the packaged app installed with the Syrus setup program."
-            : "Updates apply to the packaged, signed app installed from the DMG."
+        detail: t(process.platform === "win32" ? "updates.unavailable_windows_detail" : "updates.unavailable_mac_detail")
       })
       break
     case "downloaded":
@@ -2404,10 +2393,7 @@ const checkForUpdatesInteractively = async () => {
       await dialog.showMessageBox({
         type: "info",
         message: t("updates.arriving", { version: result.version }),
-        detail:
-          result.outcome === "downloaded"
-            ? "The update is ready — restart Syrus from the menu to apply it."
-            : "The update is downloading in the background; you'll be offered a restart when it's ready."
+        detail: t(result.outcome === "downloaded" ? "updates.ready_detail" : "updates.downloading_detail")
       })
       break
     case "up-to-date":
