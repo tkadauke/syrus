@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Nav } from "../../../../components/nav";
-import { Footer } from "../../../../components/footer";
-import { DocsPage } from "../../../../components/docs-page";
-import { docsStaticParams, findDoc } from "../../../../lib/docs";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { DocsPage } from "@/components/docs-page";
+import { docsStaticParams, findDoc } from "@/lib/docs";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -33,11 +33,11 @@ export default async function DocPage({ params }: PageProps) {
 
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
-        <DocsPage doc={doc} />
+        <DocsPage doc={doc} locale="en" />
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }
