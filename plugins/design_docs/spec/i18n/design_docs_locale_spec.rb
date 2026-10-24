@@ -25,6 +25,7 @@ RSpec.describe "Design Docs frontend locales", type: :unit do
     expect(german).to include(
       "archived_read_only" => "Dieses Designdokument ist archiviert. Inhalt, Kommentare, Vorschläge und Reviews sind schreibgeschützt.",
       "aria_share_visibility" => "Sichtbarkeit der Freigabe",
+      "close_comment_drawer" => "Kommentare schließen",
       "notice_saved_suggestion" => "Als Vorschlag zur Prüfung durch den Besitzer gespeichert.",
       "threads" => "Diskussionen",
       "toolbar.bulleted_list" => "Aufzählung",
