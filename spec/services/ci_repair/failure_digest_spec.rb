@@ -109,4 +109,19 @@ RSpec.describe CiRepair::FailureDigest do
       expect(digest).to include("\"parser\": \"fallback\"")
     end
   end
+
+  it "bounds structured error context by retaining its failing tail" do
+    tail = "THE FAILING ASSERTION"
+    oversized = "header\n#{"x" * (described_class::MAX_ERROR_BLOCK_BYTES + 100)}\n#{tail}"
+    check = {
+      name: "test", conclusion: "failure", summary: "failed", html_url: "https://example.test/run",
+      error_context: { parser: "generic_error", error_summary: "failed", error_block: oversized }
+    }
+    allow(CiRepair::CheckEnricher).to receive(:call).and_return(check)
+
+    digest = described_class.call(result(state: "failing", failed_checks: [ check ]))
+
+    expect(digest).to include(tail)
+    expect(digest).not_to include("header")
+  end
 end

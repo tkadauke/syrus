@@ -1,0 +1,14 @@
+[33mWarning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.[0m
+Warning: An update to Filter inside a test was not wrapped in act(...).
+Not implemented: HTMLCanvasElement.prototype.getContext
+ ✓ app/frontend/components/Filter.test.tsx (8 tests) 93ms
+
+ FAIL  app/frontend/components/Filter.test.tsx > Filter > preserves selected chips
+AssertionError: expected [] to deeply equal [ 'open' ]
+ ❯ app/frontend/components/Filter.test.tsx:84:31
+
+ Failed Tests 1
+ FAIL  app/frontend/components/Filter.test.tsx > Filter > preserves selected chips
+
+ Test Files  1 failed | 12 passed (13)
+      Tests  1 failed | 48 passed (49)
