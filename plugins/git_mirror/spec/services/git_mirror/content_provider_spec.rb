@@ -68,6 +68,16 @@ RSpec.describe GitMirror::ContentProvider do
       .to eq([ [ ".syrus.yml", "file", "b1" ], [ "vendor/dep", "submodule", "c1" ] ])
   end
 
+  it "lists direct directory children" do
+    stub_mirror("children", { revision: sha, path: "app" }, body: { entries: [
+      { path: "app/models", type: "directory", content_id: "t1" },
+      { path: "app/application.rb", type: "file", size: 9, content_id: "b1" }
+    ] }.to_json)
+
+    expect(provider.children(sha, "app").map { |entry| [ entry.path, entry.type ] })
+      .to eq([ [ "app/models", "directory" ], [ "app/application.rb", "file" ] ])
+  end
+
   it "reads raw bytes" do
     stub_mirror("blob", { revision: sha, path: "logo.png" }, body: "\x89PNG".b, headers: { "X-Content-Id" => "b2" })
 

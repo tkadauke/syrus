@@ -28,6 +28,10 @@ with a Source toggle, and other text files get syntax highlighting. Google
 Doc attachments stay a plain external link; binary uploads (images, PDFs,
 Office documents) open the popup but show a "cannot be previewed" state with
 the Raw button still available.
+The Source tab browses every file at the selected revision. It loads the
+repository root first, then fetches each folder's direct children when the
+operator expands it, so large repositories are not cut off by a fixed file
+limit or loaded as one oversized recursive tree.
 Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph
