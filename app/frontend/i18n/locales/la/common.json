@@ -86,17 +86,8 @@
   },
   "search": {
     "heading": "Quaesitio",
-    "use_sidebar": "Campo quaesitionis in latere utere ut per Syrum quaeras.",
-    "min_chars": "Inscribe saltem 2 litteras ad quaerendum.",
     "error": "Exitus quaesitionis onerari non potuerunt.",
-    "no_results": "Nulla huic quaesitioni conveniunt.",
-    "hide": "Absconde",
-    "show": "Ostende",
-    "match_more": "plus conveniens",
-    "matches_more": "plura convenientia",
-    "more": "plura",
-    "in_this_chat": "in hoc colloquio",
-    "top_matches_shown": "Solum summi {{count}} exitus additi ostenduntur."
+    "no_results": "Nulla huic quaesitioni conveniunt."
   },
   "errors": {
     "not_found_heading": "Hic nihil est.",
@@ -423,9 +414,6 @@
     "previous_match": "Prior inventio",
     "previous_short": "Prior"
   },
-  "search_aria": "Quaerere",
-  "search_type_filters_aria": "Filtra generis quaerendi",
-  "loading_search_aria": "Eventus quaerendi onerantur",
   "onboarding_aria": "Introductio",
   "terminal_aria": "Terminale",
   "page_title_terminal": "Terminale",
