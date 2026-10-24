@@ -8,7 +8,7 @@
   "tool_list_summary_one": "{{count}} geplanter Task",
   "tool_list_summary_other": "{{count}} geplante Tasks",
   "tool_list_empty": "Keine geplanten Tasks für dieses Repository.",
-  "tool_col_task": "Task",
+  "tool_col_task": "Aufgabe",
   "tool_col_state": "Status",
   "tool_col_kind": "Art",
   "tool_col_cadence": "Takt",
