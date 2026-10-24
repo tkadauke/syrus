@@ -13,6 +13,7 @@ import {
   SectionLabel,
   StatePill
 } from "./toolCardUi"
+import i18n from "../../i18n"
 import { ErrorCard } from "./chatHelperToolCard"
 
 const SNIPPET_CHARS = 280
@@ -227,13 +228,13 @@ function ListChatsFilters({ mode, jobId, hasAttachedJobs }: { mode: string | nul
 
   return (
     <div className="flex flex-wrap gap-1">
-      {mode ? <Badge>Mode: {mode}</Badge> : null}
+      {mode ? <Badge>{i18n.t("chat:mode_value", { mode })}</Badge> : null}
       {jobId ? (
         <Badge>
-          <span>Job:</span> <EntityReference id={jobId} kind="job" />
+          <span>{i18n.t("chat:job_label")}</span> <EntityReference id={jobId} kind="job" />
         </Badge>
       ) : null}
-      {hasAttachedJobs == null ? null : <Badge>{hasAttachedJobs ? "Has attached Jobs" : "No attached Jobs"}</Badge>}
+      {hasAttachedJobs == null ? null : <Badge>{hasAttachedJobs ? i18n.t("chat:has_attached_jobs") : i18n.t("chat:no_attached_jobs")}</Badge>}
     </div>
   )
 }
@@ -254,11 +255,12 @@ export function listChatsCollapsedSummary(context: ToolCardContext) {
   const result = parseListChats(context)
   if (!result) return null
   const count = result.pagination.totalCount ?? result.rows.length
-  return count === 0 ? "No chats" : `${count} chat${count === 1 ? "" : "s"}`
+  return i18n.t("chat:chat_count", { count })
 }
 
 export function ListChatsCard({ context }: { context: ToolCardContext }) {
-  if (context.resultError) return <ErrorCard title="Could not list chats" message={displayValue(context.resultBody) ?? "The chat list request failed."} />
+  if (context.resultError)
+    return <ErrorCard title={i18n.t("chat:could_not_list_chats")} message={displayValue(context.resultBody) ?? i18n.t("chat:chat_list_failed")} />
   const result = parseListChats(context)
   if (!result) return null
 
@@ -270,7 +272,7 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
     return (
       <CardShell>
         <ListChatsFilters hasAttachedJobs={attachedFilter} jobId={jobFilter} mode={modeFilter} />
-        <EmptyState>No chats found.</EmptyState>
+        <EmptyState>{i18n.t("chat:no_chats_found")}</EmptyState>
         <PaginationNote pagination={result.pagination} />
       </CardShell>
     )
@@ -291,18 +293,10 @@ export function ListChatsCard({ context }: { context: ToolCardContext }) {
                   {chat.repository ? (
                     <EntityReference kind="repository" repositoryId={chat.repositoryId} repositorySlug={chat.repository} />
                   ) : (
-                    <span>No repository</span>
+                    <span>{i18n.t("chat:no_repository")}</span>
                   )}
-                  {chat.messageCount != null ? (
-                    <span>
-                      {chat.messageCount} message{chat.messageCount === 1 ? "" : "s"}
-                    </span>
-                  ) : null}
-                  {chat.attachedJobsCount != null ? (
-                    <span>
-                      {chat.attachedJobsCount} attached Job{chat.attachedJobsCount === 1 ? "" : "s"}
-                    </span>
-                  ) : null}
+                  {chat.messageCount != null ? <span>{i18n.t("chat:message_count", { count: chat.messageCount })}</span> : null}
+                  {chat.attachedJobsCount != null ? <span>{i18n.t("chat:attached_job_count", { count: chat.attachedJobsCount })}</span> : null}
                 </Metadata>
               </div>
               {chat.updatedAt ? (
@@ -344,8 +338,8 @@ export function parseSearchChats(context: ToolCardContext) {
 export function searchChatsCollapsedSummary(context: ToolCardContext) {
   const result = parseSearchChats(context)
   if (!result) return null
-  const query = result.query ? `"${result.query}"` : "Chat search"
-  return `${query} - ${result.hits.length} hit${result.hits.length === 1 ? "" : "s"}`
+  const query = result.query ? `"${result.query}"` : i18n.t("chat:chat_search")
+  return i18n.t("chat:search_hit_summary", { query, count: result.hits.length })
 }
 
 export function SearchChatsCard({ context }: { context: ToolCardContext }) {
@@ -358,7 +352,7 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
 
   return (
     <CardShell>
-      {result.query ? <Row label="Query" value={result.query} /> : null}
+      {result.query ? <Row label={i18n.t("chat:query")} value={result.query} /> : null}
       <div className="space-y-2">
         {result.hits.map((hit) => (
           <article className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={hit.key}>
@@ -368,11 +362,9 @@ export function SearchChatsCard({ context }: { context: ToolCardContext }) {
                   <ChatTitle chatId={hit.chatSessionId} messageId={hit.messageId} title={hit.chatTitle} />
                 </div>
                 <Metadata>
-                  {hit.repository ? <Badge>{hit.repository}</Badge> : <span>No repository</span>}
+                  {hit.repository ? <Badge>{hit.repository}</Badge> : <span>{i18n.t("chat:no_repository")}</span>}
                   {hit.role ? <Badge>{hit.role}</Badge> : null}
-                  <span>
-                    {matchCounts.get(hit.chatSessionId) ?? 1} match{(matchCounts.get(hit.chatSessionId) ?? 1) === 1 ? "" : "es"} in chat
-                  </span>
+                  <span>{i18n.t("chat:match_in_chat_count", { count: matchCounts.get(hit.chatSessionId) ?? 1 })}</span>
                 </Metadata>
               </div>
               {hit.createdAt ? (
@@ -413,8 +405,8 @@ export function parseReadChatMessages(context: ToolCardContext) {
 export function readChatMessagesCollapsedSummary(context: ToolCardContext) {
   const result = parseReadChatMessages(context)
   if (!result) return null
-  const title = result.chatTitle || (result.chatId ? `Chat ${result.chatId}` : "Chat")
-  return `${title} - ${result.messages.length} message${result.messages.length === 1 ? "" : "s"}`
+  const title = result.chatTitle || (result.chatId ? i18n.t("chat:chat_number", { id: result.chatId }) : i18n.t("chat:tool_card_chat"))
+  return i18n.t("chat:chat_message_summary", { title, count: result.messages.length })
 }
 
 export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) {
@@ -430,18 +422,18 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
           <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
         )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
-        {result.hasMore ? <Badge>more messages available</Badge> : null}
+        {result.hasMore ? <Badge>{i18n.t("chat:more_messages_available")}</Badge> : null}
       </div>
       {result.messages.length === 0 ? (
-        <EmptyState>No messages on this page.</EmptyState>
+        <EmptyState>{i18n.t("chat:no_messages_on_page")}</EmptyState>
       ) : (
         <div>
-          <SectionLabel>Transcript excerpt</SectionLabel>
+          <SectionLabel>{i18n.t("chat:transcript_excerpt")}</SectionLabel>
           <div className="mt-1">
             <FilterableList
               itemText={(message) => [message.role, message.sender, message.createdAt, message.content].filter(Boolean).join(" ")}
               items={result.messages}
-              placeholder="Filter messages"
+              placeholder={i18n.t("chat:filter_messages")}
             >
               {(messages) => (
                 <ol className="max-h-80 space-y-1 overflow-auto rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950">
@@ -470,7 +462,7 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
           </div>
         </div>
       )}
-      {result.hasMore && result.nextPage != null ? <div className="text-2xs text-text-muted">Next page: {result.nextPage}</div> : null}
+      {result.hasMore && result.nextPage != null ? <div className="text-2xs text-text-muted">{i18n.t("chat:next_page", { page: result.nextPage })}</div> : null}
     </CardShell>
   )
 }

@@ -555,7 +555,7 @@ export function Compose({
       refreshRecentChats(queryClient)
       setText("")
       setClearConfirmationOpen(false)
-      onNotice(action.kind === "pin" ? (action.pinned ? "Chat pinned" : "Chat unpinned") : chatPayload.message || null)
+      onNotice(action.kind === "pin" ? (action.pinned ? t("chat_pinned_notice") : t("chat_unpinned_notice")) : chatPayload.message || null)
     }
   })
   const systemCommandAction = useMutation<{ payload?: ChatPayload; notice: string; jobId?: string }, Error, ChatSystemCommandAction>({
@@ -1945,7 +1945,7 @@ export function Compose({
           >
             {pendingProposalCount > 0 ? (
               <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                <span>{pendingProposalCount === 1 ? "1 pending proposal" : `${pendingProposalCount} pending proposals`}</span>
+                <span>{t("pending_proposal_count", { count: pendingProposalCount })}</span>
                 <button
                   className="font-medium underline hover:no-underline"
                   onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
@@ -2063,7 +2063,7 @@ export function Compose({
                   {attachment.mimeType.startsWith("image/") ? (
                     <>
                       <button
-                        aria-label={`Annotate ${attachment.name}`}
+                        aria-label={t("aria_annotate_attachment", { name: attachment.name })}
                         className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand"
                         onClick={() => setAnnotatingIndex(index)}
                         type="button"
@@ -2108,7 +2108,7 @@ export function Compose({
                     {attachment.name}
                   </span>
                   <button
-                    aria-label={`Remove ${attachment.name}`}
+                    aria-label={t("aria_remove_attachment", { name: attachment.name })}
                     className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                     onClick={() => removeAttachment(index)}
                     type="button"
@@ -3483,7 +3483,9 @@ function SlashCommandConfirmation({
     <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Confirm {commandName}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+            {t("confirm_command", { command: commandName })}
+          </div>
           {prompt ? (
             <div className="mt-1 break-words text-sm text-gray-900 dark:text-gray-100">{prompt}</div>
           ) : (
@@ -3628,7 +3630,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div>
         ) : null}
         <textarea
-          aria-label={`Edit queued message ${position}`}
+          aria-label={t("aria_edit_queued_message", { position })}
           className="min-h-16 w-full resize-y rounded border border-brand/30 bg-white px-2 py-1.5 text-sm focus:border-brand focus:ring-brand dark:bg-gray-950 dark:text-gray-100"
           onChange={(event) => setDraft(event.target.value)}
           value={draft}
@@ -3683,7 +3685,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           </svg>
         </button>
         <button
-          aria-label={`Delete queued message ${position}`}
+          aria-label={t("aria_delete_queued_message", { position })}
           className="rounded p-2 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300 dark:disabled:text-gray-700"
           disabled={remove.isPending || stash.isPending}
           onClick={() => remove.mutate()}
@@ -3700,13 +3702,11 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
 }
 
 function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessage["attachments"] }) {
+  const { t } = useT("chat")
   if (!attachments || attachments.length === 0) return null
 
   const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
-  const label =
-    imageCount === attachments.length
-      ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
-      : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+  const label = imageCount === attachments.length ? t("image_count", { count: attachments.length }) : t("attachment_count", { count: attachments.length })
 
   return (
     <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">

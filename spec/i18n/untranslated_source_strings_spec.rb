@@ -4,23 +4,10 @@ require "tempfile"
 
 RSpec.describe "Untranslated source strings", type: :unit do
   CHAT_I18N_DEBT_FILES = %w[
-    app/frontend/routes/chat/Compose.tsx
-    app/frontend/routes/chat/JobEpicPickerPopup.tsx
-    app/frontend/routes/chat/ProposalCards.tsx
-    app/frontend/routes/chat/ScheduleMessageModal.tsx
-    app/frontend/routes/chat/WorkspacePanels.tsx
-    app/frontend/routes/chat/adminToolCard.tsx
-    app/frontend/routes/chat/chatHelperToolCard.tsx
-    app/frontend/routes/chat/chatPinToolCard.tsx
-    app/frontend/routes/chat/chatSearchToolCard.tsx
     app/frontend/routes/chat/issueTagArtifactToolCard.tsx
     app/frontend/routes/chat/jobEpicMaintenanceToolCard.tsx
     app/frontend/routes/chat/pendingActionToolCard.tsx
-    app/frontend/routes/chat/pinnedContextToolCard.tsx
-    app/frontend/routes/chat/proposalDisplay.ts
-    app/frontend/routes/chat/proposalToolCard.tsx
     app/frontend/routes/chat/refMovementToolCard.tsx
-    app/frontend/routes/chat/repoDocumentToolCard.tsx
     app/frontend/routes/chat/runtimeToolCard.tsx
     app/frontend/routes/chat/streamBuilders.ts
     app/frontend/routes/chat/streamChrome.tsx
@@ -206,6 +193,20 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/MessageCards.tsx|ternary|max-w-[calc(100vw-2rem)]
       app/frontend/routes/chat/MessageCards.tsx|ternary|px-3 py-2
       app/frontend/routes/chat/MessageCards.tsx|jsx_text|(, )
+      app/frontend/routes/chat/Compose.tsx|ternary|bg-brand/10 font-medium text-brand
+      app/frontend/routes/chat/Compose.tsx|ternary|text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800
+      app/frontend/routes/chat/JobEpicPickerPopup.tsx|user_visible_property|JOB-
+      app/frontend/routes/chat/JobEpicPickerPopup.tsx|user_visible_property|EPIC-
+      app/frontend/routes/chat/ProposalCards.tsx|user_visible_property|JOB-
+      app/frontend/routes/chat/ProposalCards.tsx|user_visible_property|EPIC-
+      app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|#message-
+      app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|EPIC-
+      app/frontend/routes/chat/ProposalCards.tsx|jsx_expression|JOB-
+      app/frontend/routes/chat/WorkspacePanels.tsx|jsx_expression|(+ -)
+      app/frontend/routes/chat/adminToolCard.tsx|jsx_text|JOB-
+      app/frontend/routes/chat/adminToolCard.tsx|jsx_text|isValidElement
+      app/frontend/routes/chat/adminToolCard.tsx|ternary|mt-1 overflow-visible sm:overflow-x-auto
+      app/frontend/routes/chat/chatHelperToolCard.tsx|jsx_text|T | null): CardState
       app/frontend/routes/RepositoryTargetGraph.tsx|jsx_text|THR-
       app/frontend/routes/dashboard/JobsTable.tsx|jsx_text|PR #
       app/frontend/routes/dashboard/KanbanBoard.tsx|jsx_text|PR #

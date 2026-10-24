@@ -57,7 +57,7 @@ export function ErrorCard({ title, message, children }: { title: string; message
 export function MalformedCard({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <StatusCard title={title} status="unknown">
-      {children ?? <EmptyState>Unexpected tool response.</EmptyState>}
+      {children ?? <EmptyState>{i18n.t("chat:tool_card_unexpected_response")}</EmptyState>}
     </StatusCard>
   )
 }
@@ -96,11 +96,11 @@ export function questionsFromInput(input: Record<string, unknown> | undefined): 
 }
 
 export function QuestionList({ questions, onLinkClick }: { questions: AskedQuestion[]; onLinkClick?: MarkdownLinkHandler }) {
-  if (questions.length === 0) return <EmptyState>Question text was not included with this transcript entry.</EmptyState>
+  if (questions.length === 0) return <EmptyState>{i18n.t("chat:tool_card_question_missing")}</EmptyState>
 
   return (
     <div className="space-y-2">
-      <SectionLabel>Questions</SectionLabel>
+      <SectionLabel>{i18n.t("chat:tool_card_questions")}</SectionLabel>
       <ol className="space-y-2">
         {questions.map((question, index) => (
           <li className="rounded border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-950" key={question.key}>
@@ -120,7 +120,7 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
                 </div>
                 {question.options.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-1">
-                    <Badge>{question.multiple ? "multi-select" : "single-select"}</Badge>
+                    <Badge>{question.multiple ? i18n.t("chat:tool_card_multi_select") : i18n.t("chat:tool_card_single_select")}</Badge>
                     {question.options.map((option) => (
                       <div className={QUESTION_OPTION_CLASS} data-testid="question-option" key={option}>
                         <MarkdownPreview
@@ -137,7 +137,7 @@ export function QuestionList({ questions, onLinkClick }: { questions: AskedQuest
                   </div>
                 ) : (
                   <div className="mt-1">
-                    <Badge>free text</Badge>
+                    <Badge>{i18n.t("chat:tool_card_free_text")}</Badge>
                   </div>
                 )}
               </div>

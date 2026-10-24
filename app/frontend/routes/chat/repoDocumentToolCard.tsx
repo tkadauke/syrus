@@ -3,6 +3,7 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 import { parsePendingActionResult, pendingActionCollapsedSummary, type PendingActionResult } from "./pendingActionToolCard"
 import { MarkdownPreview } from "./toolCardMarkdown"
+import i18n from "../../i18n"
 
 const CONTENT_PREVIEW_LINES = 12
 const CONTENT_PREVIEW_CHARS = 1_200
@@ -91,11 +92,11 @@ export function parseRepoDocumentList(context: ToolCardContext): DocumentRow[] |
 export function repoDocumentListSummary(context: ToolCardContext) {
   const rows = parseRepoDocumentList(context)
   if (!rows) return null
-  return rows.length === 0 ? "No repository documents" : `${rows.length} repository document${rows.length === 1 ? "" : "s"}`
+  return rows.length === 0 ? i18n.t("chat:no_repository_documents") : i18n.t("chat:repository_document_count", { count: rows.length })
 }
 
 export function RepoDocumentListCard({ rows }: { rows: DocumentRow[] }) {
-  if (rows.length === 0) return <EmptyState>No repository documents found.</EmptyState>
+  if (rows.length === 0) return <EmptyState>{i18n.t("chat:no_repository_documents_found")}</EmptyState>
 
   return (
     <div className="mt-1 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
@@ -148,8 +149,8 @@ function previewText(text: string) {
 
 export function repoDocumentReadSummary(context: ToolCardContext) {
   const documentId = displayValue(context.input?.id)
-  if (context.resultError) return documentId ? `Document ${documentId} read failed` : "Document read failed"
-  if (context.resultBody.trim()) return documentId ? `Document ${documentId} read` : "Document read"
+  if (context.resultError) return documentId ? i18n.t("chat:document_ref_read_failed", { ref: documentId }) : i18n.t("chat:document_read_failed")
+  if (context.resultBody.trim()) return documentId ? i18n.t("chat:document_ref_read", { ref: documentId }) : i18n.t("chat:document_read")
   return null
 }
 
@@ -168,14 +169,14 @@ export function RepoDocumentReadCard({ context }: { context: ToolCardContext }) 
         {documentId ? <Badge>document {documentId}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-3">
-        {documentId ? <Row label="Ref" value={documentId} /> : null}
-        <Row label="Lines" value={String(lines)} />
-        <Row label="Bytes" value={formatBytes(bytes)} />
+        {documentId ? <Row label={i18n.t("chat:ref")} value={documentId} /> : null}
+        <Row label={i18n.t("chat:lines")} value={String(lines)} />
+        <Row label={i18n.t("chat:bytes")} value={formatBytes(bytes)} />
       </dl>
-      <Disclosure label="Content preview">
+      <Disclosure label={i18n.t("chat:content_preview")}>
         <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
         {truncated || body.length > CONTENT_PREVIEW_CHARS ? (
-          <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing a concise preview of {totalLines} lines.</div>
+          <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">{i18n.t("chat:concise_lines_preview", { count: totalLines })}</div>
         ) : null}
       </Disclosure>
     </CardShell>
@@ -223,13 +224,13 @@ export function parseRepoDocumentAction(context: ToolCardContext, action: "creat
 
 export function repoDocumentActionSummary(result: DocumentAction) {
   const target = result.title || (result.documentId ? `document ${result.documentId}` : null)
-  const prefix = result.action === "create" ? "Create" : "Delete"
+  const prefix = result.action === "create" ? i18n.t("chat:create_verb") : i18n.t("chat:delete_verb")
   const pending = pendingActionCollapsedSummary(result.pending)
   return target ? `${prefix} ${target} · ${pending}` : pending
 }
 
 function actionNoun(action: "create" | "delete") {
-  return action === "create" ? "Create document" : "Delete document"
+  return action === "create" ? i18n.t("chat:create_document") : i18n.t("chat:delete_document")
 }
 
 export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
@@ -240,21 +241,21 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={result.pending.kind === "dry_run_evidence" ? "dry_run" : result.pending.state} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">{actionNoun(result.action)}</span>
-        {result.pending.kind === "standard" || result.pending.kind === "bulk" ? <Badge>pending action #{result.pending.pendingActionId}</Badge> : null}
+        {result.pending.kind === "standard" || result.pending.kind === "bulk" ? <Badge>{i18n.t("chat:pending_action_number", { id: result.pending.pendingActionId })}</Badge> : null}
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        {result.title ? <Row label="Title" value={result.title} /> : null}
+        {result.title ? <Row label={i18n.t("chat:title")} value={result.title} /> : null}
         {documentLabel && result.documentUrl ? (
           <div className="min-w-0">
-            <SectionLabel>Document</SectionLabel>
+            <SectionLabel>{i18n.t("chat:document")}</SectionLabel>
             <EntityReference href={result.documentUrl} id={result.documentId} kind="artifact" label={documentLabel} slug={documentLabel} />
           </div>
         ) : result.documentId ? (
-          <Row label="Ref" value={result.documentId} />
+          <Row label={i18n.t("chat:ref")} value={result.documentId} />
         ) : null}
         {result.repositoryId || result.repositorySlug ? (
           <div className="min-w-0">
-            <SectionLabel>Repository</SectionLabel>
+            <SectionLabel>{i18n.t("chat:repository")}</SectionLabel>
             <EntityReference
               kind="repository"
               label={result.repositorySlug || `Repository #${result.repositoryId}`}
@@ -264,15 +265,15 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
             />
           </div>
         ) : null}
-        {result.contentType ? <Row label="Content type" value={result.contentType} /> : null}
-        {result.sizeBytes != null ? <Row label="Size" value={formatBytes(result.sizeBytes)} /> : null}
+        {result.contentType ? <Row label={i18n.t("chat:content_type")} value={result.contentType} /> : null}
+        {result.sizeBytes != null ? <Row label={i18n.t("chat:size")} value={formatBytes(result.sizeBytes)} /> : null}
       </dl>
       {(result.pending.kind === "standard" || result.pending.kind === "bulk") && result.pending.message ? (
         <MarkdownPreview linkifyUrls maxChars={600} maxLines={3} text={result.pending.message} />
       ) : null}
       {(result.pending.kind === "standard" || result.pending.kind === "bulk") && result.pending.reason ? (
         <div>
-          <SectionLabel>Reason</SectionLabel>
+          <SectionLabel>{i18n.t("chat:reason")}</SectionLabel>
           <div className="mt-0.5">
             <MarkdownPreview linkifyUrls maxChars={600} maxLines={3} text={result.pending.reason} />
           </div>
@@ -280,14 +281,14 @@ export function RepoDocumentActionCard({ result }: { result: DocumentAction }) {
       ) : null}
       {result.action === "create" ? (
         <div>
-          <SectionLabel>Body preview</SectionLabel>
+          <SectionLabel>{i18n.t("chat:body_preview")}</SectionLabel>
           <div className="mt-1">
             <MarkdownPreview
-              emptyState={<EmptyState>No document body provided.</EmptyState>}
+              emptyState={<EmptyState>{i18n.t("chat:no_document_body")}</EmptyState>}
               linkifyUrls
               maxChars={CONTENT_PREVIEW_CHARS}
               maxLines={CONTENT_PREVIEW_LINES}
-              modalLabel={result.title ? `${result.title} body` : "Document body"}
+              modalLabel={result.title ? i18n.t("chat:named_document_body", { title: result.title }) : i18n.t("chat:document_body")}
               text={result.body || ""}
             />
           </div>

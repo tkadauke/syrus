@@ -254,7 +254,7 @@ export function ProposalEditModal({
                     onClick={() => setActiveTab(tab)}
                     type="button"
                   >
-                    {tab === "edit" ? "Edit" : "Preview"}
+                    {tab === "edit" ? t("edit") : t("preview")}
                   </button>
                 ))}
               </div>
@@ -268,7 +268,7 @@ export function ProposalEditModal({
                   />
                 </label>
                 <div className={`${activeTab === "edit" ? "hidden sm:block" : "block"}`}>
-                  <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Preview</div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("preview")}</div>
                   <div className="mt-1 h-72 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
                     <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={body} />
                   </div>
@@ -299,7 +299,7 @@ export function ProposalEditModal({
             ) : null}
             {canRouteToBacklog ? (
               <fieldset>
-                <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">Route</legend>
+                <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("proposal_route")}</legend>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <label
                     className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${!routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}
@@ -313,8 +313,8 @@ export function ProposalEditModal({
                       type="radio"
                     />
                     <span>
-                      <span className="block font-medium">Start normally</span>
-                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates and admits the Job to the usual start path.</span>
+                      <span className="block font-medium">{t("proposal_route_start_normally")}</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{t("proposal_route_start_hint")}</span>
                     </span>
                   </label>
                   <label
@@ -329,8 +329,8 @@ export function ProposalEditModal({
                       type="radio"
                     />
                     <span>
-                      <span className="block font-medium">Backlog</span>
-                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates the Job without launching an initial workflow.</span>
+                      <span className="block font-medium">{t("proposal_route_backlog")}</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{t("proposal_route_backlog_hint")}</span>
                     </span>
                   </label>
                 </div>
@@ -338,7 +338,7 @@ export function ProposalEditModal({
             ) : null}
             <div className="grid gap-4 lg:grid-cols-3">
               <DependencyPicker
-                label="Proposal dependencies"
+                label={t("proposal_dependencies")}
                 placeholder={t("ph_search_proposals")}
                 query={proposalQuery}
                 results={proposalResults.map((result) => ({ key: result.slug, label: result.slug, detail: result.title }))}
@@ -347,7 +347,7 @@ export function ProposalEditModal({
                 setSelected={setProposalDeps}
               />
               <DependencyPicker
-                label="Job dependencies"
+                label={t("job_dependencies")}
                 placeholder={t("ph_search_jobs")}
                 query={jobQuery}
                 results={jobResults.map((result) => ({ key: String(result.id), label: `JOB-${result.id}`, detail: result.issue_title || result.title || "" }))}
@@ -356,7 +356,7 @@ export function ProposalEditModal({
                 setSelected={setJobDeps}
               />
               <DependencyPicker
-                label="Epic dependencies"
+                label={t("epic_dependencies")}
                 placeholder={t("ph_search_epics")}
                 query={epicQuery}
                 results={epicResults.map((result) => ({ key: String(result.id), label: result.display_number || `EPIC-${result.id}`, detail: result.title }))}
@@ -428,6 +428,7 @@ function DependencyPicker({
   setQuery: (query: string) => void
   setSelected: (selected: DependencyPill[]) => void
 }) {
+  const { t } = useT("chat")
   const selectedKeys = new Set(selected.map((item) => item.key))
   const availableResults = results.filter((item) => !selectedKeys.has(item.key))
   return (
@@ -466,7 +467,7 @@ function DependencyPicker({
               className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300"
               onClick={() => setSelected(selected.filter((selectedItem) => selectedItem.key !== item.key))}
               type="button"
-              aria-label={`Remove ${item.label}`}
+              aria-label={t("remove_named", { name: item.label })}
             >
               <CloseIcon className="h-3 w-3" />
             </button>
@@ -588,11 +589,11 @@ export function ProposalCard({
                 )}
                 {proposal.epic_bundle ? (
                   <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                    {proposal.active_children_count || 0} child Jobs
+                    {t("child_job_count", { count: proposal.active_children_count || 0 })}
                   </span>
                 ) : null}
               </div>
-              {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
+              {proposal.proposed ? <ProposalEditButton label={t("edit_named", { name: proposal.slug })} onClick={() => setEditingProposal(proposal)} /> : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
@@ -679,11 +680,11 @@ export function ProposalCard({
                   </button>
                 ) : null}
                 <button
-                  aria-label="Reject proposal"
+                  aria-label={t("reject_proposal")}
                   className={proposalActionButton("secondary")}
                   disabled={proposalAction.isPending}
                   onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
-                  title="Reject proposal"
+                  title={t("reject_proposal")}
                   type="button"
                 >
                   Reject
@@ -788,6 +789,7 @@ function ProposalMediaPicker({
   selectedRefs: string[]
   setSelectedRefs: (refs: string[]) => void
 }) {
+  const { t } = useT("chat")
   const selectedItems = proposalMediaItems(
     selectedRefs,
     {
@@ -803,14 +805,14 @@ function ProposalMediaPicker({
 
   return (
     <div>
-      <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Attached media</div>
+      <div className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("attached_media")}</div>
       {selectedItems.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {selectedItems.map((item) => (
             <div className="relative" key={item.ref}>
               <ProposalMediaTile item={item} />
               <button
-                aria-label={`Remove ${item.label}`}
+                aria-label={t("remove_named", { name: item.label })}
                 className="absolute -right-1.5 -top-1.5 rounded-full border border-gray-200 bg-white p-0.5 text-gray-500 shadow-sm hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-red-800 dark:hover:text-red-300"
                 onClick={() => setSelectedRefs(selectedRefs.filter((ref) => ref !== item.ref))}
                 type="button"
@@ -821,15 +823,15 @@ function ProposalMediaPicker({
           ))}
         </div>
       ) : (
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">No media attached.</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("no_media_attached")}</p>
       )}
       {selectableItems.length > 0 ? (
         <div className="mt-3">
-          <div className="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Available</div>
+          <div className="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("available")}</div>
           <div className="flex flex-wrap gap-2">
             {selectableItems.map((item) => (
               <button
-                aria-label={`Attach ${item.label}`}
+                aria-label={t("attach_named", { name: item.label })}
                 className="text-left"
                 key={item.ref}
                 onClick={() => setSelectedRefs([...selectedRefs, item.ref])}
@@ -841,13 +843,14 @@ function ProposalMediaPicker({
           </div>
         </div>
       ) : loading ? (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Loading media...</p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("loading_media")}</p>
       ) : null}
     </div>
   )
 }
 
 function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
+  const { t } = useT("chat")
   const [previewOpen, setPreviewOpen] = useState(false)
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
   const thumbnailUrl = item.kind === "chat_image" ? item.imageUrl || null : null
@@ -880,7 +883,7 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
 
   return (
     <>
-      <button aria-label={`Preview ${item.label}`} className="text-left" onClick={() => setPreviewOpen(true)} type="button">
+      <button aria-label={t("preview_named", { name: item.label })} className="text-left" onClick={() => setPreviewOpen(true)} type="button">
         {tile}
       </button>
       {previewOpen ? (
@@ -974,7 +977,7 @@ export function PendingActionCard({
   })
   const terminalLabel = pendingActionTerminalLabel(pendingAction.state)
   const actionKey = pendingActionKey(pendingAction)
-  const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
+  const rejectLabel = actionKey === "schedule_recurring" ? t("cancel") : t("decline")
   const isQueued = pendingAction.state === "queued"
   const isPending = pendingAction.state === "pending"
   const isConfirming = pendingAction.state === "confirming"
@@ -1024,7 +1027,7 @@ export function PendingActionCard({
             </div>
             {canDismiss ? (
               <button
-                aria-label="Dismiss failed action"
+                aria-label={t("dismiss_failed_action")}
                 className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                 disabled={action.isPending}
                 onClick={() => dismissPath && action.mutate({ action: "dismiss", path: dismissPath })}
@@ -1075,7 +1078,7 @@ export function PendingActionCard({
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
             {pendingAction.reason ? (
               <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300">
-                <span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>
+                <span className="font-medium text-gray-700 dark:text-gray-200">{t("reason_label")} </span>
                 {pendingAction.reason}
               </p>
             ) : null}
@@ -1098,7 +1101,7 @@ export function PendingActionCard({
         ) : isConfirming ? (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-            <span>{pendingAction.execution_step || "Working..."}</span>
+            <span>{pendingAction.execution_step || t("working")}</span>
           </div>
         ) : isPending ? (
           <div className="flex flex-wrap gap-2">
@@ -1137,6 +1140,7 @@ export function PendingActionGroupCard({
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
 }) {
+  const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [expanded, setExpanded] = useState(false)
@@ -1171,7 +1175,7 @@ export function PendingActionGroupCard({
       muted={Boolean(terminalLabel)}
       header={
         <>
-          <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">Batch</span>
+          <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{t("batch")}</span>
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
             {terminalLabel ? pendingActionGroup.label : linkifySlugs(pendingActionGroup.label)}
           </h3>
@@ -1181,11 +1185,11 @@ export function PendingActionGroupCard({
         <>
           {pendingActionGroup.reason ? (
             <p className="mb-2 text-xs text-gray-600 dark:text-gray-300">
-              <span className="font-medium text-gray-700 dark:text-gray-200">Reason:</span> <span>{pendingActionGroup.reason}</span>
+              <span className="font-medium text-gray-700 dark:text-gray-200">{t("reason_label")}</span> <span>{pendingActionGroup.reason}</span>
             </p>
           ) : null}
           <button className="text-xs font-medium text-brand hover:underline" onClick={() => setExpanded((value) => !value)} type="button">
-            {expanded ? "Hide targets" : `Show ${members.length} target${members.length === 1 ? "" : "s"}`}
+            {expanded ? t("hide_targets") : t("target_count", { count: members.length })}
           </button>
           {expanded ? (
             <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
@@ -1193,13 +1197,13 @@ export function PendingActionGroupCard({
                 <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
                   <span className="text-gray-700 dark:text-gray-300">{linkifySlugs(member.label)}</span>
                   {member.state === "confirmed" ? (
-                    <span className="text-green-700 dark:text-green-300">Succeeded</span>
+                    <span className="text-green-700 dark:text-green-300">{t("succeeded")}</span>
                   ) : member.state === "failed" ? (
                     <span className="break-words text-red-700 dark:text-red-300">
-                      {member.execution_error ? `Failed: ${member.execution_error}` : "Failed"}
+                      {member.execution_error ? t("failed_with_reason", { reason: member.execution_error }) : t("failed")}
                     </span>
                   ) : member.state === "cancelled" ? (
-                    <span className="text-gray-500 dark:text-gray-400">Cancelled</span>
+                    <span className="text-gray-500 dark:text-gray-400">{t("cancelled")}</span>
                   ) : null}
                 </li>
               ))}
@@ -1224,7 +1228,7 @@ export function PendingActionGroupCard({
             </span>
             {canDismiss ? (
               <button
-                aria-label="Dismiss batch pending action"
+                aria-label={t("dismiss_batch_pending_action")}
                 className="inline-flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                 disabled={action.isPending}
                 onClick={() => action.mutate({ action: "dismiss", path: pendingActionGroup.app_dismiss_path })}
@@ -1240,7 +1244,7 @@ export function PendingActionGroupCard({
         ) : isConfirming ? (
           <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
-            <span>Working...</span>
+            <span>{t("working")}</span>
           </div>
         ) : isPending ? (
           <div className="flex flex-wrap gap-2">
@@ -1298,7 +1302,7 @@ function ProposalDependencyStrip({
 
   return (
     <div className={`${className} flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300`}>
-      <span className="font-medium text-gray-700 dark:text-gray-200">Depends on:</span>
+      <span className="font-medium text-gray-700 dark:text-gray-200">{t("depends_on")}</span>
       {dependencies.map((dependency) => (
         <ProposalDependencyLink
           dependency={dependency}
@@ -1400,7 +1404,7 @@ function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatPr
   }
 
   if (proposal.state === "rejected" || proposal.state === "withdrawn") {
-    const label = proposal.state === "withdrawn" ? "Withdrawn" : "Rejected"
+    const label = proposal.state === "withdrawn" ? t("withdrawn") : t("rejected")
     return (
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
         <span className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{label}</span>
@@ -1650,7 +1654,7 @@ function ProposalChildren({
             )}
             {child.proposed && parentProposed ? (
               <ProposalEditButton
-                label={`Edit ${child.slug}`}
+                label={t("edit_named", { name: child.slug })}
                 onClick={(event) => {
                   event.stopPropagation()
                   onEdit(child)

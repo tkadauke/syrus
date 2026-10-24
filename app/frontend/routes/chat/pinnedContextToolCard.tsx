@@ -1,6 +1,7 @@
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { CardShell, EntityReference, Row, SectionLabel, StatePill, displayValue } from "./toolCardUi"
 import { MarkdownPreview } from "./toolCardMarkdown"
+import i18n from "../../i18n"
 
 const PINNED_PREVIEW_LINES = 8
 const PINNED_PREVIEW_CHARS = 800
@@ -48,24 +49,24 @@ export function PinnedContextCard({
       <CardShell>
         <div className="flex flex-wrap items-center gap-2">
           <StatePill state={error ? "failed" : "removed"} tone={error ? "failure" : "success"} />
-          <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{i18n.t("chat:pinned_context")}</span>
         </div>
         {chatId ? (
           <div className="min-w-0">
-            <SectionLabel>Chat</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_chat")}</SectionLabel>
             <EntityReference id={chatId} kind="chat" />
           </div>
         ) : null}
         {result.message ? <div className="text-gray-700 dark:text-gray-300">{result.message}</div> : null}
         {result.content != null ? (
           <div>
-            <SectionLabel>Removed context</SectionLabel>
+            <SectionLabel>{i18n.t("chat:removed_context")}</SectionLabel>
             <MarkdownPreview
-              emptyLabel="Removed pinned context was empty."
+              emptyLabel={i18n.t("chat:removed_pinned_context_empty")}
               linkifyUrls
               maxChars={PINNED_PREVIEW_CHARS}
               maxLines={PINNED_PREVIEW_LINES}
-              modalLabel="Removed pinned context"
+              modalLabel={i18n.t("chat:removed_pinned_context")}
               text={result.content}
             />
           </div>
@@ -80,45 +81,45 @@ export function PinnedContextCard({
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state={error ? "failed" : "updated"} tone={error ? "failure" : "success"} />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{i18n.t("chat:pinned_context")}</span>
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
         {chatId ? (
           <div className="min-w-0">
-            <SectionLabel>Chat</SectionLabel>
+            <SectionLabel>{i18n.t("chat:tool_card_chat")}</SectionLabel>
             <EntityReference id={chatId} kind="chat" />
           </div>
         ) : null}
-        {pinnedContextId ? <Row label="Pinned context" value={pinnedContextId} /> : null}
-        <Row label="Lines" value={String(lineCount)} />
-        <Row label="Characters" value={String(result.content.length)} />
+        {pinnedContextId ? <Row label={i18n.t("chat:pinned_context")} value={pinnedContextId} /> : null}
+        <Row label={i18n.t("chat:lines")} value={String(lineCount)} />
+        <Row label={i18n.t("chat:characters")} value={String(result.content.length)} />
       </dl>
       {result.message ? (
         <div>
-          <SectionLabel>Outcome</SectionLabel>
+          <SectionLabel>{i18n.t("chat:outcome")}</SectionLabel>
           <div className="mt-0.5 text-gray-700 dark:text-gray-300">{result.message}</div>
         </div>
       ) : null}
       {inputContent != null && inputContent !== result.content ? (
         <div>
-          <SectionLabel>Requested context</SectionLabel>
+          <SectionLabel>{i18n.t("chat:requested_context")}</SectionLabel>
           <MarkdownPreview
             linkifyUrls
             maxChars={PINNED_PREVIEW_CHARS}
             maxLines={PINNED_PREVIEW_LINES}
-            modalLabel="Requested pinned context"
+            modalLabel={i18n.t("chat:requested_pinned_context")}
             text={inputContent}
           />
         </div>
       ) : null}
       <div>
-        <SectionLabel>Context preview</SectionLabel>
+        <SectionLabel>{i18n.t("chat:context_preview")}</SectionLabel>
         <MarkdownPreview
-          emptyLabel="Pinned context is empty."
+          emptyLabel={i18n.t("chat:pinned_context_empty")}
           linkifyUrls
           maxChars={PINNED_PREVIEW_CHARS}
           maxLines={PINNED_PREVIEW_LINES}
-          modalLabel="Pinned context"
+          modalLabel={i18n.t("chat:pinned_context")}
           text={result.content}
         />
       </div>
@@ -134,20 +135,20 @@ export function PendingPinnedContextCard({ content }: { content: string | null }
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <StatePill state="pending" tone="info" />
-        <span className="font-semibold text-gray-900 dark:text-gray-100">Pinned context</span>
+        <span className="font-semibold text-gray-900 dark:text-gray-100">{i18n.t("chat:pinned_context")}</span>
       </div>
       <dl className="grid gap-1 sm:grid-cols-2">
-        <Row label="Lines" value={String(lineCount)} />
-        <Row label="Characters" value={String(value.length)} />
+        <Row label={i18n.t("chat:lines")} value={String(lineCount)} />
+        <Row label={i18n.t("chat:characters")} value={String(value.length)} />
       </dl>
       <div>
-        <SectionLabel>Requested context</SectionLabel>
+        <SectionLabel>{i18n.t("chat:requested_context")}</SectionLabel>
         <MarkdownPreview
-          emptyLabel="No pinned context was provided."
+          emptyLabel={i18n.t("chat:no_pinned_context")}
           linkifyUrls
           maxChars={PINNED_PREVIEW_CHARS}
           maxLines={PINNED_PREVIEW_LINES}
-          modalLabel="Requested pinned context"
+          modalLabel={i18n.t("chat:requested_pinned_context")}
           text={value}
         />
       </div>

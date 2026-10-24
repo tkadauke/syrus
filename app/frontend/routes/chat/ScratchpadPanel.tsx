@@ -2,7 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent } from "react"
 import { useEffect, useRef, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
-import { createScratchpadItem, deleteScratchpadItem, enqueueChatDraftMessage, reorderScratchpadItems, updateScratchpadItem, type ChatDraftMessage, type ChatMessageAttachmentInput, type ChatScratchpadItem } from "../../api/chats"
+import {
+  createScratchpadItem,
+  deleteScratchpadItem,
+  enqueueChatDraftMessage,
+  reorderScratchpadItems,
+  updateScratchpadItem,
+  type ChatDraftMessage,
+  type ChatMessageAttachmentInput,
+  type ChatScratchpadItem
+} from "../../api/chats"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -14,9 +23,6 @@ import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { type ChatQueryKey } from "./constants"
 import { appendSearch, errorAsError } from "./utils"
 import { PencilIcon } from "./icons"
-
-
-
 
 // Scratchpad panel extracted from Chat.tsx: the workspace scratchpad list and its
 // item rows (inline add/edit/reorder/delete of scratchpad notes). ScratchpadPanel
@@ -143,7 +149,10 @@ export function ScratchpadPanel({
         <button
           aria-label={t("scratchpad_dismiss")}
           className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-          onClick={() => { setDismissed(true); onDismiss?.() }}
+          onClick={() => {
+            setDismissed(true)
+            onDismiss?.()
+          }}
           type="button"
         >
           <CloseIcon className="h-3.5 w-3.5" />
@@ -195,12 +204,7 @@ export function ScratchpadPanel({
               placeholder={t("scratchpad_add_placeholder")}
               value={addDraft}
             />
-            <Button
-              disabled={create.isPending || addDraft.trim().length === 0}
-              onClick={submitAdd}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={create.isPending || addDraft.trim().length === 0} onClick={submitAdd} size="sm" variant="secondary">
               {t("scratchpad_add")}
             </Button>
           </div>
@@ -313,8 +317,17 @@ function ScratchpadItemRow({
           value={draft}
         />
         <div className="mt-2 flex justify-end gap-2">
-          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("scratchpad_cancel")}</Button>
-          <Button disabled={update.isPending || (draft.trim().length === 0 && (item.attachments || []).length === 0)} onClick={() => update.mutate()} size="sm" variant="primary">{t("scratchpad_save")}</Button>
+          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">
+            {t("scratchpad_cancel")}
+          </Button>
+          <Button
+            disabled={update.isPending || (draft.trim().length === 0 && (item.attachments || []).length === 0)}
+            onClick={() => update.mutate()}
+            size="sm"
+            variant="primary"
+          >
+            {t("scratchpad_save")}
+          </Button>
         </div>
       </div>
     )
@@ -399,12 +412,11 @@ function ScratchpadItemRow({
 }
 
 function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessage["attachments"] }) {
+  const { t } = useT("chat")
   if (!attachments || attachments.length === 0) return null
 
   const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
-  const label = imageCount === attachments.length
-    ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
-    : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+  const label = imageCount === attachments.length ? t("image_count", { count: attachments.length }) : t("attachment_count", { count: attachments.length })
 
   return (
     <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
