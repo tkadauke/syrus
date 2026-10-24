@@ -1,30 +1,22 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Logo } from "./logo";
-import { DownloadButton } from "./download-cta";
-import { site } from "../lib/site";
-import { localizedHref, type Locale } from "../lib/locales";
-
-const links = [
-  { href: "/#how", label: "How it works" },
-  { href: "/#features", label: "Why Syrus" },
-  { href: "/control-plane", label: "Control plane" },
-  { href: "/#entry-points", label: "Entry points" },
-  { href: "/plugins", label: "Plugins" },
-  { href: "/docs", label: "Docs" },
-  { href: "/blog", label: "Blog" },
-];
+import { useEffect, useState } from "react"
+import { Logo } from "./logo"
+import { DownloadButton } from "./download-cta"
+import { site } from "../lib/site"
+import { localizedHref, type Locale } from "../lib/locales"
+import { chromeFor, chromeHref } from "../lib/chrome"
 
 export function Nav({ locale }: { locale: Locale }) {
-  const [scrolled, setScrolled] = useState(false);
+  const copy = chromeFor(locale).nav
+  const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
@@ -36,15 +28,15 @@ export function Nav({ locale }: { locale: Locale }) {
         }`}
       >
         <nav className="wrap flex h-16 items-center justify-between">
-          <a href={localizedHref("/", locale)} aria-label="Syrus home">
+          <a href={localizedHref("/", locale)} aria-label={copy.homeLabel}>
             <Logo />
           </a>
 
           <div className="hidden items-center gap-1 xl:flex">
-            {links.map((l) => (
+            {copy.links.map((l) => (
               <a
                 key={l.href}
-                href={localizedHref(l.href, locale)}
+                href={chromeHref(l.href, locale, l.canonicalEnglish)}
                 className="rounded-full px-3.5 py-2 text-sm text-cream-dim transition-colors hover:text-cream"
               >
                 {l.label}
@@ -59,12 +51,12 @@ export function Nav({ locale }: { locale: Locale }) {
               rel="noreferrer"
               className="hidden rounded-full px-3.5 py-2 text-sm font-medium text-cream-dim transition-colors hover:bg-[color-mix(in_oklab,var(--color-cream)_6%,transparent)] hover:text-cream xl:inline-flex"
             >
-              GitHub
+              {copy.github}
             </a>
             <DownloadButton locale={locale} />
           </div>
         </nav>
       </div>
     </header>
-  );
+  )
 }
