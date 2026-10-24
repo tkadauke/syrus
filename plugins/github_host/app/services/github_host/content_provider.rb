@@ -113,6 +113,19 @@ module GithubHost
       entries
     end
 
+    def children(revision_id, path)
+      result = translate(unknown_revision: "unknown revision #{revision_id}") do
+        client.commit_tree_children(slug, revision_id, path)
+      end
+      raise RepositoryContent::NotFound, "#{path} not found in #{slug}@#{revision_id}" unless result
+
+      entries = result[:entries].filter_map { |item| entry_for(item, directories: true) }
+      if result[:truncated]
+        raise RepositoryContent::Truncated.new("GitHub truncated #{path.presence || "the root"} of #{slug}@#{revision_id}", partial: entries)
+      end
+      entries
+    end
+
     def read(revision_id, path)
       file = translate(unknown_revision: "unknown revision #{revision_id}") { client.file_bytes_at(slug, path, revision_id) }
       raise RepositoryContent::NotFound, "#{path} not found in #{slug}@#{revision_id}" unless file
@@ -202,8 +215,10 @@ module GithubHost
       raise RepositoryContent::Unavailable, "GitHub: #{e.class}: #{e.message}"
     end
 
-    def entry_for(item)
+    def entry_for(item, directories: false)
       case item[:type]
+      when "tree"
+        RepositoryContent::Entry.new(path: item[:path], type: "directory", content_id: item[:sha]) if directories
       when "blob"
         type = item[:mode] == SYMLINK_MODE ? "symlink" : "file"
         RepositoryContent::Entry.new(path: item[:path], type: type, size: item[:size], content_id: item[:sha])

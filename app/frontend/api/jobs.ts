@@ -1300,9 +1300,10 @@ export type JobSourcePayload = {
   default_ref: string
   selected_ref: string
   selected_path: string | null
+  tree_path: string
   merge_base_sha: string | null
   branch_commits: Array<{ sha: string; short_sha: string; message: string; date: string | null }>
-  tree_items: Array<{ path: string; name: string; size: number; language: string }>
+  tree_items: Array<{ path: string; name: string; size: number; language: string; type: "directory" | "file" | "symlink" | "submodule" | "external" }>
   tree_truncated: boolean
   file: { path: string; name: string; size: number; language: string; content: string } | null
   source_error: string | null

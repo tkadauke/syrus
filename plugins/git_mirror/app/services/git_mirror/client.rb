@@ -64,6 +64,10 @@ module GitMirror
       json(request(Net::HTTP::Get, "/v1/repositories/#{id}/tree", query: { revision: revision })).fetch("entries")
     end
 
+    def children(id, revision, path)
+      json(request(Net::HTTP::Get, "/v1/repositories/#{id}/children", query: { revision: revision, path: path })).fetch("entries")
+    end
+
     # [bytes, content_id]
     def blob(id, revision, path)
       response = request(Net::HTTP::Get, "/v1/repositories/#{id}/blob", query: { revision: revision, path: path })

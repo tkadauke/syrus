@@ -9,6 +9,7 @@ RSpec.describe "repository content reads" do
   READERS = %w[
     file_bytes_at
     commit_tree_entries
+    commit_tree_children
     compare_file_changes
     compare_commits
     compare_divergence
