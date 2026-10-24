@@ -32,13 +32,12 @@ RSpec.describe "website home page" do
     expect(nav).to include('href: "/#how"')
     expect(nav).to include('href: "/#features"')
     expect(nav).to include('href: "/#entry-points"')
-    expect(nav).to include('href="/#walkthrough-demo"')
     expect(nav).to include("<DownloadButton")
 
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
-    expect(hero).to include('href="/#walkthrough-demo"')
-    expect(hero).to include("Watch the product demo")
+    expect(hero).to include('href="/#how"')
+    expect(hero).to include("See how it works")
 
     expect(read_website("components/footer.tsx")).to include('href: "/download"')
   end

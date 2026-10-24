@@ -33,6 +33,27 @@ RSpec.describe "website public asset references" do
     expect(missing).to be_empty, "components reference assets that are not in website/public:\n  #{missing.join("\n  ")}"
   end
 
+  # The same failure one layer up: this example's sibling asserted that calls to
+  # action "use real current anchors", but it only string-matched the hrefs --
+  # so when a homepage section was removed, three CTAs kept pointing at an
+  # anchor that no longer rendered anywhere and nothing failed.
+  it "resolves every homepage fragment link to a section that renders that id" do
+    sources = component_sources
+    ids = sources.flat_map { |path| File.read(path, encoding: "UTF-8").scan(/id="([\w-]+)"/).flatten }
+    ids += %w[main]  # <main id="main"> lives in the page, not a component
+    ids.uniq!
+
+    dangling = sources.flat_map do |path|
+      File.read(path, encoding: "UTF-8").scan(%r{href(?:=|: )["']/#([\w-]+)["']}).flatten.uniq.filter_map do |anchor|
+        next if ids.include?(anchor)
+
+        "#{path.delete_prefix("#{REPO_ROOT}/")} -> /##{anchor}"
+      end
+    end
+
+    expect(dangling).to be_empty, "components link to homepage anchors that no section renders:\n  #{dangling.join("\n  ")}"
+  end
+
   it "resolves every repo-relative website image the README embeds" do
     readme = File.read(File.join(REPO_ROOT, "README.md"), encoding: "UTF-8")
     refs = readme.scan(%r{\((website/public/[\w./-]+\.(?:png|jpe?g|webp|avif|svg))\)}).flatten.uniq

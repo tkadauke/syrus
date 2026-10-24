@@ -61,11 +61,6 @@ export function Nav() {
             >
               GitHub
             </a>
-            <span className="hidden xl:inline-flex">
-              <ButtonLink href="/#walkthrough-demo" variant="ghost" size="md">
-                Watch demo
-              </ButtonLink>
-            </span>
             <DownloadButton />
           </div>
         </nav>

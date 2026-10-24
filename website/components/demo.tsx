@@ -49,9 +49,6 @@ export function Demo() {
                 Download the desktop app: it sets up a complete local Syrus with Docker, or connects to your own instance. The public docs and GitHub repo
                 are the starting point for installation, operations, bug reports, and community contributions.
               </p>
-              <p className="mt-3 text-[0.9rem] text-cream-faint">
-                The product video above shows the core loop first: walkthrough to Job, implementation, review, and tracked cost.
-              </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-start">
                 <DownloadCTA size="lg" />

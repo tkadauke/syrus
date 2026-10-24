@@ -38,8 +38,6 @@ release (`release.yml` → `publish-website`).
   serve the newest release with no rebuild. The version + file sizes shown on
   `/download` are display-only, baked into `lib/release.json` by
   `npm run sync-release` (the workflow runs it each build).
-- **Product demo** (`components/product-media.tsx`) leads the homepage with the
-  generated screencast from `public/media/syrus-product-screencast.*`.
 - **Open-source onboarding** (`components/demo.tsx`) closes the homepage with
   static calls to download, read the docs, browse GitHub, and file issues. The
   site has no message collection backend.
@@ -64,7 +62,6 @@ The current static site is intentionally small:
 | Control plane          | `src/app/control-plane/page.tsx`         | Product-positioning page comparing raw agent sessions with the durable Syrus harness around agents                            |
 | Download               | `src/app/download/page.tsx`              | Desktop and CLI release downloads                                                                                              |
 | Docs                   | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files                                                                    |
-| Product video          | `components/product-media.tsx`           | Embedded screencast and screenshots for the homepage demo                                                                      |
 | Open-source onboarding | `components/demo.tsx`                    | Static download, docs, GitHub, and issue-tracker calls to action                                                               |
 | Product copy           | `lib/site.ts`                            | Source of truth for hero copy, workflow steps, feature pillars, and entry points                                               |
 

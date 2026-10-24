@@ -100,12 +100,12 @@ export function Hero({
           >
             <DownloadCTA size="lg" />
             <ButtonLink
-              href="/#walkthrough-demo"
+              href="/#how"
               variant="secondary"
               size="lg"
               className="w-full sm:w-auto"
             >
-              Watch the product demo
+              See how it works
               <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </ButtonLink>
           </motion.div>
