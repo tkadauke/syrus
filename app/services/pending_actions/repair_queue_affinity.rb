@@ -56,30 +56,35 @@ module PendingActions
     end
 
     def repair_run!(run)
-      deleted_job_ids = []
-
-      ApplicationRecord.transaction do
-        run.lock!
-        run.reload
-        return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
-
-        workflow = run.workflow
-        workflow.lock!
-        workflow.reload
-        return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
-
-        queue_jobs = matching_solid_queue_jobs(run)
+      deleted_job_ids = SolidQueue::Job.transaction do
+        queue_jobs = matching_solid_queue_jobs(run, lock: true)
+        lock_queue_executions!(queue_jobs.map(&:id))
         claimed_job_ids = claimed_solid_queue_job_ids(queue_jobs.map(&:id))
         return { outcome: "skipped", run: run, claimed_solid_queue_job_ids: claimed_job_ids } if claimed_job_ids.any?
-        validate_unsatisfied_affinity!(run, workflow, queue_jobs)
 
-        deleted_job_ids = delete_solid_queue_jobs!(queue_jobs.map(&:id))
-        workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
-        set_in_memory_affinity!(workflow, hostname: nil, storage_key: nil)
-        run.reenqueue!(ignore_workflow_affinity: true)
-        workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
-        set_in_memory_affinity!(workflow, hostname: nil, storage_key: nil)
+        ApplicationRecord.transaction do
+          run.lock!
+          run.reload
+          return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
+
+          workflow = run.workflow
+          workflow.lock!
+          workflow.reload
+          return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
+          validate_unsatisfied_affinity!(run, queue_jobs)
+
+          workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+          set_in_memory_affinity!(workflow, hostname: nil, storage_key: nil)
+        end
+
+        delete_solid_queue_jobs!(queue_jobs.map(&:id))
       end
+
+      run.reload
+      return { outcome: "no_longer_eligible", run: run, deleted_solid_queue_job_ids: deleted_job_ids } unless repairable_run?(run)
+
+      run.reenqueue!(ignore_workflow_affinity: true)
+      run.workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
 
       { outcome: "applied", run: run, deleted_solid_queue_job_ids: deleted_job_ids }
     end
@@ -88,27 +93,43 @@ module PendingActions
       run.queued? && (run.workflow&.queued? || run.workflow&.running?)
     end
 
-    def validate_unsatisfied_affinity!(run, workflow, queue_jobs)
+    def validate_unsatisfied_affinity!(run, queue_jobs)
       decision = RunQueueResolver.resolve(run: run)
-      if workflow.worker_storage_key.blank? && workflow.worker_hostname.blank?
-        dead = queue_jobs.any? { |job| !InstanceVersion.worker_queue_live?(job.queue_name) }
-        raise ArgumentError, "#{run.slug} has no dead worker queue to repair." unless dead
-        return
+      if decision.sticky_resume
+        queue = decision.details["sticky_resume_queue"] ? decision.queue_name : run.resume_worker_queue
+        raise ArgumentError, "#{run.slug} still has a live worker satisfying its affinity on #{queue}."
       end
-      return unless decision.sticky_resume
 
-      queue = decision.details["sticky_resume_queue"] ? decision.queue_name : run.resume_worker_queue
-      raise ArgumentError, "#{run.slug} still has a live worker satisfying its affinity on #{queue}."
+      dead_queue_jobs = queue_jobs.select do |job|
+        explicit_worker_queue?(job.queue_name) && !InstanceVersion.worker_queue_live?(job.queue_name)
+      end
+      raise ArgumentError, "#{run.slug} has no dead explicit worker/storage queue to repair." if dead_queue_jobs.empty?
+
+      replacement = RunQueueResolver.resolve(run: run, ignore_workflow_affinity: true)
+      if replacement.blocked? || !InstanceVersion.worker_queue_live?(replacement.queue_name)
+        raise ArgumentError, "#{run.slug} has no compatible live replacement capacity."
+      end
     end
 
-    def matching_solid_queue_jobs(run)
+    def explicit_worker_queue?(queue_name)
+      queue_name.to_s.start_with?("worker-", "resume-")
+    end
+
+    def matching_solid_queue_jobs(run, lock: false)
       scope = SolidQueue::Job
         .where(class_name: "RunJob", finished_at: nil)
-        .lock
+      scope = scope.lock if lock
       SolidQueueRunJobQuery.matching(scope: scope, run_id: run.id)
     rescue NameError, ActiveRecord::StatementInvalid => e
       Rails.logger.warn("[PendingActions::RepairQueueAffinity] Solid Queue tables unavailable: #{e.class}: #{e.message}")
       []
+    end
+
+    def lock_queue_executions!(job_ids)
+      SolidQueue::ReadyExecution.where(job_id: job_ids).lock.load
+      SolidQueue::ScheduledExecution.where(job_id: job_ids).lock.load
+      SolidQueue::BlockedExecution.where(job_id: job_ids).lock.load
+      SolidQueue::ClaimedExecution.where(job_id: job_ids).lock.load
     end
 
     def claimed_solid_queue_job_ids(job_ids)

@@ -9,7 +9,9 @@ Queued Runs on an explicit `worker-*` or storage-affinity `resume-*` queue are
 reported after a five-minute grace period when no live worker consumes that
 queue. The read-only detector records the Job, Workflow, Run, queue, age,
 claim state, Run state, and whether workflow affinity remains. Admin Stuck Jobs
-surfaces the same reconciler condition.
+surfaces the same reconciler condition. Shared queues such as `runs` are never
+repair candidates, and a dead explicit queue is excluded until current routing
+has compatible live replacement capacity.
 
 Admins can call `repair_queue_affinity` with one `run_id`, up to 100 `run_ids`,
 or `detector_scope: true`. Bulk requests produce one grouped confirmation card
@@ -22,9 +24,12 @@ their leftover unclaimed rows separately.
 
 Repair audit records contain bounded snapshot references (byte count and
 SHA-256 digest) rather than two complete snapshots in `admin_actions.params`.
-The mutation, snapshots, audit insert, and confirmation outcome commit in one
-database transaction, so audit persistence cannot report a failed repair after
-leaving its mutation committed.
+Because Solid Queue can use a separate database, repair first commits a compact
+intent record on the primary database. Queue mutation is idempotent and
+revalidated, then final audit evidence and the confirmation outcome commit
+together on the primary database. If final evidence cannot be persisted after
+queue mutation, the durable intent remains and the action reports `partial`
+instead of falsely reporting `failed`.
 
 ## Force Fail Job
 
