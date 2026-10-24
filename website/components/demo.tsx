@@ -84,12 +84,12 @@ export function Demo({ locale }: { locale: Locale }) {
                   {onboardingLinks.map((link) => (
                     <a
                       key={link.label}
-                      href={link.external ? link.href : localizedHref(link.href, locale)}
+                      href={link.external || link.href.startsWith("/docs") ? link.href : localizedHref(link.href, locale)}
                       {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
                       className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-clay/40 hover:bg-white/[0.05]"
                     >
                       <span className="flex items-center justify-between gap-4 text-[0.95rem] font-semibold text-cream">
-                        {link.label}
+                        {link.label}{!link.external && link.href.startsWith("/docs") && locale !== "en" ? " (English)" : ""}
                         <ArrowRight className="size-4 shrink-0 text-clay transition-transform duration-200 group-hover:translate-x-0.5" />
                       </span>
                       <span className="mt-1.5 block text-[0.86rem] leading-relaxed text-cream-dim">{link.body}</span>

@@ -3,7 +3,7 @@ export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
 // Supporting a locale must not publish it before its content is complete.
-export const publishedLocales = ["en"] as const satisfies readonly Locale[];
+export const publishedLocales = ["en", "de"] as const satisfies readonly Locale[];
 
 export class LocalePublication {
   readonly locales: readonly Locale[];
