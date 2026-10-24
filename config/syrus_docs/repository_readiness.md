@@ -1,10 +1,12 @@
 # Repository readiness
 
-The first-run onboarding page statically inspects the first active repository
-after it is selected. Opening or refreshing the report never clones the
-repository and never executes its code.
+Syrus statically inspects repository readiness without cloning the repository
+or executing its code. During first-run setup, the completed **Repository**
+checklist step shows the readiness status as a button. The same compact status
+button appears in the summary area of each repository's **Overview** page.
+Either button opens the full **Repository readiness** modal.
 
-The report resolves the configured default branch through `RepositoryContent`,
+The modal's report resolves the configured default branch through `RepositoryContent`,
 validates `.syrus.yml`, inspects language-version files, package manifests and
 lockfiles, and uses the same prepare, grader, capability, and queue-resolution
 logic as execution. It shows the exact proposed prepare and grader commands.
@@ -29,13 +31,14 @@ grader candidate). Each command is time-bounded. The result records durations,
 checkout and final byte counts, disk growth, bounded output tails, missing
 executables, and cleanup state. The checkout is removed in an `ensure` path on
 success and failure; retrying creates a new record and checkout.
-The onboarding report polls while a probe is queued or running and stops after
-the first terminal result. A database single-flight constraint permits only
-one queued/running probe per repository, so concurrent clicks or requests
+The readiness status and modal poll while a probe is queued or running and stop
+after the first terminal result. A database single-flight constraint permits
+only one queued/running probe per repository, so concurrent clicks or requests
 reuse the same probe instead of launching duplicate dependency installs.
 
 Toolchain failures are reported separately and prominently. If an explicitly
 required prepare or grader command exits because it cannot be started, the
 latest probe blocks the repository's first initial implementation workflow.
-An operator can acknowledge and override that warning from onboarding; the
-queued workflow is then reconsidered without creating another Job or branch.
+An operator can acknowledge and override that warning from the readiness modal
+on either first-run setup or Repository Overview; the queued workflow is then
+reconsidered without creating another Job or branch.

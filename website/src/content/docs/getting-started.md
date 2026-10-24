@@ -168,15 +168,19 @@ repository's upstream fields stay blank. Additional repositories — and any
 fine-tuning, including the trigger label — happen later from the full
 **Repositories** page.
 
-Once the repository is selected, the checklist shows a static readiness
-report before you start the onboarding chat. Syrus reads the default branch
-without cloning or running repository code, validates `.syrus.yml`, inspects
-language versions, manifests and lockfiles, and displays the exact prepare and
-grader commands it would run. Environment and dependency hints are advisory;
-only invalid configuration, inaccessible repository content, and the absence
-of a worker with the required capabilities block readiness.
+Once the repository is selected, the completed **Repository** checklist step
+shows its readiness status. Select that status to open the full readiness
+report before you start the onboarding chat. The same status and report remain
+available later from the repository's **Overview** page. Syrus reads the
+default branch without cloning or running repository code, validates
+`.syrus.yml`, inspects language versions, manifests and lockfiles, and displays
+the exact prepare and grader commands it would run. Environment and dependency
+hints are advisory; only invalid configuration, inaccessible repository
+content, and the absence of a worker with the required capabilities block
+readiness.
 
-Use **Run probe** when you want execution evidence before the first agent run.
+In the readiness report, use **Run probe** when you want execution evidence
+before the first agent run.
 Syrus creates a disposable shallow checkout, installs declared toolchain
 versions, runs the proposed prepare commands, and runs one bounded grader or
 detected grader command. It does not invoke an agent, create a Job, push a
