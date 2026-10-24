@@ -1170,7 +1170,6 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "defers autonomous CI repair for approved Epic children to the merge train" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       job.update!(epic: epic)
       stub_check_runs(sha, [

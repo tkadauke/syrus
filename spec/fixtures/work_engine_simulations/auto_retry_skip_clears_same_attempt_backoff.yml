@@ -1,6 +1,4 @@
 name: auto retry skip clears same-attempt backoff
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: auto-retry-skip-clears-same-attempt-backoff

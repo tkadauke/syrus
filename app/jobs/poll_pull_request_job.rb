@@ -629,7 +629,6 @@ class PollPullRequestJob < ApplicationJob
   def ci_repair_deferred_to_epic_merge_train?
     return false if @manual
     return false if @job.main_branch_repair?
-    return false unless AppSetting.merge_train_enabled?
     return false unless @job.approved? && @job.epic_id.present?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure deferred to Epic merge train")

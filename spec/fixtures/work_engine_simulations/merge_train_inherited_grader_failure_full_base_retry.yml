@@ -1,8 +1,6 @@
 name: merge train inherited grader failure full base retry
 runner:
   auto_retry_failed_jobs: false
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: merge-train-inherited-grader-failure-full-base-retry

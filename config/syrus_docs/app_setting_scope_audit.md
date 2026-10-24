@@ -21,7 +21,6 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `adversarial_review_rounds` | instance | Admin Settings | setting | instance default with repo override | Correct: global default; `.syrus.yml` can override per repo. |
 | `max_job_failures` | instance | Admin Settings | setting | instance | Correct: retry/auto-pause policy is deployment-wide. |
 | `rebase_failure_cooldown_minutes` | instance | Admin Settings | setting | instance | Correct: protects the whole deployment from repeated autonomous rebase churn. |
-| `merge_train_enabled` | instance | Admin Console | setting | instance default with repo override later | Correct for now as a global landing mode switch; per-repo override may be useful later. |
 | `merge_train_max_size` | instance | Admin Settings | setting | instance default with repo override later | Correct for now as a global safety cap; large monorepos may want an override later. |
 | `signups_open` | instance | Admin Settings | setting | instance | Correct: deployment access policy. |
 | `polling_paused` | instance | Admin Console | setting | instance | Correct: emergency instance kill switch. |

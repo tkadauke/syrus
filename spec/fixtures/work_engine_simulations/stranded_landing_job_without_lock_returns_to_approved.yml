@@ -12,8 +12,6 @@
 # from landing. A detector keyed on the held lock cannot fire here, which is
 # exactly why `stranded_landing_job` is independent of it.
 name: stranded landing job without a held lock returns to approved
-app_settings:
-  merge_train_enabled: true
 features:
   epicless_job_bundling: true
 repository:

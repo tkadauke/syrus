@@ -33,7 +33,7 @@ class LandingQueueReentry
   attr_reader :job
 
   def clearable_jobs
-    candidates = if AppSetting.merge_train_enabled? && job.epic_id.present?
+    candidates = if job.epic_id.present?
       job.epic.jobs.where(state: "approved")
     else
       Job.where(id: job.id, state: "approved")
@@ -47,7 +47,7 @@ class LandingQueueReentry
 
   def ready_to_reenter?(candidate)
     return false if landing_start_blocker_backoff_active?(candidate)
-    return merge_train_ready_to_reenter?(candidate) if AppSetting.merge_train_enabled? && candidate.epic_id.present?
+    return merge_train_ready_to_reenter?(candidate) if candidate.epic_id.present?
 
     return false if candidate.dependencies_failed_for_execution?
     return false unless candidate.dependencies_satisfied_for_execution?

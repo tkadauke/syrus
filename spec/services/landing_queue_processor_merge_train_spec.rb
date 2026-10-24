@@ -16,8 +16,7 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
   describe "blockage" do
     before { epic.update_columns(state: "in_progress") }
 
-    it "keeps Epic children off the per-Job path when the flag is on" do
-      AppSetting.current.update!(merge_train_enabled: true)
+    it "keeps Epic children off the per-Job path" do
       child = approved_child(1)
 
       entry = described_class.entries(Job.where(id: child.id)).first
@@ -25,7 +24,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "surfaces the Epic release gate before the merge-train wait" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic.update_columns(state: "backlog")
       child = approved_child(1)
 
@@ -33,16 +31,7 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       expect(entry.blocked_reason).to eq({ key: "waiting_epic_release" })
     end
 
-    it "does not block Epic children for the merge-train reason when the flag is off" do
-      AppSetting.current.update!(merge_train_enabled: false)
-      child = approved_child(1)
-
-      entry = described_class.entries(Job.where(id: child.id)).first
-      expect(entry.blocked_reason).not_to eq({ key: "waiting_epic_merge_train" })
-    end
-
     it "treats every Epic Job as a merge-train child without reconciliation exceptions" do
-      AppSetting.current.update!(merge_train_enabled: true)
       child = approved_child(1)
 
       entry = described_class.entries(Job.where(id: child.id)).first
@@ -52,7 +41,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "keeps Epic siblings grouped in one merge-train landing unit" do
-      AppSetting.current.update!(merge_train_enabled: true)
       child = approved_child(1)
 
       entry = described_class.entries(Job.where(id: child.id)).first
@@ -64,7 +52,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
 
   describe "#call" do
     it "dispatches a merge-train for a ready Epic instead of per-Job auto-merges" do
-      AppSetting.current.update!(merge_train_enabled: true)
       approved_child(1)
       approved_child(2)
       allow(MergeTrainDispatcher).to receive(:try_dispatch!).and_return(Object.new)
@@ -76,7 +63,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "does not dispatch a lower-priority train ahead of a higher-priority loose Job" do
-      AppSetting.current.update!(merge_train_enabled: true)
       approved_child(1).update!(approved_at: 10.minutes.ago, priority: "low")
       loose = Factories.job_record(
         user: user, repository: repository,
@@ -95,7 +81,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "keeps a priority-boosted Epic train as one landing unit" do
-      AppSetting.current.update!(merge_train_enabled: true)
       low_child = approved_child(1).tap { |job| job.update!(approved_at: 10.minutes.ago, priority: "low") }
       urgent_child = approved_child(2).tap { |job| job.update!(approved_at: 1.minute.ago, priority: "urgent") }
       high_loose = Factories.job_record(
@@ -112,7 +97,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "does not dispatch a train while a member has an unmerged external blocker" do
-      AppSetting.current.update!(merge_train_enabled: true)
       blocker = Factories.job_record(
         user: user, repository: repository,
         issue_number: 9, state: "implemented",
@@ -127,7 +111,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
     end
 
     it "routes try_land! for an Epic child to the train dispatcher" do
-      AppSetting.current.update!(merge_train_enabled: true)
       child = approved_child(1)
       allow(MergeTrainDispatcher).to receive(:try_dispatch!).and_return(nil)
 

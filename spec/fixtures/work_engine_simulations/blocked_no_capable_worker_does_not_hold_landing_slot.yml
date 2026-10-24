@@ -16,8 +16,6 @@
 # there the blocked unit gated the bundler through member ownership, here it
 # gates every landing path by squatting on the landing slot itself.
 name: blocked no-capable-worker unit does not hold the landing slot
-app_settings:
-  merge_train_enabled: true
 features:
   epicless_job_bundling: true
 repository:

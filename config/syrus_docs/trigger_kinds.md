@@ -275,7 +275,7 @@ a fix.
 
 ## merge_train
 
-**When it fires:** All open child Jobs of an Epic are approved and `AppSetting.merge_train_enabled` is true.
+**When it fires:** All open child Jobs of an Epic are approved.
 
 **Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
 

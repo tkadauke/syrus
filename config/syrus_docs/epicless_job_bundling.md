@@ -28,10 +28,10 @@ flag (`config/features.yml`), on by default:
 Feature.find_by(slug: "epicless_job_bundling").update(enabled: false)
 ```
 
-Unlike `merge_train_enabled` (an `AppSetting`, effectively an operations
-switch once turned on instance-wide), this stays a per-instance toggle in
-the same family as `visual_review` or `landing_validation_prefetch` —
-operators can opt back out from Admin → Features.
+Unlike unconditional Epic merge-train landing, epicless bundling stays a
+per-instance toggle in the same family as `visual_review` or
+`landing_validation_prefetch` — operators can opt back out from Admin →
+Features.
 
 ## Assembly (`LandingBundleAssembler`, priority-tier scope)
 

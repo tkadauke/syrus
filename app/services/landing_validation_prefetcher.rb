@@ -170,7 +170,6 @@ class LandingValidationPrefetcher
   end
 
   def merge_train_target(unit)
-    return unless AppSetting.merge_train_enabled?
     return unless unit.jobs.map(&:epic_id).compact.uniq.one?
     return unless unit.jobs.all? { |member| ordinary_merge_train_member?(member) }
     return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("merge_train")).any?
@@ -247,7 +246,7 @@ class LandingValidationPrefetcher
 
   def ordinary_auto_merge_candidate?(candidate)
     ordinary_merge_candidate?(candidate) &&
-      !(candidate.epic_id.present? && AppSetting.merge_train_enabled?) &&
+      candidate.epic_id.nil? &&
       !(candidate.epic_id.nil? && LandingQueueProcessor.bundle_eligible_epicless_job?(candidate)) &&
       !WorkUnits::Ownership.active_for_job_kind?(candidate, WorkDefinitions.landing_validation_child_kinds)
   end
