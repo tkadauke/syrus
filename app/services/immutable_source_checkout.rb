@@ -194,16 +194,22 @@ class ImmutableSourceCheckout
   def resolve_deleted_base_ref!(remote, branch)
     repository = remote_repository(remote)
     default_branch = repository.default_branch.to_s.presence
-    raise_infrastructure!("immutable source checkout cannot resolve deleted base ref #{base_ref}") unless default_branch
+    raise_base_ref_unavailable! unless default_branch
 
     log("[immutable_source_checkout] base ref #{base_ref} no longer exists; fetching #{remote}/#{default_branch} for fallback")
-    fetch_remote_branch!(remote, default_branch, destination_ref: remote_tracking_ref(remote, default_branch))
+    begin
+      fetch_remote_branch!(remote, default_branch, destination_ref: remote_tracking_ref(remote, default_branch))
+    rescue GitRunner::GitError => e
+      raise unless missing_remote_ref?(e)
+
+      raise_base_ref_unavailable!
+    end
 
     default_ref = remote_tracking_ref(remote, default_branch)
     parent_landed_sha = parent_landed_sha_for(repository)
     target = parent_landed_sha if parent_landed_sha && git_ref_exists?(parent_landed_sha)
     target ||= default_ref if git_ref_exists?(default_ref)
-    raise_infrastructure!("immutable source checkout cannot resolve deleted base ref #{base_ref}") unless target
+    raise_base_ref_unavailable! unless target
 
     @git.run("update-ref", remote_tracking_ref(remote, branch), target, chdir: path.to_s)
     log("[immutable_source_checkout] resolved deleted base ref #{base_ref} to #{target}")
@@ -233,6 +239,11 @@ class ImmutableSourceCheckout
 
   def missing_remote_ref?(error)
     error.output.to_s.match?(/couldn't find remote ref|remote ref does not exist|not our ref/i)
+  end
+
+  def raise_base_ref_unavailable!
+    raise WorkflowSourceSnapshots::BaseRefUnavailableError,
+      "immutable source checkout cannot resolve deleted base ref #{base_ref} from the parent merge commit or default branch"
   end
 
   def ensure_remote!(remote)
