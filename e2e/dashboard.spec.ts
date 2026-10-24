@@ -70,8 +70,8 @@ test("shows the system readiness panel for a user who has not finished setup", a
   await expect(panel.getByRole("heading", { name: "Agent provider" })).toBeVisible()
   await expect(panel.getByText("Codex is selected but its credentials are missing.")).toBeVisible()
 
-  await panel.getByRole("link", { name: "Open settings" }).click()
-  await expect(page).toHaveURL(/\/credentials/)
+  await panel.getByRole("link", { name: "Open Operator Console" }).click()
+  await expect(page).toHaveURL(/\/admin\/console/)
 })
 
 test("retries a failed job in bulk from the dashboard and reflects it in the dashboard", async ({ page }) => {
