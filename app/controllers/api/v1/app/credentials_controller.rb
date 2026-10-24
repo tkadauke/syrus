@@ -28,14 +28,15 @@ module Api
 
         def clear_credential
           credential = params[:credential].to_s
-          label = User::CLEARABLE_CREDENTIALS[credential]
-          unless label
+          unless User::CLEARABLE_CREDENTIALS.key?(credential)
             render_error("unknown_credential", I18n.t("api.credentials.unknown"), status: :unprocessable_content)
             return
           end
 
           Current.user.clear_credential!(credential)
-          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.cleared", label: label))
+          render json: credentials_payload(Current.user.reload).merge(
+            message: I18n.t("api.credentials.cleared", label: credential_label(credential))
+          )
         end
 
         def test_credential
@@ -359,8 +360,8 @@ module Api
               min: User::RECENT_CHATS_GROUP_SIZE_RANGE.first,
               max: User::RECENT_CHATS_GROUP_SIZE_RANGE.last
             },
-            clearable_credentials: User::CLEARABLE_CREDENTIALS.map do |value, label|
-              { value: value, label: label }
+            clearable_credentials: User::CLEARABLE_CREDENTIALS.keys.map do |value|
+              { value: value, label: credential_label(value) }
             end,
             auto_approve_modes: AutoApproveModes.options
           }.merge(provider_routing_options: provider_routing_options_json(user))
@@ -370,6 +371,10 @@ module Api
           %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key muse_api_key agy ].select do |credential|
             CredentialProbe.probe_handler_for(credential)
           end
+        end
+
+        def credential_label(credential)
+          I18n.t("api.credentials.labels.#{credential}")
         end
 
         def claude_oauth!

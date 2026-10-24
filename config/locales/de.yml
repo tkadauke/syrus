@@ -374,6 +374,13 @@ de:
       removed: "Mitglied entfernt."
 
     credentials:
+      labels:
+        github_token: "GitHub-Token"
+        claude_oauth_token: "Claude-OAuth-Token"
+        codex_api_key: "Codex-API-Schlüssel"
+        codex_auth_json: "Codex-ChatGPT-auth.json"
+        gemini_api_key: "Gemini-API-Schlüssel"
+        muse_api_key: "Muse-API-Schlüssel"
       updated: "Anmeldedaten aktualisiert."
       unknown: "Unbekannte Anmeldedaten."
       cleared: "%{label} gelöscht."
