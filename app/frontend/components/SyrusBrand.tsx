@@ -1,6 +1,6 @@
 import { useId } from "react"
 
-import { TestChannelDot } from "./TestChannelBadge"
+import { TestChannelDot } from "./TestChannelDot"
 
 // Theme-aware winged-stylus mark: the rounded-square backdrop and the glyph
 // are painted from semantic color tokens (`--color-brand`/`--color-on-brand`)
