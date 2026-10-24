@@ -68,7 +68,11 @@ export function chatPinToolCard(toolName: "pin_chat" | "unpin_chat"): ToolCardRe
         const targetId = requestedChatId(context)
         return (
           <StatusCard title={title} status="pending">
-            {targetId ? <ChatReference id={targetId} label={i18n.t("chat:tool_card_requested_target")} /> : <Row label={i18n.t("chat:tool_card_requested_target")} value={i18n.t("chat:tool_card_current_chat")} />}
+            {targetId ? (
+              <ChatReference id={targetId} label={i18n.t("chat:tool_card_requested_target")} />
+            ) : (
+              <Row label={i18n.t("chat:tool_card_requested_target")} value={i18n.t("chat:tool_card_current_chat")} />
+            )}
           </StatusCard>
         )
       }
