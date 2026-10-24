@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { renderMarkdown } from "./markdown";
 
+export const blogCopy = {
+  label: "Blog",
+  description: "Notes from building Syrus: AI-native UX experiments, engineering deep dives, and what a fleet of coding agents teaches you.",
+} as const;
+
 export type BlogPost = {
   slug: string;
   href: string;
