@@ -471,7 +471,11 @@ grade:
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
-    ci_timeout_minutes: 60
+    # CI mode runs the parallel suite and then the schema-mutating :ci_only
+    # examples serially. The two phases can exceed an hour under shared-worker
+    # load even when every shard is healthy, so retain headroom for teardown
+    # and result collation.
+    ci_timeout_minutes: 75
 
   - type: vitest
     name: react-tests

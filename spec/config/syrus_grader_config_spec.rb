@@ -275,6 +275,13 @@ RSpec.describe "Syrus grader configuration" do
     ])
   end
 
+  it "gives the RSpec CI mode enough time for its parallel and serial phases" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "rspec-ci" }
+
+    expect(grader.timeout_minutes).to be >= 75
+  end
+
   it "expands work-engine simulations as one fixed full-path RSpec grader" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
     matching_graders = config.grade.steps.select { |step| step.name.start_with?("work-engine-simulations") }
