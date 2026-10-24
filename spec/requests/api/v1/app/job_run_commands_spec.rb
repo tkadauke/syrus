@@ -34,6 +34,28 @@ RSpec.describe "App API job run commands", type: :request do
     finish_work_units_for(job)
   end
 
+  it "localizes command errors in German without changing the machine contract" do
+    user.update!(locale: "de")
+
+    post app_job_path("/poll_feedback"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to eq("Du kannst Feedback nur bei offenen Jobs mit PR prüfen.")
+  end
+
+  it "localizes interpolated command notices in Latin without changing canonical fields" do
+    user.update!(locale: "la", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job.update!(pr_number: 42)
+
+    post app_job_path("/poll_feedback"), params: { agent_provider: "codex" }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Feedback PR cum Codex nunc inspicitur...")
+    expect(parse_body.dig("job", "state")).to eq(job.reload.state)
+    expect(parse_body.dig("job", "pr_number")).to eq(42)
+  end
+
   def attach_work_unit(workflow, job:, kind:, state: "running")
     intent = WorkIntent.create!(
       kind: kind,
