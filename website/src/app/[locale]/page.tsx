@@ -7,7 +7,7 @@ export const metadata: Metadata = localizedMetadata({
   pathname: "/",
   title: "Syrus — selbst gehostete KI-Coding-Agenten für Entwickler",
   description:
-    "Syrus automatisiert den Weg von Issues, Chats und Videoanleitungen zu nachvollziehbaren Pull Requests — selbst gehostet und unter Ihrer Kontrolle.",
+    "Syrus automatisiert den Weg von Issues, Chats und Videoanleitungen zu nachvollziehbaren Pull Requests — selbst gehostet und unter deiner Kontrolle.",
   availableLocales: ["en", "de"],
   absoluteTitle: true
 })
