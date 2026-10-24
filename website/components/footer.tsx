@@ -20,6 +20,7 @@ const cols: { title: string; links: FooterLink[] }[] = [
       { label: "Download", href: "/download" },
       { label: "Watch demo", href: "/#walkthrough-demo" },
       { label: "Docs", href: "/docs" },
+      { label: "Blog", href: "/blog" },
       { label: "GitHub repository", href: site.repositoryUrl, external: true },
       { label: "File an issue", href: `${site.repositoryUrl}/issues`, external: true }
     ]

@@ -13,6 +13,7 @@ const links = [
   { href: "/#entry-points", label: "Entry points" },
   { href: "/plugins", label: "Plugins" },
   { href: "/docs", label: "Docs" },
+  { href: "/blog", label: "Blog" },
 ];
 
 export function Nav() {
