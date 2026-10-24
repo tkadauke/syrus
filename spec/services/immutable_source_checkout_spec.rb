@@ -99,6 +99,43 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(sh("git -C #{checkout.path} diff --name-only origin/main...HEAD").lines.map(&:strip)).to eq([ "feature.txt" ])
   end
 
+  it "resolves a deleted stacked base branch to the parent's landed commit" do
+    parent = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: feature_sha)
+    job.update!(parent_job: parent)
+    workflow.update!(artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/deleted-parent" })
+    snapshot.update!(
+      source_ref: "refs/syrus/source-snapshots/runs/123",
+      source_sha: feature_sha,
+      tree_sha: feature_tree_sha
+    )
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/syrus/deleted-parent").strip).to eq(feature_sha)
+  end
+
+  it "resolves a deleted stacked base branch to the default branch without a parent merge commit" do
+    parent = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: nil)
+    job.update!(parent_job: parent)
+    workflow.update!(artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/deleted-parent" })
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/syrus/deleted-parent").strip).to eq(main_sha)
+  end
+
+  it "raises when neither the parent merge commit nor the default branch resolves a deleted base" do
+    parent = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: "missing-sha")
+    job.update!(parent_job: parent)
+    repository.update!(default_branch: "missing-default")
+    workflow.update!(artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/deleted-parent" })
+
+    expect { described_class.new(step).setup }
+      .to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /failed to fetch base ref origin\/syrus\/deleted-parent/)
+  end
+
   it "runs normal prepare commands in the immutable checkout dependency environment" do
     checkout = described_class.new(step)
 
