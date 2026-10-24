@@ -97,7 +97,7 @@ class SolidQueueCleanupJob < ApplicationJob
   # no longer matches the chat's current one.
   def prune_dead_resume_ready_executions
     dead_queues = SolidQueue::ReadyExecution
-                    .where("queue_name LIKE ?", "resume-%")
+                    .where("queue_name LIKE :resume OR queue_name LIKE :worker", resume: "resume-%", worker: "worker-%")
                     .distinct
                     .pluck(:queue_name)
                     .reject { |queue_name| InstanceVersion.worker_queue_live?(queue_name) }

@@ -865,9 +865,12 @@ RSpec.describe "Mcp::Tools job control tools" do
         "requested_by" => "agent",
         "payload" => { "job_id" => job.id, "previous_state" => "running" },
         "result" => { "type" => "Job", "id" => job.id },
-        "before_snapshot" => hash_including("jobs" => [ hash_including("state" => "running") ]),
-        "after_snapshot" => hash_including("jobs" => [ hash_including("state" => "failed") ])
+        "evidence" => {
+          "before" => hash_including("job_ids" => [ job.id ], "sha256" => match(/\A[0-9a-f]{64}\z/)),
+          "after" => hash_including("job_ids" => [ job.id ], "sha256" => match(/\A[0-9a-f]{64}\z/))
+        }
       )
+      expect(AdminAction.where(action: "repair_force_fail_job").last.params).not_to have_key("before_snapshot")
     end
 
     it "allows an admin to rebase another user's job" do

@@ -301,6 +301,25 @@ RSpec.describe SolidQueueCleanupJob do
       clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
     end
 
+    it "deletes a terminal Run's row on a dead hostname-specific worker queue" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+      dead = "worker-gone"
+      allow(InstanceVersion).to receive(:worker_queue_live?).with(dead).and_return(false)
+      failed_run = run
+      failed_run.update!(state: "failed")
+      stranded = solid_queue_job(
+        class_name: "RunJob", queue_name: dead,
+        arguments: { "arguments" => [ failed_run.id ] }, created_at: 2.hours.ago
+      )
+
+      run_only_dead_resume_sweep
+
+      expect(SolidQueue::Job.where(id: stranded.id)).to be_empty
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
     # WorkEngine::Reconciler owns the queued case -- it re-enqueues the Run onto
     # a live queue. Deleting the row here would race it and strand real work.
     it "leaves a still-queued Run's row for the reconciler to re-enqueue" do
