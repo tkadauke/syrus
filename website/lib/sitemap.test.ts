@@ -32,6 +32,11 @@ test("emits each real localized URL with matching absolute alternates", () => {
     },
   ]);
   assert.equal(entries.some(({ url }) => url.includes("/la/")), false);
+  assert.equal(entries.some(({ url }) => url.includes("/de/blog/")), false);
+  assert.deepEqual(entries.find(({ url }) => url === "https://syrus-ai.dev/blog/")?.alternates.languages, {
+    en: "https://syrus-ai.dev/blog/",
+    "x-default": "https://syrus-ai.dev/blog/",
+  });
 });
 
 test("filters supported but unpublished locale variants", () => {

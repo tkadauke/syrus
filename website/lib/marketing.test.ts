@@ -9,7 +9,6 @@ test("publishes complete English and German marketing dictionaries", () => {
     assert.equal(copy.workflow.steps.length, 6)
     assert.equal(copy.features.items.length, 7)
     assert.equal(copy.entries.items.length, 7)
-    assert.equal(copy.media.shots.length, 3)
     assert.equal(copy.screenshot.jobs.length, 5)
     assert.equal(copy.demo.links.length, 3)
     assert.equal(controlPlaneFor(locale).cards.length, 6)

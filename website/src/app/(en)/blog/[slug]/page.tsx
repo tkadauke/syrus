@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Nav } from "../../../../components/nav";
-import { Footer } from "../../../../components/footer";
-import { BlogPostPage } from "../../../../components/blog-post";
-import { blogStaticParams, findPost } from "../../../../lib/blog";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { BlogPostPage } from "@/components/blog-post";
+import { blogStaticParams, findPost } from "@/lib/blog";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -33,11 +33,11 @@ export default async function BlogPostRoute({ params }: PageProps) {
 
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
         <BlogPostPage post={post} />
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }

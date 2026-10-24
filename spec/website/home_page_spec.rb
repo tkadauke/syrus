@@ -19,6 +19,7 @@ RSpec.describe "website home page" do
     expect(page).to include("<Features")
     expect(page).to include("<EntryPoints")
     expect(page).to include("<Demo")
+    expect(page).not_to include("ProductMedia")
   end
 
   it "explains Syrus as owner-controlled AI work from goal to merged pull request" do

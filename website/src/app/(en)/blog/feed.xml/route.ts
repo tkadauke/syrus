@@ -1,5 +1,5 @@
-import { allPosts } from "../../../../lib/blog";
-import { site } from "../../../../lib/site";
+import { allPosts } from "@/lib/blog";
+import { site } from "@/lib/site";
 
 export const dynamic = "force-static";
 

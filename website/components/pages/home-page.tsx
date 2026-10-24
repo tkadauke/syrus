@@ -6,7 +6,6 @@ import { TeamWorkflow } from "@/components/team-workflow"
 import { Features } from "@/components/features"
 import { EntryPoints } from "@/components/entry-points"
 import { Demo } from "@/components/demo"
-import { ProductMedia } from "@/components/product-media"
 import { Footer } from "@/components/footer"
 import type { Locale } from "@/lib/locales"
 
@@ -30,7 +29,6 @@ export function HomePage({ locale }: { locale: Locale }) {
       <Nav locale={locale} />
       <main id="main">
         <Hero desktopSrc={desktopSrc} mobileSrc={mobileSrc} locale={locale} />
-        <ProductMedia locale={locale} />
         <TeamWorkflow locale={locale} />
         <Features locale={locale} />
         <EntryPoints locale={locale} />

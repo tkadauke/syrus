@@ -4,7 +4,10 @@ import { languageAlternates, siteOrigin } from "./metadata.ts";
 export type SitemapSource = { href: string; locales?: readonly Locale[] }
 export type SitemapEntry = { url: string; alternates: { languages: Record<string, string> } }
 
-const STATIC_PATHS = ["/", "/control-plane", "/download", "/plugins", "/blog"]
+const STATIC_PATHS: SitemapSource[] = [
+  ...["/", "/control-plane", "/download", "/plugins"].map((href) => ({ href, locales: localePublication.locales })),
+  { href: "/blog", locales: [defaultLocale] },
+]
 
 export function sitemapEntries(
   plugins: SitemapSource[],
@@ -13,7 +16,10 @@ export function sitemapEntries(
   publication: LocalePublication = localePublication,
 ): SitemapEntry[] {
   const sources = [
-    ...STATIC_PATHS.map((href) => ({ href, locales: publication.locales })),
+    ...STATIC_PATHS.map((source) => ({
+      ...source,
+      locales: source.href === "/blog" ? source.locales : publication.locales,
+    })),
     ...plugins,
     ...docs,
     ...posts,
