@@ -30,6 +30,24 @@ afterEach(() => {
 describe("MarkdownPreview", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("highlights search terms without dropping markdown or URL links", () => {
+    const { container } = render(<MarkdownPreview highlightTerms={["needle"]} linkifyUrls text="A **Needle** beside https://example.test/needle." />)
+
+    expect(container.querySelector("strong mark[data-search-highlight]")).toHaveTextContent("Needle")
+    const link = screen.getByRole("link", { name: "https://example.test/needle" })
+    expect(link).toHaveAttribute("href", "https://example.test/needle")
+    expect(link.querySelector("mark[data-search-highlight]")).toHaveTextContent("needle")
+  })
+
+  it("highlights matches inside inline code in the compact preview and modal", () => {
+    const text = `Use \`Linear\` here. ${"Additional content. ".repeat(20)}`
+    const { container } = render(<MarkdownPreview highlightTerms={["linear"]} maxChars={40} text={text} />)
+
+    expect(container.querySelector("code mark[data-search-highlight]")).toHaveTextContent("Linear")
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByText("Linear").closest("code")?.querySelector("mark[data-search-highlight]")).toBeInTheDocument()
+  })
+
   it("renders short light markdown without an expansion button", () => {
     render(<MarkdownPreview text="A **short** note." />)
 

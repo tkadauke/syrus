@@ -28,6 +28,7 @@ export type MarkdownPreviewProps = {
   className?: string
   copyLabel?: string
   emptyLabel?: string
+  highlightTerms?: string[]
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   maxChars?: number
@@ -71,6 +72,7 @@ export function MarkdownPreview({
   copyLabel,
   emptyLabel,
   emptyState,
+  highlightTerms,
   linkifySlugs = true,
   linkifyUrls = false,
   maxChars,
@@ -145,7 +147,7 @@ export function MarkdownPreview({
         ref={previewRef}
         style={lineClampStyle}
       >
-        {renderLightMarkdown(truncated.preview, { linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone })}
+        {renderLightMarkdown(truncated.preview, { highlightTerms, linkifySlugs, linkifyUrls, onLinkClick, slugHrefFallbacks, slugHrefOverrides, slugTone })}
         {truncated.truncated ? "…" : null}
       </div>
       {expandable ? (
@@ -178,6 +180,7 @@ export function MarkdownPreview({
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
           <Markdown
             className="min-w-0 break-words [overflow-wrap:anywhere] text-text-primary"
+            highlightTerms={highlightTerms}
             linkifySlugs={linkifySlugs}
             linkifyUrls={linkifyUrls}
             onLinkClick={onLinkClick}
