@@ -83,6 +83,11 @@ or an eligible existing Job branch. Syrus captures and verifies the exact pushed
 commit, creates audit Job metadata when needed, skips graders, reviews,
 admission control, and normal workflow worker dispatch, then opens and merges a normal GitHub PR.
 GitHub branch protection and mergeability checks remain in force.
+For a newly opened PR, Syrus gives GitHub up to about 30 seconds to finish
+computing mergeability. A real conflict stops immediately; if mergeability is
+still unknown, the confirmation fails with a retryable message rather than
+claiming the branch conflicts. Retrying after any failed confirmation creates
+a fresh confirmation.
 The confirmation remains in progress until the merge succeeds; capture or
 landing failures are recorded as failed confirmations instead of appearing applied.
 

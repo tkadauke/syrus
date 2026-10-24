@@ -102,7 +102,10 @@ RSpec.describe Mcp::Tools::EmergencyLandTool do
                                linked_chat_id: chat_session.id, branch_name: "syrus/incident", pr_number: nil)
     existing = chat_session.pending_actions.create!(
       action: "emergency_land",
-      payload: { "chat_session_id" => chat_session.id, "job_id" => job.id, "repository_id" => repository.id, "branch_name" => "syrus/incident" },
+      payload: {
+        "chat_session_id" => chat_session.id, "job_id" => job.id, "repository_id" => repository.id,
+        "branch_name" => "syrus/incident", "title" => nil, "description" => nil
+      },
       requested_by: "agent"
     )
 
@@ -112,6 +115,26 @@ RSpec.describe Mcp::Tools::EmergencyLandTool do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(result[:pending_action_id]).to eq(existing.id)
     expect(chat_session.pending_actions.where(action: "emergency_land").count).to eq(1)
+  end
+
+  it "creates a fresh pending action when an identical prior request failed" do
+    job = Factories.job_record(user: owner, repository: repository, state: "coding",
+                               linked_chat_id: chat_session.id, branch_name: "syrus/incident", pr_number: nil)
+    failed = chat_session.pending_actions.create!(
+      action: "emergency_land",
+      payload: {
+        "chat_session_id" => chat_session.id, "job_id" => job.id, "repository_id" => repository.id,
+        "branch_name" => "syrus/incident", "title" => nil, "description" => nil
+      },
+      requested_by: "agent",
+      state: "failed"
+    )
+
+    result = payload(call_tool(job_id: job.id))
+
+    expect(result[:pending_action_id]).not_to eq(failed.id)
+    expect(ChatPendingAction.find(result[:pending_action_id])).to be_pending
+    expect(chat_session.pending_actions.where(action: "emergency_land").count).to eq(2)
   end
 
   it "rejects when the emergency land feature flag is off" do
