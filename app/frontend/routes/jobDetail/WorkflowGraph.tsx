@@ -18,6 +18,7 @@ import {
   fetchJobRunArtifacts,
   fetchJobSourceFileContent,
   type JobAdversarialReviewIteration,
+  type JobSecurityReviewIteration,
   type JobDetailPayload,
   type JobPrLinkRole,
   type JobRun,
@@ -73,7 +74,7 @@ import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill,
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { WorkflowReference } from "../../components/WorkflowReference"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
-import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
+import { stepArtifactAdversarialReview, stepArtifactSecurityReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 
@@ -1343,6 +1344,7 @@ function StepCard({
       : null
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
+  const securityReviewArtifact = step.kind === "security_review" ? stepArtifactSecurityReview(artifacts.security_review_iterations) : null
   const visualReviewArtifactsForRun = (run: JobRun) =>
     step.kind === "visual_review"
       ? stepArtifactVisualReview(artifacts.visual_review_iterations, { stepId: step.id, runId: run.id, iteration: step.iteration })
@@ -1416,6 +1418,7 @@ function StepCard({
                   redundantTiming={isRedundantRunTiming(step, run)}
                   run={run}
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
+                  stepSecurityReviewArtifact={idx === 0 ? securityReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
                   stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
                   stepVisualReviewArtifact={visualReviewArtifactsForRun(run)}
@@ -1568,23 +1571,38 @@ function StepTestPlanPanel({ testPlan, onClose }: { testPlan: { steps: string[];
 }
 
 export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations: JobAdversarialReviewIteration[]; onClose: () => void }) {
+  return <StepTextReviewPanel iterations={iterations} kind="adversarial_review" onClose={onClose} />
+}
+
+export function StepSecurityReviewPanel({ iterations, onClose }: { iterations: JobSecurityReviewIteration[]; onClose: () => void }) {
+  return <StepTextReviewPanel iterations={iterations} kind="security_review" onClose={onClose} />
+}
+
+function StepTextReviewPanel({
+  iterations,
+  kind,
+  onClose
+}: {
+  iterations: JobAdversarialReviewIteration[]
+  kind: "adversarial_review" | "security_review"
+  onClose: () => void
+}) {
   const { t } = useT("jobs")
   const lastIndex = iterations.length - 1
   return (
     <section className={artifactPanelClass()}>
-      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_adversarial_review")}</ArtifactPanelHeader>
+      <ArtifactPanelHeader onClose={onClose}>{t(`artifact_header_${kind}`)}</ArtifactPanelHeader>
       <div className="divide-y divide-gray-200 overflow-auto max-md:min-h-0 max-md:flex-1 dark:divide-gray-700">
         {iterations.map((iteration, index) => {
           const isFinal = index === lastIndex
           const isApproved = iteration.verdict === "approved"
-          const verdictLabel = isApproved ? t("adversarial_review_verdict_approved") : t("adversarial_review_verdict_needs_work")
+          const isSkipped = iteration.verdict === "skipped"
+          const verdictLabel = t(`${kind}_verdict_${iteration.verdict}`)
           return (
             <div className="p-3" key={iteration.iteration}>
               <div className="flex items-center gap-2">
-                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-                  {t("adversarial_review_round", { n: iteration.iteration })}
-                </h5>
-                <SmallPill tone={isFinal ? (isApproved ? "success" : "warning") : "neutral"}>{verdictLabel}</SmallPill>
+                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t(`${kind}_round`, { n: iteration.iteration })}</h5>
+                <SmallPill tone={isFinal ? (isApproved || isSkipped ? "success" : "warning") : "neutral"}>{verdictLabel}</SmallPill>
               </div>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
             </div>
@@ -1775,6 +1793,7 @@ function RunRow({
   stepSummaryArtifact = null,
   stepTestPlanArtifact = null,
   stepAdversarialReviewArtifact = null,
+  stepSecurityReviewArtifact = null,
   stepVisualReviewArtifact = null,
   targetLabel = null,
   workflowId
@@ -1790,6 +1809,7 @@ function RunRow({
   stepSummaryArtifact?: string | null
   stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null
   stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null
+  stepSecurityReviewArtifact?: JobSecurityReviewIteration[] | null
   stepVisualReviewArtifact?: JobVisualReviewIteration[] | null
   targetLabel?: string | null
   workflowId: number
@@ -1800,6 +1820,7 @@ function RunRow({
     stepSummaryArtifact ||
     stepTestPlanArtifact ||
     stepAdversarialReviewArtifact ||
+    stepSecurityReviewArtifact ||
     stepVisualReviewArtifact ||
     run.agent_diff_present ||
     run.step_agent_diff_present ||
@@ -1819,7 +1840,7 @@ function RunRow({
   )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<
-    "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null
+    "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "security_review" | "visual_review" | null
   >(null)
   const [transcriptPage, setTranscriptPage] = useState(1)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
@@ -1849,7 +1870,7 @@ function RunRow({
     setArtifactView((current) => (current === view ? null : view))
   }
 
-  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "visual_review") {
+  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "security_review" | "visual_review") {
     setGradeLogOpen(false)
     setArtifactView((current) => (current === view ? null : view))
   }
@@ -1974,6 +1995,11 @@ function RunRow({
               {t("step_btn_adversarial_review")}
             </Button>
           ) : null}
+          {stepSecurityReviewArtifact !== null ? (
+            <Button onClick={() => toggleStepArtifact("security_review")} variant="secondary">
+              {t("step_btn_security_review")}
+            </Button>
+          ) : null}
           {stepVisualReviewArtifact !== null ? (
             <Button onClick={() => toggleStepArtifact("visual_review")} variant="secondary">
               {t("step_btn_visual_review")}
@@ -2030,6 +2056,9 @@ function RunRow({
       ) : null}
       {artifactView === "adversarial_review" && stepAdversarialReviewArtifact ? (
         <StepAdversarialReviewPanel iterations={stepAdversarialReviewArtifact} onClose={() => setArtifactView(null)} />
+      ) : null}
+      {artifactView === "security_review" && stepSecurityReviewArtifact ? (
+        <StepSecurityReviewPanel iterations={stepSecurityReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {artifactView === "visual_review" && stepVisualReviewArtifact ? (
         <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />

@@ -34,6 +34,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       video_storage_budget_bytes: 2147483648,
       grade_max_iterations: 3,
       adversarial_review_rounds: 0,
+      security_review_rounds: 0,
       main_concern_report_threshold: 2,
       report_issue_repo_slug: "tkadauke/syrus",
       chat_coding_workspace_budget_mb: 0,
@@ -65,6 +66,29 @@ function renderRoute() {
 
 describe("AdminSettings numeric fields", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  it("saves security review rounds", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Settings updated." })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+    fireEvent.change(await screen.findByLabelText("Security review rounds"), { target: { value: "2" } })
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"security_review_rounds":2')
+        })
+      )
+    )
+  })
 
   it("omits a blank numeric setting instead of coercing it to zero", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {

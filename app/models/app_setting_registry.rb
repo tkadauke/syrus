@@ -104,9 +104,9 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Number of implement-to-security-review iterations run before graders.",
       zero_means: "Security review is disabled instance-wide.",
-      admin_editable: false,
+      admin_editable: true,
       secret: false,
-      surface: nil
+      surface: :admin_settings
     ),
     Definition.new(
       key: :max_job_failures,

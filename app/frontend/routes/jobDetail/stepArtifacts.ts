@@ -3,7 +3,7 @@
 // Defensively parse the raw test-plan and adversarial-review step artifacts
 // (untyped JSON bags) into the typed shapes the panels render. Pure over the
 // job API types; lifted out of the 3k-line JobDetail.tsx.
-import type { JobAdversarialReviewIteration, JobVisualReviewArtifact, JobVisualReviewIteration } from "../../api/jobs"
+import type { JobAdversarialReviewIteration, JobSecurityReviewIteration, JobVisualReviewArtifact, JobVisualReviewIteration } from "../../api/jobs"
 
 export function stepArtifactTestPlan(raw: unknown): { steps: string[]; notes: string | null } | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
@@ -19,11 +19,19 @@ export function stepArtifactAdversarialReview(raw: unknown): JobAdversarialRevie
   for (const item of raw) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue
     const obj = item as Record<string, unknown>
-    if (typeof obj.iteration === "number" && typeof obj.critique === "string" && (obj.verdict === "approved" || obj.verdict === "needs_work")) {
+    if (
+      typeof obj.iteration === "number" &&
+      typeof obj.critique === "string" &&
+      (obj.verdict === "approved" || obj.verdict === "needs_work" || obj.verdict === "skipped")
+    ) {
       result.push({ iteration: obj.iteration, critique: obj.critique, verdict: obj.verdict })
     }
   }
   return result.length > 0 ? result : null
+}
+
+export function stepArtifactSecurityReview(raw: unknown): JobSecurityReviewIteration[] | null {
+  return stepArtifactAdversarialReview(raw)
 }
 
 export type VisualReviewArtifactFilter = {

@@ -1079,6 +1079,20 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
   })
 
+  it("includes skipped security review findings in review artifacts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      workflows: [{ artifacts: { security_review_iterations: [{ iteration: 1, verdict: "skipped", critique: "No capable reviewer." }] } }]
+    } as unknown as JobDetailPayload)
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Security review 1: skipped - No capable reviewer.")).toBeInTheDocument()
+  })
+
   it("renders typed artifacts inline instead of a bare renderer_type label", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
