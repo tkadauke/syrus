@@ -107,7 +107,7 @@ export const examples: ToolCardExample[] = [
   {
     id: "panel_not_found",
     label: "Panel not found",
-    input: { panel_id: "404", path: "index.html", content: "<h1>Hello</h1>" },
+    input: { panel_id: "404", path: "index.html", content: "<h1>404</h1>" },
     parsedResult: { error: "Preview panel 404 was not found" },
     resultError: true
   },

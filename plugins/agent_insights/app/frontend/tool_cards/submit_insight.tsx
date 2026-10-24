@@ -51,7 +51,8 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending",
     label: "Pending submission",
-    input: { title: "Pending insight", category: "configuration", severity: "medium", confidence: 0.7 }
+    input: { title: "Pending insight", category: "configuration", severity: "medium", confidence: 0.7 },
+    parsedResult: null
   },
   { id: "empty", label: "Empty submission", resultBody: "" },
   { id: "error", label: "Failed submission", resultBody: "Unable to save insight.", resultError: true }

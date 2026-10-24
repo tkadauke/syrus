@@ -228,7 +228,8 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending_update",
     label: "Pending update",
-    input: { target_insight_id: 43, reason: "", memory_suggestion: null }
+    input: { target_insight_id: 43, reason: "", memory_suggestion: null },
+    parsedResult: null
   },
   {
     id: "error",
