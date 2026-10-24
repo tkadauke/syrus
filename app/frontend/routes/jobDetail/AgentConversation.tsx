@@ -11,7 +11,6 @@ import type { AgentConversationNode, AgentConversationWorkflow } from "../../api
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
 import { renderLightMarkdown } from "../../lib/Markdown"
-import { renderLightMarkdown } from "../../lib/Markdown"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
   avatarColorClass,
