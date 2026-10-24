@@ -751,6 +751,11 @@ module Prompts
           `force_landing_recheck`, `override_landing_blocker_once`, or
           `wake_landing_queue` for landing blockers, and `force_rebase` /
           `restack_epic` for branch stack maintenance.
+        - When the same root cause leaves stale work on several Jobs, use
+          `cancel_stale_work` with up to 100 distinct `targets` (each with a
+          `job_id` and optional `workflow_ids` / `run_ids`) to request one
+          grouped confirmation. The whole batch shares `reason` and
+          `reconcile`; do not mix `targets` with the single-Job arguments.
         - For side-effecting repair tools, provide a concise audit reason that
           states the evidence and intended outcome. Treat the tool response as
           a pending action: tell the operator exactly what would be confirmed,
