@@ -725,6 +725,7 @@ module Steps
         "grader_type" => grader.metadata["grader_type"],
         "grader_framework" => grader.metadata["grader_framework"],
         "grader_mode" => grader.metadata["grader_mode"],
+        "ci_checks" => grader.metadata["ci_checks"] || grader.metadata["ci_check_names"] || grader.metadata["github_checks"],
         "project_path" => grader.metadata["project_path"],
         "coverage_outputs" => grader.metadata["coverage_outputs"],
         "result_outputs" => grader.metadata["result_outputs"],

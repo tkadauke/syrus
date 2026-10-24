@@ -193,6 +193,61 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "allows a committed CI repair to proceed when its covering grader passes and an unrelated grader fails" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "original123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      details: { "name" => "react-ci", "ci_checks" => [ "react" ], "required" => true }
+    )
+    Step.create!(
+      workflow: workflow, kind: "grader", position: 100, iteration: 1, loop_id: loop_id, state: "failed",
+      details: {
+        "name" => "e2e", "required" => true, "exit_code" => 1,
+        "base_retry_result" => { "ran" => true, "inherited" => true, "base_sha" => "base123" }
+      }
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to include(
+      "original_head_sha" => "original123",
+      "mappings" => [ include("check_name" => "react", "grader_names" => [ "react-ci" ], "passed" => true) ]
+    )
+    expect(workflow.artifact("ci_repair_advisory_grader_failures").fetch("graders")).to contain_exactly(
+      include("name" => "e2e", "failed_on_base" => true)
+    )
+  end
+
+  it "does not allow a committed CI repair through while its covering grader is still red" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "original123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "react-ci", "ci_checks" => [ "react" ], "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: react-ci")
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to be_nil
+  end
+
+  it "does not allow passing covering graders to bypass failures when there is no commit after the original head" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "abc123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      details: { "name" => "react-ci", "ci_checks" => [ "react" ], "required" => true }
+    )
+    Step.create!(
+      workflow: workflow, kind: "grader", position: 100, iteration: 1, loop_id: loop_id, state: "failed",
+      details: { "name" => "e2e", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: e2e")
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to be_nil
+  end
+
   it "marks a failed grader iteration that repeats the previous result" do
     workflow.set_artifact!("iterations", [
       [
