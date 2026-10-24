@@ -12,6 +12,7 @@ import markCiRepairNoopCard from "./tool_cards/mark_ci_repair_noop"
 import overrideLandingBlockerOnceCard from "./tool_cards/override_landing_blocker_once"
 import reconcileJobStateCard from "./tool_cards/reconcile_job_state"
 import reenqueueWorkCard from "./tool_cards/reenqueue_work"
+import retryFromCurrentPrBranchCard from "./tool_cards/retry_from_current_pr_branch"
 
 function context(parsedResult: unknown, livePendingAction: ChatPendingActionInline | null = null, input?: Record<string, unknown>): ToolCardContext {
   return {
@@ -701,6 +702,78 @@ describe("pending action tool card: dry-run evidence shape", () => {
 
     expect(screen.getByText("Diff unavailable: workflow workspace is unavailable")).toBeInTheDocument()
     expect(screen.queryByText("2 changed files")).not.toBeInTheDocument()
+  })
+})
+
+describe("retry_from_current_pr_branch pending action card", () => {
+  const input = {
+    job_id: 4222,
+    workflow_id: 26123,
+    instructions: `## Focused repair\n\n${"Preserve the reviewed PR branch and rerun the focused regression. ".repeat(20)}`,
+    reason: `**Audit reason:** ${"The remote branch contains the reviewed fix. ".repeat(20)}`,
+    dry_run: false
+  }
+
+  function retryContext(parsedResult: unknown, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
+    return {
+      toolName: "retry_from_current_pr_branch",
+      input,
+      resultBody: "",
+      resultError: false,
+      parsedResult,
+      ...overrides
+    }
+  }
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(standardPayload()) }], structured_content: null }],
+    ["structured content", { structured_content: standardPayload(), content: [] }]
+  ])("renders linked targets and expandable Markdown from a normalizer-built %s envelope", (_label, envelope) => {
+    const toolContext = retryContext(normalizedToolCardParsedResult(envelope))
+    render(<>{retryFromCurrentPrBranchCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+    expect(screen.getByText("Focused repair", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getByText("Audit reason:", { selector: "strong" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+  })
+
+  it("renders linked Job, Workflow, PR, and branch evidence for a dry run", () => {
+    const parsedResult = {
+      action: "retry_from_current_pr_branch",
+      job_id: 4222,
+      evidence: {
+        workflow_id: 26123,
+        branch: "syrus/direct-322",
+        current_pr: { number: 44, repository: "tkadauke/syrus" },
+        remote_sha: "abc123",
+        workflow_local_sha: "def456",
+        diff_summary: { available: true, files: ["app/models/job.rb"] }
+      }
+    }
+    render(<>{retryFromCurrentPrBranchCard.renderExpanded(retryContext(normalizedToolCardParsedResult({ structured_content: parsedResult })))}</>)
+
+    expect(screen.getByText("Dry run")).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "JOB-4222" })[0]).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+    expect(screen.getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/pull/44")
+    expect(screen.getByRole("link", { name: "syrus/direct-322" })).toHaveAttribute("href", "https://github.com/tkadauke/syrus/tree/syrus%2Fdirect-322")
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
+  })
+
+  it("keeps a structured missing-input error useful", () => {
+    const toolContext = retryContext(normalizedToolCardParsedResult({ structured_content: { error: "job_not_found", message: "Job could not be found." } }), {
+      input: { workflow_id: 26123, instructions: input.instructions, reason: input.reason, dry_run: false },
+      resultError: true
+    })
+    render(<>{retryFromCurrentPrBranchCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("failed")).toBeInTheDocument()
+    expect(screen.getByText("job_not_found")).toBeInTheDocument()
+    expect(screen.getByText("Job could not be found.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/admin/workflows/26123")
+    expect(screen.getAllByRole("button", { name: "Show more" })).toHaveLength(2)
   })
 })
 

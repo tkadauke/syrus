@@ -34,7 +34,7 @@ import adminKillProcessCard, { examples as adminKillProcessExamples } from "./ad
 import adminRetryStepCard from "./admin_retry_step"
 import adoptCurrentPrHeadCard, { examples as adoptCurrentPrHeadExamples } from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard, { examples as replacePrBranchExamples } from "./replace_pr_branch_with_workflow_output"
-import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
+import retryFromCurrentPrBranchCard, { examples as retryFromCurrentPrBranchExamples } from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
 
 // Parity guard for the pending-action tool card family (the pending-action tool-card work /
@@ -118,6 +118,10 @@ describe("pending action tool card family", () => {
 
   it("registers every visual-review state for the queue affinity repair card", () => {
     expect(repairQueueAffinityExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
+  })
+
+  it("registers reviewable retry-from-current-PR-branch states", () => {
+    expect(retryFromCurrentPrBranchExamples.map((example) => example.id)).toEqual(["pending_retry", "dry_run_evidence", "missing_input"])
   })
 
   it.each([
