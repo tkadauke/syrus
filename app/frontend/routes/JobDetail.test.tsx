@@ -5763,11 +5763,12 @@ function jobSourcePayload(overrides: { withFile?: boolean; file?: NonNullable<Jo
     default_ref: "main",
     selected_ref: "deadbeef12345678",
     selected_path: file?.path || null,
+    tree_path: "",
     merge_base_sha: "aabbccdd1234567",
     branch_commits: [{ sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair source browser", date: "2026-06-28T10:00:00Z" }],
     tree_items: [
-      { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby" },
-      { path: "README.md", name: "README.md", size: 128, language: "markdown" }
+      { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby", type: "file" },
+      { path: "README.md", name: "README.md", size: 128, language: "markdown", type: "file" }
     ],
     tree_truncated: false,
     file,
