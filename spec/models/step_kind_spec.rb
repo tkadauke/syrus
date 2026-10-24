@@ -51,6 +51,11 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("adversarial_review").required_mcp_tools).to eq(%w[submit_adversarial_review])
     end
 
+    it "returns submit_security_review for security_review" do
+      expect(described_class.fetch("security_review").required_mcp_tools).to eq(%w[submit_security_review])
+      expect(described_class.agentic_values).to include("security_review")
+    end
+
     it "returns submit_visual_review for visual_review" do
       expect(described_class.fetch("visual_review").required_mcp_tools).to eq(%w[submit_visual_review])
     end

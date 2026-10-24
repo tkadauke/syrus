@@ -15,6 +15,7 @@ RSpec.describe AgentRole do
       expect(described_class::WORKFLOW_REBASE_CONFLICT).to          eq("workflow:rebase_conflict")
       expect(described_class::WORKFLOW_SUMMARY_TEST_PLAN).to        eq("workflow:summary_test_plan")
       expect(described_class::WORKFLOW_ADVERSARIAL_REVIEWER).to     eq("workflow:adversarial_reviewer")
+      expect(described_class::WORKFLOW_SECURITY_REVIEWER).to        eq("workflow:security_reviewer")
       expect(described_class::WORKFLOW_VISUAL_REVIEWER).to          eq("workflow:visual_reviewer")
       expect(described_class::WORKFLOW_MANUAL).to                   eq("workflow:manual")
     end
@@ -39,6 +40,7 @@ RSpec.describe AgentRole do
         described_class::WORKFLOW_REBASE_CONFLICT,
         described_class::WORKFLOW_SUMMARY_TEST_PLAN,
         described_class::WORKFLOW_ADVERSARIAL_REVIEWER,
+        described_class::WORKFLOW_SECURITY_REVIEWER,
         described_class::WORKFLOW_VISUAL_REVIEWER,
         described_class::WORKFLOW_MANUAL
       )
@@ -85,6 +87,11 @@ RSpec.describe AgentRole do
 
     it "maps adversarial_review to WORKFLOW_ADVERSARIAL_REVIEWER" do
       expect(described_class.for_step_kind("adversarial_review")).to eq(described_class::WORKFLOW_ADVERSARIAL_REVIEWER)
+    end
+
+
+    it "maps security_review to WORKFLOW_SECURITY_REVIEWER" do
+      expect(described_class.for_step_kind("security_review")).to eq(described_class::WORKFLOW_SECURITY_REVIEWER)
     end
 
     it "maps visual_review to WORKFLOW_VISUAL_REVIEWER" do

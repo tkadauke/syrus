@@ -413,6 +413,10 @@ class McpToolRegistry
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
+        workflow(Mcp::Tools::SubmitSecurityReviewTool, capability: :submit_security_review, required_roles: [
+          AgentRole::WORKFLOW_SECURITY_REVIEWER,
+          AgentRole::WORKFLOW_MANUAL
+        ], mutation: true),
         workflow(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
           AgentRole::WORKFLOW_VISUAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL

@@ -9,7 +9,7 @@ require "rails_helper"
 # Both are declarations on Step::Kind now.
 RSpec.describe "StepDispatcher names no specific step kind" do
   it "declares a review gate on every reviewer step kind" do
-    expect(Step::Kind.review_gate_kinds).to contain_exactly("adversarial_review", "visual_review")
+    expect(Step::Kind.review_gate_kinds).to contain_exactly("adversarial_review", "security_review", "visual_review")
   end
 
   it "declares the artifact, exit verdicts and cancellation reason for each" do
@@ -28,6 +28,7 @@ RSpec.describe "StepDispatcher names no specific step kind" do
   it "lets reviewer steps exit on skipped as well as approved" do
     expect(Step::Kind.review_gate_for("visual_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
     expect(Step::Kind.review_gate_for("adversarial_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
+    expect(Step::Kind.review_gate_for("security_review")[:exit_verdicts]).to contain_exactly("approved", "skipped")
   end
 
   it "returns no gate for a step kind that is not a reviewer" do

@@ -14,6 +14,25 @@ RSpec.describe SyrusYml do
     File.write(File.join(@dir, ".syrus.yml"), contents)
   end
 
+  it "parses security review configuration" do
+    config = parse(<<~YAML)
+      security_review:
+        rounds: 3
+        required: true
+        criteria:
+          - Verify tenant authorization.
+    YAML
+
+    expect(config.security_review).to eq(described_class::SecurityReviewConfig.new(
+      rounds: 3, required: true, criteria: [ "Verify tenant authorization." ]
+    ))
+  end
+
+  it "clamps security review rounds" do
+    expect(Rails.logger).to receive(:warn).with(/security_review\.rounds 11 outside 0\.\.10; clamping/)
+    expect(parse("security_review:\n  rounds: 11\n").security_review.rounds).to eq(10)
+  end
+
   it "wraps disallowed YAML classes as parse errors" do
     expect { parse("preview:\n  env:\n    RELEASE: 2024-01-01\n") }
       .to raise_error(described_class::ParseError, /YAML parse error.*Date/)

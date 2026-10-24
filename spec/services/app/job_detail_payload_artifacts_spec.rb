@@ -53,6 +53,25 @@ RSpec.describe App::JobDetailPayload do
     end
     unit
   end
+
+  it "includes security review iterations in serialized workflow artifacts" do
+    job = Factories.job_record(user: user, repository: repo)
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      artifacts: {
+        "security_review_iterations" => [
+          { "iteration" => 1, "verdict" => "approved", "critique" => "No blocking security issues." }
+        ]
+      }
+    )
+
+    serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
+    expect(serialized.dig(:artifacts, "security_review_iterations")).to contain_exactly(
+      include("verdict" => "approved", "critique" => "No blocking security issues.")
+    )
+  end
+
   describe "resource admission diagnostics visibility" do
     # The `user` let is the first User created in the example, so
     # User#promote_first_user_to_admin makes it an admin. A second user

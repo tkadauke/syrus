@@ -302,6 +302,7 @@ module App
       DETERMINISTIC_KINDS = DETERMINISTIC_PRESENTERS.keys.freeze
       REVIEW_ARTIFACT_KEYS = {
         "adversarial_review" => "adversarial_review_iterations",
+        "security_review" => "security_review_iterations",
         "visual_review" => "visual_review_iterations"
       }.freeze
 

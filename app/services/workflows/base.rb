@@ -238,6 +238,13 @@ module Workflows
       Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ])
     end
 
+    def self.security_review_loop(job, agent_step:, syrus_yml: nil)
+      rounds = security_review_rounds(job, syrus_yml: syrus_yml)
+      return nil unless rounds.positive?
+
+      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :security_review ])
+    end
+
     def self.visual_review_loop(job, agent_step:, syrus_yml: nil)
       plan = syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)
       return nil unless plan.enabled? && plan.rounds.positive?
@@ -371,6 +378,14 @@ module Workflows
       return plan.rounds if plan.source == ".syrus.yml" && plan.note.nil?
 
       AppSetting.adversarial_review_rounds
+    end
+
+    def self.security_review_rounds(job, syrus_yml: nil)
+      plan = resolve_plan(RepoSecurityReviewPlan, job, syrus_yml)
+      return plan.rounds if plan.enabled?
+      return plan.rounds if plan.source == ".syrus.yml" && plan.note.nil?
+
+      AppSetting.security_review_rounds
     end
 
     def self.follow_up_push(max_iterations: nil)
