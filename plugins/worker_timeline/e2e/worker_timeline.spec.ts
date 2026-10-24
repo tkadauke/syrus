@@ -68,7 +68,9 @@ function macroPayload() {
       }
     ],
     filter: { and: [] },
-    filter_schema: []
+    filter_schema: [],
+    active_smart_folder_id: null,
+    smart_folders: []
   }
 }
 
