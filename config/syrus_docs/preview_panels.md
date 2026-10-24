@@ -239,7 +239,12 @@ scoped only to a preview panel's own scratch directory:
   scratch files before publishing, and stores that path on the new
   `PreviewPanelVersion` so the panel root and chat sidebar viewer both open
   the selected entry for that exact version.
-- `close_preview(panel_id)` — calls `PreviewPanel::Service#close!`.
+- `close_preview(panel_id)` — calls `PreviewPanel::Service#close!` and returns
+  the closed panel payload. When the panel has been published as a durable
+  mockup, the response also includes its `mockup_slug`; consumers can use that
+  reference to link to the still-reachable mockup after the transient panel
+  tab closes. An unpublished panel has no `mockup_slug` and is no longer
+  reachable after closing.
 
 Both "quick interactive widget page" and "freeform layout mockup" go through
 the same `show_preview` call — the only difference is what the agent writes

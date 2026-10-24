@@ -22,6 +22,12 @@
   "custom": "benutzerdefiniert",
   "theme_id": "Theme-ID",
   "position": "Position",
+  "install_mode": "Installationsmodus",
+  "install_existing_theme": "Vorhandenes Theme",
+  "install_new_theme": "Neues Theme",
+  "source_theme": "Quell-Theme",
+  "input_name": "Eingabename",
+  "open_theme_settings": "Theme-Einstellungen öffnen",
   "open_preview": "Vorschau öffnen",
   "contrast_warnings": "Kontrastwarnungen",
   "contrast_ratio": "{{ratio}}:1",
@@ -32,8 +38,13 @@
   "empty_error": "Das Theme-Werkzeug ist ohne Fehlermeldung fehlgeschlagen.",
   "unexpected_payload": "{{action}} hat unerwartete Theme-Daten zurückgegeben.",
   "no_custom_themes": "Noch keine benutzerdefinierten Themes.",
+  "built_ins_excluded": "Integrierte Themes sind in dieser Liste nicht enthalten.",
   "theme": "Theme",
   "status": "Status",
   "palette": "Palette",
-  "fallback_active_theme": "Aktives Ersatz-Theme"
+  "fallback_active_theme": "Aktives Ersatz-Theme",
+  "no_fallback_theme": "Das aktive Theme musste nicht geändert werden.",
+  "delete_theme": "Theme löschen",
+  "delete_theme_ref": "THEME-{{id}} löschen",
+  "delete_recovery": "Wähle eines deiner eigenen benutzerdefinierten Themes; integrierte Themes können nicht gelöscht werden."
 }

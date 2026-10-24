@@ -158,7 +158,7 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(config.project).to have_attributes(id: "desktop", label: "Desktop App", kind: "desktop_app")
     expect(config.prepare).to eq([ "npm ci" ])
-    expect(config.preview.start).to eq("npm exec vite -- --host 127.0.0.1 --port $PORT")
+    expect(config.preview.start).to eq("npm exec vite -- --host 0.0.0.0 --port $PORT")
     expect(config.visual_review).to have_attributes(enabled: true, rounds: 2)
     expect(config.coverage.sources.first.artifact).to eq("coverage/lcov.info")
 

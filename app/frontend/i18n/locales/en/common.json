@@ -205,6 +205,7 @@
     "start": "Start",
     "error": "Could not start the Epic."
   },
+  "copy_text": "Copy text",
   "copy": {
     "copy_text": "Copy",
     "copy_to_clipboard": "Copy {{slug}} to clipboard",
@@ -330,6 +331,7 @@
     "epic_wide_workflow_active": "Epic work in progress",
     "resource_safety": "Worker capacity",
     "ci_repair_safety": "CI repair in progress",
+    "ci_repair_disabled": "CI repair disabled",
     "active_work_lock": "Waiting on a lock",
     "agent_cannot_proceed": "Agent cannot proceed",
     "auto_retry_backoff": "Retry backoff",
@@ -354,6 +356,7 @@
     "epic_wide_workflow_active": "Another workflow for this Epic holds the Epic-wide lock.",
     "resource_safety": "Worker host pressure is too high to start this work safely.",
     "ci_repair_safety": "A CI repair workflow is already handling this base commit.",
+    "ci_repair_disabled": "Automatic CI repair is disabled in this repository's settings.",
     "active_work_lock": "Another work unit holds the lock this one needs.",
     "agent_cannot_proceed": "The agent reported that it cannot continue without operator attention.",
     "auto_retry_backoff": "Syrus is waiting out the backoff window before the next automatic retry.",

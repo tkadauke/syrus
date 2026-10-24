@@ -20,5 +20,20 @@ module WhisperStt
     def image_tag
       ENV["SYRUS_VERSION"].presence || "latest"
     end
+
+    # Cap the daemon's memory so that when a transcription overruns, the kernel
+    # kills this container instead of resolving the pressure host-wide -- where
+    # the victim is whichever process looks worst, and has in practice been the
+    # Docker daemon, taking every container down with it.
+    #
+    # 2GiB is sized for the bundled model with headroom, not measured against
+    # every model someone might swap in, so it is overridable: a larger model
+    # that legitimately needs more should raise this rather than run uncapped.
+    DEFAULT_MEMORY_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
+
+    def memory_limit_bytes
+      override = ENV["SYRUS_WHISPER_STT_MEMORY_LIMIT_BYTES"].to_i
+      override.positive? ? override : DEFAULT_MEMORY_LIMIT_BYTES
+    end
   end
 end

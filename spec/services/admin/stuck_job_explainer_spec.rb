@@ -4,6 +4,17 @@ RSpec.describe Admin::StuckJobExplainer do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
+  it "includes the tracked pull request URL" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 37)
+
+    payload = described_class.call(job, github_client: no_github_client)
+
+    expect(payload.fetch(:job)).to include(
+      pr_number: 37,
+      pr_url: "https://github.com/#{repository.slug}/pull/37"
+    )
+  end
+
   it "explains fan-in dependency blockers and a queued workflow stale behind a newer terminal workflow" do
     leaf_a = Factories.job_record(user: user, repository: repository, state: "failed", issue_title: "Leaf A")
     leaf_b = Factories.job_record(user: user, repository: repository, state: "failed", issue_title: "Leaf B")

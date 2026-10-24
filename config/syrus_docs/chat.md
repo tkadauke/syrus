@@ -647,7 +647,7 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   `Feature.local_mode_enabled?`), the chat being in `coding` or `local` mode,
   a repository attached, the same repository write-tier check Job mutations
   use (`RepositoryPolicy#write?` via `BaseController#authorize_repository_write!`),
-  and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error`)
+  and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error_code`)
   — an active coding checkout for Coding Mode, a daemon that has completed the
   real "connect" handshake for Local Mode (`ChatSession#daemon_connected?`,
   not merely `LocalDaemonSession#connected?`'s row-exists/not-yet-disconnected

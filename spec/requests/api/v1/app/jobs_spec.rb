@@ -69,6 +69,49 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "localizes Job validation errors in German without changing the machine contract" do
+    user.update!(locale: "de")
+
+    patch "/api/v1/app/jobs/#{job.id}/priority", params: { priority: "impossible" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_priority")
+    expect(parse_body.dig("error", "message")).to eq("Ungültige Priorität.")
+  end
+
+  it "localizes Job validation errors in Latin without changing the machine contract" do
+    user.update!(locale: "la")
+
+    patch "/api/v1/app/jobs/#{job.id}/provider_setting",
+      params: { job_provider_setting: "impossible" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_provider_setting")
+    expect(parse_body.dig("error", "message")).to eq("Optio provisoris invalida est.")
+  end
+
+  it "localizes claim errors in German without changing the machine contract" do
+    user.update!(locale: "de")
+    job.update!(claimed_by_user: Factories.user, claimed_at: Time.current)
+
+    post "/api/v1/app/jobs/#{job.id}/claim", as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to eq("Der Job wurde bereits von einem anderen Benutzer übernommen.")
+  end
+
+  it "localizes claim notices in Latin without changing canonical Job fields" do
+    user.update!(locale: "la")
+
+    post "/api/v1/app/jobs/#{job.id}/claim", as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job vindicatum est.")
+    expect(parse_body.dig("job", "id")).to eq(job.id)
+    expect(parse_body.dig("job", "claimed_by_current_user")).to eq(true)
+  end
+
   it "grants a one-shot landing override for the current inherited PR-check blocker" do
     finish_existing_work!(job)
     job.update!(
@@ -836,7 +879,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(preview_queries.join("\n")).to include("state")
   end
 
-  it "prefilters visual review artifacts before enabling the visual diff action" do
+  it "finds external visual review artifacts without scanning inline JSON" do
     Feature.find_or_create_by!(slug: "visual_review") do |feature|
       feature.category = "labs"
       feature.name = "Visual review"
@@ -872,9 +915,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("actions", "can_run_visual_diff")).to eq(true)
 
-    visual_artifact_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
-    expect(visual_artifact_queries).not_to be_empty
-    expect(visual_artifact_queries.join("\n").scan(/artifacts LIKE/i).size).to be >= 2
+    expect(queries.grep(/artifacts LIKE/i)).to be_empty
+    expect(queries.grep(/FROM ["`]?workflow_artifact_values["`]?/i)).not_to be_empty
   ensure
     Feature.clear_enabled_cache!("visual_review")
   end

@@ -71,6 +71,7 @@ export type RepositoryFormRecord = {
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null
   isolated_repro_dismissal_enabled: boolean
+  ci_repair_enabled: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean
@@ -152,6 +153,7 @@ export type RepositoryInput = {
   known_flaky_failure_dismissal_enabled: boolean
   known_flaky_failure_min_score: number | null
   isolated_repro_dismissal_enabled: boolean
+  ci_repair_enabled: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean
@@ -474,6 +476,7 @@ export type RepositoryDetailRecord = {
   grader_health: string
   main_health: string
   landing_paused: boolean
+  ci_repair_enabled: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean

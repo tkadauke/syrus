@@ -276,4 +276,31 @@ RSpec.describe "App API job metadata commands", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(other_job.tags).to be_empty
   end
+
+  it "localizes metadata responses in German and Latin" do
+    allow(AppEvents).to receive(:broadcast)
+    user.update!(locale: "de")
+
+    post app_job_path("/tags"), params: { tag_name: "lokalisiert" }, as: :json
+    expect(parse_body["message"]).to eq("Tag hinzugefügt.")
+
+    user.update!(locale: "la")
+    delete app_job_path("/dependencies/999999"), as: :json
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+    expect(parse_body.dig("error", "message")).to eq("Dependentia inventa non est.")
+  end
+
+  it "localizes shared authorization failures without changing the error code" do
+    reader = Factories.user(locale: "la")
+    repo.repository_memberships.create!(user: reader, role: "read")
+    sign_in_as(reader)
+
+    post app_job_path("/tags"), params: { tag_name: "forbidden" }, as: :json
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(parse_body.dig("error", "message")).to eq(
+      "Solus dominus Job, membrum Repository cum accessu scribendi, vel administrator hanc actionem facere potest."
+    )
+  end
 end

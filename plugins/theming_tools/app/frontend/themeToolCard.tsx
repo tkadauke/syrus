@@ -257,12 +257,16 @@ export function ThemeCard({
   theme,
   outcome,
   draft = false,
-  overrides = {}
+  overrides = {},
+  details,
+  linkLabel
 }: {
   theme: ThemePayload
   outcome: string
   draft?: boolean
   overrides?: Record<string, ThemeTokens>
+  details?: ReactNode
+  linkLabel?: string
 }) {
   const colors = Object.entries(theme.colorTokens)
   return (
@@ -271,9 +275,12 @@ export function ThemeCard({
       <div className="break-words text-sm font-medium text-text-primary">{theme.name}</div>
       <dl className="grid gap-1 sm:grid-cols-2">
         <Row label={t("theme_id")} value={theme.id} />
-        {theme.position ? <Row label={t("position")} value={theme.position} /> : null}
+        {theme.position != null ? <Row label={t("position")} value={theme.position} /> : null}
       </dl>
-      {draft ? <InternalLink href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`}>{t("open_preview")}</InternalLink> : null}
+      {details}
+      {draft || linkLabel ? (
+        <InternalLink href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`}>{linkLabel ?? t("open_preview")}</InternalLink>
+      ) : null}
       {colors.length ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {colors.map(([mode, tokens]) => (
@@ -313,52 +320,66 @@ export function MalformedThemeCard({ action }: { action: string }) {
 export function ThemeListBody({ rows }: { rows: ThemePayload[] }) {
   if (!rows.length) return <EmptyState>{t("no_custom_themes")}</EmptyState>
   return (
-    <div className="mt-1 overflow-x-auto rounded border border-border">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-surface-raised text-2xs uppercase text-text-muted">
-          <tr>
-            <th className="px-2 py-1 font-semibold">{t("theme")}</th>
-            <th className="px-2 py-1 font-semibold">{t("status")}</th>
-            <th className="px-2 py-1 font-semibold">{t("palette")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-surface">
-          {rows.map((theme) => (
-            <tr key={theme.id}>
-              <td className="px-2 py-1">
-                <div className="font-medium text-text-primary">{theme.name}</div>
-                <EntityReference href={`/design_system?theme_id=${encodeURIComponent(theme.id)}`} id={theme.id} kind="theme" slug={theme.slug} />
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">
-                <StatePill state={theme.builtIn ? t("built_in") : t("custom")} tone={theme.builtIn ? "neutral" : "info"} />
-              </td>
-              <td className="min-w-[12rem] px-2 py-1">
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(theme.colorTokens.light ?? {})
-                    .slice(0, 6)
-                    .map(([key, color]) => (
-                      <span
-                        aria-label={`${theme.name} ${key} ${color}`}
-                        className="h-4 w-4 rounded border border-black/10 dark:border-white/20"
-                        key={`${theme.id}-${key}`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
+    <CardShell>
+      <div className="text-xs text-text-muted">{t("built_ins_excluded")}</div>
+      <div className="divide-y divide-border overflow-hidden rounded border border-border bg-surface">
+        {rows.map((theme) => {
+          const href = `/design_system?theme_id=${encodeURIComponent(theme.id)}`
+          return (
+            <section className="min-w-0 space-y-2 p-2" key={theme.id}>
+              <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-start">
+                <div className="min-w-0">
+                  <InternalLink href={href}>{theme.name}</InternalLink>
+                  <div>
+                    <EntityReference href={href} id={theme.id} kind="theme" slug={theme.slug} />
+                  </div>
                 </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                <div>
+                  <SectionLabel>{t("position")}</SectionLabel>
+                  <div className="font-mono text-xs text-text-primary">{theme.position ?? "—"}</div>
+                </div>
+                <div>
+                  <SectionLabel>{t("status")}</SectionLabel>
+                  <StatePill state={theme.builtIn ? t("built_in") : t("custom")} tone={theme.builtIn ? "neutral" : "info"} />
+                </div>
+              </div>
+              {Object.keys(theme.colorTokens).length ? (
+                <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                  {COLOR_MODES.flatMap((mode) => {
+                    const modeTokens = theme.colorTokens[mode]
+                    return modeTokens ? [<ModeSwatches key={mode} mode={mode} tokens={modeTokens} />] : []
+                  })}
+                </div>
+              ) : (
+                <EmptyState>{t("no_tokens")}</EmptyState>
+              )}
+              <TokenGroups groups={theme.extendedTokens} label={t("additional_tokens")} />
+              {theme.warnings.length ? <ContrastWarnings warnings={theme.warnings} /> : null}
+            </section>
+          )
+        })}
+      </div>
+    </CardShell>
   )
 }
-export type DeleteThemeOutcome = { deletedThemeId: string; fallbackThemeId: string | null }
+export type DeleteThemeOutcome = {
+  deletedThemeId: string
+  deletedThemeName: string | null
+  fallbackThemeId: string | null
+  fallbackThemeName: string | null
+}
 export function parseDeleteOutcome(context: ToolCardContext): DeleteThemeOutcome | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
-  const id = displayValue(parsed.deleted_theme_id)
-  return id ? { deletedThemeId: id, fallbackThemeId: displayValue(parsed.fallback_theme_id) } : null
+  const id = displayValue(parsed.deleted_theme_id) ?? displayValue(context.input?.theme_id)
+  return id
+    ? {
+        deletedThemeId: id,
+        deletedThemeName: displayValue(parsed.deleted_theme_name),
+        fallbackThemeId: displayValue(parsed.fallback_theme_id),
+        fallbackThemeName: displayValue(parsed.fallback_theme_name)
+      }
+    : null
 }
 export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
   return (
@@ -367,12 +388,18 @@ export function DeleteThemeCard({ outcome }: { outcome: DeleteThemeOutcome }) {
         <StatePill state={t("state_deleted")} tone="success" />
         <EntityReference id={outcome.deletedThemeId} kind="theme" />
       </div>
+      {outcome.deletedThemeName ? <div className="break-words text-sm font-medium text-text-primary">{outcome.deletedThemeName}</div> : null}
       {outcome.fallbackThemeId ? (
         <div className="min-w-0">
           <SectionLabel>{t("fallback_active_theme")}</SectionLabel>
-          <EntityReference href={`/design_system?theme_id=${encodeURIComponent(outcome.fallbackThemeId)}`} id={outcome.fallbackThemeId} kind="theme" />
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            {outcome.fallbackThemeName ? <span className="break-words text-sm text-text-primary">{outcome.fallbackThemeName}</span> : null}
+            <EntityReference href={`/design_system?theme_id=${encodeURIComponent(outcome.fallbackThemeId)}`} id={outcome.fallbackThemeId} kind="theme" />
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <EmptyState>{t("no_fallback_theme")}</EmptyState>
+      )}
     </CardShell>
   )
 }

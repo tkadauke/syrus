@@ -64,6 +64,12 @@ type HostConfig struct {
 	SecurityOpt   []string        `json:"SecurityOpt,omitempty"`
 	CapAdd        []string        `json:"CapAdd,omitempty"`
 	Devices       []DeviceMapping `json:"Devices,omitempty"`
+
+	// Memory caps the container in bytes; zero (omitted) means unlimited.
+	// Unlike every other addition to this struct, it can only take capability
+	// away from a service, never grant it -- the worst a caller can do with it
+	// is start a container that cannot allocate enough to run.
+	Memory int64 `json:"Memory,omitempty"`
 }
 
 // DeviceMapping grants a container access to a host device node. Only

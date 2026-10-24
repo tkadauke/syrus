@@ -172,6 +172,19 @@ describe("MarkdownPreview", () => {
     expect(within(dialog).getByRole("button", { name: "Copy Show more to clipboard" })).toBeInTheDocument()
   })
 
+  it("links caller-provided slug hrefs in the preview and full modal", () => {
+    const onLinkClick = vi.fn()
+    const text = `See **RUN-99** for details. ${"More details. ".repeat(30)}`
+    render(<MarkdownPreview maxChars={80} onLinkClick={onLinkClick} slugHrefOverrides={{ "RUN-99": "/admin/runs/99/transcript" }} text={text} />)
+
+    expect(screen.getByRole("link", { name: "RUN-99" })).toHaveAttribute("href", "/admin/runs/99/transcript")
+    fireEvent.click(screen.getByRole("link", { name: "RUN-99" }))
+    expect(onLinkClick).toHaveBeenCalledWith("/admin/runs/99/transcript", expect.anything())
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByRole("link", { name: "RUN-99" })).toHaveLength(2)
+    expect(screen.getAllByRole("link", { name: "RUN-99" })[1]).toHaveAttribute("href", "/admin/runs/99/transcript")
+  })
+
   it.each([
     ["mobile", 320],
     ["desktop", 960]
@@ -188,6 +201,31 @@ describe("MarkdownPreview", () => {
     expect(preview.style.getPropertyValue("-webkit-line-clamp")).toBe("")
     expect(preview.style.overflow).toBe("")
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+  })
+
+  it("can show an explicit empty state", () => {
+    render(<MarkdownPreview emptyLabel="No prompt was provided." text="  " />)
+    expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()
+  })
+
+  it("supports a character limit and a copy control in the modal", () => {
+    render(<MarkdownPreview maxChars={12} text="A deliberately long prompt with more details." title="Prompt" />)
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Copy Prompt to clipboard" })).toBeInTheDocument()
+  })
+
+  it("linkifies plain URLs in the compact preview", () => {
+    render(<MarkdownPreview linkifyUrls text="See https://example.test/report for details." />)
+    expect(screen.getByRole("link", { name: "https://example.test/report" })).toHaveAttribute("href", "https://example.test/report")
+  })
+
+  it("keeps slug linking disabled in the full modal", () => {
+    const text = `Review JOB-42 before continuing. ${"Additional details. ".repeat(30)}`
+    render(<MarkdownPreview linkifySlugs={false} maxChars={40} text={text} />)
+
+    expect(screen.queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Copy JOB-42 to clipboard" })).not.toBeInTheDocument()
   })
 
   it("wraps long unbroken strings without horizontal overflow", () => {

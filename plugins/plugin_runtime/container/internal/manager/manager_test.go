@@ -86,6 +86,42 @@ func TestEnsureCreatesAContainerTheWayThePolicyPromises(t *testing.T) {
 	}
 }
 
+// A service that declares a memory cap must actually get one. Without it the
+// kernel resolves memory pressure host-wide and can kill the Docker daemon
+// instead of the service that overran, which takes every container down.
+func TestEnsureAppliesDeclaredMemoryLimit(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+
+	s := service()
+	s.MemoryLimitBytes = 2 << 30
+	if _, err := m.Ensure(context.Background(), "git-mirror", s); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := d.created[0].HostConfig.Memory; got != 2<<30 {
+		t.Errorf("Memory = %d, want %d", got, int64(2<<30))
+	}
+}
+
+// A service that declares no cap keeps the historical unlimited behaviour --
+// the manager must not invent a default and start OOM-killing services that
+// were running fine.
+func TestEnsureLeavesMemoryUnlimitedWhenUndeclared(t *testing.T) {
+	d := newFakeDocker()
+	d.images[image] = true
+	m := newManager(d)
+
+	if _, err := m.Ensure(context.Background(), "git-mirror", service()); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := d.created[0].HostConfig.Memory; got != 0 {
+		t.Errorf("Memory = %d, want 0 (unlimited)", got)
+	}
+}
+
 // The generic Ensure path must never be able to reach CapAdd/Devices, no
 // matter what the request contains -- spec.Service has no field for them, so
 // this is really asserting create() never populates HostConfig from

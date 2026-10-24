@@ -1,11 +1,6 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+import type { ToolCardContext, ToolCardExample, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell } from "@app/routes/chat/toolCardUi"
-import {
-  parseScheduledTaskDetail,
-  PromptDisclosure,
-  scheduledTaskHeadline,
-  ScheduledTaskSummary
-} from "../scheduledTaskToolCard"
+import { parseScheduledTaskDetail, PromptDisclosure, scheduledTaskHeadline, ScheduledTaskSummary, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for read_scheduled_task (the pending-action tool-card work).
 // Payload is `{ scheduled_task: <scheduled_task_payload>.merge(prompt:) }`;
@@ -24,15 +19,65 @@ function renderExpanded(context: ToolCardContext) {
   return (
     <CardShell>
       <ScheduledTaskSummary task={detail.task} />
-      {detail.prompt ? <PromptDisclosure prompt={detail.prompt} /> : null}
+      {detail.hasPrompt ? <PromptDisclosure onLinkClick={context.onLinkClick} prompt={detail.prompt} /> : null}
     </CardShell>
   )
 }
 
-const readScheduledTaskToolCard: ToolCardRenderer = {
+const readScheduledTaskToolCard: ToolCardRenderer = withScheduledTaskErrors({
   toolName: "read_scheduled_task",
   collapsedSummary,
   renderExpanded
-}
+})
 
 export default readScheduledTaskToolCard
+
+const CATALOG_PROMPT = [
+  "## Nightly repository health review",
+  "Review **main** for failing graders and inspect [the service dashboard](https://example.test/status) before making changes. Cross-check any failure against JOB-42 and distinguish a new regression from an existing base-branch failure.",
+  "### Required checks",
+  "- Read the complete failing check output and identify the first actionable error.",
+  "- Reproduce the narrowest relevant test locally when the environment supports it.",
+  "- Inspect recent commits touching the failing subsystem and verify the suspected mechanism in current source.",
+  "- If a repair is warranted, keep it focused and add a regression test that fails without the change.",
+  "- Run the smallest relevant validation target plus type-checking or linting for changed frontend files.",
+  "### Reporting",
+  "Summarize the evidence, the root cause, the exact files changed, and every validation command with its outcome. If the failure is inherited from the base branch or cannot be reproduced, say so explicitly and do not make speculative edits."
+].join("\n\n")
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "recurring_task_details",
+    label: "Recurring task details",
+    input: { scheduled_task_id: 12 },
+    parsedResult: {
+      scheduled_task: {
+        id: 12,
+        repository_id: 7,
+        repository_slug: "tkadauke/syrus",
+        label: "Nightly main-branch health check",
+        kind: "cron",
+        state: "scheduled",
+        cron_expression: "0 3 * * *",
+        schedule_input: "Every day at 3am",
+        schedule_expression: "0 3 * * *",
+        schedule_explanation: "Runs daily at 3:00 AM UTC",
+        schedule_timezone: "UTC",
+        pr_pileup_policy: "skip",
+        enabled: true,
+        next_fire_at: "2026-09-06T03:00:00Z",
+        last_fired_at: "2026-09-05T03:00:00Z",
+        last_successful_fire_at: "2026-09-05T03:00:00Z",
+        consecutive_failure_count: 0,
+        created_at: "2026-08-01T00:00:00Z",
+        prompt: CATALOG_PROMPT
+      }
+    }
+  },
+  {
+    id: "blank_prompt",
+    label: "Task with a blank prompt",
+    parsedResult: { scheduled_task: { id: 13, label: "Paused audit", state: "paused", enabled: false, prompt: " " } }
+  },
+  { id: "not_found", label: "Task not found", resultBody: "scheduled task not found: 404", resultError: true }
+]

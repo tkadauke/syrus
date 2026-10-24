@@ -11,6 +11,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
+        ScheduledTasks::McpTools::ScheduleRecurringTool,
         ScheduledTasks::McpTools::ListScheduledTasksTool,
         ScheduledTasks::McpTools::ReadScheduledTaskTool,
         ScheduledTasks::McpTools::UpdateScheduledTaskTool,
@@ -19,6 +20,22 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
         ScheduledTasks::McpTools::DeleteScheduledTaskTool
       ],
       server_context: { chat_session: chat_session }
+    )
+  end
+
+  it "returns the complete recurring-task preview for tool cards" do
+    response = call_tool("schedule_recurring",
+      label: "Weekly review",
+      prompt: "Review **open work**.",
+      schedule_input: "0 9 * * 1")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(
+      pending_confirmation_id: be_present,
+      label: "Weekly review",
+      prompt: "Review **open work**.",
+      schedule_input: "0 9 * * 1",
+      cron_expression: "0 9 * * 1"
     )
   end
 
@@ -129,7 +146,16 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     response = call_tool("pause_scheduled_task", scheduled_task_id: task.id)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(payload(response)).to eq(scheduled_task_id: task.id, label: "Daily review", enabled: false)
+    expect(payload(response)).to include(
+      scheduled_task_id: task.id,
+      label: "Daily review",
+      enabled: false,
+      previous_state: "scheduled",
+      state: "paused",
+      repository_id: repository.id,
+      repository_slug: repository.slug
+    )
+    expect(payload(response).fetch(:next_fire_at)).to be_present
     expect(task.reload.state).to eq("paused")
   end
 
@@ -167,7 +193,16 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     response = call_tool("delete_scheduled_task", scheduled_task_id: task.id)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(payload(response)).to eq(scheduled_task_id: task.id, label: "Cleanup", deleted: true)
+    expect(payload(response)).to eq(
+      scheduled_task_id: task.id,
+      label: "Cleanup",
+      repository_id: repository.id,
+      repository_slug: repository.slug,
+      schedule_explanation: "Every day at 9:00 AM UTC",
+      schedule_timezone: "UTC",
+      fire_at: nil,
+      deleted: true
+    )
     expect(task.reload.archived_at).to be_present
   end
 
@@ -177,8 +212,32 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     response = call_tool("delete_scheduled_task", scheduled_task_id: other_task.id)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(payload(response)).to eq(scheduled_task_id: other_task.id, label: "Other repo", deleted: true)
+    expect(payload(response)).to include(
+      scheduled_task_id: other_task.id,
+      label: "Other repo",
+      repository_id: other_task.repository.id,
+      repository_slug: other_task.repository.slug,
+      deleted: true
+    )
     expect(other_task.reload.archived_at).to be_present
+  end
+
+  it "preserves a one-shot task's fire time in the delete response" do
+    fire_at = 2.days.from_now.change(usec: 0)
+    task = create_scheduled_task(kind: "one_shot", name: "Release reminder", fire_at: fire_at)
+
+    response = call_tool("delete_scheduled_task", scheduled_task_id: task.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(
+      scheduled_task_id: task.id,
+      label: "Release reminder",
+      schedule_explanation: nil,
+      schedule_timezone: "UTC",
+      fire_at: fire_at.iso8601,
+      deleted: true
+    )
+    expect(task.reload.archived_at).to be_present
   end
 
   it "rejects scheduled tasks owned by another user" do
@@ -213,6 +272,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     result = payload(response).fetch(:scheduled_task)
     expect(result).to include(
       id: task.id,
+      repository_id: task.repository_id,
       label: "Nightly audit",
       kind: "cron",
       state: "scheduled",

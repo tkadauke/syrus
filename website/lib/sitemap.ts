@@ -1,12 +1,44 @@
-export type SitemapSource = { href: string }
+import { defaultLocale, localePublication, localizedPath, type Locale, type LocalePublication } from "./locales.ts";
+import { languageAlternates, siteOrigin } from "./metadata.ts";
 
-const SITE_ORIGIN = "https://syrus-ai.dev"
+export type SitemapSource = { href: string; locales?: readonly Locale[] }
+export type SitemapEntry = { url: string; alternates: { languages: Record<string, string> } }
 
-const STATIC_PATHS = ["/", "/control-plane", "/download", "/plugins"]
+const STATIC_PATHS: SitemapSource[] = [
+  ...["/", "/control-plane", "/download", "/plugins"].map((href) => ({ href, locales: localePublication.locales })),
+  { href: "/blog", locales: [defaultLocale] },
+]
 
-export function sitemapUrls(plugins: SitemapSource[], docs: SitemapSource[]): string[] {
-  const paths = [...STATIC_PATHS, ...plugins.map(({ href }) => href), ...docs.map(({ href }) => href)]
-  const urls = paths.map((href) => `${SITE_ORIGIN}${href === "/" ? href : `${href.replace(/\/$/, "")}/`}`)
+export function sitemapEntries(
+  plugins: SitemapSource[],
+  docs: SitemapSource[],
+  posts: SitemapSource[] = [],
+  publication: LocalePublication = localePublication,
+): SitemapEntry[] {
+  const sources = [
+    ...STATIC_PATHS.map((source) => ({
+      ...source,
+      locales: source.href === "/blog" ? source.locales : publication.locales,
+    })),
+    ...plugins,
+    ...docs,
+    ...posts,
+  ];
+  const variants = new Map<string, Set<Locale>>();
+  for (const { href, locales = [defaultLocale] } of sources) {
+    const normalizedHref = localizedPath(href, defaultLocale);
+    const existing = variants.get(normalizedHref) ?? new Set<Locale>();
+    publication.publishedVariants(locales).forEach((locale) => existing.add(locale));
+    variants.set(normalizedHref, existing);
+  }
 
-  return [...new Set(urls)].sort()
+  return [...variants]
+    .flatMap(([href, localeSet]) => {
+      const locales = [...localeSet];
+      const languages = Object.fromEntries(
+        Object.entries(languageAlternates(href, locales, publication)).map(([locale, path]) => [locale, `${siteOrigin}${path}`]),
+      );
+      return locales.map((locale) => ({ url: `${siteOrigin}${localizedPath(href, locale)}`, alternates: { languages } }));
+    })
+    .sort((left, right) => left.url.localeCompare(right.url));
 }

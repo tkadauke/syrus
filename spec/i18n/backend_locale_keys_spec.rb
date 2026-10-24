@@ -127,4 +127,31 @@ RSpec.describe "Backend locale keys", type: :unit do
     expect(message).to include("ist kein gültiger Wert")
     expect(message).not_to include("Translation missing")
   end
+
+  it "uses informal German and the approved Syrus terminology" do
+    german_text = leaves_by_locale.fetch("de").values.grep(String).join("\n")
+
+    expect(german_text).not_to match(/\b(?:Sie|Ihnen|Ihr\p{L}*)\b/)
+    expect(german_text).not_to match(/\bAufgab\p{L}*/)
+    expect(german_text).not_to match(/\bRuns?\b/)
+    expect(I18n.t("api.job_lifecycle.run_active", locale: :de)).to eq(
+      "Ein Lauf ist bereits aktiv — warte, bis er abgeschlossen ist."
+    )
+    expect(I18n.t("api.admin_transcripts.no_session", locale: :de, id: 42)).to include("Agentenlauf")
+    expect(I18n.t("api.epics.started", locale: :de)).to include("untergeordnete Jobs")
+  end
+
+  it "keeps the reviewed Latin domain nouns while correcting catalog prose" do
+    expect(I18n.t("application.chat_unavailable", locale: :la)).to eq("Hoc colloquium non iam praesto est.")
+    corrected_password_reset =
+      "Instructiones renovationis tesserae missae sunt (si usor tali inscriptione electronica exstat)."
+
+    expect(I18n.t("passwords.reset_sent", locale: :la)).to eq(corrected_password_reset)
+    expect(I18n.t("api.auth.password_reset_sent", locale: :la)).to eq(corrected_password_reset)
+    expect(I18n.t("api.epics.reassigned", locale: :la)).to eq("Epos alii attributum est.")
+    expect(I18n.t("api.epics.transition_not_allowed", locale: :la)).to start_with("Hic transitus Epotis")
+    expect(I18n.t("api.epics.product_owner_forbidden", locale: :la)).to include("progredi")
+    expect(I18n.t("api.job_lifecycle.run_active", locale: :la)).to start_with("Cursus")
+    expect(I18n.t("api.job_lifecycle.initial_enqueued", locale: :la)).to start_with("Fluxus")
+  end
 end

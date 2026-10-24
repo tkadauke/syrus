@@ -16,6 +16,15 @@ describe("toolPresentationRegistry", () => {
       expect(entry.examples[0].label).toBe("Two open Jobs")
     })
 
+    it("discovers add_job_dependency catalog examples exported by its core card module", () => {
+      const entry = toolPresentationEntryFor("add_job_dependency")
+
+      expect(entry.ownerType).toBe("core")
+      expect(entry.sourceType).toBe("mcp_tool")
+      expect(entry.renderer?.toolName).toBe("add_job_dependency")
+      expect(entry.examples.map((example) => example.id)).toEqual(["job_and_epic_dependencies", "validation_error", "empty_dependencies"])
+    })
+
     it("resolves a plugin-owned MCP tool card (with its own example fixtures) without any core file naming that plugin", () => {
       const entry = toolPresentationEntryFor("browser_click")
 
@@ -30,6 +39,12 @@ describe("toolPresentationRegistry", () => {
     it("defaults examples to an empty array for a card that doesn't opt in", () => {
       const entry = toolPresentationEntryFor("Edit")
       expect(entry.examples).toEqual([])
+    })
+
+    it("registers visually reviewable force landing recheck states", () => {
+      const entry = toolPresentationEntryFor("force_landing_recheck")
+
+      expect(entry.examples.map((example) => example.id)).toEqual(["bulk_pending", "bulk_confirmed", "error_with_reason", "missing_input"])
     })
 
     it("resolves a provider built-in tool with no MCP card", () => {
@@ -70,6 +85,10 @@ describe("toolPresentationRegistry", () => {
       const createCodingJob = toolPresentationEntryFor("create_coding_job")
       expect(createCodingJob.sourceType).toBe("local_mode_tool")
       expect(createCodingJob.renderer).not.toBeNull()
+
+      const openInCodingMode = toolPresentationEntryFor("open_in_coding_mode")
+      expect(openInCodingMode.sourceType).toBe("local_mode_tool")
+      expect(openInCodingMode.renderer).not.toBeNull()
     })
 
     it("resolves a chat surface component by its synthetic identifier", () => {

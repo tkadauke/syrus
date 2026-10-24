@@ -112,10 +112,35 @@ describe("pluginToolCards", () => {
       expect(entry?.examples.length).toBeGreaterThan(0)
     })
 
+    it("discovers the visual-review states for the CI repair no-op card", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "mark_ci_repair_noop")
+
+      expect(entry?.examples.map((example) => example.id)).toEqual(["single_pending", "bulk_pending", "validation_error"])
+    })
+
     it("discovers examples exported alongside a plugin card module, purely by directory convention", () => {
       const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "browser_click")
       expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "browser" })
       expect(entry?.examples.length).toBeGreaterThan(0)
+    })
+
+    it("discovers the current scheduled-task list card and all catalog states", () => {
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === "list_scheduled_tasks")
+
+      expect(entry?.owner).toEqual({ ownerType: "plugin", ownerName: "scheduled_tasks" })
+      expect(entry?.examples.map((example) => example.id)).toEqual(["cron_and_one_shot", "no_scheduled_tasks", "scheduled_tasks_error"])
+      expect(entry?.examples[0].parsedResult).toMatchObject({
+        tasks: expect.arrayContaining([
+          expect.objectContaining({
+            label: "Nightly dependency audit",
+            schedule_input: "Every day at 3am",
+            schedule_expression: "daily at 03:00",
+            schedule_explanation: "Runs daily at 3:00 AM UTC",
+            fire_at: "2026-09-17T02:55:00Z",
+            next_fire_at: "2026-09-17T03:00:00Z"
+          })
+        ])
+      })
     })
 
     it("resolves resultBody directly when an example supplies it", () => {
@@ -144,12 +169,26 @@ describe("pluginToolCards", () => {
       expect(context.resultSettled).toBe(true)
     })
 
+    it("preserves optional chat context for catalog links", () => {
+      const context = toolCardContextForExample("write_preview_file", { id: "linked", label: "Linked", chatSessionId: 8 })
+
+      expect(context.chatSessionId).toBe(8)
+    })
+
     it("preserves an example's explicit in-flight result state", () => {
       const context = toolCardContextForExample("pin_chat", { id: "pending", label: "Pending", resultSettled: false })
 
       expect(context.resultSettled).toBe(false)
       expect(context.resultBody).toBe("")
       expect(context.parsedResult).toBeNull()
+    })
+
+    it("preserves live pending-action state for outcome fixtures", () => {
+      const example = findExample("force_landing_recheck", "bulk_confirmed")
+      const context = toolCardContextForExample("force_landing_recheck", example)
+
+      expect(context.livePendingAction).toMatchObject({ id: 501, state: "confirmed", execution_status: "applied" })
+      expect(context.livePendingAction?.detail).toContain("refreshed state: closed")
     })
 
     it("a malformed example's context best-effort-parses to null instead of throwing", () => {

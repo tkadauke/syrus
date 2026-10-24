@@ -21,8 +21,8 @@ RSpec.describe "website content coverage" do
 
   it "has current Next.js surfaces for the basic visitor questions" do
     pages = {
-      "src/app/page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
-      "src/app/download/page.tsx" => ["Download Syrus", "macOS", "Apple Silicon", "Intel"],
+      "components/pages/home-page.tsx" => ["<Hero", "<TeamWorkflow", "<Features", "<EntryPoints", "<Demo"],
+      "lib/marketing.ts" => ["Download Syrus", "macOS", "Apple Silicon", "Intel", "Open-source onboarding", "Read the docs", "Open GitHub", "Getting started"],
       "lib/site.ts" => [
         "Show Syrus the work.",
         "Proposes epics & tickets",
@@ -31,8 +31,7 @@ RSpec.describe "website content coverage" do
         "Issue or ticket",
         "Scheduled task"
       ],
-      "components/demo.tsx" => ["Open-source onboarding", "GitHub", "Getting started"],
-      "components/nav.tsx" => ["How it works", "Why Syrus", "Entry points", "Watch demo"]
+      "lib/chrome.ts" => ["How it works", "Why Syrus", "Entry points", "Docs", "Blog"]
     }
 
     pages.each do |path, expected_sections|

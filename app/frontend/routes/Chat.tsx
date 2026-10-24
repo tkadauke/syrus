@@ -179,6 +179,7 @@ import {
   defaultWorkspaceTab,
   linkedWorkspaceTab,
   mobileChatTabLabel,
+  requestedWorkspaceTab,
   storeWorkspacePreference,
   storedWorkspaceCollapsed,
   storedWorkspaceTab,
@@ -393,8 +394,8 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) =>
         item.type === "tool_group" ? (
-          <SharedMessageRenderer key={renderItemKey(item)} readOnly>
-            <ToolGroup chatSessionId={payload.chat.id} item={item} />
+          <SharedMessageRenderer compact key={renderItemKey(item)} readOnly>
+            <ToolGroup chatSessionId={payload.chat.id} item={item} payload={placeholderPayload} />
           </SharedMessageRenderer>
         ) : (
           <ChatMessage
@@ -1143,7 +1144,7 @@ function MessageStream({
             ) : item.type === "pending_action_group" ? (
               <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
-              <SharedMessageRenderer key={renderItemKey(item)}>
+              <SharedMessageRenderer compact key={renderItemKey(item)}>
                 <ToolGroup chatMedia={toolCardMedia.data} chatSessionId={payload.chat.id} item={item} payload={payload} />
               </SharedMessageRenderer>
             ) : (
@@ -1277,7 +1278,7 @@ function ChatWorkspace({
   onSettingsOpenChange: (open: boolean) => void
 }) {
   const location = useLocation()
-  const initialLinkedTab = linkedWorkspaceTab(payload, location.hash)
+  const initialLinkedTab = requestedWorkspaceTab(payload, location.search) || linkedWorkspaceTab(payload, location.hash)
   const [activeTab, setActiveTab] = useState<WorkspaceTab | null>(() => initialLinkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
   const [activeMobileTab, setActiveMobileTab] = useState<MobileChatTab>(() => initialLinkedTab || "chat")
   const [workspaceWidth, setWorkspaceWidth] = useState(storedWorkspaceWidth)
@@ -1310,15 +1311,15 @@ function ChatWorkspace({
     !isDesktop && !showMobileChatColumn
       ? ({ paddingTop: `calc(var(--mobile-chat-app-header-height,0px) + ${mobileChatTopInset}px)` } as CSSProperties)
       : undefined
-  const requestedWorkspaceTab = new URLSearchParams(location.search).get("workspace") === "media" ? "media" : null
+  const requestedTab = requestedWorkspaceTab(payload, location.search)
 
   useLayoutEffect(() => {
-    const linkedTab = linkedWorkspaceTab(payload, window.location.hash)
+    const linkedTab = requestedWorkspaceTab(payload, window.location.search) || linkedWorkspaceTab(payload, window.location.hash)
     const nextPanelState = linkedTab ? { collapsed: false, persistInitialState: false } : initialWorkspacePanelState(payload)
     skipInitialPanelPersistenceRef.current = !nextPanelState.persistInitialState
     setPanelCollapsed(nextPanelState.collapsed)
     previousMediaRef.current = { chatId: payload.chat.id, count: mediaItemCount(payload) }
-    if (linkedTab) setActiveTab(linkedTab)
+    setActiveTab(linkedTab || storedWorkspaceTab() || defaultWorkspaceTab(payload))
     setActiveMobileTab(linkedTab || "chat")
     setBookmarkTarget(null)
     setBookmarkPickerOpen(false)
@@ -1343,13 +1344,13 @@ function ChatWorkspace({
   }, [activeMobileTab, activeTab, availableTabs, payload])
 
   useEffect(() => {
-    if (requestedWorkspaceTab === null || !availableTabs.includes(requestedWorkspaceTab)) return
+    if (requestedTab === null || !availableTabs.includes(requestedTab)) return
 
     setPanelCollapsed(false)
-    setActiveTab(requestedWorkspaceTab)
-    setActiveMobileTab(requestedWorkspaceTab)
+    setActiveTab(requestedTab)
+    setActiveMobileTab(requestedTab)
     setActiveFindSurface("workspace")
-  }, [availableTabs, payload.chat.id, requestedWorkspaceTab])
+  }, [availableTabs, payload.chat.id, requestedTab])
 
   useEffect(() => {
     if (!showMobileWorkspaceTabs && activeMobileTab !== "chat") setActiveMobileTab("chat")

@@ -18,7 +18,7 @@ RSpec.describe "website Publilius Syrus references" do
   end
 
   it "renders the quote on the landing page surfaces" do
-    expect(hero).to include("site.taglineTranslation")
+    expect(hero).to include("copy.taglineTranslation")
     expect(hero).to include("site.taglineAttribution")
     expect(footer).to include("site.tagline")
   end

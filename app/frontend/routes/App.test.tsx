@@ -3694,6 +3694,55 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 30000)
 
+  it("reports the total affected count after closing selected jobs one at a time", async () => {
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
+    const bulkBodies: Array<{ job_ids: number[]; bulk_action: string }> = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          jsonResponse(
+            dashboardPayload({
+              subject: "job",
+              view: "list",
+              total: 2,
+              items: [
+                dashboardJobItem({ id: 42, title: "First aqueduct", bulk_actions: { close: true } }),
+                dashboardJobItem({ id: 43, title: "Second aqueduct", bulk_actions: { close: true } })
+              ]
+            })
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard/jobs/bulk" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { job_ids: number[]; bulk_action: string }
+        bulkBodies.push(body)
+        return Promise.resolve(
+          jsonResponse({
+            message: "1 job closed.",
+            action: "close",
+            affected_job_ids: body.job_ids,
+            skipped_job_ids: []
+          })
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    fireEvent.click(await screen.findByLabelText("Select First aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Second aqueduct"))
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+    expect(await screen.findByText("2 jobs closed.")).toBeInTheDocument()
+    expect(bulkBodies).toEqual([
+      { job_ids: [42], bulk_action: "close" },
+      { job_ids: [43], bulk_action: "close" }
+    ])
+  })
+
   it("reenables bulk job actions after the action succeeds", async () => {
     let resolveBulkAction: ((response: Response) => void) | undefined
     const bulkActionResponse = new Promise<Response>((resolve) => {
@@ -3737,13 +3786,13 @@ describe("App", () => {
     )
 
     fireEvent.click(await screen.findByLabelText("Select Repair aqueduct"))
-    const retryButton = screen.getByRole("button", { name: "Retry" })
-    const closeButton = screen.getByRole("button", { name: "Close" })
-    fireEvent.click(retryButton)
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
 
     await waitFor(() => {
-      expect(retryButton).toBeDisabled()
-      expect(closeButton).toBeDisabled()
+      expect(screen.getByText("0 of 1 retried")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled()
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument()
     })
 
     resolveBulkAction?.(
@@ -3756,8 +3805,8 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
     expect(screen.getByText("1 selected")).toBeInTheDocument()
     await waitFor(() => {
-      expect(retryButton).toBeEnabled()
-      expect(closeButton).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Close" })).toBeEnabled()
     })
   })
 

@@ -24,12 +24,20 @@ module ScheduledTasks
           task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
 
-          label = task.name
+          deleted_task = scheduled_task_payload(task).slice(
+            :id,
+            :label,
+            :repository_id,
+            :repository_slug,
+            :schedule_explanation,
+            :schedule_timezone,
+            :fire_at
+          )
           task.soft_delete!
 
           Mcp::Tools.success(
             scheduled_task_id: task.id,
-            label: label,
+            **deleted_task.except(:id),
             deleted: true
           )
         rescue ActiveRecord::RecordInvalid => e

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { toolCardContextForExample, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "../toolRendering"
 import retryJobCard from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
@@ -20,11 +21,11 @@ import adminReapStaleRunsCard from "./admin_reap_stale_runs"
 import adminRefreshInstallationsCard from "./admin_refresh_installations"
 import rerunCiRepairCard from "./rerun_ci_repair"
 import markCiRepairNoopCard from "./mark_ci_repair_noop"
-import overrideLandingBlockerOnceCard from "./override_landing_blocker_once"
+import overrideLandingBlockerOnceCard, { examples as overrideLandingBlockerOnceExamples } from "./override_landing_blocker_once"
 import forceLandingRecheckCard from "./force_landing_recheck"
 import cancelStaleWorkCard from "./cancel_stale_work"
 import reenqueueWorkCard from "./reenqueue_work"
-import repairQueueAffinityCard from "./repair_queue_affinity"
+import repairQueueAffinityCard, { examples as repairQueueAffinityExamples } from "./repair_queue_affinity"
 import wakeLandingQueueCard from "./wake_landing_queue"
 import wakeProviderAdmissionCard from "./wake_provider_admission"
 import clearProviderCircuitCard, { examples as clearProviderCircuitExamples } from "./clear_provider_circuit"
@@ -32,7 +33,7 @@ import repairProviderCircuitEvidenceCard from "./repair_provider_circuit_evidenc
 import adminKillProcessCard, { examples as adminKillProcessExamples } from "./admin_kill_process"
 import adminRetryStepCard from "./admin_retry_step"
 import adoptCurrentPrHeadCard, { examples as adoptCurrentPrHeadExamples } from "./adopt_current_pr_head"
-import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_workflow_output"
+import replacePrBranchWithWorkflowOutputCard, { examples as replacePrBranchExamples } from "./replace_pr_branch_with_workflow_output"
 import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
 
@@ -104,6 +105,63 @@ describe("pending action tool card family", () => {
   it.each(CARDS)("%s falls back to null for a non-object payload", (name, card) => {
     expect(card.collapsedSummary?.(context(name, "not json"))).toBeNull()
     expect(card.renderExpanded(context(name, "not json"))).toBeNull()
+  })
+
+  it("registers every visual-review state for the landing blocker override card", () => {
+    expect(overrideLandingBlockerOnceExamples.map((example) => example.id)).toEqual([
+      "pending_override",
+      "applied_override",
+      "validation_error",
+      "missing_input"
+    ])
+  })
+
+  it("registers every visual-review state for the queue affinity repair card", () => {
+    expect(repairQueueAffinityExamples.map((example) => example.id)).toEqual(["pending_repair", "validation_error", "missing_input"])
+  })
+
+  it.each([
+    [
+      "text content",
+      { content: [{ type: "text", text: JSON.stringify({ pending_action_id: 504, state: "pending", message: "Repair RUN-9876?" }) }], structured_content: null }
+    ],
+    ["structured content", { content: [], structured_content: { pending_action_id: 504, state: "pending", message: "Repair RUN-9876?" } }]
+  ])("renders queue affinity request links and Markdown reason from a normalized %s envelope", (_label, envelope) => {
+    const cardContext = {
+      ...context("repair_queue_affinity", normalizedToolCardParsedResult(envelope)),
+      input: { job_id: 4222, run_id: 9876, reason: "Worker is **offline**." }
+    }
+
+    render(<>{repairQueueAffinityCard.renderExpanded(cardContext)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "RUN-9876" })).toHaveAttribute("href", "/admin/runs/9876/transcript")
+    expect(screen.getByText("offline", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("preserves queue affinity request details in a structured error state", () => {
+    render(
+      <>
+        {repairQueueAffinityCard.renderExpanded({
+          ...context("repair_queue_affinity", { error: "invalid_request", message: "The Run is no longer queued." }),
+          input: { job_id: 4222, run_id: 9876, reason: "Worker is **offline**." }
+        })}
+      </>
+    )
+
+    expect(screen.getByText("invalid_request")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4222" })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: "RUN-9876" })).toHaveAttribute("href", "/admin/runs/9876/transcript")
+    expect(screen.getByText("offline", { selector: "strong" })).toBeInTheDocument()
+  })
+
+  it("labels every unavailable queue affinity request field when input is missing", () => {
+    render(<>{repairQueueAffinityCard.renderExpanded(context("repair_queue_affinity", { pending_action_id: 505, state: "pending" }))}</>)
+
+    expect(screen.getAllByText("Not provided")).toHaveLength(3)
+    expect(screen.getByText("Job")).toBeInTheDocument()
+    expect(screen.getByText("Run")).toBeInTheDocument()
+    expect(screen.getByText("Reason")).toBeInTheDocument()
   })
 
   it("wires a standard-shape tool through to the shared card", () => {
@@ -222,5 +280,57 @@ describe("pending action tool card family", () => {
 
     render(<>{replacePrBranchWithWorkflowOutputCard.renderExpanded(context("replace_pr_branch_with_workflow_output", parsedResult))}</>)
     expect(screen.getByText("REPLACE PR BRANCH")).toBeInTheDocument()
+  })
+
+  it("registers reviewable PR-branch replacement states", () => {
+    expect(replacePrBranchExamples.map((example) => example.id)).toEqual(["dry_run_evidence", "pending_replacement", "structured_error"])
+  })
+
+  it("warns that a pending replacement force-pushes the PR branch", () => {
+    const example = replacePrBranchExamples.find((candidate) => candidate.id === "pending_replacement")
+    if (!example) throw new Error("missing pending replacement fixture")
+
+    render(<>{replacePrBranchWithWorkflowOutputCard.renderExpanded(toolCardContextForExample(replacePrBranchWithWorkflowOutputCard.toolName, example))}</>)
+    expect(screen.getByText("Destructive action")).toBeInTheDocument()
+    expect(screen.getByText(/force-push the workflow output/)).toBeInTheDocument()
+    expect(screen.getByText("REPLACE PR BRANCH")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /JOB-4222/ })).toHaveAttribute("href", "/jobs/4222")
+    expect(screen.getByRole("link", { name: /WF-26123/ })).toHaveAttribute("href", "/jobs/4222?tab=workflows#workflow-26123")
+  })
+
+  it("surfaces the structured confirmation error message", () => {
+    const example = replacePrBranchExamples.find((candidate) => candidate.id === "structured_error")
+    if (!example) throw new Error("missing structured error fixture")
+
+    render(<>{replacePrBranchWithWorkflowOutputCard.renderExpanded(toolCardContextForExample(replacePrBranchWithWorkflowOutputCard.toolName, example))}</>)
+    expect(screen.getByText("missing_destructive_confirmation")).toBeInTheDocument()
+    expect(screen.getByText("destructive_confirmation must be exactly REPLACE PR BRANCH")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "syrus/direct-322" })).toHaveAttribute("href", "https://github.com/acme/widgets/tree/syrus%2Fdirect-322")
+    expect(screen.getByRole("link", { name: "abc123abc123abc123abc123abc123abc123abcd" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/widgets/commit/abc123abc123abc123abc123abc123abc123abcd"
+    )
+  })
+
+  it("renders a provider-normalized pending envelope with its destructive warning", () => {
+    const parsedResult = normalizedToolCardParsedResult({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ pending_action_id: 501, pending_confirmation_id: 501, state: "pending", message: "Replace the PR branch?" })
+        }
+      ]
+    })
+
+    render(
+      <>
+        {replacePrBranchWithWorkflowOutputCard.renderExpanded({
+          ...context("replace_pr_branch_with_workflow_output", parsedResult),
+          input: { job_id: 4222, workflow_id: 26123, destructive_confirmation: "REPLACE PR BRANCH", dry_run: false }
+        })}
+      </>
+    )
+    expect(screen.getByText("Replace the PR branch?")).toBeInTheDocument()
+    expect(screen.getByText("Destructive action")).toBeInTheDocument()
   })
 })

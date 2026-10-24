@@ -130,8 +130,10 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     result_error: context.resultError,
     result_kind: resultPresentation.kind,
     result_summary: resultPresentation.summary,
+    context_calls: context.priorCalls?.map((call) => ({ tool_name: call.toolName, input: call.input, result: call.parsedResult })),
     summary_metadata: resultPresentation.metadata,
-    prior_results: context.priorResults
+    prior_results: context.priorResults,
+    pending_action: context.livePendingAction
   }
 }
 
@@ -316,7 +318,7 @@ function ToolCatalogEntry({
 
             {group ? (
               <CatalogViewportFrame ariaLabel={t("tool_cards.viewport_frame_aria", { width: previewWidth })} ref={previewFrameRef} width={previewWidth}>
-                <ToolGroup item={group} />
+                <ToolGroup chatSessionId={selectedExample?.chatSessionId} item={group} />
               </CatalogViewportFrame>
             ) : null}
           </>

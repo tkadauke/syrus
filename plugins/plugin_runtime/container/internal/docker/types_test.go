@@ -41,9 +41,39 @@ func TestHostConfigCannotSerializeMostPrivilegedSettings(t *testing.T) {
 	// CapAdd and Devices are real fields now, but the generic create() path
 	// never sets them -- leaving them at their zero value here is what proves
 	// that: with omitempty, an unset CapAdd/Devices does not appear at all.
-	for _, exception := range []string{"CapAdd", "Devices"} {
+	for _, exception := range []string{"CapAdd", "Devices", "Memory"} {
 		if _, present := fields[exception]; present {
 			t.Errorf("HostConfig unset %s must not be serialized (omitempty)", exception)
+		}
+	}
+}
+
+// Memory is the one field here that can only take capability away. It still
+// has to be pinned: a service must be able to set it, an unset limit must stay
+// absent so existing containers keep their unlimited behaviour, and it must not
+// drag any privileged field along with it.
+func TestHostConfigCanSerializeMemoryWhenExplicitlySet(t *testing.T) {
+	raw, err := json.Marshal(HostConfig{
+		NetworkMode:   "syrus_default",
+		RestartPolicy: RestartPolicy{Name: "unless-stopped"},
+		Memory:        2 << 30,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, ok := fields["Memory"]; !ok {
+		t.Error("HostConfig must be able to express Memory")
+	} else if got != float64(2<<30) {
+		t.Errorf("Memory = %v, want %v", got, float64(2<<30))
+	}
+	for _, forbidden := range []string{"Privileged", "Binds", "CapAdd", "Devices"} {
+		if _, present := fields[forbidden]; present {
+			t.Errorf("setting Memory must not serialize %s", forbidden)
 		}
 	}
 }

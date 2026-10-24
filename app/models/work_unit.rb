@@ -31,6 +31,7 @@ class WorkUnit < ApplicationRecord
     epic_wide_workflow_active
     resource_safety
     ci_repair_safety
+    ci_repair_disabled
     active_work_lock
     agent_cannot_proceed
     auto_retry_backoff
@@ -51,6 +52,7 @@ class WorkUnit < ApplicationRecord
   # genuinely are about to run and releasing would let a later landing cut
   # ahead of them.
   EXTERNALLY_CLEARED_BLOCKED_REASONS = %w[
+    ci_repair_disabled
     no_capable_worker
   ].freeze
 

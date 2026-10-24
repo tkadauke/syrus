@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { ToolCardContext } from "@app/pluginToolCards"
-import readScheduledTaskToolCard from "./read_scheduled_task"
+import { toolCardContextForExample, type ToolCardContext } from "@app/pluginToolCards"
+import { normalizedToolCardParsedResult } from "@app/routes/chat/toolRendering"
+import readScheduledTaskToolCard, { examples } from "./read_scheduled_task"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -15,6 +16,7 @@ function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
 
 const task = {
   id: 12,
+  repository_id: 7,
   repository_slug: "tkadauke/syrus",
   label: "Nightly main-branch health check",
   kind: "cron",
@@ -48,30 +50,46 @@ describe("read_scheduled_task tool card", () => {
   it("summarizes the collapsed row with the label, id, and state", () => {
     const parsedResult = { scheduled_task: task }
 
-    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe(
-      "Nightly main-branch health check (#12, scheduled)"
-    )
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Nightly main-branch health check (#12, scheduled)")
   })
 
   it("renders the schedule, repository, and firing history", () => {
     render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult: { scheduled_task: task } }))}</>)
 
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Copy #12 to clipboard" }))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("#12")
+    fireEvent.click(screen.getByRole("button", { name: "Copy TASK-12 to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("TASK-12")
     expect(screen.getByText("scheduled")).toBeInTheDocument()
     expect(screen.getByText("cron")).toBeInTheDocument()
     expect(screen.getByText("Runs daily at 3:00 AM UTC (UTC)")).toBeInTheDocument()
-    expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
-    expect(screen.getByText("2026-09-06T03:00:00Z")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "tkadauke/syrus" })).toHaveAttribute("href", "/repositories/7")
+    expect(screen.getAllByText(/UTC:/)).toHaveLength(4)
     expect(screen.getByText("skip")).toBeInTheDocument()
+    expect(screen.getByText("Every day at 3am")).toBeInTheDocument()
+    expect(screen.getByText("0 3 * * *")).toBeInTheDocument()
+    expect(screen.getByText("Created")).toBeInTheDocument()
   })
 
-  it("puts the full prompt behind a disclosure", () => {
-    render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult: { scheduled_task: task } }))}</>)
+  it("renders linked markdown and exposes a Show more modal with copy", () => {
+    const prompt = `Review **main**, visit https://example.test/status, and update JOB-42. ${"More context. ".repeat(80)}`
+    const onLinkClick = vi.fn()
+    render(<>{readScheduledTaskToolCard.renderExpanded(context({ onLinkClick, parsedResult: { scheduled_task: { ...task, prompt } } }))}</>)
 
     expect(screen.getByText("Prompt")).toBeInTheDocument()
-    expect(screen.getByText(task.prompt)).toBeInTheDocument()
+    expect(screen.getByText("main")).toBeInTheDocument()
+    const inlineLink = screen.getByRole("link", { name: "https://example.test/status" })
+    expect(inlineLink).toHaveAttribute("href", "https://example.test/status")
+    fireEvent.click(inlineLink)
+    expect(onLinkClick).toHaveBeenCalledWith((inlineLink as HTMLAnchorElement).href, expect.anything())
+    expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const modalLink = within(screen.getByRole("dialog")).getByRole("link", { name: "https://example.test/status" })
+    fireEvent.click(modalLink)
+    expect(onLinkClick).toHaveBeenCalledWith((modalLink as HTMLAnchorElement).href, expect.anything())
+    expect(onLinkClick).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole("button", { name: "Copy Prompt to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(prompt)
   })
 
   it("renders a paused task and its failure count", () => {
@@ -85,11 +103,44 @@ describe("read_scheduled_task tool card", () => {
   })
 
   it("renders without a prompt disclosure when the prompt is missing", () => {
-    const parsedResult = { scheduled_task: { ...task, prompt: null } }
+    const { prompt: _prompt, ...taskWithoutPrompt } = task
+    const parsedResult = { scheduled_task: taskWithoutPrompt }
 
     render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.queryByText("Prompt")).not.toBeInTheDocument()
+  })
+
+  it("renders the prompt empty state when the result includes a blank prompt", () => {
+    render(<>{readScheduledTaskToolCard.renderExpanded(context({ parsedResult: { scheduled_task: { ...task, prompt: "  " } } }))}</>)
+
+    expect(screen.getByText("Prompt")).toBeInTheDocument()
+    expect(screen.getByText("No prompt was provided.")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["structured content", { structured_content: { scheduled_task: task } }],
+    ["text content", { content: [{ type: "text", text: JSON.stringify({ scheduled_task: task }) }] }]
+  ])("renders the normalized %s provider envelope", (_label, envelope) => {
+    const parsedResult = normalizedToolCardParsedResult(envelope)
+
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Nightly main-branch health check (#12, scheduled)")
+  })
+
+  it("publishes reviewable detail, empty, and error catalog examples", () => {
+    expect(examples.map((example) => example.id)).toEqual(["recurring_task_details", "blank_prompt", "not_found"])
+  })
+
+  it("makes the catalog detail fixture long enough to review the prompt modal and copy action", () => {
+    const example = examples.find(({ id }) => id === "recurring_task_details")!
+    const exampleContext = toolCardContextForExample("read_scheduled_task", example)
+    render(<>{readScheduledTaskToolCard.renderExpanded(exampleContext)}</>)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full task prompt" })
+    expect(dialog).toHaveTextContent("Nightly repository health review")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy Prompt to clipboard" }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("### Required checks"))
   })
 
   it("falls back to null for a malformed payload", () => {
@@ -97,6 +148,15 @@ describe("read_scheduled_task tool card", () => {
 
     expect(readScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
     expect(readScheduledTaskToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+  })
+
+  it("renders structured tool errors with the shared scheduled-task error card", () => {
+    const parsedResult = { error: { message: "scheduled task not found" } }
+    render(<>{readScheduledTaskToolCard.renderExpanded(context({ resultError: true, parsedResult }))}</>)
+
+    expect(screen.getByText("Scheduled task")).toBeInTheDocument()
+    expect(screen.getByText("scheduled task not found")).toBeInTheDocument()
+    expect(readScheduledTaskToolCard.collapsedSummary?.(context({ resultError: true, parsedResult }))).toBe("Scheduled task request failed")
   })
 
   it("falls back to null when the task payload is missing required fields", () => {

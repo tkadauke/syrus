@@ -193,6 +193,7 @@ export function SharedMessageRenderer({
   animateClass = "",
   as = "article",
   children,
+  compact = false,
   id,
   readOnly = false,
   testId
@@ -200,6 +201,7 @@ export function SharedMessageRenderer({
   animateClass?: string
   as?: "article" | "li"
   children: ReactNode
+  compact?: boolean
   id?: string
   readOnly?: boolean
   testId?: string
@@ -207,7 +209,7 @@ export function SharedMessageRenderer({
   const Component = as
   return (
     <Component
-      className={`group/message relative min-w-0 pt-6 text-sm text-text-primary${animateClass}`}
+      className={`group/message relative min-w-0 ${compact ? "pt-1" : "pt-6"} text-sm text-text-primary${animateClass}`}
       data-message-mode={readOnly ? "read-only" : "interactive"}
       data-testid={testId}
       id={id}
@@ -914,6 +916,19 @@ export const ToolGroup = memo(function ToolGroup({
 }) {
   const [open, setOpen] = useState(false)
   const presentation = payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined
+  const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
+
+  function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (!payload) return
+    const resolved = resolveWorkspaceFileLink(href, payload)
+    if (resolved) {
+      event.preventDefault()
+      setSourcePreview(resolved)
+      return
+    }
+
+    if (workspaceHrefLooksLocal(href)) event.preventDefault()
+  }
 
   const details = item.calls
     .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
@@ -926,22 +941,20 @@ export const ToolGroup = memo(function ToolGroup({
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="flex min-w-0 cursor-pointer flex-wrap items-baseline gap-x-2 gap-y-1 py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:flex-nowrap dark:text-gray-300 dark:hover:text-gray-100"
+        className="flex min-w-0 cursor-pointer flex-nowrap items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
         }}
       >
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 break-words font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="min-w-0 font-medium text-gray-900 dark:text-gray-100">{summary}</span>
         <Pill className="shrink-0 text-xs" tone={outcome === "Failed" ? "danger" : outcome === "Running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
-        <span className="order-2 min-w-0 flex-1 basis-full break-words pl-5 font-mono text-gray-600 [overflow-wrap:anywhere] sm:order-none sm:basis-0 sm:pl-0 dark:text-gray-400">
-          {details}
-        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? (
-          <Pill className="order-1 ml-auto shrink-0 text-xs sm:order-none" tone="neutral">
+          <Pill className="ml-auto shrink-0 text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : null}
@@ -958,9 +971,9 @@ export const ToolGroup = memo(function ToolGroup({
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
-                <ToolResultBody call={call} chatSessionId={chatSessionId} presentation={presentation} />
+                <ToolResultBody call={call} chatSessionId={chatSessionId} onLinkClick={payload ? handleMarkdownLink : undefined} presentation={presentation} />
               ) : expanded ? (
-                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation))
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, payload ? handleMarkdownLink : undefined))
               ) : null}
               {expanded ? (
                 <RawToolDetails
@@ -988,6 +1001,7 @@ export const ToolGroup = memo(function ToolGroup({
           )
         })}
       </div>
+      {sourcePreview && payload ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
   )
 })
@@ -1019,11 +1033,13 @@ function callRendersWhilePending(call: ChatToolGroupItem["calls"][number]) {
 function ToolResultBody({
   call,
   chatSessionId,
-  presentation
+  presentation,
+  onLinkClick
 }: {
   call: ChatToolGroupItem["calls"][number]
   chatSessionId?: number | string
   presentation?: ToolCardContext["presentation"]
+  onLinkClick?: ToolCardContext["onLinkClick"]
 }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
@@ -1042,7 +1058,7 @@ function ToolResultBody({
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation, onLinkClick))
   if (pluginBody != null) return <>{pluginBody}</>
 
   // Registered cards may have a useful in-flight view derived entirely from
@@ -1060,6 +1076,15 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"]) {
+  // Pending-action state is refreshed from the owning tool-call message,
+  // while result_summary is frozen when the original tool result arrives.
+  // Give a registered card the live record before falling back to that
+  // stored summary so confirmed/rejected outcomes do not keep saying pending.
+  if (call.pending_action) {
+    const liveCardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
+    if (liveCardSummary) return redactToolCardText(liveCardSummary)
+  }
+
   if (call.result_summary) return redactToolCardText(call.result_summary)
 
   const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
@@ -1070,13 +1095,15 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], pr
 export function toolCardContext(
   call: ChatToolGroupItem["calls"][number],
   chatSessionId?: number | string,
-  presentation?: ToolCardContext["presentation"]
+  presentation?: ToolCardContext["presentation"],
+  onLinkClick?: ToolCardContext["onLinkClick"]
 ): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
   return {
     toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? (redactToolCardValue(call.raw_payload) as Record<string, unknown>) : {},
+    onLinkClick,
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
     resultSettled: toolCallSettled(call),

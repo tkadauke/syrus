@@ -2,8 +2,21 @@ import type { ReactNode } from "react"
 import i18n from "i18next"
 import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import type { MarkdownLinkHandler } from "@app/lib/Markdown"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, EntityReference, numberValue, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
+import {
+  Badge,
+  CardShell,
+  Disclosure,
+  displayValue,
+  EmptyState,
+  EntityReference,
+  numberValue,
+  Row,
+  SectionLabel,
+  StatePill,
+  type ToolCardEntityKind
+} from "@app/routes/chat/toolCardUi"
 import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
+import { DataTable } from "@app/components/ui"
 
 // Shared presentation helpers for the agent_memory plugin's chat tool cards
 // (the tool-card work). list_memories, search_memories, read_memory,
@@ -23,13 +36,18 @@ export type MemoryPayload = {
   scopeId: string | null
   content: string
   published: boolean
+  userId: string | null
+  sourceType: string | null
+  sourceId: string | null
   author: string | null
   confidence: number | null
+  visibility: string | null
   expiresAt: string | null
   lastVerifiedAt: string | null
   createdAt: string | null
   updatedAt: string | null
   deletedAt: string | null
+  deletedByUserId: string | null
 }
 
 export function parseMemory(value: unknown): MemoryPayload | null {
@@ -45,13 +63,18 @@ export function parseMemory(value: unknown): MemoryPayload | null {
     scopeId: displayValue(value.scope_id),
     content,
     published: value.published === true,
+    userId: displayValue(value.user_id),
+    sourceType: displayValue(value.source_type),
+    sourceId: displayValue(value.source_id),
     author: displayValue(value.author),
     confidence: numberValue(value.confidence),
+    visibility: displayValue(value.visibility),
     expiresAt: displayValue(value.expires_at),
     lastVerifiedAt: displayValue(value.last_verified_at),
     createdAt: displayValue(value.created_at),
     updatedAt: displayValue(value.updated_at),
-    deletedAt: displayValue(value.deleted_at)
+    deletedAt: displayValue(value.deleted_at),
+    deletedByUserId: displayValue(value.deleted_by_user_id)
   }
 }
 
@@ -69,6 +92,22 @@ export function ScopeRef({ memory }: { memory: MemoryPayload }) {
     return <EntityReference id={memory.scopeId} kind="repository" label={scopeText(memory)} repositoryId={memory.scopeId} wrap="break" />
   }
   return <span className="break-words font-mono text-xs text-text-primary">{scopeText(memory)}</span>
+}
+
+type SourceReferenceDefinition = { kind: ToolCardEntityKind; href?: (id: string) => string }
+
+const SOURCE_REFERENCES: Record<string, SourceReferenceDefinition> = {
+  chat: { kind: "chat" },
+  insight: { kind: "insight" },
+  job: { kind: "job" },
+  run: { kind: "run", href: (id) => `/admin/runs/${id}` },
+  workflow: { kind: "workflow", href: (id) => `/admin/workflows/${id}` }
+}
+
+export function SourceRef({ sourceId, sourceType }: { sourceId: string; sourceType: string | null }) {
+  const definition = sourceType ? SOURCE_REFERENCES[sourceType] : null
+  if (!definition) return <span className="break-words font-mono text-xs text-text-primary">{sourceId}</span>
+  return <EntityReference href={definition.href?.(sourceId)} id={sourceId} kind={definition.kind} wrap="nowrap" />
 }
 
 function t(key: string, options?: Record<string, unknown>) {
@@ -122,7 +161,7 @@ export function ContentPreview({
   )
 }
 
-export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPayload; shell?: boolean }) {
+export function MemoryDetailBody({ memory, onLinkClick, shell = true }: { memory: MemoryPayload; onLinkClick?: MarkdownLinkHandler; shell?: boolean }) {
   const content = (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -140,19 +179,53 @@ export function MemoryDetailBody({ memory, shell = true }: { memory: MemoryPaylo
           <ScopeRef memory={memory} />
         </div>
         {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
+        {memory.userId ? <Row label={t("tool_user_id")} value={memory.userId} /> : null}
+        {memory.sourceType ? <Row label={t("tool_source_type")} value={memory.sourceType} /> : null}
+        {memory.sourceId ? (
+          <div className="min-w-0">
+            <SectionLabel>{t("tool_source_id")}</SectionLabel>
+            <SourceRef sourceId={memory.sourceId} sourceType={memory.sourceType} />
+          </div>
+        ) : null}
         {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+        {memory.visibility ? <Row label={t("tool_visibility")} value={memory.visibility} /> : null}
         {memory.expiresAt ? <Row label={t("tool_expires_at")} value={memory.expiresAt} /> : null}
         {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
         {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
         {memory.updatedAt ? <Row label={t("tool_updated")} value={memory.updatedAt} /> : null}
+        {memory.deletedAt ? <Row label={t("tool_deleted_at")} value={memory.deletedAt} /> : null}
+        {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
       </dl>
       <div>
         <SectionLabel>{t("tool_content")}</SectionLabel>
-        <ContentPreview content={memory.content} />
+        <ContentPreview content={memory.content} onLinkClick={onLinkClick} />
       </div>
     </>
   )
   return shell ? <CardShell>{content}</CardShell> : content
+}
+
+function MemoryListMetadata({ memory }: { memory: MemoryPayload }) {
+  return (
+    <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
+      {memory.author ? <Row label={t("tool_author")} value={memory.author} /> : null}
+      {memory.userId ? <Row label={t("tool_user_id")} value={memory.userId} /> : null}
+      {memory.sourceType ? <Row label={t("tool_source_type")} value={memory.sourceType} /> : null}
+      {memory.sourceId ? (
+        <div className="min-w-0">
+          <SectionLabel>{t("tool_source_id")}</SectionLabel>
+          <SourceRef sourceId={memory.sourceId} sourceType={memory.sourceType} />
+        </div>
+      ) : null}
+      {memory.confidence != null ? <Row label={t("tool_confidence")} value={String(memory.confidence)} /> : null}
+      {memory.visibility ? <Row label={t("tool_visibility")} value={memory.visibility} /> : null}
+      {memory.createdAt ? <Row label={t("tool_created_at")} value={memory.createdAt} /> : null}
+      {memory.expiresAt ? <Row label={t("tool_expires_at")} value={memory.expiresAt} /> : null}
+      {memory.lastVerifiedAt ? <Row label={t("tool_last_verified_at")} value={memory.lastVerifiedAt} /> : null}
+      {memory.deletedAt ? <Row label={t("tool_status_deleted")} value={memory.deletedAt} /> : null}
+      {memory.deletedByUserId ? <Row label={t("tool_deleted_by_user_id")} value={memory.deletedByUserId} /> : null}
+    </dl>
+  )
 }
 
 // Result shape read_memory/write_memory/publish_memory/unpublish_memory all
@@ -198,10 +271,6 @@ export function ErrorCard({ error, title = t("tool_error_title") }: { error: Mem
   )
 }
 
-export function TableShell({ children }: { children: ReactNode }) {
-  return <div className="mt-1 overflow-x-auto rounded border border-border">{children}</div>
-}
-
 // list_memories/search_memories shared list rendering: both return
 // `{ memories: [memory_payload, ...] }`.
 export function memoryRows(context: ToolCardContext): MemoryPayload[] | null {
@@ -225,48 +294,79 @@ export function MemoryListBody({ rows, emptyMessage }: { rows: MemoryPayload[]; 
   if (rows.length === 0) return <EmptyState>{emptyMessage}</EmptyState>
 
   return (
-    <TableShell>
-      <table className="w-full text-left text-xs">
-        <thead className="bg-surface-raised text-2xs uppercase text-text-muted">
-          <tr>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_kind")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_scope")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_state")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_content")}
-            </th>
-            <th className="px-2 py-1 font-semibold" scope="col">
-              {t("tool_updated")}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-surface">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="whitespace-nowrap px-2 py-1">
+    <div className="mt-1 min-w-0 rounded border border-border">
+      <div className="divide-y divide-border sm:hidden">
+        {rows.map((row) => (
+          <article className="min-w-0 space-y-3 p-3" key={row.id}>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <MemoryRef id={row.id} />
+              <div className="flex flex-wrap items-center gap-2">
                 <KindBadge kind={row.kind} />
-              </td>
-              <td className="px-2 py-1">
-                <ScopeRef memory={row} />
-              </td>
-              <td className="whitespace-nowrap px-2 py-1">
                 <PublishedPill memory={row} />
-              </td>
-              <td className="max-w-[24rem] px-2 py-1 text-text-secondary">
-                <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
-              </td>
-              <td className="whitespace-nowrap px-2 py-1 font-mono text-text-muted">{row.updatedAt ?? "—"}</td>
-            </tr>
+                {row.deletedAt ? <StatePill state={t("tool_status_deleted")} tone="failure" /> : null}
+              </div>
+            </div>
+            <dl className="grid min-w-0 gap-2">
+              <div className="min-w-0">
+                <SectionLabel>{t("tool_scope")}</SectionLabel>
+                <ScopeRef memory={row} />
+              </div>
+              <div className="min-w-0">
+                <SectionLabel>{t("tool_updated")}</SectionLabel>
+                <div className="break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]">{row.updatedAt ?? "—"}</div>
+              </div>
+            </dl>
+            <div className="min-w-0">
+              <SectionLabel>{t("tool_content")}</SectionLabel>
+              <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
+            </div>
+            <MemoryListMetadata memory={row} />
+          </article>
+        ))}
+      </div>
+      <DataTable.Root className="table-fixed text-left text-xs" density="compact" wrapperClassName="hidden overflow-x-hidden rounded-none border-0 sm:block">
+        <DataTable.Header className="bg-surface-raised text-2xs uppercase text-text-muted">
+          <DataTable.Row>
+            <DataTable.HeadCell className="w-[14%] px-2 py-2 font-semibold">{t("tool_memory_id")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="w-[13%] px-2 py-2 font-semibold">{t("tool_kind")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="w-[18%] px-2 py-2 font-semibold">{t("tool_scope")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="w-[13%] px-2 py-2 font-semibold">{t("tool_state")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="w-[27%] px-2 py-2 font-semibold">{t("tool_content")}</DataTable.HeadCell>
+            <DataTable.HeadCell className="w-[15%] px-2 py-2 font-semibold">{t("tool_updated")}</DataTable.HeadCell>
+          </DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {rows.map((row) => (
+            <DataTable.Row key={row.id}>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <MemoryRef id={row.id} />
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <KindBadge kind={row.kind} />
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <ScopeRef memory={row} />
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <PublishedPill memory={row} />
+                {row.deletedAt ? <StatePill state={t("tool_status_deleted")} tone="failure" /> : null}
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <div className="min-w-0 text-text-secondary">
+                  <ContentPreview content={row.content} maxChars={LIST_CONTENT_MAX_CHARS} />
+                </div>
+                <div className="mt-2 min-w-0">
+                  <MemoryListMetadata memory={row} />
+                </div>
+              </DataTable.Cell>
+              <DataTable.Cell className="min-w-0 px-2 py-2 align-top">
+                <div className="min-w-0 break-words font-mono text-text-muted [overflow-wrap:anywhere]">{row.updatedAt ?? "—"}</div>
+              </DataTable.Cell>
+            </DataTable.Row>
           ))}
-        </tbody>
-      </table>
-    </TableShell>
+        </DataTable.Body>
+      </DataTable.Root>
+    </div>
   )
 }
 

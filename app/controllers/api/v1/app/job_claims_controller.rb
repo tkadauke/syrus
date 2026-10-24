@@ -6,24 +6,24 @@ module Api
           job = find_job
           return unless authorize_job_mutation!(job)
           if job.claimed_by_user_id.present? && job.claimed_by_user_id != Current.user.id
-            render_error("validation_failed", "Job is already claimed by another user.", status: :unprocessable_content)
+            render_error("validation_failed", claims_t("already_claimed"), status: :unprocessable_content)
             return
           end
 
           job.update!(claimed_by_user: Current.user, claimed_at: Time.current)
-          render_claim(job.reload, message: "Job claimed.")
+          render_claim(job.reload, message: claims_t("claimed"))
         end
 
         def destroy
           job = find_job
           return unless authorize_job_mutation!(job)
           unless job.claimed_by_user_id == Current.user.id
-            render_error("forbidden", "Only the current claimant can release this claim.", status: :forbidden)
+            render_error("forbidden", claims_t("release_forbidden"), status: :forbidden)
             return
           end
 
           job.update!(claimed_by_user: nil, claimed_at: nil)
-          render_claim(job.reload, message: "Job released.")
+          render_claim(job.reload, message: claims_t("released"))
         end
 
         def update_owner
@@ -34,12 +34,12 @@ module Api
           return unless owner
 
           unless job.repository.member_at_least?(owner, "read")
-            render_error("validation_failed", "Owner must have repository access.", status: :unprocessable_content)
+            render_error("validation_failed", claims_t("owner_requires_repository_access"), status: :unprocessable_content)
             return
           end
 
           job.update!(owner_user: owner)
-          render_claim(job.reload, message: "Job owner assigned.")
+          render_claim(job.reload, message: claims_t("owner_assigned"))
         end
 
         private
@@ -51,12 +51,12 @@ module Api
         def find_owner_user
           owner_user_id = params[:owner_user_id].presence || params.dig(:job, :owner_user_id).presence
           unless owner_user_id
-            render_error("validation_failed", "Choose an owner.", status: :unprocessable_content)
+            render_error("validation_failed", claims_t("choose_owner"), status: :unprocessable_content)
             return nil
           end
 
           User.find_by(id: owner_user_id).tap do |owner|
-            render_error("not_found", "Owner user not found.", status: :not_found) unless owner
+            render_error("not_found", claims_t("owner_not_found"), status: :not_found) unless owner
           end
         end
 
@@ -80,6 +80,10 @@ module Api
               claimed_by_current_user: job.claimed_by_user_id == Current.user.id
             }
           }
+        end
+
+        def claims_t(key)
+          t("api.job_claims.#{key}")
         end
 
         def owner_json(user)

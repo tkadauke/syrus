@@ -21,16 +21,14 @@ describe("resume_scheduled_task tool card", () => {
   })
 
   it("summarizes the collapsed row with the resumed label and id", () => {
-    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: resumed }))).toBe(
-      "Resumed 'Nightly main-branch health check' (#12)"
-    )
+    expect(resumeScheduledTaskToolCard.collapsedSummary?.(context({ parsedResult: resumed }))).toBe("Resumed 'Nightly main-branch health check' (#12)")
   })
 
   it("renders the resumed outcome", () => {
     render(<>{resumeScheduledTaskToolCard.renderExpanded(context({ parsedResult: resumed }))}</>)
 
     expect(screen.getByText("resumed")).toBeInTheDocument()
-    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
     expect(screen.getByText("Nightly main-branch health check")).toBeInTheDocument()
     expect(screen.getByText("This task is scheduled again and will fire on its next due tick.")).toBeInTheDocument()
   })

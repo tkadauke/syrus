@@ -1,3 +1,4 @@
+import i18n from "i18next"
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { memoryRows, MemoryListBody, memoryListSummary } from "../memoryToolCard"
 
@@ -12,7 +13,7 @@ function renderExpanded(context: ToolCardContext) {
   const rows = memoryRows(context)
   if (!rows) return null
 
-  return <MemoryListBody emptyMessage="No memories match this search." rows={rows} />
+  return <MemoryListBody emptyMessage={i18n.t("agent_memory:tool_search_empty")} rows={rows} />
 }
 
 const searchMemoriesToolCard: ToolCardRenderer = {

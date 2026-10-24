@@ -7,9 +7,11 @@ RSpec.describe "website home page" do
     File.read(File.expand_path("../../website/#{path}", __dir__))
   end
 
-  let(:page) { read_website("src/app/page.tsx") }
+  let(:page) { read_website("components/pages/home-page.tsx") }
   let(:site_copy) { read_website("lib/site.ts") }
   let(:nav) { read_website("components/nav.tsx") }
+  let(:chrome) { read_website("lib/chrome.ts") }
+  let(:marketing) { read_website("lib/marketing.ts") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
 
   it "assembles the current Next.js landing page from the product sections" do
@@ -18,6 +20,7 @@ RSpec.describe "website home page" do
     expect(page).to include("<Features")
     expect(page).to include("<EntryPoints")
     expect(page).to include("<Demo")
+    expect(page).not_to include("ProductMedia")
   end
 
   it "explains Syrus as owner-controlled AI work from goal to merged pull request" do
@@ -29,18 +32,17 @@ RSpec.describe "website home page" do
   end
 
   it "uses real current anchors and pages for primary calls to action" do
-    expect(nav).to include('href: "/#how"')
-    expect(nav).to include('href: "/#features"')
-    expect(nav).to include('href: "/#entry-points"')
-    expect(nav).to include('href="/#walkthrough-demo"')
+    expect(chrome).to include('href: "/#how"')
+    expect(chrome).to include('href: "/#features"')
+    expect(chrome).to include('href: "/#entry-points"')
     expect(nav).to include("<DownloadButton")
 
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
-    expect(hero).to include('href="/#walkthrough-demo"')
-    expect(hero).to include("Watch the product demo")
+    expect(hero).to include('localizedHref("/#how", locale)')
+    expect(marketing).to include("See how it works")
 
-    expect(read_website("components/footer.tsx")).to include('href: "/download"')
+    expect(chrome).to include('href: "/download"')
   end
 
   it "has a matching section or page for every advertised anchor" do
@@ -48,6 +50,6 @@ RSpec.describe "website home page" do
     expect(read_website("components/features.tsx")).to include('section id="features"')
     expect(read_website("components/entry-points.tsx")).to include('section id="entry-points"')
     expect(read_website("components/demo.tsx")).to include('section id="demo"')
-    expect(read_website("src/app/download/page.tsx")).to include("Download Syrus")
+    expect(marketing).to include("Download Syrus")
   end
 end

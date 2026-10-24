@@ -205,6 +205,7 @@
     "start": "Incipe",
     "error": "Epicum incipere non potuit."
   },
+  "copy_text": "Textum describe",
   "copy": {
     "copy_text": "Copia",
     "copy_to_clipboard": "Describe {{slug}} in tabellam",
@@ -330,6 +331,7 @@
     "epic_wide_workflow_active": "Opus Epici agitur",
     "resource_safety": "Capacitas operarii",
     "ci_repair_safety": "Reparatio CI agitur",
+    "ci_repair_disabled": "Reparatio CI inactiva",
     "active_work_lock": "Seram exspectat",
     "agent_cannot_proceed": "Agens pergere non potest",
     "auto_retry_backoff": "Mora ante iterationem",
@@ -354,6 +356,7 @@
     "epic_wide_workflow_active": "Alius cursus huius Epici seram Epico latam tenet.",
     "resource_safety": "Onus hospitum operariorum nimium est ut hoc opus tuto incipiatur.",
     "ci_repair_safety": "Cursus reparationis CI hunc commissum basis iam tractat.",
+    "ci_repair_disabled": "Reparatio CI automatica in optionibus repositorii inactiva est.",
     "active_work_lock": "Alia unitas operis seram necessariam tenet.",
     "agent_cannot_proceed": "Agens nuntiavit se sine cura moderatoris pergere non posse.",
     "auto_retry_backoff": "Syrus moram exspectat antequam iterum automatice conetur.",

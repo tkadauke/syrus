@@ -119,8 +119,12 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   )
 }
 
-export function CardShell({ children }: { children: ReactNode }) {
-  return <ToolCard.Root className="mt-1 space-y-2">{children}</ToolCard.Root>
+export function CardShell({ children, tone = "neutral" }: { children: ReactNode; tone?: SemanticTone }) {
+  return (
+    <ToolCard.Root className="mt-1 space-y-2" tone={tone}>
+      {children}
+    </ToolCard.Root>
+  )
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
@@ -157,6 +161,7 @@ export type ToolCardEntityKind =
   | "cluster"
   | "namespace"
   | "node"
+  | "pending_action"
   | "wakeup"
   | "scheduled_task"
   | "preview_panel"
@@ -173,6 +178,7 @@ export type EntityReferenceProps = {
   label?: string | null
   href?: string | null
   jobId?: number | string | null
+  chatId?: number | string | null
   workflowId?: number | string | null
   repositoryId?: number | string | null
   repositorySlug?: string | null
@@ -279,10 +285,18 @@ const ENTITY_REFERENCE_DEFINITIONS: Record<ToolCardEntityKind, EntityReferenceDe
   cluster: { label: (reference) => compactEntityValue(reference.id), href: idHref("/k8s_clusters") },
   namespace: { label: (reference) => displayValue(reference.label), href: idHref("/k8s_clusters") },
   node: { label: (reference) => displayValue(reference.label), href: noHref, copyValue: slugCopyValue },
-  wakeup: { label: (reference) => prefixedEntityLabel("WAKEUP", reference.id), href: noHref, copyValue: slugCopyValue },
+  pending_action: { label: (reference) => prefixedEntityLabel("ACTION", reference.id), href: noHref, copyValue: slugCopyValue },
+  wakeup: {
+    label: (reference) => prefixedEntityLabel("WAKEUP", reference.id),
+    href: (reference) => {
+      const chatId = compactEntityValue(reference.chatId)
+      return chatId ? `/chats/${chatId}` : null
+    },
+    copyValue: slugCopyValue
+  },
   scheduled_task: { label: (reference) => prefixedEntityLabel("TASK", reference.id), href: idHref("/scheduled_tasks"), copyValue: slugCopyValue },
   preview_panel: { label: (reference) => compactEntityValue(reference.id), href: noHref, copyValue: slugCopyValue },
-  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: noHref, copyValue: slugCopyValue },
+  memory: { label: (reference) => prefixedEntityLabel("MEMORY", reference.id), href: () => "/memories", copyValue: slugCopyValue },
   insight: {
     label: (reference) => prefixedEntityLabel("INSIGHT", reference.id),
     href: (reference) => {

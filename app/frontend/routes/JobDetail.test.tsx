@@ -2934,9 +2934,9 @@ describe("JobDetailView", () => {
                   critique: "The screenshot shows missing weight units.",
                   artifacts: [
                     {
-                      type: "visual_review_screenshot_run_34_1",
+                      type: "visual_review_mobile_stats_run_34_1",
                       title: "Stats without units",
-                      image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1",
+                      image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_mobile_stats_run_34_1",
                       content_type: "image/jpeg",
                       byte_size: 5678,
                       created_at: "2026-08-22T12:00:00Z"
@@ -2957,10 +2957,11 @@ describe("JobDetailView", () => {
     fireEvent.click(within(screen.getByText(/Run #34/).closest("div.rounded")! as HTMLElement).getByRole("button", { name: "Review" }))
 
     expect(screen.getByRole("heading", { name: "Visual review" })).toBeInTheDocument()
+    expect(screen.getByText("Needs work")).toBeInTheDocument()
     expect(screen.getByText("The screenshot shows missing weight units.")).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Stats without units" })).toHaveAttribute(
       "src",
-      "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1"
+      "/api/v1/app/workflows/9/visual_artifact?type=visual_review_mobile_stats_run_34_1"
     )
   })
 

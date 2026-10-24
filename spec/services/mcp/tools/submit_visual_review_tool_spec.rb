@@ -26,6 +26,8 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
       {
         "type" => "visual_review_screenshot_run_#{target_run.id}_1",
         "original_type" => "visual_review_screenshot",
+        "renderer_type" => "image_diff",
+        "run_id" => target_run.id,
         "title" => "Credential Store after change",
         "payload" => {
           "run_id" => target_run.id,
@@ -76,16 +78,18 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     ])
   end
 
-  it "records visual screenshots from the same run on the review iteration" do
+  it "records descriptively named image artifacts from the same run on the review iteration" do
     run.workflow.set_artifact!("typed_artifacts", [
       {
-        "type" => "visual_review_screenshot_run_#{run.id}_1",
-        "original_type" => "visual_review_screenshot",
+        "type" => "visual_review_mobile_bulk_progress_run_#{run.id}_1",
+        "original_type" => "visual_review_mobile_bulk_progress",
+        "renderer_type" => "image_diff",
+        "run_id" => run.id,
         "title" => "Mobile layout",
         "created_at" => "2026-08-22T12:00:00Z",
         "payload" => {
           "run_id" => run.id,
-          "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
+          "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_mobile_bulk_progress_run_#{run.id}_1",
           "content_type" => "image/jpeg",
           "byte_size" => 1234,
           "source" => "current_browser",
@@ -104,10 +108,18 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
       {
         "type" => "visual_review_screenshot_run_999_1",
         "original_type" => "visual_review_screenshot",
+        "renderer_type" => "image_diff",
+        "run_id" => 999,
         "title" => "Different run",
         "payload" => {
           "run_id" => 999,
-          "image_url" => "/other"
+          "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_999_1",
+          "content_type" => "image/png",
+          "byte_size" => 987,
+          "source" => "current_browser",
+          "captured_at" => "2026-10-10T12:01:00.000Z",
+          "page" => { "path" => "/other" },
+          "viewport" => { "width" => 390, "height" => 844 }
         }
       }
     ])
@@ -117,9 +129,9 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     artifact = run.workflow.reload.artifact("visual_review_iterations").last
     expect(artifact["artifacts"]).to eq([
       {
-        "type" => "visual_review_screenshot_run_#{run.id}_1",
+        "type" => "visual_review_mobile_bulk_progress_run_#{run.id}_1",
         "title" => "Mobile layout",
-        "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
+        "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_mobile_bulk_progress_run_#{run.id}_1",
         "content_type" => "image/jpeg",
         "byte_size" => 1234,
         "page" => {
@@ -136,7 +148,28 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
         "created_at" => "2026-08-22T12:00:00Z"
       }
     ])
+    expect(artifact.fetch("artifacts").pluck("title")).not_to include("Different run")
     expect(artifact).to include("step_id" => run.step_id, "run_id" => run.id)
+  end
+
+  it "excludes same-run non-image typed artifacts" do
+    run.workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_notes",
+        "title" => "Review notes",
+        "renderer_type" => "markdown",
+        "run_id" => run.id,
+        "payload" => {
+          "run_id" => run.id,
+          "content_type" => "text/markdown",
+          "body" => "No layout issues."
+        }
+      }
+    ])
+
+    call(verdict: "approved")
+
+    expect(run.workflow.reload.artifact("visual_review_iterations").last.fetch("artifacts")).to eq([])
   end
 
   it "keeps provenance when a non-auth route review approves a sign-in screenshot" do
@@ -253,7 +286,7 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
     response = call(critique: "No visual issues found.", verdict: "approved")
 
     expect(response).not_to be_error
-    expect(response.content.first[:text]).to include("Warning: no visual_review_screenshot artifacts")
+    expect(response.content.first[:text]).to include("Warning: no image artifacts")
     expect(response.content.first[:text]).to include("capture_current_browser: true")
     expect(run.workflow.reload.artifact("visual_review_iterations").last).to include(
       "verdict" => "approved",

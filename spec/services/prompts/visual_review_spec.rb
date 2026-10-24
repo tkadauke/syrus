@@ -157,6 +157,11 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("does not show the subject of the Job is not evidence and must not be submitted")
   end
 
+  it "allows descriptive screenshot types without making association depend on them" do
+    expect(prompt).to include("descriptive `type`")
+    expect(prompt).to include("trusted run and image provenance, not from an exact type name")
+  end
+
   it "directs long-page reviews to an isolated route with only necessary context" do
     expect(prompt).to include("UI changes inside long pages or lists")
     expect(prompt).to match(/most isolated route that renders the\s+subject under review/)

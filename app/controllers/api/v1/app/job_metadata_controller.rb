@@ -9,7 +9,7 @@ module Api
           return unless tag
 
           job.job_tags.find_or_create_by!(tag: tag)
-          render_metadata(job.reload, message: "Tag added.", changed: [ "tags" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.tag_added"), changed: [ "tags" ])
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -19,12 +19,12 @@ module Api
 
           tag = Current.user.tags.find_by(id: params[:tag_id])
           unless tag
-            render_error("not_found", "Tag not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_metadata.tag_not_found"), status: :not_found)
             return
           end
 
           job.job_tags.where(tag: tag).destroy_all
-          render_metadata(job.reload, message: "Tag removed.", changed: [ "tags" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.tag_removed"), changed: [ "tags" ])
         end
 
         def add_dependency
@@ -32,7 +32,7 @@ module Api
 
           target = dependency_target_for(job)
           unless target
-            render_error("not_found", "Dependency Job not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_metadata.dependency_job_not_found"), status: :not_found)
             return
           end
 
@@ -41,7 +41,7 @@ module Api
           dependency.created_by_user ||= Current.user
 
           if dependency.save
-            render_metadata(job.reload, message: "Dependency added.", changed: [ "dependencies" ])
+            render_metadata(job.reload, message: I18n.t("api.job_metadata.dependency_added"), changed: [ "dependencies" ])
           else
             render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -57,18 +57,18 @@ module Api
 
           dependency = job.dependencies.find_by(id: params[:dependency_id])
           unless dependency
-            render_error("not_found", "Dependency not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_metadata.dependency_not_found"), status: :not_found)
             return
           end
 
           unless dependency.manual?
-            render_error("validation_failed", "Parsed dependencies are kept for audit.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_metadata.parsed_dependency_retained"), status: :unprocessable_content)
             return
           end
 
           dependency.destroy!
           job.start_pending_workflows_if_dependencies_satisfied!
-          render_metadata(job.reload, message: "Dependency removed.", changed: [ "dependencies" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.dependency_removed"), changed: [ "dependencies" ])
         end
 
         def add_epic_dependency
@@ -77,7 +77,7 @@ module Api
           epic_id = params[:depends_on_epic_id].to_i
           epic = policy_scope(Epic).find_by(id: epic_id)
           unless epic
-            render_error("not_found", "Epic not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_metadata.epic_not_found"), status: :not_found)
             return
           end
 
@@ -86,7 +86,7 @@ module Api
           dependency.created_by_user ||= Current.user
 
           if dependency.save
-            render_metadata(job.reload, message: "Epic dependency added.", changed: [ "dependencies" ])
+            render_metadata(job.reload, message: I18n.t("api.job_metadata.epic_dependency_added"), changed: [ "dependencies" ])
           else
             render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -97,18 +97,18 @@ module Api
 
           dependency = job.dependencies.find_by(depends_on_epic_id: params[:depends_on_epic_id])
           unless dependency
-            render_error("not_found", "Epic dependency not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.job_metadata.epic_dependency_not_found"), status: :not_found)
             return
           end
 
           unless dependency.manual?
-            render_error("validation_failed", "Parsed dependencies are kept for audit.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_metadata.parsed_dependency_retained"), status: :unprocessable_content)
             return
           end
 
           dependency.destroy!
           job.start_pending_workflows_if_dependencies_satisfied!
-          render_metadata(job.reload, message: "Epic dependency removed.", changed: [ "dependencies" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.epic_dependency_removed"), changed: [ "dependencies" ])
         end
 
         def stack_base
@@ -116,25 +116,25 @@ module Api
 
           value = params[:stack_base].to_s
           unless Job::STACK_BASES.include?(value)
-            render_error("validation_failed", "Unknown stack base.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_metadata.unknown_stack_base"), status: :unprocessable_content)
             return
           end
 
           job.update!(stack_base: value)
           job.start_pending_workflows_if_dependencies_satisfied!
-          render_metadata(job.reload, message: "Stack base updated.", changed: [ "stack_base" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.stack_base_updated"), changed: [ "stack_base" ])
         end
 
         def mark_valid
           return unless job = find_mutable_job
 
           unless job.validity_duplicate? || job.validity_already_implemented?
-            render_error("validation_failed", "Job is already marked valid.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_metadata.already_valid"), status: :unprocessable_content)
             return
           end
 
           job.mark_valid_and_queue!
-          render_metadata(job.reload, message: "Job marked valid and re-queued.", changed: [ "validity", "state" ])
+          render_metadata(job.reload, message: I18n.t("api.job_metadata.marked_valid"), changed: [ "validity", "state" ])
         end
 
         private
@@ -154,7 +154,7 @@ module Api
         def find_or_create_tag_from_params
           name = params[:tag_name].to_s.strip
           if name.blank?
-            render_error("validation_failed", "Tag name can't be blank.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.job_metadata.tag_name_blank"), status: :unprocessable_content)
             return nil
           end
 

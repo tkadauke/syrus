@@ -4,16 +4,11 @@
 [Read the methodology](https://syrus-ai.dev/docs/dogfooding) behind the
 merged-PR claim.
 
-[![Syrus product screencast showing a video walkthrough becoming a tracked Job](website/public/media/walkthrough-recording.png)](https://syrus-ai.dev/#walkthrough-demo)
+[![The Syrus dashboard turning GitHub issues into pull requests](website/public/product-screenshot.png)](https://syrus-ai.dev)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-2f855a.svg)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-Docker%20Compose-b6492e.svg)](https://syrus-ai.dev/docs/deployment/docker-compose)
 [![Docs](https://img.shields.io/badge/docs-syrus--ai.dev-334155.svg)](https://syrus-ai.dev/docs)
-
-[Watch the product screencast](https://syrus-ai.dev/#walkthrough-demo) or
-open the direct video:
-[WebM](https://raw.githubusercontent.com/tkadauke/syrus/main/website/public/media/syrus-product-screencast.webm) ·
-[MP4](https://raw.githubusercontent.com/tkadauke/syrus/main/website/public/media/syrus-product-screencast.mp4).
 
 > *Bis dat qui cito dat.*
 > He gives twice who gives quickly. — Publilius Syrus

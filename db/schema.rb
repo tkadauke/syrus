@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_140926) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1535,6 +1535,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.integer "invited_by_id", null: false
     t.string "token", null: false
     t.datetime "updated_at", null: false
+    t.string "locale", null: false
     t.index ["email_address"], name: "index_invitations_on_email_address"
     t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
     t.index ["token"], name: "index_invitations_on_token", unique: true
@@ -2839,6 +2840,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.datetime "last_full_poll_at"
     t.json "poll_external_pr_errors"
     t.string "vcs", default: "git", null: false
+    t.boolean "ci_repair_enabled", default: true, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
@@ -3512,6 +3514,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.bigint "test_run_id", null: false
     t.datetime "updated_at", null: false
     t.boolean "wip_repair_failure", default: false, null: false
+    t.index ["created_at", "id"], name: "idx_cases_retention"
     t.index ["repository_id", "test_identity_id", "id"], name: "idx_test_cases_repo_identity_id"
     t.index ["test_identity_id", "created_at", "id"], name: "idx_test_cases_identity_created_id"
     t.index ["test_identity_id", "duration_ms", "created_at", "id"], name: "idx_test_cases_identity_duration_created_id"
@@ -3562,6 +3565,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.string "suite_name", limit: 255, null: false
     t.datetime "updated_at", null: false
     t.bigint "workflow_id"
+    t.index ["created_at", "id"], name: "idx_isolated_repro_attempts_retention"
     t.index ["repository_id", "sha"], name: "idx_isolated_repro_attempts_on_repo_and_sha"
   end
 
@@ -3577,6 +3581,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.integer "skipped_count", default: 0, null: false
     t.integer "total_count", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["created_at", "id"], name: "idx_runs_retention"
     t.index ["repository_id"], name: "index_test_insight_runs_on_repository_id"
     t.index ["run_id", "grader_name"], name: "idx_test_runs_run_grader_unique", unique: true
     t.index ["run_id"], name: "index_test_insight_runs_on_run_id"
@@ -3924,6 +3929,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_022226) do
     t.index ["trigger_kind", "occurred_at"], name: "idx_workflow_activity_trigger_occurred"
     t.index ["workflow_id", "occurred_at"], name: "idx_workflow_activity_workflow_occurred"
     t.index ["workflow_id"], name: "index_workflow_activity_events_on_workflow_id"
+  end
+
+  create_table "workflow_artifact_values", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.string "key", null: false
+    t.text "value", limit: 16777215, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workflow_id", "key"], name: "index_workflow_artifact_values_on_workflow_id_and_key", unique: true
+    t.index ["workflow_id"], name: "index_workflow_artifact_values_on_workflow_id"
   end
 
   create_table "workflow_source_snapshots", force: :cascade do |t|

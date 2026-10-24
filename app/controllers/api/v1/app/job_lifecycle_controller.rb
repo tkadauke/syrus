@@ -115,7 +115,7 @@ module Api
             provenance: "job_ui",
             expected_revision: params[:entity_revision]
           ).apply!
-          render_job(job.reload, message: "Planned execution placement updated.", changed: [ "planned_execution", "workflows", "runs" ])
+          render_job(job.reload, message: lifecycle_t("planned_execution_updated"), changed: [ "planned_execution", "workflows", "runs" ])
         rescue ArgumentError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end

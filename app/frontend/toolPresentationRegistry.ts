@@ -219,6 +219,7 @@ const PROVIDER_BUILTIN_ENTRIES: ToolPresentationEntry[] = [
 // if none did.
 const LOCAL_MODE_TOOL_NAMES = new Set([
   "open_in_local_mode",
+  "open_in_coding_mode",
   "cancel_local_mode",
   "create_coding_job",
   "reset_workspace",

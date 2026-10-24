@@ -84,11 +84,30 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("plugin · agent_insights")).toBeInTheDocument()
     expandToolGroup(region)
 
-    expect(within(region).getByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toBeInTheDocument()
+    expect(within(region).getAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick").length).toBeGreaterThan(0)
 
     fireEvent.click(within(region).getByRole("tab", { name: "No pending insights" }))
     expect(within(region).getByText("No insights match this query.")).toBeInTheDocument()
-    expect(within(region).queryByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).not.toBeInTheDocument()
+    expect(within(region).queryAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toHaveLength(0)
+  })
+
+  it("preserves chat context for catalog links into preview-panel workspaces", () => {
+    renderRoute("/admin/tool_cards?tool_name=write_preview_file")
+
+    const region = screen.getByRole("region", { name: "Write preview file" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Panel #42" })).toHaveAttribute("href", "/chats/8?workspace=preview%3A42")
+  })
+
+  it("preserves prior calls used by a plugin card's catalog example", () => {
+    renderRoute("/admin/tool_cards?tool_name=mysql_db_browser_list_databases")
+
+    const region = screen.getByRole("region", { name: "Mysql db browser list databases" })
+    expandToolGroup(region)
+
+    expect(within(region).getByRole("link", { name: "Production reporting (#7)" })).toHaveAttribute("href", "/db_browser?connection_id=7")
+    expect(within(region).queryByRole("link", { name: "Connection #7" })).not.toBeInTheDocument()
   })
 
   it("renders a core mcp_tool card with multiple examples, including a malformed-payload fallback", () => {
@@ -133,6 +152,58 @@ describe("AdminToolCards", () => {
 
     expandToolGroup(region)
     expect(within(region).getByText("pending")).toBeInTheDocument()
+  })
+
+  it("renders add_job_dependency examples and links across desktop and phone previews", () => {
+    renderRoute("/admin/tool_cards?tool_name=add_job_dependency")
+
+    const region = screen.getByRole("region", { name: "Add job dependency" })
+    expect(within(region).queryByText("No example fixtures registered for this tool yet.")).not.toBeInTheDocument()
+    expandToolGroup(region)
+
+    expect(within(region).getAllByRole("link", { name: "JOB-49" })).toHaveLength(2)
+    expect(within(region).getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+    expect(within(region).getByText("· success")).toBeInTheDocument()
+    expect(within(region).getByText("· stage production")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Phone (390px)" }))
+    expect(within(region).getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Validation error" }))
+    expect(within(region).getByText("Error: Job cannot depend on itself")).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "No current dependencies" }))
+    expect(within(region).getAllByText("No current dependencies")).toHaveLength(2)
+  })
+
+  it("renders live pending-action detail and state for catalog fixtures", () => {
+    renderRoute("/admin/tool_cards?tool_name=force_landing_recheck")
+
+    const region = screen.getByRole("region", { name: "Force landing recheck" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText(/observed blocker: dependencies/)).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Bulk confirmed with refreshed outcome" }))
+
+    expect(within(region).getByText("confirmed")).toBeInTheDocument()
+    expect(within(region).getByText("Landing recheck outcome")).toBeInTheDocument()
+    expect(within(region).getByText(/refreshed state: closed/)).toBeInTheDocument()
+  })
+
+  it("refreshes a pending-action card's collapsed summary from its live catalog state", () => {
+    renderRoute("/admin/tool_cards?tool_name=pause_landing_queue")
+
+    const region = screen.getByRole("region", { name: "Pause landing queue" })
+    expect(within(region).getByText("Pause landing queue · Pending")).toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Landing queue paused" }))
+    expect(within(region).getByText("Pause landing queue · Paused")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
+
+    fireEvent.click(within(region).getByRole("tab", { name: "Queue pause rejected" }))
+    expect(within(region).getByText("Pause landing queue · Rejected")).toBeInTheDocument()
+    expect(within(region).queryByText("Pause landing queue · Pending")).not.toBeInTheDocument()
   })
 
   it("deep-links directly to a specific tool and example", () => {

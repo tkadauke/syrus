@@ -40,5 +40,20 @@
   "tool_close_preview": "Praevisionem claudere",
   "tool_edit_preview_file": "Fasciculum praevisionis emendare",
   "tool_write_preview_file": "Fasciculum praevisionis scribere",
-  "tool_failed_summary": "{{operation}} defecit: {{error}}"
+  "tool_write_file": "Fasciculum praevisionis scribere",
+  "tool_wrote_file": "Fasciculus scriptus",
+  "tool_wrote_summary": "{{path}} scriptus (tabula #{{id}})",
+  "tool_written_content": "Contentum scriptum",
+  "tool_written_content_path": "Contentum scriptum: {{path}}",
+  "tool_empty_file": "Fasciculus vacuus est.",
+  "tool_lines": "Lineae",
+  "tool_closed": "Clausa",
+  "tool_failed_summary": "{{operation}} defecit: {{error}}",
+  "tool_edit_file": "Fasciculum praevisionis mutare",
+  "tool_edited_file": "Fasciculus mutatus",
+  "tool_edited_summary": "{{path}} mutatus (tabula #{{id}})",
+  "tool_replace_all": "Omnia substituere",
+  "tool_yes": "Ita",
+  "tool_no": "Non",
+  "tool_changes": "Mutationes"
 }

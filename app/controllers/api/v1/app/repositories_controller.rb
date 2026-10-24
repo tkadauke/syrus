@@ -48,25 +48,25 @@ module Api
         def owners
           render json: GithubClient.for_user(Current.user).accessible_owners
         rescue ArgumentError
-          render_error("no_token", "No GitHub token is configured.", status: :unprocessable_content)
+          render_error("no_token", I18n.t("api.repositories.selector.no_token"), status: :unprocessable_content)
         rescue Octokit::Unauthorized, Octokit::Forbidden
-          render_error("unauthorized", "GitHub rejected the credentials.", status: :bad_gateway)
+          render_error("unauthorized", I18n.t("api.repositories.selector.credentials_rejected"), status: :bad_gateway)
         rescue StandardError => e
           render_unexpected_github_selector_error(e, action: "owners")
         end
 
         def repos
           owner = params[:owner].to_s.strip
-          return render_error("missing_params", "Owner is required.", status: :bad_request) if owner.blank?
+          return render_error("missing_params", I18n.t("api.repositories.selector.owner_required"), status: :bad_request) if owner.blank?
 
           owner_type = params[:owner_type].to_s.strip
           render json: { repos: GithubClient.for_user(Current.user).owner_repos(owner, owner_type: owner_type) }
         rescue ArgumentError
-          render_error("no_token", "No GitHub token is configured.", status: :unprocessable_content)
+          render_error("no_token", I18n.t("api.repositories.selector.no_token"), status: :unprocessable_content)
         rescue Octokit::NotFound
-          render_error("not_found", "Repository owner was not found or is not accessible.", status: :not_found)
+          render_error("not_found", I18n.t("api.repositories.selector.owner_not_found"), status: :not_found)
         rescue Octokit::Unauthorized, Octokit::Forbidden
-          render_error("not_found", "Repository owner was not found or is not accessible.", status: :bad_gateway)
+          render_error("not_found", I18n.t("api.repositories.selector.owner_not_found"), status: :bad_gateway)
         rescue StandardError => e
           render_unexpected_github_selector_error(e, action: "repos")
         end
@@ -75,15 +75,15 @@ module Api
           owner = params[:owner].to_s.strip
           name = params[:name].to_s.strip
           if owner.blank? || name.blank?
-            render_error("missing_params", "Owner and repository name are required.", status: :bad_request)
+            render_error("missing_params", I18n.t("api.repositories.selector.owner_and_name_required"), status: :bad_request)
             return
           end
 
           render json: GithubClient.for_user(Current.user).repo_branches("#{owner}/#{name}")
         rescue Octokit::NotFound
-          render_error("not_found", "Repository was not found or is not accessible.", status: :not_found)
+          render_error("not_found", I18n.t("api.repositories.selector.repository_not_found"), status: :not_found)
         rescue Octokit::Unauthorized, Octokit::Forbidden
-          render_error("not_found", "Repository was not found or is not accessible.", status: :bad_gateway)
+          render_error("not_found", I18n.t("api.repositories.selector.repository_not_found"), status: :bad_gateway)
         rescue StandardError => e
           render_unexpected_github_selector_error(e, action: "branches")
         end
@@ -538,6 +538,7 @@ module Api
             known_flaky_failure_dismissal_enabled: repository.known_flaky_failure_dismissal_enabled?,
             known_flaky_failure_min_score: repository.known_flaky_failure_min_score,
             isolated_repro_dismissal_enabled: repository.isolated_repro_dismissal_enabled?,
+            ci_repair_enabled: repository.ci_repair_enabled?,
             main_branch_health_enabled: repository.main_branch_health_enabled?,
             main_branch_repair_enabled: repository_main_branch_repair_enabled?(repository),
             main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
@@ -1255,7 +1256,7 @@ module Api
           active_units_by_job_id ||= WorkUnits::Ownership.active_units_by_job_id(job_ids)
           latest_active_ids = active_units_by_job_id.transform_values { |unit| unit.workflow&.id }.compact
           selected_ids = latest_ids.merge(latest_active_ids).values
-          selected_ids.empty? ? {} : Workflow.where(id: selected_ids).index_by(&:job_id)
+          selected_ids.empty? ? {} : Workflow.where(id: selected_ids).preload(:workflow_artifact_values).index_by(&:job_id)
         end
 
         def current_steps_by_workflow_id(workflow_ids)
@@ -1364,6 +1365,7 @@ module Api
             :known_flaky_failure_dismissal_enabled,
             :known_flaky_failure_min_score,
             :isolated_repro_dismissal_enabled,
+            :ci_repair_enabled,
             :main_branch_health_enabled,
             :main_branch_repair_enabled,
             :main_branch_repair_blocks_work,
@@ -1390,7 +1392,7 @@ module Api
             "[RepositoriesController] GitHub selector #{action} failed unexpectedly: #{error.class}: #{error.message}\n" \
               "#{Array(error.backtrace).first(5).join("\n")}"
           )
-          render_error("github_selector_error", "GitHub repository metadata could not be loaded.", status: :internal_server_error)
+          render_error("github_selector_error", I18n.t("api.repositories.selector.unavailable"), status: :internal_server_error)
         end
       end
     end

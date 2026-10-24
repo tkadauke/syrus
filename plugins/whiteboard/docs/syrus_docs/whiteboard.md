@@ -93,8 +93,11 @@ deferred tool tier loads — no feature flag or role gate beyond that):
 - **`update_scene`** — full-scene replacement, reserved for cases the
   high-level tools can't express (an Excalidraw feature with no dedicated
   tool, or a genuine full-scene swap).
-- **`save_canvas`** — snapshots the current scene as `kind: "manual"`
-  (no-ops with `saved: false` if the canvas is empty).
+- **`save_canvas`** — snapshots the current scene as `kind: "manual"`.
+  Successful results include the snapshot id, optional name, element count,
+  chat id, and canvas version. Empty canvases return `saved: false` with the
+  attempted name, chat id, current version, and a reason instead of creating
+  a snapshot.
 - **`clear_canvas`** — auto-snapshots the current scene (`kind:
   "auto_clear"`) before clearing, when non-empty, so a clear is always
   recoverable via `load_canvas`.
@@ -142,6 +145,15 @@ version double-logged this and was simplified.
   or the board was edited after the latest manual snapshot was taken).
   `chat_media_context` reports the live element count so an agent deciding
   whether to `save_canvas` can tell an empty board from one worth saving.
+- **Tool cards** — successful `save_canvas` results and the automatic snapshot
+  created before `clear_canvas` lazily fetch the saved scene and export it to
+  SVG for an inline thumbnail and full-size preview. The cards show the
+  snapshot reference, canvas version, and available snapshot details, and link
+  directly to the chat's Whiteboard and Media tabs. An empty-canvas clear is
+  identified without presenting a snapshot. Loading and rendering failures
+  retain the snapshot metadata and show a localized fallback. Tool inputs and
+  results continue through the shared chat tool-card redaction path before
+  rendering.
 - **System prompt section** (`Whiteboard::PromptSection`) — injects the
   whiteboard's usage guidance into the chat agent's system prompt: use it
   only when the operator explicitly asks for a canvas/diagram/sketch, prefer
