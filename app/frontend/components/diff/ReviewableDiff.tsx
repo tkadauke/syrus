@@ -549,7 +549,11 @@ export function ReviewableDiff({
   }
 
   return (
-    <div className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")} data-testid="agent-diff-viewer" ref={containerRef}>
+    <div
+      className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")}
+      data-testid="agent-diff-viewer"
+      ref={containerRef}
+    >
       <div
         className={containerClass}
         data-rendered-file-count={renderedFileCount}
@@ -1675,7 +1679,9 @@ export function UnifiedDiffTable({
     if (threads.length === 0) return null
 
     const panel = (
-      <div className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}>
+      <div
+        className={`${diffInlineReviewPanelClass(!splitRow && !isMobileViewport, !splitRow && isMobileViewport)} space-y-2 bg-amber-50/70 dark:bg-amber-950/30`}
+      >
         {threads.map((thread) => (
           <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
@@ -1816,11 +1822,7 @@ export function UnifiedDiffTable({
       <div className={`${panelClass} space-y-3 ${panelToneClass}`}>
         {reviewNotes.map((note, index) => {
           const inlineNote = reviewAnnotationInlineItem(note)
-          return (
-            <div key={String(note.id ?? index)}>
-              {renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote), "inline")}
-            </div>
-          )
+          return <div key={String(note.id ?? index)}>{renderPluginReviewAnnotation(inlineNote, reviewAnnotationFallbackPanel(inlineNote), "inline")}</div>
         })}
       </div>
     )

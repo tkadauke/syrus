@@ -358,21 +358,18 @@ describe("mergeContextIntoLines", () => {
     const merged = mergeContextIntoLines(lines, gaps, [{ fromBottom: 7, fromTop: 2 }], fileLines)
 
     expect(merged.filter((line) => line.kind === "hunk")).toEqual([])
-    expect(merged.filter((line) => line.newLine != null).slice(0, 10).map((line) => line.newLine)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(
+      merged
+        .filter((line) => line.newLine != null)
+        .slice(0, 10)
+        .map((line) => line.newLine)
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   })
 
   it("removes only exhausted inter-hunk dividers while preserving stable hunk ids", () => {
-    const patch = [
-      "diff --git a/f b/f",
-      "--- a/f",
-      "+++ b/f",
-      "@@ -1,1 +1,1 @@",
-      " first",
-      "@@ -4,1 +4,1 @@",
-      " second",
-      "@@ -10,1 +10,1 @@",
-      " third"
-    ].join("\n")
+    const patch = ["diff --git a/f b/f", "--- a/f", "+++ b/f", "@@ -1,1 +1,1 @@", " first", "@@ -4,1 +4,1 @@", " second", "@@ -10,1 +10,1 @@", " third"].join(
+      "\n"
+    )
     const lines = parseUnifiedDiff(patch)
     const gaps = contextGapsForHunks(hunksFromLines(lines), fileLines.length)
     const merged = mergeContextIntoLines(lines, gaps, [undefined, { fromBottom: 1, fromTop: 1 }, { fromBottom: 1, fromTop: 1 }], fileLines)
@@ -387,15 +384,15 @@ describe("mergeContextIntoLines", () => {
     const patch = ["@@ -1,1 +1,1 @@", " first", "@@ -7,1 +7,1 @@", " second"].join("\n")
     const lines = parseUnifiedDiff(patch)
     const gaps = contextGapsForHunks(hunksFromLines(lines), fileLines.length)
-    const merged = mergeContextIntoLines(
-      lines,
-      gaps,
-      [undefined, { fromBottom: 1, fromTop: 1, segments: [{ startNew: 3, endNew: 5 }] }],
-      fileLines
-    )
+    const merged = mergeContextIntoLines(lines, gaps, [undefined, { fromBottom: 1, fromTop: 1, segments: [{ startNew: 3, endNew: 5 }] }], fileLines)
 
     expect(merged.filter((line) => line.kind === "hunk").map((line) => line.hunkId)).toEqual([0])
-    expect(merged.filter((line) => line.newLine != null).slice(0, 7).map((line) => line.newLine)).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(
+      merged
+        .filter((line) => line.newLine != null)
+        .slice(0, 7)
+        .map((line) => line.newLine)
+    ).toEqual([1, 2, 3, 4, 5, 6, 7])
   })
 
   it("returns the lines unchanged when no file content has been fetched yet", () => {

@@ -1515,17 +1515,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("colors hunk snippets with parsed line kinds for --- and +++ content", () => {
-    render(
-      <DiffHunkSnippet
-        hunk={[
-          "@@ -1,3 +1,3 @@",
-          " a",
-          "----",
-          "+++i;",
-          " d"
-        ].join("\n")}
-      />
-    )
+    render(<DiffHunkSnippet hunk={["@@ -1,3 +1,3 @@", " a", "----", "+++i;", " d"].join("\n")} />)
 
     expect(screen.getByText("----")).toHaveClass("bg-red-50")
     expect(screen.getByText("+++i;")).toHaveClass("bg-green-50")
