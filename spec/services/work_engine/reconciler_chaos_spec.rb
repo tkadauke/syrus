@@ -186,6 +186,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       shared_repository.update!(
         risk_profile: "standard",
         main_branch_health_enabled: true,
+        main_branch_repair_blocks_work: false,
         ci_health: "healthy",
         grader_health: "healthy",
         landing_paused: false
@@ -1394,6 +1395,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
           "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
           "start_blocked_next_check_at" => 1.minute.ago.iso8601
         }
+      )
+      workflow.work_unit&.update!(
+        blocked_reason: "stack_dependencies_not_ready",
+        blocked_until: 1.minute.ago,
+        blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
       )
       trace << "dependency_start_block=expired"
 
