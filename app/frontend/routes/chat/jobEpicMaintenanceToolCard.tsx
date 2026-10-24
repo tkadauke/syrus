@@ -20,6 +20,7 @@ type MaintenanceToolDefinition = {
   transitionStatePills?: boolean
   showsFullErrorMessage?: boolean
   showsLiveExecution?: boolean
+  showsReasonMarkdown?: boolean
   recoversTargetFromMessage?: boolean
 }
 
@@ -44,7 +45,15 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
   },
   set_job_priority: { toolName: "set_job_priority", subjectKind: "job", actionLabel: "Set Job Priority", verb: "Priority changed" },
   update_job: { toolName: "update_job", subjectKind: "job", actionLabel: "Update Job", verb: "Updated" },
-  rebase_job: { toolName: "rebase_job", subjectKind: "job", actionLabel: "Rebase Job", verb: "Rebase requested" },
+  rebase_job: {
+    toolName: "rebase_job",
+    subjectKind: "job",
+    actionLabel: "Rebase Job",
+    verb: "Rebase requested",
+    showsFullErrorMessage: true,
+    showsLiveExecution: true,
+    showsReasonMarkdown: true
+  },
   reopen_job: { toolName: "reopen_job", subjectKind: "job", actionLabel: "Reopen Job", verb: "Reopen requested" },
   poll_job_feedback: {
     toolName: "poll_job_feedback",
@@ -107,8 +116,10 @@ type MaintenanceCard = {
   hasNewState: boolean
   failed: boolean
   message: string | null
+  reason: string | null
   comment: string | null
   targetHref: string | null
+  workflowId: string | null
   prNumber: string | null
   prUrl: string | null
   rows: DetailRow[]
@@ -258,8 +269,17 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   pushRow(rows, "Satisfaction", objectValue(context.input, "satisfaction_mode"))
   pushRow(rows, "Required stage", objectValue(context.input, "required_deployment_stage_name") || result.required_deployment_stage_name)
   pushRow(rows, "Removed from", result.removed_from_epic_title || (displayValue(result.removed_from_epic_id) ? `EPIC-${result.removed_from_epic_id}` : null))
-  pushRow(rows, "Reason", result.reason)
+  if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
   return rows
+}
+
+function snapshotWorkflowId(snapshot: Record<string, unknown>) {
+  const jobs = Array.isArray(snapshot.jobs) ? snapshot.jobs : []
+  for (const job of jobs) {
+    const workflowId = firstValue(objectValue(objectValue(job, "workflow"), "id"))
+    if (workflowId) return workflowId
+  }
+  return null
 }
 
 export function parseJobEpicMaintenanceResult(context: ToolCardContext): MaintenanceCard | null {
@@ -282,11 +302,12 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
   const liveOutcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : {}
   const beforeSnapshot = isPlainObject(liveMatch?.before_snapshot) ? liveMatch.before_snapshot : {}
   const afterSnapshot = isPlainObject(liveMatch?.after_snapshot) ? liveMatch.after_snapshot : {}
-  const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error, liveMatch?.reason) : null
+  const liveExecutionError = definition.showsLiveExecution ? firstValue(liveMatch?.execution_error) : null
   const prUrl = definition.showsLiveExecution ? firstValue(result.pr_url, liveOutcome.pr_url, afterSnapshot.pr_url, beforeSnapshot.pr_url) : null
   const prNumber = definition.showsLiveExecution
     ? firstValue(result.pr_number, liveOutcome.pr_number, afterSnapshot.pr_number, beforeSnapshot.pr_number, prUrl?.match(/\/pull\/(\d+)/)?.[1])
     : null
+  const workflowId = definition.showsLiveExecution ? firstValue(result.workflow_id, liveOutcome.workflow_id, snapshotWorkflowId(afterSnapshot)) : null
   const subjectState = definition.confirmedSubjectState
     ? firstValue(
         liveOutcome.state,
@@ -335,8 +356,10 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     hasNewState: transitionExecuted && displayValue(result.new_state) != null,
     failed,
     message: liveExecutionError || message,
+    reason: definition.showsReasonMarkdown ? firstValue(result.reason, objectValue(context.input, "reason"), liveMatch?.reason) : null,
     comment: definition.showsComment ? firstValue(objectValue(context.input, "comment")) : null,
     targetHref: definition.showsLiveExecution ? firstValue(liveMatch?.resource_url) : null,
+    workflowId,
     prNumber,
     prUrl,
     rows: [
@@ -455,6 +478,23 @@ export function JobEpicMaintenanceCard({ card }: { card: MaintenanceCard }) {
           text={card.comment}
           title="PR comment"
         />
+      ) : null}
+      {card.reason ? (
+        <MarkdownPreview
+          linkifySlugs
+          linkifyUrls
+          maxChars={360}
+          maxLines={3}
+          modalLabel={`${card.definition.actionLabel} reason`}
+          text={card.reason}
+          title="Reason"
+        />
+      ) : null}
+      {card.workflowId && card.targetId ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Workflow</span>
+          <EntityReference id={card.workflowId} jobId={card.targetId} kind="workflow" />
+        </div>
       ) : null}
       {card.rows.length > 0 ? (
         <dl className="grid gap-1 sm:grid-cols-2">

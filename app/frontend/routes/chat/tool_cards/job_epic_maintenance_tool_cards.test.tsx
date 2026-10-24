@@ -10,6 +10,7 @@ import { examples as closeJobSuccessfullyExamples } from "./close_job_successful
 import setJobPriorityCard from "./set_job_priority"
 import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
+import { examples as rebaseJobExamples } from "./rebase_job"
 import reopenJobCard from "./reopen_job"
 import pollJobFeedbackCard from "./poll_job_feedback"
 import { examples as pollJobFeedbackExamples } from "./poll_job_feedback"
@@ -82,6 +83,10 @@ describe("Job and Epic maintenance tool cards", () => {
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
     expect(card.toolName).toBe(name)
+  })
+
+  it("lets the structured rebase card own the input reason", () => {
+    expect(rebaseJobCard.argumentSummary?.({ job_id: 48, reason: "Refresh after **main** changed." })).toBe("")
   })
 
   it("renders a Job success acknowledgement with before and after state", () => {
@@ -237,6 +242,87 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(pollJobFeedbackCard.collapsedSummary?.(failed)).toBe("Poll Job Feedback failed · JOB-46")
     render(<>{pollJobFeedbackCard.renderExpanded(failed)}</>)
     expect(screen.getByText("GitHub is temporarily unavailable.")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(rebaseJobExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: rebaseJobExamples[0].parsedResult }]
+  ] as const)("renders a pending rebase and Markdown reason from normalized %s", (_label, envelope) => {
+    const example = rebaseJobExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__rebase_job"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase requested · JOB-48 · pending #32")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-48" })).toHaveAttribute("href", "/jobs/48")
+    expect(screen.getByText("Reason")).toBeInTheDocument()
+    expect(screen.getByText("main").tagName).toBe("STRONG")
+  })
+
+  it("falls back to the input reason when a rebase call errors", () => {
+    const ctx = toolCardContextForExample("rebase_job", rebaseJobExamples[1])
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase Job failed · JOB-49")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("A rebase is already in progress.")).toBeInTheDocument()
+    expect(screen.getByText("Retry after the dependency landed.")).toBeInTheDocument()
+  })
+
+  it("expands a long rebase reason instead of truncating it as a detail row", () => {
+    const ctx = toolCardContextForExample("rebase_job", rebaseJobExamples[2])
+
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("main").tagName).toBe("STRONG")
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+  })
+
+  it("shows the live rebase execution outcome and links its resulting workflow", () => {
+    const pending = toolCardContextForExample("rebase_job", rebaseJobExamples[0])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(32, "confirmed", {
+        action: "rebase_job",
+        label: "Rebase JOB-48",
+        reason: "Refresh the branch after **main** changed.",
+        execution_status: "applied",
+        execution_step: "Applied.",
+        resource_title: "Refresh the feature branch",
+        resource_url: "/jobs/48",
+        after_snapshot: { jobs: [{ id: 48, workflow: { id: 801, trigger_kind: "rebase", state: "running" } }] }
+      })
+    }
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase requested · JOB-48")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("applied")).toBeInTheDocument()
+    expect(screen.getByText("Applied.")).toBeInTheDocument()
+    expect(screen.getByText("Job rebase requires operator confirmation.")).toBeInTheDocument()
+    expect(screen.getAllByText(/Refresh the branch after/)).toHaveLength(1)
+    expect(screen.getByRole("link", { name: "WF-801" })).toHaveAttribute("href", "/jobs/48?tab=workflows#workflow-801")
+  })
+
+  it("shows a live rebase execution failure without hiding the requested reason", () => {
+    const pending = toolCardContextForExample("rebase_job", rebaseJobExamples[0])
+    const ctx = {
+      ...pending,
+      livePendingAction: livePendingAction(32, "failed", {
+        action: "rebase_job",
+        execution_status: "failed",
+        execution_error: "ArgumentError: No PR on this Job to rebase."
+      })
+    }
+
+    expect(rebaseJobCard.collapsedSummary?.(ctx)).toBe("Rebase Job failed · JOB-48")
+    render(<>{rebaseJobCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("ArgumentError: No PR on this Job to rebase.")).toBeInTheDocument()
+    expect(screen.getByText(/Refresh the branch after/)).toBeInTheDocument()
   })
 
   it("renders dependency add and remove details for Job and Epic targets", () => {
