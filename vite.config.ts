@@ -83,6 +83,10 @@ export default defineConfig(({ mode }) => {
       // desktop/node_modules carries a slightly different version that imports
       // its own local react, triggering the same duplicate-React crash.
       alias: {
+        // The root React job intentionally does not install desktop's Electron
+        // runtime. Resolve its locale-only test through the small controllable
+        // app.getLocale seam instead.
+        electron: `${rootDir}desktop/src/test/electron.ts`,
         react: `${rootDir}node_modules/react`,
         "react/jsx-runtime": `${rootDir}node_modules/react/jsx-runtime.js`,
         "react/jsx-dev-runtime": `${rootDir}node_modules/react/jsx-dev-runtime.js`,

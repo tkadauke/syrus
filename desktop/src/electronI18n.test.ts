@@ -1,14 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-
-const getLocale = vi.fn()
-
-vi.mock("electron", () => ({ app: { getLocale } }))
+import { beforeEach, describe, expect, it } from "vitest"
+import { setElectronLocale } from "./test/electron"
 
 describe("Electron i18n", () => {
-  beforeEach(() => getLocale.mockReset())
+  beforeEach(() => setElectronLocale("en"))
 
   it("uses Electron's normalized app locale", async () => {
-    getLocale.mockReturnValue("de-DE")
+    setElectronLocale("de-DE")
     const { appLocale, t } = await import("../electron/i18n")
 
     expect(appLocale()).toBe("de")
@@ -20,7 +17,7 @@ describe("Electron i18n", () => {
   })
 
   it("falls back to English for an unsupported app locale", async () => {
-    getLocale.mockReturnValue("fr-FR")
+    setElectronLocale("fr-FR")
     const { appLocale, t } = await import("../electron/i18n")
 
     expect(appLocale()).toBe("en")
