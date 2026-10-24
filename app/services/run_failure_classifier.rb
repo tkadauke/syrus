@@ -66,8 +66,10 @@ class RunFailureClassifier
       result("merge_train_rebuild_required", 0.95, false, "The merge-train workspace exists but has no valid git HEAD; rebuild the train from durable member branches.")
     when workspace_checkout_invalid?
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
+    when source_snapshot_base_ref_unavailable?
+      result("source_snapshot_base_ref_unavailable", 1.0, false, "The recorded source snapshot base ref was deleted and neither its parent merge commit nor the default branch resolves.")
     when source_snapshot_metadata_invalid?
-      result("source_snapshot_metadata_invalid", 0.95, false, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout; retrying unchanged cannot repair it.")
+      result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot setup failed; transient transport failures may succeed on retry.")
     when storage_unavailable?
       result("storage_unavailable", 0.95, true, "Active Storage is temporarily unavailable; retry after the storage backend recovers.")
     when process_memory_limit_exceeded?
@@ -263,6 +265,10 @@ class RunFailureClassifier
   def source_snapshot_metadata_invalid?
     diagnostic&.error_class.to_s.match?(/WorkflowSourceSnapshots::InfrastructureStateError/) ||
       text_match?(/workflow source snapshot metadata (missing|mismatch)|source snapshot metadata (missing|mismatch)/i)
+  end
+
+  def source_snapshot_base_ref_unavailable?
+    diagnostic&.error_class.to_s == "WorkflowSourceSnapshots::BaseRefUnavailableError"
   end
 
   def storage_unavailable?
