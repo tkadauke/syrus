@@ -93,6 +93,11 @@ module Steps
         return
       end
 
+      if ci_repair_target_fixed?(grader_steps, carried_forward, target_health_skipped)
+        record_ci_repair_advisories!(failed_required)
+        return
+      end
+
       if real_failed_required.empty?
         fail_for_infrastructure!(infrastructure_failed_required)
       end
@@ -111,6 +116,85 @@ module Steps
     end
 
     private
+
+    def ci_repair_target_fixed?(grader_steps, carried_forward, target_health_skipped)
+      return false unless workflow.trigger_kind == "ci_failure"
+      return false unless commits_ahead_of_original_ci_head?
+
+      results = grader_steps.map do |grader|
+        details = grader.details.to_h
+        { "name" => details["name"], "target_label" => details["target_label"], "ci_checks" => details["ci_checks"], "passed" => grader.succeeded? }
+      end
+      results.concat(carried_forward.map { |entry| entry.slice("name", "target_label", "ci_checks").merge("passed" => true) })
+      results.concat(target_health_skipped.map { |entry| entry.slice("name", "target_label", "ci_checks").merge("passed" => true) })
+
+      checks = Array(workflow.artifact("failed_checks"))
+      return false if checks.empty?
+
+      mappings = checks.map do |check|
+        check = check.to_h.stringify_keys
+        covering = results.select { |result| grader_covers_check?(result, check) }
+        { "check_name" => check["name"], "grader_names" => covering.map { |result| result["name"] }, "passed" => covering.any? && covering.all? { |result| result["passed"] } }
+      end
+      return false unless mappings.all? { |mapping| mapping["passed"] }
+
+      workflow.set_artifact!("ci_repair_covered_checks", {
+        "original_head_sha" => workflow.artifact("head_sha"),
+        "repaired_head_sha" => current_head_sha,
+        "mappings" => mappings,
+        "recorded_at" => Time.current.iso8601
+      })
+      log("[grader_collect] graders covering the originally failing CI checks passed; allowing the committed repair to proceed")
+      true
+    end
+
+    def grader_covers_check?(result, check)
+      check_name = check["name"].to_s
+      return true if Array(result["ci_checks"]).map(&:to_s).include?(check_name)
+
+      target_label = check.dig("target_context", "target_label").to_s
+      return true if target_label.present? && result["target_label"].to_s == target_label
+
+      normalized_check_name(check_name) == normalized_check_name(result["name"])
+    end
+
+    def normalized_check_name(name)
+      name.to_s.downcase.gsub(/[^a-z0-9]+/, "-").sub(/-ci\z/, "").sub(/\Aci-/, "").delete_suffix("-")
+    end
+
+    def commits_ahead_of_original_ci_head?
+      original_head_sha = workflow.artifact("head_sha").to_s
+      repaired_head_sha = current_head_sha.to_s
+      return false if original_head_sha.blank? || repaired_head_sha.blank? || original_head_sha == repaired_head_sha
+
+      GitRunner.new.run("merge-base", "--is-ancestor", original_head_sha, repaired_head_sha, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
+    end
+
+    def record_ci_repair_advisories!(failed_graders)
+      evidence = failed_graders.map do |grader|
+        details = grader.details.to_h
+        base_retry = details["base_retry_result"].to_h
+        {
+          "grader_step_id" => grader.id,
+          "name" => details["name"],
+          "target_label" => details["target_label"],
+          "base_retry" => base_retry.presence,
+          "exit_code" => details["exit_code"],
+          "output" => details["output"]
+        }.compact.merge("failed_on_base" => base_retry["inherited"])
+      end
+      workflow.set_artifact!("ci_repair_advisory_grader_failures", {
+        "graders" => evidence,
+        "recorded_at" => Time.current.iso8601
+      })
+      failed_graders.each do |grader|
+        grader.update!(details: grader.details.to_h.merge("advisory_failure" => true))
+      end
+      log("[grader_collect] advisory required grader failures: #{grader_names(failed_graders).join(', ')}")
+    end
 
     # Writes every non-passing grader's complete log into the workspace and
     # records an index of them on the workflow, so the repair agent that runs
