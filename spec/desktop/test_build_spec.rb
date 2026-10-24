@@ -27,14 +27,34 @@ RSpec.describe "desktop test-build pipeline" do
   let(:build_text) { File.read(build_path, encoding: "UTF-8") }
   let(:build_yaml) { YAML.safe_load(build_text) }
 
-  it "is workflow_dispatch-only, with a deliberately small input surface" do
+  it "runs on demand and nightly, with a deliberately small input surface" do
     # `on:` parses as the boolean key true.
     triggers = workflow[true]
-    expect(triggers.keys).to eq(["workflow_dispatch"])
+    # No `push`: a test build is a rehearsal, never something every commit
+    # triggers. Adding a trigger beyond these two needs review against that.
+    expect(triggers.keys).to contain_exactly("workflow_dispatch", "schedule")
     inputs = triggers.dig("workflow_dispatch", "inputs")
     expect(inputs.keys).to contain_exactly("run_integration_tests")
     expect(inputs.dig("run_integration_tests", "type")).to eq("boolean")
     expect(inputs.dig("run_integration_tests", "default")).to eq(true)
+
+    crons = Array(triggers["schedule"]).map { |entry| entry["cron"] }
+    expect(crons.size).to eq(1)
+    # Overnight US/Eastern on both sides of the DST shift, and a fixed hour
+    # rather than a range -- GitHub spreads load within the hour already.
+    expect(crons.first).to match(/\A0 [5-9] \* \* \*\z/)
+  end
+
+  # `inputs` is empty on a schedule, so passing `inputs.run_integration_tests`
+  # straight through sends "" into a boolean input: the nightly would skip
+  # bin/test-docker entirely while still reporting green. The run nobody
+  # watches must be the strict one.
+  it "keeps the integration gate on for scheduled runs" do
+    passed = workflow.dig("jobs", "build", "with", "run_integration_tests").to_s
+
+    expect(passed).to include("github.event_name != 'workflow_dispatch'")
+    expect(passed).to include("inputs.run_integration_tests")
+    expect(passed).not_to eq("${{ inputs.run_integration_tests }}")
   end
 
   it "makes publishing structurally impossible: contents read-only, no release, no :latest" do

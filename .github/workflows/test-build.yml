@@ -26,6 +26,11 @@
 #   14 days), not in a GitHub Release, and there are no
 #   stable-name aliases (Syrus.dmg implies the website permalink — releases
 #   only).
+# - It runs nightly as well as on demand, so drift that no commit causes --
+#   a base image moving, a notarization or signing credential expiring, a
+#   toolchain bump -- surfaces against the shared build spine before a release
+#   discovers it. Nothing is published either way; a nightly only proves the
+#   spine still builds and the artifacts still install.
 # - There is no publish job at all: no draft release, no `:latest` move, no
 #   LLM notes, no website deploy — this file has only `prepare`,
 #   `plugin-images` and `build`. plugin-images pushes the plugin service images
@@ -47,6 +52,12 @@ on:
         description: "Run bin/test-docker against each built arch before pushing"
         type: boolean
         default: true
+  # Nightly at 07:00 UTC — 03:00 US/Eastern in summer, 02:00 in winter, so it
+  # never lands in a working day either side of the DST shift. GitHub runs
+  # scheduled workflows only on the default branch, which is what a nightly
+  # rehearsal of the release spine should be exercising anyway.
+  schedule:
+    - cron: "0 7 * * *"
 
 permissions:
   contents: read # checkout only — creating a tag or Release is structurally impossible
@@ -204,7 +215,12 @@ jobs:
       stage_update_feed: false
       artifact_prefix: test-staged
       artifact_retention_days: 14
-      run_integration_tests: ${{ inputs.run_integration_tests }}
+      # `inputs` is empty on a schedule, so a bare `inputs.run_integration_tests`
+      # would pass "" into a boolean input and silently skip bin/test-docker on
+      # every nightly -- turning the one run nobody watches into the weakest
+      # one. The first clause short-circuits true for schedule; a dispatch still
+      # honours whatever the operator picked.
+      run_integration_tests: ${{ github.event_name != 'workflow_dispatch' || inputs.run_integration_tests }}
       # Fork the product name / appId / icon so this installs as "Syrus Test.app"
       # beside — never over — a production release.
       channel: test
