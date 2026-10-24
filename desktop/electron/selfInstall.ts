@@ -11,6 +11,7 @@ import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { promisify } from "node:util"
+import { translate, type Locale } from "./i18nCatalog.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -22,8 +23,7 @@ export const SYSTEM_APPLICATIONS = "/Applications"
 export const UNKNOWN_VERSION = "0.0.0"
 
 // <bundle>.app/Contents/MacOS/<binary> → <bundle>.app
-export const bundlePathFromExecPath = (execPath: string): string =>
-  path.resolve(execPath, "..", "..", "..")
+export const bundlePathFromExecPath = (execPath: string): string => path.resolve(execPath, "..", "..", "..")
 
 export const shouldSelfInstall = ({
   isPackaged,
@@ -46,9 +46,7 @@ export const shouldSelfInstall = ({
   }
 
   const userApplications = path.join(homeDir, "Applications")
-  return ![SYSTEM_APPLICATIONS, userApplications].some(
-    (dir) => bundlePath.startsWith(`${dir}${path.sep}`)
-  )
+  return ![SYSTEM_APPLICATIONS, userApplications].some((dir) => bundlePath.startsWith(`${dir}${path.sep}`))
 }
 
 export type InstallTarget = {
@@ -100,10 +98,7 @@ const canAccess = async (target: string, mode?: number): Promise<boolean> => {
 }
 
 // Probes the filesystem, then delegates the decision to the pure chooser.
-export const resolveInstallTarget = async (
-  bundlePath: string,
-  homeDir: string
-): Promise<InstallTarget> => {
+export const resolveInstallTarget = async (bundlePath: string, homeDir: string): Promise<InstallTarget> => {
   const bundleName = path.basename(bundlePath)
   return chooseInstallTarget({
     bundleName,
@@ -160,10 +155,7 @@ const parseVersion = (value: string | null | undefined): number[] | null => {
 
 // How `candidate` (the launching copy) relates to `existing` (the installed
 // copy). 0.0.0, null, or unparseable on EITHER side is "unknown".
-export const compareVersions = (
-  candidate: string | null | undefined,
-  existing: string | null | undefined
-): VersionComparison => {
+export const compareVersions = (candidate: string | null | undefined, existing: string | null | undefined): VersionComparison => {
   const left = parseVersion(candidate)
   const right = parseVersion(existing)
   if (!left || !right) {
@@ -200,11 +192,13 @@ const describeVersion = (version: string | null | undefined): string => {
 export const replacePrompt = ({
   existingVersion,
   newVersion,
-  targetPath
+  targetPath,
+  locale = "en"
 }: {
   existingVersion: string | null
   newVersion: string
   targetPath: string
+  locale?: Locale
 }) => {
   const note = {
     newer: " (this copy appears newer)",
@@ -214,12 +208,14 @@ export const replacePrompt = ({
   }[compareVersions(newVersion, existingVersion)]
 
   return {
-    message: "Install Syrus to Applications?",
-    detail:
-      `This will replace ${describeVersion(existingVersion)} in ${path.dirname(targetPath)} ` +
-      `with ${describeVersion(newVersion)}${note}.\n\n` +
-      '"Keep Existing" opens the installed copy instead.',
-    buttons: ["Replace", "Keep Existing"] as const,
+    message: translate(locale, "self_install.title"),
+    detail: translate(locale, "self_install.replace_detail", {
+      existing: describeVersion(existingVersion),
+      directory: path.dirname(targetPath),
+      replacement: describeVersion(newVersion),
+      note
+    }),
+    buttons: [translate(locale, "self_install.replace"), translate(locale, "self_install.keep")] as const,
     replaceIndex: 0,
     cancelId: 1
   }
@@ -230,10 +226,8 @@ export type InstallDecision = "replace" | "launch-existing"
 // Maps the dialog response to an action. Anything that isn't an explicit
 // Replace (Escape, Keep Existing) launches the existing install — the
 // session must not continue from the DMG either way.
-export const installDecisionForResponse = (
-  prompt: Pick<ReturnType<typeof replacePrompt>, "replaceIndex">,
-  response: number
-): InstallDecision => (response === prompt.replaceIndex ? "replace" : "launch-existing")
+export const installDecisionForResponse = (prompt: Pick<ReturnType<typeof replacePrompt>, "replaceIndex">, response: number): InstallDecision =>
+  response === prompt.replaceIndex ? "replace" : "launch-existing"
 
 // Dialog copy for a failed install COPY (the existing install, if any, is
 // untouched — installBundle stages before it swaps): the app quits
@@ -242,18 +236,21 @@ export const installDecisionForResponse = (
 export const installFailedPrompt = ({
   bundleName,
   targetPath,
-  reason
+  reason,
+  locale = "en"
 }: {
   bundleName: string
   targetPath: string | null
   reason?: string | null
+  locale?: Locale
 }) => ({
-  message: "Syrus could not be installed.",
-  detail:
-    `Copying ${bundleName}${targetPath ? ` to ${path.dirname(targetPath)}` : ""} failed. ` +
-    "Drag Syrus into your Applications folder in Finder, then launch it from there." +
-    (reason ? `\n\n(${reason})` : ""),
-  buttons: ["Quit"] as const
+  message: translate(locale, "self_install.copy_failed"),
+  detail: translate(locale, "self_install.copy_detail", {
+    bundle: bundleName,
+    destination: targetPath ? ` to ${path.dirname(targetPath)}` : "",
+    reason: reason ? `\n\n(${reason})` : ""
+  }),
+  buttons: [translate(locale, "common.quit")] as const
 })
 
 // Dialog copy for a failed LAUNCH of an installed copy — either the one the
@@ -263,22 +260,21 @@ export const installFailedPrompt = ({
 export const launchFailedPrompt = ({
   targetPath,
   justInstalled,
-  reason
+  reason,
+  locale = "en"
 }: {
   targetPath: string
   justInstalled: boolean
   reason?: string | null
+  locale?: Locale
 }) => ({
-  message: justInstalled
-    ? "Syrus was installed but could not be opened."
-    : "Syrus could not open the installed copy.",
-  detail:
-    (justInstalled
-      ? `Syrus was installed to ${path.dirname(targetPath)} but couldn't be opened automatically. `
-      : `Syrus couldn't open the installed copy at ${targetPath}. `) +
-    "Launch it from Applications manually." +
-    (reason ? `\n\n(${reason})` : ""),
-  buttons: ["Quit"] as const
+  message: justInstalled ? translate(locale, "self_install.open_new_failed") : translate(locale, "self_install.open_old_failed"),
+  detail: translate(locale, justInstalled ? "self_install.open_new_detail" : "self_install.open_old_detail", {
+    directory: path.dirname(targetPath),
+    path: targetPath,
+    reason: reason ? `\n\n(${reason})` : ""
+  }),
+  buttons: [translate(locale, "common.quit")] as const
 })
 
 // Copies the bundle to the chosen target with ditto (preserves the code
