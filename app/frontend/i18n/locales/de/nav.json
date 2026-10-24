@@ -222,7 +222,7 @@
   },
   "filter_fields": {
     "queue_name": "Warteschlange",
-    "job_class": "Aufgabenklasse",
+    "job_class": "Job-Klasse",
     "failed_since": "Fehlgeschlagen seit",
     "window": "Zeit"
   },

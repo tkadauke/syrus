@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import i18n from "../i18n"
 import { AdminEventFilterBar, AdminEventLogTable, AdminEventPageShell, DetailBlock, adminEventLinkClass } from "./AdminEventLogPanel"
 import { Page } from "./ui/Page"
 
@@ -10,6 +11,10 @@ function dataTransfer() {
 
 beforeEach(() => {
   window.localStorage.clear()
+})
+
+afterEach(async () => {
+  await i18n.changeLanguage("en")
 })
 
 function LocationProbe() {
@@ -62,6 +67,55 @@ describe("AdminEventFilterBar", () => {
     // filter was ever requested" and the backend won't re-apply its own
     // defaults on top of the just-cleared state.
     expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/?sort=time&q=eyJhbmQiOltdfQ")
+  })
+
+  it("uses localized field metadata with a backend-supplied filter schema", async () => {
+    await i18n.changeLanguage("de")
+
+    render(
+      <MemoryRouter>
+        <AdminEventFilterBar
+          clearLabel="Löschen"
+          fields={[
+            { name: "event_name", label: "Ereignis" },
+            { name: "job_class", label: "Job-Klasse", placeholder: "PollRepositoryJob" },
+            {
+              name: "revision_scope",
+              label: "Revisionsbereich",
+              options: [
+                { value: "current", label: "Aktueller SHA" },
+                { value: "all", label: "Alle SHAs" }
+              ]
+            }
+          ]}
+          filter={{ and: [] }}
+          filterSchema={[
+            { field: "event_name", label: "Event", bucket: "text", operators: ["is"] },
+            { field: "job_class", label: "Job class", bucket: "text", operators: ["is"] },
+            {
+              field: "revision_scope",
+              label: "Revision scope",
+              bucket: "enum",
+              operators: ["is"],
+              values: [
+                { value: "current", label: "Current SHA" },
+                { value: "all", label: "All SHAs" }
+              ]
+            }
+          ]}
+          search=""
+          searchLabel="Suchen"
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Filter hinzufügen" }))
+
+    expect(screen.getByRole("button", { name: "Ereignis text" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Job-Klasse text" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Revisionsbereich Liste" }))
+    expect(screen.getByLabelText("Wert")).toHaveTextContent("Aktueller SHA")
+    expect(screen.getByLabelText("Wert")).not.toHaveTextContent("Current SHA")
   })
 
   it("keeps an explicit empty `q` after removing the last chip, instead of dropping it", () => {
