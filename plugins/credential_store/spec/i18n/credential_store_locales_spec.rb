@@ -18,8 +18,10 @@ RSpec.describe "Credential Store frontend locales", type: :unit do
       "ssh_identity_warning" => "Die Erkennung beweist die Erreichbarkeit, nicht die Serveridentität. Prüfe den Fingerabdruck über einen vertrauenswürdigen Kanal, bevor du ihn bestätigst."
     )
     expect(locale("la")).to include(
+      "active" => "Activum",
       "description" => "Credentialia generalia cifrata administra sine materia payload patefacienda.",
       "form_description" => "Campi payload tantum scribi possunt. Valores secreti existentes numquam ab API redduntur.",
+      "inactive" => "Inactivum",
       "ssh_not_enrolled" => "Nulla clavis hospitis inscripta est. Chat SSH hoc credentiale nondum adhibere potest."
     )
   end
