@@ -62,7 +62,7 @@ module Mcp::Tools
             pending_confirmation_id: pending_action.id,
             pending_action_id: pending_action.id,
             state: pending_action.state,
-            message: "Job cancellation requires operator confirmation."
+            message: "Cancel #{job.slug}? Cancellation requires operator confirmation."
           )
         end
 
