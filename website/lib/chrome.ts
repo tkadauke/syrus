@@ -96,7 +96,7 @@ export const chromeDictionaries = {
     },
     footer: {
       description:
-        "Von der beschriebenen Aufgabe zum geprüften Pull Request — mit Ihrem Git-Workflow, Ihren Reviews und Ihrer endgültigen Entscheidungshoheit.",
+        "Von der beschriebenen Aufgabe zum geprüften Pull Request — mit deinem Git-Workflow, deinen Reviews und deiner endgültigen Entscheidungshoheit.",
       product: "Produkt",
       getStarted: "Erste Schritte",
       build: "Build",
@@ -124,7 +124,7 @@ export const chromeDictionaries = {
       eyebrow: "Erweiterungen",
       title: "Syrus-Plugins",
       introduction:
-        "Entdecken Sie die mit Syrus ausgelieferten Plugin-Gems. Jedes Plugin beschreibt seine Erweiterungspunkte, wann es aktiviert werden sollte und wie es sich in eine Syrus-Installation einfügt.",
+        "Entdecke die mit Syrus ausgelieferten Plugin-Gems. Jedes Plugin beschreibt seine Erweiterungspunkte, wann du es aktivieren solltest und wie es sich in eine Syrus-Installation einfügt.",
       searchLabel: "Plugins durchsuchen",
       searchPlaceholder: "Plugins nach Name, Kategorie oder Funktion durchsuchen",
       empty: "Keine Plugins entsprechen dieser Suche.",

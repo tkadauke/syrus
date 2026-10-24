@@ -7,6 +7,7 @@ import { AppleIcon, DownloadIcon } from "@/components/icons"
 import { downloads, humanSize, releaseVersion, allReleasesUrl, type DownloadArtifact, type Platform } from "@/lib/release"
 import type { Locale } from "@/lib/locales"
 import { localizedHref } from "@/lib/locales"
+import { marketingFor } from "@/lib/marketing"
 
 export const metadata: Metadata = localizedMetadata({
   locale: "en",
@@ -20,7 +21,7 @@ function PlatformIcon({ id }: { id: Platform }) {
   return id === "mac" ? <AppleIcon className="size-7 text-cream" /> : <DownloadIcon className="size-6 text-cream" />
 }
 
-function Card({ art }: { art: DownloadArtifact }) {
+function Card({ art, locale }: { art: DownloadArtifact; locale: Locale }) {
   const size = humanSize(art.size)
   return (
     <article className="card flex min-w-0 flex-wrap items-center gap-4 p-5 sm:flex-nowrap sm:gap-5 sm:p-6">
@@ -39,36 +40,34 @@ function Card({ art }: { art: DownloadArtifact }) {
 
       <ButtonLink href={art.url} variant="primary" size="lg" className="w-full shrink-0 justify-center sm:w-auto">
         <DownloadIcon className="size-[18px]" />
-        Download
+        {marketingFor(locale).download.button}
       </ButtonLink>
     </article>
   )
 }
 
 export function DownloadPage({ locale }: { locale: Locale }) {
+  const copy = marketingFor(locale).download
   return (
     <>
       <Nav locale={locale} />
       <main id="main" className="wrap max-w-2xl pt-32 pb-24">
         <a href={localizedHref("/", locale)} className="text-[0.85rem] text-cream-dim transition-colors hover:text-cream">
-          ← Back to home
+          {copy.back}
         </a>
-        <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight text-cream">Download Syrus</h1>
-        <p className="mt-4 text-pretty text-[1.02rem] leading-relaxed text-cream-dim">
-          The Syrus desktop app for macOS sets up a complete local Syrus (Docker included) or connects to an existing self-hosted instance. The build is
-          universal: one download runs natively on both Apple&nbsp;Silicon and Intel Macs.
-        </p>
+        <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight text-cream">{copy.title}</h1>
+        <p className="mt-4 text-pretty text-[1.02rem] leading-relaxed text-cream-dim">{copy.intro}</p>
 
         <div className="mt-10 grid gap-4">
           {downloads.map((art) => (
-            <Card key={art.id} art={art} />
+            <Card key={art.id} art={art} locale={locale} />
           ))}
         </div>
 
         <p className="mt-6 text-[0.85rem] text-cream-faint">
-          Every download is the latest published release. Looking for a specific version or the release notes?{" "}
+          {copy.latest}{" "}
           <a href={allReleasesUrl} className="text-clay underline underline-offset-2 hover:text-clay-bright">
-            Browse all releases →
+            {copy.releases}
           </a>
         </p>
       </main>
