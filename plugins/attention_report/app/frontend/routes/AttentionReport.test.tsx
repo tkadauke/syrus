@@ -1,8 +1,9 @@
 import { jsonResponse } from "@app/testSupport"
+import i18n from "@app/i18n"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { AttentionReportPayload } from "../api/attentionReport"
 import AttentionReportRoute from "./AttentionReport"
 
@@ -59,6 +60,10 @@ function renderReport(value: AttentionReportPayload) {
 }
 
 describe("AttentionReportRoute", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en")
+  })
+
   it("renders an empty report without confusing machine time for attention", async () => {
     renderReport(payload())
     expect(await screen.findByText("No attention signals were found in this window.")).toBeInTheDocument()
@@ -111,5 +116,23 @@ describe("AttentionReportRoute", () => {
     expect(screen.getByText("Your data, on your instance. This report never includes another operator's activity.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "30 days" }))
     expect(await vi.waitFor(() => fetchMock.mock.calls.some(([url]) => String(url).includes("window_days=30")))).toBe(true)
+  })
+
+  it("localizes duration units", async () => {
+    await i18n.changeLanguage("de")
+    const value = payload()
+    value.machine_time.agent_runtime.value_ms = 3_600_000
+    value.page_time.by_page_type["job.review"] = {
+      sample_count: 6,
+      enough_data: true,
+      estimate: false,
+      p50_active_ms: { status: "available", value_ms: 60_000, sample_count: 6 },
+      p90_active_ms: { status: "available", value_ms: 180_000, sample_count: 6 }
+    }
+    renderReport(value)
+
+    expect(await screen.findByText("1 Std.")).toBeInTheDocument()
+    expect(screen.getByText("1 Min.")).toBeInTheDocument()
+    expect(screen.getByText("3 Min.")).toBeInTheDocument()
   })
 })
