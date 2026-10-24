@@ -116,6 +116,14 @@ Number of sections used per round by the focused merge-train multisect attributi
 
 ## Instance operations
 
+### ui_engagement_telemetry_enabled
+
+**Type:** boolean · **Default:** false
+
+Opts the instance into per-user active/visible-time collection on allowlisted
+Job, PR-review, and chat pages. Active time excludes hidden tabs and stops after
+60 seconds without input. Samples are retained for 90 days.
+
 ### signups_open
 
 **Type:** boolean · **Default:** false

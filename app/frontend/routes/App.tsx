@@ -71,6 +71,7 @@ import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarP
 import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
+import { UiEngagementTelemetry } from "../lib/uiEngagement"
 
 type AppRouteDefinition = {
   path: string
@@ -263,6 +264,12 @@ export function App() {
 }
 
 function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
@@ -273,7 +280,12 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     </Routes>
   )
 
-  return <AppChromeV2 initialBootstrap={initialBootstrap}>{routes}</AppChromeV2>
+  return (
+    <AppChromeV2 initialBootstrap={initialBootstrap}>
+      <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app.ui_engagement_telemetry_enabled)} />
+      {routes}
+    </AppChromeV2>
+  )
 }
 
 function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {

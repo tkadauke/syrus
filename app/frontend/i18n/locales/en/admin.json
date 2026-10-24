@@ -736,6 +736,8 @@
     "saving": "Saving...",
     "signups_open_label": "Open signups",
     "signups_open_help": "When enabled, anyone can create an account at /users/new. When disabled, signup is invitation-only, but invitation links still work either way.",
+    "ui_engagement_telemetry_label": "Page engagement telemetry",
+    "ui_engagement_telemetry_help": "Collect per-user active and visible time on Job, review, and chat pages. Collection is off by default and samples are deleted after 90 days.",
     "report_issue_repo_slug_label": "Report issue repository",
     "report_issue_repo_slug_help": "Repository slug used by the in-app Report an issue flow. Use owner/name.",
     "telegram_bot_handle_label": "Telegram bot handle",

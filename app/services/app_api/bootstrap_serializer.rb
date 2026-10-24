@@ -71,7 +71,8 @@ module AppApi
         version: app_version,
         built_at: app_built_at,
         bug_report_mode: user ? BugReports::Router.mode_for(user: user)&.to_s : nil,
-        report_issue_repo_slug: AppSetting.report_issue_repo_slug
+        report_issue_repo_slug: AppSetting.report_issue_repo_slug,
+        ui_engagement_telemetry_enabled: user.present? && AppSetting.ui_engagement_telemetry_enabled?
       }
     end
 

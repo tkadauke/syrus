@@ -186,6 +186,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :ui_engagement_telemetry_enabled,
+      type: :boolean,
+      default: false,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Collects per-user active and visible time for the allowlisted Job, review, and chat pages; samples are retained for 90 days.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :beta_mode_enabled,
       type: :boolean,
       default: false,
