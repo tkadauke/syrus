@@ -218,6 +218,7 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
       default_database: "",
       agentic_access_enabled: false,
       allow_writes: false,
+      credential_scope_type: "user",
       password: "not-a-real-password"
     }
   })

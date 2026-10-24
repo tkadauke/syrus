@@ -1,13 +1,27 @@
 namespace :e2e do
-  def enable_e2e_fixture_plugins!
-    # These plugins provide surfaces exercised directly by the seeded preview
-    # scenarios. They are disabled by default on a real installation, but the
-    # E2E fixtures need them active before the browser opens their pages.
-    %w[build_cache claude_agent codex_agent git_history].each do |plugin_name|
+  def enable_e2e_chat_provider_plugins!
+    %w[claude_agent codex_agent].each do |plugin_name|
       plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
       plugin_record.update!(enabled: true) unless plugin_record.enabled?
     end
     Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
+  def enable_e2e_fixture_plugins!
+    # These plugins provide surfaces exercised directly by the seeded preview
+    # scenarios. Use the real enabler so dependencies and enable-time effects
+    # are installed just as they are from Admin -> Plugins.
+    %w[
+      build_cache
+      git_history
+      k8s_cluster
+      mysql_db_browser
+      spending_insights
+      team_directory
+      worker_timeline
+    ].each do |plugin_name|
+      ::Admin::PluginEnabler.enable!(PluginRecord.find_or_create_by!(name: plugin_name))
+    end
   end
 
   desc "Seed deterministic local fixtures for Playwright E2E specs"
@@ -29,7 +43,7 @@ namespace :e2e do
     end
 
     Rails.application.load_seed
-    enable_e2e_fixture_plugins!
+    enable_e2e_chat_provider_plugins!
 
     settings = AppSetting.current
     settings.update!(
@@ -155,6 +169,7 @@ namespace :e2e do
     # place those specs ran at all -- so five of them failed there while passing
     # locally. Resetting here makes a local run reproduce CI.
     PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
+    enable_e2e_chat_provider_plugins!
     enable_e2e_fixture_plugins!
 
     # The dashboard remembers its smart folder, sort, and filters per user, in

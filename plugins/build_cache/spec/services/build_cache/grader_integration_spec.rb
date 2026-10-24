@@ -42,6 +42,14 @@ RSpec.describe "build_cache capture during Steps::Grader", :ci_only do
     # the list" whenever the registry hadn't already been populated by an
     # earlier example in the same process.
     @ws_path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(@ws_path)
+    git_opts = { chdir: @ws_path.to_s, exception: true }
+    system("git", "init", "--quiet", **git_opts)
+    system("git", "config", "user.email", "test@example.com", **git_opts)
+    system("git", "config", "user.name", "Test", **git_opts)
+    File.write(@ws_path.join("README.md"), "hello\n")
+    system("git", "add", "README.md", **git_opts)
+    system("git", "commit", "--quiet", "-m", "init", **git_opts)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end

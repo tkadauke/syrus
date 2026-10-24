@@ -29,7 +29,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       %r{/i18n/locales/},
       %r{desktop/src/i18n\.ts$},
       %r{app/frontend/pluginWorkspaceTabs\.tsx$},
-      %r{app/frontend/routes/DesignSystem\.tsx$}
+      %r{app/frontend/routes/DesignSystem\.tsx$},
+      %r{website/src/app/blog/feed\.xml/route\.ts$}
     ]
   end
 

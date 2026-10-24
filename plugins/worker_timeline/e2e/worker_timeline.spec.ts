@@ -67,6 +67,8 @@ function macroPayload() {
         blocked: { ...emptyBlocked, blocked_reason: "waiting for main branch health" }
       }
     ],
+    active_smart_folder_id: null,
+    smart_folders: [],
     filter: { and: [] },
     filter_schema: []
   }
