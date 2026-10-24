@@ -216,6 +216,7 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
       port: 3306,
       username: "reporting",
       default_database: "",
+      credential_scope_type: "user",
       agentic_access_enabled: false,
       allow_writes: false,
       password: "not-a-real-password"

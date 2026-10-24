@@ -12,7 +12,7 @@ module K8sCluster
           label: "K8s Clusters",
           label_key: "k8s_cluster:nav_k8s_clusters",
           path: "/k8s_clusters",
-          paths: [ "/k8s_clusters" ],
+          paths: [ "/k8s_clusters", "/k8s_clusters/:id" ],
           component: "k8s_cluster/KubernetesClusters",
           icon: "server",
           order: 71
