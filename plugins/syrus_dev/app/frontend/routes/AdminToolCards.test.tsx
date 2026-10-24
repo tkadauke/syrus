@@ -152,26 +152,6 @@ describe("AdminToolCards", () => {
 
     expandToolGroup(region)
     expect(within(region).getByText("pending")).toBeInTheDocument()
-  it("renders add_job_dependency examples and links across desktop and phone previews", () => {
-    renderRoute("/admin/tool_cards?tool_name=add_job_dependency")
-
-    const region = screen.getByRole("region", { name: "Add job dependency" })
-    expect(within(region).queryByText("No example fixtures registered for this tool yet.")).not.toBeInTheDocument()
-    expandToolGroup(region)
-
-    expect(within(region).getAllByRole("link", { name: "JOB-49" })).toHaveLength(2)
-    expect(within(region).getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
-    expect(within(region).getByText("· success")).toBeInTheDocument()
-    expect(within(region).getByText("· stage production")).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("tab", { name: "Phone (390px)" }))
-    expect(within(region).getByRole("link", { name: "EPIC-12" })).toHaveAttribute("href", "/epics/12")
-
-    fireEvent.click(within(region).getByRole("tab", { name: "Validation error" }))
-    expect(within(region).getByText("Error: Job cannot depend on itself")).toBeInTheDocument()
-
-    fireEvent.click(within(region).getByRole("tab", { name: "No current dependencies" }))
-    expect(within(region).getAllByText("No current dependencies")).toHaveLength(2)
   })
 
   it("renders add_job_dependency examples and links across desktop and phone previews", () => {
