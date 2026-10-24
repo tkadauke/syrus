@@ -55,6 +55,20 @@ describe("AppChromeV2", () => {
     }
   })
 
+  it("keeps only the drawer marker when the mobile sidebar is open", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopChannel/test")
+    renderAppChrome()
+
+    const mobileHeader = screen.getByTestId("mobile-app-header")
+    fireEvent.click(within(mobileHeader).getByRole("button", { name: "Open sidebar" }))
+
+    expect(within(mobileHeader).queryByLabelText(/test build, isolated from your production Syrus/i)).toBeNull()
+    const openDrawer = screen.getAllByTestId("sidebar-content").at(-1)
+    expect(openDrawer).toBeDefined()
+    expect(within(openDrawer as HTMLElement).getByRole("button", { name: "Close sidebar" })).toBeInTheDocument()
+    expect(within(openDrawer as HTMLElement).getAllByLabelText(/test build, isolated from your production Syrus/i)).toHaveLength(1)
+  })
+
   it("uses semantic brand tokens for active primary sidebar links", () => {
     const className = sidebarLinkClass(true)
 
