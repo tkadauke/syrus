@@ -26,8 +26,10 @@ module Steps
           "[analyze_and_fix] repeated non-actionable main-branch diagnosis; " \
           "ending CI repair loop as #{diagnosis.fetch('outcome')}"
         )
-      elsif step_diff.blank?
+      elsif step_diff.blank? && !committed_fix_waiting_to_push?(current_head_sha)
         raise_no_changes_produced!
+      elsif step_diff.blank?
+        log("[analyze_and_fix] no new diff, but the branch still contains a committed CI fix; preserving it for grading and push")
       end
 
       run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
@@ -36,6 +38,19 @@ module Steps
     end
 
     private
+
+    def committed_fix_waiting_to_push?(current_head_sha)
+      original_head_sha = workflow.artifact("head_sha").to_s
+      return false if original_head_sha.blank? || current_head_sha.blank? || original_head_sha == current_head_sha
+
+      GitRunner.new.run(
+        "merge-base", "--is-ancestor", original_head_sha, current_head_sha,
+        chdir: workspace.path.to_s
+      )
+      true
+    rescue GitRunner::GitError
+      false
+    end
 
     def compose_prompt
       # Every artifact this prompt depends on is written by *other* steps:
