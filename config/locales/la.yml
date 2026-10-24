@@ -38,7 +38,7 @@ la:
 
   passwords:
     rate_limited: "Post paululum iterum tempta."
-    reset_sent: "Instructiones renovationis tesserae missae sunt (si usori cum illo inscriptionis electronicae loco existit)."
+    reset_sent: "Instructiones renovationis tesserae missae sunt (si usor tali inscriptione electronica exstat)."
     reset_success: "Tessera renovata est."
     mismatch: "Tesserae non congruebant."
     token_invalid: "Nexus renovationis tesserae invalidus est vel exspiravit."
@@ -50,7 +50,7 @@ la:
 
   application:
     admin_required: "Accessus administratoris necessarius est."
-    chat_unavailable: "Ille colloquium non iam praesto est."
+    chat_unavailable: "Hoc colloquium non iam praesto est."
 
   spa:
     startup:
@@ -87,7 +87,7 @@ la:
 
     auth:
       invalid_credentials: "Aliam inscriptionem electronicam vel tesseram tempta."
-      password_reset_sent: "Instructiones renovationis tesserae missae sunt (si usori cum illo inscriptionis electronicae loco existit)."
+      password_reset_sent: "Instructiones renovationis tesserae missae sunt (si usor tali inscriptione electronica exstat)."
       password_reset_success: "Tessera renovata est."
       password_mismatch: "Tesserae non congruebant."
       token_invalid: "Nexus renovationis tesserae invalidus est vel exspiravit."
@@ -161,7 +161,7 @@ la:
       archived: "Epos in archivum repositum est."
       claimed: "Epos vindicatum est."
       unclaimed: "Epos liberatum est."
-      reassigned: "Epos reassignatum est."
+      reassigned: "Epos alii attributum est."
       dependency_added: "Dependentia addita est."
       dependency_removed: "Dependentia remota est."
       not_claimed: "Epos non vindicatum est."
@@ -172,8 +172,8 @@ la:
       ownership_changed_unclaimed: "Dominium Epotis mutatum est antequam petitio confecta est; nunc liberum est."
       ownership_changed: "Dominium Epotis mutatum est antequam petitio confecta est; nunc %{email} assignatum est."
       unknown_state: "Status Epotis ignotus est."
-      transition_not_allowed: "Haec transitus Epotis non praesto est."
-      product_owner_forbidden: "Possessores producti Epos ultra acervum avancere non possunt."
+      transition_not_allowed: "Hic transitus Epotis non praesto est."
+      product_owner_forbidden: "Possessores producti Epos ultra acervum progredi non possunt."
       started: "Epos inceptum est — opera filiorum parata mittuntur."
       created_and_started: "Epos creatum et inceptum est — opera filia parata mittuntur."
       not_startable: "Epos ex statu %{state} effectionem incipere non potest."
@@ -305,7 +305,7 @@ la:
       release_backlog_only: "Sola opera in acervo liberari possunt."
       release_unavailable: "%{slug} est %{state} nec ex acervo liberari potest."
       released_from_backlog: "Opus ex acervo liberatum est."
-      move_to_backlog_unavailable: "%{slug} in acervum moveri non potest postquam opus runtime, recognitio, descensus, aut creatio PR incepta est."
+      move_to_backlog_unavailable: "%{slug} in acervum moveri non potest postquam opus executionis, recognitio, descensus, aut creatio PR incepta est."
       moved_to_backlog: "Opus in acervum motum est."
       not_awaiting_triage: "%{slug} trianam non exspectat."
       accepted: "Opus acceptum est."
