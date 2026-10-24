@@ -1004,6 +1004,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
   end
 
   it "does not expose another user's job" do
+    # The first user created is the bootstrap admin, who may act on any job.
+    user.update!(global_role: "user")
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
     other_job = Factories.job(repository: other_repo, issue_number: 99)
