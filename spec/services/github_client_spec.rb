@@ -909,6 +909,27 @@ RSpec.describe GithubClient do
       end
     end
 
+    describe "#commit_tree_children" do
+      it "walks tree objects and lists only direct children" do
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc")
+          .to_return(status: 200, headers: json, body: { sha: "abc", commit: { tree: { sha: "root-tree" } } }.to_json)
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/git/trees/root-tree")
+          .to_return(status: 200, headers: json, body: { truncated: false, tree: [ { path: "lib", type: "tree", mode: "040000", sha: "lib-tree" } ] }.to_json)
+        stub_request(:get, "https://api.github.com/repos/acme/widgets/git/trees/lib-tree")
+          .to_return(status: 200, headers: json, body: { truncated: false, tree: [
+            { path: "tasks", type: "tree", mode: "040000", sha: "tasks-tree" },
+            { path: "a.rb", type: "blob", mode: "100644", size: 12, sha: "blob" }
+          ] }.to_json)
+
+        result = client.commit_tree_children("acme/widgets", "abc", "lib")
+
+        expect(result[:entries]).to contain_exactly(
+          include(path: "lib/tasks", type: "tree"),
+          include(path: "lib/a.rb", type: "blob", size: 12)
+        )
+      end
+    end
+
     describe "#compare_file_changes" do
       it "keeps the previous path of renames and raises for unknown revisions" do
         stub_request(:get, %r{https://api.github.com/repos/acme/widgets/compare/base\.\.\.head(\?|\z)})

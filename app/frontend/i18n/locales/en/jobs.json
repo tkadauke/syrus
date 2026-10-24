@@ -591,7 +591,7 @@
   "source_tree_truncated": "Tree truncated by GitHub.",
   "source_diff_truncated": "Diff truncated by GitHub.",
   "source_no_files": "No files found.",
-  "source_showing_first": "Showing first {{count}} files.",
+  "source_directory_error": "Unable to load this folder.",
   "source_select_file": "Select a file to view its contents.",
   "source_select_diff_file": "Select a file to view its diff.",
   "source_diff_not_available": "Diff not available (binary or very large file).",

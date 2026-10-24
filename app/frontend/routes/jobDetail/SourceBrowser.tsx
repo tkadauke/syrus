@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
@@ -69,12 +69,13 @@ export function SourceTab({ canReviewDiff = false, jobId, coverageInfo, initialD
     return <SourceDiffBrowser canReviewDiff={canReviewDiff} diffAnnotations={diffAnnotations} mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
   }
 
-  return <SourceBrowser coverageWorkflowId={coverageWorkflowId} expandedPaths={expandedPaths} hitMapAttached={hitMapAttached} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
+  return <SourceBrowser coverageWorkflowId={coverageWorkflowId} expandedPaths={expandedPaths} hitMapAttached={hitMapAttached} jobId={jobId} key={source.data.selected_ref} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
     setSourceRef(source.data.selected_ref)
     setSourcePath(path)
   }} onSelectRef={(ref) => {
     setSourceRef(ref)
     setSourcePath(null)
+    setExpandedPaths(new Set())
   }} showDiffToggle={source.data.branch_commits.length > 0} />
 }
 
@@ -82,6 +83,7 @@ function SourceBrowser({
   coverageWorkflowId,
   expandedPaths,
   hitMapAttached,
+  jobId,
   mode,
   onModeChange,
   payload,
@@ -93,6 +95,7 @@ function SourceBrowser({
   coverageWorkflowId: number | null
   expandedPaths: Set<string>
   hitMapAttached: boolean
+  jobId: string
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
   payload: JobSourcePayload
@@ -102,8 +105,12 @@ function SourceBrowser({
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
-  const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
-  const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
+  const queryClient = useQueryClient()
+  const [treeItems, setTreeItems] = useState(payload.tree_items)
+  const [loadedDirectories, setLoadedDirectories] = useState<Set<string>>(() => new Set([""]))
+  const [loadingDirectories, setLoadingDirectories] = useState<Set<string>>(() => new Set())
+  const [directoryError, setDirectoryError] = useState<string | null>(null)
+  const tree = useMemo(() => buildSourceTree(treeItems), [treeItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
   const fileLanguage = payload.file ? detectHighlighterLanguage(payload.file.path) : null
   const selectedFilePath = payload.file?.path ?? null
@@ -117,7 +124,8 @@ function SourceBrowser({
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
 
-  function toggleDirectory(path: string) {
+  async function toggleDirectory(path: string) {
+    const expanding = !expandedPaths.has(path)
     setExpandedPaths((current) => {
       const next = new Set(current)
       if (next.has(path)) {
@@ -127,6 +135,32 @@ function SourceBrowser({
       }
       return next
     })
+    if (!expanding || loadedDirectories.has(path) || loadingDirectories.has(path)) return
+
+    setLoadingDirectories((current) => new Set(current).add(path))
+    setDirectoryError(null)
+    try {
+      const search = sourceSearch(payload.selected_ref, null, path)
+      const directory = await queryClient.fetchQuery({
+        queryKey: ["jobs", jobId, "source_directory", payload.selected_ref, path],
+        queryFn: () => fetchJobSource(jobId, search)
+      })
+      setTreeItems((current) => {
+        const merged = new Map(current.map((item) => [item.path, item]))
+        directory.tree_items.forEach((item) => merged.set(item.path, item))
+        return Array.from(merged.values())
+      })
+      setLoadedDirectories((current) => new Set(current).add(path))
+      if (directory.tree_truncated) setDirectoryError(t("source_tree_truncated"))
+    } catch (error) {
+      setDirectoryError(errorMessage(error, t("source_directory_error")))
+    } finally {
+      setLoadingDirectories((current) => {
+        const next = new Set(current)
+        next.delete(path)
+        return next
+      })
+    }
   }
 
   const hitLines = hitMap.isSuccess && hitMap.data.hit_map_attached ? hitMap.data.lines : null
@@ -144,6 +178,7 @@ function SourceBrowser({
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
+          {directoryError ? <p className="p-3 text-xs text-red-700">{directoryError}</p> : null}
           {tree.length > 0 ? tree.map((node) => (
             <SourceTreeRow
               expandedPaths={expandedPaths}
@@ -154,7 +189,6 @@ function SourceBrowser({
               selectedPath={payload.selected_path}
             />
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_files")}</p>}
-          {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">{t("source_showing_first", { count: visibleItems.length })}</p> : null}
         </div>
         <div className="min-w-0 overflow-auto">
           {payload.file_error ? <p className="p-4 text-sm text-red-700">{payload.file_error}</p> : null}
