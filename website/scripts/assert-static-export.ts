@@ -25,7 +25,7 @@ for (const file of generatedHtml) {
 }
 
 assert.equal(fs.existsSync(path.join(output, "en")), false, "canonical English must remain unprefixed");
-assert.equal(fs.existsSync(path.join(output, "de")), false, "unpublished German pages must not be exported");
+assert.equal(fs.existsSync(path.join(output, "de")), true, "published German pages must be exported");
 assert.equal(fs.existsSync(path.join(output, "la")), false, "unpublished Latin pages must not be exported");
 
 const homeHtml = fs.readFileSync(path.join(output, "index.html"), "utf8");
@@ -34,6 +34,16 @@ assert.match(homeHtml, /<link rel="alternate" hrefLang="en" href="https:\/\/syru
 assert.match(homeHtml, /<link rel="alternate" hrefLang="x-default" href="https:\/\/syrus-ai\.dev\/"/);
 assert.doesNotMatch(homeHtml, /hrefLang="la"/);
 
+const germanHomeHtml = fs.readFileSync(path.join(output, "de", "index.html"), "utf8");
+assert.match(germanHomeHtml, /<html[^>]*lang="de"/);
+assert.match(germanHomeHtml, /Zum Inhalt springen/);
+assert.match(germanHomeHtml, /Syrus-Startseite/);
+assert.match(germanHomeHtml, /href="\/de\/plugins"/);
+assert.match(germanHomeHtml, /href="\/docs"[^>]*>Dokumentation \(Englisch\)/);
+assert.doesNotMatch(germanHomeHtml, /href="\/de\/docs/);
+assert.equal(fs.existsSync(path.join(output, "de", "docs")), false, "untranslated docs must not be exported under German routes");
+
 const sitemapXml = fs.readFileSync(path.join(output, "sitemap.xml"), "utf8");
 assert.match(sitemapXml, /<xhtml:link rel="alternate" hreflang="x-default" href="https:\/\/syrus-ai\.dev\/" \/>/);
 assert.doesNotMatch(sitemapXml, /hreflang="la"/);
+assert.match(sitemapXml, /hreflang="de"/);

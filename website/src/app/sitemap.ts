@@ -6,5 +6,8 @@ import { sitemapEntries } from "../../lib/sitemap"
 export const dynamic = "force-static"
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return sitemapEntries(allPlugins(), allDocs())
+  return sitemapEntries(
+    allPlugins().map((plugin) => ({ href: plugin.href, locales: ["en", "de"] })),
+    allDocs()
+  )
 }

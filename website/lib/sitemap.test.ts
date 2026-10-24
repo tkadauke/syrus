@@ -40,9 +40,13 @@ test("filters supported but unpublished locale variants", () => {
   );
   const pluginEntries = entries.filter(({ url }) => url.includes("plugins/example"));
 
-  assert.deepEqual(pluginEntries.map(({ url }) => url), ["https://syrus-ai.dev/plugins/example/"]);
+  assert.deepEqual(pluginEntries.map(({ url }) => url), [
+    "https://syrus-ai.dev/de/plugins/example/",
+    "https://syrus-ai.dev/plugins/example/",
+  ]);
   assert.deepEqual(pluginEntries[0]?.alternates.languages, {
     en: "https://syrus-ai.dev/plugins/example/",
+    de: "https://syrus-ai.dev/de/plugins/example/",
     "x-default": "https://syrus-ai.dev/plugins/example/",
   });
 });
