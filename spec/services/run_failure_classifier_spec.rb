@@ -112,16 +112,29 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
-  it "classifies source snapshot metadata failures as non-retryable infrastructure state" do
+  it "keeps transient source snapshot infrastructure failures retryable" do
     run.update!(state: "failed")
     diagnostic(
       "WorkflowSourceSnapshots::InfrastructureStateError",
-      "workflow source snapshot metadata mismatch: source_sha"
+      "immutable source checkout failed: network unavailable"
     )
 
     result = classification
 
     expect(result.classification).to eq("source_snapshot_metadata_invalid")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies an exhausted deleted base ref fallback as non-retryable" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::BaseRefUnavailableError",
+      "immutable source checkout cannot resolve deleted base ref origin/syrus/deleted-parent"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("source_snapshot_base_ref_unavailable")
     expect(result.retryable).to eq(false)
   end
 
