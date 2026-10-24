@@ -141,30 +141,30 @@ class Document < ApplicationRecord
     return unless file?
 
     unless file.attached?
-      errors.add(:file, "must be attached")
+      errors.add(:file, :must_be_attached)
       return
     end
 
-    errors.add(:file, "must be 20 MB or smaller") if file.blob.byte_size > MAX_FILE_SIZE
+    errors.add(:file, :file_too_large, size: 20) if file.blob.byte_size > MAX_FILE_SIZE
     return if accepted_file_content_type?(file.blob.content_type)
 
-    errors.add(:file, "must be a supported text, PDF, Office, or image file")
+    errors.add(:file, :unsupported_file_type)
   end
 
   def file_document_has_no_google_doc_fields
     return unless file?
 
     if google_doc_url.present?
-      errors.add(:google_doc_url, "must be blank for file documents")
+      errors.add(:google_doc_url, :must_be_blank_for_file)
     end
-    errors.add(:content_cache, "must be blank for file documents") if content_cache.present?
-    errors.add(:content_cached_at, "must be blank for file documents") if content_cached_at.present?
+    errors.add(:content_cache, :must_be_blank_for_file) if content_cache.present?
+    errors.add(:content_cached_at, :must_be_blank_for_file) if content_cached_at.present?
   end
 
   def google_doc_has_url
     return unless google_doc?
 
-    errors.add(:google_doc_url, "can't be blank") if google_doc_url.blank?
+    errors.add(:google_doc_url, :blank) if google_doc_url.blank?
   end
 
   def google_doc_url_is_google_doc
@@ -173,30 +173,30 @@ class Document < ApplicationRecord
 
     uri = URI.parse(google_doc_url)
     unless uri.is_a?(URI::HTTPS) && uri.host.to_s == "docs.google.com"
-      errors.add(:google_doc_url, "must be a docs.google.com HTTPS URL")
+      errors.add(:google_doc_url, :invalid_google_doc_url)
     end
   rescue URI::InvalidURIError
-    errors.add(:google_doc_url, "is invalid")
+    errors.add(:google_doc_url, :invalid)
   end
 
   def google_doc_has_no_file
     return unless google_doc?
 
-    errors.add(:file, "can't be attached to a Google Doc link") if file.attached?
+    errors.add(:file, :cannot_attach_to_google_doc) if file.attached?
   end
 
   def content_cache_within_limit
     return if content_cache.blank?
     return if content_cache.to_s.bytesize <= MAX_CONTENT_CACHE_SIZE
 
-    errors.add(:content_cache, "must be 64 KB or smaller")
+    errors.add(:content_cache, :content_cache_too_large, size: 64)
   end
 
   def job_document_count_within_limit
     return unless attachable_type == "Job" && attachable
     return if attachable.documents.count < MAX_ATTACHMENTS_PER_JOB
 
-    errors.add(:base, "Jobs can have at most #{MAX_ATTACHMENTS_PER_JOB} attachments")
+    errors.add(:base, :too_many_job_attachments, count: MAX_ATTACHMENTS_PER_JOB)
   end
 
   def accepted_file_content_type?(content_type)
