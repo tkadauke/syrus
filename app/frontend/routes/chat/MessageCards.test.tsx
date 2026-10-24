@@ -875,7 +875,7 @@ describe("tool result rendering", () => {
 
     const summary = screen.getByText("Publish memory (5)").closest("summary")
     expect(summary).toHaveClass("flex-wrap", "sm:flex-nowrap")
-    expect(summary?.querySelector("span.order-last")).toHaveClass("basis-full", "sm:basis-auto")
+    expect(summary?.querySelector("span.order-2")).toHaveClass("basis-full", "sm:basis-0")
   })
 
   it("keeps an expanded tool group open when a streamed call joins it", () => {

@@ -83,7 +83,7 @@ function t(key: string, options?: Record<string, unknown>) {
   return i18n.t(`agent_memory:${key}`, options)
 }
 
-const publishMemoryToolCard: ToolCardRenderer = { toolName: "publish_memory", collapsedSummary, renderExpanded }
+const publishMemoryToolCard: ToolCardRenderer = { toolName: "publish_memory", renderWhilePending: true, collapsedSummary, renderExpanded }
 export default publishMemoryToolCard
 
 export const examples: ToolCardExample[] = [
