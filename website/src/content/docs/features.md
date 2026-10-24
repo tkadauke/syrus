@@ -272,6 +272,9 @@ through GitHub directly. It does not push to the default branch itself, and it
 does not bypass GitHub branch protection or mergeability checks. Jobs landed
 this way close with `closure_reason: "emergency_landed"` and show the confirming
 operator, permission tier, and timestamp on the Job detail page.
+Syrus briefly waits for GitHub to compute a newly opened PR's mergeability;
+if GitHub still reports it as unknown, the operator gets a retryable failure.
+A retry after a failed confirmation creates a new pending action.
 
 If handoff graders fail, Syrus keeps repair inside the CodingHandoff workflow:
 a fresh workflow agent fixes the committed handoff branch and graders retry

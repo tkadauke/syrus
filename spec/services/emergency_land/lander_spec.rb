@@ -42,6 +42,20 @@ RSpec.describe EmergencyLand::Lander do
       ))
   end
 
+  def stub_mergeability_sequence(*values, number: 9, head_shas: [])
+    responses = values.each_with_index.map do |mergeable, index|
+      OpenStruct.new(
+        mergeable: mergeable,
+        head: OpenStruct.new(sha: head_shas[index] || "headsha123", ref: job.branch_name,
+          repo: OpenStruct.new(full_name: repository.slug)),
+        base: OpenStruct.new(ref: job.effective_base_branch)
+      )
+    end
+    allow(client).to receive(:pull_request)
+      .with("acme/widgets", number, bypass_cache: true)
+      .and_return(*responses)
+  end
+
   def stub_merge(number: 9, merged: true, sha: "mergedsha123", expected_sha: "headsha123")
     allow(client).to receive(:merge_pull_request)
       .with("acme/widgets", number, hash_including(merge_method: "rebase", sha: expected_sha))
@@ -246,6 +260,53 @@ RSpec.describe EmergencyLand::Lander do
       expect(result).to be_refused
       expect(result.message).to match(/not mergeable/i)
       expect(job.reload).to be_coding
+      expect(client).to have_received(:pull_request).once
+    end
+
+    it "polls unknown mergeability until GitHub reports the PR is mergeable" do
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeability_sequence(nil, true, head_shas: %w[initialsha headsha123])
+      stub_merge(number: 9)
+      sleeper = instance_double(Proc, call: nil)
+
+      result = described_class.land(job: job, user: owner, client: client,
+        mergeability_poll_interval: 1, mergeability_wait_ceiling: 3, sleeper: sleeper)
+
+      expect(result).to be_success
+      expect(sleeper).to have_received(:call).with(1).once
+      expect(client).to have_received(:merge_pull_request)
+        .with("acme/widgets", 9, hash_including(sha: "headsha123"))
+    end
+
+    it "polls unknown mergeability and refuses immediately once GitHub reports a conflict" do
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeability_sequence(nil, false)
+      sleeper = instance_double(Proc, call: nil)
+      expect(client).not_to receive(:merge_pull_request)
+
+      result = described_class.land(job: job, user: owner, client: client,
+        mergeability_poll_interval: 1, mergeability_wait_ceiling: 3, sleeper: sleeper)
+
+      expect(result).to be_refused
+      expect(result.message).to eq("GitHub reports PR #9 is not mergeable.")
+      expect(sleeper).to have_received(:call).once
+    end
+
+    it "returns a retryable refusal when mergeability remains unknown for the whole wait" do
+      stub_ahead_commits
+      stub_open_pr(number: 9)
+      stub_mergeability_sequence(nil, nil, nil, nil)
+      sleeper = instance_double(Proc, call: nil)
+      expect(client).not_to receive(:merge_pull_request)
+
+      result = described_class.land(job: job, user: owner, client: client,
+        mergeability_poll_interval: 1, mergeability_wait_ceiling: 3, sleeper: sleeper)
+
+      expect(result).to be_refused
+      expect(result.message).to eq("GitHub has not finished computing mergeability for PR #9; retry emergency land shortly.")
+      expect(sleeper).to have_received(:call).exactly(3).times
     end
 
     it "does not retire queued zero-run ownership when a non-mutating safety check refuses landing" do
