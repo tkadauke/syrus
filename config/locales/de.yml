@@ -150,6 +150,9 @@ de:
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
   api:
+    job_source_diff:
+      preview_fixture: "Vorschau-Testdaten"
+
     provider_routing_rules:
       errors:
         reorder_ids_mismatch: "Die Regel-IDs müssen genau einmal mit allen Regeln in diesem Bereich übereinstimmen."
