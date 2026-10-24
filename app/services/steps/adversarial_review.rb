@@ -16,11 +16,11 @@ module Steps
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
       before_count = review_iterations.size
-      log("invoking agent for adversarial_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
+      log("invoking agent for #{review_step_kind} step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
 
       run_agent(prompt: run.prompt,
                 max_turns: TURN_BUDGET,
-                required_mcp_tools: %w[submit_adversarial_review],
+                required_mcp_tools: [ review_submit_tool ],
                 disallowed_tools: REVIEW_COLLIDING_TOOLS)
       discard_reviewer_workspace_changes
 
@@ -28,31 +28,31 @@ module Steps
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
         if repeated_missing_tool_call_failures?
-          reason = "reviewer did not call submit_adversarial_review after " \
+          reason = "reviewer did not call #{review_submit_tool} after " \
                    "#{prior_failed_missing_tool_call_runs} prior failed attempt(s) of the same kind"
           skip_review!(reason)
           skip_or_fail_unavailable_review!(
-            review_kind: "adversarial_review",
+            review_kind: review_step_kind,
             reason: reason,
             message: reason,
-            config_required: adversarial_review_config&.required == true
+            config_required: review_config&.required == true
           )
         end
 
-        fail_with!(:missing_required_tool_call, "agent didn't call submit_adversarial_review",
-                   evidence: { tool: "submit_adversarial_review" })
+        fail_with!(:missing_required_tool_call, "agent didn't call #{review_submit_tool}",
+                   evidence: { tool: review_submit_tool })
       end
     rescue StandardError => e
       raise unless skippable_review_failure?(e)
 
-      log("[adversarial_review] skipped after reviewer failure: #{e.class}: #{e.message}", kind: "system")
+      log("[#{review_step_kind}] skipped after reviewer failure: #{e.class}: #{e.message}", kind: "system")
       reason = "#{e.class}: #{e.message}"
       skip_review!(reason)
       skip_or_fail_unavailable_review!(
-        review_kind: "adversarial_review",
+        review_kind: review_step_kind,
         reason: reason,
         message: reason,
-        config_required: adversarial_review_config&.required == true
+        config_required: review_config&.required == true
       )
     end
 
@@ -63,7 +63,7 @@ module Steps
 
       explicit_parent_session_id ||
         workflow.steps
-          .where(kind: "adversarial_review", loop_id: step.loop_id)
+          .where(kind: review_step_kind, loop_id: step.loop_id)
           .where("iteration < ?", step.iteration)
           .order(iteration: :desc)
           .first&.latest_run&.provider_session&.session_id
@@ -81,6 +81,12 @@ module Steps
         affected_projects: adversarial_review_projects.to_a
       ).to_s
     end
+
+    def review_step_kind = "adversarial_review"
+    def review_submit_tool = "submit_adversarial_review"
+    def review_event_kind = "adversarial"
+    def review_config = adversarial_review_config
+    def review_skip_label = "Adversarial review"
 
     def adversarial_review_criteria
       [ *adversarial_review_projects.criteria, *plugin_review_criteria ].uniq
@@ -132,7 +138,7 @@ module Steps
           if scope.exists?
             latest_agentic_review_run(agentic_kind)
               &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
-              .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for adversarial_review")
+              .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for #{review_step_kind}")
           else
             diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
           end
@@ -205,7 +211,7 @@ module Steps
     end
 
     def skip_review!(reason)
-      critique = "Adversarial review skipped: #{reason}"
+      critique = "#{review_skip_label} skipped: #{reason}"
       iterations = review_iterations
       iterations << {
         "iteration" => step.iteration,
@@ -216,12 +222,12 @@ module Steps
         "skipped" => true,
         "skip_reason" => reason
       }
-      workflow.set_artifact!("adversarial_review_iterations", iterations)
+      workflow.set_artifact!(Step::Kind.fetch(review_step_kind).review_gate.fetch(:artifact_key), iterations)
       ReviewFindingEvents.record(
         workflow: workflow,
         step: step,
         run: run,
-        review_kind: "adversarial",
+        review_kind: review_event_kind,
         iteration: step.iteration,
         verdict: "skipped",
         critique: critique,
@@ -229,8 +235,8 @@ module Steps
         skip_reason: reason
       )
       step.details = step.details.to_h.merge(
-        "adversarial_review_skipped" => true,
-        "adversarial_review_skip_reason" => reason
+        "#{review_step_kind}_skipped" => true,
+        "#{review_step_kind}_skip_reason" => reason
       )
       step.save!
     end
@@ -241,7 +247,7 @@ module Steps
       status = GitRunner.new.run("status", "--porcelain", chdir: workspace.path.to_s)
       return if status.strip.empty?
 
-      log("[adversarial_review] discarding uncommitted reviewer workspace changes", kind: "system")
+      log("[#{review_step_kind}] discarding uncommitted reviewer workspace changes", kind: "system")
       git = streaming_git
       git.run("restore", "--staged", "--worktree", ".", chdir: workspace.path.to_s)
       git.run("clean", "-fd", chdir: workspace.path.to_s)

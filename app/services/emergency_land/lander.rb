@@ -28,7 +28,7 @@ module EmergencyLand
     FEATURE_DISABLED_MESSAGE = "Emergency land is not enabled on this instance.".freeze
     PERMISSION_DENIED_MESSAGE = "Emergency land requires repository admin permissions.".freeze
     ELIGIBLE_STATES = %w[queued implemented approved failed coding].freeze
-    SKIPPED_CONTROLS = %w[graders adversarial_review visual_review admission_control normal_worker_queue].freeze
+    SKIPPED_CONTROLS = %w[graders adversarial_review security_review visual_review admission_control normal_worker_queue].freeze
 
     def self.eligible_state?(job) = job.state.in?(ELIGIBLE_STATES)
 

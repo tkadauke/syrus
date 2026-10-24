@@ -1405,3 +1405,7 @@ project:
 | `path` | no | the directory containing this file | Overrides the project's workflow scope metadata. Preview and review project selection use this path; target labels and legacy target file scopes still come from the `.syrus.yml` file's actual directory. |
 
 The root `.syrus.yml` may declare `project:` too, but only to customize `label`/`kind`. The root project's `id` (`repo`) and `path` (empty) are structural — there is exactly one repository root — so an explicit `project.id`/`project.path` in the root file that disagrees with that is a config error, not a silent override.
+
+## Security review
+
+`security_review:` configures the optional security-focused review loop. It accepts `rounds` (0–10), `required` (default `false`), and a string array of `criteria`. Nested project criteria are scoped to changes in that project. See `security_review.md`.

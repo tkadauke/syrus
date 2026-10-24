@@ -15,6 +15,8 @@ class SyrusYml
   MAX_GRADE_MAX_ITERATIONS = 10
   MIN_ADVERSARIAL_REVIEW_ROUNDS = 0
   MAX_ADVERSARIAL_REVIEW_ROUNDS = 10
+  MIN_SECURITY_REVIEW_ROUNDS = 0
+  MAX_SECURITY_REVIEW_ROUNDS = 10
   MIN_VISUAL_REVIEW_ROUNDS = 0
   MAX_VISUAL_REVIEW_ROUNDS = 10
   DEFAULT_VISUAL_REVIEW_ROUNDS = 1
@@ -78,7 +80,11 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts) do
+    def initialize(security_review: nil, **rest)
+      super(security_review: security_review, **rest)
+    end
+  end
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
     def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
   end
@@ -253,6 +259,7 @@ class SyrusYml
     end
   end
   AdversarialReviewConfig = Data.define(:rounds, :criteria, :required)
+  SecurityReviewConfig = Data.define(:rounds, :criteria, :required)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes, :required)
   AgentInsightConfig = Data.define(:prepare)
@@ -290,6 +297,7 @@ class SyrusYml
       grade: parse_grade(raw["grade"]),
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
+      security_review: parse_security_review(raw["security_review"]),
       review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
@@ -399,6 +407,26 @@ class SyrusYml
       criteria: parse_adversarial_review_criteria(raw["criteria"]),
       required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
     )
+  end
+
+  def parse_security_review(raw)
+    return nil if raw.nil?
+    raise ParseError, "security_review: must be a mapping" unless raw.is_a?(Hash)
+    raise ParseError, "security_review.rounds: is required" unless raw.key?("rounds")
+
+    rounds = Integer(raw["rounds"])
+    clamped = rounds.clamp(MIN_SECURITY_REVIEW_ROUNDS, MAX_SECURITY_REVIEW_ROUNDS)
+    if clamped != rounds
+      Rails.logger.warn("[SyrusYml] security_review.rounds #{rounds} outside #{MIN_SECURITY_REVIEW_ROUNDS}..#{MAX_SECURITY_REVIEW_ROUNDS}; clamping")
+    end
+
+    SecurityReviewConfig.new(
+      rounds: clamped,
+      criteria: parse_string_array(raw["criteria"], "security_review.criteria"),
+      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
+    )
+  rescue ArgumentError, TypeError
+    raise ParseError, "security_review.rounds: must be an integer"
   end
 
   def parse_review_notes(raw)

@@ -163,6 +163,10 @@ class AppSetting < ApplicationRecord
     current.adversarial_review_rounds
   end
 
+  def self.security_review_rounds
+    current.security_review_rounds
+  end
+
   def self.main_concern_report_threshold
     current.main_concern_report_threshold
   end

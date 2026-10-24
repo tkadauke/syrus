@@ -78,7 +78,7 @@ RSpec.describe EmergencyLand::Lander do
       expect(job.emergency_landed_by_user_id).to eq(owner.id)
       expect(job.emergency_landed_by_membership_tier).to eq("admin")
       expect(job.emergency_land_source_sha).to eq("headsha123")
-      expect(job.emergency_land_skipped_controls).to eq(%w[graders adversarial_review visual_review admission_control normal_worker_queue])
+      expect(job.emergency_land_skipped_controls).to eq(%w[graders adversarial_review security_review visual_review admission_control normal_worker_queue])
     end
 
     it "reuses an already-open PR instead of opening a duplicate" do

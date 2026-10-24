@@ -168,6 +168,14 @@ class Step
                   exit_verdicts: %w[approved skipped],
                   cancellation_reason: "adversarial_review_approved"
                 }),
+      Entry.new(kind: "security_review",    handler: "SecurityReview",     label: "Security review",           style: "bg-orange-100 text-orange-700", agentic: true,
+                required_mcp_tools: %w[submit_security_review],
+                resource_profile_fallback_step_kinds: %w[implement],
+                review_gate: {
+                  artifact_key: "security_review_iterations",
+                  exit_verdicts: %w[approved skipped],
+                  cancellation_reason: "security_review_approved"
+                }),
       # Three verdicts rather than two: "skipped" (not visually testable, or
       # filtered out by when_files_changed) exits the loop the same way
       # "approved" does, since there is nothing for another iteration to

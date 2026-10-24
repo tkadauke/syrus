@@ -90,6 +90,14 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER)
     end
 
+    it "assigns WORKFLOW_SECURITY_REVIEWER and exposes its submission tool" do
+      run.step.update_columns(kind: "security_review")
+      context = described_class.from_run(run.reload)
+
+      expect(context.role).to eq(AgentRole::WORKFLOW_SECURITY_REVIEWER)
+      expect(McpToolPolicy.for(context)).to include(Mcp::Tools::SubmitSecurityReviewTool)
+    end
+
     it "exposes submit_adversarial_review to an adversarial_review step" do
       run.step.update_columns(kind: "adversarial_review")
       context = described_class.from_run(run.reload)

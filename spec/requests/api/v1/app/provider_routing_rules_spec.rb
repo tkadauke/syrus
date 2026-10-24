@@ -317,6 +317,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(options.dig("triggers", "chat_roles")).to include(include("value" => AgentRole::CHAT_CODING))
     expect(options.dig("triggers", "step_kinds")).to include(
       include("value" => "implement"),
+      include("value" => "security_review", "label" => "Security review"),
       include("value" => "plugin_agent_step", "label" => "Plugin agent step")
     )
     expect(options.dig("conditions", "workflow_trigger_kinds")).to include(

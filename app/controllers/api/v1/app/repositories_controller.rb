@@ -576,6 +576,7 @@ module Api
               generated_steps_count: 0,
               visual_review_mode: "unavailable",
               adversarial_review_rounds: nil,
+              security_review_rounds: nil,
               coverage_configured: false,
               delivery_tracks_count: 0,
               merge_train_failure_policy: nil
@@ -594,6 +595,7 @@ module Api
             generated_steps_count: config.generated.is_a?(Array) ? config.generated.size : 0,
             visual_review_mode: visual_review_mode(config.visual_review),
             adversarial_review_rounds: config.adversarial_review&.rounds,
+            security_review_rounds: config.security_review&.rounds,
             coverage_configured: config.coverage.present?,
             delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0,
             merge_train_failure_policy: config.merge_train&.failure_policy.presence
