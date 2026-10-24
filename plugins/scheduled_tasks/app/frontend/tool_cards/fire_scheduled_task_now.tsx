@@ -1,7 +1,7 @@
-import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
-import i18n from "i18next"
+import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
+import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { CardShell, displayValue, EntityReference, StatePill } from "@app/routes/chat/toolCardUi"
-import { withScheduledTaskErrors } from "../scheduledTaskToolCard"
+import { t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
 // Plugin-owned tool card for fire_scheduled_task_now (the pending-action tool-card work).
 // The tool returns the standard pending-action shape
@@ -14,8 +14,21 @@ import { withScheduledTaskErrors } from "../scheduledTaskToolCard"
 // PendingActionCard.
 type FireNowCard = {
   actionId: string
+  taskId: string | null
   state: string
   message: string | null
+  reason: string | null
+  jobId: string | null
+  jobHref: string | null
+}
+
+function jobFromLiveAction(context: ToolCardContext) {
+  const live = context.livePendingAction
+  const outcome = isPlainObject(live?.outcome) ? live.outcome : null
+  const nestedJob = isPlainObject(outcome?.job) ? outcome.job : null
+  const resourceMatch = live?.resource_url?.match(/^\/jobs\/(?:JOB-)?(\d+)(?:[/?#]|$)/i)
+  const id = resourceMatch?.[1] || displayValue(outcome?.job_id) || displayValue(nestedJob?.id)
+  return { id, href: resourceMatch ? live?.resource_url || null : id ? `/jobs/${id}` : null }
 }
 
 function parseFireNow(context: ToolCardContext): FireNowCard | null {
@@ -23,49 +36,106 @@ function parseFireNow(context: ToolCardContext): FireNowCard | null {
   if (!isPlainObject(parsed)) return null
 
   const actionId = displayValue(parsed.pending_action_id) || displayValue(parsed.pending_confirmation_id)
-  const state = displayValue(parsed.state)
-  if (!actionId || !state) return null
+  if (!actionId) return null
 
-  return { actionId, state, message: displayValue(parsed.message) }
+  const live = context.livePendingAction
+  const liveMatch = live && displayValue(live.id) === actionId ? live : null
+  const job = liveMatch ? jobFromLiveAction(context) : { id: null, href: null }
+
+  return {
+    actionId,
+    taskId: displayValue(context.input?.scheduled_task_id),
+    state: liveMatch?.state || displayValue(parsed.state) || "pending",
+    message: displayValue(parsed.message),
+    reason: displayValue(liveMatch?.reason) || displayValue(liveMatch?.execution_error),
+    jobId: job.id,
+    jobHref: job.href
+  }
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const card = parseFireNow(context)
   if (!card) return null
 
+  if (card.state === "confirmed") return card.jobId ? t("tool_fire_now_fired_summary", { id: card.jobId }) : t("tool_fire_now_confirmed_summary")
+  if (card.state === "rejected") return t("tool_fire_now_rejected_summary")
+  if (card.state === "failed") return t("tool_fire_now_failed_summary")
   return t("tool_fire_now_summary", { id: card.actionId, state: card.state })
-}
-
-function t(key: string, options?: Record<string, unknown>) {
-  return i18n.t(`scheduled_tasks:${key}`, options)
 }
 
 function renderExpanded(context: ToolCardContext) {
   const card = parseFireNow(context)
   if (!card) return null
+  const pending = ["queued", "pending", "confirming"].includes(card.state)
 
   return (
     <CardShell>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <StatePill state={card.state} />
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("tool_fire_now_title")}</span>
+        <span className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{t("tool_fire_now_title")}</span>
+        <EntityReference id={card.actionId} kind="pending_action" wrap="nowrap" />
       </div>
-      {card.message ? <div className="text-gray-700 dark:text-gray-300">{card.message}</div> : null}
-      <dl className="grid gap-1 sm:grid-cols-2">
-        <div className="min-w-0">
-          <div className="text-2xs font-semibold uppercase tracking-wide text-text-muted">{t("tool_pending_action")}</div>
-          <EntityReference id={card.actionId} kind="pending_action" />
-        </div>
-      </dl>
-      <div className="text-gray-500 dark:text-gray-400">{t("tool_fire_now_pending_confirmation")}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {card.taskId ? <EntityReference id={card.taskId} kind="scheduled_task" wrap="nowrap" /> : null}
+        {card.jobId ? <EntityReference href={card.jobHref} id={card.jobId} kind="job" wrap="nowrap" /> : null}
+      </div>
+      <MarkdownPreview
+        emptyLabel={t("tool_fire_now_message_empty")}
+        linkifySlugs
+        linkifyUrls
+        maxChars={480}
+        modalLabel={t("tool_fire_now_message_full")}
+        text={card.message}
+        title={t("tool_fire_now_message")}
+      />
+      {pending ? <div className="break-words text-gray-500 dark:text-gray-400">{t("tool_fire_now_pending_confirmation")}</div> : null}
+      {card.state === "confirmed" ? <div className="break-words text-success-text">{t("tool_fire_now_fired")}</div> : null}
+      {card.state === "rejected" ? <div className="break-words text-danger-text">{card.reason || t("tool_fire_now_rejected")}</div> : null}
+      {card.state === "failed" ? <div className="break-words text-danger-text">{card.reason || t("tool_fire_now_failed")}</div> : null}
     </CardShell>
   )
 }
 
-const fireScheduledTaskNowToolCard: ToolCardRenderer = withScheduledTaskErrors({
-  toolName: "fire_scheduled_task_now",
-  collapsedSummary,
-  renderExpanded
-})
+const fireScheduledTaskNowToolCard: ToolCardRenderer = withScheduledTaskErrors(
+  {
+    toolName: "fire_scheduled_task_now",
+    argumentSummary(input) {
+      const taskId = displayValue(input?.scheduled_task_id)
+      return taskId ? t("tool_fire_now_argument", { id: taskId }) : ""
+    },
+    collapsedSummary,
+    renderExpanded
+  },
+  t("tool_fire_now_title")
+)
+
+export const examples: ToolCardExample[] = [
+  {
+    id: "pending_markdown_message",
+    label: "Pending immediate fire",
+    input: { scheduled_task_id: 12 },
+    parsedResult: { pending_confirmation_id: 501, state: "pending", message: "Fire **TASK-12** now? See https://example.test/runbook." }
+  },
+  {
+    id: "confirmed_with_job",
+    label: "Confirmed with created Job",
+    input: { scheduled_task_id: 12 },
+    parsedResult: { pending_action_id: 501, state: "pending", message: "Fire TASK-12 immediately?" },
+    livePendingAction: {
+      id: 501,
+      action: "fire_scheduled_task_now",
+      state: "confirmed",
+      label: "Fire scheduled task #12",
+      detail: "scheduled_task_id: 12",
+      outcome: { job_id: 884 },
+      resource_title: "Scheduled run",
+      resource_url: "/jobs/884",
+      app_confirm_path: "/confirm",
+      app_reject_path: "/reject"
+    }
+  },
+  { id: "error", label: "Immediate fire error", input: { scheduled_task_id: 12 }, resultBody: "Task isn't fireable in its current state.", resultError: true },
+  { id: "empty", label: "Empty result", input: { scheduled_task_id: 12 }, parsedResult: {} }
+]
 
 export default fireScheduledTaskNowToolCard
