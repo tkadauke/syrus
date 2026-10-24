@@ -11056,14 +11056,27 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path.includes("tree_path=app%2Fmodels")) {
-        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "app/models", treeItems: [
-          { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby", type: "file" }
-        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              jobSourcePayload({
+                treePath: "app/models",
+                treeItems: [{ path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby", type: "file" }]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
       if (path.includes("tree_path=app")) {
-        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "app", treeItems: [
-          { path: "app/models", name: "models", size: 0, language: "plaintext", type: "directory" }
-        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              jobSourcePayload({ treePath: "app", treeItems: [{ path: "app/models", name: "models", size: 0, language: "plaintext", type: "directory" }] })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
       if (path.startsWith("/api/v1/app/jobs/42/source?")) {
         return Promise.resolve(
@@ -11111,14 +11124,25 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path.includes("tree_path=src")) {
-        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treePath: "src", treeItems: [
-          { path: "src/after-the-old-limit.rb", name: "after-the-old-limit.rb", size: 12, language: "ruby", type: "file" }
-        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              jobSourcePayload({
+                treePath: "src",
+                treeItems: [{ path: "src/after-the-old-limit.rb", name: "after-the-old-limit.rb", size: 12, language: "ruby", type: "file" }]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
       }
       if (path === "/api/v1/app/jobs/42/source") {
-        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treeItems: [
-          { path: "src", name: "src", size: 0, language: "plaintext", type: "directory" }
-        ] })), { status: 200, headers: { "Content-Type": "application/json" } }))
+        return Promise.resolve(
+          new Response(JSON.stringify(jobSourcePayload({ treeItems: [{ path: "src", name: "src", size: 0, language: "plaintext", type: "directory" }] })), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+        )
       }
       if (path === "/api/v1/app/jobs/42/timeline") {
         return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
