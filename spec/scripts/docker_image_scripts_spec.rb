@@ -331,6 +331,15 @@ RSpec.describe "Docker image scripts" do
     expect(preview_section).to include("SYRUS_ROLE: preview")
   end
 
+  # An unlimited worker makes the kernel choose a global OOM victim, and it once
+  # chose dockerd -- taking the whole stack down instead of the one container
+  # whose agent run blew up.
+  it "caps worker memory so a runaway run cannot trigger a VM-wide OOM" do
+    worker_section = compose_yml[/^  worker:.*?(?=^  \w)/m] || ""
+
+    expect(worker_section).to match(/mem_limit: \$\{SYRUS_WORKER_MEM_LIMIT:-\d+[gm]\}/)
+  end
+
   it "mounts the mise cache as a named volume on the worker service only" do
     expect(compose_yml).to include("      - syrus-mise-cache:/opt/mise\n")
     expect(compose_yml).to include("  syrus-mise-cache:\n")

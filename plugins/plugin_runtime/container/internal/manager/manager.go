@@ -706,6 +706,7 @@ func (m *Manager) create(ctx context.Context, name string, s spec.Service, ref p
 		// included: their capabilities come from CapAdd below, never from
 		// setuid escalation.
 		SecurityOpt: []string{"no-new-privileges:true"},
+		Memory:      s.MemoryLimitBytes,
 	}
 	if def != nil {
 		hostConfig.CapAdd = def.CapAdd

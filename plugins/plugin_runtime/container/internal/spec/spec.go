@@ -41,6 +41,18 @@ type Service struct {
 	// Healthcheck is probed over HTTP by the manager itself, so it works for
 	// images that ship without curl or wget.
 	Healthcheck *Healthcheck `json:"healthcheck,omitempty"`
+
+	// MemoryLimitBytes caps the container's memory. Zero means no limit, which
+	// is the historical behaviour: the kernel then picks a global OOM victim
+	// under pressure, and the victim is whatever looks worst host-wide rather
+	// than the service that actually overran -- once the Docker daemon itself,
+	// which takes every container down with it. A limit confines the kill to
+	// the offending service and makes `OOMKilled` name it.
+	//
+	// It is a restriction, not a grant: a service can only shrink what it may
+	// use, never widen it. Hash() covers it, so changing the limit replaces
+	// the container on the next reconcile tick.
+	MemoryLimitBytes int64 `json:"memory_limit_bytes,omitempty"`
 }
 
 // Volume is a named volume mounted into the service.
