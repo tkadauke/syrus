@@ -806,7 +806,7 @@ function loadHtml2Canvas() {
   return html2canvasPromise
 }
 
-function normalizeCloneForCapture(clonedDoc: Document) {
+function normalizeCloneForCapture(clonedDoc: Document, captureMode: CapturedScreenshotChoice) {
   // html2canvas resets scrollTop/scrollLeft to 0 in the cloned document. To capture
   // the current visible state of inner scroll containers (e.g. the chat message stream,
   // which uses overflow-y-auto and doesn't scroll the window), we mirror the original
@@ -821,7 +821,10 @@ function normalizeCloneForCapture(clonedDoc: Document) {
   const originalEls = Array.from(document.querySelectorAll<HTMLElement>("*"))
 
   clonedDoc.querySelectorAll<HTMLElement>("*").forEach((clonedEl, i) => {
-    if (getComputedStyle(clonedEl).position === "sticky") {
+    // Viewport captures need the browser's current sticky placement. Full-page
+    // captures render the document from its origin, where sticky elements should
+    // participate in normal flow instead of pinning over content farther down.
+    if (captureMode === "fullPage" && getComputedStyle(clonedEl).position === "sticky") {
       clonedEl.style.position = "relative"
     }
 
@@ -842,7 +845,7 @@ function captureViewport(html2canvas: Html2Canvas) {
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
     useCORS: true,
-    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
+    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument, "viewport")
   })
 }
 
@@ -870,7 +873,7 @@ function captureFullPage(html2canvas: Html2Canvas) {
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
     useCORS: true,
-    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
+    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument, "fullPage")
   })
 }
 
