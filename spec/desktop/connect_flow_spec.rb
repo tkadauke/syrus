@@ -15,7 +15,7 @@ RSpec.describe "desktop connect flow" do
   end
 
   def desktop_i18n
-    read("src/i18n.ts")
+    read("electron/i18nCatalog.ts")
   end
 
   it "keeps the two instanceUrl copies byte-identical" do

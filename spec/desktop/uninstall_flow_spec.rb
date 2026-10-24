@@ -20,6 +20,7 @@ RSpec.describe "desktop uninstall flow" do
   let(:install_paths) { read("electron/installer/installPaths.ts") }
   let(:uninstall_command) { read("electron/installer/uninstallCommand.ts") }
   let(:main_process) { read("electron/main.ts") }
+  let(:i18n_catalog) { read("electron/i18nCatalog.ts") }
 
   it "stages the uninstall script alongside the installer, shell scripts executable" do
     %w[install.sh uninstall.sh].each do |asset|
@@ -78,22 +79,23 @@ RSpec.describe "desktop uninstall flow" do
   end
 
   it "offers Uninstall Syrus… as a low-prominence app-menu item near Quit" do
-    expect(main_process).to include('label: "Uninstall Syrus…"')
+    expect(main_process).to include('label: t("shell.uninstall")')
     # Its own separator group directly above Quit in the app-name submenu.
-    expect(main_process).to match(/"Uninstall Syrus…"[\s\S]{0,200}\{ role: "quit" \}/)
+    expect(main_process).to match(/t\("shell\.uninstall"\)[\s\S]{0,200}\{ role: "quit" \}/)
     expect(main_process).to include("void confirmAndUninstall()")
   end
 
   it "confirms with Cancel as the default and a default-unchecked delete-data checkbox" do
     confirm = main_process[/const confirmAndUninstall = async \(\) => \{[\s\S]*?\n\}/]
     expect(confirm).to include('type: "warning"')
-    expect(confirm).to include('buttons: ["Cancel", "Uninstall"]')
+    expect(confirm).to include('buttons: [t("common.cancel"), t("dialog.uninstall_button")]')
     expect(confirm).to include("defaultId: 0")
     expect(confirm).to include("cancelId: 0")
     expect(confirm).to include("checkboxChecked: false")
-    expect(confirm).to include("cannot be undone")
+    expect(confirm).to include('detail: t(channel === "test" ? "dialog.uninstall_test_detail" : "dialog.uninstall_detail", { app: appName })')
+    expect(i18n_catalog).to include("cannot be undone")
     # The message must spell out the blast radius before the user confirms.
-    %w[command-line Docker].each { |scope| expect(confirm).to include(scope) }
+    %w[command-line Docker].each { |scope| expect(i18n_catalog).to include(scope) }
     expect(confirm).to include("if (choice.response !== 1)")
   end
 

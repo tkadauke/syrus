@@ -19,6 +19,8 @@ RSpec.describe "desktop CLI install" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
+  let(:i18n_catalog) { read("electron/i18nCatalog.ts") }
+
   it "stages darwin CLI binaries with platform-filtered bundling" do
     stage = read("scripts/stage-cli.mjs")
     expect(stage).to include('CGO_ENABLED: "0"')
@@ -150,9 +152,10 @@ RSpec.describe "desktop CLI install" do
     app = read("src/App.tsx")
     banner = app[/data-testid="cli-missing-banner"[\s\S]{0,1600}/]
     expect(banner).to include("cliBundleMissing")
-    expect(banner).to include("missing its bundled Syrus CLI")
+    expect(banner).to include('t("renderer.cli_bundle_missing")')
     section = app[/export function CliInstallSection[\s\S]{0,4200}/]
-    expect(section).to include("carries no bundled CLI")
+    expect(section).to include('t("renderer.cli_bundle_missing")')
+    expect(i18n_catalog).to include("carries no bundled CLI")
     expect(section).to match(/disabled=\{installing \|\| bundleMissing\}/)
   end
 
@@ -192,8 +195,10 @@ RSpec.describe "desktop CLI install" do
 
     app = read("src/App.tsx")
     section = app[/export function CliInstallSection[\s\S]{0,3200}/]
-    expect(section).to include("kept current automatically")
-    expect(section).to include("Reinstall CLI")
+    expect(section).to include('t("renderer.cli_installed_current")')
+    expect(section).to include('t(installing ? "renderer.installing" : "renderer.reinstall_cli")')
+    expect(i18n_catalog).to include("kept current automatically")
+    expect(i18n_catalog).to include('"renderer.reinstall_cli": "Reinstall CLI"')
   end
 
   it "finds and executes the installed CLI even though GUI PATH lacks ~/.local/bin" do
