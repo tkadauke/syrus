@@ -692,8 +692,9 @@ plugin uses the smaller value. Without an explicit `processes`, Syrus's
 application-provided budget is authoritative; when the generated command is
 run outside Syrus it falls back to the machine's reported processor count.
 The generated command resolves that process count before its configured
-`prepare_command`, so database preparation tools create every worker database
-that the subsequent RSpec run can select.
+`prepare_command` and passes it as `PARALLEL_TEST_PROCESSORS`, so database
+preparation tools create every worker database that the subsequent RSpec run
+can select.
 Those RSpec modes are generated command variants; they are separate from
 workflow `phases`, which decide when each generated grader runs. If CI tags are
 configured and the CI mode is parallelized, Syrus runs the normal fast pass in
