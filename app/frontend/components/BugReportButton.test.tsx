@@ -38,7 +38,7 @@ const mockHtml2canvas = vi.mocked(html2canvasModule)
 const sampleMessages: ChatMessageItem[] = [
   { type: "message", id: 1, role: "user", text: "Hello, I found a bug.", bookmarkable: false },
   { type: "message", id: 2, role: "assistant", text: "Thanks for reporting!", bookmarkable: false },
-  { type: "message", id: 3, role: "tool_use", text: "", bookmarkable: false },
+  { type: "message", id: 3, role: "tool_use", text: "", bookmarkable: false }
 ]
 
 function captureCanvas(text = "screenshot") {
@@ -47,15 +47,17 @@ function captureCanvas(text = "screenshot") {
   } as HTMLCanvasElement
 }
 
-function renderButton(props: {
-  context?: string
-  chatId?: number | null
-  bugReportMode?: "direct_job" | "github_issue" | null
-  featureFlags?: Record<string, boolean>
-  pageAttachments?: BugReportOptionalAttachment[]
-  onChatStarted?: (redirectTo: string) => void
-  reportIssueRepoSlug?: string | null
-} = {}) {
+function renderButton(
+  props: {
+    context?: string
+    chatId?: number | null
+    bugReportMode?: "direct_job" | "github_issue" | null
+    featureFlags?: Record<string, boolean>
+    pageAttachments?: BugReportOptionalAttachment[]
+    onChatStarted?: (redirectTo: string) => void
+    reportIssueRepoSlug?: string | null
+  } = {}
+) {
   const ref = createRef<BugReportButtonHandle>()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(
@@ -160,9 +162,7 @@ describe("BugReportButton", () => {
   })
 
   it("shows recent errors in the preview when present", async () => {
-    mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }
-    ])
+    mockGetRecentErrors.mockReturnValue([{ message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }])
 
     const ref = renderButton()
     await openDialog(ref)
@@ -172,9 +172,7 @@ describe("BugReportButton", () => {
   })
 
   it("shows a count badge for a deduplicated recurring error", async () => {
-    mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 5 }
-    ])
+    mockGetRecentErrors.mockReturnValue([{ message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 5 }])
 
     const ref = renderButton()
     await openDialog(ref)
@@ -183,9 +181,7 @@ describe("BugReportButton", () => {
   })
 
   it("omits the count badge for a single occurrence", async () => {
-    mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }
-    ])
+    mockGetRecentErrors.mockReturnValue([{ message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z", count: 1 }])
 
     const ref = renderButton()
     await openDialog(ref)
@@ -257,9 +253,7 @@ describe("BugReportButton", () => {
 
   it("sends context JSON with the bug report submission", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
-    mockGetRecentErrors.mockReturnValue([
-      { message: "ReferenceError: x is not defined", source: "chunk.js", at: "2025-06-01T12:00:00.000Z", count: 1 }
-    ])
+    mockGetRecentErrors.mockReturnValue([{ message: "ReferenceError: x is not defined", source: "chunk.js", at: "2025-06-01T12:00:00.000Z", count: 1 }])
 
     const ref = renderButton({ context: "Admin" })
     await openDialog(ref)
@@ -370,7 +364,9 @@ describe("BugReportButton", () => {
     const ref = renderButton({ bugReportMode: "direct_job" })
     await openDialog(ref)
 
-    const actions = within(screen.getByRole("dialog")).getAllByRole("button").map((button) => button.textContent)
+    const actions = within(screen.getByRole("dialog"))
+      .getAllByRole("button")
+      .map((button) => button.textContent)
     expect(actions.slice(-3)).toEqual(["Cancel", "Discuss", "Create Job"])
   })
 
@@ -383,18 +379,18 @@ describe("BugReportButton", () => {
 
   it("starts a chat with the selected screenshot, files, and context", async () => {
     const onChatStarted = vi.fn()
-    mockGetRecentErrors.mockReturnValue([
-      { message: "TypeError: boom", source: "app.js", at: "2026-09-15T00:00:00.000Z", count: 1 }
-    ])
+    mockGetRecentErrors.mockReturnValue([{ message: "TypeError: boom", source: "app.js", at: "2026-09-15T00:00:00.000Z", count: 1 }])
     const ref = renderButton({
       bugReportMode: "direct_job",
       onChatStarted,
-      pageAttachments: [{
-        id: "diagnostics",
-        label: "Diagnostics",
-        defaultChecked: true,
-        buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
-      }]
+      pageAttachments: [
+        {
+          id: "diagnostics",
+          label: "Diagnostics",
+          defaultChecked: true,
+          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+        }
+      ]
     })
     await openDialog(ref)
 
@@ -420,15 +416,21 @@ describe("BugReportButton", () => {
 
   it("disables editable fields and controls while the report is submitting", async () => {
     let resolveReport: (payload: BugReportPayload) => void = () => {}
-    mockCreateBugReport.mockReturnValue(new Promise((resolve) => { resolveReport = resolve }))
+    mockCreateBugReport.mockReturnValue(
+      new Promise((resolve) => {
+        resolveReport = resolve
+      })
+    )
     const ref = renderButton({
-      pageAttachments: [{
-        id: "diagnostics",
-        label: "Diagnostics",
-        preview: "diagnostic preview",
-        defaultChecked: true,
-        buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
-      }]
+      pageAttachments: [
+        {
+          id: "diagnostics",
+          label: "Diagnostics",
+          preview: "diagnostic preview",
+          defaultChecked: true,
+          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+        }
+      ]
     })
     await openDialog(ref)
 
@@ -458,9 +460,11 @@ describe("BugReportButton", () => {
 
   it("blocks submit, chat, and shortcuts while full-page capture is in flight", async () => {
     let resolveFullPageCapture: (canvas: HTMLCanvasElement) => void = () => {}
-    mockHtml2canvas
-      .mockResolvedValueOnce(captureCanvas("viewport"))
-      .mockReturnValueOnce(new Promise((resolve) => { resolveFullPageCapture = resolve }))
+    mockHtml2canvas.mockResolvedValueOnce(captureCanvas("viewport")).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFullPageCapture = resolve
+      })
+    )
 
     const ref = renderButton({ bugReportMode: "direct_job" })
     await openDialog(ref)
@@ -616,13 +620,15 @@ describe("BugReportButton", () => {
   describe("optional attachments", () => {
     it("does not submit an unchecked generated attachment", async () => {
       const ref = renderButton({
-        pageAttachments: [{
-          id: "diagnostics",
-          label: "Diagnostics",
-          preview: "diagnostic preview",
-          defaultChecked: false,
-          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
-        }]
+        pageAttachments: [
+          {
+            id: "diagnostics",
+            label: "Diagnostics",
+            preview: "diagnostic preview",
+            defaultChecked: false,
+            buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+          }
+        ]
       })
 
       await openDialog(ref)
@@ -638,13 +644,15 @@ describe("BugReportButton", () => {
 
     it("submits a checked generated attachment with its filename, type, and content", async () => {
       const ref = renderButton({
-        pageAttachments: [{
-          id: "diagnostics",
-          label: "Diagnostics",
-          preview: "diagnostic preview",
-          defaultChecked: true,
-          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
-        }]
+        pageAttachments: [
+          {
+            id: "diagnostics",
+            label: "Diagnostics",
+            preview: "diagnostic preview",
+            defaultChecked: true,
+            buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+          }
+        ]
       })
 
       await openDialog(ref)
@@ -663,12 +671,14 @@ describe("BugReportButton", () => {
 
     it("counts selected generated attachments against the attachment limit", async () => {
       const ref = renderButton({
-        pageAttachments: [{
-          id: "diagnostics",
-          label: "Diagnostics",
-          defaultChecked: true,
-          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
-        }]
+        pageAttachments: [
+          {
+            id: "diagnostics",
+            label: "Diagnostics",
+            defaultChecked: true,
+            buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+          }
+        ]
       })
 
       await openDialog(ref)
@@ -774,7 +784,9 @@ describe("BugReportButton", () => {
       expect(options).toMatchObject({ onclone: expect.any(Function) })
     })
 
-    it("onclone callback converts sticky-positioned elements to relative", async () => {
+    it("preserves sticky UI and ordinary rows in a scrolled viewport clone", async () => {
+      Object.defineProperty(window, "scrollX", { configurable: true, value: 37 })
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 480 })
       const ref = renderButton()
       await openDialog(ref)
 
@@ -783,16 +795,35 @@ describe("BugReportButton", () => {
       const [, options] = mockHtml2canvas.mock.calls[0]
       const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
 
-      const stickyEl = document.createElement("div")
-      stickyEl.style.position = "sticky"
-      document.body.appendChild(stickyEl)
+      expect(options).toMatchObject({ x: 37, y: 480 })
+
+      const stickyHeader = document.createElement("header")
+      stickyHeader.style.position = "sticky"
+      stickyHeader.style.top = "0px"
+      const stickyMetric = document.createElement("aside")
+      stickyMetric.style.position = "sticky"
+      stickyMetric.style.right = "0px"
+      const scrolledDiff = document.createElement("div")
+      const setScrollTop = vi.fn()
+      Object.defineProperty(scrolledDiff, "scrollTop", { configurable: true, get: () => 125, set: setScrollTop })
+      const hunkRow = document.createElement("div")
+      hunkRow.textContent = "@@ -1 +1 @@"
+      scrolledDiff.append(stickyMetric, hunkRow)
+      document.body.append(stickyHeader, scrolledDiff)
 
       // Simulate the html2canvas-pro onclone call: second arg is the cloned element;
       // normalizeCloneForCapture reaches the document via element.ownerDocument.
       onclone(document, document.body)
 
-      expect(stickyEl.style.position).toBe("relative")
-      document.body.removeChild(stickyEl)
+      expect(stickyHeader.style.position).toBe("sticky")
+      expect(stickyHeader.style.top).toBe("0px")
+      expect(stickyMetric.style.position).toBe("sticky")
+      expect(stickyMetric.style.right).toBe("0px")
+      expect(setScrollTop).toHaveBeenCalledWith(125)
+      expect(hunkRow.style.position).toBe("")
+      expect(hunkRow.style.display).toBe("")
+      stickyHeader.remove()
+      scrolledDiff.remove()
     })
 
     it("onclone callback hides closed details contents", async () => {
@@ -844,6 +875,33 @@ describe("BugReportButton", () => {
       // windowWidth/windowHeight must match the viewport, not the document scroll dimensions.
       // onclone must be wired for both capture modes.
       expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function) })
+    })
+
+    it("normalizes sticky elements only in the full-page clone", async () => {
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 480 })
+      const ref = renderButton()
+      await openDialog(ref)
+      mockHtml2canvas.mockClear()
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalledOnce())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      expect(options).toMatchObject({ x: 0, y: 0, scrollY: 0 })
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+      const stickyHeader = document.createElement("header")
+      stickyHeader.style.position = "sticky"
+      const hunkRow = document.createElement("div")
+      hunkRow.textContent = "@@ -1 +1 @@"
+      document.body.append(stickyHeader, hunkRow)
+
+      onclone(document, document.body)
+
+      expect(stickyHeader.style.position).toBe("relative")
+      expect(hunkRow.style.position).toBe("")
+      expect(hunkRow.style.display).toBe("")
+      stickyHeader.remove()
+      hunkRow.remove()
     })
 
     it("onclone callback syncs scrollTop from inner scroll containers to their clones", async () => {
@@ -911,7 +969,6 @@ describe("BugReportButton", () => {
 
       document.body.removeChild(normalEl)
     })
-
   })
 
   describe("screenshot annotation", () => {
@@ -927,16 +984,34 @@ describe("BugReportButton", () => {
         const canvas = this as HTMLCanvasElement & { __mockContext?: CanvasRenderingContext2D }
         if (!canvas.__mockContext) {
           canvas.__mockContext = {
-            beginPath: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), ellipse: vi.fn(),
-            fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), rect: vi.fn(), save: vi.fn(),
-            restore: vi.fn(), setLineDash: vi.fn(), stroke: vi.fn(), fill: vi.fn()
+            beginPath: vi.fn(),
+            clearRect: vi.fn(),
+            drawImage: vi.fn(),
+            ellipse: vi.fn(),
+            fillText: vi.fn(),
+            lineTo: vi.fn(),
+            moveTo: vi.fn(),
+            rect: vi.fn(),
+            save: vi.fn(),
+            restore: vi.fn(),
+            setLineDash: vi.fn(),
+            stroke: vi.fn(),
+            fill: vi.fn()
           } as unknown as CanvasRenderingContext2D
         }
         return canvas.__mockContext
       })
       vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
       vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
-        bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100, x: 0, y: 0, toJSON: () => ({})
+        bottom: 80,
+        height: 80,
+        left: 0,
+        right: 100,
+        top: 0,
+        width: 100,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
       })
 
       Object.defineProperty(globalThis, "Image", {
