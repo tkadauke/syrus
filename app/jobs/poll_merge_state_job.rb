@@ -5,6 +5,11 @@ class PollMergeStateJob < ApplicationJob
 
   queue_as :polling
   REBASE_MERGEABLE_STATES = %w[behind dirty].freeze
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Octokit::ServerError,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
 
   limits_concurrency to: 1, key: ->(job_id) { "merge_state_poll:#{job_id}" }
 
@@ -74,6 +79,8 @@ class PollMergeStateJob < ApplicationJob
         dispatch_rebase
       end
     end
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    Rails.logger.warn("[PollMergeStateJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
   end
 
   private
