@@ -22,23 +22,45 @@ RSpec.describe "Ruby source localization debt", type: :unit do
   end
 
   it "keeps every audited category in the reviewed manifest" do
-    expect(manifest.keys.sort).to eq(RubyI18nDebtAudit::PATTERNS.keys.map(&:to_s).sort)
+    expect(manifest.keys.sort).to eq(RubyI18nDebtAudit::CATEGORIES.map(&:to_s).sort)
   end
 
   it "detects the user-visible Ruby call shapes without counting internal channels" do
+    allow(audit).to receive(:serializer_surface?).and_return(true)
+
     Tempfile.create([ "ruby-i18n-audit", ".rb" ], Rails.root.join("tmp")) do |file|
       file.write(<<~RUBY)
-        render_error("invalid", "Choose a Job", status: :unprocessable_content)
-        render json: { message: "Saved" }
-        record.errors.add(:name, "is unavailable")
-        field = { label: "Owner" }
+        render_error(
+          "invalid",
+          "Choose a Job",
+          status: :unprocessable_content
+        )
+        render json: {
+          message: "Saved"
+        }
+        flash.now[
+          :alert
+        ] = "Try again"
+        record.errors.add(
+          :name,
+          "is unavailable"
+        )
+        serializer = {
+          label: "Owner"
+        }
         Rails.logger.info(message: "worker started")
         raise "internal invariant failed"
       RUBY
       file.flush
 
       findings = audit.findings_for(file.path)
-      expect(findings.map(&:category)).to contain_exactly(:render_error, :response_field, :model_error)
+      expect(findings.map(&:category)).to contain_exactly(
+        :render_error,
+        :response_field,
+        :response_field,
+        :model_error,
+        :serializer_label
+      )
     end
   end
 end
