@@ -45,7 +45,7 @@ module Api
         def more
           before_id = Integer(params[:before_id], exception: false)
           if before_id.blank? || before_id <= 0
-            render_error("validation_failed", "before_id is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.before_id_required"), status: :unprocessable_content)
             return
           end
 
@@ -57,14 +57,14 @@ module Api
             group_key = params[:repository_id].to_s == "general" ? "general" : params[:repository_id].to_s
           end
           if group_key.blank?
-            render_error("validation_failed", "group_key is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.group_key_required"), status: :unprocessable_content)
             return
           end
 
           scope = chat_index_group_scope(group_by: group_by, group_key: group_key)
           cursor = scope.find_by(id: before_id)
           unless cursor
-            render_error("not_found", "Chat cursor was not found.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.cursor_not_found"), status: :not_found)
             return
           end
 
@@ -94,13 +94,13 @@ module Api
         def update
           chat_session = ChatSession.find(params[:id])
           unless chat_session.user_id == Current.user.id
-            render_error("forbidden", "You do not have permission to update this chat.", status: :forbidden)
+            render_error("forbidden", t("api.chats.errors.update_forbidden"), status: :forbidden)
             return
           end
 
           chat_params = params[:chat]
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_provider)
-            render_error("validation_failed", "Chat provider must be switched through the switch_provider endpoint.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.provider_switch_endpoint_required"), status: :unprocessable_content)
             return
           end
 
@@ -114,7 +114,7 @@ module Api
             if model
               valid_models = available_chat_models_for(chat_session).map { |m| m[:value] }
               unless valid_models.include?(model)
-                render_error("validation_failed", "Invalid chat model.", status: :unprocessable_content)
+                render_error("validation_failed", t("api.chats.errors.invalid_model"), status: :unprocessable_content)
                 return
               end
             end
@@ -127,15 +127,15 @@ module Api
           if chat_params.respond_to?(:key?) && chat_params.key?(:mode)
             mode = chat_params[:mode].to_s.strip.presence
             if mode && !ChatSession::MODES.include?(mode)
-              render_error("validation_failed", "Invalid mode. Must be one of: #{ChatSession::MODES.join(", ")}.", status: :unprocessable_content)
+              render_error("validation_failed", t("api.chats.errors.invalid_mode", modes: ChatSession::MODES.join(", ")), status: :unprocessable_content)
               return
             end
             if mode == "coding" && !Feature.coding_mode_enabled?
-              render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :unprocessable_content)
+              render_error("feature_disabled", t("api.chats.errors.coding_mode_disabled"), status: :unprocessable_content)
               return
             end
             if mode == "local" && !Feature.local_mode_enabled?
-              render_error("validation_failed", "Local mode is not enabled.", status: :unprocessable_content)
+              render_error("validation_failed", t("api.chats.errors.local_mode_disabled"), status: :unprocessable_content)
               return
             end
 
@@ -147,7 +147,7 @@ module Api
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_effort)
             effort = chat_params[:chat_effort].to_s.strip.presence
             if effort && !ChatSession::EFFORT_LEVELS.include?(effort)
-              render_error("validation_failed", "Invalid effort level. Must be one of: #{ChatSession::EFFORT_LEVELS.join(", ")}.", status: :unprocessable_content)
+              render_error("validation_failed", t("api.chats.errors.invalid_effort", levels: ChatSession::EFFORT_LEVELS.join(", ")), status: :unprocessable_content)
               return
             end
 
@@ -162,7 +162,7 @@ module Api
             params[:pinned]
           end
           if pinned.nil?
-            render_error("validation_failed", "pinned is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pinned_required"), status: :unprocessable_content)
             return
           end
 
@@ -198,7 +198,7 @@ module Api
         def search_messages
           query = search_query
           if query.blank?
-            render_error("validation_failed", "Query is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.query_required"), status: :unprocessable_content)
             return
           end
 
@@ -320,7 +320,7 @@ module Api
           chat_session = find_chat_session
           text = message_text
           if text.blank? && !message_has_attachments?
-            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.message_blank"), status: :unprocessable_content)
             return
           end
           if !message_has_attachments? && (command_result = ChatGoalCommand.new(chat_session: chat_session, user: Current.user).call(text)).handled
@@ -365,7 +365,7 @@ module Api
 
           render_temporary_chat_lock_error
         rescue ActiveRecord::RecordInvalid => e
-          render_error("validation_failed", e.record.errors.full_messages.to_sentence.presence || "Goal is invalid.", status: :unprocessable_content)
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence.presence || t("api.chats.errors.goal_invalid"), status: :unprocessable_content)
         rescue ActiveRecord::RecordNotFound => e
           render_error("not_found", e.message, status: :not_found)
         rescue ArgumentError => e
@@ -402,18 +402,18 @@ module Api
           chat_session = find_chat_session
 
           unless Feature.local_mode_enabled?
-            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            render_error("forbidden", t("api.chats.errors.local_mode_disabled"), status: :forbidden)
             return
           end
 
           unless chat_session.mode == "local"
-            render_error("validation_failed", "Chat is not in local mode.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.not_local_mode"), status: :unprocessable_content)
             return
           end
 
           state = params[:state].to_s.strip
           unless ChatSession::DAEMON_STATES.include?(state)
-            render_error("validation_failed", "Invalid state. Must be one of: #{ChatSession::DAEMON_STATES.join(", ")}.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.invalid_daemon_state", states: ChatSession::DAEMON_STATES.join(", ")), status: :unprocessable_content)
             return
           end
 
@@ -437,7 +437,7 @@ module Api
           return if performed?
 
           if chat_session.turn_in_flight? || chat_session.agent_busy?
-            render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
+            render_error("turn_in_flight", t("api.chats.errors.provider_switch_turn_in_flight"), status: :unprocessable_content)
             return
           end
 
@@ -450,12 +450,12 @@ module Api
           chat_session = find_chat_session
           name = chat_name
           if name.blank?
-            render_error("validation_failed", "Name cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.name_blank"), status: :unprocessable_content)
             return
           end
 
           if name.length > ChatSession::TITLE_MAX_LENGTH
-            render_error("validation_failed", "Name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.name_too_long", max: ChatSession::TITLE_MAX_LENGTH), status: :unprocessable_content)
             return
           end
           chat_session.rename!(name)
@@ -549,7 +549,7 @@ module Api
           chat_session = find_chat_session
           text = message_text
           if text.blank? && !message_has_attachments?
-            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.message_blank"), status: :unprocessable_content)
             return
           end
           content = message_content(text)
@@ -584,17 +584,17 @@ module Api
           fire_at = Time.zone.parse(params.dig(:scheduled_message, :fire_at).to_s)
 
           if body.blank?
-            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.message_blank"), status: :unprocessable_content)
             return
           end
 
           unless fire_at
-            render_error("validation_failed", "fire_at is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.fire_at_required"), status: :unprocessable_content)
             return
           end
 
           if fire_at <= Time.current
-            render_error("validation_failed", "fire_at must be in the future.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.fire_at_future"), status: :unprocessable_content)
             return
           end
 
@@ -611,7 +611,7 @@ module Api
             message: "Message scheduled."
           }, status: :created
         rescue ArgumentError
-          render_error("validation_failed", "fire_at is invalid.", status: :unprocessable_content)
+          render_error("validation_failed", t("api.chats.errors.fire_at_invalid"), status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -622,7 +622,7 @@ module Api
           text = message_text
           existing = queued_message.draft_content.to_message_content
           if text.blank? && !queued_message.carries_media?
-            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.message_blank"), status: :unprocessable_content)
             return
           end
 
@@ -650,7 +650,7 @@ module Api
           return if performed?
 
           unless draft.present?
-            render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.content_blank"), status: :unprocessable_content)
             return
           end
 
@@ -669,7 +669,7 @@ module Api
           return if performed?
 
           unless draft.present?
-            render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.content_blank"), status: :unprocessable_content)
             return
           end
 
@@ -691,13 +691,13 @@ module Api
           chat_session = find_chat_session
           ids = Array(params[:ids]).map { |id| Integer(id, exception: false) }.compact
           if ids.blank?
-            render_error("validation_failed", "ids is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.ids_required"), status: :unprocessable_content)
             return
           end
 
           items = chat_session.scratchpad_items.where(id: ids).index_by(&:id)
           if items.size != ids.size
-            render_error("not_found", "One or more scratchpad items were not found.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.scratchpad_items_not_found"), status: :not_found)
             return
           end
 
@@ -714,14 +714,14 @@ module Api
           question = chat_session.agent_questions.find(params[:agent_question_id])
           answers = agent_question_answers_param
           if answers.blank?
-            render_error("validation_failed", "Answers cannot be blank.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.answers_blank"), status: :unprocessable_content)
             return
           end
 
           if question.answer_and_record!(answers, sender_user: Current.user)
             render json: chat_payload(chat_session.reload, message: "Answer submitted.")
           else
-            render_error("validation_failed", "Question is no longer active or answers are invalid.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.question_inactive"), status: :unprocessable_content)
           end
         end
 
@@ -738,7 +738,7 @@ module Api
           chat_session = find_chat_session
           panel = chat_session.preview_panels.find(params[:panel_id])
           version = params[:v].present? ? panel.preview_panel_versions.find_by(id: params[:v]) : panel.current_version
-          return render_error("not_found", "Preview panel version not found.", status: :not_found) unless version
+          return render_error("not_found", t("api.chats.errors.preview_version_not_found"), status: :not_found) unless version
 
           send_data(
             PreviewPanel::ZipExporter.new(version).call,
@@ -752,11 +752,11 @@ module Api
           chat_session = find_chat_session
           panel = chat_session.preview_panels.find(params[:panel_id])
           version = params[:v].present? ? panel.preview_panel_versions.find_by(id: params[:v]) : panel.current_version
-          return render_error("not_found", "Preview panel version not found.", status: :not_found) unless version
+          return render_error("not_found", t("api.chats.errors.preview_version_not_found"), status: :not_found) unless version
 
           file_path = params[:path].to_s
           attachment = version.file_for(file_path)
-          return render_error("not_found", "Preview panel file not found.", status: :not_found) unless attachment
+          return render_error("not_found", t("api.chats.errors.preview_file_not_found"), status: :not_found) unless attachment
 
           content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
           if ActiveModel::Type::Boolean.new.cast(params[:raw])
@@ -779,7 +779,7 @@ module Api
           visibility = (params.dig(:preview_panel, :visibility).presence || params[:visibility]).to_s
 
           unless PreviewPanel::VISIBILITIES.include?(visibility)
-            render_error("validation_failed", "Invalid visibility. Must be one of: #{PreviewPanel::VISIBILITIES.join(", ")}.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.invalid_visibility", visibilities: PreviewPanel::VISIBILITIES.join(", ")), status: :unprocessable_content)
             return
           end
 
@@ -799,7 +799,7 @@ module Api
 
           panel = chat_session.preview_panels.find(params[:panel_id])
           if panel.public?
-            render_error("validation_failed", "Public panels don't require an access token.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.public_panel_token_unnecessary"), status: :unprocessable_content)
             return
           end
 
@@ -810,7 +810,7 @@ module Api
           chat_session = find_chat_session
           message = params[:message_id].present? ? chat_session.active_messages.find(params[:message_id]) : chat_session.active_messages.order(:created_at, :id).last
           unless message
-            render_error("validation_failed", "Cannot bookmark an empty chat.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.empty_chat_bookmark"), status: :unprocessable_content)
             return
           end
 
@@ -833,7 +833,7 @@ module Api
           chat_session = find_chat_session
           message = chat_session.messages.find(params[:message_id])
           unless message.pinnable?
-            render_error("validation_failed", "Cannot pin this message.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.message_not_pinnable"), status: :unprocessable_content)
             return
           end
 
@@ -868,10 +868,10 @@ module Api
           if pending_action.enqueue_confirmation!(user: Current.user)
             render json: chat_payload(chat_session.reload, message: pending_action_confirmed_notice(pending_action))
           else
-            render_error("validation_failed", "Pending action is no longer active.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pending_action_inactive"), status: :unprocessable_content)
           end
         rescue ActiveRecord::RecordInvalid => e
-          message = e.record.errors.full_messages.to_sentence.presence || "Pending action could not be confirmed."
+          message = e.record.errors.full_messages.to_sentence.presence || t("api.chats.errors.pending_action_confirmation_failed")
           render_error("validation_failed", message, status: :unprocessable_content)
         rescue ArgumentError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
@@ -886,7 +886,7 @@ module Api
           if result
             render json: chat_payload(chat_session.reload, message: rejection ? "Pending action rejected." : "Pending action cancelled.")
           else
-            render_error("validation_failed", "Pending action is no longer active.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pending_action_inactive"), status: :unprocessable_content)
           end
         end
 
@@ -897,7 +897,7 @@ module Api
           if group.confirm_all!(user: Current.user)
             render json: chat_payload(chat_session.reload, message: pending_action_group_confirmed_notice(group))
           else
-            render_error("validation_failed", "Pending action group is no longer active.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pending_action_group_inactive"), status: :unprocessable_content)
           end
         end
 
@@ -908,7 +908,7 @@ module Api
           if group.reject_all!(user: Current.user)
             render json: chat_payload(chat_session.reload, message: pending_action_group_rejected_notice(group))
           else
-            render_error("validation_failed", "Pending action group is no longer active.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pending_action_group_inactive"), status: :unprocessable_content)
           end
         end
 
@@ -919,7 +919,7 @@ module Api
           if group.dismiss!
             render json: chat_payload(chat_session.reload, message: "Pending action group dismissed.")
           else
-            render_error("validation_failed", "Pending action group is not resolved.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.pending_action_group_unresolved"), status: :unprocessable_content)
           end
         end
 
@@ -927,12 +927,12 @@ module Api
           chat_session = find_chat_session
           proposal = find_proposal(chat_session)
           if proposal.confirmed?
-            render_error("validation_failed", "Proposal is already confirmed.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.proposal_already_confirmed"), status: :unprocessable_content)
             return
           end
 
           unless proposal.proposed?
-            render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.proposal_inactive"), status: :unprocessable_content)
             return
           end
 
@@ -1001,7 +1001,7 @@ module Api
             broadcast_proposal_updated(chat_session, proposal.reload)
             render json: proposal_action_payload(chat_session, proposal.reload, rejection_message, message: "Proposal rejected.")
           else
-            render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.proposal_inactive"), status: :unprocessable_content)
           end
         end
 
@@ -1010,7 +1010,7 @@ module Api
           proposal = find_proposal(chat_session)
 
           unless proposal.proposed?
-            render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.proposal_inactive"), status: :unprocessable_content)
             return
           end
 
@@ -1117,13 +1117,13 @@ module Api
         def cancel_coding_checkout
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            render_error("feature_disabled", t("api.chats.errors.coding_mode_disabled"), status: :not_found)
             return
           end
 
           repository = chat_session.repository
           unless repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
             return
           end
 
@@ -1134,34 +1134,34 @@ module Api
         rescue JobCodingMode::CancelTakeover::Error => e
           render_error("not_found", e.message, status: :not_found)
         rescue StandardError => e
-          render_error("server_error", "Could not cancel coding checkout: #{e.message}", status: :internal_server_error)
+          render_error("server_error", t("api.chats.errors.coding_checkout_cancel_failed", error: e.message), status: :internal_server_error)
         end
 
         def create_coding_handoff
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            render_error("feature_disabled", t("api.chats.errors.coding_mode_disabled"), status: :not_found)
             return
           end
 
           unless chat_session.coding?
-            render_error("validation_failed", "Coding handoff is only available in Coding Mode chat sessions.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.coding_handoff_mode_required"), status: :unprocessable_content)
             return
           end
 
           job = attached_coding_job(chat_session)
           unless job&.coding? && job.linked_chat_id == chat_session.id
-            render_error("not_found", "No active coding Job is attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.coding_job_not_attached"), status: :not_found)
             return
           end
 
           if chat_session.coding_checkout_uncommitted?
-            render_error("validation_failed", "Commit or discard checkout changes before submitting this Job.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.coding_checkout_dirty"), status: :unprocessable_content)
             return
           end
 
           if chat_session.pending_actions.where(action: "emergency_land", state: %w[queued pending confirming failed]).detect { |action| action.payload.to_h["job_id"].to_i == job.id }
-            render_error("validation_failed", "An emergency land confirmation is already pending for this Job.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.emergency_land_pending"), status: :unprocessable_content)
             return
           end
 
@@ -1179,7 +1179,7 @@ module Api
         rescue ActiveRecord::RecordNotFound
           raise
         rescue StandardError => e
-          render_error("server_error", "Could not submit coding handoff: #{e.message}", status: :internal_server_error)
+          render_error("server_error", t("api.chats.errors.coding_handoff_failed", error: e.message), status: :internal_server_error)
         end
 
         # Read-only file tree; intentionally not gated behind
@@ -1192,7 +1192,7 @@ module Api
           chat_session = find_chat_session
 
           unless chat_session.repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
             return
           end
 
@@ -1207,7 +1207,7 @@ module Api
 
           status, result = relay_response
           unless status == 200
-            render_error("not_found", "Coding checkout not available.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.coding_checkout_unavailable"), status: :not_found)
             return
           end
 
@@ -1217,17 +1217,17 @@ module Api
         def coding_commits
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            render_error("feature_disabled", t("api.chats.errors.coding_mode_disabled"), status: :not_found)
             return
           end
 
           unless chat_session.repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
             return
           end
 
           if chat_session.coding_checkout_branch.blank?
-            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.coding_checkout_inactive"), status: :not_found)
             return
           end
 
@@ -1239,7 +1239,7 @@ module Api
 
           status, result = relay_response
           unless status == 200
-            render_error("not_found", "Coding checkout not available.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.coding_checkout_unavailable"), status: :not_found)
             return
           end
 
@@ -1253,13 +1253,13 @@ module Api
           chat_session = find_chat_session
 
           unless chat_session.repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
             return
           end
 
           file_path = params[:path].to_s.strip
           if file_path.blank?
-            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
             return
           end
 
@@ -1274,7 +1274,7 @@ module Api
 
           status, result = relay_response
           unless status == 200
-            render_error("not_found", "File not found in coding checkout.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.coding_file_not_found"), status: :not_found)
             return
           end
 
@@ -1284,7 +1284,7 @@ module Api
         def coding_diff
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            render_error("feature_disabled", t("api.chats.errors.coding_mode_disabled"), status: :not_found)
             return
           end
 
@@ -1316,12 +1316,12 @@ module Api
 
           file_path = params[:path].to_s.strip
           if file_path.blank?
-            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
             return
           end
 
           response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
-          render_source_file_response(chat_session, response, missing_message: "File not found in attached repository.")
+          render_source_file_response(chat_session, response, missing_message: t("api.chats.errors.repository_file_not_found"))
         end
 
         def source_file_raw
@@ -1330,20 +1330,20 @@ module Api
 
           file_path = params[:path].to_s.strip
           if file_path.blank?
-            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
             return
           end
 
           relay_response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
           if relay_response.nil?
             schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            render_error("relay_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
             return
           end
 
           status, result = relay_response
           unless status == 200 && result
-            render_error("not_found", "File not found in attached repository.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_file_not_found"), status: :not_found)
             return
           end
 
@@ -1362,13 +1362,13 @@ module Api
           chat_session = find_chat_session
           repository = chat_session.repository
           unless repository && repository.owner == params[:owner].to_s && repository.name == params[:repo].to_s
-            render_error("not_found", "File not found in attached repository.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_file_not_found"), status: :not_found)
             return
           end
 
           file_path, = split_workspace_path_and_line(params[:path].to_s)
           if file_path.blank?
-            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
             return
           end
 
@@ -1396,7 +1396,7 @@ module Api
         def require_chat_owner(chat_session, action:)
           return true if chat_session.user_id == Current.user.id
 
-          render_error("forbidden", "Only the chat owner can #{action} this chat.", status: :forbidden)
+          render_error("forbidden", t("api.chats.errors.owner_action_required", action: action), status: :forbidden)
           false
         end
 
@@ -1448,7 +1448,7 @@ module Api
             return chat_session if chat_session
           end
 
-          render_error("not_found", "Chat not found.", status: :not_found)
+          render_error("not_found", t("api.chats.errors.not_found"), status: :not_found)
           nil
         end
 
@@ -1471,13 +1471,13 @@ module Api
 
         def validate_source_preview_request!(chat_session)
           unless chat_session.repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
             return false
           end
 
           if chat_session.coding_relay_address.blank? || chat_session.coding_relay_token.blank?
             schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            render_error("relay_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
             return false
           end
 
@@ -1487,7 +1487,7 @@ module Api
         def render_source_file_response(chat_session, relay_response, missing_message:)
           if relay_response.nil?
             schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            render_error("relay_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
             return
           end
 
@@ -1496,9 +1496,9 @@ module Api
           when 200
             render json: result
           when 422
-            render_error("validation_failed", "Invalid source file path.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.invalid_source_path"), status: :unprocessable_content)
           when 401
-            render_error("relay_unavailable", "Source preview relay rejected the request.", status: :service_unavailable)
+            render_error("relay_unavailable", t("api.chats.errors.source_relay_rejected"), status: :service_unavailable)
           else
             render_error("not_found", missing_message, status: :not_found)
           end
@@ -1961,7 +1961,7 @@ module Api
 
         def update_chat_repository(chat_session, repository_id)
           if chat_session.messages.exists?
-            render_error("validation_failed", "Repository can only be changed before the first message.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chats.errors.repository_change_too_late"), status: :unprocessable_content)
             return
           end
 

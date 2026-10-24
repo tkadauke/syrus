@@ -44,7 +44,7 @@ class CognitiveEngagementEvent < ApplicationRecord
   validates :confidence, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
   validates :idempotency_key, uniqueness: {
     scope: %i[repository_id user_id source_type],
-    message: "has already been recorded for this source and anchor"
+    message: :already_recorded
   }
   validate :range_anchor_shape
   validate :diff_review_version_belongs_to_repository
@@ -101,17 +101,17 @@ class CognitiveEngagementEvent < ApplicationRecord
 
   def range_anchor_shape
     if anchor_kind == "range"
-      errors.add(:path, "must be present for range anchors") if path.blank?
-      errors.add(:start_line, "must be present for range anchors") if start_line.blank?
-      errors.add(:end_line, "must be present for range anchors") if end_line.blank?
+      errors.add(:path, :required_for_range_anchor) if path.blank?
+      errors.add(:start_line, :required_for_range_anchor) if start_line.blank?
+      errors.add(:end_line, :required_for_range_anchor) if end_line.blank?
     elsif anchor_kind == "file"
-      errors.add(:path, "must be present for file anchors") if path.blank?
-      errors.add(:start_line, "must be blank for file anchors") if start_line.present?
-      errors.add(:end_line, "must be blank for file anchors") if end_line.present?
+      errors.add(:path, :required_for_file_anchor) if path.blank?
+      errors.add(:start_line, :blank_for_file_anchor) if start_line.present?
+      errors.add(:end_line, :blank_for_file_anchor) if end_line.present?
     else
-      errors.add(:path, "must be blank for repository anchors") if path.present?
-      errors.add(:start_line, "must be blank for repository anchors") if start_line.present?
-      errors.add(:end_line, "must be blank for repository anchors") if end_line.present?
+      errors.add(:path, :blank_for_repository_anchor) if path.present?
+      errors.add(:start_line, :blank_for_repository_anchor) if start_line.present?
+      errors.add(:end_line, :blank_for_repository_anchor) if end_line.present?
     end
   end
 
@@ -132,6 +132,6 @@ class CognitiveEngagementEvent < ApplicationRecord
   def diff_review_version_belongs_to_repository
     return unless diff_review_version && repository_id && diff_review_version.job&.repository_id != repository_id
 
-    errors.add(:diff_review_version, "must belong to the same repository")
+    errors.add(:diff_review_version, :repository_mismatch)
   end
 end

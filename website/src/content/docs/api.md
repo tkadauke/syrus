@@ -824,3 +824,17 @@ waterfall for one Workflow, given `?id=<workflow_id>`.
 curl "https://syrus.example.com/api/v1/admin/worker_timeline/workflow?id=123" \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
+
+## Error localization and stable codes
+
+API error responses include a stable machine-readable `code` beside a
+human-readable, localized `message`:
+
+```json
+{ "error": { "code": "not_found", "message": "The requested record was not found." } }
+```
+
+Clients must branch on `error.code`, never on `error.message`. Message text can
+change with the signed-in user's locale and may be refined without changing the
+machine contract. Existing endpoints that predate this envelope retain their
+response shape until they are migrated explicitly.

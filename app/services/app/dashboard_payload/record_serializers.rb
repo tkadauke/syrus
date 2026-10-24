@@ -36,7 +36,7 @@ module App
           entity_revision: job.entity_revision,
           slug: job.slug,
           kind: job.kind,
-          title: job.issue_title.presence || job.kind.humanize,
+          title: job.issue_title.presence || job_kind_title(job.kind),
           title_pending: job.title_pending?,
           state: job.state,
           summary_state: summary_state(job),
@@ -558,7 +558,7 @@ module App
           worker_storage_key: workflow.worker_storage_key,
           job: {
             id: job.id,
-            title: job.issue_title.presence || job.kind.humanize,
+            title: job.issue_title.presence || job_kind_title(job.kind),
             title_pending: job.title_pending?,
             state: job.state,
             repository: repository_json(job.repository),
@@ -635,13 +635,17 @@ module App
 
       def owner_badge_for(owner_user, claimable: false)
         return nil if team_user_count <= 1
-        return { label: "Claimable", kind: "claimable" } if claimable && owner_user.nil?
+        return { label: I18n.t("api.dashboard.owner_badges.claimable"), kind: "claimable" } if claimable && owner_user.nil?
         return nil if owner_user.nil? || owner_user.id == user.id
 
         {
           label: owner_user.team_display_name,
           kind: "other_user"
         }
+      end
+
+      def job_kind_title(kind)
+        I18n.t("api.dashboard.job_kinds.#{kind}", default: kind)
       end
     end
   end

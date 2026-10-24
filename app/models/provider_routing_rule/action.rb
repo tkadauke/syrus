@@ -23,6 +23,6 @@ class ProviderRoutingRule::Action
   end
 
   def validate(record)
-    record.errors.add(:action, "has unknown type #{type.inspect}")
+    record.errors.add(:action, :unknown_type, value: type.inspect)
   end
 end

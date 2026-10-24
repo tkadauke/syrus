@@ -1691,6 +1691,18 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("no_token")
   end
 
+  it "localizes repository selector errors in German" do
+    user.update!(locale: "de")
+    sign_in_as(user)
+    allow(GithubClient).to receive(:for_user).and_raise(ArgumentError)
+
+    get "/api/v1/app/repositories/owners"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("no_token")
+    expect(parse_body.dig("error", "message")).to eq("Kein GitHub-Token konfiguriert.")
+  end
+
   it "500s and logs unexpected owner selector errors" do
     sign_in_as(user)
     allow(GithubClient).to receive(:for_user).and_raise(StandardError, "boom")

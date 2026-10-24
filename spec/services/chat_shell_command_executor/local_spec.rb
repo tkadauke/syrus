@@ -29,26 +29,26 @@ RSpec.describe ChatShellCommandExecutor::Local do
     end
   end
 
-  describe "#precondition_error" do
+  describe "#precondition_error_code" do
     it "returns the disconnected error when no daemon session exists" do
-      expect(executor.precondition_error(chat_session)).to eq(described_class::DISCONNECTED_ERROR)
+      expect(executor.precondition_error_code(chat_session)).to eq(:local_daemon_disconnected)
     end
 
     it "returns the disconnected error when the daemon session isn't connected" do
       LocalDaemonSession.create!(chat_session: chat_session, user: user, disconnected_at: Time.current)
-      expect(executor.precondition_error(chat_session)).to eq(described_class::DISCONNECTED_ERROR)
+      expect(executor.precondition_error_code(chat_session)).to eq(:local_daemon_disconnected)
     end
 
     it "returns the disconnected error when the session row exists but the daemon has never actually handshaken" do
       LocalDaemonSession.create!(chat_session: chat_session, user: user)
       expect(chat_session.reload.daemon_connected?).to eq(false)
 
-      expect(executor.precondition_error(chat_session)).to eq(described_class::DISCONNECTED_ERROR)
+      expect(executor.precondition_error_code(chat_session)).to eq(:local_daemon_disconnected)
     end
 
     it "returns nil once a daemon session is connected" do
       connected_daemon_session
-      expect(executor.precondition_error(chat_session)).to be_nil
+      expect(executor.precondition_error_code(chat_session)).to be_nil
     end
   end
 

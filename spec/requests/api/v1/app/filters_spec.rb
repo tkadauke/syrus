@@ -12,6 +12,17 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "localizes unknown filter fields in Latin" do
+    user = Factories.user(locale: "la")
+    sign_in_as(user)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "unknown" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(parse_body.dig("error", "code")).to eq("unknown_field")
+    expect(parse_body.dig("error", "message")).to eq("Campus filtri ignotus est.")
+  end
+
   it "returns normalized FK option payloads scoped to the current user" do
     user = Factories.user
     repo = Factories.repository(user: user)
