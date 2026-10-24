@@ -40,30 +40,6 @@ const FILTER_FIELDS = ["tool_name", "owner_type", "owner_name", "source_type", "
 type CatalogFilterField = (typeof FILTER_FIELDS)[number]
 const TEXT_FILTER_FIELDS: readonly CatalogFilterField[] = ["tool_name"]
 
-const OWNER_TYPE_OPTIONS = [
-  { value: "core", label: "Core" },
-  { value: "plugin", label: "Plugin" },
-  { value: "provider", label: "Provider" }
-]
-
-const SOURCE_TYPE_OPTIONS = [
-  { value: "mcp_tool", label: "MCP tool" },
-  { value: "provider_builtin", label: "Provider built-in" },
-  { value: "local_mode_tool", label: "Local Mode tool" },
-  { value: "chat_surface_component", label: "Chat surface component" },
-  { value: "fallback_only", label: "Fallback only" }
-]
-
-const RENDERER_TYPE_OPTIONS = [
-  { value: "custom_card", label: "Custom card" },
-  { value: "generic_fallback", label: "Generic fallback" }
-]
-
-const COVERAGE_STATUS_OPTIONS = [
-  { value: "has_examples", label: "Has examples" },
-  { value: "no_examples", label: "No examples" }
-]
-
 function coverageStatusFor(entry: ToolPresentationEntry): CoverageStatus {
   return entry.examples.length > 0 ? "has_examples" : "no_examples"
 }
@@ -152,11 +128,38 @@ export function AdminToolCards() {
   const filterSchema: FilterSchemaField[] = useMemo(
     () => [
       { field: "tool_name", label: t("tool_cards.filter_tool_name"), bucket: "text", operators: ["contains"], values: [] },
-      { field: "owner_type", label: t("tool_cards.filter_owner_type"), bucket: "select", operators: ["is"], values: OWNER_TYPE_OPTIONS },
+      {
+        field: "owner_type",
+        label: t("tool_cards.filter_owner_type"),
+        bucket: "select",
+        operators: ["is"],
+        values: ["core", "plugin", "provider"].map((value) => ({ value, label: t(`tool_cards.option_owner_${value}`) }))
+      },
       { field: "owner_name", label: t("tool_cards.filter_owner_name"), bucket: "select", operators: ["is"], values: ownerNameOptions },
-      { field: "source_type", label: t("tool_cards.filter_source_type"), bucket: "select", operators: ["is"], values: SOURCE_TYPE_OPTIONS },
-      { field: "renderer_type", label: t("tool_cards.filter_renderer_type"), bucket: "select", operators: ["is"], values: RENDERER_TYPE_OPTIONS },
-      { field: "coverage_status", label: t("tool_cards.filter_coverage_status"), bucket: "select", operators: ["is"], values: COVERAGE_STATUS_OPTIONS }
+      {
+        field: "source_type",
+        label: t("tool_cards.filter_source_type"),
+        bucket: "select",
+        operators: ["is"],
+        values: ["mcp_tool", "provider_builtin", "local_mode_tool", "chat_surface_component", "fallback_only"].map((value) => ({
+          value,
+          label: t(`tool_cards.option_source_${value}`)
+        }))
+      },
+      {
+        field: "renderer_type",
+        label: t("tool_cards.filter_renderer_type"),
+        bucket: "select",
+        operators: ["is"],
+        values: ["custom_card", "generic_fallback"].map((value) => ({ value, label: t(`tool_cards.option_renderer_${value}`) }))
+      },
+      {
+        field: "coverage_status",
+        label: t("tool_cards.filter_coverage_status"),
+        bucket: "select",
+        operators: ["is"],
+        values: ["has_examples", "no_examples"].map((value) => ({ value, label: t(`tool_cards.option_coverage_${value}`) }))
+      }
     ],
     [t, ownerNameOptions]
   )
