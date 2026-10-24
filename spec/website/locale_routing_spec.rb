@@ -22,8 +22,8 @@ RSpec.describe "website locale routing" do
     components.each do |component|
       source = read_website("components/#{component}")
 
-      expect(source).to include("type Locale"), "expected #{component} to accept a typed locale"
-      expect(source).to include("localizedHref"), "expected #{component} to localize internal links"
+      expect(source).to match(/\bLocale\b/), "expected #{component} to accept a typed locale"
+      expect(source).to match(/localizedHref|chromeHref|chromeFor/), "expected #{component} to apply its locale-aware link strategy"
     end
   end
 

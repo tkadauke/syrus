@@ -15,7 +15,7 @@ RSpec.describe "website sitemap" do
       console.log(JSON.stringify(sitemapEntries(
         [{ href: "/plugins/terminal" }, { href: "/plugins/terminal/" }],
         [{ href: "/docs/android" }, { href: "/docs/deployment/macos-workers" }],
-        [{ href: "/blog/launch" }],
+        [{ href: "/blog" }, { href: "/blog/launch" }],
       ).map(({ url }) => url)));
     JAVASCRIPT
 
@@ -43,7 +43,8 @@ RSpec.describe "website sitemap" do
   end
 
   it "generates the build-time route from the same page sources as static params" do
-    expect(sitemap_route).to include("sitemapEntries(allPlugins(), allDocs(), allPosts())")
+    expect(sitemap_route).to include('allPlugins().map((plugin) => ({ href: plugin.href, locales: ["en", "de"] }))')
+    expect(sitemap_route).to include('[{ href: "/blog" }, ...allPosts()]')
     expect(File).not_to exist(File.join(repo_root, "website/public/sitemap.xml"))
   end
 end

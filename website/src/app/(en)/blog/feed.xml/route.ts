@@ -1,4 +1,4 @@
-import { allPosts } from "../../../../../lib/blog";
+import { allPosts, blogFeed } from "../../../../../lib/blog";
 import { site } from "../../../../../lib/site";
 
 export const dynamic = "force-static";
@@ -36,9 +36,9 @@ export function GET() {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0">',
     "<channel>",
-    `<title>${escapeXml(site.name)} Blog</title>`,
-    `<link>${origin}/blog</link>`,
-    "<description>Notes from building Syrus: AI-native UX experiments, engineering deep dives, and what a fleet of coding agents teaches you.</description>",
+    `<title>${escapeXml(site.name)} ${escapeXml(blogFeed.titleSuffix)}</title>`,
+    `<link>${origin}${escapeXml("/blog")}</link>`,
+    `<description>${escapeXml(blogFeed.description)}</description>`,
     items,
     "</channel>",
     "</rss>",

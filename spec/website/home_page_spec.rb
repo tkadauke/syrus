@@ -39,7 +39,7 @@ RSpec.describe "website home page" do
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
     expect(hero).to include('localizedHref("/#walkthrough-demo", locale)')
-    expect(hero).to include("Watch the product demo")
+    expect(read_website("lib/marketing.ts")).to include("Watch the product demo")
 
     expect(chrome).to include('href: "/download"')
   end
@@ -49,6 +49,6 @@ RSpec.describe "website home page" do
     expect(read_website("components/features.tsx")).to include('section id="features"')
     expect(read_website("components/entry-points.tsx")).to include('section id="entry-points"')
     expect(read_website("components/demo.tsx")).to include('section id="demo"')
-    expect(read_website("components/pages/download-page.tsx")).to include("Download Syrus")
+    expect(read_website("lib/marketing.ts")).to include("Download Syrus")
   end
 end
