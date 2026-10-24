@@ -52,6 +52,10 @@ class RunFailureClassifier
     end
 
     case
+    when no_changes_produced?
+      # A no-op agent run is a work/prompt outcome, not an infrastructure
+      # failure. Retrying the identical attempt is unlikely to produce a diff.
+      result("no_changes_produced", 1.0, false, "The agent completed without producing repository changes.")
     when provider_usage_limit?
       result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
     when command_span_sequence_collision?
@@ -495,7 +499,7 @@ class RunFailureClassifier
     # the credential value, not that identifier), which mislabeled an
     # ordinary rejected push (branch_diverged) as a provider auth/config
     # failure.
-    text_match?(/auth|oauth|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|invalid.+credential|mcp.+initialize|connection closed: initialize/i)
+    text_match?(/auth|oauth|token.{0,20}(?:invalid|expired|revoked|missing|not[\s_-]*found)|(?:invalid|expired|revoked|missing|no)[\s_-]*(?:access[\s_-]*)?token|api key|unauthorized|forbidden|permission denied|not configured|misconfigur|invalid configuration|missing.+credential|mcp.+(?:failed|error).+initialize|connection closed: initialize/i)
   end
 
   def argument_list_too_long?
@@ -561,8 +565,13 @@ class RunFailureClassifier
   def mcp_sidecar?
     run.agent_outcome == "mcp_sidecar_failed" ||
       text_match?(
-        /\[mcp_servers\].*failed|No such tool available: mcp__syrus-mcp-sidecar|mcp.*sidecar.*failed|sidecar.*failed|initialize response|connection closed: initialize/i
+        /\[mcp_servers\].*failed|No such tool available: mcp__syrus-mcp-sidecar|mcp.*sidecar.*failed|sidecar.*failed|(?:failed|error).*initialize response|initialize response.*(?:failed|error)|connection closed: initialize/i
       )
+  end
+
+  def no_changes_produced?
+    run.agent_outcome == "no_changes_produced" ||
+      diagnostic&.error_class.to_s == "Steps::Base::NoChangesProduced"
   end
 
   def muse_rules_context_too_large?
