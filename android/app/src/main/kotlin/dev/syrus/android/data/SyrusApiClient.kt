@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets
 class SyrusApiClient(
     private val instanceUrl: String,
     private val apiToken: String,
+    private val messages: UserMessages,
 ) {
     fun loadHomeState(limit: Int = 20): SyrusHomeState {
         val profile = loadBootstrap()
@@ -22,9 +23,9 @@ class SyrusApiClient(
     fun loadBootstrap(): BootstrapProfile {
         val payload = getJson("/api/v1/app/bootstrap")
         val whoami = payload.optJSONObject("whoami")
-            ?: throw IOException("Bootstrap response did not include whoami.")
+            ?: throw IOException(messages.bootstrapMissingUser())
         val email = whoami.optString("email").takeIf { it.isNotBlank() }
-            ?: throw IOException("API token did not resolve to a signed-in Syrus user.")
+            ?: throw IOException(messages.tokenUserMissing())
         return BootstrapProfile(email, whoami.optString("token_suffix"))
     }
 
@@ -38,9 +39,11 @@ class SyrusApiClient(
                 add(
                     JobSummary(
                         job.optLong("id"),
-                        job.optString("title", "Untitled job"),
-                        job.optString("state", "unknown"),
-                        job.optString("summary_state", job.optString("state", "unknown")),
+                        job.optString("title").takeIf { it.isNotBlank() } ?: messages.untitledJob(),
+                        job.optString("state").takeIf { it.isNotBlank() } ?: messages.unknownState(),
+                        job.optString("summary_state").takeIf { it.isNotBlank() }
+                            ?: job.optString("state").takeIf { it.isNotBlank() }
+                            ?: messages.unknownState(),
                         job.optString("current_step", ""),
                         repositorySlug(job),
                     ),
@@ -64,7 +67,7 @@ class SyrusApiClient(
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                val message = errorMessage(body).ifBlank { "Syrus API request failed with HTTP $code." }
+                val message = errorMessage(body).ifBlank { messages.apiHttpError(code) }
                 throw IOException(message)
             }
             return JSONObject(body)
@@ -75,8 +78,8 @@ class SyrusApiClient(
 
     private fun openConnection(pathAndQuery: String): HttpURLConnection {
         val base = instanceUrl.trim().trimEnd('/')
-        require(base.isNotBlank()) { "Syrus instance URL is required." }
-        require(apiToken.isNotBlank()) { "Syrus API token is required." }
+        require(base.isNotBlank()) { messages.instanceUrlRequired() }
+        require(apiToken.isNotBlank()) { messages.apiTokenRequired() }
 
         return (URL("$base$pathAndQuery").openConnection() as HttpURLConnection).apply {
             connectTimeout = CONNECT_TIMEOUT_MS
