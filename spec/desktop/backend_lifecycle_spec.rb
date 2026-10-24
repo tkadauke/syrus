@@ -15,10 +15,6 @@ RSpec.describe "desktop backend lifecycle" do
     File.read(File.join(desktop_root, relative_path), encoding: "UTF-8")
   end
 
-  def desktop_i18n
-    read("src/i18n.ts")
-  end
-
   let(:lifecycle) { read("electron/installer/backendLifecycle.ts") }
   let(:image_cleanup) { read("electron/installer/imageCleanup.ts") }
   let(:main_process) { read("electron/main.ts") }
@@ -65,7 +61,7 @@ RSpec.describe "desktop backend lifecycle" do
   end
 
   it "offers a setup escape hatch that never touches data or credentials" do
-    expect(main_process).to include('"Run Setup Again…"')
+    expect(main_process).to include('t("shell.setup_again")')
     setup_again = main_process[/const runSetupAgain = async[\s\S]*?\n\}/]
     expect(setup_again).to include("clearBackendConfig()")
     # Without a driver reset the reopened wizard shows the previous run's
@@ -83,10 +79,10 @@ RSpec.describe "desktop backend lifecycle" do
 
   it "adds the Backend menu only for local installs, with a confirmed stop" do
     expect(main_process).to include('if (getBackendMode() === "local") {')
-    expect(main_process).to include('label: "Backend"')
+    expect(main_process).to include('label: t("shell.backend")')
     expect(main_process).to include("confirmStopBackend")
     expect(main_process).to match(/confirmStopBackend[\s\S]*?showMessageBox/)
-    expect(main_process).to include('"Open Install Log"')
+    expect(main_process).to include('t("shell.install_log")')
   end
 
   it "suppresses the watchdog after a deliberate stop" do
@@ -157,7 +153,7 @@ RSpec.describe "desktop backend lifecycle" do
     expect(lifecycle).to include("export const backendBusy = () => busy || updateTermination.active()")
     guard = main_process[/const deferRelaunchWhileBackendBusy[\s\S]{0,900}/]
     expect(guard).to include("backendLifecycle.backendBusy()")
-    expect(guard).to include("Finishing backend update…")
+    expect(guard).to include('t("dialog.finishing_update")')
     # Both relaunch entry points run the guard: the sidebar bridge handler
     # and the shared app/tray "Restart to update" menu item.
     relaunch_handler = main_process[/ipcMain\.handle\("shell:relaunch-to-update"[\s\S]{0,900}/]
@@ -255,6 +251,5 @@ RSpec.describe "desktop backend lifecycle" do
       expect(backend_status).to include(%("#{detail}")).or include("#{detail}:")
     end
     expect(backend_status).to include('t("backend.reset_hint")')
-    expect(desktop_i18n).to include("Run Setup Again")
   end
 end
