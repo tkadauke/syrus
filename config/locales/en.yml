@@ -30,6 +30,11 @@
 en:
   hello: "Hello world"
 
+  server:
+    errors:
+      invalid_request: "The request is invalid."
+      unavailable: "This action is temporarily unavailable."
+
   time:
     formats:
       long: "%Y-%m-%d %H:%M"
