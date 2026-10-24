@@ -30,6 +30,7 @@ RSpec.describe "Agent Memory frontend locales", type: :unit do
   it "provides the page label and uses native German orthography and Lauf" do
     expect(locale("de")).to include(
       "aria_memories" => "Erinnerungen",
+      "tool_memory_id" => "Erinnerungs-ID",
       "tool_close" => "Schließen",
       "tool_actor_run" => 'Lauf #{{id}}',
       "tool_content_change" => "Inhaltsänderung"
