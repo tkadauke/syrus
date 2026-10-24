@@ -991,7 +991,12 @@ exact loop iteration — an agent filed `report_main_concern`, AND a live
 `BaseRevisionRetry` independently confirms every currently-failing required
 grader also fails when rerun against the base revision (using the grader's
 configured `base_retry`, including the custom-grader default described
-above). `failures: strict` graders are never eligible, and a `report_main_concern`
+above). For structured test graders, it first reuses an exact-SHA result from
+the same grader in a main-branch grader workflow when one is available. That
+preserves the original shard grouping and full-suite context; otherwise it
+falls back to the configured focused or full command. The recorded
+`base_retry_result.method` identifies which comparison was used.
+`failures: strict` graders are never eligible, and a `report_main_concern`
 call with no matching base-revision failure changes nothing — the required
 grader still blocks the iteration. A dismissal here is recorded the same way
 `inherited_grader_failure` is: the grader Step's `details["accepted_failure"]`

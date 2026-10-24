@@ -20,7 +20,7 @@ class BaseRevisionRetry
     ".syrus/grade-output/**/*.{xml,junit}"
   ].freeze
 
-  Result = Data.define(:ran, :inherited, :reason, :command, :base_failed_identities, :introduced_failed_identities, :output)
+  Result = Data.define(:ran, :inherited, :reason, :command, :base_failed_identities, :introduced_failed_identities, :output, :method)
   CommandExecution = Data.define(:result, :skip_reason) do
     def interrupted? = skip_reason.present?
     def success? = result.success?
@@ -45,6 +45,9 @@ class BaseRevisionRetry
     return run_full_command if config.fetch("strategy") == "full_command"
 
     return skipped("no_structured_cases") if @failed_cases.empty?
+
+    comparable = comparable_main_grader_result
+    return comparable if comparable
 
     command = focused_command(config)
     return skipped("focused_command_unavailable") if command.blank?
@@ -86,7 +89,8 @@ class BaseRevisionRetry
       command: redacted_command(command),
       base_failed_identities: base,
       introduced_failed_identities: introduced,
-      output: output_tail(output)
+      output: output_tail(output),
+      method: "focused_files"
     )
   rescue StandardError => e
     skipped("base_retry_error: #{e.class}: #{e.message}")
@@ -170,7 +174,8 @@ class BaseRevisionRetry
       command: redacted_command(command),
       base_failed_identities: [],
       introduced_failed_identities: [],
-      output: output_tail(output)
+      output: output_tail(output),
+      method: "full_command"
     )
   end
 
@@ -182,7 +187,43 @@ class BaseRevisionRetry
       command: command && redacted_command(command),
       base_failed_identities: [],
       introduced_failed_identities: [],
-      output: output && output_tail(output)
+      output: output && output_tail(output),
+      method: nil
+    )
+  end
+
+  def comparable_main_grader_result
+    conclusion = GraderConclusion
+      .where(
+        repository: @workflow.job.repository,
+        commit_sha: @base_sha,
+        grader_name: grader_name,
+        status: "failed"
+      )
+      .joins(:workflow)
+      .where(workflows: { trigger_kind: "main_grader" })
+      .latest_first
+      .first
+    return unless conclusion&.run
+    return unless conclusion.step&.details.to_h["command"].to_s == @grader_step.details.to_h["command"].to_s
+
+    base_cases = TestEvidenceLookup.failed_test_cases_for(conclusion.run, grader_name)
+    return if base_cases.empty?
+
+    candidate = @failed_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
+    base = base_cases.map { |test_case| identity_for(test_case) }.compact.uniq.sort
+    introduced = candidate - base
+    inherited = candidate.any? && introduced.empty?
+    @log.call("[brr:#{grader_name}] reused comparable main-grader result for #{@base_sha.first(9)}")
+    Result.new(
+      ran: true,
+      inherited: inherited,
+      reason: inherited ? "base_retry_main_grader_failed_cases_match" : "base_retry_main_grader_found_introduced_cases",
+      command: nil,
+      base_failed_identities: base,
+      introduced_failed_identities: introduced,
+      output: nil,
+      method: "main_grader_result"
     )
   end
 

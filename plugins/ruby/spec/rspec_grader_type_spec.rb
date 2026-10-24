@@ -9,7 +9,7 @@ RSpec.describe Ruby::RspecGraderType do
     Shellwords.split(script_arg).sole
   end
 
-  def run_generated_rspec_command(command, parallel_status:, serial_status: 0)
+  def run_generated_rspec_command(command, parallel_status:, serial_status: 0, extra_env: {})
     Dir.mktmpdir("rspec-grader-command") do |dir|
       bin_dir = File.join(dir, "bin")
       FileUtils.mkdir_p(bin_dir)
@@ -41,7 +41,7 @@ RSpec.describe Ruby::RspecGraderType do
         "GEM_PATH" => nil,
         "RUBYLIB" => nil,
         "RUBYOPT" => nil
-      }
+      }.merge(extra_env)
       yield dir if block_given?
       stdout, stderr, status = Open3.capture3(env, "bash", "-c", command, chdir: dir)
       parallel_args = File.exist?(File.join(dir, "parallel_rspec_args.txt")) ? File.read(File.join(dir, "parallel_rspec_args.txt")) : ""
@@ -401,7 +401,22 @@ RSpec.describe Ruby::RspecGraderType do
       ).first.run
     end
 
-    def run_gate(command, previous_specs:, gate_status: 0, parallel_status: 0)
+    def ci_gate_command
+      described_class.grade_steps(
+        config: {
+          "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+          "parallel_rspec" => {
+            "enabled" => true,
+            "rspec_modes" => [ "ci" ],
+            "processes" => "2",
+            "exec_args" => "bin/rspec-worker"
+          }
+        },
+        default_failures: "strict"
+      ).third.run
+    end
+
+    def run_gate(command, previous_specs:, gate_status: 0, gate_examples: 1, parallel_status: 0)
       Dir.mktmpdir("rspec-grader-gate") do |dir|
         bin_dir = File.join(dir, "bin")
         FileUtils.mkdir_p(bin_dir)
@@ -411,7 +426,15 @@ RSpec.describe Ruby::RspecGraderType do
             check|install) exit 0 ;;
             exec)
               shift
-              if [ "$1" = "rspec" ]; then echo "GATE_RAN" >> "$TRACE"; exit "${FAKE_GATE_STATUS:-0}"; fi
+              if [ "$1" = "rspec" ]; then
+                echo "GATE_RAN RUN_CI_ONLY_SPECS=${RUN_CI_ONLY_SPECS:-} args=$*" >> "$TRACE"
+                json_path=""
+                while [ "$#" -gt 0 ]; do
+                  if [ "$1" = "--out" ]; then json_path="$2"; shift 2; else shift; fi
+                done
+                if [ -n "$json_path" ]; then printf '{"summary":{"example_count":%s}}' "${FAKE_GATE_EXAMPLES:-1}" > "$json_path"; fi
+                exit "${FAKE_GATE_STATUS:-0}"
+              fi
               "$@"; exit $? ;;
             *) exit 64 ;;
           esac
@@ -421,7 +444,14 @@ RSpec.describe Ruby::RspecGraderType do
           echo "FULL_RAN" >> "$TRACE"
           exit "${FAKE_PARALLEL_RSPEC_STATUS:-0}"
         BASH
-        File.write(File.join(bin_dir, "ruby"), "#!/usr/bin/env bash\nexit 0\n")
+        File.write(File.join(bin_dir, "ruby"), <<~BASH)
+          #!/usr/bin/env bash
+          if [[ "$*" == *previous-failures-gate.json* ]]; then
+            [ "${FAKE_GATE_EXAMPLES:-1}" -gt 0 ]
+            exit $?
+          fi
+          exit 0
+        BASH
         FileUtils.chmod("+x", Dir[File.join(bin_dir, "*")])
         trace = File.join(dir, "trace")
 
@@ -430,6 +460,7 @@ RSpec.describe Ruby::RspecGraderType do
           "TRACE" => trace,
           "SYRUS_PREVIOUS_FAILED_SPECS" => previous_specs,
           "FAKE_GATE_STATUS" => gate_status.to_s,
+          "FAKE_GATE_EXAMPLES" => gate_examples.to_s,
           "FAKE_PARALLEL_RSPEC_STATUS" => parallel_status.to_s,
           "BUNDLE_GEMFILE" => nil, "GEM_HOME" => nil, "GEM_PATH" => nil,
           "RUBYLIB" => nil, "RUBYOPT" => nil
@@ -453,6 +484,28 @@ RSpec.describe Ruby::RspecGraderType do
       expect(exitstatus).to eq(0)
       expect(trace).to include("GATE_RAN")
       expect(trace).to include("FULL_RAN")
+    end
+
+    it "fails instead of passing vacuously when supplied files run no examples" do
+      exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb", gate_examples: 0)
+
+      expect(exitstatus).to eq(1)
+      expect(trace).to include("GATE_RAN")
+      expect(trace).not_to include("FULL_RAN")
+    end
+
+    it "uses the full-suite tag policy for the full-mode gate" do
+      _exitstatus, trace = run_gate(gate_command, previous_specs: "spec/a_spec.rb")
+
+      expect(trace).to include("RUN_CI_ONLY_SPECS=false")
+      expect(trace).to include("--tag ~ci_only")
+    end
+
+    it "uses the CI-only tag policy for the CI-mode gate" do
+      _exitstatus, trace = run_gate(ci_gate_command, previous_specs: "spec/a_spec.rb")
+
+      expect(trace).to include("RUN_CI_ONLY_SPECS=true")
+      expect(trace).to include("--tag ci_only")
     end
 
     it "does not let a passing gate hide a failing suite" do
@@ -566,6 +619,9 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.first.run).to include("grouping shards by file size")
     expect(steps.first.run).to include("--exec-args bin/rspec-worker spec")
     expect(steps.first.run).to include("bundle exec rake parallel:prepare")
+    expect(steps.first.run).to include('PARALLEL_TEST_PROCESSORS="$RSPEC_PARALLEL_PROCESSES" bundle exec rake parallel:prepare')
+    expect(steps.first.run.index('RSPEC_PARALLEL_PROCESSES="${SYRUS_PROCESS_PARALLELISM:-}"')).to be <
+      steps.first.run.index("bundle exec rake parallel:prepare")
     expect(steps.first.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~ci_only")
     expect(steps.first.run).to include("RSPEC_OUTPUT_PREFIX=rspec")
     expect(steps.first.metadata["runtime_profile_destination"]).to eq(".syrus/parallel_runtime_rspec.log")
@@ -574,6 +630,29 @@ RSpec.describe Ruby::RspecGraderType do
     expect(steps.second.run).to include("--exec-args bin/rspec-worker $(cat .syrus/rspec-focused-files)")
     expect(steps.third.run).to include("bundle exec rspec")
     expect(steps.third.run).not_to include("parallel_rspec")
+  end
+
+  it "passes the resolved capped worker count to the parallel prepare command" do
+    step = described_class.grade_steps(
+      config: {
+        "parallel_rspec" => {
+          "enabled" => true,
+          "rspec_modes" => [ "full" ],
+          "processes" => "4",
+          "prepare_command" => "sh -c 'echo PREPARE_COUNT=$PARALLEL_TEST_PROCESSORS'"
+        }
+      },
+      default_failures: "strict"
+    ).first
+
+    stdout, stderr, status = run_generated_rspec_command(
+      step.run,
+      parallel_status: 0,
+      extra_env: { "SYRUS_PROCESS_PARALLELISM" => "7" }
+    )
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("PREPARE_COUNT=4")
   end
 
   # parallel_tests' own default balances shards by file count, which on this

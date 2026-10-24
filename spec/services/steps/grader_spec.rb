@@ -52,6 +52,15 @@ RSpec.describe Steps::Grader, :ci_only do
     system("git", "commit", "--quiet", "-m", "init", **git_opts)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    # Keep ProcessRunner stubs in these unit examples scoped to the grader
+    # command. Checkout validation, git snapshots, and inline plugin
+    # subscribers run their own ProcessRunner instances and otherwise consume
+    # broad stubs intended for the command under test when this file runs in
+    # the full CI shard.
+    allow(handler).to receive(:validate_workspace_tracked_files!)
+    allow(handler).to receive(:capture_git_status).and_return("")
+    allow(handler).to receive(:capture_git_metadata_digest).and_return({})
+    allow(Syrus::Events).to receive(:publish)
   end
 
   it "writes grader output to the workspace file and durable JobLog rows" do
@@ -390,8 +399,10 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   it "fails before running a grader when the checkout is missing a tracked file" do
+    allow(handler).to receive(:validate_workspace_tracked_files!).and_call_original
     FileUtils.rm_f(@ws_path.join("README.md"))
-    expect(ProcessRunner).not_to receive(:new)
+    allow(ProcessRunner).to receive(:new).and_call_original
+    expect(ProcessRunner).not_to receive(:new).with(hash_including(kind: "grader"))
 
     error = nil
     expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
@@ -475,7 +486,8 @@ RSpec.describe Steps::Grader, :ci_only do
       command: "bundle exec rspec spec/models/widget_spec.rb",
       base_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
       introduced_failed_identities: [],
-      output: "1 example, 1 failure"
+      output: "1 example, 1 failure",
+      method: "focused_files"
     ))
 
     expect { handler.call }.not_to raise_error
@@ -489,6 +501,7 @@ RSpec.describe Steps::Grader, :ci_only do
     )
     expect(step.reload.details).to include(
       "conclusion" => "warning",
+      "base_retry_result" => include("method" => "focused_files"),
       "accepted_failure" => include(
         "adjudicator" => "base_revision_retry",
         "reason" => "base_retry_failed_cases_match"
@@ -524,7 +537,8 @@ RSpec.describe Steps::Grader, :ci_only do
       command: "bin/rspec-worker spec/models/widget_spec.rb",
       base_failed_identities: [],
       introduced_failed_identities: [],
-      output: "some output\n[brr] timed out after 600s\n"
+      output: "some output\n[brr] timed out after 600s\n",
+      method: nil
     ))
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
@@ -561,7 +575,8 @@ RSpec.describe Steps::Grader, :ci_only do
       command: "bundle exec rspec spec/models/widget_spec.rb",
       base_failed_identities: [],
       introduced_failed_identities: [ "spec/models/widget_spec.rb\0Widget fails" ],
-      output: "1 example, 0 failures"
+      output: "1 example, 0 failures",
+      method: "focused_files"
     ))
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader rspec failed/)
@@ -829,6 +844,7 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   describe "grader side-effect detection" do
+    before { allow(handler).to receive(:capture_git_status).and_call_original }
     it "records a grader_side_effect warning when the command leaves uncommitted changes, without affecting grader pass/fail" do
       step.update!(details: step.details.merge("command" => "touch dirty.txt"))
 
@@ -861,6 +877,7 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   describe "git metadata immutability" do
+    before { allow(handler).to receive(:capture_git_metadata_digest).and_call_original }
     # The prepared tree a checkout is materialized from is shared across the
     # graders on a host, so sharing `.git` is only safe while nothing writes
     # it. Detection, not refusal: failing a landing grader over a repository
@@ -904,6 +921,7 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   describe "prepare target side-effect detection" do
+    before { allow(handler).to receive(:capture_git_status).and_call_original }
     before do
       step.update!(details: step.details.merge(
         "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "touch dirty.txt" ] } ]
