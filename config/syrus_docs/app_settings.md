@@ -23,6 +23,15 @@ Maximum number of repair→check cycles in the grader loop before a workflow fai
 
 Number of implement→adversarial-review iterations run before graders. `0` disables adversarial review instance-wide. Per-repo `.syrus.yml` can override with `adversarial_review.rounds`.
 
+### security_review_rounds
+
+**Type:** integer · **Default:** 0 · **Range:** 0–10
+
+Number of implement→security-review iterations run after adversarial review and
+before graders. `0` disables security review instance-wide. Per-repo
+`.syrus.yml` can override the round count with `security_review.rounds` and add
+repository-specific guidance with `security_review.criteria`.
+
 Visual review is on by default instance-wide with no `AppSetting` or Feature
 flag controlling it — only a repository's `.syrus.yml` can override it — see
 [`visual_review.md`](visual_review.md) and [`feature_flags.md`](feature_flags.md).

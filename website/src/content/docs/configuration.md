@@ -94,6 +94,9 @@ Schema:
 | `project.capabilities` / target `capabilities` | Mapping | Execution worker constraints: `os`, `arch`, `toolchain`, and `runtime` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
 | `adversarial_review.required` | Boolean | Fail the workflow when adversarial review cannot execute instead of recording a skipped warning |
+| `security_review.rounds` | Integer | Number of security review rounds to run after adversarial review; omit to use the instance default or set `0` to disable for this repository |
+| `security_review.required` | Boolean | Fail the workflow when security review cannot execute instead of recording a skipped warning |
+| `security_review.criteria` | Array of strings | Repository-specific security concerns the reviewer must examine |
 | `review_notes.criteria` | Array of strings | High-signal interests for the Review Notes pass |
 | `review_notes.low_signal` | Array of strings | Low-signal guidance for the Review Notes pass |
 | `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
@@ -829,4 +832,11 @@ remove the old scheme after verification.
 
 ## Security review
 
-An optional `security_review` block runs a dedicated security reviewer after adversarial review. Set `rounds` from 0 to 10, optionally require reviewer availability with `required: true`, and add repository-specific `criteria`. The feature defaults to zero rounds (disabled), and routing rules can select a provider for the `security_review` step kind.
+An optional `security_review` block runs a dedicated security reviewer after
+adversarial review. Admins set the instance default, from 0 to 10 rounds, in
+Admin Settings; zero disables the review by default. A repository can override
+that round count with `rounds`, require reviewer availability with
+`required: true`, and add repository-specific `criteria`. The repository page
+shows the configured rounds and criteria alongside the other `.syrus.yml`
+review settings. Routing rules can select a provider for the
+`security_review` step kind.
