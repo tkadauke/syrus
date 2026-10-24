@@ -358,8 +358,8 @@ export function parseLoadCanvasResult(value: unknown): LoadCanvasResult | null {
 }
 
 export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
-  const actions: MediaPreviewAction[] = result.snapshotId ? [{ label: "Copy ID", copyValue: result.snapshotId }] : []
-  if (result.autoSavedSnapshotId) actions.push({ label: "Copy auto-save", copyValue: result.autoSavedSnapshotId })
+  const actions: MediaPreviewAction[] = result.snapshotId ? [{ label: t("tool_copy_id"), copyValue: result.snapshotId }] : []
+  if (result.autoSavedSnapshotId) actions.push({ label: t("tool_copy_auto_save"), copyValue: result.autoSavedSnapshotId })
 
   return (
     <CardShell>
@@ -371,19 +371,19 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
       {result.snapshotId ? (
         <MediaPreviewShell
           item={{
-            title: `Snapshot #${result.snapshotId}`,
+            title: t("tool_snapshot_number", { id: result.snapshotId }),
             subtitle: result.mode,
-            badge: "snapshot",
-            fallbackLabel: "Whiteboard snapshot",
+            badge: t("tool_snapshot_badge"),
+            fallbackLabel: t("tool_whiteboard_snapshot"),
             actions,
             meta: [
-              { label: "Snapshot ID", value: result.snapshotId, copyValue: result.snapshotId },
-              { label: "Mode", value: result.mode },
-              { label: "Elements added", value: result.elementsAdded != null ? String(result.elementsAdded) : null },
-              { label: "Auto-saved as", value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_mode"), value: result.mode },
+              { label: t("tool_elements_added"), value: result.elementsAdded != null ? String(result.elementsAdded) : null },
+              { label: t("tool_auto_saved_as"), value: result.autoSavedSnapshotId, copyValue: result.autoSavedSnapshotId }
             ]
           }}
-          modalLabel="Whiteboard snapshot"
+          modalLabel={t("tool_whiteboard_snapshot")}
         />
       ) : null}
       <dl className="grid gap-1 sm:grid-cols-2">
