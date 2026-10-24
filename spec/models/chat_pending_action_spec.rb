@@ -164,6 +164,18 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(action.errors[:payload]).to include("job_id is required")
   end
 
+  it "localizes queued-action validation without changing its payload field" do
+    action = chat_session.pending_actions.build(
+      action: "submit_chat_feedback",
+      state: "queued",
+      payload: { "feedback" => "Please tighten this." }
+    )
+
+    expect(I18n.with_locale(:de) { action.valid?; action.errors[:payload] }).to include("job_id ist erforderlich")
+    expect(I18n.with_locale(:la) { action.valid?; action.errors[:payload] }).to include("job_id requiritur")
+    expect(action.errors.details[:payload]).to include(include(error: :job_id_required))
+  end
+
   it "keeps existing state enum values valid when adding queued" do
     expect(described_class.states.keys).to eq(%w[queued pending confirming confirmed rejected cancelled failed])
     %w[pending confirming confirmed rejected cancelled failed].each do |state|

@@ -250,6 +250,31 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(parse_body.dig("error", "message")).to include("unknown provider")
   end
 
+  it "localizes interpolated validation failures without changing the machine code" do
+    user.update!(locale: "de")
+
+    post "/api/v1/app/credentials/provider_routing_rules",
+      params: { provider_routing_rule: { trigger: { type: "unknown" }, candidates: [ { provider: "unknown" } ] } },
+      as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("unbekannten Typ \"unknown\"")
+    expect(parse_body.dig("error", "message")).to include("unbekannten Anbieter \"unknown\"")
+  end
+
+  it "localizes reorder errors in Latin while preserving the response shape" do
+    user.update!(locale: "la")
+    create_rule(scope_type: "user", scope_id: user.id, task_key: "default")
+
+    patch "/api/v1/app/credentials/provider_routing_rules/reorder",
+      params: { provider_routing_rule_ids: [] }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to eq("ID regularum omnibus regulis huius ambitus semel exacte congruere debent.")
+  end
+
   it "requires write access for job-scoped mutations" do
     reader = Factories.user
     repository.repository_memberships.create!(user: reader, role: "read")

@@ -108,4 +108,11 @@ RSpec.describe CognitiveEngagementEvent do
     expect(event).not_to be_valid
     expect(event.errors[:diff_review_version]).to include("must belong to the same repository")
   end
+
+  it "localizes anchor validation in German and Latin" do
+    event = build_event(path: nil, start_line: nil, end_line: nil)
+
+    expect(I18n.with_locale(:de) { event.valid?; event.errors[:path] }).to include("muss bei Bereichsverankerungen vorhanden sein")
+    expect(I18n.with_locale(:la) { event.valid?; event.errors[:path] }).to include("ancoris intervalli adesse debet")
+  end
 end

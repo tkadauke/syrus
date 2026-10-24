@@ -2131,12 +2131,12 @@ class Job < ApplicationRecord
   def epic_belongs_to_same_user_and_repository
     return unless epic
 
-    errors.add(:epic, "must belong to the same user") if epic.user_id != user_id
+    errors.add(:epic, :same_user_required) if epic.user_id != user_id
     # Allow: direct repo match, OR fork-to-upstream (job's repo is a fork whose
     # upstream is the epic's repo).
     same_repo = epic.repository_id == repository_id
     fork_to_upstream = repository && repository.upstream_repository_id == epic.repository_id
-    errors.add(:epic, "must belong to the same repository or its upstream") unless same_repo || fork_to_upstream
+    errors.add(:epic, :same_repository_or_upstream_required) unless same_repo || fork_to_upstream
   end
 
   # Guards against a multi-owner Epic: all current + incoming open children
@@ -2163,7 +2163,7 @@ class Job < ApplicationRecord
       .find { |sibling| sibling.effective_owner_id != effective_owner_id }
     return unless conflicting
 
-    errors.add(:epic, "already has an open child Job (#{conflicting.slug}) owned by a different user")
+    errors.add(:epic, :different_owner_open_child, job: conflicting.slug)
   end
 
   def set_target_repository_from_epic
@@ -2204,29 +2204,29 @@ class Job < ApplicationRecord
     return if issue_number.blank?
     return unless Job::Kind.issueless?(kind)
 
-    errors.add(:issue_number, "must be blank for #{kind} Jobs")
+    errors.add(:issue_number, :blank_for_issueless_kind, kind: kind)
   end
 
   def skill_name_requires_direct_or_cron_kind
-    errors.add(:skill_name, "requires kind=direct or kind=cron") unless direct? || cron?
+    errors.add(:skill_name, :requires_direct_or_cron) unless direct? || cron?
   end
 
   def branch_name_is_valid
-    errors.add(:branch_name, "is not a valid branch name") unless GitBranchName.valid?(branch_name)
+    errors.add(:branch_name, :invalid_branch_name) unless GitBranchName.valid?(branch_name)
   end
 
   def investigation_requires_investigable_kind
     return if Job::Kind.investigable?(kind)
 
-    errors.add(:investigation, "requires an investigable Job kind")
+    errors.add(:investigation, :requires_investigable_kind)
   end
 
   def investigation_excludes_skill_name
-    errors.add(:investigation, "cannot be combined with skill_name")
+    errors.add(:investigation, :incompatible_with_skill_name)
   end
 
   def external_pr_starts_implemented
-    errors.add(:state, "must be implemented for external_pr Jobs") unless implemented?
+    errors.add(:state, :external_pr_must_be_implemented) unless implemented?
   end
 
   def saved_change_to_stack_parent_resolved_terminal?
