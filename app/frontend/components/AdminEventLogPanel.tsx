@@ -409,7 +409,10 @@ export function AdminEventFilterBar({
   clearLabel: string
 }) {
   const fallbackFields = fields || []
-  const schema = useMemo(() => filterSchema || adminEventFilterSchema(fallbackFields), [fallbackFields, filterSchema])
+  const schema = useMemo(
+    () => filterSchema ? localizeAdminEventFilterSchema(filterSchema, fallbackFields) : adminEventFilterSchema(fallbackFields),
+    [fallbackFields, filterSchema]
+  )
   const activeFilter = useMemo(() => filter || adminEventFilterTree(fallbackFields, search), [fallbackFields, filter, search])
   // Restores the mobile gutter AdminEventPageShell's Page.Root drops for its
   // children, so every consumer's filter bar stays margined like the header
@@ -449,6 +452,27 @@ function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaFi
     operators: ["is"],
     values: field.options
   }))
+}
+
+// The backend schema owns filtering behavior, but its labels are API metadata
+// and are always English. Preserve that behavior while applying the localized
+// presentation supplied by each admin surface.
+function localizeAdminEventFilterSchema(schema: FilterSchemaField[], fields: AdminEventFilterField[]): FilterSchemaField[] {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]))
+
+  return schema.map((schemaField) => {
+    const field = fieldsByName.get(schemaField.field)
+    if (!field) return schemaField
+
+    return {
+      ...schemaField,
+      expansions: field.placeholder
+        ? { ...schemaField.expansions, placeholder: field.placeholder }
+        : schemaField.expansions,
+      label: field.label,
+      values: field.options ?? schemaField.values
+    }
+  })
 }
 
 function adminEventFilterTree(fields: AdminEventFilterField[], search: string): FilterTree {
