@@ -41,6 +41,60 @@ RSpec.describe CiLogParser do
     expect(result[:error_block]).to include("Process completed with exit code 1.")
   end
 
+  it "extracts Vitest failures after removing ANSI escapes and benign browser warnings" do
+    result = described_class.new(fixture_log("vitest_failure"), step_name: "react tests").parse
+
+    expect(result[:parser]).to eq("vitest")
+    expect(result[:error_summary]).to match(/Test Files\s+1 failed/)
+    expect(result[:failing_tests]).to include("app/frontend/components/Filter.test.tsx > Filter > preserves selected chips")
+    expect(result[:error_block]).to include("AssertionError: expected []")
+    expect(result[:error_block]).not_to match(/validateDOMNesting|wrapped in act|HTMLCanvasElement|\e\[/)
+  end
+
+  it "extracts Playwright's numbered failed spec list" do
+    result = described_class.new(fixture_log("playwright_failure"), step_name: "playwright").parse
+
+    expect(result[:parser]).to eq("playwright")
+    expect(result[:error_summary]).to eq("2 failed")
+    expect(result[:failing_tests]).to contain_exactly(
+      "tests/review/job-review.spec.ts:42:3 › review tab › displays annotations",
+      "tests/chat/tool-card.spec.ts:19:3 › tool cards › renders output"
+    )
+  end
+
+  it "extracts RSpec failed examples even when the detailed failures block is absent" do
+    log = <<~LOG
+      12 examples, 1 failure
+
+      Failed examples:
+
+      rspec ./spec/models/widget_spec.rb:27 # Widget validates its name
+    LOG
+
+    result = described_class.new(log, step_name: "rspec").parse
+
+    expect(result[:parser]).to eq("rspec")
+    expect(result[:failing_tests]).to eq([ "./spec/models/widget_spec.rb:27 - Widget validates its name" ])
+  end
+
+  it "recognizes lint and TypeScript errors from real command shapes" do
+    lint = described_class.new(fixture_log("lint_failure"), step_name: "lint").parse
+    typescript = described_class.new(fixture_log("typescript_failure"), step_name: "typecheck").parse
+
+    expect(lint).to include(parser: "generic_error", error_summary: "✖ 1 problem (1 error, 0 warnings)")
+    expect(typescript).to include(parser: "typescript", error_summary: "1 TypeScript error(s)")
+  end
+
+  it "keeps the tail when a generic log exceeds the context bound" do
+    log = ([ "Error: command failed" ] + Array.new(100) { |i| "output #{i}" } + [ "failing assertion at the end" ]).join("\n")
+
+    result = described_class.new(log, step_name: "test").parse
+
+    expect(result[:error_block]).to include("failing assertion at the end")
+    expect(result[:error_block]).not_to include("output 1\n")
+    expect(result[:error_block].bytesize).to be <= described_class::MAX_BLOCK_BYTES + 20
+  end
+
   it "returns a useful empty result when no log is available" do
     result = described_class.new(nil, step_name: "test", full_log_url: "https://ci.example/log").parse
 
