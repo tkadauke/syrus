@@ -774,7 +774,9 @@ describe("BugReportButton", () => {
       expect(options).toMatchObject({ onclone: expect.any(Function) })
     })
 
-    it("onclone callback converts sticky-positioned elements to relative", async () => {
+    it("preserves sticky UI and ordinary rows in a scrolled viewport clone", async () => {
+      Object.defineProperty(window, "scrollX", { configurable: true, value: 37 })
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 480 })
       const ref = renderButton()
       await openDialog(ref)
 
@@ -783,16 +785,35 @@ describe("BugReportButton", () => {
       const [, options] = mockHtml2canvas.mock.calls[0]
       const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
 
-      const stickyEl = document.createElement("div")
-      stickyEl.style.position = "sticky"
-      document.body.appendChild(stickyEl)
+      expect(options).toMatchObject({ x: 37, y: 480 })
+
+      const stickyHeader = document.createElement("header")
+      stickyHeader.style.position = "sticky"
+      stickyHeader.style.top = "0px"
+      const stickyMetric = document.createElement("aside")
+      stickyMetric.style.position = "sticky"
+      stickyMetric.style.right = "0px"
+      const scrolledDiff = document.createElement("div")
+      const setScrollTop = vi.fn()
+      Object.defineProperty(scrolledDiff, "scrollTop", { configurable: true, get: () => 125, set: setScrollTop })
+      const hunkRow = document.createElement("div")
+      hunkRow.textContent = "@@ -1 +1 @@"
+      scrolledDiff.append(stickyMetric, hunkRow)
+      document.body.append(stickyHeader, scrolledDiff)
 
       // Simulate the html2canvas-pro onclone call: second arg is the cloned element;
       // normalizeCloneForCapture reaches the document via element.ownerDocument.
       onclone(document, document.body)
 
-      expect(stickyEl.style.position).toBe("relative")
-      document.body.removeChild(stickyEl)
+      expect(stickyHeader.style.position).toBe("sticky")
+      expect(stickyHeader.style.top).toBe("0px")
+      expect(stickyMetric.style.position).toBe("sticky")
+      expect(stickyMetric.style.right).toBe("0px")
+      expect(setScrollTop).toHaveBeenCalledWith(125)
+      expect(hunkRow.style.position).toBe("")
+      expect(hunkRow.style.display).toBe("")
+      stickyHeader.remove()
+      scrolledDiff.remove()
     })
 
     it("onclone callback hides closed details contents", async () => {
@@ -844,6 +865,33 @@ describe("BugReportButton", () => {
       // windowWidth/windowHeight must match the viewport, not the document scroll dimensions.
       // onclone must be wired for both capture modes.
       expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function) })
+    })
+
+    it("normalizes sticky elements only in the full-page clone", async () => {
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 480 })
+      const ref = renderButton()
+      await openDialog(ref)
+      mockHtml2canvas.mockClear()
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalledOnce())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      expect(options).toMatchObject({ x: 0, y: 0, scrollY: 0 })
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+      const stickyHeader = document.createElement("header")
+      stickyHeader.style.position = "sticky"
+      const hunkRow = document.createElement("div")
+      hunkRow.textContent = "@@ -1 +1 @@"
+      document.body.append(stickyHeader, hunkRow)
+
+      onclone(document, document.body)
+
+      expect(stickyHeader.style.position).toBe("relative")
+      expect(hunkRow.style.position).toBe("")
+      expect(hunkRow.style.display).toBe("")
+      stickyHeader.remove()
+      hunkRow.remove()
     })
 
     it("onclone callback syncs scrollTop from inner scroll containers to their clones", async () => {
