@@ -35,7 +35,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     capabilities = described_class.capabilities
     keys = capabilities.map(&:key)
 
-    expect(keys).to include("submit_summary", "cancel_job", "personal_api_token")
+    expect(keys).to include("submit_summary", "submit_security_review", "cancel_job", "personal_api_token")
     expect(keys).to eq(keys.uniq)
     expect(capabilities).to all(have_attributes(decisions: include(*described_class::SURFACES)))
 
@@ -72,6 +72,15 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
       expect(capability.decision_for(:user_api).reason).to eq(described_class::WORKFLOW_MCP_REASON)
       expect(capability.decision_for(:admin_api).reason).to eq(described_class::WORKFLOW_MCP_REASON)
       expect(capability.decision_for(:cli).reason).to eq(described_class::WORKFLOW_MCP_REASON)
+    end
+  end
+
+  it "records non-MCP decisions for the security review submission capability" do
+    capability = described_class.capabilities.index_by(&:key).fetch("submit_security_review")
+
+    expect(capability.decision_for(:mcp)).to be_exposed
+    %i[user_api admin_api cli].each do |surface|
+      expect(capability.decision_for(surface).reason).to eq(described_class::WORKFLOW_MCP_REASON)
     end
   end
 
