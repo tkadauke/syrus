@@ -85,6 +85,9 @@ type RuntimeCard =
       target: string | null
       command: string | null
       error: string | null
+      inputProvider: string | null
+      inputName: string | null
+      inputOptions: Record<string, unknown>
       raw: unknown
     }
   | {
@@ -229,6 +232,10 @@ function parseSession(value: unknown): RuntimeSession | null {
   }
 }
 
+function withoutErrorPrefix(value: string | null) {
+  return value?.replace(/^Error:\s*/i, "") ?? null
+}
+
 function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAction): RuntimeCard | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed)) return null
@@ -237,10 +244,11 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
   const metadata = parseObject(parsed.metadata)
   const options = parseObject(context.input?.options)
   const content = contentText(parsed.content)
-  const error =
-    parsed.error === true
-      ? firstDisplayValue(parsed.message, parsed.error_message, content)
+  const error = withoutErrorPrefix(
+    context.resultError || parsed.error === true
+      ? firstDisplayValue(parsed.message, parsed.error_message, content, parsed.error)
       : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
+  )
   const explicitTarget =
     action === "launch" && !error ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content) : null
 
@@ -253,6 +261,9 @@ function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAc
     target: explicitTarget,
     command: firstDisplayValue(parsed.command, parsed.build_command, metadata.command, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
     error,
+    inputProvider: action === "start" ? displayValue(context.input?.provider) : null,
+    inputName: action === "start" ? displayValue(context.input?.name) : null,
+    inputOptions: action === "start" ? options : {},
     raw: parsed
   }
 }
@@ -436,6 +447,8 @@ function errorMessage(context: ToolCardContext): string | null {
 }
 
 function parseCard(context: ToolCardContext): RuntimeCard | null {
+  if (context.toolName === "runtime_start" && isPlainObject(context.parsedResult)) return parseLifecycleCard(context, "start")
+
   const error = errorMessage(context)
   if (error) return { kind: "error", action: context.toolName, message: error, sessionId: displayValue(context.input?.session_id) }
 
@@ -469,7 +482,6 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
     return session ? { kind: "status", session, raw: parsed } : null
   }
 
-  if (context.toolName === "runtime_start") return parseLifecycleCard(context, "start")
   if (context.toolName === "runtime_build_or_reload") return parseLifecycleCard(context, "build/reload")
   if (context.toolName === "runtime_launch") return parseLifecycleCard(context, "launch")
   if (context.toolName === "runtime_inspect") return parseInspectCard(context)
@@ -603,6 +615,22 @@ function MetadataRows({ values }: { values: Record<string, unknown> }) {
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <Row key={key} label={key} value={displayValue(value) ?? String(value)} wrap />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OptionRows({ values }: { values: Record<string, unknown> }) {
+  const entries = objectEntries(values)
+  if (entries.length === 0) return null
+
+  return (
+    <div>
+      <SectionLabel>Options</SectionLabel>
+      <div className="mt-1 grid gap-1 sm:grid-cols-2">
+        {entries.map(([key, value]) => (
+          <Row key={key} label={key} value={displayValue(value) ?? JSON.stringify(value) ?? String(value)} wrap />
         ))}
       </div>
     </div>
@@ -764,6 +792,24 @@ function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
   )
 }
 
+function RuntimeUrl({ url }: { url: string | null }) {
+  if (!url) return null
+  const href = safeRuntimeUrl(url)
+
+  return (
+    <div className="min-w-0">
+      <SectionLabel>URL</SectionLabel>
+      {href ? (
+        <a className="block min-h-11 break-all font-mono text-brand hover:underline dark:text-brand-emphasis" href={href} rel="noreferrer" target="_blank">
+          {url}
+        </a>
+      ) : (
+        <div className="break-all font-mono text-gray-700 dark:text-gray-300">{url}</div>
+      )}
+    </div>
+  )
+}
+
 function RawRuntimeDetails({ value }: { value: unknown }) {
   return (
     <Disclosure label="Runtime JSON">
@@ -786,30 +832,62 @@ function RuntimeNotice({ tone, message }: { tone: BannerTone; message: string })
 }
 
 function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "lifecycle" }> }) {
-  const tone = card.error ? "failure" : card.action === "stop" ? "neutral" : "success"
+  const state = card.error ? "failed" : (card.status ?? (card.action === "stop" ? "stopped" : "succeeded"))
+  const tone =
+    card.error || (card.action === "start" && state === "failed")
+      ? "failure"
+      : card.action === "start" && state === "starting"
+        ? "warning"
+        : card.action === "stop"
+          ? "neutral"
+          : "success"
+  const startSessionMetadata = card.session
+    ? Object.fromEntries(objectEntries(card.session.metadata).filter(([key]) => !["url", "workspace_ref", "pid"].includes(key)))
+    : {}
+  const startWorkspace = card.session ? firstDisplayValue(card.session.workspaceRef, card.session.metadata.workspace_ref) : null
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
-        <StatePill state={card.error ? "failed" : (card.status ?? (card.action === "stop" ? "stopped" : "succeeded"))} tone={tone} />
+        <StatePill state={state} tone={tone} />
         <span className="font-semibold text-gray-900 dark:text-gray-100">Runtime {lifecycleNoun(card.action)}</span>
         {card.session ? <span className="font-mono text-gray-700 dark:text-gray-300">#{card.session.id}</span> : null}
       </div>
       {card.error ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {card.action === "start" ? <span className="font-semibold">Error: </span> : null}
           {card.error}
         </div>
       ) : null}
-      <FieldRows
-        rows={[
-          ["State", card.session?.state ?? card.status],
-          ["Command", card.command],
-          ["URL", card.url],
-          ["Launch target", card.target],
-          ["Provider", card.session?.providerKey ?? null],
-          ["Workspace", card.session?.workspaceRef ?? null]
-        ]}
-      />
-      {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
+      {card.action === "start" ? (
+        <>
+          <FieldRows
+            rows={[
+              ["State", card.session?.state ?? card.status],
+              ["Command", card.command],
+              ["Provider", card.inputProvider ?? card.session?.providerKey ?? null],
+              ["Name", card.inputName],
+              ["Workspace", startWorkspace]
+            ]}
+          />
+          <RuntimeUrl url={card.url} />
+          <OptionRows values={card.inputOptions} />
+          {card.session ? <RuntimeSessionBlock session={{ ...card.session, workspaceRef: null, metadata: startSessionMetadata }} /> : null}
+        </>
+      ) : (
+        <>
+          <FieldRows
+            rows={[
+              ["State", card.session?.state ?? card.status],
+              ["Command", card.command],
+              ["URL", card.url],
+              ["Launch target", card.target],
+              ["Provider", card.session?.providerKey ?? null],
+              ["Workspace", card.session?.workspaceRef ?? null]
+            ]}
+          />
+          {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
+        </>
+      )}
       <RawRuntimeDetails value={card.raw} />
     </CardShell>
   )
