@@ -6,7 +6,17 @@ RSpec.describe LandingQueueProcessor, :ci_only do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
+  # New repositories no longer opt in to main-branch monitoring, repair, or work blocking,
+  # so this spec enables them explicitly.
+  let(:repository) do
+    Factories.repository(
+      user: user,
+      auto_merge_enabled: true,
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      main_branch_repair_blocks_work: true
+    )
+  end
 
   def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number, repository: self.repository, epic: nil)
     # Start in :implemented so approve! works directly; mirrors the

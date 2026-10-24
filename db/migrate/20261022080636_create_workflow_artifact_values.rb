@@ -17,7 +17,7 @@ class CreateWorkflowArtifactValues < ActiveRecord::Migration[8.1]
   def up
     unless table_exists?(:workflow_artifact_values)
       create_table :workflow_artifact_values do |t|
-        t.references :workflow, null: false
+        t.references :workflow, null: false, foreign_key: false
         t.string :key, null: false
         t.text :value, limit: 16.megabytes - 1, null: false
         t.timestamps

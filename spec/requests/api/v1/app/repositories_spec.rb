@@ -484,6 +484,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       owner: "acme",
       name: "widgets",
       trigger_label: "syrus",
+      main_branch_health_enabled: true,
       landing_paused: true,
       last_health_checked_sha: "abc1234def5678",
       ci_health: "healthy"
@@ -728,7 +729,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       github_owner_id: 100,
       github_repository_id: 200,
       ci_health: "not_configured",
-      grader_health: "healthy"
+      grader_health: "healthy",
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      main_branch_repair_blocks_work: true
     )
     repository.update!(landing_paused: true)
     failed = Factories.job_with_run(
@@ -1183,7 +1187,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "scopes current main branch health to the tracked SHA while preserving older history" do
     sign_in_as(user)
-    repository = Factories.repository(user: user)
+    repository = Factories.repository(user: user, main_branch_health_enabled: true)
     old_sha = "old1234567890"
     current_sha = "new1234567890"
     MainBranchHealthCheck.record_ci_poll(
@@ -1232,7 +1236,9 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       sha: stale_sha,
       grader_failed_names: [ "rspec", "react-tests" ]
     )
-    repository.update!(
+    # Skip validations: saving normalizes a disabled health check away from
+    # repair and landing pause, but a repository can still carry stale rows.
+    repository.update_columns(
       main_branch_health_enabled: false,
       main_branch_repair_enabled: true,
       main_branch_repair_auto_approve: true,
@@ -1321,7 +1327,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.pr_cost_footer_enabled).to eq(false)
     expect(repository.auto_merge_enabled).to eq(true)
     expect(repository.ci_repair_enabled).to eq(false)
-    expect(repository.main_branch_health_enabled).to eq(true)
+    expect(repository.main_branch_health_enabled).to eq(false)
     expect(repository.main_branch_repair_enabled).to eq(false)
     expect(repository.main_branch_repair_blocks_work).to eq(false)
     expect(repository.main_branch_repair_auto_approve).to eq(true)
@@ -1494,7 +1500,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "resumes repository work even when main remains broken" do
     sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets", landing_paused: true, ci_health: "broken")
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", main_branch_health_enabled: true, landing_paused: true, ci_health: "broken")
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/resume_landing", params: { page: 1 }
@@ -2006,6 +2012,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       user: user,
       owner: "acme",
       name: "widgets",
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
       last_health_checked_sha: "abc1234def5678",
       last_ci_evaluated_sha: "abc1234def5678",
       ci_health: "broken",
@@ -2035,7 +2043,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "returns the existing repair job when operator repair is already blocked" do
     sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets", ci_health: "broken", grader_health: "healthy")
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", main_branch_health_enabled: true, main_branch_repair_enabled: true, ci_health: "broken", grader_health: "healthy")
     repair_job = repository.jobs.create!(
       user: user,
       kind: "direct",
