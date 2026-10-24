@@ -55,7 +55,7 @@ class PollPullRequestJob < ApplicationJob
       # banner. Per-branch errors below mark it again if needed.
       @client.clear_api_blocked!
 
-      return close_with("pr_merged") if @pr.merged
+      return close_merged_pr if @pr.merged
       return handle_upstream_pr_reopened if upstream_pr_was_reopened?
 
       if @pr.state == "closed"
@@ -166,7 +166,14 @@ class PollPullRequestJob < ApplicationJob
 
   # ----- close ---------------------------------------------------------------
 
+  def close_merged_pr
+    Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: pr_merged")
+    PullRequestMergeCloser.call(job: @job)
+  end
+
   def close_with(reason)
+    return close_merged_pr if reason == "pr_merged"
+
     Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: #{reason}")
     @job.runs.active.find_each do |r|
       r.cancel! if r.may_cancel?
@@ -177,10 +184,7 @@ class PollPullRequestJob < ApplicationJob
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
 
     if @job.branch_name.present? && @job.branch_deleted_at.nil?
-      if reason == "pr_merged"
-        # Branch lives on the fork (repository), not the upstream (effective_pr_repository)
-        delete_fork_branch
-      elsif fork_review_upstream_job?
+      if fork_review_upstream_job?
         # For fork-review jobs, the upstream PR being closed (without merge) also means we
         # should clean up the feature branch on the fork and notify the job owner.
         delete_fork_branch
