@@ -6,6 +6,12 @@
   },
   "description": "Search Jobs, Epics, chats, and tests.",
   "error": "Unable to load search results.",
+  "filter_types": {
+    "chats": "Chats",
+    "epics": "Epics",
+    "jobs": "Jobs",
+    "tests": "Tests"
+  },
   "filters": {
     "all": "All"
   },

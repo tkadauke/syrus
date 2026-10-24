@@ -24,6 +24,13 @@ type SearchFilter = string | "all"
 
 const fallbackFilters: SearchTypeOption[] = fallbackSearchTypeOptions
 
+const builtInFilterLabelKeys: Record<string, string> = {
+  job: "filter_types.jobs",
+  epic: "filter_types.epics",
+  chat: "filter_types.chats",
+  test_case: "filter_types.tests"
+}
+
 const typeStyles: Record<SearchResultType, { border: string; tone: "amber" | "blue" | "gray" | "green"; labelKey: string }> = {
   job: {
     border: "border-l-info",
@@ -72,7 +79,13 @@ export function SearchRoute() {
   })
   const results = search.data?.results || []
   const typeFilters = search.data?.controls.types?.length ? search.data.controls.types : fallbackFilters
-  const filters = [{ type: "all", label: t("filters.all") }, ...typeFilters]
+  const filters = [
+    { type: "all", label: t("filters.all") },
+    ...typeFilters.map((filter) => ({
+      ...filter,
+      label: builtInFilterLabelKeys[filter.type] ? t(builtInFilterLabelKeys[filter.type]) : filter.label
+    }))
+  ]
 
   return (
     <Page.Root aria-label={t("aria.page")} className="max-w-[72rem]" gutter="responsive">
