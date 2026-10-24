@@ -25,7 +25,14 @@ RSpec.describe "Agent Insights frontend locales", type: :unit do
   end
 
   it "translates the previously English-only insight table labels" do
-    expect(locale("de")).to include("col_category" => "Kategorie", "nav_insights" => "Einblicke")
+    expect(locale("de")).to include(
+      "col_category" => "Kategorie",
+      "nav_insights" => "Einblicke",
+      "tool_memory_suggestion" => "Erinnerungsvorschlag",
+      "tool_memory_retirement" => "Zurückziehung der Erinnerung",
+      "tool_memory_id" => 'Erinnerung #{{id}}',
+      "tool_target_memory" => "Zielerinnerung"
+    )
     expect(locale("la")).to include("col_category" => "Categoria", "nav_insights" => "Perspectivae")
   end
 end
