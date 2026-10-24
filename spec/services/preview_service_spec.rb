@@ -156,7 +156,7 @@ RSpec.describe PreviewService do
       expect(service.send(:http_ok?, "http://127.0.0.1:1/")).to be false
     end
 
-    it "fails when local health passes but the proxy target cannot reach the preview app" do
+    it "reports a 403 from the proxy target as a host authorization failure" do
       stub_const("PreviewService::INTERNAL_HOST", "preview")
       service = described_class.new
       env = create_env(state: "seeding", port: 28_009)
@@ -165,13 +165,29 @@ RSpec.describe PreviewService do
 
       allow(Process).to receive(:waitpid2).with(12_345, Process::WNOHANG).and_return(nil)
       allow(Time).to receive(:current).and_return(Time.zone.parse("2026-08-22 12:00:00"))
-      allow(service).to receive(:http_ok?) do |url|
-        url == "http://127.0.0.1:28009/up"
-      end
+      allow(service).to receive(:http_ok?).with("http://127.0.0.1:28009/up").and_return(true)
+      forbidden = instance_double(Net::HTTPForbidden, code: "403", message: "Forbidden", is_a?: false)
+      allow(service).to receive(:http_response).with("http://preview:28009/up").and_return(forbidden)
 
       expect {
         service.send(:await_health_check, env, 28_009, "/up")
-      }.to raise_error(PreviewService::NotReachableError, /not reachable at preview:28009/)
+      }.to raise_error(
+        PreviewService::NotReachableError,
+        /returned HTTP 403 Forbidden; check Rails host authorization and config\.hosts for preview/
+      )
+    end
+
+    it "keeps the bind guidance when the proxy target refuses the connection" do
+      stub_const("PreviewService::INTERNAL_HOST", "preview")
+      service = described_class.new
+      allow(service).to receive(:http_response).with("http://preview:28009/up").and_return(nil)
+
+      expect {
+        service.send(:validate_proxy_reachability!, 28_009, "/up")
+      }.to raise_error(
+        PreviewService::NotReachableError,
+        /not reachable at preview:28009; configure the preview start command to bind to 0\.0\.0\.0/
+      )
     end
 
     it "does not require a second health check when the proxy target is loopback" do
