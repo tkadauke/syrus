@@ -261,7 +261,11 @@ la:
       epics_started: { one: "1 Epic ad In Progress motum est.", other: "%{count} Epics ad In Progress mota sunt." }
       auto_merge_disabled: { one: "1 Job praetermissum est, quia auto-merge in eius Repository inactivum est (%{repositories}). Activa auto-merge in optionibus Repository ut approbes.", other: "%{count} Jobs praetermissa sunt, quia auto-merge in eorum Repository inactivum est (%{repositories}). Activa auto-merge in optionibus Repository ut approbes." }
       github_reviews_left: { one: "Recognitio GitHub pro 1 Job relicta est.", other: "Recognitiones GitHub pro %{count} Jobs relictae sunt." }
-      lanes: { backlog: "Backlog", blocked: "Impeditum", queued: "In ordine", running: "Currens", succeeded: "Perfectum", landing: "Landing", failed: "Defectum" }
+      priorities: { urgent: "Urgentissima", high: "Alta", medium: "Media", low: "Humilis" }
+      ownership_scopes: { mine: "Mea", team: "Turma", claimable: "Vindicabilia", user: "Usor" }
+      owner_badges: { claimable: "Vindicabile" }
+      job_kinds: { issue: "Issue", cron: "Cron", direct: "Direct", main_grader: "Main grader", external_pr: "External PR", deploy: "Deploy" }
+      lanes: { backlog: "Backlog", blocked: "Impeditum", queued: "In ordine", running: "Currens", succeeded: "Perfectum", landing: "Landing", failed: "Defectum", ready: "Paratum", in_progress: "In progress", done: "Perfectum" }
       columns:
         jobs_agent_provider: "Agens"
         workflows_agent_provider: "Provisor agentis"

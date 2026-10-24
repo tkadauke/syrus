@@ -305,6 +305,16 @@ en:
         one: "Skipped 1 job whose repository has auto-merge disabled (%{repositories}). Enable auto-merge in repository settings to approve."
         other: "Skipped %{count} jobs whose repository has auto-merge disabled (%{repositories}). Enable auto-merge in repository settings to approve."
       github_reviews_left: { one: "GitHub reviews left for 1 job.", other: "GitHub reviews left for %{count} jobs." }
+      priorities: { urgent: "Urgent", high: "High", medium: "Medium", low: "Low" }
+      ownership_scopes: { mine: "Mine", team: "Team", claimable: "Claimable", user: "User" }
+      owner_badges: { claimable: "Claimable" }
+      job_kinds:
+        issue: "Issue"
+        cron: "Cron"
+        direct: "Direct"
+        main_grader: "Main grader"
+        external_pr: "External PR"
+        deploy: "Deploy"
       lanes:
         backlog: "Backlog"
         blocked: "Blocked"
@@ -313,6 +323,9 @@ en:
         succeeded: "Succeeded"
         landing: "Landing"
         failed: "Failed"
+        ready: "Ready"
+        in_progress: "In progress"
+        done: "Done"
       columns: &dashboard_columns_en
         jobs_agent_provider: "Agent"
         workflows_agent_provider: "Agent provider"

@@ -261,7 +261,11 @@ de:
       epics_started: { one: "1 Epic nach In Bearbeitung verschoben.", other: "%{count} Epics nach In Bearbeitung verschoben." }
       auto_merge_disabled: { one: "1 Job übersprungen, da Auto-Merge für sein Repository deaktiviert ist (%{repositories}). Aktiviere Auto-Merge in den Repository-Einstellungen, um ihn zu genehmigen.", other: "%{count} Jobs übersprungen, da Auto-Merge für ihre Repositorys deaktiviert ist (%{repositories}). Aktiviere Auto-Merge in den Repository-Einstellungen, um sie zu genehmigen." }
       github_reviews_left: { one: "GitHub-Review für 1 Job abgegeben.", other: "GitHub-Reviews für %{count} Jobs abgegeben." }
-      lanes: { backlog: "Backlog", blocked: "Blockiert", queued: "Eingereiht", running: "Läuft", succeeded: "Erfolgreich", landing: "Landing", failed: "Fehlgeschlagen" }
+      priorities: { urgent: "Dringend", high: "Hoch", medium: "Mittel", low: "Niedrig" }
+      ownership_scopes: { mine: "Meine", team: "Team", claimable: "Übernehmbar", user: "Benutzer" }
+      owner_badges: { claimable: "Übernehmbar" }
+      job_kinds: { issue: "Issue", cron: "Zeitplan", direct: "Direkt", main_grader: "Haupt-Grader", external_pr: "Externer PR", deploy: "Bereitstellung" }
+      lanes: { backlog: "Backlog", blocked: "Blockiert", queued: "Eingereiht", running: "Läuft", succeeded: "Erfolgreich", landing: "Landing", failed: "Fehlgeschlagen", ready: "Bereit", in_progress: "In Bearbeitung", done: "Erledigt" }
       columns:
         jobs_agent_provider: "Agent"
         workflows_agent_provider: "Agentenanbieter"

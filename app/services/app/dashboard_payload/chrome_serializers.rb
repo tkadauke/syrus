@@ -204,7 +204,7 @@ module App
             views: available_views,
             ownership_scopes: ownership_scope_options_json,
             owners: PerformanceLogging.phase("dashboard_controls.owners", subject: subject) { owner_options.map { |owner| owner_option_json(owner) } },
-            priorities: Job::PRIORITIES.map { |priority| { value: priority, label: priority.humanize } },
+            priorities: Job::PRIORITIES.map { |priority| { value: priority, label: I18n.t("api.dashboard.priorities.#{priority}") } },
             sort_columns: User::DASHBOARD_SORT_COLUMNS.fetch(subject),
             sort_directions: User::DASHBOARD_SORT_DIRECTIONS,
             columns: column_options_json,
@@ -245,7 +245,7 @@ module App
         OWNERSHIP_SCOPES.map do |scope|
           {
             value: scope,
-            label: scope.humanize
+            label: I18n.t("api.dashboard.ownership_scopes.#{scope}")
           }
         end
       end
@@ -330,7 +330,7 @@ module App
       def column_json(table, column)
         {
           key: column,
-          title: I18n.t("api.dashboard.columns.#{table}_#{column}", default: I18n.t("api.dashboard.columns.#{column}", default: column.humanize))
+          title: I18n.t("api.dashboard.columns.#{table}_#{column}", default: I18n.t("api.dashboard.columns.#{column}", default: column))
         }
       end
 
@@ -344,9 +344,7 @@ module App
       end
 
       def kanban_lane_title(lane)
-        return I18n.t("api.dashboard.lanes.#{lane}", default: lane.humanize) if subject == "job"
-
-        lane.humanize
+        I18n.t("api.dashboard.lanes.#{lane}", default: lane)
       end
     end
   end
