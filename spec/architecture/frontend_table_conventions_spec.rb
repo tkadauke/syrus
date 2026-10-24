@@ -29,7 +29,6 @@ RSpec.describe "frontend table conventions" do
     "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx" => "HTML string fixture used by design-doc editor tests",
     "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_describe_table.tsx" => "compact chat tool-card result summary",
     "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_execute_query.tsx" => "compact chat tool-card result summary",
-    "plugins/mysql_db_browser/app/frontend/tool_cards/mysql_db_browser_list_databases.tsx" => "compact chat tool-card result summary",
     "plugins/rails/app/frontend/components/artifacts/ErdDiagramRenderer.tsx" => "artifact renderer for schema diagrams",
     "plugins/rails/app/frontend/components/artifacts/MigrationDiffRenderer.tsx" => "artifact renderer for migration before/after diffs",
     "plugins/scheduled_tasks/app/frontend/tool_cards/list_scheduled_tasks.tsx" => "compact chat tool-card result summary",
