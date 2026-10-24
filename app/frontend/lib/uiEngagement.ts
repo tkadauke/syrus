@@ -9,7 +9,7 @@ type Clock = { now: () => number; wallNow: () => number }
 
 export function engagementRoute(pathname: string, search: string): EngagementRoute | null {
   const path = pathname.replace(/^\/app-shell/, "") || "/"
-  const job = path.match(/^\/jobs\/([1-9]\d*)\/?$/)
+  const job = path.match(/^\/jobs\/(?:JOB-)?([1-9]\d*)\/?$/i)
   if (job) {
     return {
       route_id: new URLSearchParams(search).get("tab") === "review" ? "job.review" : "job.show",
