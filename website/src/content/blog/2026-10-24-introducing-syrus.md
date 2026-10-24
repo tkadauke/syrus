@@ -1,7 +1,7 @@
 ---
 
 title: Syrus is out
-description: Syrus is a self-hosted orchestrator for coding agents — Claude, Codex, Muse, and Antigravity working from your issue tracker, in parallel, around the clock. Version 0.1.14 is released, and this post explains what it does and why it isn't just another way to run an agent on your laptop.
+description: Syrus is a self-hosted orchestrator for coding agents — Claude, Codex, and Muse working from your issue tracker, in parallel, around the clock. Version 0.1.14 is released, and this post explains what it does and why it isn't just another way to run an agent on your laptop.
 date: 2026-10-24
 
 ---
@@ -10,7 +10,7 @@ date: 2026-10-24
 
 I've been building Syrus since the spring, mostly by having Syrus build itself, and as of this week it's properly out: v0.1.14, open source under MIT, ready to install on your own infrastructure.
 
-Syrus (named after Latin writer [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus), whose sayings have outlived him by two millennia) is an orchestrator for coding agents. You file a GitHub issue, or use the built in chat to file a job. Syrus picks it up, runs a coding agent (Claude, Codex, Muse, or Antigravity, using the subscriptions you already pay for) in an isolated workspace, unsupervised, has the work graded and tested, and opens a pull request. You review the PR and approve it, and it lands automatically. Something's off? Leave feedback and Syrus iterates on it. File ten issues and ten of those loops run in parallel. File an issue at midnight and there's a PR waiting when you wake up.
+Syrus (named after Latin writer [Publilius Syrus](https://en.wikipedia.org/wiki/Publilius_Syrus), whose sayings have outlived him by two millennia) is an orchestrator for coding agents. You file a GitHub issue, or use the built in chat to file a job. Syrus picks it up, runs a coding agent (Claude, Codex, or Muse, using the subscriptions you already pay for) in an isolated workspace, unsupervised, has the work graded and tested, and opens a pull request. You review the PR and approve it, and it lands automatically. Something's off? Leave feedback and Syrus iterates on it. File ten issues and ten of those loops run in parallel. File an issue at midnight and there's a PR waiting when you wake up.
 
 ## Why not just run Claude Code on your laptop?
 
