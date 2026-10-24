@@ -10,6 +10,8 @@ import { Select } from "../../components/Select"
 import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
+import { renderLightMarkdown } from "../../lib/Markdown"
+import { renderLightMarkdown } from "../../lib/Markdown"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import {
   avatarColorClass,
@@ -208,7 +210,7 @@ function AgentSessionCard({
             {node.iteration && node.iteration > 1 ? <SmallPill>{t("conversation_iteration", { n: node.iteration })}</SmallPill> : null}
           </span>
           <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">
-            {node.summary || t("conversation_no_summary")}
+            {node.summary ? renderLightMarkdown(node.summary) : t("conversation_no_summary")}
           </span>
         </span>
       </button>
@@ -365,7 +367,7 @@ function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
             {node.state ? <StatusPill state={node.state} /> : null}
           </span>
           <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">
-            {node.summary || t("conversation_check_ran")}
+            {node.summary ? renderLightMarkdown(node.summary) : t("conversation_check_ran")}
           </span>
         </span>
       </button>
