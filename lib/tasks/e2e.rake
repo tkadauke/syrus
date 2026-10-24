@@ -1,6 +1,9 @@
 namespace :e2e do
-  def enable_e2e_chat_provider_plugins!
-    %w[claude_agent codex_agent].each do |plugin_name|
+  def enable_e2e_fixture_plugins!
+    # These plugins provide surfaces exercised directly by the seeded preview
+    # scenarios. They are disabled by default on a real installation, but the
+    # E2E fixtures need them active before the browser opens their pages.
+    %w[build_cache claude_agent codex_agent git_history].each do |plugin_name|
       plugin_record = PluginRecord.find_or_create_by!(name: plugin_name)
       plugin_record.update!(enabled: true) unless plugin_record.enabled?
     end
@@ -26,7 +29,7 @@ namespace :e2e do
     end
 
     Rails.application.load_seed
-    enable_e2e_chat_provider_plugins!
+    enable_e2e_fixture_plugins!
 
     settings = AppSetting.current
     settings.update!(
@@ -152,7 +155,7 @@ namespace :e2e do
     # place those specs ran at all -- so five of them failed there while passing
     # locally. Resetting here makes a local run reproduce CI.
     PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
-    enable_e2e_chat_provider_plugins!
+    enable_e2e_fixture_plugins!
 
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the
