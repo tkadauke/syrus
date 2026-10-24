@@ -197,7 +197,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.review_notes || config&.coverage
+      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.security_review || config&.review_notes || config&.coverage
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -217,6 +217,7 @@ class TargetGraph
         preview: config&.preview,
         visual_review: config&.visual_review,
         adversarial_review: config&.adversarial_review,
+        security_review: config&.security_review,
         review_notes: config&.review_notes,
         coverage: config&.coverage,
         capabilities: declared&.capabilities
@@ -295,6 +296,7 @@ class TargetGraph
           preview: nested_config.preview,
           visual_review: nested_config.visual_review,
           adversarial_review: nested_config.adversarial_review,
+          security_review: nested_config.security_review,
           review_notes: nested_config.review_notes,
           coverage: nested_config.coverage
         )
@@ -318,10 +320,10 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, review_notes: nil, coverage: nil)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, review_notes: nil, coverage: nil)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || review_notes || coverage)
+        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || security_review || review_notes || coverage)
 
         merged_capabilities = merge_capabilities!(
           existing.capabilities,
@@ -338,6 +340,7 @@ class TargetGraph
             preview: preview || existing.preview,
             visual_review: visual_review || existing.visual_review,
             adversarial_review: adversarial_review || existing.adversarial_review,
+            security_review: security_review || existing.security_review,
             review_notes: review_notes || existing.review_notes,
             coverage: coverage || existing.coverage,
             capabilities: merged_capabilities
@@ -356,6 +359,7 @@ class TargetGraph
           preview: preview,
           visual_review: visual_review,
           adversarial_review: adversarial_review,
+          security_review: security_review,
           review_notes: review_notes,
           coverage: coverage,
           capabilities: declared_project&.capabilities

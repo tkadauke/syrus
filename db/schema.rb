@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_140926) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_164730) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -185,6 +185,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140926) do
 
   create_table "app_settings", force: :cascade do |t|
     t.integer "adversarial_review_rounds", default: 0, null: false
+    t.integer "security_review_rounds", default: 0, null: false
     t.integer "chat_coding_workspace_budget_mb", default: 10240, null: false
     t.datetime "created_at", null: false
     t.text "discord_bot_token"

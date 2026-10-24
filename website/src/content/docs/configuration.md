@@ -826,3 +826,7 @@ new token is generated. For Rails encryption key rotation, follow Rails
 Active Record Encryption rotation practice: deploy the new scheme while
 retaining read access to old ciphertext, rewrite encrypted attributes, then
 remove the old scheme after verification.
+
+## Security review
+
+An optional `security_review` block runs a dedicated security reviewer after adversarial review. Set `rounds` from 0 to 10, optionally require reviewer availability with `required: true`, and add repository-specific `criteria`. The feature defaults to zero rounds (disabled), and routing rules can select a provider for the `security_review` step kind.
