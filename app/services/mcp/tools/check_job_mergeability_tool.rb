@@ -4,6 +4,7 @@ module Mcp::Tools
   class CheckJobMergeabilityTool < MCP::Tool
     extend ProposalToolSupport
     extend PendingActionToolSupport
+    extend BulkPendingActionToolSupport
 
     tool_name "check_job_mergeability"
 
@@ -11,24 +12,36 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        job_id: { type: "integer", description: "Syrus Job id to check mergeability for." }
-      },
-      required: %w[job_id]
+        job_id: { type: "integer", description: "Syrus Job id to check mergeability for." },
+        job_ids: { type: "array", items: { type: "integer" }, maxItems: BulkPendingActionToolSupport::MAX_BATCH_SIZE, description: "Multiple Job ids to check as one grouped pending action." }
+      }
     )
 
     class << self
-      def call(job_id:, server_context:)
+      def call(job_id: nil, job_ids: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        job, error = user_job(chat_session, job_id)
+        ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
+        jobs = ids.map do |id|
+          job, job_error = user_job(chat_session, id)
+          return job_error if job_error
+          job
+        end
 
-        create_pending_action!(
+        unless bulk
+          job = jobs.first
+          return create_pending_action!(
           server_context,
           chat_session,
           action: "check_job_mergeability",
           payload: { "job_id" => job.id },
           message: "Check mergeability for #{job.slug}?"
-        )
+          )
+        end
+        group = create_pending_action_group!(server_context:, chat_session:, member_attributes: jobs.map { |job|
+          { action: "check_job_mergeability", payload: { "job_id" => job.id }, requested_by: "agent" }
+        })
+        bulk_action_response(group:, message: "Check mergeability for #{jobs.size} Jobs?")
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
       end

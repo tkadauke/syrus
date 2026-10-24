@@ -206,17 +206,31 @@ no pending action) is likewise single-item only and is rejected when
 combined with `job_ids`. The remaining strong-tier-adjacent tools --
 `replace_pr_branch_with_workflow_output`, `retry_from_current_pr_branch`,
 `adopt_current_pr_head`, `manual_agentic_run`, `override_landing_blocker_once`,
-`force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
-intentionally do not wire into this infrastructure and stay single-confirm.
+`restack_epic`, and `submit_chat_feedback` -- intentionally do not wire into
+this infrastructure and stay single-confirm.
 
 `cancel_stale_work` uses a `targets` array rather than a flat `job_ids` array
 because each of its members can select different `workflow_ids` and `run_ids`.
 Each target contains one distinct `job_id` and its optional selections. The
 array is capped at 100 targets, is mutually exclusive with the single-Job
-arguments, and shares one `reason` and `reconcile` flag. Syrus preflights every
+arguments, and shares one `reason`. A top-level `reconcile` supplies the
+default while each target may override it. Syrus preflights every
 target before creating anything; one missing or ineligible target rejects the
 whole request. Once confirmed, grouped members execute independently and the
 group reports each member's success or failure.
+
+Incident fan-out operations also accept bounded, deduplicated plural inputs:
+`retire_terminal_work_unit` (`work_unit_ids`), `admin_cleanup_workspace`
+(`workflow_ids`), and `force_state_transition`,
+`override_job_planned_execution`, `rerun_ci_repair`,
+`check_job_mergeability`, `poll_job_feedback`, and normal `rebase_job`
+(`job_ids`). Shared policy, provider, instructions, event, profile, and reason
+fields are copied to each member, while revision-sensitive actions retain an
+observation for each target. Normal bulk rebases use the same stack selection
+and active rebase/merge-train guards as a single `rebase_job`; they do not use
+the force-rebase bypass path. Confirmation revalidates every member
+independently, so an ineligible or failed member does not roll back or conceal
+the others.
 
 `wake_provider_admission` prepares a single confirmed repair action after
 provider evidence has recovered. Its pending-action payload and immediate MCP

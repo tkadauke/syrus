@@ -46,6 +46,32 @@ RSpec.describe Mcp::Tools::OverrideJobPlannedExecutionTool do
     expect(job.planned_execution_overrides).to be_empty
   end
 
+  it "stores an independently observed revision for every bulk member" do
+    other = Factories.job_record(user: admin, repository: repository, issue_number: 43, state: "backlog", planned_execution_capabilities: ExecutionPlacementProfile.fetch("ios_xcode").capabilities, planned_execution_source: "classifier")
+
+    result = payload(call_tool(job_ids: [ job.id, job.id, other.id ], profile: "linux", reason: "Correct shared placement"))
+    group = PendingActionGroup.find(result.fetch(:pending_action_group_id))
+
+    expect(group.chat_pending_actions.map { |action| action.payload.slice("job_id", "observed_entity_revision") }).to contain_exactly(
+      { "job_id" => job.id, "observed_entity_revision" => job.entity_revision },
+      { "job_id" => other.id, "observed_entity_revision" => other.entity_revision }
+    )
+  end
+
+  it "keeps successful bulk overrides when another member fails confirmation-time revision validation" do
+    other = Factories.job_record(user: admin, repository: repository, issue_number: 43, state: "backlog", planned_execution_capabilities: ExecutionPlacementProfile.fetch("ios_xcode").capabilities, planned_execution_source: "classifier")
+    result = payload(call_tool(job_ids: [ job.id, other.id ], profile: "linux", reason: "Correct shared placement"))
+    group = PendingActionGroup.find(result.fetch(:pending_action_group_id))
+    other.update!(priority: "high")
+
+    confirmation = group.confirm_all!(user: admin)
+
+    expect(confirmation.successes.size).to eq(1)
+    expect(confirmation.failures.size).to eq(1)
+    expect(job.reload.planned_execution_capabilities).to eq("os" => [ "linux" ])
+    expect(other.reload.planned_execution_capabilities).to eq(ExecutionPlacementProfile.fetch("ios_xcode").capabilities)
+  end
+
   def symbolize_keys(value)
     value.deep_symbolize_keys
   end

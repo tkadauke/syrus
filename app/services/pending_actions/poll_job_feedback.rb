@@ -3,7 +3,7 @@ module PendingActions
     action_key "poll_job_feedback"
 
     def execute
-      job = action_user_job
+      job = accessible_action_job
       unless job.open? && job.pr_number.present?
         raise ArgumentError, "Can only check feedback on open Jobs that have a PR."
       end

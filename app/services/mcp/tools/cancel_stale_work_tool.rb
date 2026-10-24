@@ -31,7 +31,8 @@ module Mcp::Tools
             properties: {
               job_id: { type: "integer", description: "Syrus Job id." },
               workflow_ids: { type: "array", items: { type: "integer" }, description: "Optional Workflow ids under this Job to cancel." },
-              run_ids: { type: "array", items: { type: "integer" }, description: "Optional Run ids under this Job to cancel." }
+              run_ids: { type: "array", items: { type: "integer" }, description: "Optional Run ids under this Job to cancel." },
+              reconcile: { type: "boolean", description: "Run targeted reconciliation for this Job. Defaults to the top-level reconcile value." }
             },
             required: %w[job_id]
           },
@@ -101,7 +102,8 @@ module Mcp::Tools
           {
             job_id: target_job_id,
             workflow_ids: attributes[:workflow_ids],
-            run_ids: attributes[:run_ids]
+            run_ids: attributes[:run_ids],
+            reconcile: attributes.key?(:reconcile) ? attributes[:reconcile] != false : reconcile != false
           }
         end
 
@@ -125,7 +127,6 @@ module Mcp::Tools
         end
         return Mcp::Tools.invalid(blockers.join(" | ")) if blockers.any?
 
-        reconcile = reconcile.nil? ? true : !!reconcile
         group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
@@ -136,7 +137,7 @@ module Mcp::Tools
                 "job_id" => target[:job_id],
                 "workflow_ids" => normalize_integer_list(target[:workflow_ids]),
                 "run_ids" => normalize_integer_list(target[:run_ids]),
-                "reconcile" => reconcile
+                "reconcile" => target[:reconcile]
               },
               requested_by: "agent",
               reason: reason

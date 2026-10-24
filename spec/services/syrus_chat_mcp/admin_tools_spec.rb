@@ -478,7 +478,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       {
         targets: [
           { job_id: workflow_one.job.id, workflow_ids: [ workflow_one.id ] },
-          { job_id: workflow_two.job.id, run_ids: [ run_two.id ] }
+          { job_id: workflow_two.job.id, run_ids: [ run_two.id ], reconcile: true }
         ],
         reconcile: false,
         reason: "The same scheduler fault left both Jobs stale."
@@ -492,7 +492,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(group.reason).to eq("The same scheduler fault left both Jobs stale.")
     expect(group.chat_pending_actions.map(&:payload)).to contain_exactly(
       { "job_id" => workflow_one.job.id, "workflow_ids" => [ workflow_one.id ], "run_ids" => [], "reconcile" => false },
-      { "job_id" => workflow_two.job.id, "workflow_ids" => [], "run_ids" => [ run_two.id ], "reconcile" => false }
+      { "job_id" => workflow_two.job.id, "workflow_ids" => [], "run_ids" => [ run_two.id ], "reconcile" => true }
     )
     expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "cancel_stale_work" ])
     expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "The same scheduler fault left both Jobs stale." ])

@@ -869,6 +869,12 @@ way, but only once the agent supplies one shared justification explaining
 the root cause behind the whole batch; that justification is shown on the
 grouped confirmation card and kept in the audit trail alongside each item's
 outcome.
+Incident fan-out can likewise group normal rebases, feedback and mergeability
+polls, stale-work cancellation, terminal WorkUnit retirement, workspace
+cleanup, state transitions, execution-placement overrides, and CI-repair
+reruns. These batches are capped and deduplicated. Each target is revalidated
+when confirmed and reports its own applied, ineligible, or failed outcome, so
+one changed target does not roll back successful repairs for the others.
 Successful Job close is separate from cancellation: `close_job_successfully`
 records a successful closure reason such as `no_changes`, which satisfies
 dependencies and Epic progress, while `cancel_job` remains non-successful. When
