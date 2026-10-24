@@ -70,6 +70,27 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     expect(result).to be_pass
   end
 
+  it "blocks queued CI repair when repository CI repair is disabled" do
+    repository.update!(ci_repair_enabled: false)
+
+    result = described_class.call(ci_unit_for(job))
+
+    expect(result).to be_blocked
+    expect(result.reason).to eq("ci_repair_disabled")
+    expect(result.details).to include("kind" => "ci_repair_disabled")
+  end
+
+  it "allows an operator-initiated CI repair when repository CI repair is disabled" do
+    repository.update!(ci_repair_enabled: false)
+    unit = ci_unit_for(job, artifacts: {
+      "head_sha" => head_sha,
+      "base_sha" => base_sha,
+      "manual_ci_repair" => { "source" => "manual_poll" }
+    })
+
+    expect(described_class.call(unit)).to be_pass
+  end
+
   it "blocks CI repair when the branch is known behind its base" do
     job.update!(commits_behind_base: 3)
     unit = ci_unit_for(job)

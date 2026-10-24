@@ -503,6 +503,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             onChange={(checked) => setValues({ ...values, isolated_repro_dismissal_enabled: checked })}
             value={values.isolated_repro_dismissal_enabled}
           />
+          <Checkbox label={t('repository_form.check_ci_repair')} onChange={(checked) => setValues({ ...values, ci_repair_enabled: checked })} value={values.ci_repair_enabled} />
           <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({
             ...values,
             main_branch_health_enabled: checked,
@@ -921,6 +922,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     known_flaky_failure_dismissal_enabled: payload.repository.known_flaky_failure_dismissal_enabled,
     known_flaky_failure_min_score: payload.repository.known_flaky_failure_min_score,
     isolated_repro_dismissal_enabled: payload.repository.isolated_repro_dismissal_enabled,
+    ci_repair_enabled: payload.repository.ci_repair_enabled,
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_23_203550) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_140926) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2840,6 +2840,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_203550) do
     t.datetime "last_full_poll_at"
     t.json "poll_external_pr_errors"
     t.string "vcs", default: "git", null: false
+    t.boolean "ci_repair_enabled", default: true, null: false
     t.index ["archived_at"], name: "index_repositories_on_archived_at"
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"

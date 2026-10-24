@@ -26,6 +26,7 @@ type StartBlockedReason =
   | "epic_wide_workflow_active"
   | "resource_safety"
   | "ci_repair_safety"
+  | "ci_repair_disabled"
   | "active_work_lock"
   | "agent_cannot_proceed"
   | "auto_retry_backoff"
@@ -50,6 +51,7 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   epic_wide_workflow_active: "gray",
   resource_safety: "amber",
   ci_repair_safety: "amber",
+  ci_repair_disabled: "gray",
   active_work_lock: "gray",
   agent_cannot_proceed: "red",
   auto_retry_backoff: "amber",

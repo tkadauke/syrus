@@ -1298,6 +1298,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
           prepare_enabled: "0",
           pr_cost_footer_enabled: "0",
           auto_merge_enabled: "1",
+          ci_repair_enabled: "0",
           main_branch_repair_blocks_work: "0",
           main_branch_repair_auto_approve: "1",
           treat_grader_timeouts_as_failures: "1",
@@ -1319,6 +1320,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.prepare_enabled).to eq(false)
     expect(repository.pr_cost_footer_enabled).to eq(false)
     expect(repository.auto_merge_enabled).to eq(true)
+    expect(repository.ci_repair_enabled).to eq(false)
     expect(repository.main_branch_health_enabled).to eq(true)
     expect(repository.main_branch_repair_enabled).to eq(false)
     expect(repository.main_branch_repair_blocks_work).to eq(false)

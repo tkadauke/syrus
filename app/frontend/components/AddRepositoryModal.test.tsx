@@ -38,6 +38,7 @@ const newFormPayload = {
     known_flaky_failure_dismissal_enabled: false,
     known_flaky_failure_min_score: null,
     isolated_repro_dismissal_enabled: false,
+    ci_repair_enabled: true,
     main_branch_health_enabled: false,
     main_branch_repair_enabled: false,
     main_branch_repair_blocks_work: false,
@@ -172,6 +173,7 @@ describe("AddRepositoryModal", () => {
     })
     expect(repo).toMatchObject({
       pr_cost_footer_enabled: false,
+      ci_repair_enabled: true,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: false,

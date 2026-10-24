@@ -159,6 +159,12 @@ CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
 agent can verify that the GitHub CI failure is actually fixed. If graders fail,
 their output feeds the next `analyze_and_fix` iteration.
 
+Repository owners and admins can disable automatic pull-request CI repair in
+repository settings. Polling continues to cache check state for landing gates,
+but it does not dispatch new `ci_failure` workflows; already-queued repairs wait
+with `ci_repair_disabled`. An operator-initiated manual poll or repair overrides
+the setting.
+
 If a later `analyze_and_fix` iteration makes no new diff and repeats a prior
 `report_main_concern` diagnosis for the same observed main SHA, failing grader,
 and reason, Syrus records `blocked_by_main`, skips that iteration's pending

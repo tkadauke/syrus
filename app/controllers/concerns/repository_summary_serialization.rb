@@ -31,6 +31,7 @@ module RepositorySummarySerialization
       grader_health: repository.grader_health,
       main_health: repository.main_health,
       landing_paused: repository_main_health_landing_paused?(repository),
+      ci_repair_enabled: repository.ci_repair_enabled?,
       main_branch_health_enabled: repository.main_branch_health_enabled?,
       main_branch_repair_enabled: repository_main_branch_repair_enabled?(repository),
       main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
