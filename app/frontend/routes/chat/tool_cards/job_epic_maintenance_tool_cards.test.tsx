@@ -8,6 +8,7 @@ import { examples as cancelJobExamples } from "./cancel_job"
 import closeJobSuccessfullyCard from "./close_job_successfully"
 import { examples as closeJobSuccessfullyExamples } from "./close_job_successfully"
 import setJobPriorityCard from "./set_job_priority"
+import { examples as setJobPriorityExamples } from "./set_job_priority"
 import updateJobCard from "./update_job"
 import rebaseJobCard from "./rebase_job"
 import { examples as rebaseJobExamples } from "./rebase_job"
@@ -569,14 +570,40 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByRole("link", { name: "EPIC-41" })).toHaveAttribute("href", "/epics/41")
   })
 
-  it("renders priority changes", () => {
-    const parsedResult = { job_id: 51, previous_priority: "medium", new_priority: "urgent" }
+  it.each([
+    [
+      "content text",
+      { content: [{ type: "text", text: JSON.stringify(setJobPriorityExamples[0].parsedResult) }] },
+      "mcp__syrus-chat-sidecar__set_job_priority"
+    ],
+    ["structured content", { structured_content: setJobPriorityExamples[0].parsedResult }, "set_job_priority"]
+  ] as const)("renders priority changes with linked targets and toned pills from normalized %s", (_label, envelope, toolName) => {
+    const ctx = toolCardContextForExample(normalizedToolName(toolName), {
+      ...setJobPriorityExamples[0],
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
 
-    expect(setJobPriorityCard.collapsedSummary?.(context("set_job_priority", { parsedResult }))).toBe("Priority changed · JOB-51")
-    render(<>{setJobPriorityCard.renderExpanded(context("set_job_priority", { parsedResult }))}</>)
+    expect(setJobPriorityCard.collapsedSummary?.(ctx)).toBe("Priority changed · JOB-51")
+    render(<>{setJobPriorityCard.renderExpanded(ctx)}</>)
 
-    expect(screen.getByText("medium")).toBeInTheDocument()
-    expect(screen.getByText("urgent")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-51" })).toHaveAttribute("href", "/jobs/51")
+    expect(screen.getByText("Priority")).toBeInTheDocument()
+    expect(screen.getByLabelText("medium to urgent")).toBeInTheDocument()
+    expect(screen.getByText("→")).toBeInTheDocument()
+    expect(screen.queryByText("Previous priority")).not.toBeInTheDocument()
+    expect(screen.queryByText("New priority")).not.toBeInTheDocument()
+  })
+
+  it("renders the requested priority when validation fails", () => {
+    const ctx = toolCardContextForExample("set_job_priority", setJobPriorityExamples[1])
+
+    expect(setJobPriorityCard.collapsedSummary?.(ctx)).toBe("Set Job Priority failed · JOB-51")
+    render(<>{setJobPriorityCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-51" })).toHaveAttribute("href", "/jobs/51")
+    expect(screen.getByText("Requested priority")).toBeInTheDocument()
+    expect(screen.getByText("immediate")).toBeInTheDocument()
+    expect(screen.getByText("Error: priority must be urgent, high, medium, or low")).toBeInTheDocument()
   })
 
   it("renders approval and unapproval acknowledgements", () => {
