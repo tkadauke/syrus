@@ -9,7 +9,7 @@ class ProviderRoutingRule::Action::Route < ProviderRoutingRule::Action
 
   def validate(record)
     strategy = attributes["strategy"].to_s
-    record.errors.add(:action, "has unknown strategy #{strategy.inspect}") unless ProviderRoutingRule::ACTION_STRATEGIES.include?(strategy)
-    record.errors.add(:action, "candidates must be an array") unless attributes["candidates"].is_a?(Array)
+    record.errors.add(:action, :unknown_strategy, value: strategy.inspect) unless ProviderRoutingRule::ACTION_STRATEGIES.include?(strategy)
+    record.errors.add(:action, :candidates_must_be_array) unless attributes["candidates"].is_a?(Array)
   end
 end

@@ -55,7 +55,7 @@ module Api
           if ordered_ids.sort != rules.map(&:id).sort
             render_error(
               "validation_failed",
-              "Rule ids must match every rule in this scope exactly once.",
+              t("api.provider_routing_rules.errors.reorder_ids_mismatch"),
               status: :unprocessable_content
             )
             return

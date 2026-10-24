@@ -70,4 +70,12 @@ RSpec.describe Document, type: :model do
       expect(document.errors[:file]).to include("must be a supported text, PDF, Office, or image file")
     end
   end
+
+  it "localizes attachment limit interpolation in German and Latin" do
+    document = job.documents.build(kind: "google_doc", user: user, google_doc_url: "https://docs.google.com/document/d/test/edit")
+    allow(job.documents).to receive(:count).and_return(Document::MAX_ATTACHMENTS_PER_JOB)
+
+    expect(I18n.with_locale(:de) { document.valid?; document.errors[:base] }).to include("Jobs dürfen höchstens 10 Anhänge haben")
+    expect(I18n.with_locale(:la) { document.valid?; document.errors[:base] }).to include("Jobs non plus quam 10 adiuncta habere possunt")
+  end
 end

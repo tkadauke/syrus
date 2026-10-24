@@ -462,7 +462,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def known_action
-    errors.add(:base, "unknown pending action") if action.blank? && action_type.blank?
+    errors.add(:base, :unknown_pending_action) if action.blank? && action_type.blank?
   end
 
   def payload_matches_action
@@ -501,19 +501,19 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def queued_actions_are_job_scoped
-    errors.add(:payload, "job_id is required") if queued? && !payload.to_h["job_id"].present?
+    errors.add(:payload, :job_id_required) if queued? && !payload.to_h["job_id"].present?
   end
 
   def repository_matches_chat_session
     return unless chat_session && repository
     return if chat_session.repository.nil?
 
-    errors.add(:repository, "must match chat session") if repository_id != chat_session.repository_id
+    errors.add(:repository, :chat_session_mismatch) if repository_id != chat_session.repository_id
   end
 
   def user_matches_chat_session
     return unless chat_session && user
-    errors.add(:user, "must match chat session") if user_id != chat_session.user_id
+    errors.add(:user, :chat_session_mismatch) if user_id != chat_session.user_id
   end
 
   def notify_chat_of_outcome

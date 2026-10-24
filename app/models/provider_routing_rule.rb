@@ -103,27 +103,27 @@ class ProviderRoutingRule < ApplicationRecord
   end
 
   def scope_owner_is_consistent
-    errors.add(:repository, "must be present for repository-scoped rules") if scope_type_repository? && repository_id.blank?
-    errors.add(:job, "must be present for job-scoped rules") if scope_type_job? && job_id.blank?
+    errors.add(:repository, :required_for_repository_scope) if scope_type_repository? && repository_id.blank?
+    errors.add(:job, :required_for_job_scope) if scope_type_job? && job_id.blank?
 
     return if user_id.blank?
 
-    errors.add(:user_id, "must match the user scope") if scope_type_user? && user_id != scope_id
-    errors.add(:scope_id, "must match repository_id") if scope_type_repository? && repository_id.present? && repository_id != scope_id
-    errors.add(:user_id, "must own the repository rule") if scope_type_repository? && repository && repository.user_id != user_id
-    errors.add(:scope_id, "must match job_id") if scope_type_job? && job_id.present? && job_id != scope_id
-    errors.add(:user_id, "must own the job rule") if scope_type_job? && job && job.effective_owner_id != user_id
-    errors.add(:repository_id, "must match the job repository") if scope_type_job? && job && repository_id.present? && repository_id != job.repository_id
+    errors.add(:user_id, :user_scope_mismatch) if scope_type_user? && user_id != scope_id
+    errors.add(:scope_id, :repository_scope_mismatch) if scope_type_repository? && repository_id.present? && repository_id != scope_id
+    errors.add(:user_id, :repository_owner_mismatch) if scope_type_repository? && repository && repository.user_id != user_id
+    errors.add(:scope_id, :job_scope_mismatch) if scope_type_job? && job_id.present? && job_id != scope_id
+    errors.add(:user_id, :job_owner_mismatch) if scope_type_job? && job && job.effective_owner_id != user_id
+    errors.add(:repository_id, :job_repository_mismatch) if scope_type_job? && job && repository_id.present? && repository_id != job.repository_id
   end
 
   def trigger_is_valid
     unless trigger.is_a?(Hash)
-      errors.add(:trigger, "must be an object")
+      errors.add(:trigger, :must_be_object)
       return
     end
 
     type = trigger["type"].to_s
-    errors.add(:trigger, "has unknown type #{type.inspect}") unless TRIGGER_TYPES.include?(type)
+    errors.add(:trigger, :unknown_type, value: type.inspect) unless TRIGGER_TYPES.include?(type)
 
     validate_step_trigger if type == "step"
     validate_chat_role_trigger if type == "chat_role"
@@ -132,28 +132,28 @@ class ProviderRoutingRule < ApplicationRecord
 
   def validate_step_trigger
     kind = trigger["kind"].to_s
-    errors.add(:trigger, "step kind is required") if kind.blank?
-    errors.add(:trigger, "step kind must be agentic") if kind.present? && !Step::Kind.agentic_values.include?(kind)
+    errors.add(:trigger, :step_kind_required) if kind.blank?
+    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
   end
 
   def validate_chat_role_trigger
     role = trigger["role"].to_s
-    errors.add(:trigger, "chat role is required") if role.blank?
-    errors.add(:trigger, "chat role is unknown") if role.present? && !AgentRole::CHAT_ROLES.include?(role)
+    errors.add(:trigger, :chat_role_required) if role.blank?
+    errors.add(:trigger, :chat_role_unknown) if role.present? && !AgentRole::CHAT_ROLES.include?(role)
   end
 
   def validate_legacy_task_trigger
-    errors.add(:trigger, "legacy task_key is required") if trigger["task_key"].to_s.blank?
+    errors.add(:trigger, :legacy_task_key_required) if trigger["task_key"].to_s.blank?
   end
 
   def conditions_are_valid
     unless conditions.is_a?(Hash)
-      errors.add(:conditions, "must be an object")
+      errors.add(:conditions, :must_be_object)
       return
     end
 
     unknown_keys = conditions.keys - CONDITION_KEYS
-    errors.add(:conditions, "contains unknown keys: #{unknown_keys.join(", ")}") if unknown_keys.any?
+    errors.add(:conditions, :unknown_keys, values: unknown_keys.join(", ")) if unknown_keys.any?
     validate_workflow_trigger_condition
     validate_predicate_hash(:usage)
     validate_predicate_hash(:budget)
@@ -168,14 +168,14 @@ class ProviderRoutingRule < ApplicationRecord
     return if value.blank?
 
     invalid = Array(value) - Workflow::TriggerKind.values
-    errors.add(:conditions, "workflow_trigger_kind contains unknown values: #{invalid.join(", ")}") if invalid.any?
+    errors.add(:conditions, :unknown_workflow_trigger_kinds, values: invalid.join(", ")) if invalid.any?
   end
 
   def validate_predicate_hash(key)
     value = conditions[key.to_s]
     return if value.blank?
 
-    errors.add(:conditions, "#{key} must be an object") unless value.is_a?(Hash)
+    errors.add(:conditions, :predicate_must_be_object, key: key) unless value.is_a?(Hash)
   end
 
   def validate_usage_condition
@@ -183,14 +183,14 @@ class ProviderRoutingRule < ApplicationRecord
     return if value.blank? || !value.is_a?(Hash)
 
     unknown = value.keys - ProviderRouting::Conditions::Usage::KEYS
-    errors.add(:conditions, "usage contains unknown keys: #{unknown.join(', ')}") if unknown.any?
-    errors.add(:conditions, "usage states must be an array") if value.key?("states") && !value["states"].is_a?(Array)
+    errors.add(:conditions, :usage_unknown_keys, values: unknown.join(", ")) if unknown.any?
+    errors.add(:conditions, :usage_states_must_be_array) if value.key?("states") && !value["states"].is_a?(Array)
     ProviderRouting::Conditions::Usage::COMPARATORS.each_key do |key|
       next unless value.key?(key)
 
       Float(value[key])
     rescue ArgumentError, TypeError
-      errors.add(:conditions, "usage #{key} must be numeric")
+      errors.add(:conditions, :usage_value_must_be_numeric, key: key)
     end
   end
 
@@ -200,10 +200,10 @@ class ProviderRoutingRule < ApplicationRecord
 
     days = value["days"]
     invalid_days = Array(days) - %w[ monday tuesday wednesday thursday friday saturday sunday ]
-    errors.add(:conditions, "day_time days contain unknown values: #{invalid_days.join(", ")}") if invalid_days.any?
+    errors.add(:conditions, :day_time_unknown_days, values: invalid_days.join(", ")) if invalid_days.any?
 
     value.slice("start", "end").each do |key, time|
-      errors.add(:conditions, "day_time #{key} must be HH:MM") unless time.to_s.match?(/\A\d{2}:\d{2}\z/)
+      errors.add(:conditions, :day_time_invalid, key: key) unless time.to_s.match?(/\A\d{2}:\d{2}\z/)
     end
   end
 
@@ -212,13 +212,13 @@ class ProviderRoutingRule < ApplicationRecord
     return if value.blank?
 
     unless value.is_a?(Hash)
-      errors.add(:conditions, "repository must be an object")
+      errors.add(:conditions, :repository_must_be_object)
       return
     end
 
-    errors.add(:conditions, "repository ids must be an array") if value.key?("ids") && !value["ids"].is_a?(Array)
-    errors.add(:conditions, "repository names must be an array") if value.key?("names") && !value["names"].is_a?(Array)
-    errors.add(:conditions, "repository owners must be an array") if value.key?("owners") && !value["owners"].is_a?(Array)
+    errors.add(:conditions, :repository_ids_must_be_array) if value.key?("ids") && !value["ids"].is_a?(Array)
+    errors.add(:conditions, :repository_names_must_be_array) if value.key?("names") && !value["names"].is_a?(Array)
+    errors.add(:conditions, :repository_owners_must_be_array) if value.key?("owners") && !value["owners"].is_a?(Array)
   end
 
   def validate_job_metadata_condition
@@ -226,17 +226,17 @@ class ProviderRoutingRule < ApplicationRecord
     return if value.blank?
 
     unless value.is_a?(Hash)
-      errors.add(:conditions, "job_metadata must be an object")
+      errors.add(:conditions, :job_metadata_must_be_object)
       return
     end
 
-    errors.add(:conditions, "job_metadata kinds must be an array") if value.key?("kinds") && !value["kinds"].is_a?(Array)
-    errors.add(:conditions, "job_metadata priorities must be an array") if value.key?("priorities") && !value["priorities"].is_a?(Array)
+    errors.add(:conditions, :job_metadata_kinds_must_be_array) if value.key?("kinds") && !value["kinds"].is_a?(Array)
+    errors.add(:conditions, :job_metadata_priorities_must_be_array) if value.key?("priorities") && !value["priorities"].is_a?(Array)
   end
 
   def action_is_valid
     unless action.is_a?(Hash)
-      errors.add(:action, "must be an object")
+      errors.add(:action, :must_be_object)
       return
     end
 
@@ -249,7 +249,7 @@ class ProviderRoutingRule < ApplicationRecord
     candidate_list = action_candidates
 
     unless candidates.is_a?(Array) && candidate_list.is_a?(Array)
-      errors.add(:candidates, "must be an array of candidate objects")
+      errors.add(:candidates, :must_be_candidate_array)
       return
     end
 
@@ -266,7 +266,7 @@ class ProviderRoutingRule < ApplicationRecord
 
   def validate_candidate(candidate, index, valid_providers)
     unless candidate.is_a?(Hash)
-      errors.add(:candidates, "entry #{index} must be an object with a provider key")
+      errors.add(:candidates, :entry_must_be_object, index: index)
       return
     end
 
@@ -274,16 +274,16 @@ class ProviderRoutingRule < ApplicationRecord
     provider = candidate["provider"].presence
 
     if provider.blank?
-      errors.add(:candidates, "entry #{index} is missing a provider")
+      errors.add(:candidates, :entry_missing_provider, index: index)
       return
     end
 
     unless valid_providers.include?(provider)
-      errors.add(:candidates, "entry #{index} has unknown provider #{provider.inspect}")
+      errors.add(:candidates, :entry_unknown_provider, index: index, provider: provider.inspect)
       return
     end
 
-    errors.add(:candidates, "entry #{index} weight must be positive") if candidate.key?("weight") && candidate["weight"].to_f <= 0
+    errors.add(:candidates, :entry_weight_not_positive, index: index) if candidate.key?("weight") && candidate["weight"].to_f <= 0
     validate_candidate_model(provider, candidate["model"], index) if candidate["model"].present?
   end
 
@@ -300,7 +300,7 @@ class ProviderRoutingRule < ApplicationRecord
     return if catalog.blank?
     return if catalog.include?(model)
 
-    errors.add(:candidates, "entry #{index} has model #{model.inspect} not in #{provider}'s known models")
+    errors.add(:candidates, :entry_unknown_model, index: index, model: model.inspect, provider: provider)
   rescue AgentProviders::ConfigurationError
     nil
   end
