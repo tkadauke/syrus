@@ -39,7 +39,9 @@ RSpec.describe AttentionReport::Report do
     expect(payload.dig(:attention, :judging, :figures, :job_approvals, :count)).to eq(1)
     expect(payload.dig(:attention, :judging, :figures, :pr_review_comments, :count)).to eq(1)
     expect(payload.dig(:attention, :wasted, :rules, :human_retry_rebase_ci_repair_reruns, :count)).to eq(1)
+    expect(payload.dig(:attention, :wasted, :rules, :human_retry_rebase_ci_repair_reruns, :job_ids)).to eq([ job.id ])
     expect(payload.dig(:attention, :wasted, :rules, :landing_blocker_overrides, :count)).to eq(1)
+    expect(payload.dig(:attention, :wasted, :rules, :landing_blocker_overrides, :job_ids)).to eq([ job.id ])
     expect(payload.dig(:machine_time, :included_in_attention)).to be(false)
   end
 
