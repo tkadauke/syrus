@@ -26,6 +26,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       land_on_inherited_check_failure: false,
       known_flaky_failure_dismissal_enabled: false,
       known_flaky_failure_min_score: null,
+      ci_repair_enabled: true,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: true,
@@ -227,6 +228,13 @@ describe("RepositoryForm plugin input-source decoupling", () => {
 
     expect(monitor).toBeChecked()
     expect(pause).not.toBeChecked()
+  })
+
+  it("shows the repository CI repair toggle", async () => {
+    mockFetch({ ci_repair_enabled: false })
+    renderRoute()
+
+    expect(await screen.findByLabelText("Automatically repair failing pull request CI")).not.toBeChecked()
   })
 
   it("renders repository setting checkboxes as block-level rows", async () => {
@@ -456,6 +464,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           land_on_inherited_check_failure: true,
           known_flaky_failure_dismissal_enabled: false,
           known_flaky_failure_min_score: null,
+          ci_repair_enabled: true,
           main_branch_health_enabled: false,
           main_branch_repair_enabled: false,
           main_branch_repair_blocks_work: false,

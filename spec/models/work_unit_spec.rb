@@ -38,6 +38,7 @@ RSpec.describe WorkUnit do
       epic_wide_workflow_active
       resource_safety
       ci_repair_safety
+      ci_repair_disabled
       active_work_lock
       agent_cannot_proceed
       auto_retry_backoff
@@ -85,6 +86,7 @@ RSpec.describe WorkUnit do
       "epic_wide_workflow_active",
       "resource_safety",
       "ci_repair_safety",
+      "ci_repair_disabled",
       "active_work_lock",
       "agent_cannot_proceed",
       "auto_retry_backoff",

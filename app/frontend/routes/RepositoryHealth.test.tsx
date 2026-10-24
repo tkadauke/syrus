@@ -66,6 +66,7 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       grader_health: "broken",
       main_health: "broken",
       landing_paused: true,
+      ci_repair_enabled: true,
       main_branch_health_enabled: true,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: true,

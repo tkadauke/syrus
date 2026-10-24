@@ -25,6 +25,8 @@ module WorkUnits
         return GateResult.pass unless work_unit.kind == "ci_failure"
         return GateResult.pass unless workflow
         return GateResult.pass unless job
+        return GateResult.pass if artifact("manual_ci_repair").present?
+        return disabled_block unless job.repository&.ci_repair_enabled?
         return GateResult.pass if job.main_branch_repair?
 
         if launch_gate_step?
@@ -261,6 +263,18 @@ module WorkUnits
             "job_id" => job.id,
             "repository_id" => job.repository_id
           }.merge(details)
+        )
+      end
+
+      def disabled_block
+        GateResult.block(
+          reason: "ci_repair_disabled",
+          retry_at: RETRY_DELAY.from_now,
+          details: {
+            "kind" => "ci_repair_disabled",
+            "job_id" => job.id,
+            "repository_id" => job.repository_id
+          }.merge(phase_step_details)
         )
       end
 

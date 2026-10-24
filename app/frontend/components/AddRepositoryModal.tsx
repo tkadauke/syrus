@@ -73,6 +73,7 @@ export function AddRepositoryModal({
       known_flaky_failure_dismissal_enabled: r.known_flaky_failure_dismissal_enabled,
       known_flaky_failure_min_score: r.known_flaky_failure_min_score,
       isolated_repro_dismissal_enabled: r.isolated_repro_dismissal_enabled,
+      ci_repair_enabled: r.ci_repair_enabled,
       main_branch_health_enabled: r.main_branch_health_enabled,
       main_branch_repair_enabled: r.main_branch_repair_enabled,
       main_branch_repair_blocks_work: r.main_branch_repair_blocks_work,

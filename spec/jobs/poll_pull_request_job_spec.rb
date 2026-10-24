@@ -825,6 +825,43 @@ RSpec.describe PollPullRequestJob, :ci_only do
       job.approve!(via: "operator")
     end
 
+    it "does not dispatch automatic repair when repository CI repair is disabled but still updates the check cache" do
+      repository.update!(ci_repair_enabled: false)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(job.reload).to have_attributes(pr_checks_sha: sha, pr_checks_state: "failing")
+    end
+
+    it "dispatches automatic repair when repository CI repair is enabled" do
+      repository.update!(ci_repair_enabled: true)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+    end
+
+    it "lets a manual poll dispatch repair when repository CI repair is disabled" do
+      repository.update!(ci_repair_enabled: false)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id, manual: true)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "ci_failure").last.artifact("manual_ci_repair")).to include("source" => "manual_poll")
+    end
+
     # Regression: an unhealthy base suppressed CI repair outright, so one broken
     # check on main silently disabled repair for every Job in the fleet. A check
     # that passes on the base and fails here belongs to this branch and is
