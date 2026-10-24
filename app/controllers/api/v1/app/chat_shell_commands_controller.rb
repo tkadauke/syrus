@@ -13,19 +13,19 @@ module Api
           chat_session = find_chat_session
 
           unless SUPPORTED_MODES.include?(chat_session.mode)
-            render_error("validation_failed", "Shell commands are only available in Coding Mode or Local Mode chat sessions.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chat_shell_commands.unsupported_chat_mode"), status: :unprocessable_content)
             return
           end
 
           executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
           unless executor.feature_enabled?
-            render_error("feature_disabled", "#{mode_label(chat_session.mode)} is not enabled on this instance.", status: :not_found)
+            render_error("feature_disabled", t("api.chat_shell_commands.feature_disabled", mode: mode_label(chat_session.mode)), status: :not_found)
             return
           end
 
           repository = chat_session.repository
           unless repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chat_shell_commands.repository_not_found"), status: :not_found)
             return
           end
           return unless authorize_repository_write!(repository)
@@ -38,7 +38,7 @@ module Api
 
           command = params[:command].to_s
           if command.strip.blank?
-            render_error("validation_failed", "command is required.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chat_shell_commands.command_required"), status: :unprocessable_content)
             return
           end
 
@@ -60,19 +60,19 @@ module Api
 
           repository = chat_session.repository
           unless repository
-            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            render_error("not_found", t("api.chat_shell_commands.repository_not_found"), status: :not_found)
             return
           end
           return unless authorize_repository_write!(repository)
 
           unless command_record.running?
-            render_error("validation_failed", "This shell command has already finished.", status: :unprocessable_content)
+            render_error("validation_failed", t("api.chat_shell_commands.already_finished"), status: :unprocessable_content)
             return
           end
 
           executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
           unless executor.cancellable?(command_record)
-            render_error("not_started", "The command has not started running yet. Try again in a moment.", status: :conflict)
+            render_error("not_started", t("api.chat_shell_commands.not_started"), status: :conflict)
             return
           end
 
@@ -102,9 +102,9 @@ module Api
 
           chat_session.with_lock do
             if chat_session.shell_command_in_flight?
-              conflict = [ "conflict", "A shell command is already running for this chat.", :conflict ]
+              conflict = [ "conflict", t("api.chat_shell_commands.command_in_flight"), :conflict ]
             elsif chat_session.turn_in_flight? || chat_session.agent_busy?
-              conflict = [ "turn_in_flight", "Cannot run a shell command while a turn is in progress.", :conflict ]
+              conflict = [ "turn_in_flight", t("api.chat_shell_commands.turn_in_flight"), :conflict ]
             else
               command_record = chat_session.chat_shell_commands.create!(
                 user: Current.user,
