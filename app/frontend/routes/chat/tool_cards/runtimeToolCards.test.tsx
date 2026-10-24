@@ -572,20 +572,78 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("browser inspection timed out", { selector: "div" })).toHaveClass("text-danger-text")
   })
 
-  it("renders long Runtime logs as a collapsed preview with truncation details", () => {
+  it("renders long Runtime logs as a tail preview with request details and full-log popup", () => {
     const entries = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`)
     const parsedResult = { entries, cursor: 45 }
 
     expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult }))).toBe("Runtime logs: 45 lines, cursor 45")
 
-    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { cursor: 0 } }))}</>)
+    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { session_id: 7, cursor: 0, limit: 45 } }))}</>)
+    expect(screen.getByText("Session ID")).toBeInTheDocument()
+    expect(screen.getByText("Limit")).toBeInTheDocument()
+    expect(screen.getByText("Requested cursor")).toBeInTheDocument()
+    expect(screen.getByText("Next cursor")).toBeInTheDocument()
+    expect(screen.getByText("7")).toBeInTheDocument()
+    expect(screen.getAllByText("45")).toHaveLength(3)
     const preview = screen.getByText("Log preview").closest("details")
     expect(preview).not.toBeNull()
     if (!preview) throw new Error("missing log preview")
     expect(within(preview).getByText(/… 5 earlier lines/)).toBeInTheDocument()
     expect(preview.textContent).not.toContain("\nline 1\n")
     expect(within(preview).getByText(/line 45/)).toBeInTheDocument()
+    fireEvent.click(within(preview).getByRole("button", { name: "Show more" }))
+    const dialog = screen.getByRole("dialog", { name: "Full Runtime logs" })
+    expect(within(dialog).getByText(/line 1/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/line 45/)).toBeInTheDocument()
     expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["direct", "runtime_logs", (payload: unknown) => payload],
+    ["structured content", "mcp__syrus-chat-sidecar__runtime_logs", (payload: unknown) => ({ structured_content: payload, content: [] })],
+    [
+      "content text JSON",
+      "mcp__syrus-chat-sidecar__runtime_logs",
+      (payload: unknown) => ({ structured_content: null, content: [{ type: "text", text: JSON.stringify(payload) }] })
+    ]
+  ])("normalizes and redacts Runtime logs from %s results", (_format, rawName, envelope) => {
+    const payload = {
+      entries: ["starting", "API_TOKEN=secret-value-that-must-not-render", "ready"],
+      cursor: 103
+    }
+    const wrapped = envelope(payload)
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime logs",
+      calls: [
+        {
+          message_id: 63,
+          tool_name: "Runtime logs",
+          raw_name: rawName,
+          detail: "",
+          display_label: "Runtime logs",
+          progress_label: "Thinking",
+          raw_payload: { session_id: 12, cursor: 100, limit: 50 },
+          result_body: JSON.stringify(wrapped),
+          result_json: wrapped,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+    expect(screen.getByText("Runtime logs: 3 lines, cursor 103")).toBeInTheDocument()
+    expandToolGroup("Runtime logs")
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("100")).toBeInTheDocument()
+    expect(screen.getByText("50")).toBeInTheDocument()
+    expect(screen.getByText("103")).toBeInTheDocument()
+    expect(screen.getAllByText(/API_TOKEN=\[redacted\]/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/secret-value-that-must-not-render/)).not.toBeInTheDocument()
   })
 
   it("shows stopped runtimes with their final state", () => {
