@@ -56,6 +56,14 @@ function fallbackOptions(t: (key: string) => string): ScheduledTaskOptions {
   }
 }
 
+function localizeAutoApproveOptions(options: ScheduledTaskOptions, t: (key: string) => string): ScheduledTaskOptions {
+  const localized = new Map(fallbackOptions(t).auto_approve_modes.map((option) => [option.value, option]))
+  return {
+    ...options,
+    auto_approve_modes: options.auto_approve_modes.map((option) => localized.get(option.value) || option)
+  }
+}
+
 export function ScheduledTasksIndex() {
   const { t } = useT("settings")
   usePageTitle(t("page_title_schedules"))
@@ -169,7 +177,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const loading = mode === "new" ? form.isPending : detail.isPending
   const error = form.error || detail.error
   const initial = mode === "new" && form.data ? formInput(form.data.task) : detail.data ? detailInput(detail.data.task) : null
-  const options = form.data?.options || detail.data?.options || fallbackOptions(scheduledTasksT)
+  const options = localizeAutoApproveOptions(form.data?.options || detail.data?.options || fallbackOptions(scheduledTasksT), scheduledTasksT)
   const repository = form.data?.repository || detail.data?.task.repository
   const skillsRepositoryId = repository ? String(repository.id) : repositoryId
   const showRepositoryPicker = needsRepositoryPick && repositoryId.length === 0
