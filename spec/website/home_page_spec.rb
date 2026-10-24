@@ -11,6 +11,7 @@ RSpec.describe "website home page" do
   let(:site_copy) { read_website("lib/site.ts") }
   let(:nav) { read_website("components/nav.tsx") }
   let(:chrome) { read_website("lib/chrome.ts") }
+  let(:marketing) { read_website("lib/marketing.ts") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
 
   it "assembles the current Next.js landing page from the product sections" do
@@ -39,7 +40,7 @@ RSpec.describe "website home page" do
     hero = read_website("components/hero.tsx")
     expect(hero).to include("<DownloadCTA")
     expect(hero).to include('localizedHref("/#how", locale)')
-    expect(hero).to include("See how it works")
+    expect(marketing).to include("See how it works")
 
     expect(chrome).to include('href: "/download"')
   end
@@ -49,6 +50,6 @@ RSpec.describe "website home page" do
     expect(read_website("components/features.tsx")).to include('section id="features"')
     expect(read_website("components/entry-points.tsx")).to include('section id="entry-points"')
     expect(read_website("components/demo.tsx")).to include('section id="demo"')
-    expect(read_website("components/pages/download-page.tsx")).to include("Download Syrus")
+    expect(marketing).to include("Download Syrus")
   end
 end

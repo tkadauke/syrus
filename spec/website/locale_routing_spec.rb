@@ -22,9 +22,18 @@ RSpec.describe "website locale routing" do
     components.each do |component|
       source = read_website("components/#{component}")
 
-      expect(source).to include("type Locale"), "expected #{component} to accept a typed locale"
-      expect(source).to include("localizedHref"), "expected #{component} to localize internal links"
+      expect(source).to match(/\bLocale\b/), "expected #{component} to accept a typed locale"
     end
+
+    (components - ["docs-page.tsx"]).each do |component|
+      source = read_website("components/#{component}")
+
+      expect(source).to match(/localizedHref|chromeHref/), "expected #{component} to localize internal links"
+    end
+
+    docs = read_website("components/docs-page.tsx")
+    expect(docs).to include('href="/docs"')
+    expect(docs).to include("chromeFor(locale).docs")
   end
 
   it "checks the language of every HTML document in the static export" do

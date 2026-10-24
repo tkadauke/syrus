@@ -29,6 +29,11 @@ export type ChromeDictionary = {
   }
 }
 
+export const globalNotFoundCopy = {
+  title: "Page not found",
+  home: "Return home",
+} as const
+
 export const chromeDictionaries = {
   en: {
     skipToContent: "Skip to content",
