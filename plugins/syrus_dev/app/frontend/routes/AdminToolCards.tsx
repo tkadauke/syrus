@@ -132,6 +132,7 @@ function callForExample(entry: ToolPresentationEntry, example: ToolPresentationE
     result_summary: resultPresentation.summary,
     summary_metadata: resultPresentation.metadata,
     prior_results: context.priorResults,
+    context_calls: context.priorCalls?.map((call) => ({ tool_name: call.toolName, input: call.input, result: call.parsedResult })),
     pending_action: context.livePendingAction
   }
 }
