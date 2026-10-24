@@ -1,39 +1,43 @@
 ---
 title: Dogfooding
-description: How Syrus uses its own issue-to-PR loop to build Syrus, with the merged-PR methodology and limits of the claim.
+description: How Syrus uses its own issue-to-PR loop to build Syrus, with the landed-original-PR methodology and limits of the claim.
 ---
 
 # Dogfooding
 
-95.1% of Syrus's merged pull requests were written by Syrus itself, as of
-the September 27, 2026 launch audit.
+97.6% of Syrus's landed original pull requests were written by Syrus itself,
+as of the October 24, 2026 audit. Using the corrected method, the same figure
+through September 27 is 97.3%, superseding the previously published 95.1%.
 
-That figure comes from an analysis run on September 27, 2026 across all
-3,867 pull requests in the `tkadauke/syrus` repository. Of the 1,865 merged
-pull requests, 1,773 were written by Syrus: 1,599 were opened by the
-`tkadauke-syrus[bot]` GitHub App, and another 174 were opened as `tkadauke`
-while carrying Syrus PR-body markers.
+That figure comes from an analysis run on October 24, 2026 across all 5,208
+pull requests in the `tkadauke/syrus` repository. Integration pull requests
+such as Land Epic trains and Land job bundles are landing vehicles, not
+separate units of work, so the audit excludes those vehicles and counts each
+original member once, in its landing month. Of 4,451 landed originals, 4,346
+were written by Syrus. Of all resolved originals, 98.1% landed and 1.9% were
+discarded as failed experiments, cancelled work, or superseded attempts.
 
 ## Monthly Share
 
-| Month | Share of merged PRs written by Syrus |
+| Month | Syrus-written landed originals |
 | --- | ---: |
-| 2026-05 | 96.6% |
-| 2026-06 | 99.8% |
-| 2026-07 | 89.1% |
-| 2026-08 | 94.6% |
-| 2026-09 | 95.1% |
+| 2026-05 | 96.6% (315/326) |
+| 2026-06 | 99.8% (537/538) |
+| 2026-07 | 92.5% (520/562) |
+| 2026-08 | 97.1% (769/792) |
+| 2026-09 | 98.7% (1,165/1,180) |
+| 2026-10 | 98.8% (1,040/1,053) |
 
 July dipped because of a 41-PR desktop-app sprint by a human contributor.
 
-## Human Merged PRs
+## Human Landed PRs
 
-The remaining 92 merged pull requests were:
+The remaining 105 landed originals were:
 
 - `skadauke`: 41 desktop-app PRs.
-- `dependabot[bot]`: 37 dependency PRs.
-- `tkadauke`: 9 May 2026 bootstrap-fix PRs.
-- `tkadauke-winston[bot]`: 4 PRs.
+- `dependabot[bot]`: 45 dependency PRs.
+- `tkadauke`: 13 PRs.
+- `tkadauke-winston[bot]`: 5 PRs.
 - `martinkadauke`: 1 PR.
 
 ## Receipts
@@ -55,17 +59,23 @@ merge-train step definitions in `app/models/step/kind.rb`:
 - `Triggered by @...`;
 - machine-generated `Land Epic #N` merge-train titles.
 
-All 1,015 `tkadauke`-authored pull requests were classified: 999 carried
-Syrus markers, 7 were `Land Epic #N` merge-train pull requests, and 9 were
-human bootstrap fixes.
+All 2,169 `tkadauke`-authored original pull requests were classified: 2,154
+were Syrus work identified by markers or a machine-generated `Land Epic #N`
+title, and 15 were human work. Of those human originals, 13 landed and 2 did
+not. This distinction is load-bearing: Syrus used GitHub App credentials from
+June through August 2026, then switched to personal-access-token credentials
+during September, so author identity alone cannot separate Syrus from the
+operator.
 
 ## Qualifier
 
-This is a merged-pull-request claim, not an unqualified repository-wide
-line-churn claim. Line-churn analysis shows roughly 45% Syrus changes and
-roughly 50% direct operator pushes to `main`, mostly through the operator's
-CLI-agent repair channel, which bypasses pull requests by design.
+This is a landed-original-PR claim, not an unqualified repository-wide
+line-churn claim. The layers answer different questions: of distinct lines
+landed through pull requests, 95.3% were Syrus work. Across all main-line
+churn, 70.9% arrived through pull requests and 29.1% through direct pushes.
+That direct-push churn was mostly the operator's interactive restructuring,
+moves, and deletions, substantially assisted by a CLI agent; it is not evidence
+that feature work routinely bypassed Syrus.
 
-The percentage is a point-in-time launch claim, not a live counter. If the
-repository keeps merging work after September 27, 2026, rerun the audit before
-changing this page or the homepage badge.
+These percentages are point-in-time audit claims, not live counters. Rerun the
+audit before changing this page or the homepage badge again.
