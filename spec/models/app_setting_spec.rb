@@ -69,9 +69,8 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     it "leaves polling running on the first create by default" do
       reset_app_settings!
 
-      # Pin the env-absent precondition: the suite runs inside a backend
-      # container whose compose env_file may export SYRUS_BOOT_POLLING_PAUSED=1
-      # (a test-channel stack), which would otherwise seed this example paused.
+      # Pin the env-absent precondition: an operator may have explicitly set
+      # SYRUS_BOOT_POLLING_PAUSED in the test process environment.
       allow(ENV).to receive(:[]).and_call_original
       allow(ENV).to receive(:[]).with("SYRUS_BOOT_POLLING_PAUSED").and_return(nil)
 
@@ -87,8 +86,7 @@ RSpec.describe AppSetting, :reset_plugin_registry do
       expect(AppSetting.current.polling_paused).to be false
     end
 
-    # It seeds the DB row once; it must not force the value on an existing row,
-    # so the operator can unpause a test stack from the admin console.
+    # It seeds the DB row once; it must not override later console changes.
     it "does not re-pause an existing row even when the env is set" do
       AppSetting.current.update!(polling_paused: false)
 
