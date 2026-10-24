@@ -56,6 +56,17 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("job", "pr_number")).to eq(42)
   end
 
+  it "localizes diagnostic notices in Latin without English leakage" do
+    user.update!(locale: "la")
+    run = job.initial_run
+
+    post app_job_path("/runs/#{run.id}/diagnose"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Diagnosis in ordinem posita est - imago instantanea mox apparebit.")
+    expect(parse_body.dig("run", "id")).to eq(run.id)
+  end
+
   def attach_work_unit(workflow, job:, kind:, state: "running")
     intent = WorkIntent.create!(
       kind: kind,

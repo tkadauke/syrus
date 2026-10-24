@@ -118,7 +118,7 @@ la:
         pushing_commits: "Commits ad GitHub mittuntur..."
         replacing_pr_branch: "Ramus PR ex workspace workflow substituitur..."
         branch_output_discarded: "Exitus obsoletus rami huius workflow abiectus est."
-        diagnostic_queued: "Diagnosis in ordinem posita est - snapshot mox apparebit."
+        diagnostic_queued: "Diagnosis in ordinem posita est - imago instantanea mox apparebit."
     jobs:
       errors:
         invalid_priority: "Valor prioritatis invalidus est."
