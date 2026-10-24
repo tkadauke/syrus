@@ -97,7 +97,15 @@ export function AgentConversationTab({ jobId, prUrl }: { jobId: number; prUrl: s
   )
 }
 
-function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflows: AgentConversationWorkflow[]; selectedWorkflowId: number | null; onSelect: (workflowId: string) => void }) {
+function WorkflowSelector({
+  workflows,
+  selectedWorkflowId,
+  onSelect
+}: {
+  workflows: AgentConversationWorkflow[]
+  selectedWorkflowId: number | null
+  onSelect: (workflowId: string) => void
+}) {
   const { t } = useT("jobs")
 
   if (workflows.length <= 1) return null
@@ -105,10 +113,7 @@ function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflo
   return (
     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
       <span className="mb-1 block">{t("conversation_select_workflow")}</span>
-      <Select
-        onChange={(event) => onSelect(event.target.value)}
-        value={selectedWorkflowId ? String(selectedWorkflowId) : ""}
-      >
+      <Select onChange={(event) => onSelect(event.target.value)} value={selectedWorkflowId ? String(selectedWorkflowId) : ""}>
         {workflows.map((workflow) => (
           <option key={workflow.id} value={workflow.id}>
             {workflowOptionLabel(workflow)}
@@ -175,11 +180,21 @@ function NodeCard({
 // Clicking a session no longer expands its transcript inline -- it opens the
 // shared TranscriptSidebar on the right, mirroring the chat workspace's
 // hidden-by-default side panel (see WorkspacePanels.tsx).
-function AgentSessionCard({ node, onOpenTranscript, transcriptOpen }: { node: AgentConversationNode; onOpenTranscript: (nodeId: string) => void; transcriptOpen: boolean }) {
+function AgentSessionCard({
+  node,
+  onOpenTranscript,
+  transcriptOpen
+}: {
+  node: AgentConversationNode
+  onOpenTranscript: (nodeId: string) => void
+  transcriptOpen: boolean
+}) {
   const { t } = useT("jobs")
 
   return (
-    <div className={`min-w-0 flex-1 basis-64 overflow-hidden rounded border bg-white dark:bg-gray-900 ${transcriptOpen ? "border-brand" : "border-gray-200 dark:border-gray-700"}`}>
+    <div
+      className={`min-w-0 flex-1 basis-64 overflow-hidden rounded border bg-white dark:bg-gray-900 ${transcriptOpen ? "border-brand" : "border-gray-200 dark:border-gray-700"}`}
+    >
       <button aria-expanded={transcriptOpen} className="flex w-full items-start gap-3 p-3 text-left" onClick={() => onOpenTranscript(node.id)} type="button">
         <span aria-hidden="true" className={`mt-0.5 h-8 w-8 shrink-0 rounded-full ${avatarColorClass(node.role)}`} />
         <span className="min-w-0 flex-1">
@@ -215,7 +230,10 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
   return (
     <>
       <div aria-hidden="true" className="fixed inset-0 z-30 bg-black/20" onClick={onClose} />
-      <aside aria-label={t("conversation_transcript_panel_label", { label: node.label })} className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+      <aside
+        aria-label={t("conversation_transcript_panel_label", { label: node.label })}
+        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+      >
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 p-3 dark:border-gray-700">
           <h2 className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</h2>
           <button
@@ -229,7 +247,9 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
         </div>
         <div className="min-h-0 flex flex-1 flex-col overflow-hidden">
           {transcript.isPending ? <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("run_loading")}</p> : null}
-          {transcript.isError ? <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p> : null}
+          {transcript.isError ? (
+            <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p>
+          ) : null}
           {transcript.data ? (
             transcript.data.logs && transcript.data.logs.length > 0 ? (
               <RunTranscriptLogs fillHeight logs={transcript.data.logs} />
@@ -237,7 +257,14 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
               <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
             )
           ) : null}
-          {transcript.data ? <TranscriptPagination hasOlder={transcript.data.logs_has_older || false} onPageChange={setPage} page={transcript.data.logs_page || 1} totalPages={transcript.data.logs_total_pages || 1} /> : null}
+          {transcript.data ? (
+            <TranscriptPagination
+              hasOlder={transcript.data.logs_has_older || false}
+              onPageChange={setPage}
+              page={transcript.data.logs_page || 1}
+              totalPages={transcript.data.logs_total_pages || 1}
+            />
+          ) : null}
         </div>
       </aside>
     </>
@@ -249,11 +276,12 @@ function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
   const [expanded, setExpanded] = useState(false)
   const output = deterministicRawOutput(node)
   const command = deterministicCommandLine(node)
-  const iconTone = node.state === "failed"
-    ? "text-red-600 dark:text-red-400"
-    : node.state === "succeeded"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-gray-500 dark:text-gray-400"
+  const iconTone =
+    node.state === "failed"
+      ? "text-red-600 dark:text-red-400"
+      : node.state === "succeeded"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-gray-500 dark:text-gray-400"
 
   return (
     <div className="min-w-0 flex-1 basis-64 overflow-hidden rounded border border-dashed border-gray-400 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/60">
@@ -271,9 +299,15 @@ function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
       </div>
       {expanded ? (
         <div className="border-t border-dashed border-gray-400 p-3 dark:border-gray-600">
-          {command ? <pre className="mb-2 max-w-full overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">$ {command}</pre> : null}
+          {command ? (
+            <pre className="mb-2 max-w-full overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
+              $ {command}
+            </pre>
+          ) : null}
           {output ? (
-            <pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{output}</pre>
+            <pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">
+              {output}
+            </pre>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">{t("conversation_no_raw_output")}</p>
           )}
