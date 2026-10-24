@@ -39,7 +39,7 @@
   "tooltip_workflow": "WF-{{id}}",
   "tooltip_host": "in hospite {{host}} cucurrit ab {{start}}–{{end}}",
   "restart_marker_tooltip": "processus operarii hic iterum coepit (pid {{old_pid}} → {{new_pid}})",
-  "unknown_queue_role": "queue ignota",
+  "unknown_queue_role": "ordo ignotus",
   "unknown_storage_key": "repositorium ignotum",
   "no_historical_blocker_data": "Nulla notitia historica de impedimento huic spatio praesto est.",
   "no_blocker_data": "Non nunc impeditum, aut nulla notitia impedimenti collecta.",
