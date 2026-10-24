@@ -29,7 +29,7 @@ module Whiteboard
           merge_canvas(chat_session, snapshot_scene)
         end
 
-        Mcp::Tools.success(result.merge(snapshot_id: snapshot.id, mode: mode))
+        Mcp::Tools.success(result.merge(snapshot_id: snapshot.id, mode: mode, chat_session_id: chat_session.id))
       rescue Canvas::ElementLimitExceeded => e
         Mcp::Tools.tool_error(e.message)
       rescue ArgumentError, ActiveRecord::RecordInvalid => e

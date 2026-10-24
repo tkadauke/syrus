@@ -93,5 +93,13 @@
   "tool_save_snapshot": "Save canvas snapshot",
   "tool_save_snapshot_named": "Save canvas snapshot \"{{name}}\"",
   "tool_save_snapshot_recovery": "Check that the canvas contains valid elements, then try saving again.",
+  "tool_mode": "Mode",
+  "tool_mode_merge": "Merge",
+  "tool_mode_replace": "Replace",
+  "tool_auto_saved_snapshot": "Pre-load backup",
+  "tool_auto_saved_snapshot_title": "Pre-load backup #{{id}}",
+  "tool_load_snapshot": "Load canvas snapshot",
+  "tool_load_snapshot_attempt": "Load {{snapshot}} in {{mode}} mode",
+  "tool_load_snapshot_recovery": "Check that the snapshot ID belongs to this chat and that the selected mode is valid.",
   "tool_loaded_canvas_summary": "Loaded {{snapshot}}{{mode}}"
 }
