@@ -345,8 +345,8 @@ export function ReadinessPanel({
             {t("readiness_description")}
           </Text>
         </div>
-        <Link className={buttonClasses("secondary", "sm")} to={`${prefix}/credentials`}>
-          {t("open_settings")}
+        <Link className={buttonClasses("secondary", "sm")} to={`${prefix}/admin/console`}>
+          {t("open_operator_console")}
         </Link>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-2">

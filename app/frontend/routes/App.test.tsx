@@ -4451,6 +4451,7 @@ describe("App", () => {
     expect(screen.getByText("No Solid Queue worker processes are registered.")).toBeInTheDocument()
     expect(screen.getByText("Start the worker process with bin/jobs and confirm it can connect to the queue database.")).toBeInTheDocument()
     expect(screen.queryByText("GitHub accepted the configured personal access token.")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Operator Console" })).toHaveAttribute("href", "/app-shell/admin/console")
     expectDashboardFetch(
       fetchSpy,
       "/api/v1/app/dashboard?view=list&subject=job",
