@@ -27,7 +27,10 @@
 #   stable-name aliases (Syrus.dmg implies the website permalink — releases
 #   only).
 # - There is no publish job at all: no draft release, no `:latest` move, no
-#   LLM notes, no website deploy — this file has only `prepare` + `build`.
+#   LLM notes, no website deploy — this file has only `prepare`,
+#   `plugin-images` and `build`. plugin-images pushes the plugin service images
+#   under the same test tag the app's backend pin carries; without it the built
+#   app cannot install (see that job's comment).
 #
 # Signing runs exactly like a real release (guards + preflights included, in the
 # module) — rehearsing the fragile part is half the value of a test build.
@@ -152,6 +155,42 @@ jobs:
   # gate, not the channel. The module's contents:read + packages:write matches
   # this workflow's grants exactly.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Plugin service images, tagged to match the backend pin this build bakes in.
+  #
+  # Without this a test build is not installable. install.sh derives the Plugin
+  # Runtime image from the backend pin -- `syrus-plugin-runtime:${IMAGE##*:}`
+  # whenever the pin is a ghcr syrus-backend ref -- so a test build asks for
+  # `syrus-plugin-runtime:test-<X.Y.Z-test.N>`. Only release.yml used to publish
+  # plugin images, so that tag never existed and the manager failed to pull,
+  # taking git-mirror, browser and whisper-stt (which it starts) down with it.
+  # The `:latest` fallback in install.sh does not rescue it: that arm is only
+  # reached for a non-GHCR-backend pin.
+  #
+  # version_tag, not image_tag: the sha tag is for the backend image itself,
+  # while version_tag is what `backend_image_pin` bakes into the app and is
+  # therefore the tag install.sh will derive from. --skip-latest because a test
+  # build must never move a plugin image's :latest -- that belongs to the
+  # release channel.
+  # ---------------------------------------------------------------------------
+  plugin-images:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push the plugin images
+        env:
+          VERSION_TAG: ${{ needs.prepare.outputs.version_tag }}
+        run: bin/publish-plugin-images "$VERSION_TAG" --skip-latest --no-login
+
   build:
     needs: prepare
     uses: ./.github/workflows/_build-app.yml

@@ -12,7 +12,8 @@ require "spec_helper"
 # (or a broken artifact) if broken.
 #
 # test-build.yml is a THIN caller of the shared build spine: it computes the
-# test identifiers (prepare) and calls the reusable _build-app.yml module with
+# test identifiers (prepare), publishes the plugin service images under the
+# test tag (plugin-images), and calls the reusable _build-app.yml module with
 # test parameters. The build/sign steps themselves live in the module, shared
 # with release.yml — so assertions about HOW a component is built read the
 # module, and assertions about the test-specific inputs read the thin caller.
@@ -51,8 +52,13 @@ RSpec.describe "desktop test-build pipeline" do
     expect(workflow_text).not_to match(/imagetools create[^\n]*:latest/)
     # The thin caller passes the version-named twin as the extra tag.
     expect(workflow.dig("jobs", "build", "with", "image_extra_tag")).to eq("${{ needs.prepare.outputs.version_tag }}")
-    # Thin caller: only prepare + the reusable build call. No publish jobs.
-    expect(workflow["jobs"].keys).to contain_exactly("prepare", "build")
+    # Thin caller: prepare, the plugin service images, and the reusable build
+    # call. plugin-images pushes to GHCR under the test tag -- the same thing
+    # the backend image already does under `packages: write` -- and is NOT a
+    # publish job: it creates no release and moves no :latest (asserted above,
+    # and --skip-latest is pinned in its own example). Anything beyond these
+    # three needs review against this example's premise.
+    expect(workflow["jobs"].keys).to contain_exactly("prepare", "plugin-images", "build")
     # The build spine's jobs live in the shared module.
     expect(build_yaml["jobs"].keys).to contain_exactly(
       "build-backend", "merge-backend", "build-cli", "build-macos-worker", "build-mac"
@@ -188,6 +194,35 @@ RSpec.describe "desktop test-build pipeline" do
     # completion. (Parallelism is pinned in its own example.)
     # ...and each verify step asserts the sealed manifest actually carries it.
     expect(build_text).to include('grep -qF "\"image\": \"$BACKEND_IMAGE\"" "$APP/Contents/Resources/backend/manifest.json"')
+  end
+
+  # A test build that bakes a backend pin but publishes no plugin images is not
+  # installable: install.sh derives the Plugin Runtime image from the pin's tag
+  # (`syrus-plugin-runtime:${IMAGE##*:}` for any ghcr syrus-backend pin), so it
+  # asks for a tag only this job creates. The manager failing to pull takes
+  # git-mirror, browser and whisper-stt down with it, because it is what starts
+  # them.
+  it "publishes plugin images under the same tag the baked backend pin derives" do
+    plugin_job = workflow.dig("jobs", "plugin-images")
+    expect(plugin_job).not_to be_nil, "test builds must publish plugin images or they cannot install"
+
+    publish_step = plugin_job.fetch("steps").find { |step| step["run"].to_s.include?("bin/publish-plugin-images") }
+    expect(publish_step).not_to be_nil
+
+    # The tag must be the SAME one backend_image_pin bakes in (version_tag),
+    # not the sha-shaped image_tag -- that is the tag install.sh derives from.
+    pin = workflow.dig("jobs", "build", "with", "backend_image_pin")
+    expect(pin).to include("version_tag")
+    expect(publish_step.fetch("env").fetch("VERSION_TAG")).to eq("${{ needs.prepare.outputs.version_tag }}")
+    expect(publish_step.fetch("run")).to include('"$VERSION_TAG"')
+
+    # Never move a plugin image's :latest from a test build -- that pointer
+    # belongs to the release channel, and imageCleanup keys off it.
+    expect(publish_step.fetch("run")).to include("--skip-latest")
+
+    # Attacker-influenceable values reach `run:` through env, never inline
+    # interpolation -- the same rule the rest of this workflow follows.
+    expect(publish_step.fetch("run")).not_to include("${{")
   end
 
   it "signs test builds exactly like a release (guards, preflights, forced signing)" do
