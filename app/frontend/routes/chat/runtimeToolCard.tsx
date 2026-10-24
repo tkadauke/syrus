@@ -126,7 +126,7 @@ type RuntimeCard =
       durationSeconds: string | null
       raw: unknown
     }
-  | { kind: "release"; released: RuntimeLease[]; error: string | null; raw: unknown }
+  | { kind: "release"; released: RuntimeLease[]; error: string | null; sessionId: string | null; raw: unknown }
   | { kind: "error"; action: string; message: string; sessionId?: string | null; requestedMode?: string | null; durationSeconds?: string | null }
 
 const INPUT_VALUE_PREVIEW_LIMIT = 80
@@ -549,6 +549,7 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
         return parsedLease ? [parsedLease] : []
       }),
       error: displayValue(parsed.error),
+      sessionId: displayValue(context.input?.session_id),
       raw: parsed
     }
   }
@@ -901,7 +902,13 @@ function RawRuntimeDetails({ value }: { value: unknown }) {
 function RuntimeErrorCard({ card }: { card: Extract<RuntimeCard, { kind: "error" }> }) {
   return (
     <CardShell>
-      {card.action === "runtime_acquire_control" ? <AcquireRequestDetails card={card} /> : card.sessionId ? <RuntimeId id={card.sessionId} /> : null}
+      {card.action === "runtime_acquire_control" ? (
+        <AcquireRequestDetails card={card} />
+      ) : card.action === "runtime_release_control" && card.sessionId ? (
+        <Row label="Session ID" value={card.sessionId} wrap />
+      ) : card.sessionId ? (
+        <RuntimeId id={card.sessionId} />
+      ) : null}
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
         {card.message}
       </div>
@@ -1267,6 +1274,7 @@ function renderExpanded(context: ToolCardContext) {
   if (card.kind === "release") {
     return (
       <CardShell>
+        {card.sessionId ? <Row label="Session ID" value={card.sessionId} wrap /> : null}
         {card.error ? (
           <RuntimeNotice message={card.error} tone="error" />
         ) : card.released.length === 0 ? (
@@ -1274,7 +1282,7 @@ function renderExpanded(context: ToolCardContext) {
         ) : (
           <div className="space-y-2">
             {card.released.map((lease) => (
-              <LeaseDetails key={lease.id} lease={lease} title="Released lease" />
+              <LeaseDetails key={lease.id} lease={lease} rich title="Released lease" />
             ))}
           </div>
         )}
