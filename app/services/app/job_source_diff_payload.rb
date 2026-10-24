@@ -348,7 +348,7 @@ module App
           truncated: false,
           base_ref: fixture[:base_ref],
           head_ref: fixture[:head_ref],
-          label: "Preview fixture",
+          label: I18n.t("api.job_source_diff.preview_fixture"),
           reason: "diff_fixture"
         )
     rescue => e

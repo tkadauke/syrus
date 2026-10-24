@@ -184,6 +184,9 @@ en:
 
   # API messages
   api:
+    job_source_diff:
+      preview_fixture: "Preview fixture"
+
     provider_routing_rules:
       errors:
         reorder_ids_mismatch: "Rule ids must match every rule in this scope exactly once."
