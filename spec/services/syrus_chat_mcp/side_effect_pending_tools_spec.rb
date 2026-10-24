@@ -234,6 +234,30 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     }.to have_enqueued_job(PollRebaseJob).with(job.id, bypass_cache: true)
   end
 
+  it "groups and deduplicates incident fan-out polling targets" do
+    jobs = [
+      Factories.job_record(repository: repository, state: "implemented", pr_number: 42),
+      Factories.job_record(repository: repository, issue_number: 43, state: "implemented", pr_number: 43)
+    ]
+
+    feedback = payload(call_tool("poll_job_feedback", job_ids: [ jobs.first.id, jobs.first.id, jobs.last.id ]))
+    mergeability = payload(call_tool("check_job_mergeability", job_ids: jobs.map(&:id)))
+
+    expect(PendingActionGroup.find(feedback.fetch(:pending_action_group_id)).chat_pending_actions.map { |action| action.payload["job_id"] }).to eq(jobs.map(&:id))
+    expect(PendingActionGroup.find(mergeability.fetch(:pending_action_group_id)).chat_pending_actions.map { |action| action.payload["job_id"] }).to eq(jobs.map(&:id))
+  end
+
+  it "rejects an inaccessible member without creating a polling group" do
+    own_job = Factories.job_record(repository: repository, state: "implemented", pr_number: 42)
+    other_user = Factories.user
+    other_job = Factories.job_record(user: other_user, repository: Factories.repository(user: other_user), state: "implemented", pr_number: 43)
+
+    response = call_tool("poll_job_feedback", job_ids: [ own_job.id, other_job.id ])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(PendingActionGroup.where(chat_session: chat_session)).to be_empty
+  end
+
   it "creates and confirms a delegate_issue action" do
     client = instance_double(GithubClient)
     allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
@@ -317,6 +341,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     action = admin_session.pending_actions.find(JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_confirmation_id))
     expect(action).to have_attributes(action: "check_job_mergeability", payload: { "job_id" => other_job.id })
+    expect { action.confirm!(user: admin) }.to have_enqueued_job(PollRebaseJob).with(other_job.id, bypass_cache: true)
   end
 
   it "rejects cross-user scheduled tasks at tool call time" do

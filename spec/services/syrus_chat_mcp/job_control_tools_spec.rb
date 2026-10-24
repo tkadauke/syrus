@@ -67,6 +67,31 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to be_open
   end
 
+  it "creates a bounded, deduplicated normal rebase group without force-rebase payloads" do
+    jobs = [
+      Factories.job_record(repository: repository, pr_number: 41),
+      Factories.job_record(repository: repository, issue_number: 43, pr_number: 42)
+    ]
+
+    response = call_tool("rebase_job", job_ids: [ jobs.first.id, jobs.first.id, jobs.last.id ], reason: "Recover from shared base drift.")
+    group = PendingActionGroup.find(payload(response).fetch(:pending_action_group_id))
+
+    expect(group.chat_pending_actions.map(&:payload)).to eq(jobs.map { |job| { "job_id" => job.id } })
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "rebase_job" ])
+    expect(group.reason).to eq("Recover from shared base drift.")
+  end
+
+  it "rejects normal bulk rebases when a selected stack already has a rebase" do
+    job = Factories.job_record(repository: repository, pr_number: 41)
+    other = Factories.job_record(repository: repository, issue_number: 43, pr_number: 42)
+    allow(RebaseWorkflowSelector).to receive(:active_for_stack?).and_return(false, true)
+
+    response = call_tool("rebase_job", job_ids: [ job.id, other.id ], reason: "Recover from shared base drift.")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
   it "rejects cancelling an already closed Job and names the next action" do
     job = Factories.job_record(repository: repository, state: "closed")
 

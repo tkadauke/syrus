@@ -6,6 +6,8 @@ module Mcp::Tools
   module BulkPendingActionToolSupport
     include ProposalToolSupport
 
+    MAX_BATCH_SIZE = 100
+
     private
 
     # Resolves exactly one of a singular id param or a plural ids param into
@@ -22,7 +24,10 @@ module Mcp::Tools
         return [ nil, true, Mcp::Tools.invalid("#{param_name}s must be an array of integers") ] if normalized.size != values.size
         return [ nil, true, Mcp::Tools.invalid("#{param_name}s must not be empty") ] if normalized.empty?
 
-        [ normalized.uniq, true, nil ]
+        normalized = normalized.uniq
+        return [ nil, true, Mcp::Tools.invalid("#{param_name}s may contain at most #{MAX_BATCH_SIZE} targets") ] if normalized.size > MAX_BATCH_SIZE
+
+        [ normalized, true, nil ]
       else
         normalized = Integer(id, exception: false)
         return [ nil, false, Mcp::Tools.invalid("#{param_name} is required") ] unless normalized

@@ -183,6 +183,11 @@ module PendingActions
       user.jobs.find(payload.fetch("job_id"))
     end
 
+    def accessible_action_job
+      scope = user.admin? ? Job.all : Job.accessible_to(user)
+      scope.find(payload.fetch("job_id"))
+    end
+
     def action_user_repository
       user.repositories.active.find(payload.fetch("repository_id"))
     end

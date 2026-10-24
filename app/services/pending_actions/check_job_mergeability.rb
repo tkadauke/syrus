@@ -3,8 +3,7 @@ module PendingActions
     action_key "check_job_mergeability"
 
     def execute
-      job = user.jobs.find_by(id: payload.fetch("job_id"))
-      raise ArgumentError, "Job is not accessible." unless job
+      job = accessible_action_job
 
       unless job.pr_number.present? || job.external_pr_number.present?
         raise ArgumentError, "No PR on this Job to check."
