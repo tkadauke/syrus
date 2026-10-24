@@ -6,6 +6,7 @@
 // shape, and pick the confirm-button label. Lifting the types here lets the
 // proposal components move out of the 6k-line Chat.tsx next.
 import type { ChatProposal, ChatProposalChild, ChatProposalDependency } from "../../api/chats"
+import i18n from "../../i18n"
 
 export type EditableProposal = Pick<ChatProposal, "id" | "kind" | "title" | "slug" | "body" | "proposed" | "epic_bundle" | "app_update_path"> & {
   dependency_slugs?: string[]
@@ -57,13 +58,13 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
 }
 
 export function proposalConfirmLabel(proposal: ChatProposal, childJobCount: number) {
-  if (!proposal.epic_bundle) return "Confirm"
+  if (!proposal.epic_bundle) return i18n.t("chat:confirm")
 
-  return "Backlog"
+  return i18n.t("chat:proposal_route_backlog")
 }
 
 export function proposalConfirmAriaLabel(proposal: ChatProposal, childJobCount: number) {
-  if (!proposal.epic_bundle) return "Confirm"
+  if (!proposal.epic_bundle) return i18n.t("chat:confirm")
 
-  return childJobCount > 0 ? "Confirm Epic and Jobs" : "Confirm Epic"
+  return childJobCount > 0 ? i18n.t("chat:confirm_epic_and_jobs") : i18n.t("chat:confirm_epic")
 }

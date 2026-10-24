@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Input } from "../../components/Input"
 import { parseScheduleTime } from "../../lib/scheduleTime"
 import { primaryButton, secondaryButton } from "./utils"
+import { useT } from "../../hooks/useT"
 
 export function ScheduleMessageModal({
   initialTime = "",
@@ -16,6 +17,7 @@ export function ScheduleMessageModal({
   onCancel: () => void
   onSchedule: (input: { fireAt: Date; body: string }) => void
 }) {
+  const { t } = useT("chat")
   const [timeText, setTimeText] = useState(initialTime)
   const [body, setBody] = useState(initialBody)
   const [error, setError] = useState<string | null>(null)
@@ -38,12 +40,12 @@ export function ScheduleMessageModal({
     const trimmedBody = body.trim()
 
     if (!fireAt) {
-      setError("Enter a time like 30m, 2h, tomorrow 9am, or 14:30.")
+      setError(t("schedule_message_invalid_time"))
       return
     }
 
     if (!trimmedBody) {
-      setError("Message cannot be blank.")
+      setError(t("schedule_message_blank"))
       return
     }
 
@@ -60,21 +62,21 @@ export function ScheduleMessageModal({
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="schedule-message-title">Schedule Message</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="schedule-message-title">{t("schedule_message_title")}</h2>
         <form className="mt-4 space-y-4" onSubmit={submit}>
           <label className="block">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Time</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("schedule_message_time")}</span>
             <Input
               className="mt-1"
               onChange={(event) => setTimeText(event.target.value)}
-              placeholder="2h, tomorrow 9am, 14:30"
+              placeholder={t("schedule_message_time_placeholder")}
               ref={timeRef}
               type="text"
               value={timeText}
             />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Message</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("schedule_message_message")}</span>
             <textarea
               className="mt-1 block min-h-28 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               onChange={(event) => setBody(event.target.value)}
@@ -83,8 +85,8 @@ export function ScheduleMessageModal({
           </label>
           {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
           <div className="flex justify-end gap-2">
-            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">Cancel</button>
-            <button className={primaryButton()} disabled={submitting} type="submit">Schedule</button>
+            <button className={secondaryButton()} disabled={submitting} onClick={onCancel} type="button">{t("cancel")}</button>
+            <button className={primaryButton()} disabled={submitting} type="submit">{t("schedule_message_submit")}</button>
           </div>
         </form>
       </section>

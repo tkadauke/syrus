@@ -1103,7 +1103,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                 <figure className="group/media min-w-0 space-y-1" key={image.id}>
                   <div className="relative aspect-square overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
                     <button
-                      aria-label={`Open ${name}`}
+                      aria-label={t("image_open_aria", { name })}
                       className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand"
                       onClick={() => setLightboxImageIndex(index)}
                       title={name}
@@ -1112,7 +1112,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
                     </button>
                     <a
-                      aria-label={`Download ${name}`}
+                      aria-label={t("image_download_aria", { name })}
                       className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
                       download={image.filename || name}
                       href={src}
@@ -1120,7 +1120,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       {t("image_download")}
                     </a>
                     <button
-                      aria-label={`Attach ${name} to message`}
+                      aria-label={t("image_attach_aria", { name })}
                       className="absolute bottom-1 right-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
                       onClick={() => void attachImageToComposer(image)}
                       type="button"
