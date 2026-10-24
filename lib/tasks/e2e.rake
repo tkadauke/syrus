@@ -7,6 +7,22 @@ namespace :e2e do
     Syrus::PluginRegistry.clear_plugin_record_cache!
   end
 
+  def enable_e2e_surface_plugins!
+    %w[
+      build_cache
+      credential_store
+      git_history
+      k8s_cluster
+      mysql_db_browser
+      spending_insights
+      team_directory
+      worker_timeline
+    ].each do |plugin_name|
+      PluginRecord.find_or_create_by!(name: plugin_name).update!(enabled: true)
+    end
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+  end
+
   desc "Seed deterministic local fixtures for Playwright E2E specs"
   task seed: :environment do
     unless Rails.env.development? || ENV["ALLOW_E2E_SEED"] == "1"
@@ -153,6 +169,10 @@ namespace :e2e do
     # locally. Resetting here makes a local run reproduce CI.
     PluginRecord.where("enabled != default_enabled").update_all("enabled = default_enabled")
     enable_e2e_chat_provider_plugins!
+    # These projects exercise the plugin's product surface rather than the
+    # enable/disable control. Boot the preview server with those providers
+    # registered now that fresh installations default them to opt-in.
+    enable_e2e_surface_plugins!
 
     # The dashboard remembers its smart folder, sort, and filters per user, in
     # the database. Nothing resets it, so a run inherits whatever view the
