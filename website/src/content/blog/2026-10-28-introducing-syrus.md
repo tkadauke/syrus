@@ -1,7 +1,9 @@
 ---
+
 title: Syrus is out
 description: Syrus is a self-hosted orchestrator for coding agents — Claude, Codex, Muse, and Antigravity working from your issue tracker, in parallel, around the clock. Version 0.1.14 is released, and this post explains what it does and why it isn't just another way to run an agent on your laptop.
 date: 2026-10-28
+
 ---
 
 # Syrus is out
@@ -31,11 +33,11 @@ I mention it because it's still the best evidence I can offer. The core loop get
 
 ## How to get it
 
-Three ways, in increasing order of commitment:
+There are three basic ways, in increasing order of commitment:
 
-- **The desktop app (Mac).** A DMG download, no terminal involved — it installs the Docker backend for you and puts the full web UI in a native window. This is the five-minute evaluation path.
-- **Docker Compose.** The path most people should take: one command on a Linux box or a Mac, a prebuilt image, SQLite underneath, and the whole loop — web UI, worker, repository polling, PRs.
-- **Kubernetes.** The full deployment for teams running Syrus on shared infrastructure at scale. It works, but it's the hard-mode path and it will require some tinkering — the Helm chart is still in progress, and the docs are honest about what a cluster deployment needs from you.
+- **The desktop app (Mac).** A DMG download, no terminal involved. It installs the Docker backend for you and puts the full web UI in a native window. This is the five-minute evaluation path.
+- **Docker Compose.** The path most teams should take: one command on a Linux box or a Mac, a prebuilt image, SQLite underneath, and the whole loop — web UI, worker, repository polling, PRs.
+- **Kubernetes.** The full deployment for larger teams running Syrus on shared infrastructure at scale. It works, but it's the hard-mode path and it will require some tinkering — the Helm chart is still in progress, and the docs are honest about what a cluster deployment needs from you.
 
 The [getting started guide](https://syrus-ai.dev/docs/getting-started) walks through all three, and the [download page](https://syrus-ai.dev/download) has the current release.
 
