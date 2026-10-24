@@ -268,6 +268,7 @@ describe("Theming Tools tool cards", () => {
 
   it("summarizes update arguments with the theme reference instead of raw JSON", () => {
     expect(updateUserThemeToolCard.argumentSummary?.({ theme_id: 12, light: { "text-primary": "#fefefe" } })).toBe("THEME-12")
+    expect(updateUserThemeToolCard.argumentSummary?.()).toBe("")
   })
 
   it("renders an explicit preview card for an empty pending result", () => {
