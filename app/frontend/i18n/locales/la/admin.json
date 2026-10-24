@@ -587,6 +587,8 @@
     "grade_max_iterations_help": "Maximi cursus reparationis et probationis antequam cursus deficiat. Inter 1 et 10 esse debet.",
     "adversarial_review_rounds_label": "Circuitus recognitionis adversariae",
     "adversarial_review_rounds_help": "Numerus iterationum implementationis et recognitionis adversariae ante examinatores. 0 per instantiam exstinguit.",
+    "security_review_rounds_label": "Circuitus recognitionis securitatis",
+    "security_review_rounds_help": "Numerus recognitionum securitatis et emendationum post recensionem adversariam. 0 per instantiam exstinguit.",
     "max_job_failures_label": "Maximi defectus operis",
     "max_job_failures_help": "Limen defectuum continuorum pro pausa automatica operum periodicorum et defectibus repetitis. Minimum 1 esse debet.",
     "main_concern_report_threshold_label": "Limen relationum de ramo principali",

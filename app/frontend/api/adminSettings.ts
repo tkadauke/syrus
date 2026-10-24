@@ -20,12 +20,12 @@ export type AdminSettingMetadata = {
   secret: boolean
 }
 
-
 export type AdminSettingsPayload = {
   settings: {
     signups_open: boolean
     grade_max_iterations: number
     adversarial_review_rounds: number
+    security_review_rounds: number
     max_job_failures: number
     merge_train_max_size: number
     main_concern_report_threshold: number
@@ -59,6 +59,7 @@ export type AdminSettingsUpdate = {
   signups_open?: boolean
   grade_max_iterations?: number
   adversarial_review_rounds?: number
+  security_review_rounds?: number
   max_job_failures?: number
   merge_train_max_size?: number
   main_concern_report_threshold?: number

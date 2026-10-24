@@ -32,13 +32,9 @@ export type GradeSummary = {
   logBytes: number | null
 }
 
-export type WorkflowStepItem =
-  | DisplayStepItem
-  | LoopStepItem
+export type WorkflowStepItem = DisplayStepItem | LoopStepItem
 
-export type DisplayStepItem =
-  | { type: "step"; step: JobStep }
-  | GradeStepItem
+export type DisplayStepItem = { type: "step"; step: JobStep } | GradeStepItem
 
 export type GradeStepItem = {
   type: "grade"
@@ -109,7 +105,9 @@ export function displayStepItems(steps: JobStep[]): DisplayStepItem[] {
       key: `grade-${gradeSteps.map((gradeStep) => gradeStep.id).join("-")}`,
       steps: gradeSteps,
       graders: gradeSteps.filter((gradeStep) => gradeStep.kind === "grader" || gradeStep.kind === "grade" || gradeStep.kind === "preflight_grader"),
-      preflight: gradeSteps.some((gradeStep) => gradeStep.kind === "preflight_grader_fanout" || gradeStep.kind === "preflight_grader" || gradeStep.kind === "preflight_grader_collect")
+      preflight: gradeSteps.some(
+        (gradeStep) => gradeStep.kind === "preflight_grader_fanout" || gradeStep.kind === "preflight_grader" || gradeStep.kind === "preflight_grader_collect"
+      )
     })
   }
 
@@ -169,12 +167,24 @@ export function graderFanoutSelections(step: JobStep): GraderTargetSelection[] |
 // skipped-grader entries with no resolved `display_name` of their own
 // (a plain custom grader with no explicit or type-generated label).
 export function humanizeGraderName(name: string) {
-  return name.replace(/[-_]+/g, " ").split(" ").filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+  return name
+    .replace(/[-_]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
 }
 
 export function isGradeDisplayStep(step: JobStep) {
-  return step.kind === "grader_fanout" || step.kind === "grader" || step.kind === "grader_collect" || step.kind === "grade"
-    || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
+  return (
+    step.kind === "grader_fanout" ||
+    step.kind === "grader" ||
+    step.kind === "grader_collect" ||
+    step.kind === "grade" ||
+    step.kind === "preflight_grader_fanout" ||
+    step.kind === "preflight_grader" ||
+    step.kind === "preflight_grader_collect"
+  )
 }
 
 // A single-iteration loop still gets a named, non-collapsing wrapper for
@@ -182,7 +192,9 @@ export function isGradeDisplayStep(step: JobStep) {
 // present once its steps are grouped by loop_id (e.g. "Grade loop" wrapping
 // the single "Grade" grouped item from displayStepItems).
 function isNamedLoop(steps: JobStep[]) {
-  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review" || isGradeDisplayStep(step))
+  return steps.some(
+    (step) => step.kind === "adversarial_review" || step.kind === "security_review" || step.kind === "visual_review" || isGradeDisplayStep(step)
+  )
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
@@ -192,7 +204,8 @@ export function displayStepItemKey(item: DisplayStepItem) {
 export function gradePhases(item: GradeStepItem, t: ReturnType<typeof useT>["t"]) {
   return item.steps.map((step) => {
     if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
-    if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
+    if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect")
+      return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
     if (step.kind === "grade") return { step, displayName: step.display_name || t("grade_label"), metadataLabel: "grade" }
     return { step, displayName: step.display_name, metadataLabel: "grader" }
   })
@@ -205,10 +218,14 @@ export function gradeDisplayStatus(item: GradeStepItem) {
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
   if (statuses.includes("warning")) return "warning"
-  if (item.steps.length > 0 && item.steps.every((step) => {
-    const status = effectiveStepStatus(step)
-    return status === "succeeded" || status === "skipped"
-  })) return "succeeded"
+  if (
+    item.steps.length > 0 &&
+    item.steps.every((step) => {
+      const status = effectiveStepStatus(step)
+      return status === "succeeded" || status === "skipped"
+    })
+  )
+    return "succeeded"
   if (statuses.includes("skipped")) return "skipped"
   return null
 }
@@ -243,19 +260,23 @@ export function gradeSummaryStatus(step: JobStep, details: Record<string, unknow
 }
 
 export function gradeSummaryCounts(summaries: GradeSummary[]) {
-  return summaries.reduce((counts, summary) => {
-    if (summary.status === "passed") counts.passed += 1
-    else if (summary.status === "warning") counts.warning += 1
-    else if (summary.status === "failed") counts.failed += 1
-    else if (summary.status === "error") counts.error += 1
-    return counts
-  }, { passed: 0, warning: 0, failed: 0, error: 0 })
+  return summaries.reduce(
+    (counts, summary) => {
+      if (summary.status === "passed") counts.passed += 1
+      else if (summary.status === "warning") counts.warning += 1
+      else if (summary.status === "failed") counts.failed += 1
+      else if (summary.status === "error") counts.error += 1
+      return counts
+    },
+    { passed: 0, warning: 0, failed: 0, error: 0 }
+  )
 }
 
 export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
   const kinds = item.iterations.flatMap((iteration) => iteration.steps.map((step) => step.kind))
   if (loopContainsGraders(item)) return t("loop_grade_name")
   if (kinds.includes("visual_review")) return t("loop_visual_review_name")
+  if (kinds.includes("security_review")) return t("loop_security_review_name")
   if (kinds.includes("adversarial_review")) return t("loop_adversarial_review_name")
   return t("loop_name")
 }
@@ -271,9 +292,7 @@ export function loopSoleGradeItem(item: LoopStepItem): GradeStepItem | null {
 }
 
 function loopContainsGraders(item: LoopStepItem) {
-  return item.iterations.some((iteration) => (
-    iteration.steps.some((step) => step.kind === "grade" || step.kind === "grader" || step.kind.startsWith("grader_"))
-  ))
+  return item.iterations.some((iteration) => iteration.steps.some((step) => step.kind === "grade" || step.kind === "grader" || step.kind.startsWith("grader_")))
 }
 
 export function loopGradeSummaries(item: LoopStepItem): GradeSummary[] {
@@ -282,7 +301,7 @@ export function loopGradeSummaries(item: LoopStepItem): GradeSummary[] {
   const latestIteration = item.iterations[item.iterations.length - 1]
   if (!latestIteration) return []
 
-  return latestIteration.items.flatMap((displayItem) => displayItem.type === "grade" ? gradeSummaries(displayItem) : [])
+  return latestIteration.items.flatMap((displayItem) => (displayItem.type === "grade" ? gradeSummaries(displayItem) : []))
 }
 
 export function loopDisplayStatus(item: LoopStepItem) {
@@ -385,7 +404,7 @@ export function formatElapsed(seconds: number) {
 export function prepareFailureDetails(step: JobStep): PrepareFailure | null {
   if (step.kind !== "prepare" || !isRecord(step.details)) return null
   const failure = step.details.prepare_failure
-  return isRecord(failure) ? failure as PrepareFailure : null
+  return isRecord(failure) ? (failure as PrepareFailure) : null
 }
 
 export function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<typeof useT>["t"]) {
@@ -408,12 +427,10 @@ export function softCommandFailures(step: JobStep): PrepareFailure[] {
   if (!isRecord(step.details)) return []
 
   const arrayEntries = step.details[`${step.kind}_failures`]
-  const fromArray = Array.isArray(arrayEntries) ? arrayEntries.filter(isRecord) as PrepareFailure[] : []
-  const miseInstallFailure = step.kind === "prepare" && isRecord(step.details.mise_install_failure)
-    ? [ step.details.mise_install_failure as PrepareFailure ]
-    : []
+  const fromArray = Array.isArray(arrayEntries) ? (arrayEntries.filter(isRecord) as PrepareFailure[]) : []
+  const miseInstallFailure = step.kind === "prepare" && isRecord(step.details.mise_install_failure) ? [step.details.mise_install_failure as PrepareFailure] : []
 
-  return [ ...fromArray, ...miseInstallFailure ]
+  return [...fromArray, ...miseInstallFailure]
 }
 
 // Keys `Workflow#active_descendant_cancellation_details` (Step::CANCELLATION_DETAIL_KEYS
@@ -439,11 +456,8 @@ const CANCELLATION_DETAIL_KEYS = [
 export function debugOnlyDetails(step: JobStep): Record<string, unknown> | null {
   if (!isRecord(step.details)) return null
 
-  const excludedKeys = new Set([
-    "prepare_failure", "mise_install_failure", `${step.kind}_failures`, "grader_target_selections",
-    ...CANCELLATION_DETAIL_KEYS
-  ])
-  const remaining = Object.fromEntries(Object.entries(step.details).filter(([ key ]) => !excludedKeys.has(key)))
+  const excludedKeys = new Set(["prepare_failure", "mise_install_failure", `${step.kind}_failures`, "grader_target_selections", ...CANCELLATION_DETAIL_KEYS])
+  const remaining = Object.fromEntries(Object.entries(step.details).filter(([key]) => !excludedKeys.has(key)))
   return Object.keys(remaining).length > 0 ? remaining : null
 }
 

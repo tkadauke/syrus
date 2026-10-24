@@ -53,6 +53,8 @@ function repositoryDetailPayload() {
       generated_steps_count: 0,
       visual_review_mode: "not configured",
       adversarial_review_rounds: null,
+      security_review_rounds: 2,
+      security_review_criteria: ["Check authorization boundaries"],
       coverage_configured: false,
       delivery_tracks_count: 0,
       merge_train_failure_policy: null
@@ -187,6 +189,13 @@ describe("RepositoryDetailRoute overview", () => {
 
     expect(await screen.findByRole("heading", { name: "Recent jobs" })).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "Cognitive debt review queue" })).not.toBeInTheDocument()
+  })
+
+  it("shows security review rounds and criteria from repository config", async () => {
+    renderRoute()
+
+    expect(await screen.findByText("Security review")).toBeInTheDocument()
+    expect(screen.getByText("2 rounds · Check authorization boundaries")).toBeInTheDocument()
   })
 })
 

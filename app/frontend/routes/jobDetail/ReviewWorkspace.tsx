@@ -21,18 +21,9 @@ import {
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
-import {
-  DEFAULT_REVIEW_DIFF_SETTINGS,
-  fetchReviewDiffSettings,
-  type ReviewDiffSettings
-} from "../../api/reviewDiffSettings"
+import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
 import { ImageDiffThumbnails } from "../../components/diff/ImageDiffThumbnails"
-import {
-  ReviewableDiff,
-  diffLineMetricProvidersForReview,
-  type DiffLineMetricProvider,
-  type DiffLineSelection
-} from "../../components/diff/ReviewableDiff"
+import { ReviewableDiff, diffLineMetricProvidersForReview, type DiffLineMetricProvider, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useOptionalShortcut } from "../../contexts/ShortcutsContext"
 import { useResizableSplitter } from "../chat/useResizableSplitter"
 import { useMediaQuery } from "../dashboard/components"
@@ -41,7 +32,7 @@ import { DiffReviewVersionSelector, canonicalReviewVersions, type DiffReviewRang
 import { ReviewDiffSettingsModal, type ReviewDiffSettingsMetricOption } from "./ReviewDiffSettingsModal"
 import { activeDiffMetricGutterId, coverageDiffLineMetricProviders, metricCandidateFromProvider, useReviewDiffSettingsMutation } from "./reviewDiffMetrics"
 import { PanelMessage } from "./components"
-import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
+import { stepArtifactAdversarialReview, stepArtifactSecurityReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import { Section, Select, Surface, SURFACE_CLIP_ROUNDED_CLASS, surfaceClasses } from "../../components/ui"
 
 type ReviewAnnotationFocusDetail = {
@@ -447,14 +438,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
               onStartEditThread={feedback.onStartEditThread}
-              renderImageDiff={(file) => (
-                <ImageDiffThumbnails
-                  baseRef={activeBaseContentRef}
-                  file={file}
-                  headRef={activeHeadContentRef}
-                  jobId={jobId}
-                />
-              )}
+              renderImageDiff={(file) => <ImageDiffThumbnails baseRef={activeBaseContentRef} file={file} headRef={activeHeadContentRef} jobId={jobId} />}
               reviewSettings={reviewSettings}
               reviewAnnotations={activeReviewAnnotations.annotations}
               reviewAnnotationCounts={activeReviewAnnotations.counts}
@@ -751,7 +735,10 @@ function staleRangeErrorMessage(error: unknown, t: (key: string, options?: Recor
   return t("source_diff_stale_ref_error", { ref: staleRef })
 }
 
-function preferredReviewVersionId(payload: { base_sha?: string | null; head_sha?: string | null; version?: DiffReviewVersion | null } | null, versions: DiffReviewVersion[]) {
+function preferredReviewVersionId(
+  payload: { base_sha?: string | null; head_sha?: string | null; version?: DiffReviewVersion | null } | null,
+  versions: DiffReviewVersion[]
+) {
   const payloadVersion = payload?.version ?? null
   const canonicalVersions = canonicalReviewVersions(versions)
   const allChangesVersion = canonicalVersions.find(isAllChangesVersion)
@@ -876,9 +863,7 @@ function VersionedArtifactsList({
 
   const selectionScopeKey = artifactSelectionScopeKey(selectedVersion, selectedRange)
 
-  return (
-    <ArtifactVersionSelector artifacts={displayed} selectionScopeKey={selectionScopeKey} versions={versions} />
-  )
+  return <ArtifactVersionSelector artifacts={displayed} selectionScopeKey={selectionScopeKey} versions={versions} />
 }
 
 function ArtifactVersionSelector({
@@ -896,10 +881,7 @@ function ArtifactVersionSelector({
   const [selectedScopeKey, setSelectedScopeKey] = useState(selectionScopeKey)
   const artifactEntries = useMemo(() => artifacts.map((artifact, index) => ({ artifact, key: artifactKey(artifact, index) })), [artifacts])
   const defaultEntry = artifactEntries[0] || null
-  const selectedEntry =
-    selectedScopeKey === selectionScopeKey
-      ? artifactEntries.find((entry) => entry.key === selectedKey) || defaultEntry
-      : defaultEntry
+  const selectedEntry = selectedScopeKey === selectionScopeKey ? artifactEntries.find((entry) => entry.key === selectedKey) || defaultEntry : defaultEntry
 
   useEffect(() => {
     if (!defaultEntry) return
@@ -990,7 +972,9 @@ function artifactOptionLabel(t: TFunction<"jobs">, artifact: TypedArtifact) {
     artifact.type,
     hasArtifactProvenance(artifact) ? null : t("review_artifacts_unversioned"),
     ...artifactProvenanceParts(t, artifact, [])
-  ].filter((part): part is string => Boolean(part)).join(" - ")
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" - ")
 }
 
 function ArtifactProvenance({ artifact, versions }: { artifact: TypedArtifact; versions: DiffReviewVersion[] }) {
@@ -1049,6 +1033,9 @@ function reviewArtifactSummaries(workflows: JobWorkflow[]) {
       if (testPlan?.notes) summaries.push(testPlan.notes)
       for (const iteration of stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) || []) {
         summaries.push(`Adversarial review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
+      }
+      for (const iteration of stepArtifactSecurityReview(artifacts.security_review_iterations) || []) {
+        summaries.push(`Security review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
       }
       for (const iteration of stepArtifactVisualReview(artifacts.visual_review_iterations) || []) {
         summaries.push(`Visual review ${iteration.iteration}: ${iteration.verdict} - ${iteration.critique}`)
