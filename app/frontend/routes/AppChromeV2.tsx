@@ -686,7 +686,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               type="button"
             >
               <MenuIcon />
-              <SyrusBrand />
+              <SyrusBrand showTestChannelMarker={!drawerOpen} />
             </button>
           </div>
           <div className="flex items-center gap-1">

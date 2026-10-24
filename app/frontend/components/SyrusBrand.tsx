@@ -28,12 +28,12 @@ export function SyrusMark({ className = "h-6 w-6" }: { className?: string }) {
   )
 }
 
-export function SyrusBrand({ markOnly = false }: { markOnly?: boolean }) {
+export function SyrusBrand({ markOnly = false, showTestChannelMarker = true }: { markOnly?: boolean; showTestChannelMarker?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="relative shrink-0">
         <SyrusMark />
-        <TestChannelDot />
+        {showTestChannelMarker ? <TestChannelDot /> : null}
       </span>
       {markOnly ? <span className="sr-only">Syrus</span> : <span>Syrus</span>}
     </span>
