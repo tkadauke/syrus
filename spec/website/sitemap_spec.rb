@@ -40,7 +40,10 @@ RSpec.describe "website sitemap" do
   end
 
   it "generates the build-time route from the same page sources as static params" do
-    expect(sitemap_route).to include("sitemapUrls(allPlugins(), allDocs())")
+    # Every content source the site paginates must reach the sitemap. `posts`
+    # defaults to [] in sitemapUrls, so adding the blog without passing it here
+    # would have silently dropped every post from the sitemap.
+    expect(sitemap_route).to include("sitemapUrls(allPlugins(), allDocs(), allPosts())")
     expect(File).not_to exist(File.join(repo_root, "website/public/sitemap.xml"))
   end
 end
