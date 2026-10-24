@@ -133,7 +133,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     workflow.update!(artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/deleted-parent" })
 
     expect { described_class.new(step).setup }
-      .to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /failed to fetch base ref origin\/syrus\/deleted-parent/)
+      .to raise_error(WorkflowSourceSnapshots::BaseRefUnavailableError, /parent merge commit or default branch/)
   end
 
   it "runs normal prepare commands in the immutable checkout dependency environment" do
