@@ -29,4 +29,12 @@ describe("SyrusBrand", () => {
       "This is a side-by-side test build, isolated from your production Syrus."
     )
   })
+
+  it("can suppress the marker when another brand lockup is displayed above it", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(testUa)
+    render(<SyrusBrand showTestChannelMarker={false} />)
+
+    expect(screen.getByText("Syrus")).toBeInTheDocument()
+    expect(screen.queryByTestId("test-channel-dot")).toBeNull()
+  })
 })
