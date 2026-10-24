@@ -2690,6 +2690,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(chat.reload.mode).to be_nil
     end
 
+    it "localizes feature errors in German without changing the machine code" do
+      user.update!(locale: "de")
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!(enabled: false)
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "coding" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("feature_disabled")
+      expect(parse_body.dig("error", "message")).to eq("Coding Mode ist auf dieser Instanz nicht aktiviert.")
+    end
+
     it "rejects unknown mode values" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
@@ -2699,6 +2712,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "localizes interpolated validation errors in Latin without changing the machine code" do
+      user.update!(locale: "la")
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "turbo" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to eq("Modus invalidus est. Unus ex his esse debet: planning, coding, local.")
     end
 
     it "does not allow another user to change the mode" do
