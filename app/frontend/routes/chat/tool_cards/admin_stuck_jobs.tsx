@@ -104,7 +104,9 @@ function collapsedSummary(context: ToolCardContext) {
   const parsed = context.parsedResult
   const pagination = isPlainObject(parsed) && isPlainObject(parsed.pagination) ? parsed.pagination : null
   const total = pagination ? displayValue(pagination.total_items) : null
-  return total ? `${rows.length} of ${total} stuck items` : i18n.t("chat:admin_stuck_jobs.item_count", { count: rows.length })
+  return total
+    ? i18n.t("chat:admin_stuck_jobs.item_count_with_total", { count: rows.length, total })
+    : i18n.t("chat:admin_stuck_jobs.item_count", { count: rows.length })
 }
 
 function LabeledValue({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
@@ -187,7 +189,7 @@ function StuckJobsCard({ context }: { context: ToolCardContext }) {
   return (
     <CardShell>
       <div className="pb-24 sm:pb-0">
-        {page && totalPages ? <p className="mb-1 text-xs text-text-muted">Page {page} of {totalPages}</p> : null}
+        {page && totalPages ? <p className="mb-1 text-xs text-text-muted">{t("admin_stuck_jobs.page", { page, totalPages })}</p> : null}
         <Table responsive="container">
           <THead columns={["job", "workflow", "run", "severity", "diagnostic", "timing", "repair_plan"].map((key) => t(`admin_stuck_jobs.${key}`))} />
           <TBody>

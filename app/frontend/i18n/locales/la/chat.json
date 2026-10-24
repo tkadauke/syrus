@@ -782,6 +782,8 @@
     "error_summary": "Opera haerentia onerari non potuerunt",
     "item_count_one": "{{count}} res haerens",
     "item_count_other": "{{count}} res haerentes",
+    "item_count_with_total": "{{count}} ex {{total}} rebus haerentibus",
+    "page": "Pagina {{page}} ex {{totalPages}}",
     "error": "Opera haerentia onerari non potuerunt.",
     "empty": "Nulla opera haerentia inventa sunt.",
     "job": "Opus",

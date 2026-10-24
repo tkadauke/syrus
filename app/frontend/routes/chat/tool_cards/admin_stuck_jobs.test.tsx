@@ -23,6 +23,8 @@ describe("admin_stuck_jobs tool card", () => {
     expect(Object.keys(deChat.admin_stuck_jobs).sort()).toEqual(expectedKeys)
     expect(Object.keys(laChat.admin_stuck_jobs).sort()).toEqual(expectedKeys)
     expect(expectedKeys).toContain("execution_message")
+    expect(expectedKeys).toContain("item_count_with_total")
+    expect(expectedKeys).toContain("page")
     expect(expectedKeys).toContain("repair_plan")
   })
 

@@ -782,6 +782,8 @@
     "error_summary": "Could not load stuck Jobs",
     "item_count_one": "{{count}} stuck item",
     "item_count_other": "{{count}} stuck items",
+    "item_count_with_total": "{{count}} of {{total}} stuck items",
+    "page": "Page {{page}} of {{totalPages}}",
     "error": "Could not load stuck Jobs.",
     "empty": "No stuck Jobs found.",
     "job": "Job",

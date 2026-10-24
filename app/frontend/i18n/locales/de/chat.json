@@ -782,6 +782,8 @@
     "error_summary": "Feststeckende Jobs konnten nicht geladen werden",
     "item_count_one": "{{count}} feststeckendes Element",
     "item_count_other": "{{count}} feststeckende Elemente",
+    "item_count_with_total": "{{count}} von {{total}} feststeckenden Elementen",
+    "page": "Seite {{page}} von {{totalPages}}",
     "error": "Feststeckende Jobs konnten nicht geladen werden.",
     "empty": "Keine feststeckenden Jobs gefunden.",
     "job": "Job",
