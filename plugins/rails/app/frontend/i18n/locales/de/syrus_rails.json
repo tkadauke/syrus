@@ -7,5 +7,14 @@
   "migration_changes": "Änderungen",
   "change_added": "hinzugefügt",
   "change_removed": "entfernt",
-  "change_modified": "geändert"
+  "change_modified": "geändert",
+  "migration_error": "Fehler bei der Artefakterstellung",
+  "migration_no_schema_changes": "Keine Schemaänderungen",
+  "migration_cumulative": "Kumulative Schemadifferenz",
+  "migration_absent": "Nicht vorhanden",
+  "migration_index": "Index",
+  "migration_check": "Prüfbedingung",
+  "migration_removed_structure": "Entfernte Struktur",
+  "migration_added_structure": "Hinzugefügte Struktur",
+  "migration_no_structure_statements": "Keine Strukturanweisungen"
 }

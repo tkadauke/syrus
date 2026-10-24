@@ -8,23 +8,23 @@ const migrationPayload: MigrationDiffPayload = {
   before: {
     table_name: "users",
     columns: [
-      { name: "id",         type: "integer" },
-      { name: "legacy_key", type: "string"  },
-      { name: "status",     type: "string"  }
+      { name: "id", type: "integer" },
+      { name: "legacy_key", type: "string" },
+      { name: "status", type: "string" }
     ]
   },
   after: {
     table_name: "users",
     columns: [
-      { name: "id",     type: "integer" },
-      { name: "email",  type: "string"  },
+      { name: "id", type: "integer" },
+      { name: "email", type: "string" },
       { name: "status", type: "integer" }
     ]
   },
   changes: [
-    { type: "added",    column: { name: "email",      type: "string"  } },
-    { type: "removed",  column: { name: "legacy_key", type: "string"  } },
-    { type: "modified", column: { name: "status",     type: "integer" } }
+    { type: "added", column: { name: "email", type: "string" } },
+    { type: "removed", column: { name: "legacy_key", type: "string" } },
+    { type: "modified", column: { name: "status", type: "integer" } }
   ]
 }
 
@@ -53,7 +53,7 @@ describe("MigrationDiffRenderer", () => {
 
     const addedPills = screen.getAllByText("added")
     expect(addedPills.length).toBeGreaterThan(0)
-    expect(addedPills[0]).toHaveClass("bg-emerald-100")
+    expect(addedPills[0]).toHaveClass("bg-success-surface")
   })
 
   it("renders removed columns with a red 'removed' pill", () => {
@@ -61,7 +61,7 @@ describe("MigrationDiffRenderer", () => {
 
     const removedPills = screen.getAllByText("removed")
     expect(removedPills.length).toBeGreaterThan(0)
-    expect(removedPills[0]).toHaveClass("bg-red-100")
+    expect(removedPills[0]).toHaveClass("bg-danger-surface")
   })
 
   it("renders modified columns with an amber 'modified' pill", () => {
@@ -69,14 +69,14 @@ describe("MigrationDiffRenderer", () => {
 
     const modifiedPills = screen.getAllByText("modified")
     expect(modifiedPills.length).toBeGreaterThan(0)
-    expect(modifiedPills[0]).toHaveClass("bg-amber-100")
+    expect(modifiedPills[0]).toHaveClass("bg-warning-surface")
   })
 
   it("highlights the added row in the After column with green background", () => {
     const { container } = render(<MigrationDiffRenderer payload={migrationPayload} />)
 
     // email row in After table should have emerald highlight
-    const rows = container.querySelectorAll("tr.bg-emerald-50")
+    const rows = container.querySelectorAll("tr.bg-success-bg")
     expect(rows.length).toBeGreaterThan(0)
     expect(rows[0].textContent).toContain("email")
   })
@@ -84,7 +84,7 @@ describe("MigrationDiffRenderer", () => {
   it("highlights the removed row in the Before column with red background", () => {
     const { container } = render(<MigrationDiffRenderer payload={migrationPayload} />)
 
-    const rows = container.querySelectorAll("tr.bg-red-50")
+    const rows = container.querySelectorAll("tr.bg-danger-bg")
     expect(rows.length).toBeGreaterThan(0)
     expect(rows[0].textContent).toContain("legacy_key")
   })
@@ -143,5 +143,107 @@ describe("MigrationDiffRenderer", () => {
     render(<MigrationDiffRenderer payload={minimalPayload} />)
 
     expect(screen.getByText("SomeMigration")).toBeInTheDocument()
+  })
+
+  it("renders database catalogs and makes an absent-before table explicit", () => {
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "success",
+          before: { tables: [] },
+          after: {
+            tables: [
+              {
+                name: "widgets",
+                columns: [{ name: "account_id", type: "bigint", sql_type: "bigint", nullable: false }],
+                indexes: [{ name: "index_widgets_on_account_id", columns: ["account_id"], unique: true }],
+                foreign_keys: [{ from_column: "account_id", to_table: "accounts", to_column: "id" }],
+                check_constraints: [{ name: "account_positive", expression: "account_id > 0" }]
+              }
+            ]
+          }
+        }}
+      />
+    )
+    expect(screen.getByText("Absent")).toBeInTheDocument()
+    expect(screen.getByText("account_id")).toBeInTheDocument()
+    expect(screen.getByText(/index_widgets_on_account_id/)).toHaveTextContent("UNIQUE")
+    expect(screen.getByText(/account_id → accounts.id/)).toBeInTheDocument()
+    expect(screen.getByText(/account_positive:/)).toBeInTheDocument()
+  })
+
+  it("renders no-schema-change, cumulative fallback, and generation-error outcomes", () => {
+    const { rerender } = render(<MigrationDiffRenderer payload={{ migration_name: "Backfill", status: "no_schema_changes" }} />)
+    expect(screen.getByText("No schema changes")).toBeInTheDocument()
+    rerender(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "Fallback",
+          status: "cumulative_fallback",
+          cumulative: true,
+          message: "Attribution unavailable",
+          before: { tables: [] },
+          after: { tables: [] }
+        }}
+      />
+    )
+    expect(screen.getByText("Cumulative schema diff")).toBeInTheDocument()
+    rerender(<MigrationDiffRenderer payload={{ migration_name: "Broken", status: "error", stage: "execution", message: "boom" }} />)
+    expect(screen.getByRole("alert")).toHaveTextContent("execution: boom")
+  })
+
+  it("renders normalized structure.sql fallback changes", () => {
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "cumulative_fallback",
+          cumulative: true,
+          message: "structure fallback",
+          before: { structure: ["DROP TABLE old_widgets"] },
+          after: { structure: ["CREATE TABLE widgets (id bigint)"] }
+        }}
+      />
+    )
+    expect(screen.getByText("Removed structure")).toBeInTheDocument()
+    expect(screen.getByText(/DROP TABLE old_widgets/)).toBeInTheDocument()
+    expect(screen.getByText(/CREATE TABLE widgets/)).toBeInTheDocument()
+  })
+
+  it("labels an empty structure fallback side", () => {
+    render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: "CreateWidgets",
+          status: "cumulative_fallback",
+          before: { structure: [] },
+          after: { structure: ["CREATE TABLE widgets (id bigint)"] }
+        }}
+      />
+    )
+    expect(screen.getByText("No structural statements")).toBeInTheDocument()
+  })
+
+  it("stacks structure fallback panels and wraps long content on narrow screens", () => {
+    const longMigrationName = "CreateExtremelyLongNamedAuditRecordsForExternalWorkflowArtifactReferences"
+    const longStatement = "CREATE TABLE extremely_long_named_audit_records (external_workflow_artifact_reference_identifier varchar(255) NOT NULL)"
+    const { container } = render(
+      <MigrationDiffRenderer
+        payload={{
+          migration_name: longMigrationName,
+          status: "cumulative_fallback",
+          cumulative: true,
+          before: { structure: [] },
+          after: { structure: [longStatement] }
+        }}
+      />
+    )
+
+    expect(screen.getByTestId("structure-migration-diff")).toHaveClass("min-w-0")
+    expect(screen.getByTestId("migration-name")).toHaveClass("break-all")
+    expect(screen.getByTestId("structure-comparison")).toHaveClass("min-w-0", "grid-cols-1", "md:grid-cols-2")
+    expect(screen.getByTestId("structure-comparison")).not.toHaveClass("min-w-[44rem]")
+    expect(container.querySelector("pre")).toHaveClass("max-w-full", "whitespace-pre-wrap", "[overflow-wrap:anywhere]")
   })
 })
