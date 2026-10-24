@@ -137,6 +137,18 @@ describe("AdminToolCards", () => {
     expect(region.querySelector("span[style]")).toHaveStyle({ backgroundColor: "#dbeafe", color: "#1d4ed8" })
   })
 
+  it("preserves prior calls used for changed-field comparisons", () => {
+    renderRoute("/admin/tool_cards?tool_name=update_scheduled_task")
+
+    const region = screen.getByRole("region", { name: "Update scheduled task" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText("Nightly health check → Weekday health check")).toBeInTheDocument()
+    expect(within(region).getByText("Previous prompt")).toBeInTheDocument()
+    expect(within(region).getByText("Check main.")).toBeInTheDocument()
+    expect(within(region).getByText("Updated prompt")).toBeInTheDocument()
+  })
+
   it("preserves pending state when switching from a settled empty result", () => {
     renderRoute("/admin/tool_cards?tool_name=remove_job_tag&tool=remove_job_tag&example=empty_result")
 
