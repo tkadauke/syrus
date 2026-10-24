@@ -13,9 +13,10 @@ import { t, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 // Purely informational — confirm/reject lives on the separately anchored
 // PendingActionCard.
 type FireNowCard = {
-  actionId: string
+  actionId: string | null
   taskId: string | null
   state: string
+  emptyResult: boolean
   message: string | null
   reason: string | null
   fired: boolean | null
@@ -37,17 +38,20 @@ function parseFireNow(context: ToolCardContext): FireNowCard | null {
   if (!isPlainObject(parsed)) return null
 
   const actionId = displayValue(parsed.pending_action_id) || displayValue(parsed.pending_confirmation_id)
-  if (!actionId) return null
+  const taskId = displayValue(context.input?.scheduled_task_id)
+  const emptyResult = Object.keys(parsed).length === 0
+  if (!actionId && (!emptyResult || !taskId)) return null
 
   const live = context.livePendingAction
-  const liveMatch = live && displayValue(live.id) === actionId ? live : null
+  const liveMatch = actionId && live && displayValue(live.id) === actionId ? live : null
   const outcome = isPlainObject(liveMatch?.outcome) ? liveMatch.outcome : null
   const job = liveMatch && outcome?.fired !== false ? jobFromLiveAction(context) : { id: null, href: null }
 
   return {
     actionId,
-    taskId: displayValue(context.input?.scheduled_task_id),
-    state: liveMatch?.state || displayValue(parsed.state) || "pending",
+    taskId,
+    state: emptyResult ? "empty" : liveMatch?.state || displayValue(parsed.state) || "pending",
+    emptyResult,
     message: displayValue(parsed.message),
     reason: displayValue(outcome?.reason) || displayValue(liveMatch?.reason) || displayValue(liveMatch?.execution_error),
     fired: typeof outcome?.fired === "boolean" ? outcome.fired : null,
@@ -60,6 +64,7 @@ function collapsedSummary(context: ToolCardContext) {
   const card = parseFireNow(context)
   if (!card) return null
 
+  if (card.emptyResult) return t("tool_fire_now_empty_summary", { id: card.taskId })
   if (card.state === "confirmed" && card.fired) return card.jobId ? t("tool_fire_now_fired_summary", { id: card.jobId }) : t("tool_fire_now_confirmed_summary")
   if (card.state === "confirmed" && card.fired === false) return t("tool_fire_now_skipped_summary")
   if (card.state === "confirmed") return t("tool_fire_now_confirmed_summary")
@@ -78,14 +83,14 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <StatePill state={card.state} />
         <span className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{t("tool_fire_now_title")}</span>
-        <EntityReference id={card.actionId} kind="pending_action" wrap="nowrap" />
+        {card.actionId ? <EntityReference id={card.actionId} kind="pending_action" wrap="nowrap" /> : null}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {card.taskId ? <EntityReference id={card.taskId} kind="scheduled_task" wrap="nowrap" /> : null}
         {card.jobId ? <EntityReference href={card.jobHref} id={card.jobId} kind="job" wrap="nowrap" /> : null}
       </div>
       <MarkdownPreview
-        emptyLabel={t("tool_fire_now_message_empty")}
+        emptyLabel={card.emptyResult ? t("tool_fire_now_empty") : t("tool_fire_now_message_empty")}
         linkifySlugs
         linkifyUrls
         maxChars={480}

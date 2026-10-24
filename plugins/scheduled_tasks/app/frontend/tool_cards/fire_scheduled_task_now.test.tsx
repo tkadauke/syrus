@@ -135,6 +135,17 @@ describe("fire_scheduled_task_now tool card", () => {
     expect(screen.getByText("scheduled task not found")).toBeInTheDocument()
   })
 
+  it("renders a linked, meaningful empty state from the task input", () => {
+    const emptyContext = context({ parsedResult: {} })
+    render(<>{fireScheduledTaskNowToolCard.renderExpanded(emptyContext)}</>)
+
+    expect(screen.getByText("empty")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "TASK-12" })).toHaveAttribute("href", "/scheduled_tasks/12")
+    expect(screen.getByText("No immediate fire result was returned.")).toBeInTheDocument()
+    expect(screen.queryByText(/^ACTION-/)).not.toBeInTheDocument()
+    expect(fireScheduledTaskNowToolCard.collapsedSummary?.(emptyContext)).toBe("No immediate fire result for TASK-12")
+  })
+
   it.each([
     ["structured content", { structured_content: pendingAction }],
     ["content text", { content: [{ type: "text", text: JSON.stringify(pendingAction) }] }]
