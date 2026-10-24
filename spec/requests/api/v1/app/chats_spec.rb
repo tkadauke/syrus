@@ -1351,7 +1351,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.to_s).not_to include("Visible")
     expect(body.to_s).not_to include("Foreign")
 
-    expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(1)
+    # One batched read for pending proposal counts and one for the confirmed
+    # proposals that link Jobs to chats; neither runs per chat.
+    expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(2)
     expect(queries.grep(/FROM ["`]?spawned_processes["`]?/i).size).to eq(1)
   end
 

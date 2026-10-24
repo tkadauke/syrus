@@ -31,14 +31,32 @@ class Operation
     raise ArgumentError, "audit reason is required" if @reason.blank?
   end
 
-  def inspect
-    job.reload
+  PLACEMENT_STATES = %w[triaging backlog queued].freeze
+  LIGHTWEIGHT_WORKFLOW_COLUMNS = %i[id job_id trigger_kind state worker_hostname worker_storage_key created_at].freeze
+  LIGHTWEIGHT_RUN_COLUMNS = %i[id job_id state started_at created_at].freeze
+
+  # `lightweight: true` is for read-only display (the Job detail payload): it
+  # leaves the caller's loaded Job and its preloaded associations alone, skips
+  # the Workflow and Run history when the Job's state alone rules the override
+  # out, and otherwise reads only the history columns the decision needs rather
+  # than whole rows (Run diffs and Workflow artifacts are large). The refusal
+  # reason is unchanged.
+  def inspect(lightweight: false)
+    @lightweight = lightweight
+    job.reload unless lightweight
+    return result(false, refusal_reason([], []), nil, []) if lightweight && !job.state.in?(PLACEMENT_STATES)
+
     workflows = all_workflows
     runs = all_runs
     workflow = eligible_initial_workflow(workflows)
     refusal = refusal_reason(workflows, runs)
     result(!refusal, refusal, workflow, runs)
   end
+
+  # Whether a live worker could take this profile, without loading the Job's
+  # history. Eligibility is a property of the Job, not of the profile, so a
+  # caller listing every profile inspects once and asks this for the rest.
+  def worker_available? = worker_available
 
   def apply!
     queued_runs = []
@@ -86,12 +104,14 @@ class Operation
 
   def all_workflows(lock: false)
     scope = job.workflows.order(:created_at, :id)
+    scope = scope.select(*LIGHTWEIGHT_WORKFLOW_COLUMNS) if @lightweight
     scope = scope.lock if lock
     scope.to_a
   end
 
   def all_runs(lock: false)
     scope = job.runs.order(:created_at, :id)
+    scope = scope.select(*LIGHTWEIGHT_RUN_COLUMNS) if @lightweight
     scope = scope.lock if lock
     scope.to_a
   end
@@ -101,7 +121,7 @@ class Operation
   end
 
   def refusal_reason(workflows, runs)
-    return "Placement cannot be changed once #{job.slug} is #{job.state}; cancel or finish the active work, then create a fresh attempt." unless job.state.in?(%w[triaging backlog queued])
+    return "Placement cannot be changed once #{job.slug} is #{job.state}; cancel or finish the active work, then create a fresh attempt." unless job.state.in?(PLACEMENT_STATES)
     if job.state.in?(%w[triaging backlog])
       return nil if workflows.empty? && runs.empty?
 
@@ -181,7 +201,10 @@ class Operation
   end
 
   def result(eligible, refusal, workflow, runs, audit: nil, before: job.planned_execution_json, dispatch_status: nil, dispatch_error: nil)
-    Result.new(eligible:, reason: refusal, job:, workflow:, runs:, profile:, before:, after: requirement.to_h, worker_available:, audit:, dispatch_status:, dispatch_error:)
+    # A lightweight inspection of an ineligible Job is for display only, and the
+    # worker probe is a query it has no use for: nothing can be placed anyway.
+    available = @lightweight && !eligible ? nil : worker_available
+    Result.new(eligible:, reason: refusal, job:, workflow:, runs:, profile:, before:, after: requirement.to_h, worker_available: available, audit:, dispatch_status:, dispatch_error:)
   end
 end
 end
