@@ -1647,8 +1647,6 @@ export function UnifiedDiffTable({
   const showMetricGutter = diffLineMetricProviders.length > 0
   const splitInlineRows = splitView
 
-  let hunkIndex = -1
-
   const scrollClass =
     lineWrapping === "scroll"
       ? "w-full min-w-0 max-w-full overflow-x-scroll overscroll-x-contain [-webkit-overflow-scrolling:touch]"
@@ -1845,8 +1843,7 @@ export function UnifiedDiffTable({
         <tbody>
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
-              hunkIndex += 1
-              const controls = hunkControls?.[hunkIndex]
+              const controls = hunkControls?.[line.hunkId]
               return (
                 <HunkRow
                   controls={controls}

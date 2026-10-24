@@ -2098,12 +2098,11 @@ describe("hidden-context expansion", () => {
       "between 3",
       "between 4",
       "between 5",
-      "@@ -6,1 +6,1 @@",
       "second"
     ])
   })
 
-  it("places automatically revealed above-hunk context after the next hunk divider", async () => {
+  it("removes the next hunk divider when automatic annotation reveal exhausts the gap", async () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
@@ -2121,16 +2120,24 @@ describe("hidden-context expansion", () => {
         reviewAnnotationRanges={{
           "f.rb": [{ id: "note-near-second-hunk", side: "new", start_line: 6, end_line: 6, title: "Inspect second hunk" }]
         }}
-        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 2 }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 4 }}
         showFileHeaders
       />
     )
 
-    await findCodeCellText("between 4")
+    await findCodeCellText("between 2")
     const codeCells = Array.from(screen.getAllByRole("cell"))
       .filter((cell) => cell.className.includes("min-w-[40rem]"))
       .map((cell) => cell.textContent)
-    expect(codeCells.slice(codeCells.indexOf("@@ -6,1 +6,1 @@"), codeCells.indexOf("second") + 1)).toEqual(["@@ -6,1 +6,1 @@", "between 4", "between 5", "second"])
+    expect(codeCells).not.toContain("@@ -6,1 +6,1 @@")
+    expect(codeCells.slice(codeCells.indexOf("first"), codeCells.indexOf("second") + 1)).toEqual([
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "second"
+    ])
   })
 
   it("reveals hidden context and renders an inline range annotation when a note spans two hunks", async () => {
