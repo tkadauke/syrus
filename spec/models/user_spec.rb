@@ -972,16 +972,14 @@ RSpec.describe User do
     it "is idempotent for the same reason — doesn't rewrite the row" do
       user.mark_gh_api_blocked!("same reason")
       first_at = user.gh_api_blocked_at
-      sleep 0.01
-      user.mark_gh_api_blocked!("same reason")
+      travel_to(1.minute.from_now) { user.mark_gh_api_blocked!("same reason") }
       expect(user.reload.gh_api_blocked_at).to be_within(0.001).of(first_at)
     end
 
     it "updates the timestamp when the reason changes" do
       user.mark_gh_api_blocked!("first reason")
       first_at = user.gh_api_blocked_at
-      sleep 0.01
-      user.mark_gh_api_blocked!("second reason")
+      travel_to(1.minute.from_now) { user.mark_gh_api_blocked!("second reason") }
       expect(user.reload.gh_api_blocked_reason).to eq("second reason")
       expect(user.gh_api_blocked_at).to be > first_at
     end
