@@ -116,6 +116,25 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/write_file.tsx
   ].freeze
 
+  CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/routes/chat/Compose.tsx
+    app/frontend/routes/chat/AgentQuestions.tsx
+    app/frontend/routes/chat/ParticipantPicker.tsx
+    app/frontend/routes/chat/JobEpicPickerPopup.tsx
+    app/frontend/routes/chat/ScheduleMessageModal.tsx
+    app/frontend/routes/chat/WorkspacePanels.tsx
+    app/frontend/routes/chat/ProposalCards.tsx
+    app/frontend/routes/chat/ScratchpadPanel.tsx
+    app/frontend/routes/chat/proposalDisplay.ts
+    app/frontend/routes/chat/proposalToolCard.tsx
+    app/frontend/routes/chat/repoDocumentToolCard.tsx
+    app/frontend/routes/chat/pinnedContextToolCard.tsx
+    app/frontend/routes/chat/chatPinToolCard.tsx
+    app/frontend/routes/chat/chatSearchToolCard.tsx
+    app/frontend/routes/chat/chatHelperToolCard.tsx
+    app/frontend/routes/chat/adminToolCard.tsx
+  ].freeze
+
   # Run with:
   #   BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rspec spec/i18n
   #
@@ -360,6 +379,16 @@ RSpec.describe "Untranslated source strings", type: :unit do
         line.scan(/\b(?:label|title|message|description|placeholder|empty(?:State|_state|Text|_text|Label|_label))\s*[:=]\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
           add_finding(findings, path, line_number, "user_visible_property", match.first, allow_chat_debt: allow_chat_debt)
         end
+
+        if CHAT_I18N_REVIEWED_FILES.include?(path.delete_prefix("#{Rails.root}/"))
+          line.scan(/\b(?:onNotice|set[A-Za-z]+Error)\(\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
+            add_finding(findings, path, line_number, "user_visible_call", match.first, allow_chat_debt: allow_chat_debt)
+          end
+
+          line.scan(/\berrorMessage\([^,]+,\s*["'`]([^"'`]*[A-Za-z][^"'`]*)["'`]/) do |match|
+            add_finding(findings, path, line_number, "user_visible_fallback", match.first, allow_chat_debt: allow_chat_debt)
+          end
+        end
       end
 
       findings
@@ -371,6 +400,19 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
     expect(findings).to be_empty, <<~MESSAGE
       Found untranslated user-visible strings. Move the copy into locale files or add a narrow allowlist for non-user-visible/product/code text:
+      #{findings.join("\n")}
+    MESSAGE
+  end
+
+  it "keeps reviewed chat surfaces out of debt and audits them without debt exemptions" do
+    expect(CHAT_I18N_DEBT_FILES & CHAT_I18N_REVIEWED_FILES).to be_empty
+
+    findings = CHAT_I18N_REVIEWED_FILES.flat_map do |relative_path|
+      findings_for(Rails.root.join(relative_path).to_s, allow_chat_debt: false)
+    end
+
+    expect(findings).to be_empty, <<~MESSAGE
+      Reviewed chat surfaces contain untranslated user-visible strings:
       #{findings.join("\n")}
     MESSAGE
   end

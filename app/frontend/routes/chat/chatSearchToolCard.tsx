@@ -178,9 +178,9 @@ function parseMessage(value: unknown, index: number): MessageRow | null {
 
 function PaginationNote({ pagination }: { pagination: Pagination }) {
   const pieces = [
-    pagination.page != null && pagination.totalPages != null ? `Page ${pagination.page} of ${pagination.totalPages}` : null,
-    pagination.totalCount != null ? `${pagination.totalCount} total` : null,
-    pagination.hasNextPage === true ? "More available" : pagination.hasNextPage === false ? "End of results" : null
+    pagination.page != null && pagination.totalPages != null ? i18n.t("chat:page_of_pages", { page: pagination.page, total: pagination.totalPages }) : null,
+    pagination.totalCount != null ? i18n.t("chat:total_count", { count: pagination.totalCount }) : null,
+    pagination.hasNextPage === true ? i18n.t("chat:more_available") : pagination.hasNextPage === false ? i18n.t("chat:end_of_results") : null
   ].filter(Boolean)
   if (pieces.length === 0) return null
   return <div className="text-2xs text-gray-500 dark:text-gray-400">{pieces.join(" · ")}</div>
@@ -345,7 +345,7 @@ export function searchChatsCollapsedSummary(context: ToolCardContext) {
 export function SearchChatsCard({ context }: { context: ToolCardContext }) {
   const result = parseSearchChats(context)
   if (!result) return null
-  if (result.hits.length === 0) return <EmptyState>{result.message || "No matching messages found."}</EmptyState>
+  if (result.hits.length === 0) return <EmptyState>{result.message || i18n.t("chat:no_matching_messages")}</EmptyState>
 
   const matchCounts = new Map<string, number>()
   for (const hit of result.hits) matchCounts.set(hit.chatSessionId, (matchCounts.get(hit.chatSessionId) ?? 0) + 1)
@@ -419,7 +419,7 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
         {result.chatId && result.chatTitle ? (
           <ChatTitle chatId={result.chatId} title={result.chatTitle} />
         ) : (
-          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || i18n.t("chat:chat_transcript")}</span>
         )}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
         {result.hasMore ? <Badge>{i18n.t("chat:more_messages_available")}</Badge> : null}

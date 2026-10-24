@@ -921,14 +921,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
       ]
 
       if (nextElements.length > WHITEBOARD_MAX_ELEMENTS) {
-        throw new ApiError(`Loading this snapshot would exceed the ${WHITEBOARD_MAX_ELEMENTS} element limit.`, { status: 422 })
+        throw new ApiError(t("snapshot_element_limit_error", { count: WHITEBOARD_MAX_ELEMENTS }), { status: 422 })
       }
 
       if (currentScene.elements.length > 0) {
         await createWhiteboardSnapshot(payload.chat.id, {
           scene_json: currentScene,
           snapshot_kind: "auto_before_load",
-          name: `Before load · ${new Date().toLocaleString()}`
+          name: t("snapshot_before_load", { date: new Date().toLocaleString() })
         })
       }
 
@@ -941,7 +941,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
         ...mergedScene,
         expected_version: current.version
       })
-      if (result.status === 409) throw new ApiError("Whiteboard changed before the snapshot could load. Try again.", { status: 409 })
+      if (result.status === 409) throw new ApiError(t("snapshot_whiteboard_changed"), { status: 409 })
 
       queryClient.setQueryData<ChatPayload>(queryKey, (currentPayload) => {
         if (!currentPayload) return currentPayload
@@ -958,7 +958,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
       await queryClient.invalidateQueries({ queryKey: ["whiteboard_snapshots", String(payload.chat.id)] })
       onNotice(t("snapshot_loaded", { name: fullSnapshot.name || t("snapshot_name_default") }))
     } catch (error) {
-      setSnapshotError(errorMessage(errorAsError(error), "Snapshot could not be loaded."))
+      setSnapshotError(errorMessage(errorAsError(error), t("snapshot_load_error")))
     } finally {
       setLoadingSnapshotId(null)
     }
@@ -991,9 +991,9 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   return (
     <div className="space-y-5">
       {snapshots.isPending ? <PanelMessage>{t("snapshots_loading")}</PanelMessage> : null}
-      {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
+      {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, t("snapshots_load_error"))}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
-      {media.isError ? <PanelMessage tone="error">{errorMessage(media.error, "Unable to load artifacts.")}</PanelMessage> : null}
+      {media.isError ? <PanelMessage tone="error">{errorMessage(media.error, t("artifacts_load_error"))}</PanelMessage> : null}
       {chatBusy ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("chat_busy")}</div> : null}
 
       {artifactItems.length > 0 ? (
@@ -1040,7 +1040,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
               <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={snapshot.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={snapshot.name || "Snapshot"}>{truncateSnapshotName(snapshot.name || "Snapshot")}</div>
+                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={snapshot.name || t("snapshot")}>{truncateSnapshotName(snapshot.name || t("snapshot"))}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{snapshotKindLabel(snapshot.snapshot_kind)}</span>
                       <span>{snapshot.element_count} {snapshot.element_count === 1 ? "element" : "elements"}</span>
@@ -1142,7 +1142,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
           imageCount={images.length}
           imageIndex={lightboxImageIndex ?? 0}
-          name={lightboxImage.title || lightboxImage.filename || "Image attachment"}
+          name={lightboxImage.title || lightboxImage.filename || t("image_attachment")}
           nextSrc={nextLightboxImage ? nextLightboxImage.image_url || nextLightboxImage.file_path : null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}

@@ -48,6 +48,7 @@ import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
+import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
 import { workerCapabilityEntries } from "../../lib/workerCapabilities"
 import { appendSearch, jobsTabVisible, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
@@ -195,7 +196,7 @@ export function ProposalEditModal({
     onSuccess: (updated) => {
       mergeChatPayloadUpdate(queryClient, queryKey, updated)
       if (updated.proposal) dispatchProposalUpdated(queryKey[1], updated.proposal)
-      onNotice(updated.message || "Proposal updated")
+      onNotice(updated.message || t("proposal_updated"))
       onClose()
     }
   })
@@ -238,7 +239,7 @@ export function ProposalEditModal({
           <div className="space-y-5 px-5 py-4">
             {save.isError ? (
               <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-                {errorMessage(save.error, "Proposal update failed.")}
+                {errorMessage(save.error, t("proposal_update_failed"))}
               </div>
             ) : null}
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -378,10 +379,10 @@ export function ProposalEditModal({
         </form>
       </div>
       <ConfirmDialog
-        cancelLabel="Keep editing"
-        confirmLabel="Discard changes"
+        cancelLabel={t("keep_editing")}
+        confirmLabel={t("discard_changes")}
         destructive
-        message="Discard unsaved proposal changes?"
+        message={t("discard_proposal_changes_prompt")}
         onCancel={() => setConfirmDiscardOpen(false)}
         onConfirm={onClose}
         open={confirmDiscardOpen}
@@ -577,7 +578,7 @@ export function ProposalCard({
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
-                  {proposal.epic_bundle ? "Epic" : proposal.kind_label}
+                  {proposal.epic_bundle ? t("epic") : proposal.kind_label}
                 </span>
                 {proposal.proposed ? null : (
                   <span
@@ -676,7 +677,7 @@ export function ProposalCard({
                     title={t("create_epic_and_start")}
                     type="button"
                   >
-                    Implement
+                    {t("proposal_route_implement")}
                   </button>
                 ) : null}
                 <button
@@ -687,10 +688,10 @@ export function ProposalCard({
                   title={t("reject_proposal")}
                   type="button"
                 >
-                  Reject
+                  {t("reject")}
                 </button>
                 {proposalAction.isError ? (
-                  <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, "Proposal command failed.")}</div>
+                  <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(proposalAction.error, t("proposal_command_failed"))}</div>
                 ) : null}
               </div>
             ) : null}
@@ -913,8 +914,8 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
     return {
       ref,
       kind,
-      label: snapshot ? truncateSnapshotName(snapshot.name || "Snapshot") : ref,
-      detail: snapshot ? snapshotKindLabel(snapshot.snapshot_kind) : "Whiteboard snapshot"
+      label: snapshot ? truncateSnapshotName(snapshot.name || i18n.t("chat:snapshot")) : ref,
+      detail: snapshot ? snapshotKindLabel(snapshot.snapshot_kind) : i18n.t("chat:whiteboard_snapshot")
     }
   }
 
@@ -924,7 +925,7 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       ref,
       kind,
       label: image?.title || image?.filename || ref,
-      detail: image?.content_type || "Chat image",
+      detail: image?.content_type || i18n.t("chat:chat_image"),
       imageUrl: image?.image_url,
       contentType: image?.content_type
     }
@@ -936,11 +937,11 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       ref,
       kind,
       label: match?.panel.title || ref,
-      detail: "Preview mockup"
+      detail: i18n.t("chat:preview_mockup")
     }
   }
 
-  return { ref, kind: "chat_image", label: ref, detail: "Media" }
+  return { ref, kind: "chat_image", label: ref, detail: i18n.t("chat:media") }
 }
 
 function mediaKindShortLabel(kind: ProposalMediaKind) {
@@ -1022,7 +1023,7 @@ export function PendingActionCard({
               </span>
               <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}>
                 {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
-                {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
+                {isConfirming ? t("working") : isQueued ? t("waiting") : terminalLabel || t("needs_confirmation")}
               </span>
             </div>
             {canDismiss ? (
@@ -1122,7 +1123,7 @@ export function PendingActionCard({
               {rejectLabel}
             </button>
             {action.isError ? (
-              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div>
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, t("pending_action_failed"))}</div>
             ) : null}
           </div>
         ) : null
@@ -1212,8 +1213,8 @@ export function PendingActionGroupCard({
           {pendingActionGroup.state === "confirmed" ? (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
               {failedMembers.length > 0
-                ? `${succeededCount} of ${members.length} succeeded, ${failedMembers.length} failed.`
-                : `All ${members.length} succeeded.`}
+                ? t("batch_partial_result", { succeeded: succeededCount, total: members.length, failed: failedMembers.length })
+                : t("batch_all_succeeded", { count: members.length })}
             </p>
           ) : null}
         </>
@@ -1238,7 +1239,7 @@ export function PendingActionGroupCard({
               </button>
             ) : null}
             {action.isError ? (
-              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div>
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, t("batch_action_failed"))}</div>
             ) : null}
           </div>
         ) : isConfirming ? (
@@ -1254,7 +1255,7 @@ export function PendingActionGroupCard({
               onClick={() => action.mutate({ action: "confirm", path: pendingActionGroup.app_confirm_path })}
               type="button"
             >
-              Confirm all
+              {t("confirm_all")}
             </button>
             <button
               className={secondaryButton()}
@@ -1262,10 +1263,10 @@ export function PendingActionGroupCard({
               onClick={() => action.mutate({ action: "reject", path: pendingActionGroup.app_reject_path })}
               type="button"
             >
-              Reject all
+              {t("reject_all")}
             </button>
             {action.isError ? (
-              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div>
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, t("batch_action_failed"))}</div>
             ) : null}
           </div>
         ) : null
@@ -1562,7 +1563,7 @@ function proposalDependencyLabels(proposal: ChatProposal) {
 function proposalDependencyRequirementLabels(requirements: ChatProposalDependencyRequirement[]) {
   return new Map(
     requirements.map((requirement) => {
-      const target = requirement.job_id != null ? `JOB-${requirement.job_id}` : requirement.proposal_slug || "Dependency"
+      const target = requirement.job_id != null ? `JOB-${requirement.job_id}` : requirement.proposal_slug || i18n.t("chat:dependency")
       return [target, `${target} (${dependencyRequirementLabel(requirement)})`]
     })
   )
@@ -1665,7 +1666,7 @@ function ProposalChildren({
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="font-mono">{child.slug}</span>
-              <span>{child.repository_slug || "No repository attached"}</span>
+              <span>{child.repository_slug || t("no_repository_attached")}</span>
               {child.provider_setting && child.provider_setting !== "default" ? (
                 <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                   {t("proposal_provider")}: {child.provider_setting}
