@@ -45,6 +45,23 @@ RSpec.describe App::AgentConversationPayload do
     payload[:edges].any? { |e| e[:from_id] == from_id && e[:to_id] == to_id }
   end
 
+  it "presents security review verdicts from the workflow artifact" do
+    workflow = create_workflow(
+      artifacts: {
+        "security_review_iterations" => [
+          { "iteration" => 1, "verdict" => "needs_work", "critique" => "Missing authorization" }
+        ]
+      }
+    )
+    step = create_step(workflow: workflow, kind: "security_review", position: 1)
+    run = create_run(step: step, agent_summary: "fallback summary")
+
+    review_node = node(described_class.build(job: job), "agent_session-#{run.id}")
+
+    expect(review_node).to include(role: AgentRole::WORKFLOW_SECURITY_REVIEWER, summary: "Missing authorization")
+    expect(review_node[:detail]).to include("verdict" => "needs_work")
+  end
+
   describe "a plain initial workflow with adversarial/visual review loops and a grader fanout" do
     it "builds agent_session and deterministic_check nodes wired through the loop and fan-out/fan-in" do
       workflow = create_workflow(trigger_kind: "initial")

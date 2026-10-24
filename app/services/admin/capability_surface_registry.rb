@@ -149,6 +149,7 @@ module Admin
       report_cannot_proceed
       run_target_prepare
       submit_adversarial_review
+      submit_security_review
       submit_artifact
       submit_job_metadata
       submit_report
