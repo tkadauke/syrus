@@ -101,10 +101,13 @@ describe("AdminSettings numeric fields", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
-        method: "PATCH",
-        body: expect.stringContaining('"max_in_flight_workflows":24')
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"max_in_flight_workflows":24')
+        })
+      )
     })
   })
 
@@ -122,10 +125,13 @@ describe("AdminSettings numeric fields", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Save$/ }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
-        method: "PATCH",
-        body: expect.stringContaining('"max_concurrent_agent_runs":0')
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"max_concurrent_agent_runs":0')
+        })
+      )
     })
   })
 })
@@ -153,7 +159,8 @@ describe("AdminSettings SecretRow", () => {
   it("calls the API when the user confirms", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
+      if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST")
+        return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
       return Promise.resolve(jsonResponse(adminPayload()))
     })
 
@@ -174,9 +181,13 @@ describe("AdminSettings SecretRow", () => {
     renderRoute()
 
     const clearButton = await screen.findByRole("button", { name: "Clear" })
-    await act(async () => { fireEvent.click(clearButton) })
+    await act(async () => {
+      fireEvent.click(clearButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.anything())
   })
 })
@@ -202,17 +213,21 @@ describe("AdminSettings Discord section", () => {
   it("saves the Discord bot token", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
-        return Promise.resolve(jsonResponse(adminPayload({
-          message: "Settings updated.",
-          settings: {
-            ...adminPayload().settings,
-            clearable_secrets: [
-              { key: "gemini_api_key", label: "Gemini API key", set: true },
-              { key: "telegram_bot_token", label: "Telegram bot token", set: false },
-              { key: "discord_bot_token", label: "Discord bot token", set: true }
-            ]
-          }
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            adminPayload({
+              message: "Settings updated.",
+              settings: {
+                ...adminPayload().settings,
+                clearable_secrets: [
+                  { key: "gemini_api_key", label: "Gemini API key", set: true },
+                  { key: "telegram_bot_token", label: "Telegram bot token", set: false },
+                  { key: "discord_bot_token", label: "Discord bot token", set: true }
+                ]
+              }
+            })
+          )
+        )
       }
       return Promise.resolve(jsonResponse(adminPayload()))
     })
@@ -225,10 +240,13 @@ describe("AdminSettings Discord section", () => {
     fireEvent.click(section.getByRole("button", { name: "Save token" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ app_setting: { discord_bot_token: "discord-secret-token" } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ app_setting: { discord_bot_token: "discord-secret-token" } })
+        })
+      )
     })
   })
 
@@ -239,16 +257,20 @@ describe("AdminSettings Discord section", () => {
       if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
         return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
       }
-      return Promise.resolve(jsonResponse(adminPayload({
-        settings: {
-          ...adminPayload().settings,
-          clearable_secrets: [
-            { key: "gemini_api_key", label: "Gemini API key", set: true },
-            { key: "telegram_bot_token", label: "Telegram bot token", set: false },
-            { key: "discord_bot_token", label: "Discord bot token", set: true }
-          ]
-        }
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          adminPayload({
+            settings: {
+              ...adminPayload().settings,
+              clearable_secrets: [
+                { key: "gemini_api_key", label: "Gemini API key", set: true },
+                { key: "telegram_bot_token", label: "Telegram bot token", set: false },
+                { key: "discord_bot_token", label: "Discord bot token", set: true }
+              ]
+            }
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -258,10 +280,13 @@ describe("AdminSettings Discord section", () => {
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ secret: "discord_bot_token" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings/clear_secret",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ secret: "discord_bot_token" })
+        })
+      )
     })
   })
 
@@ -272,16 +297,20 @@ describe("AdminSettings Discord section", () => {
       if (url === "/api/v1/app/admin/settings/clear_secret" && init?.method === "POST") {
         return Promise.resolve(jsonResponse(adminPayload({ message: "Cleared." })))
       }
-      return Promise.resolve(jsonResponse(adminPayload({
-        settings: {
-          ...adminPayload().settings,
-          clearable_secrets: [
-            { key: "gemini_api_key", label: "Gemini API key", set: true },
-            { key: "telegram_bot_token", label: "Telegram bot token", set: true },
-            { key: "discord_bot_token", label: "Discord bot token", set: false }
-          ]
-        }
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          adminPayload({
+            settings: {
+              ...adminPayload().settings,
+              clearable_secrets: [
+                { key: "gemini_api_key", label: "Gemini API key", set: true },
+                { key: "telegram_bot_token", label: "Telegram bot token", set: true },
+                { key: "discord_bot_token", label: "Discord bot token", set: false }
+              ]
+            }
+          })
+        )
+      )
     })
 
     renderRoute()
@@ -292,10 +321,13 @@ describe("AdminSettings Discord section", () => {
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ secret: "telegram_bot_token" })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/settings/clear_secret",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ secret: "telegram_bot_token" })
+        })
+      )
     })
   })
 
@@ -348,13 +380,15 @@ describe("AdminSettings platform polling controls", () => {
     return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/admin/platform_polling/start" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({
-          started: ["Discord::GatewayConnectionJob"],
-          connectors: [
-            { name: "PollTelegramUpdatesJob", status: "already_running", platform: "telegram" },
-            { name: "Discord::GatewayConnectionJob", status: "started", platform: "discord" }
-          ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            started: ["Discord::GatewayConnectionJob"],
+            connectors: [
+              { name: "PollTelegramUpdatesJob", status: "already_running", platform: "telegram" },
+              { name: "Discord::GatewayConnectionJob", status: "started", platform: "discord" }
+            ]
+          })
+        )
       }
       return Promise.resolve(jsonResponse(bothTokensSetPayload()))
     })
