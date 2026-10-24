@@ -14,7 +14,14 @@ module PendingActions
 
       progress!("Firing scheduled task #{task.id}...")
       result = ScheduledTasks::Fire.new(task).call
-      result.fired? ? result.job : nil
+      action.update!(payload: payload.merge(
+        "fire_outcome" => {
+          "fired" => result.fired?,
+          "job_id" => result.job&.id,
+          "reason" => result.reason
+        }.compact
+      ))
+      result.job
     end
 
     def execution_label
@@ -31,6 +38,24 @@ module PendingActions
 
     def presentation_label
       "Fire scheduled task ##{payload["scheduled_task_id"]}"
+    end
+
+    def presentation_resource
+      job = action.result
+      return nil unless job.is_a?(Job)
+
+      { resource_title: job.issue_title, resource_url: "/jobs/#{job.id}" }
+    end
+
+    def tool_card_outcome
+      outcome = payload["fire_outcome"]
+      return nil unless outcome.is_a?(Hash)
+
+      {
+        fired: outcome["fired"] == true,
+        job_id: outcome["job_id"],
+        reason: outcome["reason"]
+      }.compact
     end
 
     private
