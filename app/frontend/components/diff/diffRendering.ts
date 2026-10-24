@@ -352,9 +352,12 @@ export function remainingInGap(gap: ContextGap, state: GapRevealState | undefine
 }
 
 // Splices revealed context lines (sourced from the fetched full-file
-// content) around each hunk. Existing hunk lines are never touched or
+// content) around each hunk. Existing source lines are never touched or
 // renumbered, so line-comment anchors (keyed by old/new line number) keep
-// pointing at the right row after expansion.
+// pointing at the right row after expansion. A hunk header is a rendered
+// divider for the gap before that hunk, so it is omitted once a non-empty
+// gap is fully revealed. Source rows retain their original hunkId even when
+// that divider disappears.
 export function mergeContextIntoLines(
   lines: DiffLine[],
   gaps: ContextGap[],
@@ -389,9 +392,11 @@ export function mergeContextIntoLines(
   for (const line of lines) {
     if (line.kind === "hunk") {
       const hunkIds = { bottom: hunkIndex, top: Math.max(0, hunkIndex - 1) }
-      appendGap(gaps[hunkIndex], gapStates[hunkIndex], "beforeHunk", hunkIds)
-      result.push(line)
-      appendGap(gaps[hunkIndex], gapStates[hunkIndex], "afterHunk", hunkIds)
+      const gap = gaps[hunkIndex]
+      const gapState = gapStates[hunkIndex]
+      appendGap(gap, gapState, "beforeHunk", hunkIds)
+      if (!gap || gapSize(gap) === 0 || remainingInGap(gap, gapState) > 0) result.push(line)
+      appendGap(gap, gapState, "afterHunk", hunkIds)
       hunkIndex += 1
       continue
     }
