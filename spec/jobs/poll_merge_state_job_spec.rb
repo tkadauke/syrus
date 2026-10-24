@@ -115,6 +115,18 @@ RSpec.describe PollMergeStateJob, :ci_only do
     }.to have_enqueued_job(described_class).with(job.id)
   end
 
+  it "does not fail the poll when fetching reviews hits a transient GitHub error" do
+    error = Octokit::BadGateway.new(status: 502, body: { message: "Bad Gateway" })
+    allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_raise(error)
+    allow(Rails.logger).to receive(:warn)
+
+    expect { described_class.perform_now(job.id) }.not_to raise_error
+    expect(job.reload.state).to eq("implemented")
+    expect(Rails.logger).to have_received(:warn).with(
+      /\[PollMergeStateJob\] #{job.slug}: transient GitHub polling failure — Octokit::BadGateway:/
+    )
+  end
+
   it "fetches the PR from effective_pr_repository when it differs from repository" do
     upstream = Factories.repository(user: user, owner: "upstream-org", name: "widgets", auto_merge_enabled: true)
     fork_job = Factories.job(user: user, repository: repository, pr_number: 8, pr_repository: upstream,
