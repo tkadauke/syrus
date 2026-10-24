@@ -540,7 +540,9 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? payload.active_smart_folder_id
   const activeFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
   const folderLabel = activeFolder
-    ? (activeFolder.kind !== "user_defined" && activeFolder.key ? t(`smart_folder.names.${activeFolder.key}`, { ns: "nav", defaultValue: activeFolder.name }) : activeFolder.name)
+    ? activeFolder.kind !== "user_defined" && activeFolder.key
+      ? t(`smart_folder.names.${activeFolder.key}`, { ns: "nav", defaultValue: activeFolder.name })
+      : activeFolder.name
     : t("folders_and_filters")
 
   return (
@@ -950,9 +952,7 @@ export function DashboardTable({
     return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
 
   if ((payload.items ?? []).length === 0) {
-    const noticePanels = payload.subject === "job"
-      ? <JobDashboardNoticePanels panels={payload.ui_panels} prefix={prefix} t={t} />
-      : null
+    const noticePanels = payload.subject === "job" ? <JobDashboardNoticePanels panels={payload.ui_panels} prefix={prefix} t={t} /> : null
 
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
       const emptyState = dashboardEmptyState(payload, t)
