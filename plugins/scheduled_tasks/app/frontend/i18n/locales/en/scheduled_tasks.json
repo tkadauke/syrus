@@ -1,4 +1,10 @@
 {
+  "auto_approve_never": "Never",
+  "auto_approve_never_preview": "No direct rule; Jobs can still inherit a repository or user default.",
+  "auto_approve_graders": "If graders pass",
+  "auto_approve_graders_preview": "Jobs using this rule enter landing after repo-committed graders pass.",
+  "auto_approve_safe": "If graders pass and tagged safe",
+  "auto_approve_safe_preview": "Jobs using this rule also need the safe tag before landing.",
   "tool_list_summary_one": "{{count}} scheduled task",
   "tool_list_summary_other": "{{count}} scheduled tasks",
   "tool_list_empty": "No scheduled tasks for this repository.",
