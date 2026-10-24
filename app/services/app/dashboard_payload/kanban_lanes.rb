@@ -90,7 +90,7 @@ module App
             end
 
             preload_epic_dashboard_job_stats(records)
-            lane_json(lane, lane.humanize, records.map { |epic| epic_json(epic) }, total_count: total_count, offset: offset)
+            lane_json(lane, I18n.t("api.dashboard.lanes.#{lane}"), records.map { |epic| epic_json(epic) }, total_count: total_count, offset: offset)
           end
         end
       end
@@ -119,7 +119,7 @@ module App
             paginated_records = paginated_kanban_records(lane, lane_records)
             lane_json(
               lane,
-              lane.humanize,
+              I18n.t("api.dashboard.lanes.#{lane}"),
               paginated_records.map { |workflow| workflow_json(workflow) },
               total_count: lane_records.size,
               offset: offset
