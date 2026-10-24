@@ -170,7 +170,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     post app_job_path(job, "release_from_backlog"), as: :json
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Nur Aufgaben im Backlog können freigegeben werden.")
+    expect(parse_body.dig("error", "message")).to eq("Nur Jobs im Backlog können freigegeben werden.")
   end
 
   it "lets a write-tier repository member release a dependency-blocked backlogged job without starting a run" do
