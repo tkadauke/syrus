@@ -36,14 +36,14 @@ test("localizes copy and advertises only real English and German equivalents", (
 
 test("rejects metadata for an unpublished locale and filters unpublished alternates", () => {
   assert.throws(
-    () => localizedMetadata({ locale: "de", pathname: "/", title: "Deutsch", description: "Deutsch" }),
-    /unpublished locale: de/,
+    () => localizedMetadata({ locale: "la", pathname: "/", title: "Latine", description: "Latine" }),
+    /unpublished locale: la/,
   );
   const metadata = localizedMetadata({
     locale: "en", pathname: "/", title: "English", description: "English",
     availableLocales: ["en", "de", "la"],
   });
-  assert.deepEqual(metadata.alternates?.languages, { en: "/", "x-default": "/" });
+  assert.deepEqual(metadata.alternates?.languages, { en: "/", de: "/de/", "x-default": "/" });
 });
 
 test("localizes structured-data descriptions", () => {

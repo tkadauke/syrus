@@ -24,6 +24,9 @@ export type ChromeDictionary = {
     searchLabel: string
     searchPlaceholder: string
     empty: string
+    detailBack: string
+    pluginLabel: string
+    source: string
   }
 }
 
@@ -39,7 +42,7 @@ export const chromeDictionaries = {
         { href: "/#entry-points", label: "Entry points" },
         { href: "/plugins", label: "Plugins" },
         { href: "/docs", label: "Docs", canonicalEnglish: true },
-        { href: "/blog", label: "Blog" }
+        { href: "/blog", label: "Blog", canonicalEnglish: true }
       ],
       github: "GitHub",
       watchDemo: "Watch demo"
@@ -58,7 +61,7 @@ export const chromeDictionaries = {
         { href: "/download", label: "Download" },
         { href: "/#walkthrough-demo", label: "Watch demo" },
         { href: "/docs", label: "Docs", canonicalEnglish: true },
-        { href: "/blog", label: "Blog" },
+        { href: "/blog", label: "Blog", canonicalEnglish: true },
         { href: "repository", label: "GitHub repository", external: true },
         { href: "issues", label: "File an issue", external: true }
       ]
@@ -72,7 +75,10 @@ export const chromeDictionaries = {
         "Browse the plugin gems bundled with Syrus. Each plugin documents the extension points it owns, when to enable it, and how it fits into a Syrus installation.",
       searchLabel: "Search plugins",
       searchPlaceholder: "Search plugins by name, category, or capability",
-      empty: "No plugins match that search."
+      empty: "No plugins match that search.",
+      detailBack: "Plugins",
+      pluginLabel: "plugin",
+      source: "Source"
     }
   },
   de: {
@@ -86,7 +92,7 @@ export const chromeDictionaries = {
         { href: "/#entry-points", label: "Einstiegspunkte" },
         { href: "/plugins", label: "Plugins" },
         { href: "/docs", label: "Dokumentation (Englisch)", canonicalEnglish: true },
-        { href: "/blog", label: "Blog" }
+        { href: "/blog", label: "Blog", canonicalEnglish: true }
       ],
       github: "GitHub",
       watchDemo: "Demo ansehen"
@@ -106,7 +112,7 @@ export const chromeDictionaries = {
         { href: "/download", label: "Herunterladen" },
         { href: "/#walkthrough-demo", label: "Demo ansehen" },
         { href: "/docs", label: "Dokumentation (Englisch)", canonicalEnglish: true },
-        { href: "/blog", label: "Blog" },
+        { href: "/blog", label: "Blog", canonicalEnglish: true },
         { href: "repository", label: "GitHub-Repository", external: true },
         { href: "issues", label: "Issue erstellen", external: true }
       ]
@@ -125,7 +131,10 @@ export const chromeDictionaries = {
         "Entdecken Sie die mit Syrus ausgelieferten Plugin-Gems. Jedes Plugin beschreibt seine Erweiterungspunkte, wann es aktiviert werden sollte und wie es sich in eine Syrus-Installation einfügt.",
       searchLabel: "Plugins durchsuchen",
       searchPlaceholder: "Plugins nach Name, Kategorie oder Funktion durchsuchen",
-      empty: "Keine Plugins entsprechen dieser Suche."
+      empty: "Keine Plugins entsprechen dieser Suche.",
+      detailBack: "Plugins",
+      pluginLabel: "Plugin",
+      source: "Quellcode"
     }
   }
 } as const satisfies Partial<Record<Locale, ChromeDictionary>>

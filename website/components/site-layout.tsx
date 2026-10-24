@@ -5,7 +5,7 @@ import { MotionProvider } from "./motion-provider"
 import { chromeFor } from "@/lib/chrome"
 
 export const siteMetadata: Metadata = {
-  ...localizedMetadata({ locale: "en", pathname: "/", title: siteTitle, description: siteDescription, availableLocales: ["en"], absoluteTitle: true }),
+  ...localizedMetadata({ locale: "en", pathname: "/", title: siteTitle, description: siteDescription, availableLocales: ["en", "de"], absoluteTitle: true }),
   metadataBase: new URL(siteOrigin),
   title: { default: siteTitle, template: "%s · Syrus" },
   applicationName: "Syrus",

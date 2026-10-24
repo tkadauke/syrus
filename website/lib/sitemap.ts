@@ -4,7 +4,7 @@ import { languageAlternates, siteOrigin } from "./metadata.ts";
 export type SitemapSource = { href: string; locales?: readonly Locale[] }
 export type SitemapEntry = { url: string; alternates: { languages: Record<string, string> } }
 
-const STATIC_PATHS = ["/", "/control-plane", "/download", "/plugins", "/blog"]
+const STATIC_PATHS = ["/", "/control-plane", "/download", "/plugins"]
 
 export function sitemapEntries(
   plugins: SitemapSource[],

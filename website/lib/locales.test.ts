@@ -13,7 +13,7 @@ test("validates supported and published locales independently", () => {
   assert.equal(isLocale("la"), true);
   assert.equal(isLocale("fr"), false);
   assert.equal(isPublishedLocale("en"), true);
-  assert.equal(isPublishedLocale("de"), false);
+  assert.equal(isPublishedLocale("de"), true);
   assert.equal(isPublishedLocale("la"), false);
 });
 
@@ -28,6 +28,6 @@ test("localizes internal paths but preserves English, fragments, and external UR
   assert.equal(localizedHref("//cdn.example.com/file", "de"), "//cdn.example.com/file");
 });
 
-test("generates no prefixed parameters until a non-English locale is published", () => {
-  assert.deepEqual(localizedStaticParams(), []);
+test("generates prefixed parameters only for published non-English locales", () => {
+  assert.deepEqual(localizedStaticParams(), [{ locale: "de" }]);
 });

@@ -11,7 +11,7 @@ RSpec.describe "website product positioning pages" do
   let(:demo) { read_website("components/demo.tsx") }
   let(:footer) { read_website("components/footer.tsx") }
   let(:layout) { read_website("components/site-layout.tsx") }
-  let(:download_page) { read_website("src/app/(en)/download/page.tsx") }
+  let(:download_page) { read_website("components/pages/download-page.tsx") }
   let(:faq) { read_website("src/content/docs/faq.md") }
   let(:normalized_copy) { site_copy.gsub(/\s+/, " ") }
   let(:public_positioning_copy) { [site_copy, demo, footer, layout, read_website("README.md")].join("\n") }
