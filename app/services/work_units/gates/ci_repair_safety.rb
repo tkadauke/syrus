@@ -25,8 +25,9 @@ module WorkUnits
         return GateResult.pass unless work_unit.kind == "ci_failure"
         return GateResult.pass unless workflow
         return GateResult.pass unless job
-        return GateResult.pass if artifact("manual_ci_repair").present?
-        return disabled_block unless job.repository&.ci_repair_enabled?
+        if launch_gate_step? && !manual_ci_repair? && !job.repository&.ci_repair_enabled?
+          return disabled_block
+        end
         return GateResult.pass if job.main_branch_repair?
 
         if launch_gate_step?
@@ -76,6 +77,10 @@ module WorkUnits
 
       def artifact(key)
         workflow&.artifact(key).presence || work_unit.work_intent&.payload_artifacts.to_h[key].presence
+      end
+
+      def manual_ci_repair?
+        artifact("manual_ci_repair").present?
       end
 
       def clean_base_health_known?
