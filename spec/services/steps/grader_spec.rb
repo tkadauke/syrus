@@ -52,6 +52,10 @@ RSpec.describe Steps::Grader, :ci_only do
     system("git", "commit", "--quiet", "-m", "init", **git_opts)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    # The step also runs git (tracked-file listing, status) and captures run
+    # diagnostics through ProcessRunner. Examples stub only the graded command's
+    # runner (kind: "grader"); everything else runs for real.
+    allow(ProcessRunner).to receive(:new).and_call_original
   end
 
   it "writes grader output to the workspace file and durable JobLog rows" do
@@ -98,7 +102,7 @@ RSpec.describe Steps::Grader, :ci_only do
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       captured = kwargs
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -110,7 +114,7 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   it "does not rerun or adjudicate a successful grader command" do
-    expect(ProcessRunner).to receive(:new).once.and_call_original
+    expect(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).once.and_call_original
     expect(BaseRevisionRetry).not_to receive(:call)
 
     handler.call
@@ -124,7 +128,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       # Simulate RSpec-style output: three dots without newlines, then a newline
       kwargs[:on_output_chunk]&.call(".")
       kwargs[:on_output_chunk]&.call(".")
@@ -149,7 +153,7 @@ RSpec.describe Steps::Grader, :ci_only do
     allow(GraderResourceGrant).to receive(:for).with(run: run).and_return(
       GraderResourceGrant::Result.new(cpu_cores: 7, memory_max_bytes: 6 * 1024**3, details: {})
     )
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       expect(kwargs.fetch(:env)).to include(
         "SYRUS_PROCESS_PARALLELISM" => "7",
         "SYRUS_MEMORY_LIMIT_BYTES" => (6 * 1024**3).to_s
@@ -169,7 +173,7 @@ RSpec.describe Steps::Grader, :ci_only do
     allow(GraderResourceGrant).to receive(:for).with(run: run).and_return(
       GraderResourceGrant::Result.new(cpu_cores: 4, memory_max_bytes: nil, details: {})
     )
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       expect(kwargs.fetch(:env)).to include("SYRUS_PROCESS_PARALLELISM" => "4")
       expect(kwargs.fetch(:env)).not_to have_key("SYRUS_MEMORY_LIMIT_BYTES")
       instance_double(ProcessRunner, run: fake_result)
@@ -188,7 +192,7 @@ RSpec.describe Steps::Grader, :ci_only do
     )
     allow(GraderResourceGrant).to receive(:for).and_raise(ActiveRecord::StatementInvalid, "boom")
     allow(RunProcessParallelism).to receive(:for).with(run: run).and_return(3)
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       expect(kwargs.fetch(:env)).to include("SYRUS_PROCESS_PARALLELISM" => "3")
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -203,7 +207,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       # Simulate output that ends without a trailing newline
       kwargs[:on_output_chunk]&.call("no newline at end")
       instance_double(ProcessRunner, run: fake_result)
@@ -222,7 +226,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 60.0, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       kwargs[:on_output_chunk]&.call("still running")
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -254,7 +258,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       large_output.scan(/.{1,4096}/m).each { |chunk| kwargs[:on_output_chunk]&.call(chunk) }
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -301,7 +305,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       large_output.scan(/.{1,4096}/m).each { |chunk| kwargs[:on_output_chunk]&.call(chunk) }
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -345,7 +349,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 60.0, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       kwargs[:on_output_chunk]&.call("checking imports")
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -374,7 +378,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: true, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       kwargs[:on_output_chunk]&.call("parent process disappeared")
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -391,7 +395,7 @@ RSpec.describe Steps::Grader, :ci_only do
 
   it "fails before running a grader when the checkout is missing a tracked file" do
     FileUtils.rm_f(@ws_path.join("README.md"))
-    expect(ProcessRunner).not_to receive(:new)
+    expect(ProcessRunner).not_to receive(:new).with(hash_including(kind: "grader"))
 
     error = nil
     expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
@@ -419,7 +423,7 @@ RSpec.describe Steps::Grader, :ci_only do
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
-    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: fake_result))
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).and_return(instance_double(ProcessRunner, run: fake_result))
 
     error = nil
     expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |raised| error = raised }
@@ -435,7 +439,7 @@ RSpec.describe Steps::Grader, :ci_only do
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
 
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       kwargs[:on_output_chunk]&.call("1 failure")
       instance_double(ProcessRunner, run: fake_result)
     end
@@ -462,7 +466,7 @@ RSpec.describe Steps::Grader, :ci_only do
         "identity" => "spec/models/widget_spec.rb\0Widget fails"
       }
     ]
-    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
       exit_status: 1, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
@@ -509,7 +513,7 @@ RSpec.describe Steps::Grader, :ci_only do
       "failures" => "allow_inherited",
       "base_retry" => { "strategy" => "plugin" }
     ))
-    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
       exit_status: 1, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
@@ -548,7 +552,7 @@ RSpec.describe Steps::Grader, :ci_only do
       "base_retry" => { "strategy" => "plugin" }
     ))
     failed_cases = [ { "suite_name" => "spec/models/widget_spec.rb", "name" => "Widget fails" } ]
-    allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")).and_return(instance_double(ProcessRunner, run: ProcessRunner::Result.new(
       exit_status: 1, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
@@ -571,7 +575,7 @@ RSpec.describe Steps::Grader, :ci_only do
   it "runs the configured command without formatter-specific mutation" do
     step.update!(details: step.details.merge("command" => "bin/rspec spec/models --format json --out custom.json"))
     captured_command = nil
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
       captured_command = kwargs[:command]
       instance_double(ProcessRunner, run: ProcessRunner::Result.new(
         exit_status: 0, timed_out: false, stopped: false,
@@ -609,7 +613,7 @@ RSpec.describe Steps::Grader, :ci_only do
       "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
     ))
     commands = []
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: a_string_matching(/\A(grader|prepare)\z/))) do |**kwargs|
       commands << kwargs[:command]
       instance_double(ProcessRunner, run: ProcessRunner::Result.new(
         exit_status: 0, timed_out: false, stopped: false,
@@ -650,7 +654,7 @@ RSpec.describe Steps::Grader, :ci_only do
 
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_input_materializer).and_return([ provider ])
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: a_string_matching(/\A(grader|prepare)\z/))) do |**kwargs|
       events << kwargs[:command].last
       instance_double(ProcessRunner, run: ProcessRunner::Result.new(
         exit_status: 0, timed_out: false, stopped: false,
@@ -714,7 +718,7 @@ RSpec.describe Steps::Grader, :ci_only do
 
     it "only runs the shared prepare target's commands once for the workflow workspace" do
       npm_ci_runs = 0
-      allow(ProcessRunner).to receive(:new) do |**kwargs|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: a_string_matching(/\A(grader|prepare)\z/))) do |**kwargs|
         npm_ci_runs += 1 if kwargs[:command] == [ "bash", "-c", "npm ci" ]
         instance_double(ProcessRunner, run: ProcessRunner::Result.new(
           exit_status: 0, timed_out: false, stopped: false,
@@ -740,7 +744,7 @@ RSpec.describe Steps::Grader, :ci_only do
       step.update!(details: step.details.merge("prepare_targets" => [ { "target_label" => "//a/b:c", "commands" => [ "npm ci" ] } ]))
       other_step.update!(details: other_step.details.merge("prepare_targets" => [ { "target_label" => "//a:b_c", "commands" => [ "npm ci" ] } ]))
 
-      allow(ProcessRunner).to receive(:new) do |**kwargs|
+      allow(ProcessRunner).to receive(:new).with(hash_including(kind: a_string_matching(/\A(grader|prepare)\z/))) do |**kwargs|
         instance_double(ProcessRunner, run: ProcessRunner::Result.new(
           exit_status: 0, timed_out: false, stopped: false,
           silent_timed_out: false, operator_killed: false,
