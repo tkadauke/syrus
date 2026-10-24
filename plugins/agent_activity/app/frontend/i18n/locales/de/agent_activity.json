@@ -4,7 +4,7 @@
   "eyebrow": "Betrieb",
   "heading": "Agentenaktivität",
   "admin_heading": "Agentenaktivität (alle Repositories)",
-  "description": "Ein Live-Feed der Agentensitzungen in den Repositories, die Sie sehen können -- eine Karte pro Sitzung, mit dem, was tatsächlich entschieden wurde, als Überschrift.",
+  "description": "Ein Live-Feed der Agentensitzungen in den Repositories, die du sehen kannst -- eine Karte pro Sitzung, mit dem, was tatsächlich entschieden wurde, als Überschrift.",
   "admin_description": "Ein Live-Feed jeder Agentensitzung auf dieser Instanz -- eine Karte pro Sitzung, mit dem, was tatsächlich entschieden wurde, als Überschrift.",
   "aria_page": "Agentenaktivität",
   "loading": "Sitzungen werden geladen…",

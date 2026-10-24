@@ -1,7 +1,8 @@
 {
   "nav_memories": "Erinnerungen",
   "heading": "Erinnerungen",
-  "description": "Persistente Agent-Erinnerungen für Ihr Konto und Repositories verwalten.",
+  "description": "Verwalte persistente Agent-Erinnerungen für dein Konto und deine Repositories.",
+  "aria_memories": "Erinnerungen",
   "loading": "Erinnerungen werden geladen...",
   "create": "Erinnerung erstellen",
   "col_kind": "Art",
@@ -88,7 +89,7 @@
   "tool_kind": "Art",
   "tool_state": "Status",
   "tool_show_more": "Mehr anzeigen",
-  "tool_close": "Schliessen",
+  "tool_close": "Schließen",
   "tool_copy_content": "Erinnerungsinhalt kopieren",
   "tool_empty_content": "Kein Erinnerungsinhalt zurückgegeben.",
   "tool_error_title": "Erinnerung konnte nicht geschrieben werden",
@@ -124,12 +125,12 @@
   "tool_memory_count_one": "{{count}} Erinnerung",
   "tool_memory_count_other": "{{count}} Erinnerungen",
   "tool_actor_user": "Benutzer #{{id}}",
-  "tool_actor_run": "Run #{{id}}",
+  "tool_actor_run": "Lauf #{{id}}",
   "tool_kind_change": "Art: {{previous}} -> {{next}}",
   "tool_confidence_change": "Konfidenz: {{previous}} -> {{next}}",
-  "tool_content_change": "Inhaltsaenderung",
+  "tool_content_change": "Inhaltsänderung",
   "tool_no_audit_events": "Keine Audit-Ereignisse aufgezeichnet.",
-  "tool_audit_trail": "Audit-Verlauf (aelteste zuerst)",
-  "tool_audit_event_count_one": "{{count}} Audit-Ereignis fuer Erinnerung #{{id}}",
-  "tool_audit_event_count_other": "{{count}} Audit-Ereignisse fuer Erinnerung #{{id}}"
+  "tool_audit_trail": "Audit-Verlauf (älteste zuerst)",
+  "tool_audit_event_count_one": "{{count}} Audit-Ereignis für Erinnerung #{{id}}",
+  "tool_audit_event_count_other": "{{count}} Audit-Ereignisse für Erinnerung #{{id}}"
 }
