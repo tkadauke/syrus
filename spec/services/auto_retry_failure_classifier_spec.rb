@@ -94,6 +94,26 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("grader_failure")
   end
 
+  it "does not retry an exhausted deleted snapshot base ref fallback" do
+    fail_run!(
+      error_class: "WorkflowSourceSnapshots::BaseRefUnavailableError",
+      error_message: "immutable source checkout cannot resolve deleted base ref origin/syrus/deleted-parent"
+    )
+    run.run_failure_classification&.destroy!
+    run.create_run_failure_classification!(
+      classification: "source_snapshot_base_ref_unavailable",
+      retryable: false,
+      confidence: 1.0,
+      reason: "Neither the parent merge commit nor default branch resolves.",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("source_snapshot_base_ref_unavailable")
+  end
+
   it "retries no-diff runs caused by agent background-wait misconceptions" do
     fail_run!(
       error_class: "Steps::Base::AgentGaveUpWaiting",
