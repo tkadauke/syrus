@@ -130,11 +130,11 @@ export function TerminalRoute() {
                 <div className="absolute right-0 z-20 mt-2 w-96 overflow-hidden rounded border border-gray-700 bg-gray-900 shadow-xl" role="menu">
                   <div className="border-b border-gray-800 p-2">
                     <Input
-                      aria-label={t("search_workspaces")}
+                      aria-label={t("terminal:search_workspaces")}
                       autoFocus
                       className="h-9 rounded border-gray-700 bg-gray-950 py-0 text-gray-100 placeholder:text-gray-500"
                       onChange={(event) => setWorkspaceSearch(event.target.value)}
-                      placeholder={t("search_workspaces_placeholder")}
+                      placeholder={t("terminal:search_workspaces_placeholder")}
                       type="search"
                       value={workspaceSearch}
                     />
@@ -173,7 +173,7 @@ export function TerminalRoute() {
                         </section>
                       ))
                     ) : (
-                      <div className="px-3 py-8 text-center text-sm text-gray-400">{t("no_workspace_matches")}</div>
+                      <div className="px-3 py-8 text-center text-sm text-gray-400">{t("terminal:no_workspace_matches")}</div>
                     )}
                   </div>
                 </div>

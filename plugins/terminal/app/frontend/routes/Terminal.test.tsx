@@ -8,6 +8,7 @@ import { AppChromeV2 } from "@app/routes/AppChromeV2"
 import { TerminalPane, TerminalRoute } from "./Terminal"
 import type { BootstrapPayload } from "@app/api/bootstrap"
 import type { TerminalSessionRecord, TerminalSessionsPayload } from "../api/terminal"
+import i18n from "@app/i18n"
 
 const actionCable = vi.hoisted(() => {
   const createSubscription = vi.fn(() => ({ perform: vi.fn(), unsubscribe: vi.fn() }))
@@ -270,6 +271,22 @@ describe("TerminalRoute", () => {
 
     expect(screen.getByRole("menuitem", { name: /Scratch on beta/ })).toBeInTheDocument()
     expect(screen.queryByRole("menuitem", { name: /WF-1 - Failed checkout/ })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["en", "Search workspaces", "Search workspaces, chats, workers", "No workspace matches"],
+    ["de", "Workspaces suchen", "Workspaces, Chats, Worker suchen", "Keine passenden Workspaces"],
+    ["la", "Spatia operis quaerere", "Spatia operis, sermones, operarios quaerere", "Nulla spatia operis congruunt"]
+  ])("resolves terminal picker keys in %s", async (locale, label, placeholder, emptyCopy) => {
+    await i18n.changeLanguage(locale)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({ workspaces: [] })))
+
+    renderTerminalRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "+" }))
+
+    expect(screen.getByRole("searchbox", { name: label })).toHaveAttribute("placeholder", placeholder)
+    expect(screen.getByText(emptyCopy)).toBeInTheDocument()
+    await i18n.changeLanguage("en")
   })
 
   it("can find stale workflow candidates through search without showing them by default", async () => {
