@@ -37,6 +37,8 @@ import unapproveJobCard from "./unapprove_job"
 import { examples as unapproveJobExamples } from "./unapprove_job"
 import removeJobFromEpicCard from "./remove_job_from_epic"
 import { examples as removeJobFromEpicExamples } from "./remove_job_from_epic"
+import assignJobToEpicCard from "./assign_job_to_epic"
+import { examples as assignJobToEpicExamples } from "./assign_job_to_epic"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -81,13 +83,14 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["add_job_dependency", addJobDependencyCard],
   ["remove_job_dependency", removeJobDependencyCard],
   ["unapprove_job", unapproveJobCard],
-  ["remove_job_from_epic", removeJobFromEpicCard]
+  ["remove_job_from_epic", removeJobFromEpicCard],
+  ["assign_job_to_epic", assignJobToEpicCard]
 ]
 
 describe("Job and Epic maintenance tool cards", () => {
   it("registers under the exact MCP tool names", () => {
-    expect(CARDS).toHaveLength(18)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(18)
+    expect(CARDS).toHaveLength(19)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(19)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
@@ -1024,6 +1027,36 @@ describe("Job and Epic maintenance tool cards", () => {
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("Error: job must currently belong to an epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-72" })).toHaveAttribute("href", "/jobs/72")
+  })
+
+  it.each([
+    ["content text", { content: [{ type: "text", text: JSON.stringify(assignJobToEpicExamples[0].parsedResult) }] }],
+    ["structured content", { structured_content: assignJobToEpicExamples[0].parsedResult }]
+  ] as const)("renders the assigned Epic and title from a normalized %s envelope", (_label, envelope) => {
+    const example = assignJobToEpicExamples[0]
+    const ctx = toolCardContextForExample(normalizedToolName("mcp__syrus-chat-sidecar__assign_job_to_epic"), {
+      ...example,
+      parsedResult: normalizedToolCardParsedResult(envelope)
+    })
+
+    expect(assignJobToEpicCard.collapsedSummary?.(ctx)).toBe("Assigned to Epic · JOB-74")
+    render(<>{assignJobToEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByRole("link", { name: "JOB-74" })).toHaveAttribute("href", "/jobs/74")
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-75" })).toHaveAttribute("href", "/epics/75")
+    expect(screen.getByText("Tool card polish")).toBeInTheDocument()
+  })
+
+  it("renders an assignment error with linked Job and Epic input context", () => {
+    const ctx = toolCardContextForExample("assign_job_to_epic", assignJobToEpicExamples[1])
+
+    expect(assignJobToEpicCard.collapsedSummary?.(ctx)).toBe("Assign Job To Epic failed · JOB-74")
+    render(<>{assignJobToEpicCard.renderExpanded(ctx)}</>)
+
+    expect(screen.getByText("Error: epic must not be archived")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-74" })).toHaveAttribute("href", "/jobs/74")
+    expect(screen.getByRole("link", { name: "EPIC-76" })).toHaveAttribute("href", "/epics/76")
   })
 
   it("renders normalized close-success details and expandable Markdown comments", () => {
