@@ -346,6 +346,7 @@ module Steps
           "status" => result.ran ? "completed" : "unavailable",
           "inherited" => result.inherited,
           "reason" => result.reason,
+          "method" => result.method,
           "command" => result.command,
           "base_sha" => base_sha,
           "base_failed_identities" => result.base_failed_identities,
