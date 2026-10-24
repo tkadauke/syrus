@@ -21,7 +21,10 @@ RSpec.describe "Operator briefing frontend locales", type: :unit do
     expect(latin).to include(
       "settings_description" => "Frequentia: {{cadence}}. Praeferentiae fontium hic apparebunt cum configurari poterunt.",
       "budget_gate_unenforced" => "Examina sumptuum activa sunt, sed tutela sumptuum nunc non exigitur ({{reason}}).",
-      "view_job" => "Job vide"
+      "view_job" => "Job vide",
+      "subscribed_count" => "Numerus repositoriorum activorum: {{count}}",
+      "source_preferences_count" => "Numerus fontium activorum: {{count}}",
+      "topic_revision_count" => "Numerus recensionum: {{count}}"
     )
 
     english.each_key do |key|
