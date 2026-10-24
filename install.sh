@@ -456,10 +456,9 @@ run_docker() {
         -e "s|^SYRUS_APP_HOST=.*|SYRUS_APP_HOST=localhost:$PORT_OVERRIDE|" \
         .env > .env.tmp && mv .env.tmp .env && chmod 600 .env
     fi
-    # Seed repository polling paused on a test stack so it does not race
-    # production to file Jobs. The backend reads this only when it first
-    # creates its AppSetting row; the operator can unpause from the admin
-    # console afterwards (see AppSetting.current).
+    # Honor the operator's explicit first-install opt-out. The backend reads
+    # this only when it first creates its AppSetting row; later polling state
+    # changes belong to the admin console (see AppSetting.current).
     if [ "$PAUSE_POLLING" = "1" ] && ! grep -qE '^SYRUS_BOOT_POLLING_PAUSED=' .env; then
       printf 'SYRUS_BOOT_POLLING_PAUSED=1\n' >> .env
     fi
