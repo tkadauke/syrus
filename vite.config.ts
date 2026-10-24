@@ -74,7 +74,9 @@ export default defineConfig(({ mode }) => {
         "plugins/*/app/frontend/**/*.test.{ts,tsx}",
         "desktop/src/**/*.test.{ts,tsx}",
         "eslint-rules/**/*.test.js",
-        "website/lib/**/*.test.ts"
+        // Other website tests use Node's built-in runner via test:locales;
+        // Vitest cannot bundle their node:test imports into jsdom.
+        "website/lib/plugins.test.ts"
       ],
       // Desktop component tests would otherwise resolve react from
       // desktop/node_modules while @testing-library/react uses the root copy —
