@@ -451,17 +451,7 @@ export function truncateLines(text: string, maxLines: number): LinePreview {
   return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
 }
 
-export function LargeTextPreview({
-  emptyLabel,
-  label,
-  maxLines = 40,
-  text
-}: {
-  emptyLabel?: string
-  label: string
-  maxLines?: number
-  text: string | null
-}) {
+export function LargeTextPreview({ emptyLabel, label, maxLines = 40, text }: { emptyLabel?: string; label: string; maxLines?: number; text: string | null }) {
   const { t } = useT("chat")
   return (
     <Disclosure label={label}>

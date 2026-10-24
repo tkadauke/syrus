@@ -21,18 +21,7 @@ export type ToolErrorCardModel = {
   rawDetails: unknown
 }
 
-const READ_ONLY_TOOL_PATTERNS = [
-  /^list_/,
-  /^read_/,
-  /^search_/,
-  /^get_/,
-  /^inspect_/,
-  /^explain_/,
-  /^resolve_/,
-  /^check_/,
-  /^git_status$/,
-  /^git_diff$/
-]
+const READ_ONLY_TOOL_PATTERNS = [/^list_/, /^read_/, /^search_/, /^get_/, /^inspect_/, /^explain_/, /^resolve_/, /^check_/, /^git_status$/, /^git_diff$/]
 
 const HIGH_RISK_TOOL_PATTERNS = [
   /^delete_/,
@@ -194,7 +183,9 @@ export function ToolErrorCard({ call }: { call: ToolCall }) {
         <div>
           <SectionLabel>{t("shared.affected_entities")}</SectionLabel>
           <div className="mt-1 flex flex-wrap gap-1">
-            {model.affectedEntityIds.map((id) => <Badge key={id}>{id}</Badge>)}
+            {model.affectedEntityIds.map((id) => (
+              <Badge key={id}>{id}</Badge>
+            ))}
           </div>
         </div>
       ) : null}
@@ -292,7 +283,10 @@ function addEntityId(seen: Set<string>, label: string, value: unknown) {
 function entityLabelFor(path: string[]): string | null {
   const key = path.at(-1)?.toLowerCase() || ""
   const parent = path.at(-2)?.toLowerCase() || ""
-  const normalizedKey = key.replace(/^target_/, "").replace(/_ids?$/, "").replace(/_number$/, "")
+  const normalizedKey = key
+    .replace(/^target_/, "")
+    .replace(/_ids?$/, "")
+    .replace(/_number$/, "")
   const normalizedParent = parent.replace(/s$/, "")
 
   if (ENTITY_KEY_HINTS.has(key)) return normalizedKey || key
