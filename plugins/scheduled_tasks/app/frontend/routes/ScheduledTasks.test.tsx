@@ -78,12 +78,14 @@ function renderRoute(payload: ReturnType<typeof taskDetail> = taskDetail()) {
   )
 }
 
-function renderIndexRoute(payload = {
-  active_tasks: [scheduledTaskRow()],
-  fired_one_shots: [],
-  archived_tasks: [],
-  options: taskDetail().options
-}) {
+function renderIndexRoute(
+  payload = {
+    active_tasks: [scheduledTaskRow()],
+    fired_one_shots: [],
+    archived_tasks: [],
+    options: taskDetail().options
+  }
+) {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -311,7 +313,11 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
     payload.options.auto_approve_modes = [
       { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
       { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
-      { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
+      {
+        value: "if_graders_pass_and_tagged_safe",
+        label: "If graders pass and tagged safe",
+        preview: "Jobs using this rule also need the safe tag before landing."
+      }
     ]
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
 
@@ -439,12 +445,16 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
         )
       }
       if (url === "/api/v1/app/repositories/1/scheduled_tasks/new?preset=scheduled_coverage") {
-        return Promise.resolve(jsonResponse(newFormPayload({
-          name: "Increase test coverage",
-          prompt: "Find under-tested files in {{repo_slug}}.",
-          cron_expression: "0 9 * * 5",
-          schedule_input: "0 9 * * 5"
-        })))
+        return Promise.resolve(
+          jsonResponse(
+            newFormPayload({
+              name: "Increase test coverage",
+              prompt: "Find under-tested files in {{repo_slug}}.",
+              cron_expression: "0 9 * * 5",
+              schedule_input: "0 9 * * 5"
+            })
+          )
+        )
       }
       return Promise.reject(new Error(`unexpected fetch ${url}`))
     })

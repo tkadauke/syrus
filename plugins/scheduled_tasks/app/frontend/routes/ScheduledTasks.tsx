@@ -262,7 +262,21 @@ function RepositoryPicker({
   )
 }
 
-function TaskSection({ title, tasks, empty, basePath, prefix, storageKey }: { title: string; tasks: ScheduledTaskRow[]; empty: string; basePath: string; prefix: string; storageKey: string }) {
+function TaskSection({
+  title,
+  tasks,
+  empty,
+  basePath,
+  prefix,
+  storageKey
+}: {
+  title: string
+  tasks: ScheduledTaskRow[]
+  empty: string
+  basePath: string
+  prefix: string
+  storageKey: string
+}) {
   const { t } = useT("settings")
   const columns = taskColumns({ basePath, prefix, t })
 
@@ -324,7 +338,13 @@ function taskColumns({
       sort: "repository",
       sortValue: (task) => task.repository.slug
     },
-    { key: "schedule", header: t("scheduled_tasks.schedule"), render: (task) => task.schedule_label || t("scheduled_tasks.none"), sort: "schedule", sortValue: (task) => task.schedule_label || "" },
+    {
+      key: "schedule",
+      header: t("scheduled_tasks.schedule"),
+      render: (task) => task.schedule_label || t("scheduled_tasks.none"),
+      sort: "schedule",
+      sortValue: (task) => task.schedule_label || ""
+    },
     { key: "state", header: t("scheduled_tasks.state"), render: (task) => <StatePill state={task.state} />, sort: "state", sortValue: (task) => task.state },
     {
       key: "last_fired_at",
