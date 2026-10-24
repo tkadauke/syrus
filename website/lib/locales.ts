@@ -25,26 +25,6 @@ export class LocalePublication {
 
 export const localePublication = new LocalePublication(publishedLocales);
 
-export class LocalePublication {
-  readonly locales: readonly Locale[];
-  readonly #localeSet: ReadonlySet<Locale>;
-
-  constructor(published: readonly Locale[]) {
-    this.locales = [...published];
-    this.#localeSet = new Set(published);
-  }
-
-  includes(locale: Locale): boolean {
-    return this.#localeSet.has(locale);
-  }
-
-  publishedVariants(candidates: readonly Locale[]): Locale[] {
-    return candidates.filter((locale) => this.includes(locale));
-  }
-}
-
-export const localePublication = new LocalePublication(publishedLocales);
-
 export function isLocale(value: string): value is Locale {
   return locales.some((locale) => locale === value);
 }
