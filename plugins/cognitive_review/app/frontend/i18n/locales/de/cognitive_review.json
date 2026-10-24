@@ -1,22 +1,22 @@
 {
   "actions": {
-    "acknowledge": "Bestatigen",
-    "acknowledging": "Wird bestatigt...",
+    "acknowledge": "Bestätigen",
+    "acknowledging": "Wird bestätigt...",
     "cancel": "Abbrechen",
-    "close_discussion": "Diskussionsprompt schliessen",
+    "close_discussion": "Diskussionsprompt schließen",
     "discuss": "Besprechen",
-    "discussing": "Wird geoffnet...",
+    "discussing": "Wird geöffnet...",
     "discussion_body": "Diskussionsnotiz",
-    "discussion_error": "Diese Diskussion konnte nicht geoffnet werden.",
+    "discussion_error": "Diese Diskussion konnte nicht geöffnet werden.",
     "discussion_prompt": "Erster Prompt",
     "discussion_title": "Review-Notiz besprechen",
     "error": "Diese Review-Notiz konnte nicht aktualisiert werden.",
     "feedback_reply_body": "Antwort",
-    "feedback_reply_hint": "Fugt einen Review-Kommentar-Entwurf fur diese Notiz hinzu. Verwende Feedback senden in der Seitenleiste, um ausgewahlte Kommentare an den Agenten zu senden.",
+    "feedback_reply_hint": "Fügt dieser Notiz einen Review-Kommentar-Entwurf hinzu. Verwende „Feedback senden“ in der Seitenleiste, um ausgewählte Kommentare an den Agenten zu senden.",
     "reply": "Antworten",
-    "save_feedback_reply": "Kommentar hinzufugen",
+    "save_feedback_reply": "Kommentar hinzufügen",
     "saving_feedback_reply": "Wird gespeichert...",
-    "save_discussion": "Diskussion offnen",
+    "save_discussion": "Diskussion öffnen",
     "start_discussion": "Diskussion starten",
     "view_range": "Bereich anzeigen"
   },
@@ -24,9 +24,9 @@
     "agent_authored": "Agentennotiz",
     "confidence": "{{confidence}}% Vertrauen",
     "fallback_title": "Review-Notiz",
-    "handled": "Bestatigt",
-    "legacy_discussion_entries": "Fruhere Diskussionsnotizen",
-    "priority": "Prioritat {{priority}}",
+    "handled": "Bestätigt",
+    "legacy_discussion_entries": "Frühere Diskussionsnotizen",
+    "priority": "Priorität {{priority}}",
     "range": "{{path}} {{side}} Zeilen {{start}}-{{end}}",
     "side": {
       "new": "neu",
@@ -34,21 +34,21 @@
     }
   },
   "panel": {
-    "hidden_count": "{{count}} weitere Notizen sind im Diff verfugbar.",
-    "handled_summary": "{{count}} bestatigte Review-Notiz",
-    "handled_summary_one": "{{count}} bestatigte Review-Notiz",
-    "handled_summary_other": "{{count}} bestatigte Review-Notizen",
-    "mixed_summary": "{{open}} offen, {{handled}} bestatigte Review-Notizen",
-    "rollup_summary": "{{open}} offen, {{handled}} bestatigt ({{acknowledged}} direkt bestatigt, {{discussed}} besprochen, {{user_commented}} kommentiert), {{dismissed}} verworfen.",
+    "hidden_count": "{{count}} weitere Notizen sind im Diff verfügbar.",
+    "handled_summary": "{{count}} bestätigte Review-Notiz",
+    "handled_summary_one": "{{count}} bestätigte Review-Notiz",
+    "handled_summary_other": "{{count}} bestätigte Review-Notizen",
+    "mixed_summary": "{{open}} offen, {{handled}} bestätigte Review-Notizen",
+    "rollup_summary": "{{open}} offen, {{handled}} bestätigt ({{acknowledged}} direkt bestätigt, {{discussed}} besprochen, {{user_commented}} kommentiert), {{dismissed}} verworfen.",
     "summary": "{{count}} offene Review-Notiz",
     "summary_one": "{{count}} offene Review-Notiz",
     "summary_other": "{{count}} offene Review-Notizen",
     "title": "Review-Notizen",
-    "zero_summary": "Fur diese Diff-Version wurde keine PR-Review-Notiz-Schuld markiert."
+    "zero_summary": "Für diese Diff-Version wurden keine ausstehenden Review-Notizen auf PR-Ebene markiert."
   },
   "rollup": {
     "dismissed": "Verworfen",
-    "handled": "Bestatigt",
+    "handled": "Bestätigt",
     "open": "Offen",
     "total": "Markiert"
   }

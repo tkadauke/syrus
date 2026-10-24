@@ -1,5 +1,5 @@
 {
-  "tab_issues": "GitHub Issues",
+  "tab_issues": "Quaestiones GitHub",
   "nav_github_api_usage": "Usus API GitHub",
   "nav_api_usage": "Usus API GitHub",
   "dashboard": {
@@ -43,7 +43,7 @@
     "load_error": "Quaestiones onerari non potuerunt.",
     "folders_heading": "Fasciculi",
     "folders_aria": "Fasciculi quaestionum",
-    "folder_inbox": "Inbox",
+    "folder_inbox": "Receptaculum",
     "folder_delegated": "Delegatum",
     "folder_open": "Apertum",
     "folder_closed": "Clausum",
@@ -54,8 +54,8 @@
     "empty_title": "Nullae quaestiones in {{folder}}",
     "empty_inbox_action": "Quaestiones apertas videre",
     "empty_inbox_description": "Nullae quaestiones apertae delegationem exspectant. Crea aut nota quaestionem cum {{label}} in GitHub, aut utere opere directo ad primum opus.",
-    "empty_delegated_action": "Inbox videre",
-    "empty_delegated_description": "Nulla quaestio aperta adhuc pittacium {{label}} fert. Delegare unam ex fasciculo Inbox.",
+    "empty_delegated_action": "Receptaculum videre",
+    "empty_delegated_description": "Nulla quaestio aperta adhuc pittacium {{label}} fert. Delega unam ex receptaculo.",
     "empty_open_action": "Quaestiones GitHub videre",
     "empty_open_description": "Nullae quaestiones apertae delegandae praesto sunt. Crea aut nota quaestionem cum {{label}}, aut utere opere directo ad primum opus.",
     "empty_closed_action": "Quaestiones apertas ostendere",
