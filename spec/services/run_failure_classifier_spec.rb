@@ -543,6 +543,13 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).to eq("provider_auth_or_config")
   end
 
+  it "still classifies an invalid provider credential as provider auth/config" do
+    run.update!(state: "failed")
+    diagnostic("StandardError", "invalid provider credential")
+
+    expect(classification.classification).to eq("provider_auth_or_config")
+  end
+
   it "classifies a rejected repair-commit push as branch_diverged when the step declared that problem, despite the logged x-access-token URL" do
     run.update!(state: "failed")
     diagnostic(
