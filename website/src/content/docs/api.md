@@ -86,6 +86,20 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
   "https://syrus.example.com/api/v1/admin/terminal_sessions?state=running"
 ```
 
+## Attention Report
+
+When the optional Attention Report plugin is enabled, authenticated app clients
+can request `GET /api/v1/app/insights/attention?window_days=7`. The endpoint
+returns only the signed-in user's deciding, judging, and wasted-attention
+signals. Each inferred rule remains separately named and marked as an estimate;
+agent runtime and queue wait are separate machine-time fields and are never
+added to attention.
+
+The response also includes p50 and p90 active time by page type when core page
+engagement telemetry is enabled. Every percentile includes its cleaned sample
+count, and small samples return `not_enough_data` instead of a number. The
+window defaults to 7 days and is limited to 1–90 days.
+
 ## Throughput Metrics
 
 Authenticated app clients can read the versioned repository snapshot at
