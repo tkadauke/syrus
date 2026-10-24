@@ -50,6 +50,12 @@ Rails.application.configure do
   # Set localhost to be used by links generated in mailer templates.
   config.action_mailer.default_url_options = { host: "localhost", port: 3000 }
 
+  # Preview processes run in development and are reached through an internal
+  # container hostname. Keep Rails host authorization from rejecting the
+  # preview proxy while retaining the development defaults for other hosts.
+  preview_hosts = [ "syrus-preview", "preview", ENV["SYRUS_PREVIEW_INTERNAL_HOST"] ].compact_blank
+  config.hosts.concat(preview_hosts)
+
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 
