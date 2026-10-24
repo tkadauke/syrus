@@ -30,7 +30,7 @@
   "lane_label": "Via {{title}}",
   "readiness_title": "Status systematis attentione opus habet",
   "readiness_description": "Syrus opus non suscipere aut exsequi potest donec haec examina superantur.",
-  "open_settings": "Optiones aperi",
+  "open_operator_console": "Consolam operatoris aperi",
   "optional": "optionale",
   "no_match": "Nulli {{subject}} huic aspectui concordant.",
   "no_dependency_edges": "Nullae necessitudines dependentiae in aspectu praesenti.",
@@ -50,6 +50,7 @@
   "bulk_action_error": "Actio multa defecit.",
   "bulk_action_canceled": "Actio multa post {{completed}} ex {{total}} operibus omissa est.",
   "bulk_action_partial": "Actio multa pro {{succeeded}} ex {{total}} operibus completa est; {{failed}} defecerunt vel omissa sunt.",
+  "bulk_close_success_other": "{{count}} Jobs clausa sunt.",
   "bulk_progress": {
     "retry": "{{completed}} ex {{total}} iterum temptata",
     "release_from_backlog": "{{completed}} ex {{total}} incepta",

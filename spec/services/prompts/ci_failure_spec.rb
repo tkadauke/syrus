@@ -179,6 +179,28 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("Full log: https://github.com/x/y/runs/1")
   end
 
+  it "retains the failing tail when structured error context exceeds the prompt bound" do
+    failing_tail = "AssertionError: expected true to be false"
+    oversized_block = "command header\n#{"x" * (described_class::MAX_ERROR_BLOCK_BYTES + 100)}\n#{failing_tail}"
+
+    out = build(failed_checks: [
+      {
+        name: "react", conclusion: "failure", html_url: "https://github.com/x/y/runs/1",
+        summary: "Tests failed",
+        error_context: {
+          parser: "vitest", error_summary: "Test Files 1 failed",
+          failing_tests: [ "app/frontend/widget.test.tsx" ], error_block: oversized_block
+        }
+      }
+    ]).to_s
+    context = JSON.parse(out.match(/```json\n(?<json>.*?)\n```/m)[:json])
+
+    expect(context["error_block"]).to start_with("...[truncated]\n")
+    expect(context["error_block"]).to include(failing_tail)
+    expect(context["error_block"]).not_to include("command header")
+    expect(context["error_block"].bytesize).to be <= described_class::MAX_ERROR_BLOCK_BYTES + "...[truncated]\n".bytesize
+  end
+
   it "renders mapped target context with concrete repair suggestions" do
     out = build(failed_checks: [
       {

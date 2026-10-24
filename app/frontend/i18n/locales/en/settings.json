@@ -873,6 +873,7 @@
     "check_trust_rebase": "Trust clean rebases (skip re-grading after a conflict-free rebase)",
     "check_distributed_workflow_dag": "Use distributed workflow DAG execution for eligible steps",
     "distributed_workflow_dag_hint": "Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.",
+    "check_ci_repair": "Automatically repair failing pull request CI",
     "check_main_health": "Monitor main branch health",
     "check_main_repair": "Automatically create a fix job when main breaks",
     "check_main_repair_blocks_work": "Pause work when main is broken",

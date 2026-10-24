@@ -31,10 +31,6 @@ outcomes:
   default: success
 success_states:
   upstream_job:
-    - approved
+    - closed
   downstream_job:
     - implemented
-wait_states:
-  downstream_job:
-    - queued
-    - blocked_by_epic

@@ -40,9 +40,12 @@ class ChatShellCommandJob < ApplicationJob
     chat_session = @command_record.chat_session
     executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
 
-    precondition_error = executor.precondition_error(chat_session)
-    if precondition_error
-      finalize!(outcome: "error", output: precondition_error)
+    precondition_error_code = executor.precondition_error_code(chat_session)
+    if precondition_error_code
+      output = I18n.with_locale(@command_record.user.locale) do
+        I18n.t("api.chat_shell_commands.preconditions.#{precondition_error_code}")
+      end
+      finalize!(outcome: "error", output: output)
       return
     end
 

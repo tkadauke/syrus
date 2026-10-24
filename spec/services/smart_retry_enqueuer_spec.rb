@@ -110,7 +110,6 @@ RSpec.describe SmartRetryEnqueuer do
   end
 
   it "wakes the landing queue for approved Epic children with a landing failure" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     jobs = 3.times.map do |index|
       Factories.job_record(

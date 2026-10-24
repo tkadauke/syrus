@@ -1668,8 +1668,7 @@ describe("App", () => {
                 runs_paused: false,
                 signups_open: true,
                 max_job_failures: 3,
-                grade_max_iterations: 2,
-                merge_train_enabled: false
+                grade_max_iterations: 2
               },
               users: [],
               recent_admin_actions: []
@@ -3694,6 +3693,55 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 30000)
 
+  it("reports the total affected count after closing selected jobs one at a time", async () => {
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
+    const bulkBodies: Array<{ job_ids: number[]; bulk_action: string }> = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          jsonResponse(
+            dashboardPayload({
+              subject: "job",
+              view: "list",
+              total: 2,
+              items: [
+                dashboardJobItem({ id: 42, title: "First aqueduct", bulk_actions: { close: true } }),
+                dashboardJobItem({ id: 43, title: "Second aqueduct", bulk_actions: { close: true } })
+              ]
+            })
+          )
+        )
+      }
+      if (path === "/api/v1/app/dashboard/jobs/bulk" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { job_ids: number[]; bulk_action: string }
+        bulkBodies.push(body)
+        return Promise.resolve(
+          jsonResponse({
+            message: "1 job closed.",
+            action: "close",
+            affected_job_ids: body.job_ids,
+            skipped_job_ids: []
+          })
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    fireEvent.click(await screen.findByLabelText("Select First aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Second aqueduct"))
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+
+    expect(await screen.findByText("2 jobs closed.")).toBeInTheDocument()
+    expect(bulkBodies).toEqual([
+      { job_ids: [42], bulk_action: "close" },
+      { job_ids: [43], bulk_action: "close" }
+    ])
+  })
+
   it("reenables bulk job actions after the action succeeds", async () => {
     let resolveBulkAction: ((response: Response) => void) | undefined
     const bulkActionResponse = new Promise<Response>((resolve) => {
@@ -4451,6 +4499,7 @@ describe("App", () => {
     expect(screen.getByText("No Solid Queue worker processes are registered.")).toBeInTheDocument()
     expect(screen.getByText("Start the worker process with bin/jobs and confirm it can connect to the queue database.")).toBeInTheDocument()
     expect(screen.queryByText("GitHub accepted the configured personal access token.")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Operator Console" })).toHaveAttribute("href", "/app-shell/admin/console")
     expectDashboardFetch(
       fetchSpy,
       "/api/v1/app/dashboard?view=list&subject=job",
@@ -8148,8 +8197,7 @@ describe("App", () => {
               runs_paused: true,
               signups_open: true,
               max_job_failures: 3,
-              grade_max_iterations: 2,
-              merge_train_enabled: false
+              grade_max_iterations: 2
             },
             users: [{ id: 1, email_address: "operator@example.com", display_name: "Operator" }],
             recent_admin_actions: [

@@ -604,7 +604,13 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "includes landing_paused in health_blocked_repositories entries" do
-      repo.update!(grader_health: "broken", landing_paused: true)
+      repo.update!(
+        main_branch_health_enabled: true,
+        main_branch_repair_enabled: true,
+        main_branch_repair_blocks_work: true,
+        grader_health: "broken",
+        landing_paused: true
+      )
       other = Factories.repository(user: user, owner: "acme", name: "widgets2")
       other.update!(grader_health: "broken", landing_paused: false)
 
@@ -980,7 +986,6 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "reports a blocked job bundle as waiting behind the active Epic merge train" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
       active_member = Factories.job_record(
@@ -2600,6 +2605,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "moves selected ready Epics to In Progress and reports skipped Epics" do
+      # The first user created is the bootstrap admin, who may act on any Epic.
+      user.update!(global_role: "user")
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
       done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
       other_user = Factories.user
@@ -2735,6 +2742,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "does not expose another user's Epic" do
+      # The first user created is the bootstrap admin, who may act on any Epic.
+      user.update!(global_role: "user")
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
       other_epic = Factories.epic(user: other_user, repository: other_repo)
@@ -2745,6 +2754,50 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:not_found)
       expect(other_epic.reload.auto_approve_mode).to eq("never")
+    end
+  end
+
+  describe "localized responses" do
+    it "returns German dashboard errors while preserving the machine contract" do
+      user.update!(locale: "de")
+
+      post "/api/v1/app/dashboard/jobs/bulk", params: { job_ids: [], bulk_action: "close" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.fetch("error")).to eq(
+        "code" => "validation_failed",
+        "message" => "Wähle mindestens einen Job aus."
+      )
+    end
+
+    it "returns Latin dashboard errors while preserving the machine contract" do
+      user.update!(locale: "la")
+
+      post "/api/v1/app/dashboard/epics/bulk", params: { epic_ids: [], bulk_action: "start" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.fetch("error")).to eq(
+        "code" => "validation_failed",
+        "message" => "Elige saltem unum Epic."
+      )
+    end
+
+    it "returns pluralized German success messages while preserving response fields" do
+      user.update!(locale: "de")
+      first = Factories.job_record(repository: repo, issue_number: 901, state: "queued")
+      second = Factories.job_record(repository: repo, issue_number: 902, state: "queued")
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ first.id, second.id ], bulk_action: "close" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "message" => "2 Jobs geschlossen.",
+        "action" => "close",
+        "affected_job_ids" => contain_exactly(first.id, second.id),
+        "skipped_job_ids" => []
+      )
     end
   end
 end

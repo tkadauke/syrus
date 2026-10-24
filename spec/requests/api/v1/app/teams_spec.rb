@@ -62,6 +62,14 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
+    it "localizes validation errors in German" do
+      owner.update!(locale: "de")
+
+      post "/api/v1/app/teams", params: { team: { name: "" } }, as: :json
+
+      expect(parse_body.dig("error", "message")).to eq("Der Name darf nicht leer sein.")
+    end
+
     it "rejects a duplicate name" do
       Team.create!(name: "Platform")
 

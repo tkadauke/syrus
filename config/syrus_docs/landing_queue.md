@@ -1,6 +1,6 @@
 # Landing Queue
 
-The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or `merge_train` for Epics with merge trains enabled.
+The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or the unconditional `merge_train` path for Epic children.
 
 ## Approval and landing
 
@@ -31,7 +31,7 @@ repository has no active App installation.
 
 Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
-- The Job is part of an Epic with `merge_train_enabled` and siblings aren't yet approved.
+- The Job is part of an Epic and siblings aren't yet approved for their shared merge train.
 - A dependency Job hasn't closed successfully.
 - The repository's main branch health is `broken` and Syrus has paused repository landing for repair.
 

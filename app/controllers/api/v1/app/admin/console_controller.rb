@@ -23,14 +23,6 @@ module Api
             render json: console_payload.unpause_runs(source: "app")
           end
 
-          def enable_merge_train
-            render json: console_payload.enable_merge_train(source: "app")
-          end
-
-          def disable_merge_train
-            render json: console_payload.disable_merge_train(source: "app")
-          end
-
           def clear_github_cache
             render json: console_payload.clear_github_cache(user_id: params[:user_id], source: "app")
           end

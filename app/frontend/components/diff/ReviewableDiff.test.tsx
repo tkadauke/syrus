@@ -1610,6 +1610,79 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("old_token")).not.toBeInTheDocument()
   })
 
+  it("keeps Shiki syntax colors when visible whitespace is enabled", async () => {
+    const highlightedFiles = [
+      {
+        additions: 1,
+        deletions: 0,
+        patch: [
+          "diff --git a/app/models/job.rb b/app/models/job.rb",
+          "--- a/app/models/job.rb",
+          "+++ b/app/models/job.rb",
+          "@@ -1,1 +1,2 @@",
+          " class Job",
+          "+  def call; end"
+        ].join("\n"),
+        path: "app/models/job.rb",
+        status: "modified"
+      }
+    ]
+
+    render(
+      <ReviewableDiff
+        files={highlightedFiles}
+        mode="single-file"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, visible_whitespace: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const codeCell = await waitFor(() => getCodeCellText("··def·call;·end"))
+    expect(Array.from(codeCell.querySelectorAll("[data-diff-highlight-token]")).map((token) => token.textContent)).toEqual(["def", "call", "end"])
+    const addedKeyword = await waitFor(() => {
+      const element = screen.getByText("def")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
+    })
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
+
+  it("keeps Shiki syntax colors in split view when visible whitespace is enabled", async () => {
+    const highlightedFiles = [
+      {
+        additions: 1,
+        deletions: 1,
+        patch: [
+          "diff --git a/app/models/job.rb b/app/models/job.rb",
+          "--- a/app/models/job.rb",
+          "+++ b/app/models/job.rb",
+          "@@ -1,1 +1,1 @@",
+          "-  class OldJob; end",
+          "+  class Job; end"
+        ].join("\n"),
+        path: "app/models/job.rb",
+        status: "modified"
+      }
+    ]
+
+    render(
+      <ReviewableDiff
+        files={highlightedFiles}
+        mode="single-file"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split", visible_whitespace: true }}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    await waitFor(() => expect(getCodeCellText("··class·Job;·end")).toBeInTheDocument())
+    const addedKeyword = await waitFor(() => {
+      const element = within(getCodeCellText("··class·Job;·end")).getByText("class")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
+    })
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
+
   it("shows the plain unavailable placeholder for a patch-less non-image file", () => {
     const binaryFiles = [{ additions: 0, deletions: 0, patch: null, path: "vendor/some.bin", status: "modified" }]
 
@@ -1949,6 +2022,32 @@ describe("hidden-context expansion", () => {
     expect(onLoadFileContext).toHaveBeenCalledTimes(1)
     expect(getCodeCellText("line 4")).toBeInTheDocument()
     expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
+    expect(screen.queryByText("@@ -5,1 +5,2 @@")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines below"))
+    await findCodeCellText("line 10")
+    expect(screen.queryByLabelText("Load 20 more lines below")).not.toBeInTheDocument()
+  })
+
+  it("keeps trailing context reachable in split view after removing an exhausted prefix divider", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    const { container } = render(
+      <ReviewableDiff
+        files={[fileWithHunkAt(5)]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, desktop_view: "split" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines above"))
+
+    await screen.findByLabelText("Load 20 more lines below")
+    expect(container.querySelector("table")).toHaveAttribute("data-review-diff-view", "split")
+    expect(screen.queryByText("@@ -5,1 +5,2 @@")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
   })
 
   it("keeps both hunk context controls in the collapsed mobile gutter", async () => {
@@ -1972,6 +2071,7 @@ describe("hidden-context expansion", () => {
       await findCodeCellText("line 1")
       expect(onLoadFileContext).toHaveBeenCalledTimes(1)
       expect(getCodeCellText("line 4")).toBeInTheDocument()
+      expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")
@@ -2025,12 +2125,11 @@ describe("hidden-context expansion", () => {
       "between 3",
       "between 4",
       "between 5",
-      "@@ -6,1 +6,1 @@",
       "second"
     ])
   })
 
-  it("places automatically revealed above-hunk context after the next hunk divider", async () => {
+  it("removes the next hunk divider when automatic annotation reveal exhausts the gap", async () => {
     const twoHunkFile = {
       additions: 0,
       deletions: 0,
@@ -2038,7 +2137,11 @@ describe("hidden-context expansion", () => {
       path: "f.rb",
       status: "modified"
     }
-    const onLoadFileContext = vi.fn().mockResolvedValue(["first", "between 2", "between 3", "between 4", "between 5", "second"].join("\n"))
+    const onLoadFileContext = vi
+      .fn()
+      .mockResolvedValue(
+        ["first", "between 2", "between 3", "between 4", "between 5", "second", ...Array.from({ length: 9 }, (_, index) => `after ${index + 7}`)].join("\n")
+      )
 
     render(
       <ReviewableDiff
@@ -2048,16 +2151,25 @@ describe("hidden-context expansion", () => {
         reviewAnnotationRanges={{
           "f.rb": [{ id: "note-near-second-hunk", side: "new", start_line: 6, end_line: 6, title: "Inspect second hunk" }]
         }}
-        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 2 }}
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, context_lines: 4 }}
         showFileHeaders
       />
     )
 
-    await findCodeCellText("between 4")
+    await findCodeCellText("between 2")
     const codeCells = Array.from(screen.getAllByRole("cell"))
       .filter((cell) => cell.className.includes("min-w-[40rem]"))
       .map((cell) => cell.textContent)
-    expect(codeCells.slice(codeCells.indexOf("@@ -6,1 +6,1 @@"), codeCells.indexOf("second") + 1)).toEqual(["@@ -6,1 +6,1 @@", "between 4", "between 5", "second"])
+    expect(codeCells).not.toContain("@@ -6,1 +6,1 @@")
+    expect(codeCells.slice(codeCells.indexOf("first"), codeCells.indexOf("second") + 1)).toEqual([
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "second"
+    ])
+    expect(screen.getByLabelText("Load 4 more lines below")).toBeInTheDocument()
   })
 
   it("reveals hidden context and renders an inline range annotation when a note spans two hunks", async () => {

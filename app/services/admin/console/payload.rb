@@ -34,16 +34,6 @@ module Admin
         update_flag!(runs_paused: false, action: :unpause_runs, source: source)
       end
 
-      def enable_merge_train(source:)
-        require_admin!
-        update_flag!(merge_train_enabled: true, action: :enable_merge_train, source: source)
-      end
-
-      def disable_merge_train(source:)
-        require_admin!
-        update_flag!(merge_train_enabled: false, action: :disable_merge_train, source: source)
-      end
-
       def clear_github_cache(user_id:, source:)
         require_admin!
         pattern, summary = github_cache_scope(user_id)

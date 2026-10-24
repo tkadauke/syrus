@@ -857,7 +857,6 @@ RSpec.describe RetryFailedStepEnqueuer do
       failed_step = Step.create!(workflow: workflow, kind: failed_step_kind, position: 5)
       failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
 
-      AppSetting.current.update!(merge_train_enabled: true)
       allow(StepDispatcher).to receive(:start_workflow) do |new_workflow|
         new_workflow.first_step.runs.create!(
           job: new_workflow.job,
@@ -909,7 +908,6 @@ RSpec.describe RetryFailedStepEnqueuer do
     land_step = Step.create!(workflow: workflow, kind: "merge_train_land", position: 5)
     land_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
 
-    AppSetting.current.update!(merge_train_enabled: true)
     allow(StepDispatcher).to receive(:start_workflow) do |new_workflow|
       new_workflow.first_step.runs.create!(
         job: new_workflow.job,
@@ -1091,7 +1089,6 @@ RSpec.describe RetryFailedStepEnqueuer do
     land_step = Step.create!(workflow: workflow, kind: "merge_train_land", position: 5)
     land_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
 
-    AppSetting.current.update!(merge_train_enabled: true)
 
     result = described_class.call(workflow: workflow)
 

@@ -10,8 +10,8 @@ module ChatShellCommandExecutor
       Feature.local_mode_enabled?
     end
 
-    def precondition_error(chat_session)
-      return DISCONNECTED_ERROR unless daemon_actually_connected?(chat_session)
+    def precondition_error_code(chat_session)
+      return :local_daemon_disconnected unless daemon_actually_connected?(chat_session)
 
       nil
     end

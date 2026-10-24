@@ -121,7 +121,7 @@ module Api
           if disallowed_invocation_param?(context)
             render_error(
               "forbidden",
-              "This Syrus invocation context is scoped to the current run or chat and cannot access that resource.",
+              I18n.t("api.base.invocation_scope_forbidden"),
               status: :forbidden
             )
             return false
@@ -175,7 +175,7 @@ module Api
 
           render_error(
             "forbidden",
-            "This Syrus machine credential is scoped to macOS worker update endpoints.",
+            I18n.t("api.base.machine_credential_forbidden"),
             status: :forbidden
           )
           false
@@ -201,7 +201,7 @@ module Api
         def authorize_job_mutation!(job)
           return true if JobPolicy.new(Current.user, job).write?
 
-          render_error("forbidden", "Only the job owner, a repository member with write access, or an admin can perform this action.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.base.job_mutation_forbidden"), status: :forbidden)
           false
         end
 
@@ -224,7 +224,7 @@ module Api
         def authorize_repository_write!(repository)
           return true if RepositoryPolicy.new(Current.user, repository).write?
 
-          render_error("forbidden", "Only a repository member with write access, or an admin, can perform this action.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.base.repository_write_forbidden"), status: :forbidden)
           false
         end
 
@@ -250,7 +250,7 @@ module Api
         def authorize_repository_admin!(repository)
           return true if RepositoryPolicy.new(Current.user, repository).admin?
 
-          render_error("forbidden", "Only a repository admin can perform this action.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.base.repository_admin_forbidden"), status: :forbidden)
           false
         end
 

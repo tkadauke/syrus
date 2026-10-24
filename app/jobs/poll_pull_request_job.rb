@@ -446,6 +446,10 @@ class PollPullRequestJob < ApplicationJob
     detail = @client.check_runs_detail_for(@slug, head_sha)
     cache_pr_checks_state(head_sha, detail)
     record_target_health_from_ci_checks(head_sha, detail)
+    unless @manual || @job.repository.ci_repair_enabled?
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because repository CI repair is disabled")
+      return
+    end
     return if ci_infrastructure_failure_only?(head_sha, detail)
     return if main_health_broken?
 
@@ -629,7 +633,6 @@ class PollPullRequestJob < ApplicationJob
   def ci_repair_deferred_to_epic_merge_train?
     return false if @manual
     return false if @job.main_branch_repair?
-    return false unless AppSetting.merge_train_enabled?
     return false unless @job.approved? && @job.epic_id.present?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure deferred to Epic merge train")
@@ -800,6 +803,7 @@ class PollPullRequestJob < ApplicationJob
       "base_sha"      => pr_base_sha,
       "failed_checks" => failed_checks
     }
+    artifacts["manual_ci_repair"] = { "source" => "manual_poll", "requested_at" => Time.current.iso8601 } if @manual
     result = WorkUnits::Launcher.create_and_start!(
       kind: "ci_failure",
       job: @job,

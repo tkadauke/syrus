@@ -69,6 +69,49 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "localizes Job validation errors in German without changing the machine contract" do
+    user.update!(locale: "de")
+
+    patch "/api/v1/app/jobs/#{job.id}/priority", params: { priority: "impossible" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_priority")
+    expect(parse_body.dig("error", "message")).to eq("Ungültige Priorität.")
+  end
+
+  it "localizes Job validation errors in Latin without changing the machine contract" do
+    user.update!(locale: "la")
+
+    patch "/api/v1/app/jobs/#{job.id}/provider_setting",
+      params: { job_provider_setting: "impossible" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("invalid_provider_setting")
+    expect(parse_body.dig("error", "message")).to eq("Optio provisoris invalida est.")
+  end
+
+  it "localizes claim errors in German without changing the machine contract" do
+    user.update!(locale: "de")
+    job.update!(claimed_by_user: Factories.user, claimed_at: Time.current)
+
+    post "/api/v1/app/jobs/#{job.id}/claim", as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to eq("Der Job wurde bereits von einem anderen Benutzer übernommen.")
+  end
+
+  it "localizes claim notices in Latin without changing canonical Job fields" do
+    user.update!(locale: "la")
+
+    post "/api/v1/app/jobs/#{job.id}/claim", as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job vindicatum est.")
+    expect(parse_body.dig("job", "id")).to eq(job.id)
+    expect(parse_body.dig("job", "claimed_by_current_user")).to eq(true)
+  end
+
   it "grants a one-shot landing override for the current inherited PR-check blocker" do
     finish_existing_work!(job)
     job.update!(
@@ -747,10 +790,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     # history from 14 workflows, runs and spans to 28 leaves the count at
     # exactly 50, so none of the additions scale with the Job's history. The
     # structural guards below are what catch a real regression anyway: the
-    # command-span load stays batched and never runs per Run.
+    # command-span load stays batched and never runs per Run. The planned
+    # execution override check adds three more fixed reads (Workflow and Run
+    # history columns, latest audit) that likewise do not scale with history.
     expect_performance_budget(
       metrics,
-      max_sql: 52,
+      max_sql: 55,
       max_payload_bytes: 90_000,
       forbidden_sql: [
         /SELECT [`"]?command_spans[`"]?\.\*/i,

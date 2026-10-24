@@ -92,8 +92,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       plugins/team_directory/app/frontend/routes/TeamDirectory.tsx|jsx_text|· ·
       plugins/test_insights/app/frontend/testRunResultsToolCard.tsx|jsx_text|RUN-
       plugins/worker_timeline/app/frontend/components/TimelineLanes.tsx|jsx_text|lastEnd
-      website/src/app/blog/feed.xml/route.ts|jsx_text|$ $
-      website/src/app/blog/feed.xml/route.ts|jsx_text|$/blog
+      website/src/app/(en)/blog/feed.xml/route.ts|jsx_text|$ $
+      website/src/app/(en)/blog/feed.xml/route.ts|jsx_text|$/blog
     LITERALS
   end
 

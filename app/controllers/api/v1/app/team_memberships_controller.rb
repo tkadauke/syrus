@@ -13,23 +13,23 @@ module Api
 
           role = params[:role].to_s
           unless TeamMembership::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{TeamMembership::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.invalid_role", roles: TeamMembership::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           target_user = target_user_from_params
           unless target_user
-            render_error("validation_failed", "No user found with that email.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.user_not_found"), status: :unprocessable_content)
             return
           end
 
           if team.team_memberships.exists?(user_id: target_user.id)
-            render_error("validation_failed", "#{target_user.email_address} is already a member of this team.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.already_member", email: target_user.email_address), status: :unprocessable_content)
             return
           end
 
           team.team_memberships.create!(user: target_user, role: role)
-          render json: team_detail_payload(team.reload).merge(message: "#{target_user.email_address} added as #{role}."), status: :created
+          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.added", email: target_user.email_address, role: role)), status: :created
         end
 
         def update
@@ -40,17 +40,17 @@ module Api
 
           role = params[:role].to_s
           unless TeamMembership::ROLES.include?(role)
-            render_error("validation_failed", "Role must be one of #{TeamMembership::ROLES.join(', ')}.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.invalid_role", roles: TeamMembership::ROLES.join(", ")), status: :unprocessable_content)
             return
           end
 
           if role != "owner" && last_owner?(team, membership)
-            render_error("validation_failed", "Cannot change the role of the last owner — promote another member to owner first.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.change_last_owner"), status: :unprocessable_content)
             return
           end
 
           membership.update!(role: role)
-          render json: team_detail_payload(team.reload).merge(message: "Role updated to #{role}.")
+          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.role_updated", role: role))
         end
 
         def destroy
@@ -60,12 +60,12 @@ module Api
           membership = team.team_memberships.find(params[:id])
 
           if last_owner?(team, membership)
-            render_error("validation_failed", "Cannot remove the last owner — promote another member to owner first.", status: :unprocessable_content)
+            render_error("validation_failed", I18n.t("api.team_memberships.remove_last_owner"), status: :unprocessable_content)
             return
           end
 
           membership.destroy!
-          render json: team_detail_payload(team.reload).merge(message: "Member removed.")
+          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.removed"))
         end
 
         private
@@ -77,7 +77,7 @@ module Api
         def authorize_team_mutation!(team)
           return true if TeamPolicy.new(Current.user, team).write?
 
-          render_error("forbidden", "Only a team owner or an admin can perform this action.", status: :forbidden)
+          render_error("forbidden", I18n.t("api.teams.owner_forbidden"), status: :forbidden)
           false
         end
 

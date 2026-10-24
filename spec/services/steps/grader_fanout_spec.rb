@@ -60,6 +60,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
     allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return("")
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
+    # Nested .syrus.yml discovery asks git which candidate directories are ignored.
+    allow(@git).to receive(:run).with("check-ignore", "--stdin", "-z", chdir: anything, stdin_data: anything).and_return("")
     allow(GithubAuthenticatedGit).to receive(:run) { |**_, &block| block.call("file://remote") }
     allow(@git).to receive(:run)
       .with("ls-remote", "file://remote", anything, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
@@ -1567,6 +1569,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       grade:
         - name: rspec
           run: bin/rspec
+          metadata:
+            ci_checks: [react]
     YAML
     health = record_target_health("//:grade/rspec", status: "passed")
 
@@ -1577,6 +1581,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       include(
         "name" => "rspec",
         "target_label" => "//:grade/rspec",
+        "ci_checks" => [ "react" ],
         "target_health_record_id" => health.id,
         "commit_sha" => "previous123"
       )
@@ -2238,6 +2243,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
               run: bin/rspec
             - name: lint
               run: bin/rubocop
+              metadata:
+                ci_checks: [react]
       YAML
 
       handler.call
@@ -2257,7 +2264,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         include("name" => "tests")
       )
       expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
-        include("name" => "lint", "reason" => "passed before infrastructure-only retry")
+        include("name" => "lint", "ci_checks" => [ "react" ], "reason" => "passed before infrastructure-only retry")
       )
     end
 

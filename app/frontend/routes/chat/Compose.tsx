@@ -765,7 +765,7 @@ export function Compose({
   // rule locally so a second submission never leaves the composer.
   function submitShellCommand() {
     if (shellCommandRunning || runShellCommand.isPending) {
-      onNotice("A shell command is already running for this chat.")
+      onNotice(t("shell_command_in_flight"))
       return
     }
     const command = bangCommandText(text)?.trim()

@@ -59,6 +59,17 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
+  it "allows the e2e grader to dismiss failures inherited from the base revision" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    grader = config.grade.steps.find { |step| step.name == "e2e" }
+
+    expect(grader).to have_attributes(
+      phases: [ "ci" ],
+      failures: "allow_inherited",
+      base_retry: SyrusYml::BaseRetry.new(strategy: "full_command", command: nil)
+    )
+  end
+
   it "enforces the Whisper gateway tests with ffmpeg available" do
     grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "whisper-gateway-tests" }
 

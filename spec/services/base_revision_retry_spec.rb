@@ -174,6 +174,49 @@ RSpec.describe BaseRevisionRetry do
     expect(result.base_failed_identities).to eq([ "spec/models/widget_spec.rb\0Widget fails" ])
   end
 
+  it "reuses failed cases from the same grader in a main-grader run at the base SHA" do
+    main_job = Factories.job_record(repository: job.repository, kind: "main_grader", issue_number: nil)
+    main_workflow = Workflow.create!(job: main_job, trigger_kind: "main_grader", state: "running")
+    main_step = Step.create!(
+      workflow: main_workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: { "name" => "rspec", "command" => "bin/rspec-fast" }
+    )
+    main_run = main_step.runs.create!(job: main_job, trigger_kind: "main_grader", state: "failed")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: main_job,
+      workflow: main_workflow,
+      step: main_step,
+      run: main_run,
+      commit_sha: "main123",
+      grader_fingerprint: "fingerprint",
+      grader_name: "rspec",
+      status: "failed",
+      checked_at: Time.current
+    )
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(main_run, "rspec").and_return(failed_cases)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_raise("focused retry must not run")
+
+    result = described_class.call(
+      workflow: workflow,
+      grader_step: grader_step,
+      base_sha: "main123",
+      failed_cases: failed_cases,
+      log: ->(_message) { }
+    )
+
+    expect(result).to have_attributes(
+      ran: true,
+      inherited: true,
+      reason: "base_retry_main_grader_failed_cases_match",
+      method: "main_grader_result",
+      command: nil
+    )
+  end
+
   # A focused retry that never finishes used to be reported as
   # base_retry_output_not_parseable, which names a grader-configuration problem
   # and sent the diagnosis in the wrong direction: the retry installs

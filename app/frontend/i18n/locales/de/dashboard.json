@@ -30,7 +30,7 @@
   "lane_label": "{{title}}-Spalte",
   "readiness_title": "Systemstatus benötigt Aufmerksamkeit",
   "readiness_description": "Syrus kann möglicherweise keine Arbeit aufnehmen oder ausführen, bis diese Prüfungen bestanden sind.",
-  "open_settings": "Einstellungen öffnen",
+  "open_operator_console": "Operator-Konsole öffnen",
   "optional": "optional",
   "no_match": "Keine {{subject}} entsprechen dieser Ansicht.",
   "no_dependency_edges": "Keine Abhängigkeitsbeziehungen in der aktuellen Ansicht.",
@@ -50,6 +50,7 @@
   "bulk_action_error": "Massenoperation fehlgeschlagen.",
   "bulk_action_canceled": "Massenoperation nach {{completed}} von {{total}} Aufgaben abgebrochen.",
   "bulk_action_partial": "Massenoperation für {{succeeded}} von {{total}} Aufgaben abgeschlossen; {{failed}} fehlgeschlagen oder übersprungen.",
+  "bulk_close_success_other": "{{count}} Jobs geschlossen.",
   "bulk_progress": {
     "retry": "{{completed}} von {{total}} wiederholt",
     "release_from_backlog": "{{completed}} von {{total}} gestartet",

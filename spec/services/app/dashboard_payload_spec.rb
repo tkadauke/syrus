@@ -1003,7 +1003,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports a merge-train start blocker as a blocked reason" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
       tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
@@ -1028,7 +1027,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports a member-owned merge-train blocker without relying on workflow artifacts" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
       tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
@@ -1073,7 +1071,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports ordinary Epic merge-train participation as neutral queue status" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
@@ -1111,7 +1108,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "sorts landing queue rows by queue entry position when Queue is ascending" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
       older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
@@ -1138,7 +1134,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reverses queue entry position when Queue is descending" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
       older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
@@ -1352,7 +1347,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "does not count ordinary Epic merge-train waits as blocked" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
@@ -2325,6 +2319,47 @@ RSpec.describe App::DashboardPayload, :ci_only do
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
       expect(item.fetch(:bulk_actions)).to include(retry: true)
+    end
+  end
+
+  describe "localized presentation copy" do
+    it "localizes German enum and serializer labels without changing their raw values" do
+      direct_job = Factories.job_record(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: nil
+      )
+      teammate = Factories.user
+      RepositoryMembership.create!(repository: repo, user: teammate, role: "write")
+      epic = Factories.epic(user: user, repository: repo, state: "ready", owner: nil, owner_user: nil)
+
+      chrome = I18n.with_locale(:de) { call(subject: "job", section: "chrome") }
+      rows = I18n.with_locale(:de) { call(subject: "job", section: "rows") }
+      epic_rows = I18n.with_locale(:de) { call(subject: "epic", section: "rows", ownership_scope: "team") }
+
+      expect(chrome.dig(:controls, :priorities)).to include(value: "urgent", label: "Dringend")
+      expect(chrome.dig(:controls, :ownership_scopes)).to include(value: "claimable", label: "Übernehmbar")
+      expect(chrome.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
+      expect(chrome.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
+
+      direct_row = rows.fetch(:items).find { |row| row.fetch(:id) == direct_job.id }
+      expect(direct_row).to include(kind: "direct", title: "Direkt")
+
+      epic_row = epic_rows.fetch(:items).find { |row| row.fetch(:id) == epic.id }
+      expect(epic_row.dig(:owner_badge, :kind)).to eq("claimable")
+      expect(epic_row.dig(:owner_badge, :label)).to eq("Übernehmbar")
+    end
+
+    it "localizes Latin presentation labels while preserving domain nouns and raw keys" do
+      result = I18n.with_locale(:la) { call(subject: "workflow", section: "chrome") }
+
+      expect(result.dig(:controls, :priorities)).to include(value: "medium", label: "Media")
+      expect(result.dig(:controls, :ownership_scopes)).to include(value: "mine", label: "Mea")
+      expect(result.dig(:controls, :columns, :required)).to include(key: "workflow", title: "Workflow")
+      expect(result.dig(:controls, :columns, :optional)).to include(key: "run_count", title: "Run")
+      expect(result.dig(:controls, :kanban_lanes)).to include(key: "done", title: "Perfectum")
     end
   end
 end

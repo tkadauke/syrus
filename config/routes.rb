@@ -444,8 +444,6 @@ Rails.application.routes.draw do
           post "console/unpause_polling", to: "console#unpause_polling"
           post "console/pause_runs", to: "console#pause_runs"
           post "console/unpause_runs", to: "console#unpause_runs"
-          post "console/enable_merge_train", to: "console#enable_merge_train"
-          post "console/disable_merge_train", to: "console#disable_merge_train"
           post "console/clear_github_cache", to: "console#clear_github_cache"
           post "restart", to: "restart#create"
           get "installations", to: "installations#index"
@@ -538,8 +536,6 @@ Rails.application.routes.draw do
         post "console/unpause_polling", to: "console#unpause_polling"
         post "console/pause_runs",      to: "console#pause_runs"
         post "console/unpause_runs",    to: "console#unpause_runs"
-        post "console/enable_merge_train",  to: "console#enable_merge_train"
-        post "console/disable_merge_train", to: "console#disable_merge_train"
 
         # Poison-pill restart — writes a Rails.cache timestamp that every
         # web/worker process independently polls for (see RestartWatcher).

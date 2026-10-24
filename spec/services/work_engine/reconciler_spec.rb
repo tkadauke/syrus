@@ -2347,6 +2347,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     child.repository.update!(risk_profile: "production")
     child.repository.update!(
       main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: true,
       ci_health: "broken",
       grader_health: "broken",
       landing_paused: true
@@ -4754,6 +4755,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
         trigger_kind: workflow.trigger_kind,
         agent_provider: workflow.agent_provider,
         state: "failed",
+        # Created before `run`: the newest Run controls a failed Step.
+        created_at: run.created_at - (Run::WORKER_DIED_STEP_MAX_RETRIES - index).hours,
         finished_at: (Run::WORKER_DIED_STEP_MAX_RETRIES - index).hours.ago
       )
       RunFailureClassification.create!(
@@ -5226,7 +5229,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "classifies main-health start blocks with the matching wait-only action" do
     run.destroy!
-    job.repository.update!(ci_health: "broken", landing_paused: true)
+    job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", landing_paused: true)
     workflow.update_columns(
       state: "queued",
       artifacts: {
@@ -5456,7 +5459,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not classify implemented jobs with main-health-blocked follow-up workflows as state drift" do
-    job.repository.update!(ci_health: "broken", grader_health: "healthy", landing_paused: true)
+    job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", grader_health: "healthy", landing_paused: true)
     workflow.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
     step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
     run.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
@@ -5533,7 +5536,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not auto-defer a landing merge-train member owned by a sibling workflow" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     first = Factories.job_record(
       user: job.user,
@@ -5695,7 +5697,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       recommended_repair_action: "wait_for_landing_start_block_to_clear"
     )
     expect(issue.evidence).to include(
-      "start_blocked_reason" => "admission_control",
+      "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
       "work_unit_blocked_reason" => "admission_control",
       "start_blocked_details" => include("start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON),
       "landing_queue_entry" => include("position" => 1, "blocked_reason" => nil)
@@ -5716,7 +5718,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "releases a main-health-blocked landing slot when a fix-main Job is ready" do
     repository = job.repository
-    repository.update!(auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
+    repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
     landing_job = Factories.job_record(
       user: job.user,
       repository: repository,
@@ -5761,7 +5763,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       recommended_repair_action: "release_landing_slot_for_main_repair"
     )
     expect(issue.evidence).to include(
-      "start_blocked_reason" => "main_branch_health",
+      "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
       "start_blocked_details" => { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON },
       "main_repair_job_id" => repair_job.id,
       "main_repair_job_slug" => repair_job.slug
@@ -5775,7 +5777,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "releases a WorkUnit-only main-health-blocked landing slot when a fix-main Job is ready" do
     repository = job.repository
-    repository.update!(auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
+    repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
     landing_job = Factories.job_record(
       user: job.user,
       repository: repository,
@@ -5933,7 +5935,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "clears approved landing-start blockers and wakes the landing queue" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     primary = Factories.job_record(user: job.user, repository: job.repository, epic: epic, state: "approved", issue_number: 1, pr_number: 101, branch_name: "syrus/issue-1")
     blocked = [
@@ -5968,7 +5969,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not clear an Epic landing-start stack blocker while dependencies remain unresolved" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     blocker = Factories.job_record(
       user: job.user,
@@ -6713,7 +6713,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "opens a repeated-failure circuit instead of rebuilding a merge train after identical diagnostics recur" do
     now = Time.zone.parse("2026-09-21 12:18:00 UTC")
-    AppSetting.current.update!(merge_train_enabled: true)
     train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
     MergeTrainMember.create!(merge_train: train, job: job, position: 0)
     job.update_columns(state: "landing")
@@ -6812,6 +6811,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
           trigger_kind: retry_workflow.trigger_kind,
           agent_provider: retry_run.agent_provider,
           state: "failed",
+          # Created before `retry_run`: the newest Run controls a failed Step.
+          created_at: retry_run.created_at - (prior_attempt_count - index).hours,
           finished_at: now - 1.hour
         )
         AutoRetryAttempt.create!(

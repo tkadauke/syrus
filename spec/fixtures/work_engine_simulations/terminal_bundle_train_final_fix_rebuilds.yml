@@ -1,6 +1,4 @@
 name: terminal bundle train final fix rebuilds
-app_settings:
-  merge_train_enabled: true
 features:
   epicless_job_bundling: true
 repository:

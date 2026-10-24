@@ -193,6 +193,70 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "allows a committed CI repair through when its explicitly mapped pass is carried forward and an unrelated grader has an infrastructure failure" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "original123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.set_artifact!(Steps::GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY, [
+      { "name" => "frontend-tests", "target_label" => "//:grade/frontend-tests", "ci_checks" => [ "react" ], "required" => true }
+    ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: {
+        "name" => "e2e", "required" => true, "exit_code" => 1,
+        "base_retry_result" => { "ran" => true, "inherited" => true, "base_sha" => "base123" }
+      }
+    )
+    grader_run = workflow.steps.find_by!(kind: "grader").runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, state: "failed"
+    )
+    grader_run.create_run_failure_classification!(
+      classification: "worker_died",
+      confidence: 0.95,
+      retryable: true,
+      reason: "The grader worker disappeared.",
+      classified_at: Time.current
+    )
+    expect { handler.call }.not_to raise_error
+
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to include(
+      "original_head_sha" => "original123",
+      "mappings" => [ include("check_name" => "react", "grader_names" => [ "frontend-tests" ], "passed" => true) ]
+    )
+    expect(workflow.artifact("ci_repair_advisory_grader_failures").fetch("graders")).to contain_exactly(
+      include("name" => "e2e", "failed_on_base" => true)
+    )
+  end
+
+  it "does not allow a committed CI repair through while its covering grader is still red" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "original123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "react-ci", "ci_checks" => [ "react" ], "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: react-ci")
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to be_nil
+  end
+
+  it "does not allow passing covering graders to bypass failures when there is no commit after the original head" do
+    workflow.update_columns(trigger_kind: "ci_failure")
+    workflow.set_artifact!("head_sha", "abc123")
+    workflow.set_artifact!("failed_checks", [ { "name" => "react" } ])
+    workflow.steps.find_by!(kind: "grader").update!(
+      details: { "name" => "react-ci", "ci_checks" => [ "react" ], "required" => true }
+    )
+    Step.create!(
+      workflow: workflow, kind: "grader", position: 100, iteration: 1, loop_id: loop_id, state: "failed",
+      details: { "name" => "e2e", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: e2e")
+    expect(workflow.reload.artifact("ci_repair_covered_checks")).to be_nil
+  end
+
   it "marks a failed grader iteration that repeats the previous result" do
     workflow.set_artifact!("iterations", [
       [
@@ -899,7 +963,7 @@ RSpec.describe Steps::GraderCollect do
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: true, reason: "base_retry_full_command_failed_different_output",
-        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom"
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom", method: "full_command"
       )
     )
 
@@ -938,7 +1002,7 @@ RSpec.describe Steps::GraderCollect do
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: false, reason: "base_retry_full_command_base_passed",
-        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: ""
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "", method: "full_command"
       )
     )
 

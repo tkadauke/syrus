@@ -190,7 +190,7 @@ while waiting for the operator.
 A second, higher-risk conditional tier reuses the same array-of-ids pattern
 for `force_fail_job`, `mark_ci_repair_noop`, `admin_retry_step`,
 `reconcile_job_state`, `clear_provider_circuit`,
-`repair_provider_circuit_evidence`, `force_rebase`,
+`repair_provider_circuit_evidence`, `force_rebase`, `cancel_stale_work`,
 `admin_pause_user_scheduling`, and `admin_unpause_user_scheduling`. These
 tools already take (or now take) a `reason` param; for a plural-id call that
 `reason` doubles as the shared root-cause justification for the whole batch:
@@ -208,6 +208,15 @@ combined with `job_ids`. The remaining strong-tier-adjacent tools --
 `adopt_current_pr_head`, `manual_agentic_run`, `override_landing_blocker_once`,
 `force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
 intentionally do not wire into this infrastructure and stay single-confirm.
+
+`cancel_stale_work` uses a `targets` array rather than a flat `job_ids` array
+because each of its members can select different `workflow_ids` and `run_ids`.
+Each target contains one distinct `job_id` and its optional selections. The
+array is capped at 100 targets, is mutually exclusive with the single-Job
+arguments, and shares one `reason` and `reconcile` flag. Syrus preflights every
+target before creating anything; one missing or ineligible target rejects the
+whole request. Once confirmed, grouped members execute independently and the
+group reports each member's success or failure.
 
 `wake_provider_admission` prepares a single confirmed repair action after
 provider evidence has recovered. Its pending-action payload and immediate MCP
@@ -647,7 +656,7 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   `Feature.local_mode_enabled?`), the chat being in `coding` or `local` mode,
   a repository attached, the same repository write-tier check Job mutations
   use (`RepositoryPolicy#write?` via `BaseController#authorize_repository_write!`),
-  and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error`)
+  and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error_code`)
   — an active coding checkout for Coding Mode, a daemon that has completed the
   real "connect" handshake for Local Mode (`ChatSession#daemon_connected?`,
   not merely `LocalDaemonSession#connected?`'s row-exists/not-yet-disconnected

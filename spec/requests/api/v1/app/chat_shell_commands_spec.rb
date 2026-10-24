@@ -93,6 +93,21 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
       expect(response).to have_http_status(:not_found)
     end
 
+    it "localizes a missing coding checkout in German without changing the error code" do
+      user.update!(locale: "de")
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding")
+      enable_coding_mode!
+
+      post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+      expect(response).to have_http_status(:not_found)
+      expect(parse_body.fetch("error")).to eq(
+        "code" => "not_found",
+        "message" => "Für diesen Chat gibt es keinen aktiven Coding-Checkout."
+      )
+    end
+
     it "422s when command is blank" do
       sign_in_as(user)
       chat = coding_chat
@@ -230,6 +245,20 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
 
   describe "Local Mode" do
     describe "POST /api/v1/app/chats/:chat_id/shell_commands" do
+      it "localizes a disconnected daemon in Latin without changing the error code" do
+        user.update!(locale: "la")
+        sign_in_as(user)
+        chat = local_chat
+        enable_local_mode!
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+        expect(response).to have_http_status(:not_found)
+        expect(parse_body.fetch("error")).to eq(
+          "code" => "not_found",
+          "message" => "Daemon localis non conexus est. Exsequere `syrus local` in tuo Repository ut pergas."
+        )
+      end
       it "404s when the local_mode feature flag is off" do
         sign_in_as(user)
         chat = local_chat

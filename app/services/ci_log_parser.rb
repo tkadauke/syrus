@@ -1,6 +1,14 @@
 class CiLogParser
   MAX_BLOCK_LINES = 80
+  MAX_BLOCK_BYTES = 12_000
   FALLBACK_CONTEXT_LINES = 40
+
+  ANSI_ESCAPE = /\e(?:\[[0-?]*[ -\/]*[@-~]|\][^\a]*(?:\a|\e\\))/.freeze
+  BENIGN_NOISE = /
+    validateDOMNesting|not\s+wrapped\s+in\s+act\(|
+    the\s+current\s+testing\s+environment\s+is\s+not\s+configured\s+to\s+support\s+act|
+    Not\s+implemented:\s+HTMLCanvasElement
+  /ix
 
   FAILURE_MARKER = /
     failures?:|failed\sexamples?|offenses?:|error:|exception|traceback|
@@ -8,7 +16,7 @@ class CiLogParser
   /ix
 
   def initialize(log, step_name:, full_log_url: nil)
-    @log = log.to_s.delete("\r")
+    @log = sanitize(log.to_s.delete("\r"))
     @step_name = step_name.to_s
     @full_log_url = full_log_url
   end
@@ -21,6 +29,8 @@ class CiLogParser
       parse_rspec(scoped) ||
       parse_minitest(scoped) ||
       parse_rubocop(scoped) ||
+      parse_vitest(scoped) ||
+      parse_playwright(scoped) ||
       parse_js_test(scoped) ||
       parse_typescript(scoped) ||
       parse_generic_error(scoped) ||
@@ -56,14 +66,14 @@ class CiLogParser
     nil
   end
 
-  def base_result(parser:, error_summary:, error_block:, **extra)
+  def base_result(parser:, error_summary:, error_block:, error_block_tail: false, **extra)
     {
       failing_step: @step_name.presence,
       parser: parser,
       error_summary: error_summary.to_s.strip,
       failing_tests: [],
       offenses: [],
-      error_block: trim_block(error_block),
+      error_block: trim_block(error_block, tail: error_block_tail),
       full_log_url: @full_log_url
     }.merge(extra).compact
   end
@@ -81,15 +91,49 @@ class CiLogParser
   end
 
   def parse_rspec(text)
-    return unless text.match?(/^\s*Failures:\s*$/)
+    return unless text.match?(/^\s*Failures:\s*$/) || text.match?(/^\s*Failed examples:\s*$/)
 
-    block = slice_between(text, /^\s*Failures:\s*$/, /^\s*(Finished in|Top \d+ slowest examples|Failed examples:|Randomized with seed)/)
+    block = if text.match?(/^\s*Failures:\s*$/)
+      slice_between(text, /^\s*Failures:\s*$/, /^\s*(Finished in|Top \d+ slowest examples|Failed examples:|Randomized with seed)/)
+    else
+      slice_between(text, /^\s*Failed examples:\s*$/, /^\s*(Randomized with seed)/)
+    end
     tests = block.scan(/^\s+\d+\)\s+(.+?)\s*$/).flatten
     failed_examples = text.scan(/^\s*rspec\s+(.+?)\s+#\s+(.+?)\s*$/).map { |path, name| "#{path} - #{name}" }
     tests = (tests + failed_examples).uniq
     summary = text[/\d+\s+examples?,\s+\d+\s+failures?(?:,\s+\d+\s+pending)?/i] || "#{tests.size} RSpec failure(s)"
 
     base_result(parser: "rspec", error_summary: summary, error_block: block, failing_tests: tests)
+  end
+
+  def parse_vitest(text)
+    return unless text.match?(/^\s*Failed Tests\b/i) ||
+      (text.match?(/\bAssertionError\b/) && text.match?(/Test Files\s+\d+\s+failed/i))
+
+    lines = text.lines
+    start = lines.find_index { |line| line.match?(/^\s*FAIL\s+/) } ||
+      lines.find_index { |line| line.match?(/^\s*(?:[-─]+\s*)?Failed Tests\b/i) } || 0
+    block = lines[start..].join
+    tests = block.scan(/^\s*(?:FAIL|❯)\s+(.+?)\s*$/).flatten.map { |test| test.sub(/\s+\[.*\]\z/, "") }
+    summary = text[/^\s*Test Files\s+\d+\s+failed.*$/i]&.strip ||
+      text[/^\s*Tests\s+\d+\s+failed.*$/i]&.strip ||
+      "#{tests.size} Vitest failure(s)"
+
+    base_result(parser: "vitest", error_summary: summary, error_block: block, failing_tests: tests.uniq)
+  end
+
+  def parse_playwright(text)
+    summary = text.lines.reverse.find { |line| line.match?(/^\s*\d+\s+failed\s*$/i) }
+    return unless summary
+
+    tests = text.scan(/^\s*\d+\)\s+(?:\[[^\]]+\]\s+)?›\s+(.+?\.spec\.[jt]sx?:\d+:\d+\s+›\s+.+?)\s*$/).flatten
+    return if tests.empty?
+
+    start = text.lines.find_index { |line| line.match?(/^\s*\d+\)\s+(?:\[[^\]]+\]\s+)?›/) } || 0
+    base_result(
+      parser: "playwright", error_summary: summary.strip,
+      error_block: text.lines[start..].join, failing_tests: tests.uniq
+    )
   end
 
   def parse_minitest(text)
@@ -132,12 +176,13 @@ class CiLogParser
 
   def parse_generic_error(text)
     lines = text.lines
-    index = lines.find_index { |line| line.match?(/\b(Error|Exception|Traceback|failed with exit code|Process completed with exit code)\b/i) }
+    index = lines.rindex { |line| line.match?(/\b(Error|Exception|Traceback)\b/i) } ||
+      lines.rindex { |line| line.match?(/\b(failed with exit code|Process completed with exit code)\b/i) }
     return unless index
 
-    block = lines[[index - 5, 0].max, FALLBACK_CONTEXT_LINES].join
+    block = lines.last(FALLBACK_CONTEXT_LINES).join
     summary = lines[index].strip.sub(/\A\[[^\]]+\]\s*/, "")
-    base_result(parser: "generic_error", error_summary: summary, error_block: block)
+    base_result(parser: "generic_error", error_summary: summary, error_block: block, error_block_tail: true)
   end
 
   def parse_fallback(text)
@@ -157,10 +202,22 @@ class CiLogParser
     finish ? lines[start, finish + 1].join : lines[start, MAX_BLOCK_LINES].join
   end
 
-  def trim_block(block)
+  def trim_block(block, tail: false)
     lines = block.to_s.lines
-    trimmed = lines.first(MAX_BLOCK_LINES).join.rstrip
-    trimmed += "\n...[truncated]" if lines.length > MAX_BLOCK_LINES
+    truncated = lines.length > MAX_BLOCK_LINES
+    selected = tail ? lines.last(MAX_BLOCK_LINES) : lines.first(MAX_BLOCK_LINES)
+    trimmed = selected.join
+    if trimmed.bytesize > MAX_BLOCK_BYTES
+      trimmed = tail ? trimmed.safe_byteslice(-MAX_BLOCK_BYTES, MAX_BLOCK_BYTES) : trimmed.safe_byteslice(0, MAX_BLOCK_BYTES)
+      truncated = true
+    end
+    trimmed = trimmed.rstrip
+    trimmed = "...[truncated]\n#{trimmed}" if truncated && tail
+    trimmed += "\n...[truncated]" if truncated && !tail
     trimmed
+  end
+
+  def sanitize(log)
+    log.gsub(ANSI_ESCAPE, "").lines.reject { |line| line.match?(BENIGN_NOISE) }.join
   end
 end

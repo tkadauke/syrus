@@ -714,8 +714,7 @@ class LandingQueueProcessor
   end
 
   def merge_train_for_epic_child?(job)
-    AppSetting.merge_train_enabled? &&
-      job.epic_id.present?
+    job.epic_id.present?
   end
 
   # Parallels merge_train_for_epic_child?: once enough same-tier, same-owner

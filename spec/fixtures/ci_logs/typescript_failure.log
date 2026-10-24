@@ -1,0 +1,2 @@
+> tsc --noEmit
+app/frontend/routes/Jobs.tsx(41,12): error TS2322: Type 'string' is not assignable to type 'number'.

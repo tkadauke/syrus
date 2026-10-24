@@ -15,7 +15,7 @@ module Api
           Rails.logger.warn("[Filters::Suggestions] skipped usage recording: #{e.class}: #{e.message}")
           render json: { recorded: false }
         rescue ArgumentError
-          render_error("invalid_filter_usage", "Invalid filter usage request.", status: :bad_request)
+          render_error("invalid_filter_usage", I18n.t("api.filters.invalid_usage"), status: :bad_request)
         end
 
         def suggestions
@@ -29,7 +29,7 @@ module Api
             )
           }
         rescue ArgumentError
-          render_error("invalid_filter_suggestions", "Invalid filter suggestion request.", status: :bad_request)
+          render_error("invalid_filter_suggestions", I18n.t("api.filters.invalid_suggestions"), status: :bad_request)
         end
 
         def fk_options
@@ -38,7 +38,7 @@ module Api
             options: resolver.resolve(field: params[:field], q: params[:q], ids: params[:ids])
           }
         rescue ::Filters::FkOptionsResolver::UnknownField
-          render_error("unknown_field", "Unknown filter field.", status: :bad_request)
+          render_error("unknown_field", I18n.t("api.filters.unknown_field"), status: :bad_request)
         end
 
         private

@@ -26,6 +26,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       land_on_inherited_check_failure: false,
       known_flaky_failure_dismissal_enabled: false,
       known_flaky_failure_min_score: null,
+      ci_repair_enabled: true,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
       main_branch_repair_blocks_work: true,
@@ -64,9 +65,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
         path: "/api/v1/app/repositories/1/input_sources/linear"
       }
     ],
-    auto_approve_modes: [
-      { value: "manual", label: "Manual", preview: "Nothing auto-approves." }
-    ],
+    auto_approve_modes: [{ value: "manual", label: "Manual", preview: "Nothing auto-approves." }],
     repositories_path: "/repositories",
     ...overrides
   }
@@ -94,22 +93,26 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
       return Promise.resolve(jsonResponse(membershipsPayload(membershipsOverrides)))
     }
     if (url === "/api/v1/app/repositories/1/memberships" && method === "POST") {
-      return Promise.resolve(jsonResponse(membershipsPayload({
-        ...membershipsOverrides,
-        memberships: [
-          ...(membershipsOverrides.memberships as unknown[] ?? []),
-          {
-            id: 12,
-            role: "write",
-            agent_provider: null,
-            created_at: "2026-01-03T00:00:00Z",
-            github_permission_mismatch_reason: null,
-            github_permission_mismatch_checked_at: null,
-            user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
-          }
-        ],
-        message: "writer@example.com added as write."
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          membershipsPayload({
+            ...membershipsOverrides,
+            memberships: [
+              ...((membershipsOverrides.memberships as unknown[]) ?? []),
+              {
+                id: 12,
+                role: "write",
+                agent_provider: null,
+                created_at: "2026-01-03T00:00:00Z",
+                github_permission_mismatch_reason: null,
+                github_permission_mismatch_checked_at: null,
+                user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
+              }
+            ],
+            message: "writer@example.com added as write."
+          })
+        )
+      )
     }
     if (url === "/api/v1/app/repositories/owners") {
       return Promise.resolve(jsonResponse({ error: "no_token" }))
@@ -122,36 +125,55 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
     }
     if (url === "/api/v1/app/repositories/1" && method === "PATCH") {
       Object.assign(repositoryOverrides, JSON.parse(String(init?.body)).repository)
-      return Promise.resolve(jsonResponse({
-        message: "Saved.",
-        redirect_to: "/repositories/1",
-        repository: { id: 1 },
-        credential_status: { mode: "app" }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          message: "Saved.",
+          redirect_to: "/repositories/1",
+          repository: { id: 1 },
+          credential_status: { mode: "app" }
+        })
+      )
     }
     if (url === "/api/v1/app/repositories/1/archive" && method === "POST") {
-      return Promise.resolve(jsonResponse({ message: "acme/widgets archived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" }))
+      return Promise.resolve(
+        jsonResponse({ message: "acme/widgets archived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" })
+      )
     }
     if (url === "/api/v1/app/repositories/1/unarchive" && method === "POST") {
-      return Promise.resolve(jsonResponse({ message: "acme/widgets unarchived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" }))
+      return Promise.resolve(
+        jsonResponse({ message: "acme/widgets unarchived.", active_repositories: [], archived_repositories: [], new_repository_path: "/repositories/new" })
+      )
     }
     if (url === "/api/v1/app/repositories/1/input_sources/linear" && method === "PATCH") {
-      return Promise.resolve(jsonResponse({
-        input_source: { id: 5, type: "InputSources::Linear", type_key: "linear", label: "Linear", polling_enabled: false, values: {}, last_poll_started_at: null, issues_ingested_count: 0 },
-        message: "Linear settings saved."
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          input_source: {
+            id: 5,
+            type: "InputSources::Linear",
+            type_key: "linear",
+            label: "Linear",
+            polling_enabled: false,
+            values: {},
+            last_poll_started_at: null,
+            issues_ingested_count: 0
+          },
+          message: "Linear settings saved."
+        })
+      )
     }
     if (url === "/api/v1/app/repositories/1/final_approvers" && method === "GET") {
       return Promise.resolve(jsonResponse({ final_approvers: finalApprovers }))
     }
     if (url === "/api/v1/app/repositories/1/final_approvers" && method === "POST") {
-      return Promise.resolve(jsonResponse({
-        final_approvers: [
-          ...finalApprovers,
-          { id: 99, created_at: "2026-01-01T00:00:00Z", user: { id: 5, name: "New Approver", email_address: "new-approver@example.com" } }
-        ],
-        message: "new-approver@example.com added as final approver."
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          final_approvers: [
+            ...finalApprovers,
+            { id: 99, created_at: "2026-01-01T00:00:00Z", user: { id: 5, name: "New Approver", email_address: "new-approver@example.com" } }
+          ],
+          message: "new-approver@example.com added as final approver."
+        })
+      )
     }
 
     return Promise.resolve(jsonResponse({}))
@@ -229,6 +251,13 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(pause).not.toBeChecked()
   })
 
+  it("shows the repository CI repair toggle", async () => {
+    mockFetch({ ci_repair_enabled: false })
+    renderRoute()
+
+    expect(await screen.findByLabelText("Automatically repair failing pull request CI")).not.toBeChecked()
+  })
+
   it("renders repository setting checkboxes as block-level rows", async () => {
     mockFetch()
     renderRoute()
@@ -244,7 +273,9 @@ describe("RepositoryForm plugin input-source decoupling", () => {
       expect(label).not.toHaveClass("inline-flex")
     }
 
-    expect(screen.getByText("Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Requires the instance-wide distributed workflow feature; eligible graders use immutable checkouts and RunHostAdmission.")
+    ).toBeInTheDocument()
   })
 
   it("associates core repository field labels with controls and help text", async () => {
@@ -417,10 +448,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.click(saveButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1",
-        expect.objectContaining({ method: "PATCH" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1", expect.objectContaining({ method: "PATCH" }))
     })
   })
 
@@ -456,6 +484,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           land_on_inherited_check_failure: true,
           known_flaky_failure_dismissal_enabled: false,
           known_flaky_failure_min_score: null,
+          ci_repair_enabled: true,
           main_branch_health_enabled: false,
           main_branch_repair_enabled: false,
           main_branch_repair_blocks_work: false,
@@ -506,16 +535,10 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.click(linearSaveButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/input_sources/linear",
-        expect.objectContaining({ method: "PATCH" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/input_sources/linear", expect.objectContaining({ method: "PATCH" }))
     })
 
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1",
-      expect.objectContaining({ method: "PATCH" })
-    )
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repositories/1", expect.objectContaining({ method: "PATCH" }))
   })
 
   it("fetches Linear teams with a debounced POST body instead of a query-string key", async () => {
@@ -524,17 +547,11 @@ describe("RepositoryForm plugin input-source decoupling", () => {
 
     await screen.findByRole("heading", { name: "Linear" })
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/input_sources/linear",
-        expect.objectContaining({ credentials: "same-origin" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/input_sources/linear", expect.objectContaining({ credentials: "same-origin" }))
     })
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "lin_api_secret" } })
 
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/app/linear/teams?"),
-      expect.anything()
-    )
+    expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/linear/teams?"), expect.anything())
 
     await new Promise((resolve) => window.setTimeout(resolve, 450))
 
@@ -547,10 +564,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
         })
       )
     })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/app/linear/teams?"),
-      expect.anything()
-    )
+    expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/linear/teams?"), expect.anything())
   })
 
   it("scrolls the auto-merge setting into view when linked to via the #auto-merge hash", async () => {
@@ -608,10 +622,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.click(section.getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/final_approvers",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/final_approvers", expect.objectContaining({ method: "POST" }))
     })
 
     expect(await screen.findByText("new-approver@example.com")).toBeInTheDocument()
@@ -665,10 +676,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
       fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
 
       await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/repositories/1/memberships",
-          expect.objectContaining({ method: "POST" })
-        )
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/memberships", expect.objectContaining({ method: "POST" }))
       })
       expect(await screen.findByText("Writer Person")).toBeInTheDocument()
     })
@@ -714,10 +722,7 @@ describe("RepositoryForm danger zone", () => {
       expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("acme/widgets") }))
     })
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/archive",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/archive", expect.objectContaining({ method: "POST" }))
     })
   })
 
@@ -728,11 +733,10 @@ describe("RepositoryForm danger zone", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Archive" }))
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/archive",
-      expect.objectContaining({ method: "POST" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repositories/1/archive", expect.objectContaining({ method: "POST" }))
   })
 
   it("offers Unarchive instead of Archive once the repository is archived", async () => {
@@ -745,10 +749,7 @@ describe("RepositoryForm danger zone", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unarchive" }))
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/unarchive",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/unarchive", expect.objectContaining({ method: "POST" }))
     })
   })
 })

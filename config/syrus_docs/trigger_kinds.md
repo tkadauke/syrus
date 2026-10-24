@@ -159,15 +159,27 @@ CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
 agent can verify that the GitHub CI failure is actually fixed. If graders fail,
 their output feeds the next `analyze_and_fix` iteration.
 
-If a later `analyze_and_fix` iteration makes no new diff and repeats a prior
-`report_main_concern` diagnosis for the same observed main SHA, failing grader,
-and reason, Syrus records `blocked_by_main`, skips that iteration's pending
-grader check steps, and continues to `summarize_amend`/`push`. That preserves
-any legitimate fixes committed by earlier iterations instead of burning the
-full retry budget against a self-diagnosed pre-existing main failure.
-Other no-diff `analyze_and_fix` iterations fail with
-`agent_outcome: "no_changes_produced"` even when an earlier iteration already
-left a branch diff, because the repair step itself made no progress.
+Repository owners and admins can disable automatic pull-request CI repair in
+repository settings. Polling continues to cache check state for landing gates,
+but it does not dispatch new `ci_failure` workflows; already-queued repairs wait
+with `ci_repair_disabled`. An operator-initiated manual poll or repair overrides
+the setting.
+
+The failed GitHub checks are mapped to their covering graders by explicit
+`ci_checks` metadata, target label, or matching grader/check names. Once every
+covering grader passes and the branch contains commits after the PR head that
+started the workflow, Syrus continues to `summarize_amend`/`push`. Other red
+required CI-phase graders are recorded as advisory evidence, including their
+base-retry result when available, rather than discarding the focused fix.
+
+A later `analyze_and_fix` iteration that makes no new diff also preserves an
+earlier committed fix for grading and push. A no-diff iteration still fails
+with `agent_outcome: "no_changes_produced"` when the branch has no commit after
+the original head. If it repeats a prior `report_main_concern` diagnosis for
+the same observed main SHA, failing grader, and reason, Syrus instead records
+`blocked_by_main`, skips that iteration's pending grader check steps, and
+continues to `summarize_amend`/`push`. This avoids burning the full retry budget
+against a self-diagnosed pre-existing main failure.
 
 `PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
 spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
@@ -275,7 +287,7 @@ a fix.
 
 ## merge_train
 
-**When it fires:** All open child Jobs of an Epic are approved and `AppSetting.merge_train_enabled` is true.
+**When it fires:** All open child Jobs of an Epic are approved.
 
 **Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
 
