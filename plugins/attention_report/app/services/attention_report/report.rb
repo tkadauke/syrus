@@ -41,7 +41,7 @@ module AttentionReport
       proposals = proposal_scope.where(confirmed_at: @from..@to).order(:chat_session_id, :confirmed_at, :id)
       {
         figures: {
-          human_created_jobs: figure(Job.where(owner_user_id: @user.id, kind: HUMAN_JOB_KINDS, created_at: @from..@to).count),
+          human_created_jobs: figure(Job.where(user_id: @user.id, kind: HUMAN_JOB_KINDS, created_at: @from..@to).count),
           messages_before_confirmed_proposals: figure(messages_before(proposals)),
           proposal_edits: figure(proposal_scope.where(edited_at: @from..@to).count),
           proposal_discards: figure(proposal_scope.where(discarded_at: @from..@to).count)
@@ -51,17 +51,32 @@ module AttentionReport
     end
 
     def messages_before(proposals)
-      prior_by_session = {}
-      proposals.sum do |proposal|
-        lower = prior_by_session[proposal.chat_session_id] || proposal.chat_session.created_at
-        prior_by_session[proposal.chat_session_id] = proposal.confirmed_at
-        ChatMessage.where(
-          chat_session_id: proposal.chat_session_id,
-          sender_user_id: @user.id,
-          role: "user",
-          deleted_at: nil,
-          created_at: lower...proposal.confirmed_at
-        ).count
+      grouped_proposals = proposals.to_a.group_by(&:chat_session_id)
+      return 0 if grouped_proposals.empty?
+
+      last_confirmation = grouped_proposals.values.flatten.filter_map(&:confirmed_at).max
+      messages = ChatMessage.where(
+        chat_session_id: grouped_proposals.keys,
+        sender_user_id: @user.id,
+        role: "user",
+        deleted_at: nil,
+        created_at: @from...last_confirmation
+      ).order(:chat_session_id, :created_at, :id).group_by(&:chat_session_id)
+
+      grouped_proposals.sum do |session_id, session_proposals|
+        prior = @from
+        session_messages = Array(messages[session_id])
+        cursor = 0
+        session_proposals.sum do |proposal|
+          cursor += 1 while cursor < session_messages.length && session_messages[cursor].created_at < prior
+          count = 0
+          while cursor < session_messages.length && session_messages[cursor].created_at < proposal.confirmed_at
+            count += 1
+            cursor += 1
+          end
+          prior = proposal.confirmed_at
+          count
+        end
       end
     end
 
@@ -97,7 +112,7 @@ module AttentionReport
           human_retry_rebase_ci_repair_reruns: figure(human_wasted_workflow_count(operator_transitions)),
           landing_blocker_overrides: figure(overrides, estimate: false),
           landing_blocker_rechecks_and_wakes: figure(rechecks),
-          reapproval_after_base_change_unchanged_diff: figure(reapproval_after_rebase_count(operator_transitions))
+          reapproval_after_base_change_unchanged_diff: figure(reapproval_after_unchanged_diff_count)
         },
         estimate: true
       }
@@ -114,16 +129,48 @@ module AttentionReport
       end
     end
 
-    # A rebase rewrites commit identity while preserving the proposed patch.
-    # A second operator approval after such a Workflow is therefore attention
-    # spent re-approving an unchanged diff, even though the base/head SHAs moved.
-    def reapproval_after_rebase_count(operator_transitions)
-      approvals = operator_transitions.where(subject_type: "Job", event_name: "approve").order(:created_at, :id)
+    def reapproval_after_unchanged_diff_count
+      approval_scope = StateTransition.where(
+        user_id: @user.id,
+        source: "operator",
+        subject_type: "Job",
+        event_name: "approve"
+      )
+      job_ids = approval_scope.where(created_at: @from..@to).distinct.pluck(:subject_id)
+      return 0 if job_ids.empty?
+
+      approvals = approval_scope.where(subject_id: job_ids, created_at: ..@to)
+        .order(:subject_id, :created_at, :id).to_a
+      versions = DiffReviewVersion.where(job_id: job_ids, reason: "source_diff", created_at: ..@to)
+        .order(:job_id, :created_at, :id).group_by(&:job_id)
+
       approvals.group_by(&:subject_id).sum do |job_id, transitions|
         transitions.each_cons(2).count do |previous, current|
-          Workflow.where(job_id: job_id, trigger_kind: %w[rebase stack_rebase], created_at: previous.created_at..current.created_at).exists?
+          next false if current.created_at < @from
+
+          previous_version = latest_version_at(versions[job_id], previous.created_at)
+          current_version = latest_version_at(versions[job_id], current.created_at)
+          unchanged_diff_after_base_change?(previous_version, current_version)
         end
       end
+    end
+
+    def latest_version_at(versions, timestamp)
+      Array(versions).reverse_each.find { |version| version.created_at <= timestamp }
+    end
+
+    def unchanged_diff_after_base_change?(previous, current)
+      return false unless previous && current
+      return false if previous.truncated? || current.truncated?
+      return false if previous.files_snapshot.blank? || current.files_snapshot.blank?
+      return false if previous.base_sha == current.base_sha
+
+      canonical_files(previous.files_snapshot) == canonical_files(current.files_snapshot)
+    end
+
+    def canonical_files(files)
+      Array(files).map { |file| file.to_h.stringify_keys.sort.to_h }
+        .sort_by { |file| [ file["path"].to_s, file["status"].to_s ] }
     end
 
     def page_time

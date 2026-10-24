@@ -5,6 +5,22 @@ RSpec.describe AttentionReport::Report do
   let(:other_user) { Factories.user(github_handle: "Grace") }
   let(:repository) { Factories.repository(user: user) }
 
+  def diff_version(job:, index:, base_sha:, head_sha:, patch:, created_at:)
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: index,
+      base_sha: base_sha,
+      head_sha: head_sha,
+      source_key: "attention-report-#{index}",
+      reason: "source_diff",
+      files_snapshot: [
+        { "path" => "app/example.rb", "status" => "modified", "additions" => 1, "deletions" => 1, "patch" => patch }
+      ],
+      metadata: {},
+      created_at: created_at
+    )
+  end
+
   it "classifies explicit deciding, judging, and wasted rules for only the requested user" do
     Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)
     Factories.job_record(user: other_user, repository: Factories.repository(user: other_user), kind: "direct", issue_number: nil)
@@ -27,13 +43,31 @@ RSpec.describe AttentionReport::Report do
     expect(payload.dig(:machine_time, :included_in_attention)).to be(false)
   end
 
-  it "classifies landing rechecks and re-approval after a patch-preserving rebase separately" do
+  it "attributes created Jobs to their creator rather than their current owner" do
+    Factories.job_record(user: user, owner_user: other_user, repository: repository, kind: "direct", issue_number: nil)
+
+    creator_count = described_class.new(user: user, window_days: 7).as_json
+      .dig(:attention, :deciding, :figures, :human_created_jobs, :count)
+    owner_count = described_class.new(user: other_user, window_days: 7).as_json
+      .dig(:attention, :deciding, :figures, :human_created_jobs, :count)
+
+    expect(creator_count).to eq(1)
+    expect(owner_count).to eq(0)
+  end
+
+  it "classifies re-approval only when snapshots prove the base changed and diff stayed unchanged" do
     job = Factories.job_record(user: user, repository: repository)
+    unchanged_patch = "@@ -1 +1 @@\n-old\n+new"
+    diff_version(job: job, index: 1, base_sha: "base-one", head_sha: "head-one", patch: unchanged_patch, created_at: 4.hours.ago)
     first = StateTransition.create!(subject: job, user: user, source: "operator", event_name: "approve",
       from_state: "implemented", to_state: "approved", created_at: 3.hours.ago)
-    Workflow.create!(job: job, user: user, trigger_kind: "rebase", agent_provider: job.agent_provider, created_at: 2.hours.ago)
+    diff_version(job: job, index: 2, base_sha: "base-two", head_sha: "head-two", patch: unchanged_patch, created_at: 2.hours.ago)
     StateTransition.create!(subject: job, user: user, source: "operator", event_name: "approve",
       from_state: "implemented", to_state: "approved", created_at: 1.hour.ago)
+    diff_version(job: job, index: 3, base_sha: "base-three", head_sha: "head-three",
+      patch: "@@ -1 +1 @@\n-old\n+different", created_at: 45.minutes.ago)
+    StateTransition.create!(subject: job, user: user, source: "operator", event_name: "approve",
+      from_state: "implemented", to_state: "approved", created_at: 30.minutes.ago)
     StateTransition.create!(subject: job, user: user, source: "operator", event_name: "recheck",
       from_state: "landing", to_state: "landing", metadata: { "reason_key" => "landing_blocker_recheck" })
 
@@ -56,6 +90,18 @@ RSpec.describe AttentionReport::Report do
 
     expect(first).to be_confirmed
     expect(count).to eq(1)
+  end
+
+  it "does not count pre-window messages before the first in-window proposal" do
+    chat = ChatSession.create!(user: user, repository: repository, created_at: 30.days.ago)
+    ChatMessage.create!(chat_session: chat, sender_user: user, role: "user", content: { "text" => "old" }, created_at: 20.days.ago)
+    ChatProposal.create!(chat_session: chat, repository: repository, slug: "recent", title: "Recent", body: "Body",
+      confirmed_at: 1.hour.ago, state: "confirmed")
+
+    count = described_class.new(user: user, window_days: 7).as_json
+      .dig(:attention, :deciding, :figures, :messages_before_confirmed_proposals, :count)
+
+    expect(count).to eq(0)
   end
 
   it "reports telemetry off distinctly" do
