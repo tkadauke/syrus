@@ -1,7 +1,7 @@
 import { withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { startOnboardingChat } from "../api/chats"
@@ -10,9 +10,8 @@ import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
 import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
-import { fetchRepositoryReadiness, overrideRepositoryReadinessProbe, startRepositoryReadinessProbe } from "../api/repositories"
-import { Surface } from "../components/ui/Surface"
-import { TonePill } from "../components/StatusPill"
+import { fetchRepositoryReadiness } from "../api/repositories"
+import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
 
@@ -40,7 +39,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [openModal, setOpenModal] = useState<ChecklistStep["ctaModal"] | null>(null)
+  const [openModal, setOpenModal] = useState<ChecklistStep["ctaModal"] | "readiness" | null>(null)
   const [startingChat, setStartingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
@@ -112,6 +111,15 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                  {step.key === "repository" && step.complete && readiness.data ? (
+                    <button
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${readinessTriggerClass(readinessTone(readiness.data.readiness.status))}`}
+                      onClick={() => setOpenModal("readiness")}
+                      type="button"
+                    >
+                      {readiness.data.readiness.summary}
+                    </button>
+                  ) : null}
                   {step.complete ? (
                     <span className="rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300">
                       {t("onboarding.complete_badge")}
@@ -150,8 +158,6 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         </ol>
       </section>
 
-      {repositoryId ? <RepositoryReadinessReport loading={readiness.isLoading} repositoryId={repositoryId} report={readiness.data?.readiness} /> : null}
-
       {chatError ? (
         <p
           className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
@@ -177,140 +183,17 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       {openModal === "github_token" ? <GithubTokenModal onClose={() => setOpenModal(null)} /> : null}
       {openModal === "configure_agent" ? <ConfigureAgentModal onClose={() => setOpenModal(null)} /> : null}
       {openModal === "add_repository" ? <AddRepositoryModal onClose={() => setOpenModal(null)} /> : null}
+      {openModal === "readiness" && repositoryId && readiness.data ? (
+        <RepositoryReadinessModal onClose={() => setOpenModal(null)} open repositoryId={repositoryId} report={readiness.data.readiness} />
+      ) : null}
     </main>
   )
 }
 
-function RepositoryReadinessReport({
-  loading,
-  repositoryId,
-  report
-}: {
-  loading: boolean
-  repositoryId: number
-  report?: Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"]
-}) {
-  const { t } = useT("common")
-  const queryClient = useQueryClient()
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["repository-readiness", repositoryId] })
-  const runProbe = useMutation({ mutationFn: () => startRepositoryReadinessProbe(repositoryId), onSuccess: refresh })
-  const overrideProbe = useMutation({ mutationFn: (probeId: number) => overrideRepositoryReadinessProbe(repositoryId, probeId), onSuccess: refresh })
-  if (loading) return <Surface className="text-sm text-text-muted">{t("onboarding.readiness_loading")}</Surface>
-  if (!report) return null
-  const blocked = report.status === "needs_configuration" || report.status === "incompatible"
-  return (
-    <Surface aria-label={t("onboarding.readiness_label")}>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-text-primary">{t("onboarding.readiness_label")}</h2>
-        <TonePill tone={blocked ? "red" : report.status === "ready" ? "green" : "amber"}>{report.summary}</TonePill>
-      </div>
-      <ul className="mt-3 space-y-1 text-sm text-text-secondary">
-        {report.checks.map((check, index) => (
-          <li key={`${check.key}-${index}`}>
-            {check.level === "pass" ? "✓" : check.level === "warning" ? "!" : "×"} {check.message}
-          </li>
-        ))}
-      </ul>
-      <CommandList commands={report.prepare_commands} label={t("onboarding.readiness_prepare")} />
-      <CommandList commands={report.grader_commands} label={t("onboarding.readiness_graders")} />
-      {report.execution_scopes.length > 0 ? (
-        <>
-          <h3 className="mt-3 text-xs font-medium uppercase text-text-muted">{t("onboarding.readiness_workers")}</h3>
-          <ul className="mt-1 space-y-1 text-xs text-text-secondary">
-            {report.execution_scopes.map((scope) => (
-              <li key={scope.key}>
-                {scope.worker_available ? "✓" : "×"} {scope.label}: {formatCapabilities(scope.capabilities)} · {scope.queue_name}
-                {scope.command ? ` · $ ${scope.command}` : ""}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <p className="mt-3 text-xs text-text-muted">{t("onboarding.readiness_advisory")}</p>
-      <div className="mt-4 border-t border-border-subtle pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-text-primary">{t("onboarding.readiness_probe")}</h3>
-          <button
-            className={buttonClasses("secondary", "sm")}
-            disabled={runProbe.isPending || report.execution_probe?.status === "queued" || report.execution_probe?.status === "running"}
-            onClick={() => runProbe.mutate()}
-            type="button"
-          >
-            {report.execution_probe ? t("onboarding.readiness_probe_retry") : t("onboarding.readiness_probe_run")}
-          </button>
-        </div>
-        {report.execution_probe ? (
-          <ExecutionProbe probe={report.execution_probe} onOverride={() => overrideProbe.mutate(report.execution_probe!.id)} />
-        ) : (
-          <p className="mt-1 text-xs text-text-muted">{t("onboarding.readiness_probe_description")}</p>
-        )}
-      </div>
-    </Surface>
-  )
-}
-
-function ExecutionProbe({
-  probe,
-  onOverride
-}: {
-  probe: NonNullable<Awaited<ReturnType<typeof fetchRepositoryReadiness>>["readiness"]["execution_probe"]>
-  onOverride: () => void
-}) {
-  const { t } = useT("common")
-  return (
-    <div className="mt-2 space-y-2 text-xs text-text-secondary">
-      <p>
-        <strong>{probe.status}</strong>
-        {probe.result.summary ? ` — ${probe.result.summary}` : ""}
-      </p>
-      {probe.result.duration_s != null ? (
-        <p>
-          {t("onboarding.readiness_probe_metrics", {
-            duration: probe.result.duration_s,
-            bytes: probe.result.disk_growth_bytes ?? 0,
-            cleanup: probe.result.cleanup
-          })}
-        </p>
-      ) : null}
-      {probe.result.missing_executables?.length ? (
-        <p>{t("onboarding.readiness_probe_missing_executables", { names: probe.result.missing_executables.join(", ") })}</p>
-      ) : null}
-      {probe.result.missing_services?.length ? (
-        <p>{t("onboarding.readiness_probe_missing_services", { names: probe.result.missing_services.join(", ") })}</p>
-      ) : null}
-      {probe.result.commands?.map((command, index) => (
-        <details key={`${command.kind}-${index}`}>
-          <summary>
-            {command.success ? "✓" : "×"} {command.kind}: $ {command.command}
-          </summary>
-          {command.output_tail ? (
-            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-surface-inset p-2">{command.output_tail}</pre>
-          ) : null}
-        </details>
-      ))}
-      {probe.status === "blocked" && !probe.warning_override ? (
-        <button className={buttonClasses("secondary", "sm")} onClick={onOverride} type="button">
-          {t("onboarding.readiness_probe_override")}
-        </button>
-      ) : null}
-    </div>
-  )
-}
-
-function formatCapabilities(capabilities: Record<string, string[]>) {
-  return Object.entries(capabilities)
-    .map(([dimension, values]) => `${dimension}=${values.join("/")}`)
-    .join(", ")
-}
-
-function CommandList({ commands, label }: { commands: string[]; label: string }) {
-  if (commands.length === 0) return null
-  return (
-    <div className="mt-3">
-      <h3 className="text-xs font-medium uppercase text-text-muted">{label}</h3>
-      <pre className="mt-1 overflow-x-auto rounded bg-surface-inset p-3 text-xs text-text-primary">{commands.map((command) => `$ ${command}`).join("\n")}</pre>
-    </div>
-  )
+function readinessTriggerClass(tone: "green" | "amber" | "red") {
+  if (tone === "green") return "bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-950/40 dark:text-green-300"
+  if (tone === "amber") return "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300"
+  return "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300"
 }
 
 function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>): ChecklistStep[] {
