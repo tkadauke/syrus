@@ -60,6 +60,7 @@ export default function AttentionReportRoute() {
 
 function ReportBody({ payload, prefix }: { payload: Awaited<ReturnType<typeof fetchAttentionReport>>; prefix: string }) {
   const { t } = useT("attention_report")
+  const formatDuration = useDurationFormatter()
   const empty =
     Object.values(payload.attention.deciding.figures).every((item) => item.count === 0) &&
     Object.values(payload.attention.judging.figures).every((item) => (item.count ?? item.value_ms) === 0) &&
@@ -115,6 +116,7 @@ function Bucket({
   prefix?: string
 }) {
   const { t } = useT("attention_report")
+  const formatDuration = useDurationFormatter()
   return (
     <Section.Root>
       <SectionHeading>{title}</SectionHeading>
@@ -182,6 +184,7 @@ function PageTime({ pageTime, prefix }: { pageTime: Awaited<ReturnType<typeof fe
 
 function PageStatistic({ pageType, statistic }: { pageType: string; statistic: AttentionPageStatistic }) {
   const { t } = useT("attention_report")
+  const formatDuration = useDurationFormatter()
   return (
     <article className="rounded border border-border bg-surface-subtle p-3">
       <Text className="font-medium">{t(`page_${pageType.replaceAll(".", "_")}`, { defaultValue: pageType })}</Text>
@@ -214,9 +217,12 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
     </div>
   )
 }
-function formatDuration(value?: number) {
-  if (value == null) return "—"
-  if (value < 60_000) return `${Math.round(value / 1000)}s`
-  if (value < 3_600_000) return `${Math.round(value / 60_000)}m`
-  return `${Math.round(value / 360_000) / 10}h`
+function useDurationFormatter() {
+  const { t } = useT("attention_report")
+  return (value?: number) => {
+    if (value == null) return "—"
+    if (value < 60_000) return t("duration_seconds", { count: Math.round(value / 1000) })
+    if (value < 3_600_000) return t("duration_minutes", { count: Math.round(value / 60_000) })
+    return t("duration_hours", { count: Math.round(value / 360_000) / 10 })
+  }
 }
