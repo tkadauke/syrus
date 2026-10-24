@@ -932,6 +932,14 @@ RSpec.describe App::JobSourceDiffPayload do
       )
     end
 
+    it "localizes the fixture version label without changing its machine reason" do
+      allow(Rails.env).to receive(:development?).and_return(true)
+
+      payload = I18n.with_locale(:de) { described_class.build(job: job, user: user) }
+
+      expect(payload[:version]).to include(label: "Vorschau-Testdaten", reason: "diff_fixture")
+    end
+
     it "does not activate outside development even when the fixture column is populated" do
       allow(Rails.env).to receive(:development?).and_return(false)
       stub_repository_diff(repo, base: "main", head: "main", files: [], truncated: false)

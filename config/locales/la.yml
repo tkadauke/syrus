@@ -150,6 +150,9 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    job_source_diff:
+      preview_fixture: "Exemplar praevium"
+
     provider_routing_rules:
       errors:
         reorder_ids_mismatch: "ID regularum omnibus regulis huius ambitus semel exacte congruere debent."

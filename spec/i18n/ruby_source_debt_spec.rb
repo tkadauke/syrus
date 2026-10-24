@@ -25,6 +25,10 @@ RSpec.describe "Ruby source localization debt", type: :unit do
     expect(manifest.keys.sort).to eq(RubyI18nDebtAudit::CATEGORIES.map(&:to_s).sort)
   end
 
+  it "keeps the serializer-label baseline equal to the remaining reviewed debt" do
+    expect(audit.counts.fetch("serializer_label")).to eq(manifest.fetch("serializer_label"))
+  end
+
   it "detects the user-visible Ruby call shapes without counting internal channels" do
     allow(audit).to receive(:serializer_surface?).and_return(true)
 
