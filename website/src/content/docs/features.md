@@ -480,7 +480,7 @@ materialization path and are not individually routed to the Job backlog.
 
 ### Epic reconciliation
 
-When merge trains are enabled, approved child Jobs land atomically only after
+Approved child Jobs always land through a merge train, atomically and only after
 the Epic has released its children and all open siblings are approved. Children
 blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.

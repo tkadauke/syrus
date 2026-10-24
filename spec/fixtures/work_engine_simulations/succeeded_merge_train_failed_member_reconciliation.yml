@@ -1,6 +1,4 @@
 name: succeeded merge train failed member reconciliation
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: succeeded-merge-train-failed-member-reconciliation

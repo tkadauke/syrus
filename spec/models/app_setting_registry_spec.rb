@@ -80,7 +80,6 @@ RSpec.describe AppSettingRegistry do
   it "declares every setting reachable from an admin surface" do
     expect(described_class.admin_settings_keys).to match_array(described_class.admin_editable_keys)
     expect(described_class.admin_console_keys).to contain_exactly(
-      :merge_train_enabled,
       :polling_paused,
       :runs_paused
     )

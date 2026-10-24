@@ -1668,8 +1668,7 @@ describe("App", () => {
                 runs_paused: false,
                 signups_open: true,
                 max_job_failures: 3,
-                grade_max_iterations: 2,
-                merge_train_enabled: false
+                grade_max_iterations: 2
               },
               users: [],
               recent_admin_actions: []
@@ -8198,8 +8197,7 @@ describe("App", () => {
               runs_paused: true,
               signups_open: true,
               max_job_failures: 3,
-              grade_max_iterations: 2,
-              merge_train_enabled: false
+              grade_max_iterations: 2
             },
             users: [{ id: 1, email_address: "operator@example.com", display_name: "Operator" }],
             recent_admin_actions: [

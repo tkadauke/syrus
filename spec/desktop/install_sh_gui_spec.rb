@@ -131,9 +131,9 @@ RSpec.describe "install.sh GUI interface", :ci_only do
     expect(script_text).to include('docker volume inspect "$DATA_VOLUME"')
   end
 
-  it "supports side-by-side channels via --project and --pause-polling" do
-    # A test stack isolates its volumes (--project syrus-test) and seeds
-    # repository polling paused so it does not race production to file Jobs.
+  it "supports side-by-side channels and an explicit polling opt-out" do
+    # Channels isolate volumes through --project. Operators can independently
+    # choose to seed a new instance with polling paused.
     expect(script_text).to include("--project)")
     expect(script_text).to include("--pause-polling)")
     expect(script_text).to include("SYRUS_BOOT_POLLING_PAUSED=1")

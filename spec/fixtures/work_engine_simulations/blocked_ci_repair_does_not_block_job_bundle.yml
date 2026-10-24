@@ -13,8 +13,6 @@
 # Same shape as obsolete_visual_diff_does_not_block_job_bundle: work that cannot
 # make progress must not gate the bundler.
 name: permanently blocked ci repair does not block job bundle
-app_settings:
-  merge_train_enabled: true
 features:
   epicless_job_bundling: true
 repository:

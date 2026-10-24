@@ -472,20 +472,19 @@ module Admin
     end
 
     def merge_train_payload
-      return { enabled: AppSetting.merge_train_enabled? } unless job.epic
+      return {} unless job.epic
 
       train = MergeTrain.where(epic: job.epic).order(created_at: :desc, id: :desc).first
       workflow_scope = Workflow.where(trigger_kind: "merge_train", job_id: job.epic.jobs.select(:id))
       latest_workflow = workflow_scope.order(created_at: :desc, id: :desc).first
       readiness = LandingBundleAssembler.for_epic(job.epic)
       {
-        enabled: AppSetting.merge_train_enabled?,
         readiness: {
           ready: readiness.ready?,
           reason: readiness.reason,
           member_job_ids: readiness.job_ids
         },
-        dispatcher_blocker: AppSetting.merge_train_enabled? ? MergeTrainDispatcher.blocker_reason(job.epic) : "merge trains are disabled",
+        dispatcher_blocker: MergeTrainDispatcher.blocker_reason(job.epic),
         latest_train: train && {
           id: train.id,
           state: train.state,

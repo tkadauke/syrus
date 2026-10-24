@@ -1003,7 +1003,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports a merge-train start blocker as a blocked reason" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
       tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
@@ -1028,7 +1027,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports a member-owned merge-train blocker without relying on workflow artifacts" do
-      AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
       tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
@@ -1073,7 +1071,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reports ordinary Epic merge-train participation as neutral queue status" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
@@ -1111,7 +1108,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "sorts landing queue rows by queue entry position when Queue is ascending" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
       older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
@@ -1138,7 +1134,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "reverses queue entry position when Queue is descending" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
       older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
@@ -1352,7 +1347,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "does not count ordinary Epic merge-train waits as blocked" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)

@@ -38,8 +38,7 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["settings"]).to include(
       "polling_paused" => true,
-      "runs_paused" => false,
-      "merge_train_enabled" => false
+      "runs_paused" => false
     )
     expect(parse_body["settings"].keys).to match_array(AppSettingRegistry.admin_console_keys.map(&:to_s))
     expect(parse_body["users"].first).to include(
@@ -79,20 +78,14 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
       .and change { AdminAction.where(action: "unpause_runs").count }.by(1)
   end
 
-  it "enables and disables the Epic merge-train" do
+  it "does not expose Epic merge-train mutation routes" do
     sign_in_as(admin)
 
-    expect {
-      post "/api/v1/app/admin/console/enable_merge_train"
-    }.to change { AppSetting.current.tap(&:reload).merge_train_enabled }.from(false).to(true)
-      .and change { AdminAction.where(action: "enable_merge_train").count }.by(1)
-    expect(parse_body.dig("settings", "merge_train_enabled")).to be true
+    post "/api/v1/app/admin/console/enable_merge_train"
+    expect(response).to have_http_status(:not_found)
 
-    expect {
-      post "/api/v1/app/admin/console/disable_merge_train"
-    }.to change { AppSetting.current.tap(&:reload).merge_train_enabled }.from(true).to(false)
-      .and change { AdminAction.where(action: "disable_merge_train").count }.by(1)
-    expect(parse_body.dig("settings", "merge_train_enabled")).to be false
+    post "/api/v1/app/admin/console/disable_merge_train"
+    expect(response).to have_http_status(:not_found)
   end
 
   it "clears GitHub cache entries" do

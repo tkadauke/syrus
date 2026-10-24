@@ -1,6 +1,4 @@
 name: epic merge train after approval events
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: epic-merge-train-after-approval-events

@@ -42,6 +42,18 @@ From a checkout of the repo:
 ./install.sh --docker
 ```
 
+Fresh installs start repository polling immediately, including installs from
+the desktop test channel. To create a new instance without polling external
+repositories yet, pass the explicit one-time opt-out:
+
+```bash
+./install.sh --docker --pause-polling
+```
+
+The flag only seeds a newly created instance; it does not change an existing
+instance's polling state. Use the Operator Console to pause or resume polling
+after installation.
+
 The installer:
 
 1. Starts or installs a container runtime when needed.

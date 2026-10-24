@@ -1,14 +1,10 @@
 # Epic Merge Trains
 
-The merge train feature lands all approved child Jobs of an Epic atomically through a single integration branch, rather than one-by-one. This prevents ordering problems and partial-stack merges when PRs in an Epic have dependencies on each other.
-
-## Enabling merge trains
-
-```ruby
-AppSetting.current.update!(merge_train_enabled: true)
-```
-
-When disabled (default), approved Epic child Jobs land individually via `auto_merge` as soon as they are approved.
+Merge trains always land all approved child Jobs of an Epic atomically through
+a single integration branch, rather than one-by-one. This core behavior
+prevents ordering problems and partial-stack merges when PRs in an Epic have
+dependencies on each other. Operators can tune the train's maximum size and
+failure policy, but there is no global enable/disable switch.
 
 ## When a merge train fires
 

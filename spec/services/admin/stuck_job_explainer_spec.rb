@@ -326,7 +326,6 @@ RSpec.describe Admin::StuckJobExplainer do
 
   it "explains every approved Epic child as waiting for the merge train" do
     repository.update!(auto_merge_enabled: true)
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     reconciliation = Factories.job_record(
       user: user,

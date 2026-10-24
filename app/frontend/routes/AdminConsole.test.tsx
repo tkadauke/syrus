@@ -14,8 +14,7 @@ function consolePayload(overrides: Record<string, unknown> = {}) {
       runs_paused: false,
       signups_open: true,
       max_job_failures: 5,
-      grade_max_iterations: 3,
-      merge_train_enabled: false
+      grade_max_iterations: 3
     },
     users: [],
     recent_admin_actions: [],
@@ -23,7 +22,6 @@ function consolePayload(overrides: Record<string, unknown> = {}) {
     ...overrides
   }
 }
-
 describe("AdminConsole maintenance section", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -66,11 +64,13 @@ describe("AdminConsole maintenance section", () => {
   })
 
   it("shows toggle failures and refreshes console state", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) =>
-      Promise.resolve(init?.method === "POST"
-        ? jsonResponse({ error: { message: "Polling setting could not be saved" } }, 422)
-        : jsonResponse(consolePayload()))
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockImplementation((_input, init) =>
+        Promise.resolve(
+          init?.method === "POST" ? jsonResponse({ error: { message: "Polling setting could not be saved" } }, 422) : jsonResponse(consolePayload())
+        )
+      )
 
     renderRoute(<AdminConsole />)
     fireEvent.click(await screen.findByRole("button", { name: "Pause polling" }))
@@ -78,14 +78,22 @@ describe("AdminConsole maintenance section", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Polling setting could not be saved")
     await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method !== "POST").length).toBeGreaterThan(1))
   })
+
+  it("keeps polling and Run kill switches without an Epic merge-train toggle", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(consolePayload()))
+
+    renderRoute(<AdminConsole />)
+
+    expect(await screen.findByRole("button", { name: "Pause polling" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Pause runs" })).toBeInTheDocument()
+    expect(screen.queryByText("Epic merge-train")).not.toBeInTheDocument()
+  })
 })
 
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/console"]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/app-shell/admin/console"]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
