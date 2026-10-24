@@ -131,6 +131,11 @@ const CONTAINER_RESPONSIVE_CELL_CLASSES = [
   "[&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center @[64rem]:[&_a]:min-h-0"
 ].join(" ")
 
+const RESPONSIVE_CELL_LABEL_CLASSES = [
+  "min-w-0 whitespace-normal break-words text-2xs font-medium uppercase",
+  "leading-tight tracking-wide text-text-muted [overflow-wrap:anywhere]"
+].join(" ")
+
 export function Table({ children, responsive = false }: { children: ReactNode; responsive?: boolean | "container" }) {
   const header = Children.toArray(children).find((child) => isValidElement<{ columns: string[] }>(child) && child.type === THead)
   const columns = isValidElement<{ columns: string[] }>(header) ? header.props.columns : []
@@ -232,9 +237,7 @@ export function Td({
       title={title}
     >
       {responsiveLabel ? (
-        <span
-          className={`min-w-0 whitespace-normal break-words text-2xs font-medium uppercase leading-tight tracking-wide text-text-muted [overflow-wrap:anywhere] ${responsiveLabelClass}`}
-        >
+        <span className={`${RESPONSIVE_CELL_LABEL_CLASSES} ${responsiveLabelClass}`}>
           {responsiveLabel}
         </span>
       ) : null}
