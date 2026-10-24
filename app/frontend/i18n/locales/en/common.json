@@ -86,17 +86,8 @@
   },
   "search": {
     "heading": "Search",
-    "use_sidebar": "Use the sidebar search field to search across Syrus.",
-    "min_chars": "Enter at least 2 characters to search.",
     "error": "Unable to load search results.",
-    "no_results": "No results match this search.",
-    "hide": "Hide",
-    "show": "Show",
-    "match_more": "more match",
-    "matches_more": "more matches",
-    "more": "more",
-    "in_this_chat": "in this chat",
-    "top_matches_shown": "Only the top {{count}} additional matches are shown."
+    "no_results": "No results match this search."
   },
   "errors": {
     "not_found_heading": "There's nothing here.",
@@ -421,9 +412,6 @@
     "previous_match": "Previous match",
     "previous_short": "Prev"
   },
-  "search_aria": "Search",
-  "search_type_filters_aria": "Search type filters",
-  "loading_search_aria": "Loading search results",
   "onboarding_aria": "Onboarding",
   "terminal_aria": "Terminal",
   "page_title_terminal": "Terminal",

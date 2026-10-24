@@ -1,0 +1,38 @@
+{
+  "aria": {
+    "loading_results": "Suchergebnisse werden geladen",
+    "page": "Suche",
+    "type_filters": "Suchtyp-Filter"
+  },
+  "description": "Durchsuche Jobs, Epics, Chats und Tests.",
+  "error": "Suchergebnisse konnten nicht geladen werden.",
+  "filters": {
+    "all": "Alle"
+  },
+  "heading": "Suche",
+  "hide_more_matches_one": "{{count}} weiteren Treffer verbergen",
+  "hide_more_matches_other": "{{count}} weitere Treffer verbergen",
+  "metadata": {
+    "owner": "Besitzer: {{owner}}",
+    "updated": "Aktualisiert"
+  },
+  "min_chars": "Gib mindestens 2 Zeichen ein, um zu suchen.",
+  "more_matches_in_chat_one": "{{count}} weiterer Treffer in diesem Chat",
+  "more_matches_in_chat_other": "{{count}} weitere Treffer in diesem Chat",
+  "no_results": "Keine Ergebnisse entsprechen dieser Suche.",
+  "result_types": {
+    "chat": "Chat",
+    "design_doc": "Design Doc",
+    "epic": "Epic",
+    "job": "Job",
+    "result": "Ergebnis",
+    "test_case": "Test"
+  },
+  "results_for": "Ergebnisse für \"{{query}}\"",
+  "show_more_matches_one": "{{count}} weiteren Treffer anzeigen",
+  "show_more_matches_other": "{{count}} weitere Treffer anzeigen",
+  "top_matches_shown_one": "Nur der oberste {{count}} zusätzliche Treffer wird angezeigt.",
+  "top_matches_shown_other": "Nur die obersten {{count}} zusätzlichen Treffer werden angezeigt.",
+  "untitled": "Unbenannt",
+  "use_sidebar": "Verwende das Suchfeld in der Seitenleiste, um Syrus zu durchsuchen."
+}

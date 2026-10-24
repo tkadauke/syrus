@@ -1,0 +1,38 @@
+{
+  "aria": {
+    "loading_results": "Eventus quaerendi onerantur",
+    "page": "Quaerere",
+    "type_filters": "Filtra generis quaerendi"
+  },
+  "description": "Jobs, Epics, colloquia, et probationes quaere.",
+  "error": "Exitus quaesitionis onerari non potuerunt.",
+  "filters": {
+    "all": "Omnia"
+  },
+  "heading": "Quaesitio",
+  "hide_more_matches_one": "Absconde {{count}} plus conveniens",
+  "hide_more_matches_other": "Absconde {{count}} plura convenientia",
+  "metadata": {
+    "owner": "Dominus: {{owner}}",
+    "updated": "Renovatum"
+  },
+  "min_chars": "Inscribe saltem 2 litteras ad quaerendum.",
+  "more_matches_in_chat_one": "{{count}} plus conveniens in hoc colloquio",
+  "more_matches_in_chat_other": "{{count}} plura convenientia in hoc colloquio",
+  "no_results": "Nulla huic quaesitioni conveniunt.",
+  "result_types": {
+    "chat": "Colloquium",
+    "design_doc": "Documentum consilii",
+    "epic": "Epic",
+    "job": "Job",
+    "result": "Exitus",
+    "test_case": "Probatio"
+  },
+  "results_for": "Exitus pro \"{{query}}\"",
+  "show_more_matches_one": "Ostende {{count}} plus conveniens",
+  "show_more_matches_other": "Ostende {{count}} plura convenientia",
+  "top_matches_shown_one": "Solum summus {{count}} exitus additus ostenditur.",
+  "top_matches_shown_other": "Solum summi {{count}} exitus additi ostenduntur.",
+  "untitled": "Sine titulo",
+  "use_sidebar": "Campo quaesitionis in latere utere ut per Syrum quaeras."
+}
