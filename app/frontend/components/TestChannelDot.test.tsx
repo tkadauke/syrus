@@ -1,36 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { TestChannelBadge, TestChannelDot } from "./TestChannelBadge"
+import { TestChannelDot } from "./TestChannelDot"
 
 const stableUa = "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.5 SyrusDesktopBuild/0.1.5 Safari/537.36"
 const testUa = "Mozilla/5.0 Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test Safari/537.36"
 
-describe("TestChannelBadge", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("renders nothing in a plain browser", () => {
-    render(<TestChannelBadge />)
-    expect(screen.queryByText("Test")).toBeNull()
-  })
-
-  it("renders nothing on the stable channel (no SyrusDesktopChannel token)", () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(stableUa)
-    render(<TestChannelBadge />)
-    expect(screen.queryByText("Test")).toBeNull()
-  })
-
-  it("shows an amber TEST pill inside a test build", () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(testUa)
-    render(<TestChannelBadge />)
-    const badge = screen.getByText("Test").closest("[data-status-pill]")
-    expect(badge).not.toBeNull()
-    expect(badge?.className).toContain("bg-warning-surface")
-    expect(badge?.getAttribute("title")).toContain("test build")
-  })
-})
-
-// The compact dot variant used on the floating mobile brand trigger, where the
-// in-flow top-bar pill has scrolled out of view.
 describe("TestChannelDot", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -45,11 +19,11 @@ describe("TestChannelDot", () => {
     expect(screen.queryByTestId("test-channel-dot")).toBeNull()
   })
 
-  it("shows an amber dot inside a test build", () => {
+  it("shows a warning-colored dot inside a test build", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(testUa)
     render(<TestChannelDot />)
     const dot = screen.getByTestId("test-channel-dot")
-    expect(dot.className).toContain("amber")
+    expect(dot.className).toContain("bg-warning")
     expect(dot.getAttribute("aria-label")).toBe("This is a side-by-side test build, isolated from your production Syrus.")
   })
 
