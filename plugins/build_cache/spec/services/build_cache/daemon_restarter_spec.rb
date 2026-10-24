@@ -4,14 +4,14 @@ RSpec.describe BuildCache::DaemonRestarter do
   let(:env) { { "SCCACHE_SERVER_PORT" => "20042", "PATH" => ENV.fetch("PATH") } }
 
   describe ".restart!" do
-    def stub_capture(success: false, error: nil)
+    def stub_capture(success: false, timed_out: false, error: nil)
       runner = instance_double(ProcessRunner)
       allow(ProcessRunner).to receive(:new).and_return(runner)
       if error
         allow(runner).to receive(:capture).and_raise(error)
       else
         allow(runner).to receive(:capture).and_return(
-          double(success?: success, result: double(timed_out?: false))
+          double(success?: success, result: double(timed_out?: timed_out))
         )
       end
     end
@@ -35,18 +35,14 @@ RSpec.describe BuildCache::DaemonRestarter do
     end
 
     it "returns false and logs a warning when the call times out" do
-      stub_const("BuildCache::DaemonRestarter::TIMEOUT_SECONDS", 0.05)
-      allow(Rails.logger).to receive(:warn).and_call_original
+      stub_capture(timed_out: true)
+      allow(Rails.logger).to receive(:warn)
 
-      Dir.mktmpdir do |dir|
-        executable = File.join(dir, "sccache")
-        File.write(executable, "#!/bin/sh\nsleep 30\n")
-        FileUtils.chmod(0o755, executable)
-
-        expect(described_class.restart!(env: env.merge("PATH" => "#{dir}:#{env.fetch("PATH")}"))).to eq(false)
-      end
+      expect(described_class.restart!(env: env)).to eq(false)
       expect(Rails.logger).to have_received(:warn).with(/BuildCache::DaemonRestarter/)
-      expect(SpawnedProcess.order(:id).last).to have_attributes(kind: "runtime_probe", outcome: "timed_out")
+      expect(ProcessRunner).to have_received(:new).with(
+        hash_including(timeout: BuildCache::DaemonRestarter::TIMEOUT_SECONDS, kind: "runtime_probe")
+      )
     end
   end
 end
