@@ -9,7 +9,7 @@ prepare:
 preview:
   setup:
     - npm ci
-  start: npm exec vite -- --host 127.0.0.1 --port $PORT
+  start: npm exec vite -- --host 0.0.0.0 --port $PORT
   health_check: /
 
 visual_review:
