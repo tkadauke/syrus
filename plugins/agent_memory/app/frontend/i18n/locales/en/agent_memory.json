@@ -2,6 +2,7 @@
   "nav_memories": "Memories",
   "heading": "Memories",
   "description": "Manage persistent agent memories for your account and repositories.",
+  "aria_memories": "Memories",
   "loading": "Loading memories...",
   "create": "Create memory",
   "col_kind": "Kind",

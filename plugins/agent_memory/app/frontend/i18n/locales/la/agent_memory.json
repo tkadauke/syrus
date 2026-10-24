@@ -2,6 +2,7 @@
   "nav_memories": "Memoriae",
   "heading": "Memoriae",
   "description": "Memorias agentis persistentes pro computatro et receptaculis tuis administra.",
+  "aria_memories": "Memoriae",
   "loading": "Memoriae onerantur...",
   "create": "Memoriam creare",
   "col_kind": "Genus",

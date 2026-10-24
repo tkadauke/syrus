@@ -12,6 +12,14 @@ describe("MemoriesRoute", () => {
     expect(MemoriesDefaultRoute).toBe(MemoriesRoute)
   })
 
+  it("labels the memories page with the plugin locale", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload()))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    expect(await screen.findByRole("main", { name: "Memories" })).toBeInTheDocument()
+  })
+
   it("renders filters, admin owner column, rows, and pagination", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
       current_user: { id: 1, admin: true },
