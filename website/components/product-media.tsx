@@ -3,9 +3,14 @@ import { SectionHeader } from "./section";
 
 const screenshots = [
   {
-    src: "/media/epic-merge-train.png",
-    title: "Dashboard triage queue",
-    alt: "A Syrus dashboard list showing Jobs, workflow status, filters, and review state.",
+    src: "/media/chat-proposal.png",
+    title: "Chat to proposed Job",
+    alt: "A Syrus chat drafting a proposal card for a Job, with the repository file tree and config open alongside.",
+  },
+  {
+    src: "/media/in-progress-jobs.png",
+    title: "In-progress jobs",
+    alt: "A Syrus dashboard list of in-progress Jobs showing workflow status, filters, and review state.",
   },
 ] as const;
 
@@ -49,7 +54,7 @@ export function ProductMedia() {
         </Reveal>
 
         <RevealGroup
-          className="mx-auto mt-8 grid max-w-5xl gap-4"
+          className="mx-auto mt-8 grid max-w-5xl gap-4 md:grid-cols-2"
           stagger={0.08}
         >
           {screenshots.map((shot) => (
