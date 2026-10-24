@@ -26,6 +26,8 @@ RSpec.describe "Worker Timeline frontend locales", type: :unit do
     expect(german).to include(
       "tab_timeline" => "Zeitachse",
       "tab_live_workers" => "Aktive Worker-Prozesse",
+      "loading" => "Zeitachse wird geladen…",
+      "error_loading" => "Zeitachse konnte nicht geladen werden.",
       "live_metric_slots" => "Ausführungsplätze",
       "live_idle_slot" => "Freier Ausführungsplatz",
       "status_busy" => "Beschäftigt",
@@ -46,6 +48,7 @@ RSpec.describe "Worker Timeline frontend locales", type: :unit do
       "live_idle_slot" => "Locus otiosus",
       "status_idle" => "Otiosus",
       "status_overloaded" => "Oneratus",
+      "unknown_queue_role" => "ordo ignotus",
       "tooltip_workflow" => "WF-{{id}}"
     )
   end
