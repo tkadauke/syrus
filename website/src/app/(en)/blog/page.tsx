@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Nav } from "../../../components/nav";
-import { Footer } from "../../../components/footer";
-import { allPosts, formatPostDate } from "../../../lib/blog";
+import { Nav } from "../../../../components/nav";
+import { Footer } from "../../../../components/footer";
+import { allPosts, formatPostDate } from "../../../../lib/blog";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -15,7 +15,7 @@ export default function BlogIndexPage() {
 
   return (
     <>
-      <Nav />
+      <Nav locale="en" />
       <main id="main">
         <div className="wrap pt-28 pb-20">
           <div className="mx-auto max-w-3xl">
@@ -58,7 +58,7 @@ export default function BlogIndexPage() {
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale="en" />
     </>
   );
 }
