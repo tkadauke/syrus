@@ -282,7 +282,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
 
   return (
     <AppChromeV2 initialBootstrap={initialBootstrap}>
-      <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app.ui_engagement_telemetry_enabled)} />
+      <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app?.ui_engagement_telemetry_enabled)} />
       {routes}
     </AppChromeV2>
   )
