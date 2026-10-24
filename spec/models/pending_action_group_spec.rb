@@ -96,7 +96,7 @@ RSpec.describe PendingActionGroup do
       expect(chat_session.messages.order(:created_at, :id).last.content).to include(
         "source" => "pending_action_group_notification",
         "outcome" => "confirmed",
-        "text" => "Confirmed 2 pending actions."
+        "text" => "Batch result: 2 applied, 0 skipped/ineligible, 0 failed."
       )
     end
 
@@ -127,6 +127,23 @@ RSpec.describe PendingActionGroup do
       expect(by_job_id[succeeding_job.id]).to be_confirmed
       expect(by_job_id[failing_job.id]).to be_failed
       expect(by_job_id[failing_job.id].execution_error).to include("isn't closed")
+    end
+
+    it "aggregates applied, skipped or ineligible, and failed members separately" do
+      jobs = 3.times.map { closed_job }
+      group = PendingActionGroup.create_with_members!(
+        chat_session: chat_session,
+        member_attributes: reopen_job_members(*jobs)
+      )
+      applied, skipped, failed = group.chat_pending_actions.order(:id).to_a
+      applied.update!(state: "confirmed", execution_status: "applied")
+      skipped.update!(state: "failed", execution_status: "rejected", execution_error: "state changed")
+      failed.update!(state: "failed", execution_status: "failed", execution_error: "worker error")
+
+      expect(group.confirmed_notice).to eq("Batch result: 1 applied, 1 skipped/ineligible, 1 failed.")
+      expect(applied.group_outcome).to eq("applied")
+      expect(skipped.group_outcome).to eq("skipped")
+      expect(failed.group_outcome).to eq("failed")
     end
 
     it "only confirms members still in the pending state" do

@@ -15,7 +15,8 @@ module PendingActions
           clear_handled_sha: payload.fetch("clear_handled_sha", true),
           instructions: payload["instructions"],
           override_repeated_sha: payload["override_repeated_sha"] == true,
-          agent_provider: payload["agent_provider"]
+          agent_provider: payload["agent_provider"],
+          expected_head_sha: payload["observed_head_sha"]
         )
       end
       progress!("Recording repair audit...")

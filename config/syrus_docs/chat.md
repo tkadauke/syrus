@@ -230,7 +230,9 @@ observation for each target. Normal bulk rebases use the same stack selection
 and active rebase/merge-train guards as a single `rebase_job`; they do not use
 the force-rebase bypass path. Confirmation revalidates every member
 independently, so an ineligible or failed member does not roll back or conceal
-the others.
+the others. The compact completion summary and expanded member list distinguish
+applied members, no-op or confirmation-time ineligible members, and execution
+failures.
 
 `wake_provider_admission` prepares a single confirmed repair action after
 provider evidence has recovered. Its pending-action payload and immediate MCP

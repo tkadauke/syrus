@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe CiRepair::ManualRerun do
-  let(:user) { Factories.user(github_token: "ghp_test_token") }
+  let(:user) { Factories.user(admin: true, github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) do
     Factories.job_record(
@@ -94,5 +94,35 @@ RSpec.describe CiRepair::ManualRerun do
     expect {
       described_class.call(job: job, reason: "Try again.")
     }.to raise_error(ArgumentError, /Current PR checks are passing/)
+  end
+
+  it "rejects a confirmation-time head change before creating a workflow" do
+    expect {
+      described_class.call(job: job, reason: "Retry the affected checks.", expected_head_sha: "previous-head")
+    }.to raise_error(RepairEligibility::Ineligible, /PR head changed from previous-head to #{sha}/)
+
+    expect(job.workflows.where(trigger_kind: "ci_failure")).to be_empty
+  end
+
+  it "classifies a pending-action head race as skipped or ineligible" do
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat_session,
+      reason: "Retry checks affected by one provider incident.",
+      member_attributes: [ {
+        action: "rerun_ci_repair",
+        payload: { "job_id" => job.id, "observed_head_sha" => "previous-head", "clear_handled_sha" => true },
+        reason: "Retry checks affected by one provider incident."
+      } ]
+    )
+
+    result = group.confirm_all!(user: user)
+
+    expect(result.applied).to be_empty
+    expect(result.skipped_or_ineligible.size).to eq(1)
+    expect(result.failed).to be_empty
+    expect(group.chat_pending_actions.sole).to have_attributes(state: "failed", execution_status: "rejected")
+    expect(group.confirmed_notice).to eq("Batch result: 0 applied, 1 skipped/ineligible, 0 failed.")
+    expect(job.workflows.where(trigger_kind: "ci_failure")).to be_empty
   end
 end
