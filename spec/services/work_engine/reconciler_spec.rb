@@ -393,6 +393,20 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "classifies a queued Run ready on a dead hostname-specific worker queue" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: "gone")
+    solid_queue_run_job(run, ready: true, queue_name: "worker-gone", created_at: 5.minutes.ago)
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :queued_run_on_dead_resume_queue)).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reenqueue_run"
+    )
+    expect(plan(result, :reenqueue_run)).to have_attributes(target_id: run.id)
+  end
+
   it "does not re-enqueue a queued inline successor while the root RunJob is still claimed" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "succeeded", finished_at: 6.minutes.ago)

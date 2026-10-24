@@ -373,7 +373,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
       "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
       "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ],
-      "repair_queue_affinity" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Affinity points at a dead worker." }, { "job_id" => workflow.job.id, "run_id" => workflow.runs.first.id } ],
+      "repair_queue_affinity" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Affinity points at a dead worker." }, { "job_id" => workflow.job.id, "workflow_id" => workflow.id, "run_id" => workflow.runs.first.id } ],
       "force_rebase" => [ { job_id: workflow.job.id, reason: "Bypass the landing queue proximity guard." }, { "job_id" => workflow.job.id, "bypass_front_of_queue" => true } ],
       "restack_epic" => [ { epic_id: epic.id, reason: "Repair stale stack topology." }, { "epic_id" => epic.id, "strategy" => "dependency_topology" } ],
       "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],
@@ -426,6 +426,22 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
     expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Refresh stale landing metadata for both." ])
     expect(group.reason).to eq("Refresh stale landing metadata for both.")
+  end
+
+  it "creates one grouped repair for a bounded set of dead-queue Runs" do
+    first = Factories.job(user: admin, repository: repository).initial_run
+    second = Factories.job(user: admin, repository: repository).initial_run
+
+    response = call_tool(admin_session, "repair_queue_affinity", {
+      run_ids: [ first.id, second.id, first.id ],
+      reason: "Both workers disappeared."
+    })
+
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+    expect(body).to include(member_count: 2, run_ids: [ first.id, second.id ])
+    expect(group.chat_pending_actions.map { |action| action.payload["run_id"] }).to contain_exactly(first.id, second.id)
+    expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Both workers disappeared." ])
   end
 
   it "keeps cancel_stale_work single-Job pending action behavior" do
