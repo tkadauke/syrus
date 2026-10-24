@@ -428,6 +428,125 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(group.reason).to eq("Refresh stale landing metadata for both.")
   end
 
+  it "keeps cancel_stale_work single-Job pending action behavior" do
+    workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+
+    response = call_tool(
+      admin_session,
+      "cancel_stale_work",
+      { job_id: workflow.job.id, workflow_ids: [ workflow.id ], reconcile: false, reason: "Cancel one stale workflow." }
+    )
+    body = payload_for(response)
+    action = ChatPendingAction.find(body.fetch(:pending_confirmation_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", message: "Cancel stale work for #{workflow.job.slug}?")
+    expect(body).not_to have_key(:pending_action_group_id)
+    expect(action.pending_action_group_id).to be_nil
+    expect(action.payload).to eq(
+      "job_id" => workflow.job.id,
+      "workflow_ids" => [ workflow.id ],
+      "run_ids" => [],
+      "reconcile" => false
+    )
+  end
+
+  it "creates one cancel_stale_work group with each target's selections" do
+    workflow_one = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+    workflow_two = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+    run_two = workflow_two.runs.first
+
+    response = call_tool(
+      admin_session,
+      "cancel_stale_work",
+      {
+        targets: [
+          { job_id: workflow_one.job.id, workflow_ids: [ workflow_one.id ] },
+          { job_id: workflow_two.job.id, run_ids: [ run_two.id ] }
+        ],
+        reconcile: false,
+        reason: "The same scheduler fault left both Jobs stale."
+      }
+    )
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: "Cancel stale work for 2 Jobs?")
+    expect(group.reason).to eq("The same scheduler fault left both Jobs stale.")
+    expect(group.chat_pending_actions.map(&:payload)).to contain_exactly(
+      { "job_id" => workflow_one.job.id, "workflow_ids" => [ workflow_one.id ], "run_ids" => [], "reconcile" => false },
+      { "job_id" => workflow_two.job.id, "workflow_ids" => [], "run_ids" => [ run_two.id ], "reconcile" => false }
+    )
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "cancel_stale_work" ])
+    expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "The same scheduler fault left both Jobs stale." ])
+  end
+
+  it "rejects a cancel_stale_work group as a whole when one target is ineligible" do
+    eligible_workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+    ineligible_workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+    ineligible_workflow.update!(state: "succeeded", finished_at: Time.current)
+
+    expect {
+      @response = call_tool(
+        admin_session,
+        "cancel_stale_work",
+        {
+          targets: [
+            { job_id: eligible_workflow.job.id, workflow_ids: [ eligible_workflow.id ] },
+            { job_id: ineligible_workflow.job.id, workflow_ids: [ ineligible_workflow.id ] }
+          ],
+          reason: "Cancel work left stale by one scheduler fault."
+        }
+      )
+    }.not_to change(PendingActionGroup, :count)
+
+    expect(@response.dig(:result, :isError)).to be(true)
+    expect(error_text(@response)).to include(ineligible_workflow.job.slug, "not active work")
+    expect(ChatPendingAction.count).to eq(0)
+  end
+
+  it "rejects duplicate cancel_stale_work target job ids" do
+    workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+
+    response = call_tool(
+      admin_session,
+      "cancel_stale_work",
+      {
+        targets: [ { job_id: workflow.job.id }, { job_id: workflow.job.id } ],
+        reason: "Cancel duplicate stale work."
+      }
+    )
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(error_text(response)).to include("duplicate job_id values in targets: #{workflow.job.id}")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
+  it "rejects an empty cancel_stale_work target list" do
+    response = Mcp::Tools::CancelStaleWorkTool.call(
+      targets: [],
+      reason: "Cancel stale work.",
+      server_context: { chat_session: admin_session }
+    )
+
+    expect(response).to be_a(MCP::Tool::Response)
+    expect(response.content.first.fetch(:text)).to include("targets must not be empty")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
+  it "rejects cancel_stale_work groups above the 100-target cap" do
+    response = Mcp::Tools::CancelStaleWorkTool.call(
+      targets: 101.times.map { |index| { job_id: index + 1 } },
+      reason: "Cancel one oversized stale-work batch.",
+      server_context: { chat_session: admin_session }
+    )
+
+    expect(response).to be_a(MCP::Tool::Response)
+    expect(response.content.first.fetch(:text)).to include("targets may contain at most 100 Jobs")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
   it "creates a force_landing_recheck pending action without refreshing landing metadata first" do
     job = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 42)
     seed_landing_recheck_state(job, suffix: "1")
