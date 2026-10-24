@@ -395,12 +395,12 @@ module Ruby
       end
 
       command = <<~BASH.squish
-        #{previous_failure_gate}
+        #{previous_failure_gate(mode)}
         mkdir -p #{junit_dir} #{json_dir} #{shard_junit_dir} &&
         rm -f #{junit} #{json} #{shard_junit_dir}/#{junit_prefix}-*.xml #{json_dir}/#{output_prefix}-*.json &&
+        #{parallel_process_setup}
         #{database_prepare_command}
         #{parallel_prepare_command}
-        #{parallel_process_setup}
         #{runtime_grouping_setup}
         set +e;
         #{env_prefix} #{parallel_command};
@@ -522,12 +522,22 @@ module Ruby
     # the full command still runs behind it and still decides the verdict. The
     # gate is skipped entirely when the variable is empty, which is every
     # first iteration and any grader with no recorded failures.
-    def previous_failure_gate
+    def previous_failure_gate(mode)
+      ci_mode = mode.to_s == "ci"
+      gate_env = ci_mode ? "RUN_CI_ONLY_SPECS=true " : "RUN_CI_ONLY_SPECS=false "
+      gate_tags = Shellwords.join(tag_args_for(mode))
       <<~BASH.squish
         if [ -n "${SYRUS_PREVIOUS_FAILED_SPECS:-}" ]; then
           echo "[rspec] gate: re-running $(echo $SYRUS_PREVIOUS_FAILED_SPECS | wc -w) previously failing file(s) before the full suite";
-          if ! bundle exec rspec --format progress $SYRUS_PREVIOUS_FAILED_SPECS; then
+          gate_json=".syrus/rspec-json/previous-failures-gate.json";
+          mkdir -p "$(dirname "$gate_json")";
+          rm -f "$gate_json";
+          if ! #{gate_env}bundle exec rspec #{gate_tags} --format progress --format json --out "$gate_json" $SYRUS_PREVIOUS_FAILED_SPECS; then
             echo "[rspec] gate: previously failing examples still fail; skipping the full suite";
+            exit 1;
+          fi;
+          if ! ruby -rjson -e 'result = JSON.parse(File.read(ARGV.fetch(0))); exit(result.dig("summary", "example_count").to_i.positive? ? 0 : 1)' "$gate_json"; then
+            echo "[rspec] gate: no examples ran for the supplied files; refusing a vacuous pass";
             exit 1;
           fi;
           echo "[rspec] gate: passed, running the full suite";

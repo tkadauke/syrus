@@ -670,6 +670,9 @@ subproject paths; give those projects their own `.syrus.yml` and graders.
 `type: rspec` supports tag filters without a wrapper script. By default, the
 full landing and focused review graders exclude `ci_only`; the CI grader
 inherits `RUN_CI_ONLY_SPECS=true` and may include any tags you configure.
+Repair-loop fail-fast checks use the same environment and tag filters as the
+grader mode they precede. If supplied files produce zero examples, the check
+fails instead of treating the filtered run as a pass.
 
 ```yaml
 grade:
@@ -688,6 +691,9 @@ grader its current share of the worker container's cgroup CPU budget and the
 plugin uses the smaller value. Without an explicit `processes`, Syrus's
 application-provided budget is authoritative; when the generated command is
 run outside Syrus it falls back to the machine's reported processor count.
+The generated command resolves that process count before its configured
+`prepare_command`, so database preparation tools create every worker database
+that the subsequent RSpec run can select.
 Those RSpec modes are generated command variants; they are separate from
 workflow `phases`, which decide when each generated grader runs. If CI tags are
 configured and the CI mode is parallelized, Syrus runs the normal fast pass in

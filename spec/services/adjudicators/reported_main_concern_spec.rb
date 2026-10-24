@@ -87,7 +87,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: false, reason: "base_retry_full_command_base_passed",
-        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: ""
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "", method: "full_command"
       )
     )
 
@@ -103,7 +103,7 @@ RSpec.describe Adjudicators::ReportedMainConcern do
     allow(BaseRevisionRetry).to receive(:call).and_return(
       BaseRevisionRetry::Result.new(
         ran: true, inherited: true, reason: "base_retry_full_command_failed_different_output",
-        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom"
+        command: "bin/simulator", base_failed_identities: [], introduced_failed_identities: [], output: "boom", method: "full_command"
       )
     )
 
