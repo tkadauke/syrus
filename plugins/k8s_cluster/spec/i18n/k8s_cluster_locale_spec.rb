@@ -39,7 +39,10 @@ RSpec.describe "Kubernetes cluster frontend locales", type: :unit do
       "tab_workloads" => "Arbeitslasten",
       "tab_logs" => "Protokolle",
       "tab_services" => "Services",
-      "action_followup_permission" => "Prüfe, ob Agentenzugriff und Schreibaktionen für den Cluster aktiviert sind."
+      "action_followup_permission" => "Prüfe, ob Agentenzugriff und Schreibaktionen für den Cluster aktiviert sind.",
+      "action_followup_events" => "Liste aktuelle Ereignisse für den Namespace oder Node auf.",
+      "action_followup_node_unschedulable" => "Lies die Node aus, um zu bestätigen, dass sie nicht planbar ist.",
+      "action_followup_node_schedulable" => "Lies die Node aus, um zu bestätigen, dass sie planbar ist."
     )
     expect(german.values.grep(String).join("\n")).not_to match(/\b(?:Sie|Ihnen|Ihr(?:e[mnrs]?|en)?)\b/)
   end
