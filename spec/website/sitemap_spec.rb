@@ -40,7 +40,7 @@ RSpec.describe "website sitemap" do
   end
 
   it "generates the build-time route from the same page sources as static params" do
-    expect(sitemap_route).to include("sitemapUrls(allPlugins(), allDocs())")
+    expect(sitemap_route).to include("sitemapUrls(allPlugins(), allDocs(), allPosts())")
     expect(File).not_to exist(File.join(repo_root, "website/public/sitemap.xml"))
   end
 end
