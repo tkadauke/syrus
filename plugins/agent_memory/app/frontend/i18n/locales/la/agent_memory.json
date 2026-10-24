@@ -97,7 +97,6 @@
   "tool_input_kind": "Genus petitum",
   "tool_input_limit": "Finis petitus",
   "tool_list_empty": "Nullae memoriae his filtris respondent.",
-  "tool_search_empty": "Nullae memoriae huic quaestioni respondent.",
   "tool_list_pending": "Memoriae onerantur...",
   "tool_list_error_title": "Memoriae enumerari non potuerunt",
   "tool_list_failed": "Memoriae enumerari non potuerunt: {{message}}",
