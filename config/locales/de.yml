@@ -1,6 +1,10 @@
 de:
   hello: "Hallo Welt"
 
+  time:
+    formats:
+      long: "%Y-%m-%d %H:%M"
+
   errors:
     messages:
       inclusion: "ist kein gültiger Wert"
@@ -22,6 +26,7 @@ de:
 
   system_alert_mailer:
     alarm:
+      subject: "[Syrus-Alarm] %{title}"
       severity: "Schweregrad:"
       dismissal_key: "Ausblendeschlüssel:"
       action_steps: "Handlungsschritte"
@@ -74,7 +79,7 @@ de:
 
   api:
     base:
-      unauthorized: "Bitte gib ein gültiges API-Token via `Authorization: Bearer <token>` an."
+      unauthorized: "Bitte gib im Header `Authorization: Bearer <token>` ein gültiges API-Token an."
       admin_required: "Admin-API-Endpunkte erfordern das Token eines Administrator-Benutzers."
       sign_in_required: "Bitte melde dich an, um die App-API zu verwenden."
       admin_forbidden: "Administrator-Zugriff erforderlich."
@@ -86,7 +91,7 @@ de:
       password_reset_success: "Passwort wurde zurückgesetzt."
       password_mismatch: "Passwörter stimmten nicht überein."
       token_invalid: "Passwort-Reset-Link ist ungültig oder abgelaufen."
-      signup_closed: "Registrierung ist nur auf Einladung möglich - frag den Administrator nach einem Link."
+      signup_closed: "Registrierung ist nur auf Einladung möglich — frag den Administrator nach einem Link."
       welcome_admin: "Willkommen — du bist der erste Benutzer und damit Administrator."
       welcome: "Willkommen bei Syrus."
 
@@ -100,11 +105,11 @@ de:
       issue_delegate_failed: "Issue konnte nicht delegiert werden: %{error}"
       select_issue: "Bitte mindestens ein Issue auswählen."
       choose_action: "Bitte eine Aktion auswählen."
-      archived_first: "%{slug} ist archiviert — bitte zuerst de-archivieren."
+      archived_first: "%{slug} ist archiviert — hebe zuerst die Archivierung auf."
       archived: "%{slug} archiviert."
-      unarchived: "%{slug} de-archiviert. Polling wieder aktivieren, um die Aufnahme zu starten."
+      unarchived: "Archivierung von %{slug} aufgehoben. Aktiviere das Polling, um das Repository wieder abzufragen."
       developer_required: "Entwickler- oder Administrator-Zugriff erforderlich."
-      not_triage: "Aufgabe wartet nicht auf Triage-Freigabe."
+      not_triage: "Job wartet nicht auf Triage-Freigabe."
       polling: "Polling von %{slug} gestartet."
       released_triage: "%{slug} für Triage freigegeben."
       repository_landing_resumed: "Arbeit für %{slug} fortgesetzt."
@@ -119,10 +124,10 @@ de:
       bulk_delegate_failed: "Issues konnten nicht delegiert werden: %{error}"
       bulk_close_failed: "Issues konnten nicht geschlossen werden: %{error}"
       run_main_branch_graders_enqueued: "Graders für %{sha} auf %{slug} in die Warteschlange gestellt."
-      main_branch_repair_existing: "Reparatur-Aufgabe %{slug} ist bereits aktiv."
-      main_branch_repair_enqueued: "Reparatur-Aufgabe %{slug} gestartet."
-      main_branch_repair_not_created: "Reparatur-Aufgabe für %{slug} konnte nicht gestartet werden."
-      main_branch_repair_failed_cap: "Haupt-Branch-Reparatur ist für %{slug} limitiert: %{count}/%{max} fehlgeschlagene Reparatur-Aufgaben sind noch offen."
+      main_branch_repair_existing: "Reparatur-Job %{slug} ist bereits aktiv."
+      main_branch_repair_enqueued: "Reparatur-Job %{slug} gestartet."
+      main_branch_repair_not_created: "Reparatur-Job für %{slug} konnte nicht gestartet werden."
+      main_branch_repair_failed_cap: "Haupt-Branch-Reparatur ist für %{slug} limitiert: %{count}/%{max} fehlgeschlagene Reparatur-Jobs sind noch offen."
       main_branch_repair_waiting: "Haupt-Branch-Reparatur für %{slug} wartet auf Prüfung."
       main_branch_repair_active: "Haupt-Branch-Reparatur für %{slug} ist bereits aktiv."
       main_branch_repair_unavailable: "Haupt-Branch-Reparatur ist für %{slug} nicht verfügbar."
@@ -141,8 +146,8 @@ de:
       unsupported_platform: "Nicht unterstützte Plattform."
 
     job_pins:
-      pinned: "Aufgabe angeheftet."
-      unpinned: "Aufgabe losgelöst."
+      pinned: "Job angeheftet."
+      unpinned: "Job losgelöst."
 
     tags:
       created: "Tag erstellt."
@@ -164,17 +169,17 @@ de:
       another_user: "einem anderen Benutzer"
       already_claimed_by_you: "Epic ist bereits von dir beansprucht."
       already_claimed: "Epic ist bereits von %{email} beansprucht."
-      ownership_changed_unclaimed: "Epic-Eigentümerschaft hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt frei."
-      ownership_changed: "Epic-Eigentümerschaft hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt %{email} zugewiesen."
+      ownership_changed_unclaimed: "Die Zuständigkeit für das Epic hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt frei."
+      ownership_changed: "Die Zuständigkeit für das Epic hat sich geändert, bevor die Anfrage abgeschlossen wurde; es ist jetzt %{email} zugewiesen."
       unknown_state: "Unbekannter Epic-Zustand."
       transition_not_allowed: "Dieser Epic-Übergang ist nicht verfügbar."
       product_owner_forbidden: "Product Owner können Epics nicht über Backlog hinaus voranbringen."
-      started: "Epic gestartet — bereite Kind-Aufgaben werden gestartet."
-      created_and_started: "Epic erstellt und gestartet — bereite Kind-Aufgaben starten."
+      started: "Epic gestartet — bereite untergeordnete Jobs werden gestartet."
+      created_and_started: "Epic erstellt und gestartet — bereite untergeordnete Jobs starten."
       not_startable: "Epic kann aus dem Zustand %{state} nicht mit der Umsetzung beginnen."
       start_blocked_by_dependencies: "Epic kann noch nicht mit der Umsetzung beginnen — wartet auf Epic-Abhängigkeiten: %{names}."
-      start_children_empty: "Epic kann erst mit der Umsetzung beginnen, wenn es mindestens eine Kind-Aufgabe hat."
-      start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine Kind-Aufgaben bestätigt sind."
+      start_children_empty: "Epic kann erst mit der Umsetzung beginnen, wenn es mindestens einen untergeordneten Job hat."
+      start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine untergeordneten Jobs bestätigt sind."
       start_claimed_by_other: "Epic ist von einem anderen Benutzer beansprucht."
       access_forbidden: "Du hast keinen Zugriff auf das Ziel-Repository."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
@@ -202,8 +207,8 @@ de:
 
     admin_retention_settings:
       updated: "Aufbewahrungseinstellungen aktualisiert."
-      retention_value_required: "Geben Sie ein Aufbewahrungsfenster für %{table} ein."
-      infinite_flag_required: "Wählen Sie die unbegrenzte Aufbewahrung für %{table} ausdrücklich aus."
+      retention_value_required: "Gib ein Aufbewahrungsfenster für %{table} ein."
+      infinite_flag_required: "Wähle die unbegrenzte Aufbewahrung für %{table} ausdrücklich aus."
       infinite_value_required: "Unbegrenzte Aufbewahrung für %{table} muss als 0 gespeichert werden."
 
     direct_jobs:
@@ -213,7 +218,7 @@ de:
       invalid_priority: "Priorität muss eine der folgenden sein: %{priorities}."
       epic_not_found: "Epic nicht in diesem Repository gefunden."
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
-      created: "Direkte Aufgabe erstellt."
+      created: "Direkter Job erstellt."
 
     admin_workflows:
       not_failed: "%{slug} hat den Zustand `%{state}`, nicht `failed`."
@@ -221,7 +226,7 @@ de:
       no_failed_step: "Kein fehlgeschlagener Schritt auf %{slug} gefunden."
 
     admin_transcripts:
-      no_session: "Keine Agent-Sitzung für Run #%{id} aufgezeichnet."
+      no_session: "Kein Agentenlauf für Lauf #%{id} aufgezeichnet."
 
     preview:
       logs_unavailable: "Preview-Logs sind vorübergehend nicht verfügbar."
@@ -235,10 +240,10 @@ de:
       active_not_found: "Keine aktive Preview-Umgebung für dieses Repository gefunden."
 
     job_preview:
-      not_found: "Keine Preview-Umgebung für diese Aufgabe gefunden."
-      not_previewable: "Preview ist nur für implementierte, genehmigte, landende oder gelandete Aufgaben verfügbar."
-      already_active: "Für diese Aufgabe ist bereits eine Preview-Umgebung aktiv."
-      active_not_found: "Keine aktive Preview-Umgebung für diese Aufgabe gefunden."
+      not_found: "Keine Preview-Umgebung für diesen Job gefunden."
+      not_previewable: "Preview ist nur für implementierte, genehmigte, landende oder gelandete Jobs verfügbar."
+      already_active: "Für diesen Job ist bereits eine Preview-Umgebung aktiv."
+      active_not_found: "Keine aktive Preview-Umgebung für diesen Job gefunden."
       project_required: "Wähle aus, welches betroffene Projekt als Preview gestartet werden soll."
       no_affected_preview_project: "Für kein betroffenes Projekt ist eine Preview konfiguriert."
       no_preview_configured: "Für dieses Repository ist keine Preview konfiguriert."
@@ -260,7 +265,7 @@ de:
 
     skills:
       agent_not_configured: "Dieser Agent ist nicht konfiguriert."
-      created: "Skill-Aufgabe erstellt."
+      created: "Skill-Job erstellt."
 
     repository_memberships:
       invalid_role: "Rolle muss eine der folgenden sein: %{roles}."
@@ -281,7 +286,7 @@ de:
       removed: "%{team} entfernt."
 
     job_ref_movement_actions:
-      invalid_action: "%{action} kann nicht von einer Aufgabe aus ausgeführt werden."
+      invalid_action: "%{action} kann nicht von einem Job aus ausgeführt werden."
       blank_action: "(leer)"
       sent_upstream: "Upstream gesendet."
       blocked: "Ref-Movement-Aktion blockiert."
@@ -291,54 +296,54 @@ de:
       route_not_found: "Plugin-Route nicht gefunden."
 
     job_lifecycle:
-      direct_only: "Nur direkte Aufgaben können manuell gestartet werden."
-      thread_closed: "Thread ist geschlossen - öffne ihn erneut, bevor du die Arbeit startest."
-      backlogged: "Aufgabe ist im Backlog - gib sie frei, bevor du die Arbeit startest."
-      run_active: "Ein Run läuft bereits - warte, bis er abgeschlossen ist."
-      already_started: "Diese Aufgabe wurde bereits gestartet - verwende stattdessen Wiederholen."
+      direct_only: "Nur direkte Jobs können manuell gestartet werden."
+      thread_closed: "Thread ist geschlossen — öffne ihn erneut, bevor du die Arbeit startest."
+      backlogged: "Job ist im Backlog — gib ihn frei, bevor du die Arbeit startest."
+      run_active: "Ein Lauf ist bereits aktiv — warte, bis er abgeschlossen ist."
+      already_started: "Dieser Job wurde bereits gestartet — verwende stattdessen Wiederholen."
       initial_enqueued: "Initialer Workflow eingereiht."
-      release_backlog_only: "Nur Aufgaben im Backlog können freigegeben werden."
+      release_backlog_only: "Nur Jobs im Backlog können freigegeben werden."
       release_unavailable: "%{slug} ist %{state} und kann nicht aus dem Backlog freigegeben werden."
-      released_from_backlog: "Aufgabe aus dem Backlog freigegeben."
+      released_from_backlog: "Job aus dem Backlog freigegeben."
       move_to_backlog_unavailable: "%{slug} kann nicht ins Backlog verschoben werden, nachdem Laufzeitarbeit, Review, Landing oder PR-Erstellung gestartet wurde."
-      moved_to_backlog: "Aufgabe ins Backlog verschoben."
+      moved_to_backlog: "Job ins Backlog verschoben."
       not_awaiting_triage: "%{slug} wartet nicht auf Triage."
-      accepted: "Aufgabe akzeptiert."
-      placement_decision_required: "Wähle vor dem Annehmen dieser Aufgabe die vorgeschlagene Platzierung oder Linux."
-      rejected: "Aufgabe abgelehnt."
+      accepted: "Job akzeptiert."
+      placement_decision_required: "Wähle vor dem Annehmen dieses Jobs die vorgeschlagene Platzierung oder Linux."
+      rejected: "Job abgelehnt."
       retry_enqueued: "Wiederholungs-Workflow eingereiht."
       retry_enqueued_with_provider: "Wiederholungs-Workflow mit %{provider} eingereiht."
-      started_over: "Neu gestartet - ein neuer Branch und PR werden erstellt."
-      already_closed: "Aufgabe ist bereits geschlossen."
+      started_over: "Neu gestartet — ein neuer Branch und PR werden erstellt."
+      already_closed: "Job ist bereits geschlossen."
       cancellation_requested: "Abbruch angefordert."
-      not_landing: "Aufgabe landet derzeit nicht."
+      not_landing: "Job landet derzeit nicht."
       landing_stopped: "Landing gestoppt."
       force_fail_unavailable: "%{slug} ist %{state} und kann nicht zwangsweise als fehlgeschlagen markiert werden."
-      force_failed: "Aufgabe zwangsweise als fehlgeschlagen markiert."
+      force_failed: "Job zwangsweise als fehlgeschlagen markiert."
       auto_merge_disabled: "Auto-Merge ist für %{slug} deaktiviert; aktiviere es in den Repository-Einstellungen, bevor du genehmigst."
-      approval_forbidden: "Nur der Aufgabeneigentümer oder andere Repository-Mitglieder können genehmigen — der Aufgabenersteller kann nur genehmigen, wenn er auch Eigentümer ist."
+      approval_forbidden: "Nur der Job-Eigentümer oder andere Repository-Mitglieder können genehmigen — der Job-Ersteller kann nur genehmigen, wenn er auch Eigentümer ist."
       landing_enqueued: "Landing-Workflow eingereiht."
-      approved: "Aufgabe genehmigt."
+      approved: "Job genehmigt."
       approval_recorded: "Genehmigung erfasst."
-      unapprove_unavailable: "Nur genehmigte Aufgaben, die noch nicht mit dem Landing begonnen haben, können zurückgenommen werden."
-      unapproved: "Aufgabengenehmigung zurückgenommen."
-      close_investigation_unavailable: "Nur umgesetzte Untersuchungsaufgaben können als überprüft geschlossen werden."
+      unapprove_unavailable: "Nur genehmigte Jobs, die noch nicht mit dem Landing begonnen haben, können zurückgenommen werden."
+      unapproved: "Job-Genehmigung zurückgenommen."
+      close_investigation_unavailable: "Nur umgesetzte Untersuchungs-Jobs können als überprüft geschlossen werden."
       investigation_closed: "Untersuchung als überprüft geschlossen."
-      not_closed: "Aufgabe ist nicht geschlossen."
-      pause_closed: "Geschlossene Aufgaben können nicht pausiert werden."
-      already_paused: "Aufgabe ist bereits manuell pausiert."
-      paused: "Aufgabe pausiert. Aktive Schritte werden beendet, bevor Syrus nicht weiter fortfährt."
-      not_paused: "Aufgabe ist nicht manuell pausiert."
-      unpaused: "Aufgabenpause aufgehoben. Sie wird vorbehaltlich der Zulassungskontrolle fortgesetzt."
+      not_closed: "Job ist nicht geschlossen."
+      pause_closed: "Geschlossene Jobs können nicht pausiert werden."
+      already_paused: "Job ist bereits manuell pausiert."
+      paused: "Job pausiert. Aktive Schritte werden beendet; danach setzt Syrus die Arbeit aus."
+      not_paused: "Job ist nicht manuell pausiert."
+      unpaused: "Job-Pause aufgehoben. Der Job wird fortgesetzt, sobald die Zulassungssteuerung es erlaubt."
       local_mode_disabled: "Local Mode ist nicht aktiviert."
-      local_mode_state_unavailable: "Nur implementierte oder genehmigte Aufgaben können im Local Mode geöffnet werden."
-      local_mode_already_linked: "Aufgabe ist bereits mit einer lokalen Coding-Sitzung verknüpft."
+      local_mode_state_unavailable: "Nur implementierte oder genehmigte Jobs können im Local Mode geöffnet werden."
+      local_mode_already_linked: "Job ist bereits mit einer lokalen Coding-Sitzung verknüpft."
       local_mode_chat_missing: "Kein aktiver Local-Mode-Chat gefunden. Starte zuerst einen Chat im Local Mode."
-      local_mode_opened: "Aufgabe im Local Mode geöffnet. Fahre im verknüpften Chat fort."
-      not_coding: "Aufgabe ist nicht im Coding-Zustand."
+      local_mode_opened: "Job im Local Mode geöffnet. Fahre im verknüpften Chat fort."
+      not_coding: "Job ist nicht im Coding-Zustand."
       local_mode_cancelled: "Local-Mode-Sitzung abgebrochen."
-      start_blocked: "Blockiert: %{reason} — Details stehen auf der Aufgabenkarte."
-      start_blocked_unknown: "Initialer Workflow konnte gerade nicht gestartet werden. Aktualisiere und prüfe die Aufgabenkarte auf Details."
+      start_blocked: "Blockiert: %{reason} — Details stehen auf der Job-Karte."
+      start_blocked_unknown: "Der initiale Workflow konnte derzeit nicht gestartet werden. Aktualisiere und prüfe die Job-Karte auf Details."
       reopened: "Thread wieder geöffnet."
       reopened_syrus_stop: "Hinweis: Die nächste Abfrage schließt ihn erneut, wenn das Label syrus-stop noch auf dem PR ist."
       reopened_pr_state: "Hinweis: Die nächste Abfrage prüft den PR-Zustand und kann ihn erneut schließen."

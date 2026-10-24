@@ -176,6 +176,7 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     invitation = Invitation.last
     expect(invitation.invited_by).to eq(admin)
     expect(invitation.email_address).to eq("guest@example.com")
+    expect(invitation.locale).to eq(admin.locale)
     expect(parse_body["message"]).to eq("Invitation created for guest@example.com.")
     expect(parse_body["invitations"].first).to include("id" => invitation.id)
   end
