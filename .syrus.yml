@@ -516,11 +516,18 @@ grade:
       landing attempt pays for a browser run. Revisit `landing` only once the
       flake rate is known -- a flaky grader there fails real landings.
 
+      Failures that reproduce on the base revision are inherited rather than
+      charged to a ci_failure repair. The full suite reruns on the base because
+      Playwright's custom grader does not emit structured test identities.
+
       E2E_ISOLATE gives the run its own port and refuses to reuse another
       run's server; without it, concurrent grader Runs on one worker would
       quietly grade each other's checkouts. See bin/test-e2e.
     run: E2E_ISOLATE=1 bin/test-e2e
     phases: [ci]
+    failures: allow_inherited
+    base_retry:
+      strategy: full_command
     when_files_changed:
       - "app/frontend/**"
       - "app/views/**"
