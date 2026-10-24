@@ -102,8 +102,7 @@ function SourceBrowser({
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
-  const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
-  const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
+  const tree = useMemo(() => buildSourceTree(payload.tree_items), [payload.tree_items])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
   const fileLanguage = payload.file ? detectHighlighterLanguage(payload.file.path) : null
   const selectedFilePath = payload.file?.path ?? null
@@ -154,7 +153,6 @@ function SourceBrowser({
               selectedPath={payload.selected_path}
             />
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_files")}</p>}
-          {payload.tree_items.length > visibleItems.length ? <p className="p-3 text-xs text-amber-700">{t("source_showing_first", { count: visibleItems.length })}</p> : null}
         </div>
         <div className="min-w-0 overflow-auto">
           {payload.file_error ? <p className="p-4 text-sm text-red-700">{payload.file_error}</p> : null}

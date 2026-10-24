@@ -9,7 +9,7 @@ import { App } from "./App"
 import { AppChromeV2, NewChatLauncher } from "./AppChromeV2"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
-import type { JobStep } from "../api/jobs"
+import type { JobSourcePayload, JobStep } from "../api/jobs"
 import * as videoWalkthroughs from "../api/videoWalkthroughs"
 import * as useConfirmModule from "../hooks/useConfirm"
 
@@ -11097,6 +11097,43 @@ describe("App", () => {
     expect(keyword.closest("code")).toHaveTextContent("class User")
   })
 
+  it("keeps folders available beyond the first 2,000 source files", async () => {
+    const treeItems = Array.from({ length: 2_000 }, (_, index) => ({
+      path: `generated/file-${String(index).padStart(4, "0")}.txt`,
+      name: `file-${String(index).padStart(4, "0")}.txt`,
+      size: 1,
+      language: "plaintext"
+    }))
+    treeItems.push({ path: "src/after-the-old-limit.rb", name: "after-the-old-limit.rb", size: 12, language: "ruby" })
+
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/source") {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload({ treeItems })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=source"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "src" })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("after-the-old-limit.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "src" }))
+
+    expect(screen.getByText("after-the-old-limit.rb")).toBeInTheDocument()
+  })
+
   it("switches the Job source browser into diff mode", async () => {
     // Renders the source-browser diff through ReviewableDiff's file-level
     // virtualizer -- see virtualizerMeasurements.ts.
@@ -19292,7 +19329,7 @@ function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: str
   }
 }
 
-function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
+function jobSourcePayload(overrides: { withFile?: boolean; treeItems?: JobSourcePayload["tree_items"] } = {}) {
   return {
     job_id: 42,
     repository: { id: 3, slug: "acme/widgets", default_branch: "main", repository_path: "/repositories/3" },
@@ -19302,7 +19339,7 @@ function jobSourcePayload(overrides: { withFile?: boolean } = {}) {
     selected_path: overrides.withFile ? "app/models/user.rb" : null,
     merge_base_sha: "aabbccdd1234567",
     branch_commits: [{ sha: "deadbeef12345678", short_sha: "deadbee", message: "Repair aqueduct", date: "2026-05-30T11:00:00Z" }],
-    tree_items: [
+    tree_items: overrides.treeItems ?? [
       { path: "app/models/user.rb", name: "user.rb", size: 512, language: "ruby" },
       { path: "README.md", name: "README.md", size: 128, language: "markdown" }
     ],
