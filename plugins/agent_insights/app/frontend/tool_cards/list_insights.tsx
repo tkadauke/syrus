@@ -63,30 +63,6 @@ export default listInsightsToolCard
 // pluginToolCards.tsx's ToolCardExample.
 export const examples = [
   {
-    id: "codex_content_envelope",
-    label: "Codex content envelope",
-    sourceType: "codex" as const,
-    input: { repository_id: 42, state: "accepted", limit: 10, page: 2 },
-    parsedResult: {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            insights: [
-              {
-                id: "301",
-                title: "Markdown summary",
-                summary: "See **JOB-42** and https://example.test/details",
-                state: "accepted",
-                repository: { id: "42", slug: "tkadauke/syrus" }
-              }
-            ]
-          })
-        }
-      ]
-    }
-  },
-  {
     id: "pending_and_accepted_insights",
     label: "One pending, one accepted insight",
     input: { state: "all" },
