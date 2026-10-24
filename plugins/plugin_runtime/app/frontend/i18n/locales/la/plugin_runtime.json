@@ -55,15 +55,15 @@
     "unavailable": "Inattingibile",
     "unconfigured": "Non configuratum"
   },
-  "search": "Search",
-  "clear_filters": "Clear filters",
-  "filter_service": "Service",
-  "filter_plugin": "Plugin",
-  "filter_state": "State",
-  "filter_image": "Image",
-  "filter_endpoint": "Endpoint",
-  "filter_volume": "Volume",
-  "filter_volume_plugin": "Volume plugin",
-  "filter_volume_state": "Volume state",
-  "filter_min_size": "Minimum size"
+  "search": "Quaere",
+  "clear_filters": "Filtra purga",
+  "filter_service": "Ministerium",
+  "filter_plugin": "Additamentum",
+  "filter_state": "Status",
+  "filter_image": "Imago",
+  "filter_endpoint": "Terminus",
+  "filter_volume": "Volumen",
+  "filter_volume_plugin": "Additamentum voluminis",
+  "filter_volume_state": "Status voluminis",
+  "filter_min_size": "Magnitudo minima"
 }
