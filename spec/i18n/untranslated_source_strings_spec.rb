@@ -130,6 +130,25 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/explain_stuck_job.tsx
   ].freeze
 
+  CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/routes/chat/Compose.tsx
+    app/frontend/routes/chat/AgentQuestions.tsx
+    app/frontend/routes/chat/ParticipantPicker.tsx
+    app/frontend/routes/chat/JobEpicPickerPopup.tsx
+    app/frontend/routes/chat/ScheduleMessageModal.tsx
+    app/frontend/routes/chat/WorkspacePanels.tsx
+    app/frontend/routes/chat/ProposalCards.tsx
+    app/frontend/routes/chat/ScratchpadPanel.tsx
+    app/frontend/routes/chat/proposalDisplay.ts
+    app/frontend/routes/chat/proposalToolCard.tsx
+    app/frontend/routes/chat/repoDocumentToolCard.tsx
+    app/frontend/routes/chat/pinnedContextToolCard.tsx
+    app/frontend/routes/chat/chatPinToolCard.tsx
+    app/frontend/routes/chat/chatSearchToolCard.tsx
+    app/frontend/routes/chat/chatHelperToolCard.tsx
+    app/frontend/routes/chat/adminToolCard.tsx
+  ].freeze
+
   # Run with:
   #   BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rspec spec/i18n
   #
