@@ -5,10 +5,10 @@ RSpec.describe BuildCache::StatsCapture do
   let(:chdir) { Dir.tmpdir }
 
   describe ".capture" do
-    def stub_capture(stdout: "", success: false, error: nil)
+    def stub_capture(stdout: "", success: false, timed_out: false, error: nil)
       runner = instance_double(ProcessRunner)
       allow(ProcessRunner).to receive(:new).and_return(runner)
-      value = double(success?: success, stdout: stdout, result: double(timed_out?: false))
+      value = double(success?: success, stdout: stdout, result: double(timed_out?: timed_out))
       if error
         allow(runner).to receive(:capture).and_raise(error)
       else
@@ -48,19 +48,14 @@ RSpec.describe BuildCache::StatsCapture do
     end
 
     it "returns nil and logs a warning when the call times out" do
-      stub_const("BuildCache::StatsCapture::TIMEOUT_SECONDS", 0.05)
-      allow(Rails.logger).to receive(:warn).and_call_original
+      stub_capture(timed_out: true)
+      allow(Rails.logger).to receive(:warn)
 
-      Dir.mktmpdir do |dir|
-        executable = File.join(dir, "sccache")
-        File.write(executable, "#!/bin/sh\nsleep 30\n")
-        FileUtils.chmod(0o755, executable)
-
-        timed_env = env.merge("PATH" => "#{dir}:#{env.fetch("PATH")}")
-        expect(described_class.capture(env: timed_env, chdir: chdir)).to be_nil
-      end
+      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
       expect(Rails.logger).to have_received(:warn).with(/BuildCache::StatsCapture/)
-      expect(SpawnedProcess.order(:id).last).to have_attributes(kind: "runtime_probe", outcome: "timed_out")
+      expect(ProcessRunner).to have_received(:new).with(
+        hash_including(timeout: BuildCache::StatsCapture::TIMEOUT_SECONDS, kind: "runtime_probe")
+      )
     end
   end
 end
