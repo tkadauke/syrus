@@ -634,6 +634,10 @@ module Steps
           "An independent adversarial-review agent examined the previous iteration and flagged issues that still need to be addressed:"
         ),
         needs_work_review_section(
+          "security_review_iterations",
+          "An independent security-review agent examined the previous iteration and flagged security issues that still need to be addressed:"
+        ),
+        needs_work_review_section(
           "visual_review_iterations",
           "An independent visual-QA agent drove a browser against the previous iteration and flagged issues that still need to be addressed:"
         )

@@ -79,6 +79,18 @@ RSpec.describe McpToolPolicy do
       expect(tools.size).to eq(12)
     end
 
+    it "returns only the dedicated submission tool to the security reviewer" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_SECURITY_REVIEWER, user: user)
+      tools = described_class.for(context)
+
+      expect(tools).to include(Mcp::Tools::SubmitSecurityReviewTool)
+      expect(tools).not_to include(
+        Mcp::Tools::SubmitAdversarialReviewTool,
+        Mcp::Tools::SubmitVisualReviewTool,
+        Mcp::Tools::SubmitSummaryTool
+      )
+    end
+
     it "excludes report_main_concern from the adversarial_reviewer role" do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
       tools   = described_class.for(context)

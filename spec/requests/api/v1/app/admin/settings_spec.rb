@@ -35,6 +35,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(body.dig("settings", "signups_open")).to be true
     expect(body.dig("settings", "metadata").map { |definition| definition["key"] }).to include(
       "adversarial_review_rounds",
+      "security_review_rounds",
       "merge_train_max_size",
       "report_issue_repo_slug",
       "chat_coding_workspace_budget_mb",
@@ -124,6 +125,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
       app_setting: {
         grade_max_iterations: 4,
         adversarial_review_rounds: 2,
+        security_review_rounds: 3,
         max_job_failures: 6,
         rebase_failure_cooldown_minutes: 15,
         merge_train_max_size: 12,
@@ -138,6 +140,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     setting = AppSetting.current.reload
     expect(setting.grade_max_iterations).to eq(4)
     expect(setting.adversarial_review_rounds).to eq(2)
+    expect(setting.security_review_rounds).to eq(3)
     expect(setting.max_job_failures).to eq(6)
     expect(setting.rebase_failure_cooldown_minutes).to eq(15)
     expect(setting.merge_train_max_size).to eq(12)

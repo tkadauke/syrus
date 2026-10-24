@@ -23,7 +23,7 @@ module Prompts
 
     def to_s
       [
-        "You are running the adversarial_review step for Syrus.",
+        step_orientation,
         github_content_trust_boundary,
         independence,
         affected_project_context,
@@ -38,6 +38,8 @@ module Prompts
     end
 
     private
+
+    def step_orientation = "You are running the adversarial_review step for Syrus."
 
     def feedback_kind
       Workflow::TriggerKind.feedback_kind_for(@workflow_kind)

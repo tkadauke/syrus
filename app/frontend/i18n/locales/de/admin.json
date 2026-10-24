@@ -587,6 +587,8 @@
     "grade_max_iterations_help": "Maximale Reparatur- und Prüfzyklen, bevor ein Workflow fehlschlägt. Muss 1–10 sein.",
     "adversarial_review_rounds_label": "Adversarial-Review-Runden",
     "adversarial_review_rounds_help": "Anzahl der Implementierungs- und Adversarial-Review-Iterationen vor den Gradern. 0 deaktiviert sie instanzweit.",
+    "security_review_rounds_label": "Sicherheitsprüfungsrunden",
+    "security_review_rounds_help": "Anzahl der Sicherheitsprüfungs- und Reparaturrunden nach der adversarialen Überprüfung. 0 deaktiviert sie instanzweit.",
     "max_job_failures_label": "Maximale Job-Fehler",
     "max_job_failures_help": "Schwelle aufeinanderfolgender Fehler für Auto-Pause geplanter Aufgaben und wiederholte Job-Fehler. Muss mindestens 1 sein.",
     "main_concern_report_threshold_label": "Schwelle für Main-Branch-Meldungen",

@@ -34,6 +34,7 @@ RSpec.describe AppSettingRegistry do
     expect(described_class.admin_editable_keys).to eq([
       :grade_max_iterations,
       :adversarial_review_rounds,
+      :security_review_rounds,
       :max_job_failures,
       :rebase_failure_cooldown_minutes,
       :merge_train_failure_policy,

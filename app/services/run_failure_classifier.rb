@@ -421,7 +421,7 @@ class RunFailureClassifier
   end
 
   def missing_required_tool_call?
-    %w[adversarial_review visual_review].include?(run.step&.kind.to_s) &&
+    %w[adversarial_review security_review visual_review].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/agent didn't call/i)
   end

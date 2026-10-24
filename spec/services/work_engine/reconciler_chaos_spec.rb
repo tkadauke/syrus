@@ -1658,7 +1658,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
   end
 
   it "covers every registered workflow template and every registered step kind" do
-    AppSetting.current.update!(adversarial_review_rounds: 1)
+    AppSetting.current.update!(adversarial_review_rounds: 1, security_review_rounds: 1)
     grade_loop_plan = RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
     allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)

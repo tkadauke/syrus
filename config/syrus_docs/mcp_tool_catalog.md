@@ -177,29 +177,30 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `wake_provider_admission` | chat | essential | write | yes | - | - | - | - |
 | `withdraw_pending_action` | chat | essential | write | no | - | - | - | - |
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
-| `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `patch_workflow` | workflow | - | write | no | `workflow:implement`, `workflow:manual` | - | `patch_workflow` | - |
 | `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `propose_job` | - |
 | `read_artifact` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
-| `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `record_isolated_repro` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
 | `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - |
 | `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
 | `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - |
-| `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
+| `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `submit_adversarial_review` | workflow | - | write | no | `workflow:adversarial_reviewer`, `workflow:manual` | - | `submit_adversarial_review` | - |
 | `submit_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_artifact` | - |
 | `submit_job_metadata` | workflow | - | write | no | `workflow:summary_test_plan`, `workflow:manual` | `refresh_job_metadata` | `submit_job_metadata` | - |
 | `submit_report` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | `submit_report` | `submit_report` | - |
+| `submit_security_review` | workflow | - | write | no | `workflow:security_reviewer`, `workflow:manual` | - | `submit_security_review` | - |
 | `submit_summary` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_summary` | - |
 | `submit_test_plan` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_test_plan` | - |
 | `submit_visual_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | `submit_visual_artifact` | - |

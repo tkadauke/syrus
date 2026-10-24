@@ -96,6 +96,19 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :security_review_rounds,
+      type: :integer,
+      default: 0,
+      min: 0,
+      max: 10,
+      category: "Workflow behavior",
+      operational_meaning: "Number of implement-to-security-review iterations run before graders.",
+      zero_means: "Security review is disabled instance-wide.",
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :max_job_failures,
       type: :integer,
       default: 3,

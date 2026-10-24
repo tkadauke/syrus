@@ -53,7 +53,7 @@ export function AdminSettings() {
 }
 
 function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
-  const otherSecrets = payload.settings.clearable_secrets.filter(s => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
+  const otherSecrets = payload.settings.clearable_secrets.filter((s) => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
   return (
     <>
       <TelegramSection onNotice={onNotice} payload={payload} />
@@ -107,7 +107,11 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
           {clearSecret.isPending ? t("settings.clearing") : t("settings.clear")}
         </button>
       ) : null}
-      {clearSecret.isError ? <div className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearSecret.error, t("settings.error_clear"))}</div> : null}
+      {clearSecret.isError ? (
+        <div className="text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(clearSecret.error, t("settings.error_clear"))}
+        </div>
+      ) : null}
       {dialog}
     </div>
   )
@@ -119,6 +123,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
   const [gradeMaxIterations, setGradeMaxIterations] = useState(String(payload.settings.grade_max_iterations))
   const [adversarialReviewRounds, setAdversarialReviewRounds] = useState(String(payload.settings.adversarial_review_rounds))
+  const [securityReviewRounds, setSecurityReviewRounds] = useState(String(payload.settings.security_review_rounds))
   const [maxJobFailures, setMaxJobFailures] = useState(String(payload.settings.max_job_failures))
   const [mergeTrainMaxSize, setMergeTrainMaxSize] = useState(String(payload.settings.merge_train_max_size))
   const [mainConcernReportThreshold, setMainConcernReportThreshold] = useState(String(payload.settings.main_concern_report_threshold))
@@ -137,28 +142,30 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
   const [chatCodingWorkspaceBudgetMb, setChatCodingWorkspaceBudgetMb] = useState(String(payload.settings.chat_coding_workspace_budget_mb))
   const update = useMutation({
-    mutationFn: () => updateAdminSettings({
-      signups_open: signupsOpen,
-      grade_max_iterations: optionalNumber(gradeMaxIterations),
-      adversarial_review_rounds: optionalNumber(adversarialReviewRounds),
-      max_job_failures: optionalNumber(maxJobFailures),
-      merge_train_max_size: optionalNumber(mergeTrainMaxSize),
-      main_concern_report_threshold: optionalNumber(mainConcernReportThreshold),
-      report_issue_repo_slug: reportIssueRepoSlug,
-      video_retention_days: optionalNumber(videoRetentionDays),
-      video_storage_budget_mb: optionalNumber(videoBudgetMb),
-      telegram_bot_handle: telegramBotHandle,
-      max_concurrent_agent_runs: optionalNumber(maxConcurrentAgentRuns),
-      max_in_flight_workflows: optionalNumber(maxInFlightWorkflows),
-      prepared_layer_cache_gb: optionalNumber(preparedLayerCacheGb),
-      repository_full_poll_interval_hours: optionalNumber(repositoryFullPollIntervalHours),
-      proactive_rebase_commit_threshold: optionalNumber(proactiveRebaseThreshold),
-      show_work_unit_debug: showWorkUnitDebug,
-      rebase_failure_cooldown_minutes: optionalNumber(rebaseFailureCooldown),
-      workflow_admission_control_enabled: workflowAdmissionControlEnabled,
-      workflow_admission_policy: workflowAdmissionPolicy,
-      chat_coding_workspace_budget_mb: optionalNumber(chatCodingWorkspaceBudgetMb)
-    }),
+    mutationFn: () =>
+      updateAdminSettings({
+        signups_open: signupsOpen,
+        grade_max_iterations: optionalNumber(gradeMaxIterations),
+        adversarial_review_rounds: optionalNumber(adversarialReviewRounds),
+        security_review_rounds: optionalNumber(securityReviewRounds),
+        max_job_failures: optionalNumber(maxJobFailures),
+        merge_train_max_size: optionalNumber(mergeTrainMaxSize),
+        main_concern_report_threshold: optionalNumber(mainConcernReportThreshold),
+        report_issue_repo_slug: reportIssueRepoSlug,
+        video_retention_days: optionalNumber(videoRetentionDays),
+        video_storage_budget_mb: optionalNumber(videoBudgetMb),
+        telegram_bot_handle: telegramBotHandle,
+        max_concurrent_agent_runs: optionalNumber(maxConcurrentAgentRuns),
+        max_in_flight_workflows: optionalNumber(maxInFlightWorkflows),
+        prepared_layer_cache_gb: optionalNumber(preparedLayerCacheGb),
+        repository_full_poll_interval_hours: optionalNumber(repositoryFullPollIntervalHours),
+        proactive_rebase_commit_threshold: optionalNumber(proactiveRebaseThreshold),
+        show_work_unit_debug: showWorkUnitDebug,
+        rebase_failure_cooldown_minutes: optionalNumber(rebaseFailureCooldown),
+        workflow_admission_control_enabled: workflowAdmissionControlEnabled,
+        workflow_admission_policy: workflowAdmissionPolicy,
+        chat_coding_workspace_budget_mb: optionalNumber(chatCodingWorkspaceBudgetMb)
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("settings.settings_updated"))
@@ -169,6 +176,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setSignupsOpen(payload.settings.signups_open)
     setGradeMaxIterations(String(payload.settings.grade_max_iterations))
     setAdversarialReviewRounds(String(payload.settings.adversarial_review_rounds))
+    setSecurityReviewRounds(String(payload.settings.security_review_rounds))
     setMaxJobFailures(String(payload.settings.max_job_failures))
     setMergeTrainMaxSize(String(payload.settings.merge_train_max_size))
     setMainConcernReportThreshold(String(payload.settings.main_concern_report_threshold))
@@ -186,7 +194,29 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
-  }, [payload.settings.signups_open, payload.settings.grade_max_iterations, payload.settings.adversarial_review_rounds, payload.settings.max_job_failures, payload.settings.merge_train_max_size, payload.settings.main_concern_report_threshold, payload.settings.report_issue_repo_slug, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.telegram_bot_handle, payload.settings.max_concurrent_agent_runs, payload.settings.max_in_flight_workflows, payload.settings.prepared_layer_cache_gb, payload.settings.repository_full_poll_interval_hours, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.chat_coding_workspace_budget_mb])
+  }, [
+    payload.settings.signups_open,
+    payload.settings.grade_max_iterations,
+    payload.settings.adversarial_review_rounds,
+    payload.settings.security_review_rounds,
+    payload.settings.max_job_failures,
+    payload.settings.merge_train_max_size,
+    payload.settings.main_concern_report_threshold,
+    payload.settings.report_issue_repo_slug,
+    payload.settings.video_retention_days,
+    payload.settings.video_storage_budget_mb,
+    payload.settings.telegram_bot_handle,
+    payload.settings.max_concurrent_agent_runs,
+    payload.settings.max_in_flight_workflows,
+    payload.settings.prepared_layer_cache_gb,
+    payload.settings.repository_full_poll_interval_hours,
+    payload.settings.proactive_rebase_commit_threshold,
+    payload.settings.show_work_unit_debug,
+    payload.settings.rebase_failure_cooldown_minutes,
+    payload.settings.workflow_admission_control_enabled,
+    payload.settings.workflow_admission_policy,
+    payload.settings.chat_coding_workspace_budget_mb
+  ])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -209,7 +239,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-report-issue-repo">{t("settings.report_issue_repo_slug_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-report-issue-repo">
+          {t("settings.report_issue_repo_slug_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.report_issue_repo_slug_help")}</span>
         <Input
           className="mt-1 max-w-md"
@@ -220,7 +252,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-handle">{t("settings.telegram_bot_handle_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-telegram-handle">
+          {t("settings.telegram_bot_handle_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.telegram_bot_handle_help")}</span>
         <Input
           className="mt-1 max-w-sm"
@@ -232,7 +266,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-grade-max-iterations">{t("settings.grade_max_iterations_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-grade-max-iterations">
+            {t("settings.grade_max_iterations_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.grade_max_iterations_help")}</span>
           <Input
             className="mt-1 w-32"
@@ -247,7 +283,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-adversarial-review-rounds">{t("settings.adversarial_review_rounds_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-adversarial-review-rounds">
+            {t("settings.adversarial_review_rounds_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.adversarial_review_rounds_help")}</span>
           <Input
             className="mt-1 w-32"
@@ -260,11 +298,29 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
             value={adversarialReviewRounds}
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-security-review-rounds">
+            {t("settings.security_review_rounds_label")}
+          </label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.security_review_rounds_help")}</span>
+          <Input
+            className="mt-1 w-32"
+            fullWidth={false}
+            id="admin-settings-security-review-rounds"
+            max={10}
+            min={0}
+            onChange={(event) => setSecurityReviewRounds(event.target.value)}
+            type="number"
+            value={securityReviewRounds}
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-job-failures">{t("settings.max_job_failures_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-job-failures">
+            {t("settings.max_job_failures_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_job_failures_help")}</span>
           <Input
             className="mt-1 w-32"
@@ -278,7 +334,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-concern-report-threshold">{t("settings.main_concern_report_threshold_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-main-concern-report-threshold">
+            {t("settings.main_concern_report_threshold_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.main_concern_report_threshold_help")}</span>
           <Input
             className="mt-1 w-32"
@@ -294,7 +352,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-merge-train-max-size">{t("settings.merge_train_max_size_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-merge-train-max-size">
+            {t("settings.merge_train_max_size_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.merge_train_max_size_help")}</span>
           <Input
             className="mt-1 w-32"
@@ -309,7 +369,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">{t("settings.video_retention_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">
+          {t("settings.video_retention_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_retention_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -323,7 +385,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-budget">{t("settings.video_budget_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-budget">
+          {t("settings.video_budget_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_budget_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -337,7 +401,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-chat-coding-workspace-budget">{t("settings.chat_coding_workspace_budget_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-chat-coding-workspace-budget">
+          {t("settings.chat_coding_workspace_budget_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.chat_coding_workspace_budget_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -351,7 +417,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-agent-runs">{t("settings.max_concurrent_agent_runs_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-agent-runs">
+          {t("settings.max_concurrent_agent_runs_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_concurrent_agent_runs_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -365,7 +433,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-prepared-layer-cache">{t("settings.prepared_layer_cache_gb_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-prepared-layer-cache">
+          {t("settings.prepared_layer_cache_gb_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.prepared_layer_cache_gb_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -379,7 +449,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-in-flight-workflows">{t("settings.max_in_flight_workflows_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-in-flight-workflows">
+          {t("settings.max_in_flight_workflows_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_in_flight_workflows_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -393,7 +465,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-proactive-rebase-threshold">{t("settings.proactive_rebase_commit_threshold_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-proactive-rebase-threshold">
+          {t("settings.proactive_rebase_commit_threshold_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.proactive_rebase_commit_threshold_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -407,7 +481,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-repository-full-poll-interval">{t("settings.repository_full_poll_interval_hours_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-repository-full-poll-interval">
+          {t("settings.repository_full_poll_interval_hours_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.repository_full_poll_interval_hours_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -433,7 +509,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">{t("settings.rebase_failure_cooldown_label")}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">
+          {t("settings.rebase_failure_cooldown_label")}
+        </label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.rebase_failure_cooldown_help")}</span>
         <Input
           className="mt-1 w-32"
@@ -446,7 +524,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         />
       </div>
 
-      <div className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}>
+      <div
+        className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}
+      >
         <Checkbox
           checked={workflowAdmissionControlEnabled}
           className="mt-1"
@@ -454,12 +534,17 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
             <>
               <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.workflow_admission_control_label")}</span>
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_control_help")}</span>
-              {!workflowAdmissionControlEnabled ? <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span> : null}
+              {!workflowAdmissionControlEnabled ? (
+                <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span>
+              ) : null}
               {payload.settings.workflow_admission_control_changed_at ? (
                 <span className="mt-2 block text-xs text-gray-500 dark:text-gray-400">
                   {t("settings.workflow_admission_control_changed", {
                     at: payload.settings.workflow_admission_control_changed_at,
-                    actor: payload.settings.workflow_admission_control_changed_by?.display_name || payload.settings.workflow_admission_control_changed_by?.email_address || t("settings.workflow_admission_control_unknown_actor")
+                    actor:
+                      payload.settings.workflow_admission_control_changed_by?.display_name ||
+                      payload.settings.workflow_admission_control_changed_by?.email_address ||
+                      t("settings.workflow_admission_control_unknown_actor")
                   })}
                 </span>
               ) : null}
@@ -468,7 +553,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
         />
         <div className="mt-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">{t("settings.workflow_admission_policy_label")}</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">
+            {t("settings.workflow_admission_policy_label")}
+          </label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_policy_help")}</span>
           <Select
             className="mt-2"
@@ -483,13 +570,14 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </div>
       </div>
 
-      <Button
-        disabled={update.isPending}
-        type="submit"
-      >
+      <Button disabled={update.isPending} type="submit">
         {update.isPending ? t("settings.saving") : t("settings.save")}
       </Button>
-      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
+      {update.isError ? (
+        <p className="text-sm text-danger-text" role="alert">
+          {errorMessage(update.error, t("settings.error_update"))}
+        </p>
+      ) : null}
     </form>
   )
 }
@@ -500,7 +588,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
   const queryClient = useQueryClient()
   const [tokenInput, setTokenInput] = useState("")
 
-  const telegramSecret = payload.settings.clearable_secrets.find(s => s.key === "telegram_bot_token")
+  const telegramSecret = payload.settings.clearable_secrets.find((s) => s.key === "telegram_bot_token")
   const tokenSet = telegramSecret?.set ?? false
 
   const saveToken = useMutation({
@@ -538,7 +626,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
         />
         <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => { onNotice(null); saveToken.mutate() }}
+          onClick={() => {
+            onNotice(null)
+            saveToken.mutate()
+          }}
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.telegram_save_token")}
         </Button>
@@ -560,8 +651,16 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
 
       <PlatformPollingControl disabled={!tokenSet} label={t("settings.telegram_heading")} platform="telegram" />
 
-      {saveToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
+      {saveToken.isError ? (
+        <p className="text-xs text-danger" role="alert">
+          {errorMessage(saveToken.error, t("settings.error_update"))}
+        </p>
+      ) : null}
+      {clearToken.isError ? (
+        <p className="text-xs text-danger" role="alert">
+          {errorMessage(clearToken.error, t("settings.error_clear"))}
+        </p>
+      ) : null}
       {dialog}
     </section>
   )
@@ -573,7 +672,7 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
   const queryClient = useQueryClient()
   const [tokenInput, setTokenInput] = useState("")
 
-  const discordSecret = payload.settings.clearable_secrets.find(s => s.key === "discord_bot_token")
+  const discordSecret = payload.settings.clearable_secrets.find((s) => s.key === "discord_bot_token")
   const tokenSet = discordSecret?.set ?? false
 
   const saveToken = useMutation({
@@ -611,7 +710,10 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
         />
         <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
-          onClick={() => { onNotice(null); saveToken.mutate() }}
+          onClick={() => {
+            onNotice(null)
+            saveToken.mutate()
+          }}
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
         </Button>
@@ -633,8 +735,16 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
 
       <PlatformPollingControl disabled={!tokenSet} label={t("settings.discord_heading")} platform="discord" />
 
-      {saveToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
-      {clearToken.isError ? <p className="text-xs text-danger" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
+      {saveToken.isError ? (
+        <p className="text-xs text-danger" role="alert">
+          {errorMessage(saveToken.error, t("settings.error_update"))}
+        </p>
+      ) : null}
+      {clearToken.isError ? (
+        <p className="text-xs text-danger" role="alert">
+          {errorMessage(clearToken.error, t("settings.error_clear"))}
+        </p>
+      ) : null}
       {dialog}
     </section>
   )
@@ -663,16 +773,16 @@ function PlatformPollingControl({ platform, label, disabled }: { platform: strin
 
   return (
     <div className="space-y-1">
-      <Button
-        disabled={startPolling.isPending || disabled}
-        onClick={() => startPolling.mutate()}
-        variant="secondary"
-      >
+      <Button disabled={startPolling.isPending || disabled} onClick={() => startPolling.mutate()} variant="secondary">
         {startPolling.isPending ? t("settings.polling_starting") : t("settings.polling_start")}
       </Button>
 
       {statusMessage ? <p className="text-xs text-text-muted">{statusMessage}</p> : null}
-      {startPolling.isError ? <p className="text-xs text-danger" role="alert">{t("settings.polling_error", { platform: label })}</p> : null}
+      {startPolling.isError ? (
+        <p className="text-xs text-danger" role="alert">
+          {t("settings.polling_error", { platform: label })}
+        </p>
+      ) : null}
     </div>
   )
 }
