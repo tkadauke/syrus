@@ -167,12 +167,6 @@ class AppSetting < ApplicationRecord
     current.main_concern_report_threshold
   end
 
-  # Epic merge-train (see docs/plans/landing-merge-train.md). Default
-  # off; landing keeps the per-Job auto_merge path until enabled.
-  def self.merge_train_enabled?
-    current.merge_train_enabled
-  end
-
   def self.merge_train_failure_policy
     current.merge_train_failure_policy.presence_in(MERGE_TRAIN_FAILURE_POLICIES) || "restart"
   end

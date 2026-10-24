@@ -73,14 +73,6 @@ function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
           value={payload.settings.runs_paused ? t("console.state_paused") : t("console.state_running")}
           warning={payload.settings.runs_paused}
         />
-        <TogglePanel
-          command={payload.settings.merge_train_enabled ? "disable_merge_train" : "enable_merge_train"}
-          description={t("console.merge_train_description")}
-          label={payload.settings.merge_train_enabled ? t("console.merge_train_disable") : t("console.merge_train_enable")}
-          title={t("console.merge_train_title")}
-          value={payload.settings.merge_train_enabled ? t("console.state_enabled") : t("console.state_disabled")}
-          warning={!payload.settings.merge_train_enabled}
-        />
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">

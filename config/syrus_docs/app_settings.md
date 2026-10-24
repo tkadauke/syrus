@@ -39,12 +39,6 @@ Consecutive failure threshold. When a ScheduledTask accumulates this many consec
 
 Minimum number of repeated broken-main reports before the aggregator surfaces a main-branch concern.
 
-### merge_train_enabled
-
-**Type:** boolean · **Default:** false
-
-When true, approved Epic child Jobs do not land one-by-one. They wait until every open sibling is approved, then the Epic lands as a single atomic `merge_train` workflow. When false, approved Jobs land individually via `auto_merge`.
-
 ### merge_train_failure_policy
 
 **Type:** string · **Default:** `restart` · **Options:** `restart`, `keep_assembly`, `keep_fixes`

@@ -29,10 +29,6 @@ outcomes:
   default: success
 success_states:
   parent:
-    - approved
+    - closed
   child:
     - implemented
-wait_states:
-  child:
-    - queued
-    - blocked_by_epic

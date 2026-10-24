@@ -24,8 +24,7 @@ RSpec.describe "API: /api/v1/admin/console", type: :request do
       expect(response).to be_successful
       expect(parse_body["settings"]).to include(
         "polling_paused" => true,
-        "runs_paused" => false,
-        "merge_train_enabled" => false
+        "runs_paused" => false
       )
       expect(parse_body["settings"].keys).to match_array(AppSettingRegistry.admin_console_keys.map(&:to_s))
       expect(parse_body["recent_admin_actions"].first).to include(
@@ -75,5 +74,13 @@ RSpec.describe "API: /api/v1/admin/console", type: :request do
       }.to change { AppSetting.current.tap(&:reload).runs_paused }.from(true).to(false)
         .and change { AdminAction.where(action: "unpause_runs").count }.by(1)
     end
+  end
+
+  it "does not expose Epic merge-train mutation routes" do
+    post "/api/v1/admin/console/enable_merge_train", headers: auth
+    expect(response).to have_http_status(:not_found)
+
+    post "/api/v1/admin/console/disable_merge_train", headers: auth
+    expect(response).to have_http_status(:not_found)
   end
 end

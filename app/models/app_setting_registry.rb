@@ -122,19 +122,6 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
-      key: :merge_train_enabled,
-      type: :boolean,
-      default: false,
-      min: nil,
-      max: nil,
-      category: "Landing queue",
-      operational_meaning: "Approved Epic child Jobs land through an atomic merge-train workflow instead of one-by-one auto-merge.",
-      zero_means: nil,
-      admin_editable: false,
-      secret: false,
-      surface: :admin_console
-    ),
-    Definition.new(
       key: :merge_train_failure_policy,
       type: :string,
       default: "restart",

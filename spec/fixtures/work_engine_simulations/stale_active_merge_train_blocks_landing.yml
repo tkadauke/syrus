@@ -1,6 +1,4 @@
 name: stale active merge train blocks landing
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: stale-active-merge-train-blocks-landing

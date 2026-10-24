@@ -980,7 +980,6 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     end
 
     it "reports a blocked job bundle as waiting behind the active Epic merge train" do
-      AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, owner_user: user, state: "in_progress", title: "Forum release")
       active_member = Factories.job_record(

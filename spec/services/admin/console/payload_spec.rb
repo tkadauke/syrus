@@ -9,8 +9,7 @@ RSpec.describe Admin::Console::Payload do
     before do
       AppSetting.current.update!(
         polling_paused: false,
-        runs_paused: false,
-        merge_train_enabled: false
+        runs_paused: false
       )
     end
 
@@ -23,22 +22,16 @@ RSpec.describe Admin::Console::Payload do
         payload.pause_runs(source: "spec")
       }.to raise_error(ArgumentError, "Admin access required.")
 
-      expect {
-        payload.enable_merge_train(source: "spec")
-      }.to raise_error(ArgumentError, "Admin access required.")
-
       settings = AppSetting.current.reload
       expect(settings.polling_paused).to be(false)
       expect(settings.runs_paused).to be(false)
-      expect(settings.merge_train_enabled).to be(false)
       expect(AdminAction.count).to eq(0)
     end
 
     it "rejects pause setting resets from a non-admin actor" do
       AppSetting.current.update!(
         polling_paused: true,
-        runs_paused: true,
-        merge_train_enabled: true
+        runs_paused: true
       )
 
       expect {
@@ -49,14 +42,9 @@ RSpec.describe Admin::Console::Payload do
         payload.unpause_runs(source: "spec")
       }.to raise_error(ArgumentError, "Admin access required.")
 
-      expect {
-        payload.disable_merge_train(source: "spec")
-      }.to raise_error(ArgumentError, "Admin access required.")
-
       settings = AppSetting.current.reload
       expect(settings.polling_paused).to be(true)
       expect(settings.runs_paused).to be(true)
-      expect(settings.merge_train_enabled).to be(true)
       expect(AdminAction.count).to eq(0)
     end
 

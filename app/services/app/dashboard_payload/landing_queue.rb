@@ -153,7 +153,6 @@ module App
       end
 
       def merge_train_wait_reason_for(job)
-        return unless AppSetting.merge_train_enabled?
         return unless job.epic_id.present?
 
         return { key: "waiting_active_epic_merge_train" } if merge_train_active_for?(job)

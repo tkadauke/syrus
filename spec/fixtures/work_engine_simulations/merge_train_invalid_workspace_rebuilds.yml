@@ -1,6 +1,4 @@
 name: merge train invalid workspace rebuilds
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: merge-train-invalid-workspace-rebuilds

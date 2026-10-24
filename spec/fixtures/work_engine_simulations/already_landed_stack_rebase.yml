@@ -8,6 +8,7 @@ repository:
 epics:
   stack:
     title: Plugin architecture stack
+    state: in_progress
 jobs:
   root:
     title: Root job already landed but still failed
@@ -42,7 +43,7 @@ expect:
     root:
       - closed
     child:
-      - approved
+      - closed
   queues:
     active_runs: empty
     active_work_units: empty

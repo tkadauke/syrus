@@ -14,7 +14,6 @@ RSpec.describe MergeTrainDispatcher do
   end
 
   before do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic.update_columns(state: "in_progress")
     epic.reload
     allow(StepDispatcher).to receive(:start_workflow)
@@ -211,14 +210,6 @@ RSpec.describe MergeTrainDispatcher do
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
       %w[ merge_train_assemble merge_train_build merge_train_reconcile prepare grader_fanout grader_collect merge_train_land ]
     )
-  end
-
-  it "does nothing when the merge-train flag is off" do
-    AppSetting.current.update!(merge_train_enabled: false)
-    approved_child(1)
-
-    expect(described_class.try_dispatch!(epic)).to be_nil
-    expect(MergeTrain.count).to eq(0)
   end
 
   it "does not dispatch while the Epic owner's landing queue is paused" do

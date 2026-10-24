@@ -70,7 +70,6 @@ RSpec.describe LandingRetrier do
     let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
 
     it "re-approves implemented children and kicks the queue" do
-      AppSetting.current.update!(merge_train_enabled: true)
       a = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1,
                               state: "implemented", pr_number: 501, branch_name: "syrus/issue-1")
       allow(LandingQueueProcessor).to receive(:try_land!)

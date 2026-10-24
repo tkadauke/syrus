@@ -1,6 +1,4 @@
 name: merge train unverified member reconciles after land
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: merge-train-unverified-member-reconciles-after-land

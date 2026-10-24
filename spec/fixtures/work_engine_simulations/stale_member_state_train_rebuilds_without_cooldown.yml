@@ -1,6 +1,4 @@
 name: stale member state train rebuilds without cooldown
-app_settings:
-  merge_train_enabled: true
 repository:
   owner: simulation
   name: stale-member-state-train-rebuilds-without-cooldown

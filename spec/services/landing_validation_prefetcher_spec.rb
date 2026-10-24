@@ -132,7 +132,6 @@ RSpec.describe LandingValidationPrefetcher do
 
   it "dispatches a merge_train_validation workflow for the next eligible Epic landing unit" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
-    AppSetting.current.update!(merge_train_enabled: true)
     candidate.destroy!
 
     epic = Factories.epic(user: user, repository: repository, state: "ready")
@@ -166,7 +165,6 @@ RSpec.describe LandingValidationPrefetcher do
 
   it "does not dispatch merge-train validation when a member has active validation WorkUnit ownership" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
-    AppSetting.current.update!(merge_train_enabled: true)
     candidate.destroy!
 
     epic = Factories.epic(user: user, repository: repository, state: "ready")
@@ -187,7 +185,6 @@ RSpec.describe LandingValidationPrefetcher do
 
   it "lets a successful merge_train workflow prefetch the next ordinary landing unit" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
-    AppSetting.current.update!(merge_train_enabled: true)
 
     epic = Factories.epic(user: user, repository: repository, state: "ready")
     source_job.update!(epic: epic, branch_name: "syrus/issue-1-#{source_job.id}")

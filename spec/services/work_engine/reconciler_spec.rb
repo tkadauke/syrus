@@ -5533,7 +5533,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not auto-defer a landing merge-train member owned by a sibling workflow" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     first = Factories.job_record(
       user: job.user,
@@ -5933,7 +5932,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "clears approved landing-start blockers and wakes the landing queue" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     primary = Factories.job_record(user: job.user, repository: job.repository, epic: epic, state: "approved", issue_number: 1, pr_number: 101, branch_name: "syrus/issue-1")
     blocked = [
@@ -5968,7 +5966,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "does not clear an Epic landing-start stack blocker while dependencies remain unresolved" do
-    AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
     blocker = Factories.job_record(
       user: job.user,
@@ -6713,7 +6710,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "opens a repeated-failure circuit instead of rebuilding a merge train after identical diagnostics recur" do
     now = Time.zone.parse("2026-09-21 12:18:00 UTC")
-    AppSetting.current.update!(merge_train_enabled: true)
     train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
     MergeTrainMember.create!(merge_train: train, job: job, position: 0)
     job.update_columns(state: "landing")
