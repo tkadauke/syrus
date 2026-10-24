@@ -7,7 +7,7 @@ const en = {
     chips: ["MIT open source", "Self-hosted on your infra", "Human review on every merge"],
     demo: "Watch the product demo",
     metric: "Built through its own PR loop",
-    metricBody: "of Syrus's merged pull requests were written by Syrus itself.",
+    metricBody: "of Syrus's landed original pull requests were written by Syrus itself.",
     receipts: "Read the receipts",
     docsLanguage: "English",
     taglineTranslation: "“He gives twice who gives quickly.”"
@@ -122,7 +122,7 @@ const de = {
     chips: ["MIT Open Source", "Selbst gehostet auf deiner Infrastruktur", "Menschliches Review vor jedem Merge"],
     demo: "Produktdemo ansehen",
     metric: "Durch den eigenen PR-Ablauf erstellt",
-    metricBody: "der zusammengeführten Pull Requests von Syrus wurden von Syrus selbst geschrieben.",
+    metricBody: "der gelandeten ursprünglichen Pull Requests von Syrus wurden von Syrus selbst geschrieben.",
     receipts: "Nachweise lesen",
     docsLanguage: "Englisch",
     taglineTranslation: "„Doppelt gibt, wer schnell gibt.“"

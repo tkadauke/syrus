@@ -27,7 +27,7 @@ However, if you're a solo developer vibe-coding a weekend project, Syrus is over
 
 ## It builds itself, by the way
 
-Git was managing its own source code within days of Linus starting it. Tools that make software tend to get turned on themselves almost immediately, and Syrus was no exception — it crossed that line on the first night and never went back. As of an audit in late September, 95.1% of Syrus's merged pull requests had been written by Syrus itself. That's a share of merged PRs, not of every line in the repo, and the methodology and the caveats are written up in the [dogfooding docs](https://syrus-ai.dev/docs/dogfooding) if you want to check my arithmetic. Really the only reason to bypass Syrus is to fix the workflow engine after I break it, which hasn’t happened in a while, and that is the reason I think it’s ready for release.
+Git was managing its own source code within days of Linus starting it. Tools that make software tend to get turned on themselves almost immediately, and Syrus was no exception — it crossed that line on the first night and never went back. As of an October 24 audit, 97.6% of Syrus's landed original pull requests had been written by Syrus itself. That's a share of landed original PRs, not of every line in the repo, and the methodology and the caveats are written up in the [dogfooding docs](https://syrus-ai.dev/docs/dogfooding) if you want to check my arithmetic. Really the only reason to bypass Syrus is to fix the workflow engine after I break it, which hasn’t happened in a while, and that is the reason I think it’s ready for release.
 
 I mention it because it's still the best evidence I can offer. The core loop gets exercised every day, on a real codebase of over a million lines, more than half of it tests.
 
