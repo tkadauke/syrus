@@ -23,6 +23,13 @@ Each grader can declare the phases where it should run:
 - `landing`: checks that must pass immediately before merge.
 - `ci`: checks used when Syrus is repairing CI failures.
 
+During a CI-failure repair, Syrus maps each originally failing GitHub check to
+its covering `ci` grader by `ci_checks` metadata, target label, or matching
+name. If those focused graders pass and the branch contains a committed fix,
+unrelated red graders are retained as advisory evidence instead of preventing
+the repair from being pushed. A repair with no commit, or with a still-red
+covering grader, remains blocked.
+
 Example:
 
 ```yaml

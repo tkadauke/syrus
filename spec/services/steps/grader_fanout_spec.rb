@@ -1567,6 +1567,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       grade:
         - name: rspec
           run: bin/rspec
+          metadata:
+            ci_checks: [react]
     YAML
     health = record_target_health("//:grade/rspec", status: "passed")
 
@@ -1577,6 +1579,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       include(
         "name" => "rspec",
         "target_label" => "//:grade/rspec",
+        "ci_checks" => [ "react" ],
         "target_health_record_id" => health.id,
         "commit_sha" => "previous123"
       )
@@ -2238,6 +2241,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
               run: bin/rspec
             - name: lint
               run: bin/rubocop
+              metadata:
+                ci_checks: [react]
       YAML
 
       handler.call
@@ -2257,7 +2262,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
         include("name" => "tests")
       )
       expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(
-        include("name" => "lint", "reason" => "passed before infrastructure-only retry")
+        include("name" => "lint", "ci_checks" => [ "react" ], "reason" => "passed before infrastructure-only retry")
       )
     end
 
