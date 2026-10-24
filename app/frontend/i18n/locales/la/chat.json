@@ -701,6 +701,21 @@
       "failed": "Defecit"
     }
   },
+  "resume_landing_queue": {
+    "target": "Scopus",
+    "landing_queue": "Ordo descensus",
+    "outcome": "Exitus",
+    "summary": "Ordinem descensus restitue",
+    "summary_with_outcome": "Ordinem descensus restitue · {{outcome}}",
+    "states": {
+      "pending": "Pendens",
+      "resuming": "Restituitur",
+      "resumed": "Restitutus",
+      "rejected": "Reiectum",
+      "cancelled": "Revocatum",
+      "failed": "Defecit"
+    }
+  },
   "daemon_invocation_context": {
     "summary": "contextus invocationis: {{surface}}{{identity}}",
     "summary_denied": "contextus invocationis negatus: {{error}}",
