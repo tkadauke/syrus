@@ -33,6 +33,28 @@ describe("AppChromeV2", () => {
     vi.restoreAllMocks()
   })
 
+  it("keeps stable-channel desktop and mobile brand lockups free of test branding", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5 SyrusDesktopBuild/0.1.5")
+    renderAppChrome()
+
+    expect(within(screen.getByTestId("sidebar-content")).getByText("Syrus")).toBeInTheDocument()
+    expect(within(screen.getByTestId("mobile-app-header")).getByText("Syrus")).toBeInTheDocument()
+    expect(screen.queryByTestId("test-channel-dot")).toBeNull()
+    expect(screen.queryByText("Test")).toBeNull()
+  })
+
+  it("uses one out-of-flow test-channel marker per expanded desktop and mobile brand lockup", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopBuild/0.1.5-test.3 SyrusDesktopChannel/test")
+    renderAppChrome()
+
+    for (const chrome of [screen.getByTestId("sidebar-content"), screen.getByTestId("mobile-app-header")]) {
+      expect(within(chrome).getByText("Syrus")).toBeInTheDocument()
+      expect(within(chrome).queryByText("Syrus Test")).toBeNull()
+      expect(within(chrome).queryByText("Test")).toBeNull()
+      expect(within(chrome).getAllByLabelText(/test build, isolated from your production Syrus/i)).toHaveLength(1)
+    }
+  })
+
   it("uses semantic brand tokens for active primary sidebar links", () => {
     const className = sidebarLinkClass(true)
 
@@ -1891,6 +1913,20 @@ describe("AppChromeV2 desktop sidebar collapse", () => {
     window.localStorage.clear()
     vi.restoreAllMocks()
     vi.useRealTimers()
+  })
+
+  it("uses one test-channel marker in each collapsed and compact brand lockup", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 Electron/39.8.10 SyrusDesktop/0.1.5-test.3 SyrusDesktopChannel/test")
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true")
+
+    renderAppChrome()
+
+    const rail = screen.getByTestId("sidebar-rail")
+    const peek = screen.getByTestId("sidebar-peek")
+    expect(within(rail).getAllByLabelText(/test build, isolated from your production Syrus/i)).toHaveLength(1)
+    expect(within(peek).getAllByLabelText(/test build, isolated from your production Syrus/i)).toHaveLength(1)
+    expect(within(rail).queryByText("Syrus Test")).toBeNull()
+    expect(within(peek).queryByText("Syrus Test")).toBeNull()
   })
 
   it("toggles collapsed mode with a plain separator click and remembers it", () => {
