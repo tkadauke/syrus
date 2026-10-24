@@ -1,3 +1,4 @@
+import type { ChatWhiteboardScene } from "@app/api/chats"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { isPlainObject } from "@app/toolCardParsing"
 import { CompactActionCard, type CompactActionRow } from "@app/routes/chat/compactActionCard"
@@ -5,6 +6,7 @@ import { MediaPreviewShell, type MediaPreviewAction } from "@app/routes/chat/med
 import { humanizeToolName, ToolFailureSummaryCard, toolFailureCollapsedSummary, type ToolFailureConfig } from "@app/routes/chat/toolFailureSummaryCard"
 import i18n from "i18next"
 import { Badge, CardShell, displayValue, EntityReference, numberValue, Row } from "@app/routes/chat/toolCardUi"
+import { normalizeWhiteboardScene } from "@app/routes/chat/whiteboardScene"
 import { WhiteboardSnapshotPreview } from "./whiteboardSnapshotPreview"
 
 // Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
@@ -394,22 +396,69 @@ export function LoadCanvasCard({ result }: { result: LoadCanvasResult }) {
 
 // clear_canvas auto-snapshots the prior scene (when non-empty) before
 // clearing it.
-export type ClearCanvasResult = { snapshotId: string | null }
-
-export function parseClearCanvasResult(value: unknown): ClearCanvasResult | null {
-  if (!isPlainObject(value) || value.cleared !== true) return null
-
-  return { snapshotId: displayValue(value.snapshot_id) }
+export type ClearCanvasResult = {
+  snapshotId: string | null
+  elementCount: number | null
+  chatId: string | null
+  version: number | null
+  previewScene: ChatWhiteboardScene | null
 }
 
-export function ClearCanvasCard({ result }: { result: ClearCanvasResult }) {
+export function parseClearCanvasResult(value: unknown): ClearCanvasResult | null {
+  if (isPlainObject(value) && isPlainObject(value.result)) value = value.result
+  if (!isPlainObject(value) || value.cleared !== true) return null
+
+  return {
+    snapshotId: displayValue(value.snapshot_id),
+    elementCount: numberValue(value.element_count),
+    chatId: displayValue(value.chat_session_id),
+    version: numberValue(value.version),
+    previewScene: isPlainObject(value.preview_scene) ? normalizeWhiteboardScene(value.preview_scene) : null
+  }
+}
+
+export function ClearCanvasCard({ result, chatId }: { result: ClearCanvasResult; chatId?: string | null }) {
+  const resolvedChatId = result.chatId ?? chatId
+
   return (
     <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t("tool_cleared_canvas")}</Badge>
+        {result.snapshotId ? (
+          <EntityReference
+            href={resolvedChatId ? `/chats/${resolvedChatId}?workspace=plugin%3Awhiteboard.canvas` : null}
+            id={result.snapshotId}
+            kind="whiteboard_snapshot"
+          />
+        ) : null}
+        {result.version != null ? <Badge>v{result.version}</Badge> : null}
       </div>
-      {result.snapshotId ? (
-        <Row label={t("tool_auto_saved_as")} value={`#${result.snapshotId}`} />
+      {result.snapshotId && resolvedChatId ? (
+        <WhiteboardSnapshotPreview
+          chatId={resolvedChatId}
+          item={{
+            title: t("tool_auto_saved_snapshot"),
+            subtitle: result.elementCount != null ? t("tool_elements_summary", { count: result.elementCount }) : null,
+            badge: t("tool_snapshot"),
+            actions: [
+              { label: t("tool_open_whiteboard"), href: `/chats/${resolvedChatId}?workspace=plugin%3Awhiteboard.canvas` },
+              { label: t("tool_view_in_media"), href: `/chats/${resolvedChatId}?workspace=media` },
+              { label: t("tool_copy_id"), copyValue: result.snapshotId }
+            ],
+            meta: [
+              { label: t("tool_snapshot_id"), value: result.snapshotId, copyValue: result.snapshotId },
+              { label: t("tool_elements"), value: result.elementCount != null ? String(result.elementCount) : null },
+              { label: t("tool_version"), value: result.version != null ? String(result.version) : null }
+            ]
+          }}
+          scene={result.previewScene}
+          snapshotId={result.snapshotId}
+        />
+      ) : result.snapshotId ? (
+        <dl className="grid gap-1 sm:grid-cols-2">
+          <Row label={t("tool_auto_saved_as")} value={`#${result.snapshotId}`} />
+          {result.elementCount != null ? <Row label={t("tool_elements")} value={String(result.elementCount)} /> : null}
+        </dl>
       ) : (
         <div className="text-gray-600 dark:text-gray-300">{t("tool_canvas_already_empty")}</div>
       )}
