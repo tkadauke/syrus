@@ -60,6 +60,8 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
     allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return("")
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
+    # Nested .syrus.yml discovery asks git which candidate directories are ignored.
+    allow(@git).to receive(:run).with("check-ignore", "--stdin", "-z", chdir: anything, stdin_data: anything).and_return("")
     allow(GithubAuthenticatedGit).to receive(:run) { |**_, &block| block.call("file://remote") }
     allow(@git).to receive(:run)
       .with("ls-remote", "file://remote", anything, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })

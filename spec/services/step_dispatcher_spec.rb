@@ -3905,7 +3905,8 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
     expect(workflow.reload).to be_queued
   end
 
-  it "blocks non-urgent workflows on urgent main branch repair jobs by default" do
+  it "blocks non-urgent workflows on urgent main branch repair jobs when the repository blocks work on repair" do
+    job_model.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true)
     create_urgent_main_branch_repair_job!
 
     expect {
@@ -4045,7 +4046,12 @@ RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   before { s1.update!(next_step_id: s2.id) }
 
   def break_main!
-    job_model.repository.update!(ci_health: "broken", landing_paused: true)
+    job_model.repository.update!(
+      main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: true,
+      ci_health: "broken",
+      landing_paused: true
+    )
   end
 
   it "does not create a Run when the repository main_health is broken and landing is paused" do

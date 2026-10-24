@@ -2,8 +2,8 @@ class AddHiddenAtToChatParticipants < ActiveRecord::Migration[8.1]
   def up
     unless table_exists?(:chat_participants)
       create_table :chat_participants do |t|
-        t.references :chat_session, null: false
-        t.references :user, null: false
+        t.references :chat_session, null: false, foreign_key: false
+        t.references :user, null: false, foreign_key: false
         t.string :role, null: false, default: "member"
         t.datetime :joined_at, null: false
         t.datetime :last_read_at

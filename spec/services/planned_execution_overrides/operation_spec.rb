@@ -54,6 +54,39 @@ RSpec.describe PlannedExecutionOverrides::Operation do
     expect(operation.inspect.reason).to include("has already started")
   end
 
+  describe "#inspect(lightweight: true)" do
+    it "reports the same refusal for a running Job without reading its Workflow or Run history" do
+      job.update!(state: "running")
+      run
+      full = operation.inspect
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+      end
+      light = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { operation.inspect(lightweight: true) }
+
+      expect(light).to have_attributes(eligible: false, reason: full.reason, runs: [], worker_available: nil)
+      expect(queries.grep(/FROM ["`]?(runs|workflows)["`]?/i)).to be_empty
+    end
+
+    it "reads only history columns, leaves the loaded Job's associations alone, and keeps a queued Job eligible" do
+      run
+      job.dependencies.load
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+      end
+
+      result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { operation.inspect(lightweight: true) }
+
+      expect(result.eligible).to be(true)
+      expect(result.runs.map(&:id)).to eq([ run.id ])
+      expect(job.association(:dependencies)).to be_loaded
+      expect(queries.grep(/SELECT ["`]?(runs|workflows)["`]?\.\*/i)).to be_empty
+    end
+  end
+
   it "refuses a queued Job when another Workflow or Run exists outside the initial attempt" do
     run
     retry_workflow = Workflow.create!(job: job, user: user, trigger_kind: "retry", state: "failed")

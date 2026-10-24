@@ -364,7 +364,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
         last_feedback_addressed_at: 6.minutes.ago,
         last_ci_handled_sha: "abc123"
       )
-      job.repository.update!(landing_paused: true)
+      job.repository.update!(main_branch_health_enabled: true, landing_paused: true)
 
       # Initial workflow chain is prepare → implement → … . Set up
       # the implement step with a succeeded Run + captured agent session so
