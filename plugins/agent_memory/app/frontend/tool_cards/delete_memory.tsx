@@ -113,6 +113,6 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: memory not found or not accessible: 91",
     resultError: true
   },
-  { id: "pending", label: "Pending deletion", input: { id: 55 } },
+  { id: "pending", label: "Pending deletion", input: { id: 55 }, resultBody: "" },
   { id: "empty", label: "Empty result", input: { id: 55 }, parsedResult: {} }
 ]
