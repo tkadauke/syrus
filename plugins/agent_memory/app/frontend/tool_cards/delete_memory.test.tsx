@@ -45,11 +45,14 @@ describe("delete_memory tool card", () => {
   })
 
   it("renders pending and empty states with their input", () => {
-    const pending = context({ input: { id: 9 } })
+    const pending = context({ input: { id: 9 }, resultSettled: false })
     expect(deleteMemoryToolCard.collapsedSummary?.(pending)).toBe("Deleting memory...")
     const { rerender } = render(<>{deleteMemoryToolCard.renderExpanded(pending)}</>)
     expect(screen.getByText("Deleting memory...")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /MEMORY-9/ })).toBeInTheDocument()
+
+    rerender(<>{deleteMemoryToolCard.renderExpanded(context({ input: { id: 9 }, resultSettled: true }))}</>)
+    expect(screen.getByText("No deletion result returned.")).toBeInTheDocument()
 
     rerender(<>{deleteMemoryToolCard.renderExpanded(context({ input: { id: 9 }, parsedResult: {} }))}</>)
     expect(screen.getByText("No deletion result returned.")).toBeInTheDocument()

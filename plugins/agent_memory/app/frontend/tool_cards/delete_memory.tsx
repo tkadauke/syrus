@@ -14,11 +14,13 @@ function parseResult(context: ToolCardContext): DeleteMemoryResult | null {
 }
 
 function isPending(context: ToolCardContext) {
-  return !context.resultError && context.parsedResult == null && !context.resultBody.trim()
+  return context.resultSettled === false
 }
 
 function isEmpty(context: ToolCardContext) {
-  return !context.resultError && isPlainObject(context.parsedResult) && !parseResult(context)
+  return (
+    !context.resultError && context.resultSettled !== false && !parseResult(context) && (context.parsedResult == null || isPlainObject(context.parsedResult))
+  )
 }
 
 function errorMemoryId(message: string) {
@@ -113,6 +115,6 @@ export const examples: ToolCardExample[] = [
     resultBody: "Error: memory not found or not accessible: 91",
     resultError: true
   },
-  { id: "pending", label: "Pending deletion", input: { id: 55 } },
+  { id: "pending", label: "Pending deletion", input: { id: 55 }, resultSettled: false },
   { id: "empty", label: "Empty result", input: { id: 55 }, parsedResult: {} }
 ]
