@@ -1,6 +1,12 @@
 module WorkflowSourceSnapshots
   InfrastructureStateError = Class.new(StandardError)
 
+  class BaseRefUnavailableError < InfrastructureStateError
+    def problem
+      Problem[:source_snapshot_base_ref_unavailable]
+    end
+  end
+
   module_function
 
   def record!(workflow:, source_sha:, source_ref:, creator_step:, tree_sha: nil, fingerprint: nil, published_at: Time.current)
