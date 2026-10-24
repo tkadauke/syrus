@@ -208,11 +208,11 @@ function AgentSessionCard({
             {node.state ? <StatusPill state={node.state} /> : null}
             {node.iteration && node.iteration > 1 ? <SmallPill>{t("conversation_iteration", { n: node.iteration })}</SmallPill> : null}
           </span>
-          <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">
-            {node.summary ? renderLightMarkdown(node.summary) : t("conversation_no_summary")}
-          </span>
         </span>
       </button>
+      <div className="max-h-48 overflow-y-auto break-words px-3 pb-3 pl-14 text-xs text-gray-600 dark:text-gray-400">
+        {node.summary ? renderLightMarkdown(node.summary) : t("conversation_no_summary")}
+      </div>
     </div>
   )
 }
@@ -365,11 +365,11 @@ function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
             <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
             {node.state ? <StatusPill state={node.state} /> : null}
           </span>
-          <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">
-            {node.summary ? renderLightMarkdown(node.summary) : t("conversation_check_ran")}
-          </span>
         </span>
       </button>
+      <div className="max-h-48 overflow-y-auto break-words px-3 pb-3 pl-12 text-xs text-gray-600 dark:text-gray-400">
+        {node.summary ? renderLightMarkdown(node.summary) : t("conversation_check_ran")}
+      </div>
       {expanded ? (
         <div className="border-t border-dashed border-gray-400 p-3 dark:border-gray-600">
           {command ? (
