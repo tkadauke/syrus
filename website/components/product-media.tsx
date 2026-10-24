@@ -3,19 +3,9 @@ import { SectionHeader } from "./section";
 
 const screenshots = [
   {
-    src: "/media/walkthrough-recording.png",
-    title: "Video walkthrough analysis",
-    alt: "A Syrus chat view showing a narrated screen recording analyzed into a draft Job.",
-  },
-  {
     src: "/media/epic-merge-train.png",
     title: "Dashboard triage queue",
     alt: "A Syrus dashboard list showing Jobs, workflow status, filters, and review state.",
-  },
-  {
-    src: "/media/spending-audit.png",
-    title: "Spending and audit trail",
-    alt: "A Syrus spending dashboard showing model cost trend and top spend categories.",
   },
 ] as const;
 
@@ -26,7 +16,7 @@ export function ProductMedia() {
         <SectionHeader
           eyebrow="Product demo"
           title="A narrated screen recording can become the next reviewed PR."
-          subtitle="The launch walkthrough centers on the video-to-Job flow, then follows that work through tracked execution, review queues, and cost visibility."
+          subtitle="The launch walkthrough centers on the video-to-Job flow, then follows that work through tracked execution and review queues."
         />
 
         <Reveal className="mx-auto mt-12 max-w-5xl">
@@ -36,7 +26,7 @@ export function ProductMedia() {
               controls
               playsInline
               preload="metadata"
-              poster="/media/walkthrough-recording.png"
+              poster="/product-screenshot.png"
               aria-label="Syrus product screencast showing a video walkthrough becoming a tracked Job."
             >
               <source
@@ -59,7 +49,7 @@ export function ProductMedia() {
         </Reveal>
 
         <RevealGroup
-          className="mt-8 grid gap-4 md:grid-cols-3"
+          className="mx-auto mt-8 grid max-w-5xl gap-4"
           stagger={0.08}
         >
           {screenshots.map((shot) => (
